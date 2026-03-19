@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+<style>
+        
+        /* Compat: max-w-8xl (se Tailwind local não tiver) */
+        .max-w-8xl{max-width:1440px}
+        .tab-button {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+            color: #333333;
+            transition: all 0.2s;
+        }
+
+        .tab-button.active {
+            border-left-color: #2E6DA4;
+            background-color: #f8f8f8;
+            font-weight: 700;
+            color: #2E6DA4;
+        }
+        .tab-button:hover:not(.active) {
+             background-color: #f8f8f8;
+        }
+
+        .ambiente-seguro-final {
+            display: flex;
+            align-items: center; 
+            width: fit-content; 
+        }
+        .icone-escudo-final {
+            /* AUMENTO DE TAMANHO (Icone do Ambiente Seguro) */
+            width: 55px; /* Aumentado de 45px */
+            height: 55px; /* Aumentado de 45px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px; /* Aumentado o espaço */
+            flex-shrink: 0; 
+        }
+        .texto-seguro-final {
+            color: #ffffff; 
+            font-size: 16px; 
+            line-height: 1.1; 
+            text-transform: uppercase;
+        }
+        .texto-seguro-final strong {
+            font-size: 20px; 
+            font-weight: 700;
+            display: block; 
+        }
+        
+        .voltar-loja-ajustado {
+            display: inline-flex;
+            align-items: center;
+            color: #ffffff; 
+            font-size: 16px; 
+            font-weight: 500;
+            text-transform: uppercase;
+            text-decoration: none;
+        }
+
+        .address-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.25rem;
+            background: white;
+            position: relative;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .address-card.selected {
+            border: 2px solid #2E6DA4;
+            background-color: #f0f7ff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-dashboard-bg font-sans overflow-x-hidden">
+
+    <div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold">
+  ⭐ GARANTIA DE QUALIDADE E SATISFAÇÃO
+</div>
+
+<div id="header-container"></div>
+
+
+    <main class="max-w-8xl mx-auto px-4 mt-8 pb-10">
+        <h1 class="text-3xl font-bold text-text-dark mb-6 border-b pb-3">Minha Conta</h1>
+        <div id="message-container" class="fixed top-20 right-4 z-50 w-full max-w-xs space-y-2"></div>
+        
+        <div id="loading-message" class="text-center py-20 bg-white rounded-lg shadow-md border border-gray-200">
+            <i class="fas fa-spinner fa-spin text-4xl text-primary-blue mb-4"></i>
+            <p class="text-lg text-text-dark font-semibold">Carregando seus dados...</p>
+        </div>
+
+        <div id="dashboard-content" class="lg:grid lg:grid-cols-4 gap-8" style="display:none;">
+            <aside class="lg:col-span-1 bg-white shadow-md rounded-lg overflow-hidden h-min">
+                <nav class="flex lg:flex-col text-sm border-b lg:border-b-0">
+                    <button class="tab-button active" data-tab="dashboard"><i class="fas fa-home mr-2"></i> Início</button>
+                    <button class="tab-button" data-tab="profile"><i class="fas fa-user-edit mr-2"></i> Perfil</button>
+                    <button class="tab-button" data-tab="orders"><i class="fas fa-box-open mr-2"></i> Meus Pedidos</button>
+                    <button class="tab-button" data-tab="address"><i class="fas fa-map-marker-alt mr-2"></i> Endereços</button>
+                    <button class="tab-button" data-tab="security"><i class="fas fa-lock mr-2"></i> Segurança</button>
+                    <button id="logout-btn" class="tab-button text-red-600"><i class="fas fa-sign-out-alt mr-2"></i> Sair</button>
+                </nav>
+            </aside>
+
+            <div id="tab-content" class="lg:col-span-3 bg-white shadow-md rounded-lg p-6 min-h-[500px]">
+                
+                <div id="content-dashboard" class="tab-pane">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-6">Olá, <span id="user-display-name">Carregando...</span></h2>
+                    <div class="p-6 bg-primary-blue text-white rounded-xl shadow-lg w-full max-w-xs">
+                        <i class="fas fa-box-open text-2xl mb-2"></i>
+                        <p class="text-lg font-semibold">Total de Pedidos</p>
+                        <p id="total-orders-count" class="text-3xl font-bold">0</p>
+                    </div>
+                </div>
+
+                
+                <div id="content-profile" class="tab-pane" style="display:none;">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-2">Dados Pessoais</h2>
+                    <p class="text-sm text-gray-500 mb-6">
+                        Preencha seus dados essenciais para facilitar compras, emissão de nota e entregas.
+                    </p>
+
+                    <div id="profile-missing-banner" class="hidden mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900">
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-exclamation-triangle mt-1"></i>
+                            <div>
+                                <p class="font-bold">Complete seu cadastro</p>
+                                <p class="text-sm">Alguns dados essenciais ainda não foram informados (ex.: CPF e data de nascimento).</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="form-edit-profile" class="space-y-4 max-w-2xl">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Nome completo</label>
+                                <input type="text" id="profile-name" required placeholder="Nome Completo" class="w-full border p-3 rounded-md">
+                            
+                                <p id="hint-name-locked" class="text-xs text-gray-500 mt-1 hidden">Nome não pode ser alterado após o cadastro.</p>
+</div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">E-mail (não editável)</label>
+                                <input type="email" id="profile-email" disabled class="w-full border p-3 rounded-md bg-gray-100">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Telefone</label>
+                                <input type="tel" id="profile-phone" placeholder="(00) 00000-0000" class="w-full border p-3 rounded-md">
+                                <p class="text-xs text-gray-500 mt-1">Dica: use DDD. Ex.: (31) 99999-9999</p>
+                                <p id="hint-phone-locked" class="text-xs text-gray-500 mt-1 hidden">Após cadastrar o primeiro endereço, o telefone fica bloqueado. Para trocar, use a verificação por e-mail.</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">CPF <span class="text-error-red">*</span></label>
+                                <input type="text" id="profile-cpf" required inputmode="numeric" placeholder="000.000.000-00" class="w-full border p-3 rounded-md">
+                                
+                                <p id="hint-cpf-locked" class="text-xs text-gray-500 mt-1 hidden">CPF não pode ser alterado após o cadastro.</p>
+<p class="text-xs text-gray-500 mt-1">Usado para identificação e emissão de nota fiscal.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Data de nascimento <span class="text-error-red">*</span></label>
+                                <input type="date" id="profile-birthdate" required class="w-full border p-3 rounded-md">
+                            </div>
+</div>
+
+                        <div class="flex items-center gap-3 pt-2">
+                            <button type="submit" class="bg-primary-blue text-white px-8 py-3 rounded-lg font-bold">Salvar Alterações</button>
+                            <span id="profile-save-hint" class="text-sm text-gray-500"></span>
+                        </div>
+                        <div class="flex flex-col md:flex-row items-start md:items-center gap-3 pt-3">
+                            <button type="button" id="btn-reset-password" class="px-6 py-3 border rounded-lg font-bold">Redefinir senha</button>
+                            <button type="button" id="btn-request-phone-change" class="px-6 py-3 border rounded-lg font-bold hidden">Trocar número de celular (verificação no e-mail)</button>
+                            <span id="phone-change-hint" class="text-sm text-gray-500"></span>
+                        </div>
+                    </form>
+                </div>
+
+
+<div id="content-orders" class="tab-pane" style="display:none;">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-6">Meus Pedidos</h2>
+                    <div id="orders-list" class="space-y-4"></div>
+                </div>
+
+                <div id="content-address" class="tab-pane" style="display:none;">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-black flex items-center">
+                            <i class="fas fa-map-pin mr-4 text-primary-blue"></i> Meus Endereços
+                        </h2>
+                        <div class="flex space-x-2">
+                            <a href="checkout.html" id="btn-back-purchase" class="px-4 py-2 border rounded-lg font-bold uppercase flex items-center">
+                                <i class="fas fa-arrow-left mr-2"></i> Voltar para a compra
+                            </a>
+
+                            <a href="checkout.html" id="btn-back-checkout" class="hidden bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md animate-bounce">
+                                <i class="fas fa-shopping-cart mr-2"></i> Voltar ao Checkout
+                            </a>
+                            <button onclick="document.getElementById('modal-endereco').classList.remove('hidden')" class="bg-primary-blue text-white px-4 py-2 rounded-lg font-bold text-sm uppercase shadow-md">+ Adicionar Novo</button>
+                        </div>
+                    </div>
+                    <div id="lista-enderecos-cards" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        </div>
+
+                    <div id="modal-endereco" class="fixed inset-0 bg-black/50 z-[100] hidden flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+                            <h3 class="text-xl font-bold mb-4 uppercase">Novo Endereço</h3>
+                            <form id="form-address" class="space-y-4">
+                                <input type="text" id="address-label" placeholder="DÊ UM NOME (EX: CASA, TRABALHO)" required class="w-full border p-3 rounded uppercase font-bold">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <input type="text" id="address-cep" placeholder="CEP" required class="border p-3 rounded">
+                                    <input type="text" id="address-street" placeholder="RUA" required class="border p-3 rounded">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <input type="text" id="address-number" placeholder="NÚMERO" required class="border p-3 rounded">
+                                    <input type="text" id="address-complement" placeholder="COMPLEMENTO" class="border p-3 rounded">
+                                </div>
+                                <input type="text" id="address-neighborhood" placeholder="BAIRRO" required class="w-full border p-3 rounded">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <input type="text" id="address-city" placeholder="CIDADE" required class="border p-3 rounded">
+                                    <input type="text" id="address-state" placeholder="UF" required maxlength="2" class="border p-3 rounded uppercase">
+                                </div>
+                                <div class="flex gap-4 pt-2">
+                                    <button type="submit" class="flex-1 bg-primary-blue text-white font-bold py-3 rounded-lg">SALVAR</button>
+                                    <button type="button" onclick="document.getElementById('modal-endereco').classList.add('hidden')" class="px-6 py-3 border rounded-lg">CANCELAR</button>
+</div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="content-security" class="tab-pane" style="display:none;">
+                    <h2 class="text-2xl font-bold text-primary-blue mb-6">Segurança</h2>
+                    <form id="form-change-password" class="space-y-4 max-w-lg">
+                        <input type="password" id="current-password" autocomplete="current-password" placeholder="Senha Atual" required class="w-full border p-3 rounded-md">
+                        <input type="password" id="new-password" autocomplete="new-password" placeholder="Nova Senha" required class="w-full border p-3 rounded-md">
+                        <button type="submit" class="bg-primary-blue text-white px-8 py-3 rounded-lg font-bold">Atualizar Senha</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<div id="footer-container"></div>
+
+
+<script type="module">
+// @ts-nocheck
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail, sendEmailVerification } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import {addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, query, serverTimestamp, setDoc, updateDoc, where, onSnapshot, orderBy, limit} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo", 
+        authDomain: "ariana-moveis-final.firebaseapp.com",
+        projectId: "ariana-moveis-final", 
+        storageBucket: "ariana-moveis-final.firebasestorage.app",
+        messagingSenderId: "695257365498",
+        appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    
+
+// 🔗 Bridge global para header.js (categorias + endereço)
+window.db = db;
+window.auth = auth;
+window.collection = collection;
+window.getDocs = getDocs;
+window.getDoc = getDoc;
+window.query = query;
+window.where = where;
+window.orderBy = orderBy;
+window.limit = limit;
+window.doc = doc;
+try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+// ================= ENDEREÇOS (compat: array em users + subcoleção users/{uid}/addresses) =================
+    async function fetchAddressesFromSubcollection(uid) {
+        try {
+            const snap = await getDocs(collection(db, "users", uid, "addresses"));
+            const list = [];
+            snap.forEach(d => {
+                const data = d.data() || {};
+                list.push({ ...data, _id: d.id });
+            });
+            return list;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function stripAddressId(addr) {
+        const { _id, ...rest } = addr || {};
+        return rest;
+    }
+    let currentUser = null;
+    let hasAnyAddress = false; // true após existir 1+ endereço no cadastro
+
+
+    window.displayMessage = (msg, type) => {
+        const container = document.getElementById('message-container');
+        const div = document.createElement('div');
+        div.className = `p-4 rounded shadow-lg text-white font-bold ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+        div.textContent = msg;
+        container.appendChild(div);
+        setTimeout(() => div.remove(), 3000);
+    };
+
+    window.switchTab = (tab) => {
+        document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        
+        const target = document.getElementById(`content-${tab}`);
+        if(target) target.style.display = 'block';
+        
+        const btn = document.querySelector(`[data-tab="${tab}"]`);
+        if(btn) btn.classList.add('active');
+    };
+
+    window.selectAddress = (cardElement) => {
+        const allCards = document.querySelectorAll('.address-card');
+        allCards.forEach(card => card.classList.remove('selected'));
+        cardElement.classList.add('selected');
+    };
+
+
+    // ================= VALIDACOES / MASCARAS =================
+    function onlyDigits(v) { return (v || "").replace(/\D/g, ""); }
+
+    function formatCPF(value) {
+        const v = onlyDigits(value).slice(0, 11);
+        const p1 = v.slice(0, 3);
+        const p2 = v.slice(3, 6);
+        const p3 = v.slice(6, 9);
+        const p4 = v.slice(9, 11);
+        let out = p1;
+        if (p2) out += "." + p2;
+        if (p3) out += "." + p3;
+        if (p4) out += "-" + p4;
+        return out;
+    }
+
+    // Validação de CPF (dígitos verificadores)
+    function isValidCPF(cpf) {
+        const v = onlyDigits(cpf);
+        if (v.length !== 11) return false;
+        if (/^(\d)\1{10}$/.test(v)) return false; // todos iguais
+
+        const calc = (base, factor) => {
+            let total = 0;
+            for (let i = 0; i < base.length; i++) total += Number(base[i]) * (factor - i);
+            const mod = total % 11;
+            return mod < 2 ? 0 : 11 - mod;
+        };
+
+        const d1 = calc(v.slice(0, 9), 10);
+        const d2 = calc(v.slice(0, 10), 11);
+        return d1 === Number(v[9]) && d2 === Number(v[10]);
+    }
+
+    function formatBRPhone(value) {
+        const v = onlyDigits(value).slice(0, 11);
+        const ddd = v.slice(0, 2);
+        const mid = v.length <= 10 ? v.slice(2, 6) : v.slice(2, 7);
+        const end = v.length <= 10 ? v.slice(6, 10) : v.slice(7, 11);
+        let out = "";
+        if (ddd) out += "(" + ddd + ") ";
+        out += mid;
+        if (end) out += "-" + end;
+        return out.trim();
+    }
+
+
+    async function loadUserData(user) {
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+
+        // Se não existir doc ainda, cria base mínima
+        if (!snap.exists()) {
+            await setDoc(userRef, { createdAt: serverTimestamp() }, { merge: true });
+        }
+
+        const data = snap.exists() ? snap.data() : {};
+
+        // Carrega endereços (compatível: array em users + subcoleção users/{uid}/addresses)
+        let addresses = Array.isArray(data.addresses) ? data.addresses : [];
+        if (!addresses.length) {
+            addresses = await fetchAddressesFromSubcollection(user.uid);
+            // sincroniza para o array, para a tela antiga não “sumir”
+            if (addresses.length) {
+                try { await updateDoc(userRef, { addresses }); } catch (e) {}
+            }
+        }
+        hasAnyAddress = addresses.length > 0;
+
+        // ======== Preenche perfil ========
+        document.getElementById('user-display-name').textContent = data.name || user.email;
+        document.getElementById('profile-name').value = data.name || "";
+        document.getElementById('profile-email').value = user.email || "";
+        document.getElementById('profile-phone').value = data.phone || "";
+        document.getElementById('profile-cpf').value = data.cpf ? formatCPF(data.cpf) : "";
+        document.getElementById('profile-birthdate').value = data.birthDate || "";
+
+        // ======== Bloqueios após 1º endereço ========
+        const nameInput = document.getElementById('profile-name');
+        const cpfInputEl = document.getElementById('profile-cpf');
+        const emailInput = document.getElementById('profile-email');
+        const phoneInput = document.getElementById('profile-phone');
+
+        const hintName = document.getElementById('hint-name-locked');
+        const hintCPF = document.getElementById('hint-cpf-locked');
+        const hintPhone = document.getElementById('hint-phone-locked');
+
+        // E-mail: nunca editável na tela
+        if (emailInput) {
+            emailInput.disabled = true;
+            emailInput.classList.add('bg-gray-100');
+        }
+
+        const lock = (hasAnyAddress === true);
+
+        if (nameInput) {
+            nameInput.disabled = lock;
+            nameInput.classList.toggle('bg-gray-100', lock);
+            if (hintName) hintName.classList.toggle('hidden', !lock);
+        }
+
+        if (cpfInputEl) {
+            cpfInputEl.disabled = lock;
+            cpfInputEl.classList.toggle('bg-gray-100', lock);
+            if (hintCPF) hintCPF.classList.toggle('hidden', !lock);
+        }
+
+        if (phoneInput) {
+            phoneInput.disabled = lock;
+            phoneInput.classList.toggle('bg-gray-100', lock);
+            if (hintPhone) hintPhone.classList.toggle('hidden', !lock);
+        }
+
+        // ======== Banner de dados faltando (antes do 1º endereço) ========
+        const missing = [];
+        if (!data.cpf) missing.push("CPF");
+        if (!data.birthDate) missing.push("Data de nascimento");
+        if (!data.phone) missing.push("Celular");
+        if (!data.name) missing.push("Nome");
+        const banner = document.getElementById('profile-missing-banner');
+        if (banner) {
+            if (!hasAnyAddress && missing.length) banner.classList.remove('hidden');
+            else banner.classList.add('hidden');
+        }
+
+        // ======== Render endereços ========
+        const list = document.getElementById('lista-enderecos-cards');
+        if (list) {
+            list.innerHTML = "";
+            if (!addresses.length) {
+                list.innerHTML = "<p class='text-gray-400 italic'>Nenhum endereço cadastrado.</p>";
+            } else {
+                addresses.forEach((addr, index) => {
+                    const card = document.createElement('div');
+                    card.className = "address-card";
+                    card.onclick = () => window.selectAddress(card);
+                    card.innerHTML = `
+                        <button onclick="event.stopPropagation(); window.deleteAddr(${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <h4 class="font-bold text-primary-blue uppercase">${(addr.label || '').toString()}</h4>
+                        <p class="text-sm text-gray-600">${(addr.street || '').toString()}, ${(addr.number || '').toString()}</p>
+                        <p class="text-sm text-gray-500">${(addr.city || '').toString()}/${(addr.state || '').toString()}</p>
+                    `;
+                    list.appendChild(card);
+                });
+            }
+        }
+
+        // Libera ações pós 1º endereço (ex: trocar celular)
+        const btnChangePhone = document.getElementById('btn-change-phone');
+        if (btnChangePhone) {
+            btnChangePhone.classList.toggle('hidden', !hasAnyAddress);
+        }
+    }
+
+    
+    
+    // ================= PEDIDOS (tempo real + compatibilidade orders/pedidos) =================
+    let _unsubOrders = [];
+
+    function _clearOrdersListeners() {
+        try { _unsubOrders.forEach(fn => { try { fn && fn(); } catch(e) {} }); } catch(e) {}
+        _unsubOrders = [];
+    }
+
+    function _tsToMillis(ts) {
+        try {
+            if (ts && typeof ts === "object" && typeof ts.seconds === "number") return ts.seconds * 1000;
+            if (typeof ts === "string" && ts.trim()) {
+                const d = new Date(ts);
+                const t = d.getTime();
+                if (!Number.isNaN(t)) return t;
+            }
+            if (ts instanceof Date) return ts.getTime();
+        } catch(e) {}
+        return 0;
+    }
+
+    function _money(n) {
+        const v = Number(n || 0);
+        return v.toFixed(2).replace(".", ",");
+    }
+
+    function _fmtDate(ts) {
+        const ms = _tsToMillis(ts);
+        if (ms) return new Date(ms).toLocaleString("pt-BR");
+        return "Recente";
+    }
+
+    function _getItems(order) {
+        return order?.items || order?.cartItems || order?.products || order?.itens || [];
+    }
+
+    function _toNum(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === "number") return isFinite(v) ? v : 0;
+    const s = String(v).replace(/[^0-9,.-]/g, "").replace(",", ".");
+    const n = Number(s);
+    return isFinite(n) ? n : 0;
+}
+
+function _getItemsArray(order) {
+    return (
+        order?.items ||
+        order?.cartItems ||
+        order?.products ||
+        order?.itens ||
+        order?.carrinho ||
+        []
+    );
+}
+
+function _calcItemsTotal(order) {
+    const items = _getItemsArray(order);
+    if (!Array.isArray(items)) return 0;
+    let sum = 0;
+    for (const it of items) {
+        const q = _toNum(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1;
+        const p =
+            _toNum(it?.price ?? it?.unitPrice ?? it?.valor ?? it?.preco ?? it?.amount ?? 0);
+        sum += p * q;
+    }
+    return sum;
+}
+
+function _getTotal(order) {
+    // tenta campos conhecidos primeiro
+    const candidates = [
+        order?.totalPrice,
+        order?.total,
+        order?.amount,
+        order?.grandTotal,
+        order?.orderTotals?.total,
+        order?.orderTotals?.grandTotal,
+        order?.orderTotals?.final,
+        order?.orderTotals?.finalTotal,
+        order?.orderTotals?.totalAmount,
+        order?.orderTotals?.totalValue,
+        order?.totals?.total,
+        order?.totals?.grandTotal,
+        order?.payment?.amount,
+        order?.payment?.total,
+        order?.payment?.transaction_amount,
+    ];
+    for (const c of candidates) {
+        const n = _toNum(c);
+        if (n > 0) return n;
+    }
+
+    // fallback: calcula por itens + frete
+    const itemsTotal = _calcItemsTotal(order);
+    const ship = _toNum(order?.shippingPrice ?? order?.shipping ?? order?.frete ?? order?.orderTotals?.shipping ?? order?.totals?.shipping);
+    const total = itemsTotal + (ship > 0 ? ship : 0);
+    return total > 0 ? total : 0;
+}
+
+    function _renderOrders(mergedMap) {
+        const list = document.getElementById('orders-list');
+        if (!list) return;
+
+        const arr = Array.from(mergedMap.values());
+
+        // mais novo primeiro (usa createdAt/updatedAt/date)
+        arr.sort((a, b) => {
+            const ta = _tsToMillis(a.data.createdAt || a.data.updatedAt || a.data.date_created || a.data.date || a.data.data);
+            const tb = _tsToMillis(b.data.createdAt || b.data.updatedAt || b.data.date_created || b.data.date || b.data.data);
+            return tb - ta;
+        });
+
+        list.innerHTML = "";
+
+        if (!arr.length) {
+            list.innerHTML = "<p class='text-gray-400 italic'>Nenhum pedido encontrado.</p>";
+            const cnt = document.getElementById('total-orders-count');
+            if (cnt) cnt.textContent = "0";
+            return;
+        }
+
+        arr.forEach(({ id, data }) => {
+            const items = Array.isArray(_getItems(data)) ? _getItems(data) : [];
+            const names = items
+                .map(it => (it?.name || it?.title || it?.productName || it?.nome || "").toString().trim())
+                .filter(Boolean);
+
+            const resumo = names.length
+                ? (names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : ""))
+                : (data?.summary || data?.descricao || "");
+
+            const total = _getTotal(data);
+            const status = (data?.status || data?.paymentStatus || "Processando").toString();
+            const created = _fmtDate(data?.createdAt || data?.updatedAt || data?.date_created || data?.date || data?.data);
+
+            const shortId = id.substring(0, 6).toUpperCase();
+
+            list.innerHTML += `
+                <div class="p-4 border rounded-lg flex justify-between items-center bg-white shadow-sm">
+                    <div>
+                        <p class="font-bold text-primary-blue">Pedido #${shortId}</p>
+                        <p class="text-xs text-gray-500">${created}</p>
+                        ${resumo ? `<p class="text-xs text-gray-700 mt-1"><strong>Itens:</strong> ${resumo}</p>` : ""}
+                        <a href="detalhes_pedido.html?id=${encodeURIComponent(id)}&short=${shortId}" class="text-xs text-primary-blue font-bold underline mt-1 block">VER DETALHES E RASTREIO</a>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold">R$ ${_money(total)}</p>
+                        <span class="text-[10px] uppercase font-black px-2 py-1 rounded bg-blue-100 text-blue-700">${status}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        const cnt = document.getElementById('total-orders-count');
+        if (cnt) cnt.textContent = String(arr.length);
+    }
+
+    function startOrdersListener(uid) {
+        _clearOrdersListeners();
+
+        const merged = new Map(); // id -> {id, data}
+
+        const upsert = (id, data) => {
+            merged.set(id, { id, data: data || {} });
+            _renderOrders(merged);
+        };
+
+        const remove = (id) => {
+            merged.delete(id);
+            _renderOrders(merged);
+        };
+
+        // Helper: cria um listener e mescla no map
+        const listenQuery = (q) => onSnapshot(
+            q,
+            (snap) => {
+            snap.docChanges().forEach((chg) => {
+                const id = chg.doc.id;
+                const data = chg.doc.data() || {};
+                if (chg.type === "removed") remove(id);
+                else upsert(id, data);
+            });
+            },
+            (err) => {
+                console.warn('[orders] listener erro', err?.message || err);
+            }
+        );
+
+        // Coleção principal "orders"
+        // Compat de campo: userId / uid / userUid / buyerId / clientId
+        const orders = collection(db, "orders");
+        const pedidos = collection(db, "pedidos");
+
+        const baseOrderBy = (colRef) => {
+            try { return query(colRef, limit(50)); } catch(e) { return query(colRef, limit(50)); }
+        };
+
+        const qs = [
+            // orders
+            query(orders, where("userId", "==", uid), limit(50)),
+            query(orders, where("uid", "==", uid), limit(50)),
+            query(orders, where("userUid", "==", uid), limit(50)),
+            query(orders, where("buyerId", "==", uid), limit(50)),
+            query(orders, where("clientId", "==", uid), limit(50)),
+
+            // pedidos (alguns fluxos salvam aqui)
+            query(pedidos, where("userId", "==", uid), limit(50)),
+            query(pedidos, where("uid", "==", uid), limit(50)),
+            query(pedidos, where("userUid", "==", uid), limit(50)),
+            query(pedidos, where("buyerId", "==", uid), limit(50)),
+            query(pedidos, where("clientId", "==", uid), limit(50)),
+        ];
+
+        // Alguns projetos não têm índice em todos. Então: tenta, e se falhar, cai num listener sem orderBy (limit).
+        qs.forEach((q) => {
+            try {
+                _unsubOrders.push(listenQuery(q));
+            } catch (e) {
+                try {
+                    // fallback: sem orderBy (pode exigir menos índices)
+                    const colRef = q?._query?.path?.canonicalString?.includes("pedidos") ? pedidos : orders;
+                    _unsubOrders.push(listenQuery(baseOrderBy(colRef)));
+                } catch (e2) {}
+            }
+        });
+    }
+
+
+    // LISTENER DE AUTH E REDIRECIONAMENTO
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user;
+            document.getElementById('loading-message').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'grid';
+            loadUserData(user);
+            startOrdersListener(user.uid);
+            // abre a aba pelo hash se vier na URL
+            try { handleHashTabs(); } catch(e) {}
+
+            // LOGICA DO BOTAO VOLTAR CHECKOUT
+            const params = new URLSearchParams(window.location.search);
+            // Botão "Voltar para a compra": não deve mandar para detalhes do pedido.
+// Preferimos voltar para a loja; se o referrer for uma página "ok" (produto/busca/carrinho), usamos ele.
+const ref = (document.referrer || '').toLowerCase();
+const isBadRef = ref.includes('detalhes_pedido') || ref.includes('pedido') || ref.includes('minha_conta') || ref.includes('meus_pedidos');
+const isSameOrigin = !ref || ref.includes(window.location.origin.toLowerCase());
+const backHref = (params.get('from') === 'checkout') ? 'checkout.html'
+              : (!isBadRef && isSameOrigin && ref) ? document.referrer
+              : 'index.html';
+
+            const btnBackPurchase = document.getElementById('btn-back-purchase');
+            if (btnBackPurchase) btnBackPurchase.href = backHref;
+
+            const btnBackPurchaseModal = document.getElementById('btn-back-purchase-modal');
+            if (btnBackPurchaseModal) btnBackPurchaseModal.href = backHref;
+            if (params.get('tab') === 'address') {
+                window.switchTab('address');
+                if (params.get('from') === 'checkout') {
+                    const btnBack = document.getElementById('btn-back-checkout');
+                    if(btnBack) btnBack.classList.remove('hidden');
+                }
+            }
+        } else { _clearOrdersListeners(); window.location.href = 'login_cadastro.html'; }
+    });
+
+    // FORMULARIO ENDEREÇO
+    
+    // FORMULARIO ENDEREÇO
+    document.getElementById('form-address').onsubmit = async (e) => {
+        e.preventDefault();
+
+        const newAddr = {
+            label: document.getElementById('address-label').value.trim(),
+            cep: document.getElementById('address-cep').value.trim(),
+            street: document.getElementById('address-street').value.trim(),
+            number: document.getElementById('address-number').value.trim(),
+            complement: document.getElementById('address-complement').value.trim(),
+            neighborhood: document.getElementById('address-neighborhood').value.trim(),
+            city: document.getElementById('address-city').value.trim(),
+            state: document.getElementById('address-state').value.trim().toUpperCase(),
+        };
+
+        try {
+            const userRef = doc(db, "users", currentUser.uid);
+            const userSnap = await getDoc(userRef);
+            const data = userSnap.exists() ? userSnap.data() : {};
+            const addresses = data.addresses || [];
+
+            // PRIMEIRO ENDEREÇO: exige dados essenciais e grava (depois ficam bloqueados)
+            if (addresses.length === 0) {
+                const nameEl = document.getElementById('profile-name');
+                const cpfEl = document.getElementById('profile-cpf');
+                const phoneEl = document.getElementById('profile-phone');
+                const birthEl = document.getElementById('profile-birthdate');
+
+                const name = (nameEl?.value || "").trim();
+                const cpfMasked = (cpfEl?.value || "").trim();
+                const phone = (phoneEl?.value || "").trim();
+                const birthDate = (birthEl?.value || "").trim();
+
+                if (!name) { window.displayMessage("Antes do 1º endereço, informe seu nome no perfil.", "error"); window.switchTab('profile'); return; }
+                if (!cpfMasked) { window.displayMessage("Antes do 1º endereço, informe seu CPF no perfil.", "error"); window.switchTab('profile'); return; }
+                if (!isValidCPF(cpfMasked)) { window.displayMessage("CPF inválido. Verifique no perfil.", "error"); window.switchTab('profile'); return; }
+                if (!phone) { window.displayMessage("Antes do 1º endereço, informe seu celular no perfil.", "error"); window.switchTab('profile'); return; }
+                if (!birthDate) { window.displayMessage("Antes do 1º endereço, informe sua data de nascimento no perfil.", "error"); window.switchTab('profile'); return; }
+
+                const patch = {
+                    // define só se ainda não existir (para evitar sobrescrever)
+                    ...(data.name ? {} : { name }),
+                    ...(data.cpf ? {} : { cpf: onlyDigits(cpfMasked) }),
+                    ...(data.phone ? {} : { phone }),
+                    ...(data.birthDate ? {} : { birthDate }),
+                };
+
+                if (Object.keys(patch).length) {
+                    await updateDoc(userRef, patch);
+                }
+            }
+
+            await updateDoc(doc(db, "users", currentUser.uid), { addresses: arrayUnion(newAddr) });
+
+            // também salva na subcoleção (se existir/para compatibilidade)
+            try { await addDoc(collection(db, "users", currentUser.uid, "addresses"), { ...newAddr, createdAt: serverTimestamp() }); } catch(e) {}
+            document.getElementById('modal-endereco').classList.add('hidden');
+            document.getElementById('form-address').reset();
+            loadUserData(currentUser);
+            window.displayMessage("Endereço salvo!", "success");
+        } catch(err) {
+            window.displayMessage("Erro ao salvar", "error");
+        }
+    };
+window.deleteAddr = async (index) => {
+        if(!confirm("Excluir este endereço?")) return;
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        const list = (userSnap.exists() && Array.isArray(userSnap.data().addresses)) ? userSnap.data().addresses : [];
+        const addr = list[index];
+        if (!addr) return;
+
+        // remove do array principal
+        await updateDoc(userRef, { addresses: arrayRemove(addr) });
+
+        // best-effort: remove também da subcoleção (evita duplicar legado)
+        try {
+            const subRef = collection(db, "users", currentUser.uid, "addresses");
+            const qDel = query(subRef,
+                where("cep", "==", addr.cep || ""),
+                where("street", "==", addr.street || ""),
+                where("number", "==", addr.number || "")
+            );
+            const snap = await getDocs(qDel);
+            for (const d of snap.docs) {
+                try { await deleteDoc(d.ref); } catch(e) {}
+            }
+        } catch(e) {}
+
+        loadUserData(currentUser);
+        window.displayMessage("Endereço excluído", "success");
+    };
+
+    
+    // CEP: máscara + busca automática (ViaCEP) enquanto digita
+    function formatCEP(value) {
+        const v = onlyDigits(value).slice(0, 8);
+        const p1 = v.slice(0, 5);
+        const p2 = v.slice(5, 8);
+        return p2 ? `${p1}-${p2}` : p1;
+    }
+
+    let _cepTimer = null;
+    async function fetchViaCepAndFill(rawCep) {
+        const cep = onlyDigits(rawCep);
+        if (cep.length !== 8) return;
+
+        try {
+            const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const data = await res.json();
+            if (data && !data.erro) {
+                // Preenche automaticamente
+                document.getElementById('address-street').value = data.logradouro || "";
+                document.getElementById('address-neighborhood').value = data.bairro || "";
+                document.getElementById('address-city').value = data.localidade || "";
+                document.getElementById('address-state').value = (data.uf || "").toUpperCase();
+
+                // Foca no número para agilizar
+                const num = document.getElementById('address-number');
+                if (num) num.focus();
+            }
+        } catch (err) {
+            // silencioso (não trava a tela)
+        }
+    }
+
+    const cepInputEl = document.getElementById('address-cep');
+    if (cepInputEl) {
+        cepInputEl.addEventListener('input', (e) => {
+            const caret = e.target.selectionStart;
+            const before = e.target.value;
+            e.target.value = formatCEP(before);
+            e.target.selectionEnd = Math.min(e.target.value.length, (caret || 0) + 1);
+
+            clearTimeout(_cepTimer);
+            _cepTimer = setTimeout(() => fetchViaCepAndFill(e.target.value), 350);
+        });
+
+        // fallback no blur
+        cepInputEl.addEventListener('blur', (e) => fetchViaCepAndFill(e.target.value));
+    }
+
+
+    document.querySelectorAll('.tab-button').forEach(btn => btn.onclick = () => window.switchTab(btn.dataset.tab));
+
+    // === Suporte a link direto: minha_conta.html#pedidos (abre a aba Meus Pedidos automaticamente) ===
+    function handleHashTabs() {
+        const h = (location.hash || "").toLowerCase().replace("#", "");
+        if (!h) return;
+
+        // aliases
+        if (h === "pedidos" || h === "orders" || h === "meus-pedidos" || h === "meuspedidos") {
+            window.switchTab('orders');
+            // tenta garantir que a lista esteja visível na viewport
+            const sec = document.getElementById('content-orders');
+            if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+    window.addEventListener('hashchange', handleHashTabs);
+    // chamar após a página inicializar (e após auth, quando o conteúdo aparecer)
+
+    document.getElementById('logout-btn').onclick = () => signOut(auth);
+
+    // Ações: Redefinir senha e troca de celular com verificação de e-mail
+    const btnResetPwd = document.getElementById('btn-reset-password');
+    if (btnResetPwd) {
+        btnResetPwd.addEventListener('click', async () => {
+            try {
+                await sendPasswordResetEmail(auth, currentUser.email);
+                window.displayMessage("Enviamos um link de redefinição de senha para seu e-mail.", "success");
+            } catch (err) {
+                window.displayMessage("Não foi possível enviar o e-mail de redefinição.", "error");
+            }
+        });
+    }
+
+    const modalPhone = document.getElementById('modal-phone');
+    const btnReqPhone = document.getElementById('btn-request-phone-change');
+    const btnClosePhone = document.getElementById('btn-close-phone-modal');
+    const newPhoneEl = document.getElementById('new-phone');
+    const formPhone = document.getElementById('form-phone');
+
+    if (newPhoneEl) {
+        newPhoneEl.addEventListener('input', (e) => {
+            const caret = e.target.selectionStart;
+            const before = e.target.value;
+            e.target.value = formatBRPhone(before);
+            e.target.selectionEnd = Math.min(e.target.value.length, (caret || 0) + 1);
+        });
+    }
+
+    if (btnReqPhone) {
+        btnReqPhone.addEventListener('click', async () => {
+            try {
+                // exige e-mail verificado
+                if (!currentUser.emailVerified) {
+                    await sendEmailVerification(currentUser);
+                    window.displayMessage("Seu e-mail ainda não está verificado. Acabei de reenviar a verificação para seu e-mail.", "info");
+                    return;
+                }
+                if (modalPhone) modalPhone.classList.remove('hidden');
+                if (newPhoneEl) { newPhoneEl.value = ""; newPhoneEl.focus(); }
+            } catch (err) {
+                window.displayMessage("Erro ao solicitar verificação por e-mail.", "error");
+            }
+        });
+    }
+
+    if (btnClosePhone && modalPhone) {
+        btnClosePhone.addEventListener('click', () => modalPhone.classList.add('hidden'));
+    }
+    if (modalPhone) {
+        modalPhone.addEventListener('click', (e) => {
+            if (e.target === modalPhone) modalPhone.classList.add('hidden');
+        });
+    }
+
+    if (formPhone) {
+        formPhone.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser.emailVerified) {
+                window.displayMessage("Verifique seu e-mail antes de trocar o celular.", "error");
+                return;
+            }
+            const phone = (newPhoneEl?.value || "").trim();
+            if (!phone) { window.displayMessage("Informe o novo celular.", "error"); return; }
+
+            try {
+                await updateDoc(doc(db, "users", currentUser.uid), { phone });
+                if (modalPhone) modalPhone.classList.add('hidden');
+                loadUserData(currentUser);
+                window.displayMessage("Celular atualizado com sucesso!", "success");
+            } catch (err) {
+                window.displayMessage("Erro ao atualizar celular.", "error");
+            }
+        });
+    }
+
+
+    // Mascara de CPF e Telefone (Perfil)
+    const cpfInput = document.getElementById('profile-cpf');
+    if (cpfInput) {
+        cpfInput.addEventListener('input', (e) => {
+            if (cpfInput.disabled) return;
+            const caret = e.target.selectionStart;
+            const before = e.target.value;
+            e.target.value = formatCPF(before);
+            // ajuste simples de cursor (evita travar)
+            e.target.selectionEnd = Math.min(e.target.value.length, caret + 1);
+        });
+        cpfInput.addEventListener('blur', () => {
+            if (cpfInput.disabled) return;
+            if (cpfInput.value && !isValidCPF(cpfInput.value)) {
+                window.displayMessage("CPF inválido. Verifique e tente novamente.", "error");
+                cpfInput.focus();
+            }
+        });
+    }
+
+    const phoneInput = document.getElementById('profile-phone');
+    if (phoneInput) {
+        phoneInput.addEventListener('input', (e) => {
+            const caret = e.target.selectionStart;
+            const before = e.target.value;
+            e.target.value = formatBRPhone(before);
+            e.target.selectionEnd = Math.min(e.target.value.length, caret + 1);
+        });
+    }
+
+    document.getElementById('form-edit-profile').onsubmit = async (e) => {
+        e.preventDefault();
+
+        const phoneEl = document.getElementById('profile-phone');
+        const phone = (phoneEl && !phoneEl.disabled) ? phoneEl.value.trim() : (document.getElementById('profile-phone').value.trim());
+        const cpfMasked = document.getElementById('profile-cpf').value.trim();
+        const birthDate = document.getElementById('profile-birthdate').value;
+
+        if (!birthDate) { window.displayMessage("Informe sua data de nascimento.", "error"); return; }
+
+        try {
+            const userRef = doc(db, "users", currentUser.uid);
+            const userSnap = await getDoc(userRef);
+            const currentData = userSnap.exists() ? userSnap.data() : {};
+
+            const patch = {
+                birthDate
+            };
+
+            // Telefone: só atualiza aqui se ainda NÃO estiver bloqueado
+            if (phoneEl && !phoneEl.disabled) {
+                patch.phone = phone;
+            }
+
+            // Nome: permite definir apenas se ainda não existir
+            if (!currentData.name) {
+                const name = document.getElementById('profile-name').value.trim();
+                if (!name) { window.displayMessage("Informe seu nome completo.", "error"); return; }
+                patch.name = name;
+            }
+
+            // CPF: permite definir apenas se ainda não existir
+            if (!currentData.cpf) {
+                if (!cpfMasked) { window.displayMessage("Informe seu CPF.", "error"); return; }
+                if (!isValidCPF(cpfMasked)) {
+                    window.displayMessage("CPF inválido. Verifique e tente novamente.", "error");
+                    document.getElementById('profile-cpf').focus();
+                    return;
+                }
+                patch.cpf = onlyDigits(cpfMasked);
+            }
+
+            await updateDoc(userRef, patch);
+            window.displayMessage("Cadastro atualizado com sucesso!", "success");
+            loadUserData(currentUser);
+        } catch (err) {
+            window.displayMessage("Erro ao atualizar cadastro.", "error");
+        }
+    };
+</script>
+
+<div id="modal-phone" class="fixed inset-0 bg-black/50 z-[110] hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-xl font-bold uppercase">Trocar número de celular</h3>
+      <button type="button" id="btn-close-phone-modal" class="text-gray-500 hover:text-black text-2xl leading-none">&times;</button>
+    </div>
+    <p class="text-sm text-gray-600 mb-4">
+      Para sua segurança, só liberamos a troca de celular se seu e-mail estiver verificado.
+    </p>
+    <form id="form-phone" class="space-y-4">
+      <input type="tel" id="new-phone" placeholder="Novo celular (00) 00000-0000" required class="w-full border p-3 rounded-md">
+      <button type="submit" class="bg-primary-blue text-white px-8 py-3 rounded-lg font-bold w-full">Confirmar troca</button>
+    </form>
+  </div>
+</div>
+
+<script defer src="./header.js"></script>
+<script defer src="./footer.js"></script>
+<script>
+  (function () {
+    let done = false;
+    function run(){
+      if (done) return;
+      if (typeof window.carregarHeader !== 'function') return;
+      try { window.carregarHeader(); done = true; } catch(e){ console.error("[minha_conta] header:", e); }
+    }
+    window.addEventListener('firebase:ready', run);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(run, 0));
+    setTimeout(run, 250);
+  })();
+</script>
+
+ <script src="js/layout-fit.js" defer></script>
+ 
+</body>
+</html>

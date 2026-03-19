@@ -1,0 +1,659 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Editar Produto | ARIANA MÓVEIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <link rel="stylesheet" href="css/tailwind.min.css" />
+  <style>
+    .animate-fade { animation: fade-in 0.3s ease-out; } @keyframes fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} }
+    .bg-primary-blue { background-color: #2E6DA4; } .text-primary-blue { color:#2E6DA4; } .bg-dark-bg { background-color:#1D2B3A; }
+    .bg-fundo-claro { background-color:#F5F7FA; } .bg-dark-gray-bg { background-color:#222222; } .bg-error-red { background-color:#ef4444; } .bg-success-green { background-color:#10b981; }
+    #toast-container { position: fixed; top:20px; right:20px; z-index:50; } .toast { box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); transition: opacity .3s ease-out; }
+    #image-modal-overlay { background-color: rgba(0,0,0,.7); } #image-modal-content { max-height:90vh; max-width:90vw; }
+  </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3"></div>
+
+  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
+    <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
+      <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+      <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain" />
+      <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+    <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
+    <nav class="flex flex-col space-y-2">
+      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
+      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
+      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+    </nav>
+  </aside>
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
+      <h1 class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
+      <div class="relative flex items-center space-x-4">
+        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+      <div class="max-w-5xl mx-auto">
+        <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-900 flex items-center"><i class="fas fa-pen-to-square mr-3 text-primary-blue"></i> Editar Produto</h2>
+            <p class="text-gray-600 font-medium mt-2">Atualize informações do seu produto. Apenas o dono do produto pode editar.</p>
+          </div>
+          <a href="seller_produtos.html" class="bg-white px-4 py-2 rounded-xl font-bold text-slate-900 border border-gray-200 hover:bg-gray-50 transition-all"><i class="fas fa-arrow-left mr-2 text-primary-blue"></i> Voltar</a>
+        </div>
+
+        <div id="alert" class="hidden mb-6 p-4 rounded-xl font-bold"></div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+          <div class="flex items-center justify-between gap-3 flex-wrap mb-6">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="productIdPill" class="hidden text-xs font-bold bg-gray-100 text-gray-700 px-3 py-2 rounded-xl font-mono"></span>
+              <span id="sellerPill" class="hidden text-xs font-bold bg-gray-100 text-gray-700 px-3 py-2 rounded-xl"></span>
+            </div>
+            <button id="btn-inactivate" type="button" class="bg-red-50 text-red-700 px-4 py-2 rounded-xl font-bold border border-red-200 hover:bg-red-100 transition-all"><i class="fas fa-ban mr-2"></i> Inativar produto</button>
+          </div>
+
+          <form id="form" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Nome do produto <span class="text-red-500">*</span></label>
+                <input id="name" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Ex: Sofá Retrátil 3 Lugares" />
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">SKU</label>
+                <div class="flex gap-2">
+                  <input id="sku" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold uppercase" placeholder="Ex: SOFA-001" />
+                  <button id="btn-generate-sku" type="button" class="bg-gray-100 px-4 rounded-xl font-bold whitespace-nowrap">Gerar SKU</button>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">O sistema valida SKU duplicado antes de salvar.</p>
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Preço (R$) <span class="text-red-500">*</span></label>
+                <input id="price" type="number" step="0.01" min="0" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" />
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Estoque <span class="text-red-500">*</span></label>
+                <input id="stock" type="number" step="1" min="0" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" />
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Categoria</label>
+                <select id="category" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold"><option value="">Selecione uma categoria</option></select>
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Subcategoria</label>
+                <select id="subcategory" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold"><option value="">Selecione uma subcategoria</option></select>
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Slug da categoria</label>
+                <input id="categorySlug" readonly class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-gray-50 text-gray-600" />
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Slug da subcategoria</label>
+                <input id="subcategorySlug" readonly class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-gray-50 text-gray-600" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-bold mb-2 text-slate-900">Descrição</label>
+              <textarea id="description" rows="5" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Descreva o produto..."></textarea>
+            </div>
+
+            <div>
+              <label class="block font-bold mb-2 text-slate-900">Adicionar novas imagens</label>
+              <input id="newImages" type="file" multiple accept="image/*" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-white" />
+              <p class="text-xs text-gray-500 mt-2">As novas imagens serão adicionadas ao produto.</p>
+            </div>
+
+            <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200">
+              <div class="font-bold text-slate-900 mb-3"><i class="fas fa-truck mr-2 text-primary-blue"></i> Dimensões e Peso para Frete</div>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div><label class="block font-bold mb-2 text-slate-900">Peso (kg) <span class="text-red-500">*</span></label><input id="pesoKg" type="number" step="0.01" min="0" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Comprimento (cm) <span class="text-red-500">*</span></label><input id="comprimento" type="number" min="1" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Largura (cm) <span class="text-red-500">*</span></label><input id="largura" type="number" min="1" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Altura (cm) <span class="text-red-500">*</span></label><input id="altura" type="number" min="1" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200">
+              <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                <div><div class="font-bold text-slate-900"><i class="fas fa-image mr-2 text-primary-blue"></i> Imagens (URLs)</div><div class="text-xs text-gray-600 font-medium mt-1">A primeira URL é a imagem principal.</div></div>
+                <button type="button" id="btn-add-image" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-900 transition-all shadow"><i class="fas fa-plus mr-2"></i> Adicionar</button>
+              </div>
+              <div id="imagesWrap" class="space-y-3"></div>
+            </div>
+
+            <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200">
+              <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                <div><div class="font-bold text-slate-900"><i class="fas fa-list-check mr-2 text-primary-blue"></i> Especificações técnicas</div><div class="text-xs text-gray-600 font-medium mt-1">Chave/valor (ex: marca, modelo, cor...)</div></div>
+                <button type="button" id="btn-add-spec" class="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-blue transition-all shadow"><i class="fas fa-plus mr-2"></i> Adicionar</button>
+              </div>
+              <div id="specsWrap" class="space-y-3"></div>
+            </div>
+
+            <div class="flex items-start justify-between gap-4 flex-wrap border-t border-gray-100 pt-6">
+              <label class="flex items-center gap-3 font-bold text-slate-900"><input id="active" type="checkbox" class="w-5 h-5" /> Produto ativo (visível para clientes)</label>
+              <button id="btn-save" type="submit" class="bg-primary-blue text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition-all shadow-lg"><i class="fas fa-save mr-2"></i> Salvar alterações</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+    import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+    import { createUploadService } from "./uploadImage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+    };
+
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const uploader = createUploadService(app);
+    const $ = (id) => document.getElementById(id);
+
+
+    const IMAGE_UPLOAD_MAX_WIDTH = 1024;
+    const IMAGE_UPLOAD_MAX_HEIGHT = 1024;
+    const IMAGE_UPLOAD_QUALITY = 0.7;
+
+    function loadImageFromBlob(blob) {
+      return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(img);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("Não foi possível processar a imagem selecionada."));
+        };
+        img.src = objectUrl;
+      });
+    }
+
+    async function compressImageFile(file) {
+      if (!file || !String(file.type || "").startsWith("image/")) return file;
+
+      const imageBitmap = await loadImageFromBlob(file);
+      const originalWidth = imageBitmap.naturalWidth || imageBitmap.width || 0;
+      const originalHeight = imageBitmap.naturalHeight || imageBitmap.height || 0;
+      if (!originalWidth || !originalHeight) return file;
+
+      const ratio = Math.min(
+        1,
+        IMAGE_UPLOAD_MAX_WIDTH / originalWidth,
+        IMAGE_UPLOAD_MAX_HEIGHT / originalHeight
+      );
+      const targetWidth = Math.max(1, Math.round(originalWidth * ratio));
+      const targetHeight = Math.max(1, Math.round(originalHeight * ratio));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+      const webpBlob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error("Falha ao compactar a imagem.")),
+          "image/webp",
+          IMAGE_UPLOAD_QUALITY
+        );
+      });
+
+      const cleanName = String(file.name || "imagem")
+        .replace(/\.[^.]+$/, "")
+        .replace(/[^a-zA-Z0-9_-]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-+|-+$/g, "") || `imagem-${Date.now()}`;
+
+      return new File([webpBlob], `${cleanName}.webp`, {
+        type: "image/webp",
+        lastModified: Date.now()
+      });
+    }
+
+    async function optimizeImagesBeforeUpload(files) {
+      const result = [];
+      for (const file of Array.from(files || [])) {
+        result.push(await compressImageFile(file));
+      }
+      return result;
+    }
+
+
+    async function saveProductViaApi(productId, payload) {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Sessão expirada. Faça login novamente.");
+      const idToken = await user.getIdToken();
+      const resp = await fetch("/api/seller/products/upsert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ productId, data: payload })
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Não foi possível salvar o produto.");
+      return json;
+    }
+
+    function toast(message, type="info"){
+      const container = $("toast-container");
+      if(!container){ alert(message); return; }
+      const el = document.createElement("div");
+      const map = { success:"bg-success-green", error:"bg-error-red", info:"bg-primary-blue" };
+      el.className = "toast p-4 rounded-lg text-white " + (map[type] || "bg-primary-blue") + " animate-fade";
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(()=>{ el.style.opacity="0"; setTimeout(()=>el.remove(), 300); }, 3500);
+    }
+
+    function showAlert(type, msg) {
+      const el = $("alert");
+      if(!el) return toast(msg, type === "error" ? "error" : "success");
+      el.classList.remove("hidden");
+      el.className = "mb-6 p-4 rounded-xl font-bold " + (type === "error"
+        ? "bg-red-100 text-red-700 border border-red-200"
+        : "bg-emerald-100 text-emerald-700 border border-emerald-200");
+      el.textContent = msg;
+    }
+
+    function normalizeSlug(value) {
+      return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+    function sanitizeSku(value) {
+      return String(value || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9_-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+    }
+    function productNameToken(name) {
+      const token = normalizeSlug(name).replace(/-/g, "").slice(0, 4).toUpperCase();
+      return token || "PROD";
+    }
+    function buildSkuBase({ sellerUid, categorySlug, productName }) {
+      const sellerPart = String(sellerUid || "SELL").replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "SELL";
+      const categoryPart = sanitizeSku((categorySlug || "GER").slice(0, 4));
+      const productPart = productNameToken(productName);
+      return `${categoryPart || "GER"}-${sellerPart}-${productPart}`;
+    }
+
+    async function skuExists(sku, excludeId = "") {
+      const skuClean = sanitizeSku(sku);
+      if (!skuClean) return false;
+      const snap = await getDocs(query(collection(db, "products"), where("sku", "==", skuClean), limit(3)));
+      return snap.docs.some(d => d.id !== excludeId);
+    }
+    async function ensureUniqueSku(base, excludeId = "") {
+      const root = sanitizeSku(base) || "PROD-ITEM";
+      let candidate = `${root}-${Date.now().toString(36).toUpperCase()}`;
+      let tries = 0;
+      while (await skuExists(candidate, excludeId)) {
+        tries += 1;
+        candidate = `${root}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+        if (tries > 5) throw new Error("Não foi possível gerar um SKU único.");
+      }
+      return candidate;
+    }
+
+    async function requireSeller(uid){
+      const snap = await getDoc(doc(db, "sellers", uid));
+      if(!snap.exists()) throw new Error("Conta seller não encontrada.");
+      const data = snap.data() || {};
+      if(data.active === false) throw new Error("Seller desativado.");
+      if(["reprovado","rejected","bloqueado"].includes(String(data.status || "").toLowerCase())) throw new Error("Seller reprovado.");
+      return data;
+    }
+
+    function getProductId() {
+      const url = new URL(window.location.href);
+      return url.searchParams.get("productId") || url.searchParams.get("id") || "";
+    }
+
+    function createImageRow(value = "") {
+      const row = document.createElement("div");
+      row.className = "flex gap-2 flex-wrap";
+      row.innerHTML = `
+        <input class="imgUrl flex-1 min-w-[220px] border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="https://..." value="${String(value || "").replace(/"/g, "&quot;")}">
+        <button type="button" class="btnRemoveImg bg-gray-100 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"><i class="fas fa-trash"></i></button>
+      `;
+      row.querySelector(".btnRemoveImg")?.addEventListener("click", () => row.remove());
+      return row;
+    }
+
+    function createSpecRow(key = "", value = "") {
+      const row = document.createElement("div");
+      row.className = "grid grid-cols-1 md:grid-cols-12 gap-2 items-center";
+      row.innerHTML = `
+        <input class="specKey md:col-span-5 border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Ex: marca" value="${String(key || "").replace(/"/g, "&quot;")}">
+        <input class="specVal md:col-span-6 border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Ex: Ariana" value="${String(value || "").replace(/"/g, "&quot;")}">
+        <button type="button" class="btnRemoveSpec md:col-span-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"><i class="fas fa-trash"></i></button>
+      `;
+      row.querySelector(".btnRemoveSpec")?.addEventListener("click", () => row.remove());
+      return row;
+    }
+
+    function imagesToArray() {
+      return Array.from(document.querySelectorAll(".imgUrl")).map(i => (i.value || "").trim()).filter(Boolean);
+    }
+    function specsToObject() {
+      const obj = {};
+      document.querySelectorAll("#specsWrap > div").forEach((row) => {
+        const k = row.querySelector(".specKey")?.value?.trim();
+        const v = row.querySelector(".specVal")?.value?.trim();
+        if (k) obj[k] = v || "";
+      });
+      return obj;
+    }
+
+    const sidebar = $("sidebar");
+    $("sidebar-toggle")?.addEventListener("click", () => sidebar.classList.toggle("-translate-x-full"));
+    $("btn-sair")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try { await signOut(auth); } catch {}
+      window.location.href = "seller_login.html";
+    });
+
+    window.openImageModal = function(src, name=""){
+      const overlay = $("image-modal-overlay");
+      const img = $("modal-image");
+      const nm = $("modal-image-name");
+      if(!overlay || !img) return;
+      img.src = src || "";
+      if(nm) nm.textContent = name || "";
+      overlay.classList.remove("hidden");
+      overlay.classList.add("flex");
+    };
+    window.closeImageModal = function(){
+      const overlay = $("image-modal-overlay");
+      const img = $("modal-image");
+      if(img) img.src = "";
+      if(!overlay) return;
+      overlay.classList.add("hidden");
+      overlay.classList.remove("flex");
+    };
+
+    let allCategories = [];
+    let rootCategories = [];
+    let currentUser = null;
+    let currentProduct = null;
+    let currentProductRef = null;
+
+    function sortCategories(items) {
+      return [...items].sort((a, b) => {
+        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999999;
+        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999999;
+        if (ao !== bo) return ao - bo;
+        return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
+      });
+    }
+    function getCategoryChildren(parentId) {
+      return sortCategories(allCategories.filter(item => item.active !== false && String(item.parentId || "") === String(parentId || "")));
+    }
+    function buildOption(item, selectedId = "") {
+      const sel = String(item.id) === String(selectedId) ? " selected" : "";
+      return `<option value="${item.id}" data-name="${String(item.name || "").replace(/"/g, "&quot;")}" data-slug="${String(item.slug || "").replace(/"/g, "&quot;")}"${sel}>${item.name || "Sem nome"}</option>`;
+    }
+    function updateCategorySlugField() {
+      $("categorySlug").value = $("category")?.selectedOptions?.[0]?.dataset?.slug || "";
+    }
+    function updateSubcategorySlugField() {
+      $("subcategorySlug").value = $("subcategory")?.selectedOptions?.[0]?.dataset?.slug || "";
+    }
+    function preencherCategorias(selectedId = "") {
+      $("category").innerHTML = '<option value="">Selecione uma categoria</option>' + rootCategories.map(item => buildOption(item, selectedId)).join("");
+      updateCategorySlugField();
+    }
+    function preencherSubcategorias(parentId = "", selectedId = "") {
+      const subcats = parentId ? getCategoryChildren(parentId) : [];
+      $("subcategory").innerHTML = '<option value="">Selecione uma subcategoria</option>' + subcats.map(item => buildOption(item, selectedId)).join("");
+      const enabled = subcats.length > 0;
+      $("subcategory").disabled = !enabled;
+      $("subcategory").required = enabled;
+      if (!enabled) $("subcategory").value = "";
+      updateSubcategorySlugField();
+    }
+    async function carregarCategoriasFirebase(selectedCategoryId = "", selectedSubcategoryId = "") {
+      const snap = await getDocs(collection(db, "categories"));
+      allCategories = snap.docs.map(ds => {
+        const d = ds.data() || {};
+        return { id: ds.id, name: d.name || "", slug: d.slug || normalizeSlug(d.name || ""), level: Number(d.level ?? 0), parentId: d.parentId || "", active: d.active !== false, order: d.order ?? 999999 };
+      });
+      rootCategories = sortCategories(allCategories.filter(item => item.active !== false && Number(item.level || 0) === 0));
+      preencherCategorias(selectedCategoryId);
+      preencherSubcategorias(selectedCategoryId, selectedSubcategoryId);
+    }
+
+    $("category")?.addEventListener("change", () => {
+      preencherSubcategorias($("category").value || "");
+      updateCategorySlugField();
+    });
+    $("subcategory")?.addEventListener("change", updateSubcategorySlugField);
+    $("sku")?.addEventListener("blur", () => { $("sku").value = sanitizeSku($("sku").value); });
+
+    $("btn-generate-sku")?.addEventListener("click", async () => {
+      try {
+        if (!currentUser || !currentProductRef) return;
+        const base = buildSkuBase({
+          sellerUid: currentUser.uid,
+          categorySlug: $("category")?.selectedOptions?.[0]?.dataset?.slug || "",
+          productName: $("name").value || ""
+        });
+        $("sku").value = await ensureUniqueSku(base, currentProductRef.id);
+        toast("SKU gerado com sucesso.", "success");
+      } catch (e) {
+        toast(e.message || "Não foi possível gerar SKU.", "error");
+      }
+    });
+
+    async function loadProduct(productId, uid) {
+      const pref = doc(db, "products", productId);
+      const psnap = await getDoc(pref);
+      if (!psnap.exists()) throw new Error("Produto não encontrado.");
+      const p = { id: psnap.id, ...psnap.data() };
+      if (String(p.sellerId || p.sellerUid || "") !== String(uid)) throw new Error("Você não tem permissão para editar este produto.");
+
+      currentProduct = p;
+      currentProductRef = pref;
+
+      $("productIdPill").classList.remove("hidden");
+      $("productIdPill").textContent = `ID: ${productId}`;
+      $("sellerPill").classList.remove("hidden");
+      $("sellerPill").textContent = `Seller: ${uid}`;
+
+      $("name").value = p.name || "";
+      $("sku").value = p.sku || "";
+      $("price").value = (p.price ?? "").toString();
+      $("stock").value = (p.stock ?? "").toString();
+      $("description").value = p.description || "";
+
+      await carregarCategoriasFirebase(p.categoryId || "", p.subcategoryId || "");
+      $("categorySlug").value = p.categorySlug || $("category")?.selectedOptions?.[0]?.dataset?.slug || "";
+      $("subcategorySlug").value = p.subcategorySlug || $("subcategory")?.selectedOptions?.[0]?.dataset?.slug || "";
+
+      $("pesoKg").value = (p.pesoKg ?? p.weight ?? "").toString();
+      $("comprimento").value = (p.comprimento ?? p.length ?? "").toString();
+      $("largura").value = (p.largura ?? p.width ?? "").toString();
+      $("altura").value = (p.altura ?? p.height ?? "").toString();
+      $("active").checked = p.active !== false;
+
+      const imgs = Array.isArray(p.images) ? p.images : (Array.isArray(p.imageUrls) ? p.imageUrls : []);
+      $("imagesWrap").innerHTML = "";
+      (imgs.length ? imgs : [""]).forEach(url => $("imagesWrap").appendChild(createImageRow(typeof url === "string" ? url : (url?.url || ""))));
+
+      const specs = p.technicalSpecs && typeof p.technicalSpecs === "object" ? p.technicalSpecs : {};
+      $("specsWrap").innerHTML = "";
+      const keys = Object.keys(specs);
+      (keys.length ? keys : ["marca"]).forEach((k) => $("specsWrap").appendChild(createSpecRow(k, keys.length ? specs[k] : "")));
+
+      return pref;
+    }
+
+    $("btn-add-image")?.addEventListener("click", () => $("imagesWrap").appendChild(createImageRow("")));
+    $("btn-add-spec")?.addEventListener("click", () => $("specsWrap").appendChild(createSpecRow("", "")));
+
+    $("btn-inactivate")?.addEventListener("click", async () => {
+      try {
+        if (!currentProductRef) throw new Error("Produto não carregado.");
+        if (!confirm("Deseja inativar este produto?")) return;
+        await updateDoc(currentProductRef, { active: false, updatedAt: serverTimestamp() });
+        $("active").checked = false;
+        showAlert("ok", "Produto inativado.");
+      } catch (e) {
+        console.error(e);
+        showAlert("error", e.message || "Não foi possível inativar.");
+      }
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      try {
+        if (!user) { window.location.href = "seller_login.html"; return; }
+        currentUser = user;
+        const seller = await requireSeller(user.uid);
+        $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || "Seller"}!`;
+        const productId = getProductId();
+        if (!productId) throw new Error("Abra esta tela com ?id=ID_DO_PRODUTO");
+        await loadProduct(productId, user.uid);
+      } catch (e) {
+        console.error(e);
+        showAlert("error", e.message || "Erro ao carregar.");
+      }
+    });
+
+    $("form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        if (!currentProductRef || !currentUser) throw new Error("Produto não carregado.");
+
+        const categoryId = $("category").value || "";
+        const subcategoryId = $("subcategory").value || "";
+        if (!categoryId) throw new Error("Selecione uma categoria.");
+        if (!$("subcategory").disabled && !subcategoryId) throw new Error("Selecione uma subcategoria.");
+
+        const categoryOption = $("category").selectedOptions?.[0] || null;
+        const subcategoryOption = $("subcategory").selectedOptions?.[0] || null;
+        const categoryName = categoryOption?.dataset?.name || categoryOption?.textContent || "";
+        const categorySlug = categoryOption?.dataset?.slug || normalizeSlug(categoryName);
+        const subcategoryName = subcategoryOption?.dataset?.name || subcategoryOption?.textContent || "";
+        const subcategorySlug = subcategoryOption?.dataset?.slug || normalizeSlug(subcategoryName);
+
+        const pesoKg = Number($("pesoKg").value || 0);
+        const comprimento = Number($("comprimento").value || 0);
+        const largura = Number($("largura").value || 0);
+        const altura = Number($("altura").value || 0);
+        if (!(pesoKg > 0 && comprimento > 0 && largura > 0 && altura > 0)) throw new Error("Preencha corretamente Peso e Dimensões.");
+
+        let sku = sanitizeSku($("sku").value);
+        if (!sku) {
+          const base = buildSkuBase({ sellerUid: currentUser.uid, categorySlug, productName: $("name").value || "" });
+          sku = await ensureUniqueSku(base, currentProductRef.id);
+        } else if (await skuExists(sku, currentProductRef.id)) {
+          throw new Error("Já existe outro produto com este SKU.");
+        }
+        $("sku").value = sku;
+
+        const currentUrls = imagesToArray();
+        const freshFiles = Array.from($("newImages")?.files || []);
+        let uploadedUrls = [];
+        let uploadedPaths = [];
+        if (freshFiles.length) {
+          toast("Compactando imagens antes do upload...", "info");
+          const optimizedFiles = await optimizeImagesBeforeUpload(freshFiles);
+          const uploaded = await uploader.uploadMultipleImages(optimizedFiles, { sellerUid: currentUser.uid });
+          uploadedUrls = uploaded.map(img => img.url).filter(Boolean);
+          uploadedPaths = uploaded.map(img => img.path || null).filter(Boolean);
+        }
+        const imageUrls = [...currentUrls, ...uploadedUrls].filter(Boolean);
+        const existingPaths = Array.isArray(currentProduct.imagePaths) ? currentProduct.imagePaths.filter(Boolean) : [];
+        const imagePaths = [...existingPaths, ...uploadedPaths];
+        const mainImageUrl = imageUrls[0] || null;
+        const mainImagePath = imagePaths[0] || null;
+
+        const payload = {
+          name: ($("name").value || "").trim(),
+          sku,
+          skuNormalized: sku,
+          price: Number($("price").value || 0),
+          stock: Number($("stock").value || 0),
+          pesoKg, comprimento: Math.round(comprimento), largura: Math.round(largura), altura: Math.round(altura),
+          weight: pesoKg, length: Math.round(comprimento), width: Math.round(largura), height: Math.round(altura),
+          categoryId,
+          category: categoryName || categorySlug,
+          categoryName: categoryName || null,
+          categorySlug: categorySlug || null,
+          subcategoryId: subcategoryId || null,
+          subcategory: subcategoryName || null,
+          subcategoryName: subcategoryName || null,
+          subcategorySlug: subcategorySlug || null,
+          description: ($("description").value || "").trim(),
+          active: $("active").checked,
+          images: imageUrls,
+          imageUrls,
+          imagePaths,
+          imageUrl: mainImageUrl,
+          mainImageUrl,
+          mainImagePath,
+          technicalSpecs: specsToObject(),
+          updatedAt: serverTimestamp()
+        };
+
+        const btn = $("btn-save");
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
+        await saveProductViaApi(currentProductRef.id, payload);
+        currentProduct = { ...currentProduct, ...payload };
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar alterações';
+        showAlert("ok", "Produto atualizado com sucesso.");
+      } catch (e) {
+        console.error(e);
+        showAlert("error", e.message || "Não foi possível salvar.");
+        $("btn-save").disabled = false;
+        $("btn-save").innerHTML = '<i class="fas fa-save mr-2"></i> Salvar alterações';
+      }
+    });
+  </script>
+
+  <script src="js/layout-fit.js" defer></script>
+  <script src="./js/uploadImage.js"></script>
+</body>
+</html>

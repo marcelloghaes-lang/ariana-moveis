@@ -1,0 +1,20 @@
+{
+  "name": "Ariana Móveis - Seller",
+  "short_name": "Seller Ariana",
+  "start_url": "/seller_configuracoes.html?mode=pwa",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "icon-seller-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-seller-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

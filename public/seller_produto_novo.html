@@ -1,0 +1,472 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Novo Produto | ARIANA MÓVEIS</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root{--primary:#2E6DA4;--dark:#1D2B3A;--bg:#F5F7FA;--success:#10b981;--danger:#ef4444}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg)}
+    .bg-primary-blue{background:#2E6DA4}.text-primary-blue{color:#2E6DA4}.bg-dark-bg{background:#1D2B3A}
+    .bg-fundo-claro{background:#F5F7FA}.bg-dark-gray-bg{background:#222}.bg-error-red{background:#ef4444}.bg-success-green{background:#10b981}
+    .animate-fade{animation:fade-in .3s ease-out}@keyframes fade-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    #toast-container{position:fixed;top:20px;right:20px;z-index:60}.toast{box-shadow:0 4px 14px rgba(0,0,0,.15)}
+    .product-section{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:20px}
+    .dimensions-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+    @media (max-width:640px){.dimensions-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3"></div>
+
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+    <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
+    <nav class="flex flex-col space-y-2">
+      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
+      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
+      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+    </nav>
+  </aside>
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
+      <h1 class="text-xl font-semibold">Painel do Seller</h1>
+      <div class="flex items-center gap-4">
+        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6">
+      <h1 class="text-3xl font-black mb-8 text-slate-900">Novo produto</h1>
+
+      <form id="product-form" class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+        <input id="file-input" type="file" multiple accept="image/*" class="w-full p-4 border rounded-xl">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input id="p-name" placeholder="Nome do produto" required class="w-full p-4 border rounded-xl">
+          <div class="space-y-2">
+            <label class="block text-sm font-bold text-slate-800">SKU</label>
+            <div class="flex gap-2">
+              <input id="p-sku" placeholder="Ex: SOFA-001" class="w-full p-4 border rounded-xl uppercase">
+              <button id="btn-generate-sku" type="button" class="px-4 rounded-xl bg-slate-100 font-bold whitespace-nowrap">Gerar SKU</button>
+            </div>
+            <p class="text-xs text-gray-500">Se deixar em branco, o sistema gera um SKU único automaticamente.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <select id="p-category" required class="w-full p-4 border rounded-xl">
+            <option value="">Selecione uma Categoria</option>
+          </select>
+          <select id="p-subcategory" class="w-full p-4 border rounded-xl">
+            <option value="">Selecione uma Subcategoria</option>
+          </select>
+          <input id="p-categorySlug" type="text" placeholder="Slug da categoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
+          <input id="p-subcategorySlug" type="text" placeholder="Slug da subcategoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input id="p-stock" type="number" min="0" placeholder="Estoque" required class="w-full p-4 border rounded-xl">
+          <input id="p-price" type="number" min="0" step="0.01" placeholder="Preço" required class="w-full p-4 border rounded-xl">
+        </div>
+
+        <section class="product-section">
+          <h2 class="text-xl font-black text-slate-900 mb-2">Dimensões e Peso para Frete</h2>
+          <p class="text-gray-600 mb-4">Informe as medidas da embalagem de envio (em cm) e o peso real (em kg).</p>
+          <div class="dimensions-grid">
+            <div><label for="p-weight" class="block text-sm font-semibold text-gray-700 mb-1">Peso (kg)</label><input id="p-weight" type="number" step="0.01" min="0.01" required class="w-full p-4 border rounded-xl"></div>
+            <div><label for="p-length" class="block text-sm font-semibold text-gray-700 mb-1">Comprimento (cm)</label><input id="p-length" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
+            <div><label for="p-width" class="block text-sm font-semibold text-gray-700 mb-1">Largura (cm)</label><input id="p-width" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
+            <div><label for="p-height" class="block text-sm font-semibold text-gray-700 mb-1">Altura (cm)</label><input id="p-height" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
+          </div>
+        </section>
+
+        <textarea id="p-desc" placeholder="Descrição" required class="w-full p-4 border rounded-xl min-h-[120px]"></textarea>
+
+        <button id="btn-submit" class="bg-primary-blue text-white py-4 rounded-xl font-black w-full">Publicar produto</button>
+      </form>
+    </main>
+  </div>
+
+<script type="module">
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, serverTimestamp, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+import { createUploadService } from "./uploadImage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+  authDomain: "ariana-moveis-final.firebaseapp.com",
+  projectId: "ariana-moveis-final",
+  storageBucket: "ariana-moveis-final.firebasestorage.app",
+  messagingSenderId: "695257365498",
+  appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+};
+
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const uploader = createUploadService(app);
+const $ = (id) => document.getElementById(id);
+
+
+const IMAGE_UPLOAD_MAX_WIDTH = 1024;
+const IMAGE_UPLOAD_MAX_HEIGHT = 1024;
+const IMAGE_UPLOAD_QUALITY = 0.7;
+
+function loadImageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+const objectUrl = URL.createObjectURL(blob);
+const img = new Image();
+img.onload = () => {
+  URL.revokeObjectURL(objectUrl);
+  resolve(img);
+};
+img.onerror = () => {
+  URL.revokeObjectURL(objectUrl);
+  reject(new Error("Não foi possível processar a imagem selecionada."));
+};
+img.src = objectUrl;
+  });
+}
+
+async function compressImageFile(file) {
+  if (!file || !String(file.type || "").startsWith("image/")) return file;
+
+  const imageBitmap = await loadImageFromBlob(file);
+  const originalWidth = imageBitmap.naturalWidth || imageBitmap.width || 0;
+  const originalHeight = imageBitmap.naturalHeight || imageBitmap.height || 0;
+  if (!originalWidth || !originalHeight) return file;
+
+  const ratio = Math.min(
+1,
+IMAGE_UPLOAD_MAX_WIDTH / originalWidth,
+IMAGE_UPLOAD_MAX_HEIGHT / originalHeight
+  );
+  const targetWidth = Math.max(1, Math.round(originalWidth * ratio));
+  const targetHeight = Math.max(1, Math.round(originalHeight * ratio));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+  const webpBlob = await new Promise((resolve, reject) => {
+canvas.toBlob(
+  (blob) => blob ? resolve(blob) : reject(new Error("Falha ao compactar a imagem.")),
+  "image/webp",
+  IMAGE_UPLOAD_QUALITY
+);
+  });
+
+  const cleanName = String(file.name || "imagem")
+.replace(/\.[^.]+$/, "")
+.replace(/[^a-zA-Z0-9_-]+/g, "-")
+.replace(/-+/g, "-")
+.replace(/^-+|-+$/g, "") || `imagem-${Date.now()}`;
+
+  return new File([webpBlob], `${cleanName}.webp`, {
+type: "image/webp",
+lastModified: Date.now()
+  });
+}
+
+async function optimizeImagesBeforeUpload(files) {
+  const result = [];
+  for (const file of Array.from(files || [])) {
+result.push(await compressImageFile(file));
+  }
+  return result;
+}
+
+
+function toast(message, type = "info") {
+  const container = $("toast-container");
+  if (!container) { alert(message); return; }
+  const el = document.createElement("div");
+  const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
+  el.className = "toast p-4 rounded-lg text-white " + (map[type] || map.info) + " animate-fade";
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+async function requireSeller(uid) {
+  const snap = await getDoc(doc(db, "sellers", uid));
+  if (!snap.exists()) throw new Error("Conta seller não encontrada.");
+  const data = snap.data() || {};
+  if (data.active === false) throw new Error("Seller desativado.");
+  if (["reprovado","rejected","bloqueado"].includes(String(data.status || "").toLowerCase())) throw new Error("Seller reprovado ou bloqueado.");
+  return data;
+}
+
+async function saveProductViaApi(payload) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sessão expirada. Faça login novamente.");
+  const idToken = await user.getIdToken();
+  const resp = await fetch("/api/seller/products/upsert", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`
+    },
+    body: JSON.stringify({ data: payload })
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json?.ok) throw new Error(json?.error || "Não foi possível salvar o produto.");
+  return json;
+}
+
+function normalizeSlug(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function sanitizeSku(value) {
+  return String(value || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9_-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+}
+function sortCategories(items) {
+  return [...items].sort((a, b) => {
+    const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999999;
+    const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999999;
+    if (ao !== bo) return ao - bo;
+    return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
+  });
+}
+function updateCategorySlugField() {
+  const selected = $("p-category")?.selectedOptions?.[0];
+  $("p-categorySlug").value = selected?.dataset?.slug || "";
+}
+function updateSubcategorySlugField() {
+  const selected = $("p-subcategory")?.selectedOptions?.[0];
+  $("p-subcategorySlug").value = selected?.dataset?.slug || "";
+}
+function productNameToken(name) {
+  const token = normalizeSlug(name).replace(/-/g, "").slice(0, 4).toUpperCase();
+  return token || "PROD";
+}
+function buildSkuBase({ sellerUid, categorySlug, productName }) {
+  const sellerPart = String(sellerUid || "SELL").replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "SELL";
+  const categoryPart = sanitizeSku((categorySlug || "GER").slice(0, 4));
+  const productPart = productNameToken(productName);
+  return `${categoryPart || "GER"}-${sellerPart}-${productPart}`;
+}
+async function skuExists(sku) {
+  const skuClean = sanitizeSku(sku);
+  if (!skuClean) return false;
+  const snap = await getDocs(query(collection(db, "products"), where("sku", "==", skuClean), limit(1)));
+  return !snap.empty;
+}
+async function ensureUniqueSku(base) {
+  const root = sanitizeSku(base) || "PROD-ITEM";
+  let candidate = `${root}-${Date.now().toString(36).toUpperCase()}`;
+  let tries = 0;
+  while (await skuExists(candidate)) {
+    tries += 1;
+    candidate = `${root}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    if (tries > 5) throw new Error("Não foi possível gerar um SKU único.");
+  }
+  return candidate;
+}
+async function prepareSku() {
+  const manual = sanitizeSku($("p-sku").value);
+  if (manual) {
+    if (await skuExists(manual)) throw new Error("Já existe um produto com este SKU.");
+    $("p-sku").value = manual;
+    return manual;
+  }
+  const categoryOption = $("p-category")?.selectedOptions?.[0];
+  const base = buildSkuBase({
+    sellerUid: auth.currentUser?.uid || "",
+    categorySlug: categoryOption?.dataset?.slug || "",
+    productName: $("p-name").value || ""
+  });
+  const generated = await ensureUniqueSku(base);
+  $("p-sku").value = generated;
+  return generated;
+}
+
+const sidebar = $("sidebar");
+$("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
+$("btn-sair")?.addEventListener("click", async (e) => { e.preventDefault(); try { await signOut(auth); } catch {} window.location.href = "seller_login.html"; });
+
+let currentUser = null;
+let allCategories = [];
+let rootCategories = [];
+
+function getCategoryChildren(parentId) {
+  return sortCategories(allCategories.filter(item => item.active !== false && String(item.parentId || "") === String(parentId || "")));
+}
+function buildOption(item, selectedId = "") {
+  const sel = String(item.id) === String(selectedId) ? " selected" : "";
+  return `<option value="${item.id}" data-name="${(item.name || "").replace(/"/g, "&quot;")}" data-slug="${(item.slug || "").replace(/"/g, "&quot;")}"${sel}>${item.name || "Sem nome"}</option>`;
+}
+function preencherCategorias(selectedId = "") {
+  $("p-category").innerHTML = '<option value="">Selecione uma Categoria</option>' + rootCategories.map(item => buildOption(item, selectedId)).join("");
+  updateCategorySlugField();
+}
+function preencherSubcategorias(parentId = "", selectedId = "") {
+  const subcats = parentId ? getCategoryChildren(parentId) : [];
+  $("p-subcategory").innerHTML = '<option value="">Selecione uma Subcategoria</option>' + subcats.map(item => buildOption(item, selectedId)).join("");
+  const enabled = subcats.length > 0;
+  $("p-subcategory").disabled = !enabled;
+  $("p-subcategory").required = enabled;
+  if (!enabled) $("p-subcategory").value = "";
+  updateSubcategorySlugField();
+}
+async function carregarCategoriasFirebase() {
+  try {
+    const snap = await getDocs(collection(db, "categories"));
+    allCategories = snap.docs.map(ds => {
+      const d = ds.data() || {};
+      return { id: ds.id, name: d.name || "", slug: d.slug || normalizeSlug(d.name || ""), level: Number(d.level ?? 0), parentId: d.parentId || "", active: d.active !== false, order: d.order ?? 999999 };
+    });
+    rootCategories = sortCategories(allCategories.filter(item => item.active !== false && Number(item.level || 0) === 0));
+    preencherCategorias();
+    preencherSubcategorias("");
+  } catch (err) {
+    console.error(err);
+    toast("Não foi possível carregar as categorias.", "error");
+  }
+}
+
+$("p-category")?.addEventListener("change", () => { preencherSubcategorias($("p-category").value || ""); updateCategorySlugField(); });
+$("p-subcategory")?.addEventListener("change", updateSubcategorySlugField);
+$("btn-generate-sku")?.addEventListener("click", async () => {
+  try {
+    const base = buildSkuBase({
+      sellerUid: auth.currentUser?.uid || "",
+      categorySlug: $("p-category")?.selectedOptions?.[0]?.dataset?.slug || "",
+      productName: $("p-name").value || ""
+    });
+    $("p-sku").value = await ensureUniqueSku(base);
+    toast("SKU gerado com sucesso.", "success");
+  } catch (e) {
+    toast(e.message || "Não foi possível gerar o SKU.", "error");
+  }
+});
+$("p-sku")?.addEventListener("blur", () => { $("p-sku").value = sanitizeSku($("p-sku").value); });
+
+onAuthStateChanged(auth, async (user) => {
+  try {
+    if (!user) { window.location.href = "seller_login.html"; return; }
+    currentUser = user;
+    const seller = await requireSeller(user.uid);
+    $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || "Seller"}!`;
+    await carregarCategoriasFirebase();
+  } catch (err) {
+    console.error(err);
+    toast(err?.message || "Erro ao validar seller.", "error");
+    setTimeout(() => { window.location.href = "seller_login.html"; }, 1200);
+  }
+});
+
+$("product-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    if (!currentUser) { window.location.href = "seller_login.html"; return; }
+    const files = Array.from($("file-input")?.files || []);
+    if (!files.length) throw new Error("Selecione pelo menos uma imagem.");
+    const categoryOption = $("p-category")?.selectedOptions?.[0];
+    const subcategoryOption = $("p-subcategory")?.selectedOptions?.[0];
+    const categoryId = $("p-category").value || "";
+    const subcategoryId = $("p-subcategory").value || "";
+    if (!categoryId) throw new Error("Selecione uma categoria.");
+    if (!$("p-subcategory").disabled && !subcategoryId) throw new Error("Selecione uma subcategoria.");
+
+    const pesoKg = Number($("p-weight").value || 0);
+    const comprimento = Number($("p-length").value || 0);
+    const largura = Number($("p-width").value || 0);
+    const altura = Number($("p-height").value || 0);
+    if (!(pesoKg > 0 && comprimento > 0 && largura > 0 && altura > 0)) throw new Error("Preencha peso e dimensões corretamente.");
+
+    $("btn-submit").disabled = true;
+    $("btn-submit").innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Publicando...';
+
+    const sku = await prepareSku();
+    toast("Compactando imagens antes do upload...", "info");
+    const optimizedFiles = await optimizeImagesBeforeUpload(files);
+    const uploaded = await uploader.uploadMultipleImages(optimizedFiles, { sellerUid: currentUser.uid });
+    const imageUrls = uploaded.map(img => img.url).filter(Boolean);
+    const imagePaths = uploaded.map(img => img.path || null).filter(Boolean);
+    const mainImage = uploaded[0] || null;
+
+    let sellerName = currentUser.email || "Seller";
+    try {
+      const sellerSnap = await getDoc(doc(db, "sellers", currentUser.uid));
+      if (sellerSnap.exists()) {
+        const sd = sellerSnap.data() || {};
+        sellerName = sd.factoryName || sd.nomeFantasia || sd.storeName || sd.name || currentUser.email || "Seller";
+      }
+    } catch {}
+
+    const categoryName = categoryOption?.dataset?.name || categoryOption?.textContent || "";
+    const categorySlug = categoryOption?.dataset?.slug || normalizeSlug(categoryName);
+    const subcategoryName = subcategoryOption?.dataset?.name || subcategoryOption?.textContent || "";
+    const subcategorySlug = subcategoryOption?.dataset?.slug || normalizeSlug(subcategoryName);
+
+    const payload = {
+      name: $("p-name").value || "",
+      sku: sku,
+      skuNormalized: sku,
+      stock: Number($("p-stock").value || 0),
+      price: Number($("p-price").value || 0),
+      pesoKg, comprimento: Math.round(comprimento), largura: Math.round(largura), altura: Math.round(altura),
+      weight: pesoKg, length: Math.round(comprimento), width: Math.round(largura), height: Math.round(altura),
+      dimensionsCm: { comprimento: Math.round(comprimento), largura: Math.round(largura), altura: Math.round(altura) },
+      categoryId,
+      category: categoryName || categorySlug,
+      categoryName: categoryName || null,
+      categorySlug: categorySlug || null,
+      subcategoryId: subcategoryId || null,
+      subcategory: subcategoryName || null,
+      subcategoryName: subcategoryName || null,
+      subcategorySlug: subcategorySlug || null,
+      description: $("p-desc").value || "",
+      images: imageUrls,
+      imageUrls,
+      imagePaths,
+      mainImageUrl: mainImage?.url || "",
+      imageUrl: mainImage?.url || "",
+      mainImagePath: mainImage?.path || null,
+      sellerId: currentUser.uid,
+      sellerUid: currentUser.uid,
+      sellerName,
+      soldBy: sellerName,
+      deliveredBy: sellerName,
+      active: false,
+      approved: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await addDoc(collection(db, "products"), payload);
+    toast("Produto publicado com SKU salvo.", "success");
+    setTimeout(() => { window.location.href = "seller_produtos.html"; }, 700);
+  } catch (err) {
+    console.error(err);
+    toast(err?.message || "Erro ao publicar produto.", "error");
+    $("btn-submit").disabled = false;
+    $("btn-submit").innerHTML = 'Publicar produto';
+  }
+});
+</script>
+<script src="js/layout-fit.js" defer></script>
+<script src="./js/uploadImage.js"></script>
+</body>
+</html>

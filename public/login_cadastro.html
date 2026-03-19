@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login / Cadastro | ARIANA MOVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="icon" href="https://placehold.co/16x16/2E6DA4/ffffff?text=AM" type="image/png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'secondary-light-blue': '#56B5FF',
+            'text-dark': '#333333',
+            'fundo': '#f8f8f8',
+            'error-red': '#D63B3B',
+          },
+          animation: {
+              'fade-in': 'fadeIn 0.5s ease-out',
+          },
+          keyframes: {
+              fadeIn: {
+                  '0%': { opacity: '0', transform: 'translateY(-10px)' },
+                  '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
+          },
+          maxWidth: { 
+            '8xl': '1440px',
+            '9xl': '1600px', 
+          }, 
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Estilo para o contador do carrinho no header (igual ao template) */
+    .contador-carrinho {
+        position: absolute;
+        top: -5px;
+        right: -10px;
+        background-color: theme('colors.primary-blue');
+        color: white;
+        border-radius: 9999px;  
+        padding: 0 6px;
+        font-size: 0.7em;
+        line-height: 1.5;  
+        font-weight: bold;
+        display: flex; 
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        display: none; /* Inicialmente oculto por CSS */
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    .tab-content.active {
+        display: block;
+        animation: fade-in 0.5s ease-out;
+    }
+    .tab-button.active {
+        border-bottom: 3px solid theme('colors.primary-blue');
+        color: theme('colors.primary-blue');
+        font-weight: 600;
+    }
+
+    /* ... Seu CSS original (contador-carrinho, tab-button) ... */
+        .contador-carrinho {
+            position: absolute;
+            top: -5px;
+            right: -10px;
+            background-color: theme('colors.primary-blue');
+            color: white;
+            border-radius: 9999px;  
+            padding: 0 6px;
+            font-size: 0.7em;
+            line-height: 1.5;  
+            font-weight: bold;
+            display: flex; 
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            display: none; 
+        }
+        .tab-button {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+            color: theme('colors.text-dark');
+            transition: all 0.2s;
+        }
+
+        .tab-button.active {
+            border-left-color: theme('colors.primary-blue');
+            background-color: theme('colors.fundo');
+            font-weight: 700;
+            color: theme('colors.primary-blue');
+        }
+        .tab-button:hover:not(.active) {
+             background-color: theme('colors.fundo');
+        }
+
+        /* ESTILO: AMBIENTE SEGURO (Ajustado) */
+        .ambiente-seguro-final {
+            background-color: transparent; 
+            display: flex;
+            align-items: center; 
+            padding: 0; 
+            width: fit-content; 
+            font-family: Arial, sans-serif; 
+        }
+        
+        .icone-escudo-final {
+            /* AUMENTO DE TAMANHO (Icone do Ambiente Seguro) */
+            width: 55px; /* Aumentado de 45px */
+            height: 55px; /* Aumentado de 45px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px; /* Aumentado o espaço */
+            flex-shrink: 0; 
+        }
+        
+        .icone-escudo-final svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .texto-seguro-final {
+            /* AUMENTO DE TAMANHO (Texto Ambiente Seguro) */
+            color: #ffffff; 
+            font-size: 16px; /* Aumentado de 14px */
+            line-height: 1.1; 
+            text-transform: uppercase;
+            text-align: left;
+            white-space: nowrap; 
+        }
+        
+        .texto-seguro-final strong {
+            /* AUMENTO DE TAMANHO (Texto SEGURO) */
+            font-size: 20px; /* Aumentado de 16px */
+            font-weight: 700;
+            color: #ffffff; 
+            display: block; 
+        }
+        
+        /* ESTILO: VOLTAR PARA A LOJA (Ajustado e Maior) */
+        .voltar-loja-ajustado {
+            display: inline-flex;
+            align-items: center;
+            
+            color: #ffffff; 
+            font-family: 'Inter', sans-serif; 
+            /* AUMENTO DE TAMANHO (Texto VOLTAR PARA A LOJA) */
+            font-size: 16px; /* Aumentado de 12px */
+            font-weight: 500;
+            text-transform: uppercase;
+            text-decoration: none;
+            
+            cursor: pointer; 
+            padding: 5px;
+            width: fit-content;
+        }
+
+        .icone-seta-ajustado {
+            /* AUMENTO DE TAMANHO (Seta) */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px; /* Aumentado de 10px */
+            height: 14px; /* Aumentado de 10px */
+            margin-right: 8px; /* Aumentado o espaço */
+            overflow: visible; 
+        }
+
+        .icone-seta-ajustado svg {
+            width: 100%;
+            height: 100%;
+            stroke: #ffffff; 
+            stroke-width: 3; /* Ajustado para manter a espessura ideal */
+        }
+
+        .voltar-loja-ajustado:hover {
+            color: #d1d5db; 
+        }
+        .voltar-loja-ajustado:hover .icone-seta-ajustado svg {
+            stroke: #d1d5db;
+        }
+        /* Fim das alterações de estilo */
+  </style>
+
+  <header class="bg-[#2E6DA4] py-10 shadow-lg mb-8">
+    <div class="max-w-md mx-auto text-center">
+        <h1 class="text-4xl font-black tracking-tighter text-white">
+            ARIANA<span class="text-blue-100 font-light">MÓVEIS</span>
+        </h1>
+        <div class="flex items-center justify-center gap-2 mt-2">
+            <span class="h-px w-8 bg-yellow-400"></span>
+            <p class="text-[10px] uppercase tracking-[0.4em] text-blue-50 font-bold">Qualidade em cada detalhe</p>
+            <span class="h-px w-8 bg-yellow-400"></span>
+        </div>
+    </div>
+</header>
+
+<div class="w-full h-2 bg-gradient-to-r from-[#2E6DA4] via-[#F1C40F] to-[#2E6DA4]"></div>
+
+<main class="flex justify-center items-start py-12 px-4">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
+        
+        <div id="message-container" class="fixed top-20 right-5 z-50 w-72">
+            </div>
+
+        <div class="flex border-b border-gray-200">
+            <button id="tab-login-btn" class="tab-button active flex-1 py-4 text-center text-lg transition-colors" data-tab="login">
+                Entrar
+            </button>
+            <button id="tab-register-btn" class="tab-button flex-1 py-4 text-center text-lg transition-colors" data-tab="register">
+                Cadastrar
+            </button>
+        </div>
+
+        <div id="tab-login" class="tab-content active p-8">
+            <h2 class="text-3xl font-bold text-center text-primary-blue mb-6">Acesso Cliente</h2>
+            
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="login-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                    <input type="email" id="login-email" name="email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required>
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="login-password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required minlength="6">
+                </div>
+                
+                <a href="#" id="forgot-password-link" class="text-sm text-primary-blue hover:text-secondary-light-blue transition-colors block text-right">Esqueceu a senha?</a>
+                
+                <button type="submit" id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-primary-blue hover:bg-dark-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-blue transition-colors">
+                    Entrar
+                </button>
+            </form>
+
+            <div class="mt-6 text-center">
+                <p class="text-sm text-gray-500 mb-3">ou entre com</p>
+                <button id="google-login-btn" type="button" class="w-full py-3 px-4 border border-gray-300 rounded-md shadow-sm text-base font-medium text-text-dark bg-white hover:bg-gray-50 transition-colors flex items-center justify-center">
+                    <i class="fab fa-google mr-3"></i> Entrar com Google
+                </button>
+            </div>
+        </div>
+
+        <div id="tab-register" class="tab-content p-8">
+            <h2 class="text-3xl font-bold text-center text-primary-blue mb-6">Novo Cadastro</h2>
+            
+            <form id="register-form" class="space-y-6">
+                <div>
+                    <label for="register-name" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                    <input type="text" id="register-name" name="name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required>
+                </div>
+                <div>
+                    <label for="register-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                    <input type="email" id="register-email" name="email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required>
+                </div>
+                <div>
+                    <label for="register-password" class="block text-sm font-medium text-gray-700">Criar Senha</label>
+                    <input type="password" id="register-password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required minlength="6">
+                    <p class="mt-1 text-xs text-gray-500">Mínimo de 6 caracteres.</p>
+                </div>
+                
+                <button type="submit" id="register-btn" class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-primary-blue hover:bg-dark-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-blue transition-colors">
+                    Cadastrar
+                </button>
+            </form>
+        </div>
+        
+    </div>
+</main>
+
+<footer class="bg-dark-bg text-white mt-12 pt-10">
+     <div class="max-w-8xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 pb-8">
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-xl font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+            </ul>
+        </div>
+        
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="whatsapp"><i class="fab fa-whatsapp"></i></a>
+            </div>
+
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-wrap gap-2 text-2xl text-gray-400">
+                <i class="fab fa-cc-visa"></i>
+                <i class="fab fa-cc-mastercard"></i>
+                <i class="fab fa-cc-paypal"></i>
+                <i class="fab fa-cc-amex"></i>
+                <i class="fas fa-money-bill-wave"></i>
+                <i class="fas fa-qrcode"></i> </div>
+        </div>
+    </div>
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>
+
+<script type="module">
+    // =========================================================
+    // 1. CONFIGURAÇÕES E INICIALIZAÇÃO DO FIREBASE (CORRIGIDO)
+    // =========================================================
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { 
+        getAuth, 
+        signInWithEmailAndPassword, 
+        createUserWithEmailAndPassword, 
+        sendPasswordResetEmail,
+        GoogleAuthProvider,
+        signInWithPopup,
+        updateProfile, // Para adicionar o nome no perfil
+        onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    
+    import { 
+        getFirestore, 
+        doc, 
+        setDoc, // Para salvar dados iniciais do usuário no Firestore
+        serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+
+    // Configuração do Firebase (Use suas credenciais reais aqui)
+    const firebaseConfig = {
+        apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo", 
+        authDomain: "ariana-moveis-final.firebaseapp.com",
+        projectId: "ariana-moveis-final", 
+        storageBucket: "ariana-moveis-final.firebasestorage.app",
+        messagingSenderId: "695257365498",
+        appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app); 
+    const googleProvider = new GoogleAuthProvider();
+    
+    // =========================================================
+    // 2. FUNÇÕES DE UI E UTILIDADE
+    // =========================================================
+    
+    /**
+     * Função auxiliar para exibir mensagens de status.
+     * @param {string} message 
+     * @param {('success'|'error'|'info'|'loading')} type 
+     */
+    window.displayMessage = (message, type = 'info') => {
+        const container = document.getElementById('message-container');
+        if (!container) return;
+        
+        const colors = {
+            success: 'bg-green-500 border-green-700',
+            error: 'bg-error-red border-red-700',
+            info: 'bg-blue-500 border-blue-700',
+            loading: 'bg-yellow-500 border-yellow-700'
+        };
+        
+        const icons = {
+            success: 'fas fa-check-circle',
+            error: 'fas fa-exclamation-triangle',
+            info: 'fas fa-info-circle',
+            loading: 'fas fa-spinner fa-spin'
+        };
+
+        // Limpa mensagens anteriores
+        container.innerHTML = '';
+
+        const toast = document.createElement('div');
+        toast.className = `p-4 mb-2 rounded-lg shadow-xl text-white font-semibold flex items-center border-l-4 ${colors[type]} animate-fade-in`;
+        toast.innerHTML = `<i class="${icons[type]} mr-3"></i> ${message}`;
+        
+        container.appendChild(toast);
+
+        // Remove a mensagem após 4 segundos (exceto loading)
+        if (type !== 'loading') {
+            setTimeout(() => {
+                toast.classList.remove('animate-fade-in');
+                toast.classList.add('opacity-0', 'transition-opacity');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 4000);
+        }
+    }
+
+    /**
+     * Alterna entre as abas de Login e Cadastro.
+     * @param {string} tabId ID da aba ('login' ou 'register')
+     */
+    const switchTab = (tabId) => {
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+    
+    /**
+     * Atualiza o contador visual do carrinho (simulação via Local Storage).
+     */
+    window.loadCartCounter = () => {
+        const cartDataString = localStorage.getItem('ariana_moveis_cart');
+        let totalItems = 0;
+        if (cartDataString) {
+            try {
+                const cartItems = JSON.parse(cartDataString);
+                 if (typeof cartItems === 'object' && cartItems !== null) {
+                    totalItems = Object.values(cartItems).reduce((sum, item) => {
+                        if (!item || typeof item !== 'object') return sum;
+                        const q = Number(item.quantity);
+                        return sum + (Number.isFinite(q) ? q : 0);
+                    }, 0);
+                }
+            } catch (e) {
+                console.error("Erro ao parsear dados do carrinho:", e);
+            }
+        }
+        
+        const counterElement = document.getElementById('cart-counter-nav'); 
+        if (counterElement) {
+            counterElement.textContent = totalItems;
+            counterElement.style.display = totalItems > 0 ? 'inline-flex' : 'none';
+        }
+    };
+    
+    /**
+     * Atualiza o status de login no header.
+     */
+    window.updateClientHeaderUI = (user) => {
+        const clientStatusDisplay = document.getElementById('client-status-display');
+        const clientAccountLink = document.getElementById('client-account-link');
+
+        if (!clientStatusDisplay || !clientAccountLink) return;
+
+        if (user && !user.isAnonymous) {
+            
+          // mantém storage alinhado com o Firebase Auth (evita carrinho mandando pro login)
+          persistLocalUser(user);
+const displayName = user.displayName || user.email?.split('@')[0] || 'Cliente';
+            clientStatusDisplay.innerHTML = `
+                <span class="text-sm font-semibold">Olá, ${displayName}</span>
+                <span class="text-sm text-gray-300">Minha Conta</span>
+            `;
+            clientAccountLink.href = 'minha_conta.html'; 
+        } else {
+            clientStatusDisplay.innerHTML = `
+                <span class="text-sm font-semibold">Entre ou Cadastre-se</span>
+                <span class="text-sm text-gray-300">para ver seus produtos</span>
+            `;
+            clientAccountLink.href = 'login_cadastro.html'; 
+        }
+    };
+    
+    /**
+     * Simulação de busca.
+     */
+    const realizarBusca = () => {
+      const input = document.getElementById('search-input-desktop');
+      const query = input ? input.value : '';
+      window.displayMessage(`Busca Simulado: \"${query}\" (Resultado viria em outra página)`, 'info');
+    }
+    window.realizarBusca = realizarBusca;
+    
+    /**
+     * Obtém a URL de redirecionamento do parâmetro 'redirect' na URL.
+     * @returns {string} URL de redirecionamento ou 'minha_conta.html' como fallback.
+     */
+    const getRedirectUrl = (onlyIfPresent = false) => {
+        const url = new URL(window.location.href);
+
+        // Aceita vários nomes de parâmetro (compatível com diferentes telas)
+        const paramNames = ['redirect', 'next', 'return', 'returnTo', 'back', 'from'];
+        let redirectParam = null;
+        for (const p of paramNames) {
+            const v = url.searchParams.get(p);
+            if (v) { redirectParam = v; break; }
+        };
+
+// Se veio pela URL, salva para sobreviver a reloads
+        if (redirectParam) {
+            sessionStorage.setItem('post_login_redirect', redirectParam);
+        }
+
+        // Se não veio pela URL, tenta recuperar do sessionStorage (inclusive chaves antigas)
+        let raw = redirectParam || sessionStorage.getItem('post_login_redirect');
+
+        if (!raw) {
+            // tenta achar alguma chave parecida no sessionStorage (ex.: redirectUrl, redirect_after_login)
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const k = sessionStorage.key(i);
+                if (!k) continue;
+                if (!/redirect|return|next|back/i.test(k)) continue;
+                const v = sessionStorage.getItem(k);
+                if (v && typeof v === 'string') { raw = v; break; }
+            }
+        }
+
+        if (!raw) {
+            return onlyIfPresent ? null : 'minha_conta.html';
+        }
+
+        // Decodifica (checkout normalmente manda encodeURIComponent)
+        let redirect = raw;
+        try { redirect = decodeURIComponent(raw); } catch (_) {}
+
+        redirect = String(redirect || '').trim();
+
+        // Segurança: bloqueia URLs externas e esquemas perigosos
+        const lower = redirect.toLowerCase();
+        if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('//') || lower.startsWith('javascript:')) {
+            return onlyIfPresent ? null : 'minha_conta.html';
+        }
+
+        // Normaliza: permite com ou sem "/" no início
+        // Ex.: "checkout.html?x=1", "/checkout.html?x=1", "checkout_finalizar_compra_auth_redirect_corrigido.html"
+        if (redirect.startsWith('./')) redirect = redirect.slice(2);
+        if (redirect.startsWith('../')) {
+            // mantém relativo, mas evita voltar demais
+            redirect = redirect.replace(/^(\.\.\/)+/, '');
+        }
+
+        // Se for somente query (raro), ignora
+        if (redirect.startsWith('?')) {
+            return onlyIfPresent ? null : 'minha_conta.html';
+        }
+
+        // Aceita qualquer caminho local razoável
+        // (não restringe a .html para não quebrar rotas como "/checkout" ou "/carrinho")
+        if (!/^\/?[a-zA-Z0-9_\-./]+(\?.*)?$/.test(redirect)) {
+            return onlyIfPresent ? null : 'minha_conta.html';
+        }
+
+        return redirect;
+    }
+// =========================================================
+    
+    const persistLocalUser = (user) => {
+      try {
+        const name = user?.displayName || (user?.email ? user.email.split('@')[0] : 'Cliente');
+        const payload = {
+          nome: name,
+          name,
+          email: user?.email || null,
+          uid: user?.uid || null,
+          loggedAt: Date.now()
+        };
+
+        // chaves comuns usadas nas telas (inclui carrinho/checkout)
+        localStorage.setItem('clienteLogado', JSON.stringify(payload));
+        localStorage.setItem('usuarioLogado', JSON.stringify(payload));
+        localStorage.setItem('currentUser', JSON.stringify(payload));
+
+        // compat: se existir helper do header
+        if (typeof window.setLoggedUserName === 'function') {
+          window.setLoggedUserName(payload);
+        }
+      } catch (e) {
+        console.warn('Falha ao persistir usuário no storage:', e);
+      }
+    };
+
+
+    // 3. LÓGICA DE AUTENTICAÇÃO
+    // =========================================================
+
+    /**
+     * Trata o erro do Firebase para exibir mensagens amigáveis.
+     * @param {object} error Objeto de erro do Firebase.
+     */
+    const handleFirebaseError = (error) => {
+        let message = 'Ocorreu um erro desconhecido.';
+        
+        switch (error.code) {
+            case 'auth/invalid-email':
+                message = 'O formato do e-mail é inválido.';
+                break;
+            case 'auth/user-disabled':
+                message = 'Este usuário foi desativado.';
+                break;
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+                message = 'E-mail ou senha incorretos.';
+                break;
+            case 'auth/email-already-in-use':
+                message = 'Este e-mail já está cadastrado.';
+                break;
+            case 'auth/weak-password':
+                message = 'A senha deve ter no mínimo 6 caracteres.';
+                break;
+            case 'auth/operation-not-allowed':
+                message = 'O login com e-mail/senha não está ativado. Fale com o suporte.';
+                break;
+            default:
+                console.error("Firebase Auth Error:", error);
+                message = 'Erro na autenticação. Tente novamente.';
+                break;
+        }
+        window.displayMessage(message, 'error');
+    }
+
+    /**
+     * Lida com o processo de Login (Entrar).
+     */
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const redirectUrl = getRedirectUrl(); // PEGA A URL DE REDIRECIONAMENTO
+        
+        window.displayMessage('Acessando sua conta...', 'loading');
+        
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            
+            
+        persistLocalUser(userCredential.user);
+window.displayMessage(`Bem-vindo, ${userCredential.user.displayName || userCredential.user.email}!`, 'success');
+            
+            // Redireciona para a URL determinada
+            setTimeout(() => {
+                sessionStorage.removeItem('login_redirect_done');
+                    sessionStorage.removeItem('post_login_redirect');
+                    window.location.href = redirectUrl;
+            }, 1000);
+            
+        } catch (error) {
+            handleFirebaseError(error);
+        }
+    }
+
+    /**
+     * Lida com o processo de Cadastro (Registrar).
+     */
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('register-name').value;
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
+        const redirectUrl = getRedirectUrl(); // PEGA A URL DE REDIRECIONAMENTO
+
+        if (password.length < 6) {
+            window.displayMessage('A senha deve ter no mínimo 6 caracteres.', 'error');
+            return;
+        }
+
+        window.displayMessage('Criando sua conta...', 'loading');
+        
+        try {
+            // 1. Cria o usuário no Firebase Authentication
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+            
+            // 2. Atualiza o perfil (nome)
+            await updateProfile(user, { displayName: name });
+
+            
+
+        persistLocalUser(user);
+// 3. Cria um documento inicial no Firestore
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, { 
+                name: name,
+                email: email,
+                createdAt: serverTimestamp(),
+                phone: null,
+                address: null
+            });
+            
+            window.displayMessage(`Cadastro realizado! Bem-vindo(a), ${name}!`, 'success');
+
+            // Redireciona para a URL determinada
+            setTimeout(() => {
+                sessionStorage.removeItem('login_redirect_done');
+                    sessionStorage.removeItem('post_login_redirect');
+                    window.location.href = redirectUrl;
+            }, 1000);
+            
+        } catch (error) {
+            handleFirebaseError(error);
+        }
+    }
+    
+    /**
+     * Lida com o login via Google.
+     */
+    const handleGoogleLogin = async () => {
+        const redirectUrl = getRedirectUrl(); // PEGA A URL DE REDIRECIONAMENTO
+
+        window.displayMessage('Acessando com Google...', 'loading');
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
+            
+            
+
+        persistLocalUser(user);
+// Verifica se o documento do Firestore existe. Se não, cria um
+            const userRef = doc(db, "users", user.uid);
+            // setDoc com merge: true cria o documento se não existir e não sobrescreve campos existentes
+            await setDoc(userRef, { 
+                name: user.displayName,
+                email: user.email,
+                lastLogin: serverTimestamp(),
+            }, { merge: true });
+
+            window.displayMessage(`Login com Google bem-sucedido!`, 'success');
+            setTimeout(() => {
+                sessionStorage.removeItem('login_redirect_done');
+                    sessionStorage.removeItem('post_login_redirect');
+                    window.location.href = redirectUrl;
+            }, 1000);
+
+        } catch (error) {
+            console.error("Erro no login com Google:", error.code, error.message);
+            window.displayMessage('Falha ao autenticar com Google. Tente novamente.', 'error');
+        }
+    }
+    
+    /**
+     * Lida com o esquecimento de senha.
+     */
+    const handleForgotPassword = async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+
+        if (!email) {
+            window.displayMessage('Por favor, digite seu e-mail de login primeiro.', 'info');
+            return;
+        }
+
+        window.displayMessage(`Enviando e-mail de recuperação para ${email}...`, 'loading');
+        
+        try {
+            await sendPasswordResetEmail(auth, email);
+            window.displayMessage('E-mail de recuperação enviado! Verifique sua caixa de entrada.', 'success');
+        } catch (error) {
+            handleFirebaseError(error);
+        }
+    }
+
+    // =========================================================
+    // 4. INÍCIO DA APLICAÇÃO E LISTENERS
+    // =========================================================
+    
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      // Guarda o redirect assim que a página abrir (para não perder em recargas)
+      function storeRedirectParamOnce() {
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectParam = urlParams.get('redirect');
+          if (redirectParam) {
+              sessionStorage.setItem('post_login_redirect', redirectParam);
+          }
+      }
+      storeRedirectParamOnce();
+// 1. Carrega o contador do carrinho
+      window.loadCartCounter();
+      
+      // 2. Adiciona listeners de abas
+      document.querySelectorAll('.tab-button').forEach(button => {
+          button.addEventListener('click', (e) => switchTab(e.target.dataset.tab));
+      });
+
+      // 3. Adiciona listeners aos formulários
+      document.getElementById('login-form').addEventListener('submit', handleLogin);
+      document.getElementById('register-form').addEventListener('submit', handleRegister);
+      document.getElementById('google-login-btn').addEventListener('click', handleGoogleLogin);
+      document.getElementById('forgot-password-link').addEventListener('click', handleForgotPassword);
+
+      // 4. Verifica se o usuário já está logado
+      onAuthStateChanged(auth, (user) => {
+                window.updateClientHeaderUI(user);
+
+                // Se já estiver logado e existir redirect, volta para a página de origem (ex.: checkout)
+                if (user && !user.isAnonymous) {
+                    const redirectUrl = getRedirectUrl(true); // só se houver redirect
+                    if (redirectUrl) {
+                        const already = sessionStorage.getItem('login_redirect_done');
+                        if (!already) {
+                            sessionStorage.setItem('login_redirect_done', '1');
+                            window.location.href = redirectUrl;
+                            return;
+                        }
+                    }
+                }
+            });
+      
+      // 5. Verifica mensagens de URL (ex: após um logout bem-sucedido)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('logout') === 'success') {
+          window.displayMessage('Logout bem-sucedido. Faça login novamente.', 'success');
+          // Limpa o parâmetro da URL
+          history.replaceState({}, document.title, window.location.pathname);
+      }
+      if (urlParams.get('redirect')) {
+          // Mantém a mensagem de info, mas remove o parâmetro para não aparecer a cada recarga
+          window.displayMessage('Você precisa fazer login para acessar a página solicitada.', 'info');
+          // Nota: O parâmetro 'redirect' é mantido intencionalmente na URL para ser usado nos handlers de login/cadastro.
+      }
+    });
+</script>
+</body>
+</html>

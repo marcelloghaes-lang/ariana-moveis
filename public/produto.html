@@ -1,0 +1,2111 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<style>
+
+#product-old-price {
+    color: #999;
+    font-weight: 400;
+    font-size: 16px;
+    text-decoration: line-through;
+    display: none; /* Ele começa escondido e o JS mostra se houver preço */
+}
+
+        /* CORREÇÃO PROVISÓRIA PARA A SOBRA LATERAL */
+        body {
+            overflow-x: hidden;
+        }
+
+        /* Estilos para o Lightbox/Modal */
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            visibility: hidden;
+        }
+
+        .lightbox.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .lightbox-content {
+            position: relative;
+            width: min(92vw, 820px);
+            max-height: 82vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.45);
+        }
+
+        .lightbox-content img {
+            width: 100%;
+            height: auto;
+            max-height: 74vh;
+            object-fit: contain;
+            border-radius: 10px;
+        }
+.lightbox-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: white;
+            cursor: pointer;
+            z-index: 1010;
+        }
+
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background 0.3s ease;
+            z-index: 1005;
+        }
+
+        .lightbox-nav:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .lightbox-nav-prev {
+            left: 20px;
+        }
+
+        .lightbox-nav-next {
+            right: 20px;
+        }
+
+        /* Estilo para o contador do carrinho no header */
+        .contador-carrinho {
+            position: absolute;
+            top: -5px;
+            right: -10px;
+            background-color: #2E6DA4;
+            color: white;
+            border-radius: 9999px;
+            padding: 0 6px;
+            font-size: 0.7em;
+            line-height: 1.5;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            display: none;
+        }
+
+        /* --- ESTILOS PARA O ACORDION/SANFONA --- */
+        .accordion-container {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .accordion-item:last-child .accordion-title {
+            border-bottom: none;
+        }
+
+        .accordion-title {
+            cursor: pointer;
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f9f9f9;
+            font-weight: 600;
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+            background-color: #ffffff;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .accordion-content.open {
+            max-height: 1000px;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+
+        .accordion-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-title[aria-expanded="true"] .accordion-icon {
+            transform: rotate(180deg);
+        }
+
+        /* --- ESTILOS DA GALERIA DE MINIATURAS --- */
+        .thumbnail-image {
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+            padding: 2px;
+            border-radius: 4px;
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+
+        .thumbnail-image.active {
+            border-color: #2E6DA4;
+        }
+
+        #thumbnail-gallery {
+            max-width: 100%;
+        }
+/* Estilo para os Banners */
+        .banner-placeholder {
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #e5f1ff;
+            border: 2px dashed #a2c8e6;
+            color: #2E6DA4;
+            font-weight: bold;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .banner-placeholder.h-full {
+            min-height: auto;
+        }
+
+        /* --- ESTILOS PARA CARD DE PRODUTO PADRONIZADO --- */
+        .product-card {
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #e7e7e7;
+            box-shadow: none;
+            transition: transform 0.3s, box-shadow 0.3s;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 10px;
+            height: 100%;
+        }
+
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .product-image-container {
+            width: 100%;
+            height: 180px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .product-image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            transition: none;
+        }
+
+        .product-card-body {
+            padding: 0;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .product-name {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: #444;
+            height: 3em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            margin-bottom: 10px;
+        }
+
+        .product-old-price {
+            font-size: 0.8rem;
+            color: #999;
+            text-decoration: line-through;
+            font-weight: 400;
+            line-height: 1.2;
+        }
+
+        .product-price {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #333;
+            margin-top: 2px;
+            display: flex;
+            align-items: flex-end;
+            line-height: 1;
+        }
+
+        .product-price .currency {
+            font-size: 0.7em;
+            font-weight: 400;
+            align-self: flex-start;
+        }
+
+        .product-price .price-integer {
+            font-size: 1.0em;
+            font-weight: 700;
+            margin-left: 2px;
+        }
+
+        .product-price .decimal-part {
+            font-size: 0.7em;
+            font-weight: 400;
+        }
+
+        .product-price .cash-text {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: #555;
+            margin-left: 5px;
+            padding-bottom: 1px;
+        }
+
+        .product-installments {
+            font-size: 0.75rem;
+            color: #777;
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+
+        .product-tag-container {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .product-tag {
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 2px 5px;
+            border-radius: 2px;
+            display: block;
+            width: fit-content;
+            line-height: 1;
+        }
+
+        .tag-orange {
+            background-color: #ff931e;
+        }
+
+        #category-dropdown.show {
+            display: block;
+            opacity: 1;
+            transform: scaleY(1);
+        }
+
+        /* --- BANNERS HORIZONTAIS (DETALHE DO PRODUTO) --- */
+        .detail-banner-card {
+            width: 100%;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+            display: block;
+        }
+        .detail-banner-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain; /* sem cortar */
+        }
+        .detail-banner-card:hover {
+            transform: translateY(-1px);
+            transition: transform 150ms ease;
+        }
+
+/* ✅ FIX (DESKTOP): garante que a galeria/imagem NÃO fique sticky/fixa.
+   Motivo: seu tailwind.min.css provavelmente foi gerado com `important: true`
+   e alguma classe/regra externa está aplicando `position: sticky !important` na coluna da imagem.
+   Este override só vale no desktop (>=1024px) e força scroll normal. */
+@media (min-width: 1024px) {
+  /* a grid não deve centralizar verticalmente (isso não é o principal, mas ajuda) */
+  #product-details-container { align-items: start !important; }
+
+  /* força a coluna e o card da imagem a rolarem normalmente */
+  .product-left-col,
+  .product-left-col .image-flex-container,
+  #main-product-image,
+  #thumbnail-gallery {
+    position: static !important;
+    top: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+  }
+
+  /* mata sticky/fixed aplicado em qualquer wrapper interno da coluna */
+  .product-left-col * {
+    position: static !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+  }
+}
+
+</style>
+</head>
+<body class="bg-fundo font-sans">
+<div id="header-container"></div>
+<div id="header-placeholder"></div>
+<div id="message-container" class="fixed top-24 right-4 z-[9999] w-80"></div>
+<div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold"></div>
+
+<main class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+<ol id="breadcrumb-container" class="flex text-sm text-gray-500 mb-4 items-center flex-wrap" style="display:none;"></ol>
+
+<div id="loading-message" class="text-center py-20">
+<i class="fas fa-spinner fa-spin text-4xl text-primary-blue mb-4"></i>
+<p class="text-lg text-text-dark font-semibold">Carregando detalhes do produto...</p>
+</div>
+
+<div id="product-details-container" class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start" style="display:none;">
+
+  <div class="lg:col-span-1 self-start product-left-col flex flex-col items-start">
+    <div class="w-full h-auto bg-white p-6 rounded-lg shadow-md mb-4 flex items-center justify-center image-flex-container border border-gray-200" onclick="window.openLightbox(0)">
+      <img id="main-product-image" src="https://placehold.co/500x500/cccccc/333333?text=Carregando" alt="Imagem principal do produto" class="max-w-full max-h-full object-contain cursor-zoom-in" loading="lazy">
+    </div>
+  <div id="thumbnail-gallery" class="flex space-x-2 overflow-x-auto pb-2 w-full justify-start"></div>
+</div>
+
+<div class="lg:col-span-1 space-y-6">
+  <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-sm space-y-4 relative">
+    <button id="btn-toggle-favorite" class="absolute top-4 right-4 text-2xl text-gray-300 hover:text-red-500 transition-colors">
+    <i class="fas fa-heart"></i>
+  </button>
+
+<p id="product-sku" class="text-sm text-gray-500 font-medium">SKU: Carregando...</p>
+<h1 id="product-name" class="text-2xl font-extrabold text-text-dark"></h1>
+
+<div class="flex items-center space-x-2 text-yellow-500">
+<i class="fas fa-star"></i>
+<i class="fas fa-star"></i>
+<i class="fas fa-star"></i>
+<i class="fas fa-star-half-alt"></i>
+<i class="far fa-star"></i>
+<span class="text-sm text-gray-500 ml-2">(42 Avaliações)</span>
+</div>
+
+<div class="border-t border-gray-200 pt-4 space-y-2">
+<p id="product-price-installments" class="text-sm font-medium text-gray-700"></p>
+<p id="product-old-price"></p>
+<p id="product-price-full" class="text-4xl font-bold text-primary-blue"></p>
+<p id="product-price-cash" class="text-base text-green-600 font-semibold"></p>
+</div>
+</div>
+
+<div id="seller-badge-container" class="space-y-3 mt-4">
+
+  <!-- Badge (clique leva para a loja do seller verdadeiro) -->
+  <a id="seller-badge-link" href="#" class="block w-fit">
+    <div id="seller-badge" style="display:none;"
+      class="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-xs font-medium text-primary-blue shadow-sm hover:bg-blue-100 transition-colors">
+      <i class="fas fa-certificate mr-1.5 text-secondary-light-blue"></i>
+      <span>
+        Vendedor Parceiro:
+        <span id="seller-badge-name" class="ml-1 font-bold uppercase tracking-tight underline"></span>
+      </span>
+    </div>
+  </a>
+
+  <!-- Linha principal: Vendido e entregue por -->
+  <div class="flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <div class="w-10 h-10 rounded-full bg-primary-blue flex items-center justify-center shadow-inner">
+      <i class="fas fa-store text-white text-sm"></i>
+    </div>
+
+    <div class="flex flex-col">
+      <p class="text-[10px] text-gray-400 uppercase font-black tracking-widest leading-none mb-1">Vendido e entregue por</p>
+      <a id="seller-main-link" href="#" class="hover:underline">
+        <p id="seller-main-name" class="text-sm text-primary-blue font-extrabold italic tracking-tight uppercase">Carregando...</p>
+      </a>
+    </div>
+
+    <div class="ml-auto">
+      <i class="fas fa-check-circle text-green-500 text-lg" title="Vendedor Verificado"></i>
+    </div>
+  </div>
+
+</div>
+
+<div id="product-description-accordion-container" class="accordion-container">
+  <div class="accordion-item">
+    <div class="accordion-title" onclick="window.toggleAccordion(this)" aria-expanded="true">
+    <span>Descrição Completa</span>
+  <i class="fas fa-chevron-down accordion-icon"></i>
+</div>
+<div id="content-description" class="accordion-content open">
+<div id="product-description" class="prose max-w-none text-gray-700"></div>
+</div>
+</div>
+<div class="accordion-item">
+  <div class="accordion-title" onclick="window.toggleAccordion(this)" aria-expanded="false">
+  <span>Especificações Técnicas</span>
+<i class="fas fa-chevron-down accordion-icon"></i>
+</div>
+<div id="content-specs" class="accordion-content">
+<ul id="product-attributes" class="list-disc list-inside space-y-1 text-gray-700"></ul>
+</div>
+</div>
+</div>
+
+<div id="variation-options" class="bg-white p-6 space-y-4 border border-gray-200 rounded-lg shadow-sm" style="display:none;">
+<p class="font-semibold text-text-dark">Cor/Modelo:</p>
+<div id="color-options" class="flex flex-wrap gap-2"></div>
+</div>
+</div>
+
+<div class="lg:col-span-1 space-y-6">
+  <div class="bg-gray-50 p-4 rounded-lg shadow-inner border border-gray-200 space-y-4">
+    <div class="flex items-start space-x-3">
+    <i class="fas fa-shield-alt text-xl text-primary-blue mt-1 flex-shrink-0"></i>
+    <div>
+    <h4 class="font-semibold text-text-dark">Compra 100% Segura</h4>
+  <p class="text-sm text-gray-600">Seus dados e transações protegidos.</p>
+</div>
+</div>
+<div class="flex items-start space-x-3">
+<i class="fas fa-truck-fast text-xl text-primary-blue mt-1 flex-shrink-0"></i>
+<div>
+<h4 class="font-semibold text-text-dark">Entrega Rápida e Confiável</h4>
+<p class="text-sm text-gray-600">Rastreio completo do pedido.</p>
+</div>
+</div>
+<div class="flex items-start space-x-3">
+<i class="fas fa-exchange-alt text-xl text-primary-blue mt-1 flex-shrink-0"></i>
+<div>
+<h4 class="font-semibold text-text-dark">Devolução Fácil</h4>
+<p class="text-sm text-gray-600">Prazo de 7 dias para troca ou devolução.</p>
+</div>
+</div>
+</div>
+
+<div class="bg-white p-6 space-y-4 border border-gray-200 rounded-lg shadow-sm">
+  <div class="flex items-center space-x-4">
+  <span class="font-semibold text-text-dark text-sm">Quantidade:</span>
+  <div class="flex items-center space-x-2">
+  <button id="quantity-minus" class="w-8 h-8 bg-gray-200 text-text-dark rounded hover:bg-gray-300 transition-colors">-</button>
+  <input type="number" id="quantity-input" value="1" min="1" max="99" class="w-12 h-10 text-center border border-gray-300 rounded focus:ring-primary-blue focus:border-primary-blue">
+<button id="quantity-plus" class="w-8 h-8 bg-gray-200 text-text-dark rounded hover:bg-gray-300 transition-colors">+</button>
+</div>
+</div>
+<button id="add-to-cart-button" class="w-full bg-white border-2 border-primary-blue text-primary-blue py-4 rounded-xl font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+<i class="fas fa-shopping-cart"></i>
+Adicionar ao Carrinho
+</button>
+<button id="buy-now-button" class="w-full py-4 text-lg font-bold bg-yellow-500 text-text-dark rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center disabled:bg-gray-400">
+<i class="fas fa-money-check-alt mr-3"></i> Comprar Agora
+</button>
+</div>
+
+<div class="bg-white p-4 space-y-3 border border-gray-200 rounded-lg shadow-sm">
+  <h3 class="text-xl font-bold text-text-dark flex items-center mb-3">
+  <i class="fas fa-truck text-primary-blue mr-3"></i> Frete
+</h3>
+<div class="flex space-x-2">
+  <input type="text" id="cep-input" placeholder="00000-000" maxlength="9" class="flex-grow p-2 border border-gray-300 rounded focus:ring-primary-blue focus:border-primary-blue text-sm">
+<button id="calculate-shipping-btn" class="bg-primary-blue text-white px-4 py-2 rounded-lg font-semibold hover:bg-dark-bg transition-colors text-sm">Calcular</button>
+</div>
+<div id="shipping-result" class="mt-3 text-sm">
+<p class="text-gray-500">Insira seu CEP para calcular o prazo e o valor.</p>
+</div>
+<p class="text-xs text-gray-400 mt-2">Valor de Frete: <span id="frete-price">A calcular</span></p>
+</div>
+
+<div class="space-y-3">
+  <a id="whatsapp-product-link" href="https://wa.me/5531985147119?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20produto%3A%20" target="_blank" class="w-full flex items-center justify-center space-x-3 p-4 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition-colors">
+  <i class="fab fa-whatsapp text-2xl"></i>
+<span>Fale com a Loja (WhatsApp)</span>
+</a>
+
+<a href="politica_entrega.html" class="flex items-start space-x-3 p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+<i class="fas fa-shield-alt text-xl text-primary-blue pt-1"></i>
+<div>
+<p class="font-semibold text-text-dark">Compra Protegida</p>
+<p class="text-sm text-gray-500">Compre com segurança, do pedido à entrega.</p>
+</div>
+<i class="fas fa-chevron-right text-sm text-gray-400 ml-auto pt-1"></i>
+</a>
+
+<a href="politica_trocas.html" class="flex items-start space-x-3 p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+<i class="fas fa-undo-alt text-xl text-primary-blue pt-1"></i>
+<div>
+<p class="font-semibold text-text-dark">Devolução Gratuita</p>
+<p class="text-sm text-gray-500">Em até 7 dias depois de receber o produto.</p>
+</div>
+<i class="fas fa-chevron-right text-sm text-gray-400 ml-auto pt-1"></i>
+</a>
+</div>
+
+<div class="text-center pt-4">
+  <a href="denuncia_anuncio.html" class="text-sm text-red-500 hover:text-red-700 font-medium flex items-center justify-center">
+  <i class="fas fa-flag mr-2"></i> Denunciar Anúncio
+</a>
+</div>
+</div>
+</div>
+
+<div class="mt-12">
+<h2 class="text-2xl font-bold text-primary-blue mb-6 border-b pb-2">Quem Viu Este Produto, Viu Também</h2>
+<div id="seen-also-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+  <div id="loading-seen-also" class="col-span-full text-center text-gray-500 py-6">
+  <i class="fas fa-spinner fa-spin mr-2"></i> Carregando...
+</div>
+</div>
+</div>
+
+<section id="banner-section-product-category" class="mt-12 w-full animate-fade-in" style="display:block;">
+  <div class="max-w-8xl mx-auto px-4">
+  <h2 class="text-2xl font-bold text-primary-blue mb-6 border-b pb-2">Mais Destaques da Ariana</h2>
+  <div id="ariana-highlights-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    <div id="loading-ariana-highlights" class="col-span-full text-center text-gray-500 py-6">
+    <i class="fas fa-spinner fa-spin mr-2"></i> Carregando...
+  </div>
+</div>
+</div>
+</section>
+
+<section id="product-detail-banners" class="mt-12 w-full animate-fade-in" style="display:none;">
+  <div class="max-w-8xl mx-auto px-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <a id="product-detail-banner-1" href="#" class="detail-banner-card hidden" aria-label="Banner promocional 1 (produto)"></a>
+  <a id="product-detail-banner-2" href="#" class="detail-banner-card hidden" aria-label="Banner promocional 2 (produto)"></a>
+</div>
+</div>
+</section>
+
+<div class="mt-12">
+<h2 class="text-2xl font-bold text-primary-blue mb-6 border-b pb-2">⭐ Queridinhos da Internet</h2>
+<div id="internet-favorites-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+  <div id="loading-internet-favorites" class="col-span-full text-center text-gray-500 py-6">
+  <i class="fas fa-spinner fa-spin mr-2"></i> Carregando...
+</div>
+</div>
+</div>
+
+</main>
+
+<div id="product-lightbox" class="lightbox" onclick="window.closeLightbox()">
+  <button class="lightbox-close" onclick="event.stopPropagation(); window.closeLightbox()">
+    &times;
+  </button>
+  <div class="lightbox-content">
+    <button class="lightbox-nav lightbox-nav-prev" onclick="event.stopPropagation(); window.navigateLightbox(-1)">
+    <i class="fas fa-chevron-left"></i>
+  </button>
+  <img id="lightbox-image" src="" alt="Zoom da imagem do produto">
+  <button class="lightbox-nav lightbox-nav-next" onclick="event.stopPropagation(); window.navigateLightbox(1)">
+  <i class="fas fa-chevron-right"></i>
+</button>
+</div>
+</div>
+
+<script type="module">
+// ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
+// Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
+window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
+  try{
+    if (v === null || v === undefined) return fallback;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+    let s = String(v).trim();
+    if (!s) return fallback;
+    // remove R$, espaços e caracteres não numéricos exceto . e ,
+    s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g,'');
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot){
+      // 1.234,56 -> 1234.56
+      s = s.replace(/\./g,'').replace(',', '.');
+    } else if (hasComma && !hasDot){
+      // 1234,56 -> 1234.56
+      s = s.replace(',', '.');
+    }
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : fallback;
+  }catch(_e){
+    return fallback;
+  }
+};
+
+        // =========================================================
+        // 1. CONFIGURAÇÕES E INICIALIZAÇÃO DO FIREBASE
+        // =========================================================
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, setDoc, where, setLogLevel } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        const USER_PROVIDED_CONFIG = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c99c67c70",
+            measurementId: "G-G8NH3XKQX"
+        };
+
+        const app = !getApps().length ? initializeApp(USER_PROVIDED_CONFIG) : getApp();
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Expor Firebase (modular) para scripts fora do module (ex: header.js)
+        window.db = db;
+        window.auth = auth;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.getDoc = getDoc;
+        window.query = query;
+        window.where = where;
+
+        window.orderBy = orderBy;
+window.limit = limit;
+        window.doc = doc;
+        // (Opcional) sinaliza que o Firebase está pronto
+        try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+
+        let productData = null;
+
+// =========================================================
+// DESCONTO GLOBAL (PIX/BOLETO) - DINÂMICO VIA FIREBASE
+// Mantém o mesmo desconto configurado no Admin/Index.
+// =========================================================
+let __paymentsSettings = null;
+let __pixDiscountPercent = 0; // ex: 10, 12, 15 (0 = sem desconto)
+
+function __num(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function __extractPixDiscountPercent(paymentsObj) {
+  const p = paymentsObj || {};
+  const cash = p.cash || p.pix || {};
+  let d =
+    cash.discountPercent ??
+    cash.descontoPercent ??
+    cash.descontoPix ??
+    p.descontoPix ??
+    p.desconto_pix ??
+    p.pixDiscountPercent ??
+    p.discountPixPercent ??
+    p.descontoPIX ??
+    0;
+  d = __num(d, 0);
+  if (d < 0) d = 0;
+  if (d > 90) d = 90;
+  return d;
+}
+
+async function loadPaymentsSettingsForProduct() {
+  if (__paymentsSettings) return __paymentsSettings;
+
+  try {
+    const paySnap = await getDoc(doc(db, "settings", "payments"));
+    if (paySnap.exists()) {
+      __paymentsSettings = paySnap.data() || {};
+      const pix = (__paymentsSettings.pix || {});
+      const enabled = !!pix.enabled;
+      let d = enabled ? __num(pix.discountPercent ?? pix.descontoPercent ?? pix.descontoPix, 0) : 0;
+      if (d < 0) d = 0;
+      if (d > 90) d = 90;
+      __pixDiscountPercent = d;
+      return __paymentsSettings;
+    }
+  } catch (e) {
+    console.warn("[produto] Erro ao buscar settings/payments:", e);
+  }
+
+  // fallback de segurança: mantém app funcionando mesmo se a config falhar
+  __paymentsSettings = {};
+  __pixDiscountPercent = 10;
+  return __paymentsSettings;
+}
+
+        let productImages = [];
+        let currentImageIndex = 0;
+        let userId = null;
+        let cartItems = [];
+        let isFavorite = false;
+
+        async function loadProductDetails() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const productId = urlParams.get('id');
+
+            if (!productId) {
+                console.error("Nenhum ID de produto na URL.");
+                document.getElementById('loading-message').innerHTML = "<p>Produto não identificado.</p>";
+                return;
+            }
+
+            try {
+                const docRef = doc(db, "products", productId);
+                const snap = await getDoc(docRef);
+
+                if (snap.exists()) {
+                    productData = { id: snap.id, ...snap.data() };
+                    await loadPaymentsSettingsForProduct();
+
+                    document.getElementById('product-name').textContent = productData.name || 'Sem nome';
+                    document.getElementById('product-sku').textContent = `SKU: ${productData.sku || productId}`;
+                    const __pricing = computeDetailPricing(productData);
+                    window.__detailPricing = __pricing;
+                    applyDetailPricingToUI(__pricing);
+                    document.getElementById('product-description').innerHTML = productData.description || 'Sem descrição disponível.';
+
+                                        // --- CORREÇÃO: SELLER VERDADEIRO (NOME + LINK) ---
+                    // Motivo do bug anterior:
+                    // - IDs duplicados no HTML (seller-link / seller-badge-1 / seller-info-1)
+                    // - fallback forçado para "Ariana Móveis" quando sellerName não vinha no produto
+                    //
+                    // Agora:
+                    // - Busca o seller real em /sellers/{sellerId} quando existir sellerId
+                    // - Atualiza os 2 lugares: badge e "Vendido e entregue por"
+                    // - Link vai para loja.html?sellerId=... (loja do seller verdadeiro)
+
+                    const badgeNameEl = document.getElementById('seller-badge-name');
+                    const badgeEl = document.getElementById('seller-badge');
+                    const badgeLinkEl = document.getElementById('seller-badge-link');
+
+                    const mainNameEl = document.getElementById('seller-main-name');
+                    const mainLinkEl = document.getElementById('seller-main-link');
+
+                    // Helpers: tenta pegar nome/slug/whatsapp do doc do seller
+                    const pickSellerDisplayName = (s) => {
+                        if (!s) return null;
+                        return (
+                            s.factoryName ||
+                            s.storeName ||
+                            s.tradingName ||
+                            s.companyName ||
+                            s.nomeFantasia ||
+                            s.name ||
+                            null
+                        );
+                    };
+
+                    const pickSellerSlug = (s) => {
+                        if (!s) return null;
+                        return (
+                            s.slug ||
+                            s.storeSlug ||
+                            s.lojaSlug ||
+                            s.handle ||
+                            null
+                        );
+                    };
+
+                    const pickSellerWhatsapp = (s) => {
+                        if (!s) return null;
+                        return (
+                            s.whatsapp ||
+                            s.whatsApp ||
+                            s.whatsappNumber ||
+                            s.phone ||
+                            s.telefone ||
+                            null
+                        );
+                    };
+
+                    const normalizeDigits = (v) => String(v || "").replace(/\D/g, "");
+                    const setSellerUI = (name, href) => {
+                        const safeName = (name || "Vendedor Parceiro").toString();
+
+                        if (badgeNameEl) badgeNameEl.textContent = safeName;
+                        if (mainNameEl) mainNameEl.textContent = safeName;
+
+                        if (badgeEl) badgeEl.style.display = 'inline-flex';
+
+                        if (badgeLinkEl) badgeLinkEl.href = href || "#";
+                        if (mainLinkEl) mainLinkEl.href = href || "#";
+                    };
+
+                    // Define link preferencial (página da loja)
+                    const buildSellerHref = (sellerId, sellerSlug) => {
+                        // Você pode trocar para: `todos_produtos.html?sellerId=...` se preferir lista.
+                        if (sellerSlug) return `loja.html?slug=${encodeURIComponent(sellerSlug)}`;
+                        if (sellerId) return `loja.html?sellerId=${encodeURIComponent(sellerId)}`;
+                        return "loja.html";
+                    };
+
+                    // 1) Base: se o produto já trouxe sellerName, usa de imediato (sem Ariana forçado)
+                    const baseName =
+                        productData.sellerName ||
+                        productData.seller_store_name ||
+                        productData.sellerStoreName ||
+                        productData.seller_display_name ||
+                        null;
+
+                    // 2) Busca o seller REAL quando tiver sellerId (usa coleção pública para não depender de login)
+                    let sellerDocData = null;
+                    if (productData.sellerId) {
+                        const sid = String(productData.sellerId);
+
+                        // tenta /sellers_public (público)
+                        try {
+                            const sRefPub = doc(db, "sellers_public", sid);
+                            const sSnapPub = await getDoc(sRefPub);
+                            if (sSnapPub.exists()) sellerDocData = (sSnapPub.data() || {});
+                        } catch (e) {
+                            console.warn("[produto] Falha ao buscar seller em /sellers_public:", e);
+                        }
+
+                        // fallback: /sellers (privado) — só funciona se regra permitir (seller logado/admin)
+                        if (!sellerDocData) {
+                            try {
+                                const sRef = doc(db, "sellers", sid);
+                                const sSnap = await getDoc(sRef);
+                                if (sSnap.exists()) sellerDocData = (sSnap.data() || {});
+                            } catch (e) {
+                                console.warn("[produto] Falha ao buscar seller em /sellers:", e);
+                            }
+                        }
+                    }
+
+                    const sellerRealName = pickSellerDisplayName(sellerDocData) || baseName || "Vendedor Parceiro";
+                    const sellerSlug = pickSellerSlug(sellerDocData) || null;
+                    const sellerHref = buildSellerHref(productData.sellerId || null, sellerSlug);
+
+                    // ✅ Se o produto NÃO tem sellerId, ele é vendido pela plataforma (Ariana Móveis)
+                    // Nesse caso: não mostrar badge de parceiro e usar Ariana Móveis como vendedor.
+                    const isPlatformProduct = !productData.sellerId;
+                    if (isPlatformProduct) {
+                        if (badgeEl) badgeEl.style.display = 'none';
+                        setSellerUI('Ariana Móveis', 'nossas_lojas.html');
+                    } else {
+                        setSellerUI(sellerRealName, sellerHref);
+                    }
+
+                    // (Opcional) Atualiza o botão WhatsApp para falar com o SELLER (se houver número no doc)
+                    const wa = pickSellerWhatsapp(sellerDocData);
+                    const waDigits = normalizeDigits(wa);
+                    const waLink = document.getElementById('whatsapp-product-link');
+                    if (waLink && waDigits.length >= 10) {
+                        const msg = `Olá, gostaria de saber mais sobre o produto: ${productData.name || ''}`;
+                        waLink.href = `https://wa.me/55${waDigits}?text=${encodeURIComponent(msg)}`;
+                    }
+
+                    // Preencher atributos/especificações
+                    const attributesList = document.getElementById('product-attributes');
+                    if (attributesList && productData.attributes) {
+                        attributesList.innerHTML = '';
+                        Object.entries(productData.attributes).forEach(([key, value]) => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<strong>${key}:</strong> ${value}`;
+                            attributesList.appendChild(li);
+                        });
+                    }
+
+                    productImages = [];
+                    if (Array.isArray(productData.images)) {
+                        productImages = productData.images.map(img => typeof img === 'string' ? img : img.url);
+                    } else if (productData.images && typeof productData.images === 'object') {
+                        productImages = Object.values(productData.images).map(img => typeof img === 'string' ? img : img.url);
+                    }
+
+                    if (productImages.length > 0) {
+                        const mainImg = document.getElementById('main-product-image');
+                        mainImg.src = productImages[0];
+
+                        const gallery = document.getElementById('thumbnail-gallery');
+                        gallery.innerHTML = '';
+
+                        productImages.forEach((url, idx) => {
+                            const imgThumb = document.createElement('img');
+                            imgThumb.src = url;
+                            imgThumb.className = 'thumbnail-image' + (idx === 0 ? ' active' : '');
+                            imgThumb.onclick = () => {
+                                mainImg.src = url;
+                                document.querySelectorAll('.thumbnail-image').forEach(t => t.classList.remove('active'));
+                                imgThumb.classList.add('active');
+                            };
+                            gallery.appendChild(imgThumb);
+                        });
+                    }
+
+                    document.getElementById('loading-message').style.display = 'none';
+                    document.getElementById('product-details-container').style.display = 'grid';
+
+                    // Chamar a verificação de favorito
+                    checkIfIsFavorite(productId);
+
+                    if (COST_SAFE_FLAGS.enableProductRecommendations) { loadRecommendationSections({ id: productId, categorySlug: (productData.categorySlug || productData.category_slug || productData.category || '') }); }
+
+                } else {
+                    document.getElementById('loading-message').innerHTML = "<p>Produto não encontrado.</p>";
+                }
+            } catch (error) {
+                console.error("Erro ao carregar produto:", error);
+                document.getElementById('loading-message').innerHTML = "<p>Erro ao carregar dados do produto.</p>";
+            }
+        }
+
+        // --- FAVORITOS (CORREÇÃO DE CAMINHO E ESTILO) ---
+        async function checkIfIsFavorite(productId) {
+            const currentUser = auth.currentUser;
+            if (!currentUser || currentUser.isAnonymous) return;
+
+            userId = currentUser.uid;
+            try {
+                // Caminho padrão: users/UID/favorites/PRODUCTID
+                const favRef = doc(db, "users", userId, "favorites", productId);
+                const favDoc = await getDoc(favRef);
+                isFavorite = favDoc.exists();
+                updateFavoriteUI();
+            } catch (e) {
+                console.error("Erro ao verificar favorito:", e);
+            }
+        }
+
+        function updateFavoriteUI() {
+            const btn = document.getElementById('btn-toggle-favorite');
+            if (!btn) return;
+            if (isFavorite) {
+                btn.style.color = "#ef4444"; // Vermelho
+                btn.classList.add('active');
+            } else {
+                btn.style.color = "#d1d5db"; // Cinza
+                btn.classList.remove('active');
+            }
+        }
+
+        async function toggleFavorite() {
+            const currentUser = auth.currentUser;
+            if (!currentUser || currentUser.isAnonymous) {
+                showToastMessage('Faça login para salvar favoritos!', 'info');
+                return;
+            }
+
+            userId = currentUser.uid;
+            const productId = productData.id;
+            const favRef = doc(db, "users", userId, "favorites", productId);
+
+            try {
+                if (isFavorite) {
+                    await deleteDoc(favRef);
+                    isFavorite = false;
+                    showToastMessage('Removido dos favoritos', 'info');
+                } else {
+                    await setDoc(favRef, {
+                        productId: productId,
+                        name: productData.name,
+                        price: productData.price,
+                        imageUrl: productImages[0] || "",
+                        savedAt: serverTimestamp()
+                    });
+                    isFavorite = true;
+                    showToastMessage('Adicionado aos favoritos!', 'success');
+                }
+                updateFavoriteUI();
+            } catch (e) {
+                console.error("Erro ao processar favorito:", e);
+                showToastMessage('Erro ao atualizar favoritos.', 'error');
+            }
+        }
+
+        // =========================================================
+        // 2. FUNÇÕES DE UTILIDADE E UI
+        // =========================================================
+        const catBtn = document.getElementById('category-dropdown-btn');
+        const catMenu = document.getElementById('category-dropdown');
+        if (catBtn && catMenu) catBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            catMenu.classList.toggle('hidden');
+            catMenu.classList.toggle('show');
+        });
+        document.addEventListener('click', () => {
+            if (!catMenu) return;
+            catMenu.classList.add('hidden');
+            catMenu.classList.remove('show');
+        });
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }).format(value);
+        }
+
+        function computeDetailPricing(productData) {
+            const n = (v) => {
+                const x = window.__toNumberBR(v, NaN);
+                 return Number.isFinite(x) ? x : null;
+            };
+
+            const oldPrice = n(productData.oldPrice ?? productData.old_price ?? productData.precoOriginal ?? productData.priceOriginal ?? productData.originalPrice);
+            const currentPrice = n(productData.price ?? productData.preco ?? productData.valor);
+
+            // Se existir oldPrice e o currentPrice for menor, usa como desconto do produto.
+            let original = (oldPrice != null && oldPrice > 0) ? oldPrice : (currentPrice != null ? currentPrice : 0);
+            let cash = (oldPrice != null && currentPrice != null && currentPrice > 0 && currentPrice < oldPrice) ? currentPrice : null;
+
+            // Se não tiver desconto explícito no produto, aplica o desconto GLOBAL (PIX/BOLETO) configurado no Admin.
+if (cash == null) {
+    const desc = __num(__pixDiscountPercent, 0);
+    if (desc > 0) {
+        const fator = (100 - desc) / 100;
+        cash = Math.max(0, original * fator);
+    } else {
+        cash = Math.max(0, original);
+    }
+}
+const discountPercent = (original > 0) ? Math.round((1 - (cash / original)) * 100) : 0;
+
+            const installments = 12;
+            const instValue = (cash > 0) ? (cash / installments) : 0;
+
+            return {
+                original,
+                cash,
+                discountPercent,
+                originalFormatted: formatCurrency(original),
+                cashValueFormatted: formatCurrency(cash),
+                installmentsText: `ou em até ${installments}x de ${formatCurrency(instValue)} sem juros`
+            };
+        }
+
+        function applyDetailPricingToUI(pricing) {
+            // Preço Riscado
+            const oldPriceEl = document.getElementById('product-old-price');
+            if (oldPriceEl) {
+                if (pricing.discountPercent > 0 && pricing.original > pricing.cash) {
+                    oldPriceEl.innerText = pricing.originalFormatted;
+                    oldPriceEl.style.display = 'block';
+                } else {
+                    oldPriceEl.style.display = 'none';
+                }
+            }
+
+            // Preço Principal (Grande)
+            const priceFullEl = document.getElementById('product-price-full');
+            if (priceFullEl) {
+                const off = (pricing.discountPercent > 0) ? `${pricing.discountPercent}% OFF` : '';
+                priceFullEl.innerHTML = `
+                    <span class="text-2xl font-normal mr-1">R$</span>
+                    ${pricing.cashValueFormatted.replace('R$', '').trim()}
+                    ${off ? `<span class="text-green-500 text-lg ml-2 font-semibold">${off}</span>` : ``}
+                `;
+            }
+
+            // Texto do PIX
+            const priceCashEl = document.getElementById('product-price-cash');
+            if (priceCashEl) {
+                priceCashEl.innerHTML = `<i class="fas fa-bolt mr-1"></i> ${pricing.cashValueFormatted} no PIX`;
+            }
+
+            // Parcelamento
+            const installmentsEl = document.getElementById('product-price-installments');
+            if (installmentsEl) {
+                installmentsEl.innerHTML = pricing.installmentsText;
+            }
+        }
+
+        window.formatPriceParts = (value) => {
+            if (value === null || value === undefined || isNaN(parseFloat(value))) {
+                return { symbol: 'R$', integer: '0', decimal: '00' };
+            }
+            const formatted = formatCurrency(value);
+            const numericString = formatted.replace('R$', '').replace(/\./g, '').trim();
+            const decimalSeparatorIndex = numericString.lastIndexOf(',');
+            let integerPart = numericString;
+            let decimalPart = '00';
+            if (decimalSeparatorIndex !== -1) {
+                integerPart = numericString.substring(0, decimalSeparatorIndex);
+                decimalPart = numericString.substring(decimalSeparatorIndex + 1).padEnd(2, '0').substring(0, 2);
+            }
+            if (integerPart === '') integerPart = '0';
+            return { symbol: 'R$', integer: integerPart, decimal: decimalPart };
+        };
+
+        function showToastMessage(message, type = 'info') {
+            const container = document.getElementById('message-container');
+            if (!container) return;
+            const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+            const toast = document.createElement('div');
+            toast.className = `p-4 mb-2 rounded-lg shadow-xl text-white font-semibold flex items-center ${colors[type]} animate-fade-in`;
+            toast.innerHTML = `<i class="fas fa-check-circle mr-3"></i> ${message}`;
+            container.innerHTML = '';
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('animate-fade-in');
+                toast.classList.add('opacity-0', 'transition-opacity');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 3000);
+        }
+
+        window.openLightbox = (index) => {
+            if (productImages.length === 0) return;
+            currentImageIndex = index;
+            const lightbox = document.getElementById('product-lightbox');
+            const lightboxImage = document.getElementById('lightbox-image');
+            lightboxImage.src = productImages[currentImageIndex];
+            lightbox.classList.add('active');
+        }
+
+        window.closeLightbox = () => {
+            document.getElementById('product-lightbox').classList.remove('active');
+        }
+
+        window.navigateLightbox = (direction) => {
+            if (productImages.length === 0) return;
+            currentImageIndex = (currentImageIndex + direction + productImages.length) % productImages.length;
+            document.getElementById('lightbox-image').src = productImages[currentImageIndex];
+        }
+
+        window.toggleAccordion = (titleElement) => {
+            const content = titleElement.nextElementSibling;
+            const isExpanded = titleElement.getAttribute('aria-expanded') === 'true';
+            if (isExpanded) {
+                content.classList.remove('open');
+                titleElement.setAttribute('aria-expanded', 'false');
+            } else {
+                content.classList.add('open');
+                titleElement.setAttribute('aria-expanded', 'true');
+            }
+        }
+
+        function setupQuantityControl() {
+            const input = document.getElementById('quantity-input');
+            const plusBtn = document.getElementById('quantity-plus');
+            const minusBtn = document.getElementById('quantity-minus');
+            plusBtn.addEventListener('click', () => {
+                let currentValue = parseInt(input.value);
+                input.value = currentValue + 1;
+            });
+            minusBtn.addEventListener('click', () => {
+                let currentValue = parseInt(input.value);
+                if (currentValue > 1) input.value = currentValue - 1;
+            });
+            input.addEventListener('change', () => {
+                if (parseInt(input.value) < 1 || isNaN(parseInt(input.value))) input.value = 1;
+            });
+        }
+
+        window.toggleMobileMenu = () => {
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (!mobileMenu) return;
+            mobileMenu.classList.toggle('hidden');
+        };
+
+        window.applySearchFilter = (event) => {
+            if (event) event.preventDefault();
+            const desktopInput = document.getElementById('search-input-desktop');
+            const mobileInput = document.getElementById('search-input-mobile');
+            let queryText = (desktopInput.value || mobileInput.value || '').trim();
+            if (queryText) {
+                window.location.href = `todos_produtos.html?q=${encodeURIComponent(queryText)}`;
+            } else {
+                showToastMessage('Por favor, digite um termo para buscar.', 'info');
+            }
+        }
+
+        // =========================================================
+        // 3. LÓGICA DO CARRINHO (CORRIGIDA)
+// =========================================================
+        const CART_KEY_OLD = 'arianaMoveisCart';
+        const CART_KEY_NEW = 'ariana_moveis_cart';
+
+        function readCartArray() {
+            const raw = localStorage.getItem(CART_KEY_OLD) || localStorage.getItem(CART_KEY_NEW);
+            if (!raw) return [];
+            try {
+                const data = JSON.parse(raw);
+
+                // Formato padrão: Array de itens
+                if (Array.isArray(data)) return data;
+
+                // Formato legado: Objeto mapa { id: {...}, ... }
+                if (data && typeof data === 'object') return Object.values(data);
+
+                return [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function writeCartArray(items) {
+            const arr = Array.isArray(items) ? items : [];
+            localStorage.setItem(CART_KEY_OLD, JSON.stringify(arr));
+            localStorage.setItem(CART_KEY_NEW, JSON.stringify(arr));
+        }
+
+        function loadCartAndCounter() {
+            cartItems = readCartArray();
+            updateCartCounter();
+        }
+
+        function updateCartCounter() {
+            const counterElement = document.getElementById('cart-counter-nav');
+            if (!counterElement) return;
+            const totalItems = cartItems.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
+            counterElement.textContent = totalItems;
+            counterElement.style.display = totalItems > 0 ? 'inline-flex' : 'none';
+        }
+
+// =============================
+// Frete: normaliza peso/dimensões do produto
+// (evita quebrar botões "comprar" / "adicionar")
+// =============================
+function normalizeProductShipping(p) {
+    const obj = p || {};
+    const ship = obj.shipping || obj.frete || {};
+    const dims = obj.dimensions || obj.dimensoes || ship.dimensions || ship.dimensoes || {};
+    const num = (v) => {
+        const n = Number(String(v ?? "").replace(",", "."));
+        return Number.isFinite(n) ? n : NaN;
+    };
+
+    // Defaults seguros (iguais aos que o backend usa quando falta)
+    let pesoKg = num(obj.pesoKg ?? obj.weightKg ?? ship.pesoKg ?? ship.weightKg);
+    if (!Number.isFinite(pesoKg) || pesoKg <= 0) pesoKg = 5;
+
+    let comprimento = num(obj.comprimento ?? obj.length ?? dims.comprimento ?? dims.length ?? ship.comprimento);
+    if (!Number.isFinite(comprimento) || comprimento <= 0) comprimento = 11;
+
+    let largura = num(obj.largura ?? obj.width ?? dims.largura ?? dims.width ?? ship.largura);
+    if (!Number.isFinite(largura) || largura <= 0) largura = 11;
+
+    let altura = num(obj.altura ?? obj.height ?? dims.altura ?? dims.height ?? ship.altura);
+    if (!Number.isFinite(altura) || altura <= 0) altura = 20;
+
+    // Normalização mínima
+    comprimento = Math.max(1, Math.round(comprimento));
+    largura = Math.max(1, Math.round(largura));
+    altura = Math.max(1, Math.round(altura));
+    pesoKg = Math.max(0.1, Number(pesoKg.toFixed(3)));
+
+    return { pesoKg, comprimento, largura, altura };
+}
+
+function addToCart(action = 'add') {
+            if (!productData) {
+                showToastMessage('Erro: Nenhum produto carregado.', 'error');
+                return;
+            }
+
+            const quantity = parseInt(document.getElementById('quantity-input').value) || 1;
+
+            // Sempre trabalha com array (compatível com carrinho.html)
+            const cart = readCartArray();
+            const itemIndex = cart.findIndex(item => String(item.id) === String(productData.id));
+
+            const mainImage =
+                productImages[0] ||
+                productData.mainImageUrl ||
+                (Array.isArray(productData.images) && (typeof productData.images[0] === 'string' ? productData.images[0] : productData.images[0].url)) ||
+                'https://placehold.co/100x100/CCCCCC/333333?text=AM';
+
+            // ✅ Informações de frete deste produto (salvas no carrinho)
+            const shipInfo = normalizeProductShipping(productData);
+
+            // ✅ Preços: no carrinho SEMPRE vai o preço cheio (sem desconto).
+            // O desconto do PIX é só visual no detalhe/checkout e só vira "real" quando o método PIX/Boleto é selecionado.
+            const basePrice = Number((window.__detailPricing && window.__detailPricing.original) ?? productData.oldPrice ?? productData.price ?? 0) || 0;
+            const pixPrice = Number((window.__detailPricing && window.__detailPricing.cash) ?? 0) || 0;
+            const discountPercent = Number((window.__detailPricing && window.__detailPricing.discountPercent) ?? 0) || 0;
+
+            if (itemIndex > -1) {
+                cart[itemIndex].quantity = (parseInt(cart[itemIndex].quantity) || 0) + quantity;
+
+                // Garante campos essenciais para o carrinho renderizar
+                cart[itemIndex].name = cart[itemIndex].name || productData.name;
+                cart[itemIndex].price = basePrice;
+                cart[itemIndex].originalPrice = basePrice;
+                cart[itemIndex].pixPrice = pixPrice;
+                cart[itemIndex].discountPercent = discountPercent;
+                cart[itemIndex].imageUrl = cart[itemIndex].imageUrl || cart[itemIndex].image || mainImage;
+                cart[itemIndex].image = cart[itemIndex].image || cart[itemIndex].imageUrl || mainImage;
+                cart[itemIndex].sellerId = cart[itemIndex].sellerId || productData.sellerId || 'admin';
+                cart[itemIndex].sellerName = cart[itemIndex].sellerName || productData.sellerName || 'Ariana Móveis';
+                // ✅ Campos de frete (para o carrinho calcular igual ao detalhe)
+                cart[itemIndex].pesoKg = Number((cart[itemIndex].pesoKg != null ? cart[itemIndex].pesoKg : shipInfo.pesoKg)) || shipInfo.pesoKg;
+                cart[itemIndex].comprimento = Number((cart[itemIndex].comprimento != null ? cart[itemIndex].comprimento : shipInfo.comprimento)) || shipInfo.comprimento;
+                cart[itemIndex].largura = Number((cart[itemIndex].largura != null ? cart[itemIndex].largura : shipInfo.largura)) || shipInfo.largura;
+                cart[itemIndex].altura = Number((cart[itemIndex].altura != null ? cart[itemIndex].altura : shipInfo.altura)) || shipInfo.altura;
+
+            } else {
+                cart.push({
+                    id: productData.id,
+                    name: productData.name,
+                    price: basePrice,
+                    originalPrice: basePrice,
+                    discountPercent: discountPercent,
+                    pixPrice: pixPrice,
+                    quantity: quantity,
+                    // compat: carrinho pode usar imageUrl OU image
+                    imageUrl: mainImage,
+                    image: mainImage,
+                    sellerId: productData.sellerId || 'admin',
+                    sellerName: productData.sellerName || 'Ariana Móveis',
+                    // ✅ Campos de frete (para o carrinho calcular igual ao detalhe)
+                    pesoKg: shipInfo.pesoKg,
+                    comprimento: shipInfo.comprimento,
+                    largura: shipInfo.largura,
+                    altura: shipInfo.altura
+                });
+            }
+
+            writeCartArray(cart);
+            cartItems = cart;
+            updateCartCounter();
+
+            if (typeof window.loadCartCounter === 'function') {
+                // atualiza badge do header (header.js)
+                try { window.loadCartCounter(); } catch (_) {}
+            }
+
+            if (action === 'buy_now') {
+                window.location.href = 'carrinho.html';
+                return;
+            }
+
+            showToastMessage(`${quantity}x ${productData.name} adicionado ao carrinho!`, 'success');
+        }
+
+        function setupButtonListeners() {
+            document.getElementById('add-to-cart-button').addEventListener('click', () => addToCart('add'));
+            document.getElementById('buy-now-button').addEventListener('click', () => addToCart('buy_now'));
+        }
+
+// =========================================================
+        // 4. LÓGICA DE CARREGAMENTO DE DADOS (CORRIGIDA)
+        // =========================================================
+        async function loadRecommendationSections(currentProduct) {
+            if (!COST_SAFE_FLAGS.enableProductRecommendations) return;
+            const LIMIT_PER_SECTION = 10;
+            const used = new Set();
+
+            const safeSetLoading = (containerId) => {
+                const c = document.getElementById(containerId);
+                if (!c) return;
+                c.innerHTML = `<div class="col-span-full text-center text-gray-500 py-6"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando...</div>`;
+            };
+
+            ['seen-also-container','ariana-highlights-container','internet-favorites-container'].forEach(safeSetLoading);
+
+            try { if (typeof window.loadGlobalPaymentsConfig === "function") { await window.loadGlobalPaymentsConfig(); } } catch (_) {}
+
+            try {
+
+            const normalizeSlug = (v) => String(v || '')
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/(^-|-$)/g, '')
+                .trim();
+
+            const currentId = currentProduct.id ? String(currentProduct.id) : '';
+            const currentSlug = normalizeSlug(currentProduct.categorySlug || '');
+
+            // Busca um lote maior e distribui por categorias (evita repetir os mesmos produtos em todas as sessões)
+            const productsCollectionRef = collection(db, "products");
+            const q = query(productsCollectionRef, limit(120));
+            const snap = await getDocs(q);
+
+            const all = [];
+            snap.forEach((docSnap) => {
+                const data = docSnap.data() || {};
+                if (data.active === false || data.isActive === false) return;
+
+                let mainImg = 'https://placehold.co/400x400/eeeeee/333333?text=Sem+Imagem';
+                if (Array.isArray(data.images) && data.images[0]) {
+                    mainImg = typeof data.images[0] === 'string' ? data.images[0] : data.images[0].url;
+                } else if (data.images && typeof data.images === 'object') {
+                    const firstKey = Object.keys(data.images)[0];
+                    if (firstKey) mainImg = typeof data.images[firstKey] === 'string' ? data.images[firstKey] : data.images[firstKey].url;
+                }
+
+                const slug = normalizeSlug(data.categorySlug || data.category_slug || data.category || data.categoryName || '');
+                all.push({
+                    id: docSnap.id,
+                    name: data.name,
+                    price: data.price,
+                    oldPrice: data.oldPrice,
+                    mainImage: mainImg,
+                    categorySlug: slug,
+                    offer: data.offer === true || data.isOffer === true || data.oferta === true
+                });
+            });
+
+            const byCat = new Map();
+            for (const p of all) {
+                if (!p.id || p.id === currentId) continue;
+                const slug = p.categorySlug || 'sem-categoria';
+                if (!byCat.has(slug)) byCat.set(slug, []);
+                byCat.get(slug).push(p);
+            }
+
+            // Ordena categorias por quantidade (melhor chance de preencher 10)
+            const catList = Array.from(byCat.keys()).sort((a,b) => (byCat.get(b).length||0) - (byCat.get(a).length||0));
+
+            const pickCategory = (prefer) => {
+                const pref = prefer && byCat.has(prefer) ? prefer : null;
+                if (pref) return pref;
+                return catList[0] || null;
+            };
+
+            const cat1 = pickCategory(currentSlug);
+            const cat2 = catList.find(c => c !== cat1) || cat1;
+            const cat3 = catList.find(c => c !== cat1 && c !== cat2) || cat2;
+
+            const takeUnique = (arr, max) => {
+                const out = [];
+                for (const p of (arr || [])) {
+                    if (out.length >= max) break;
+                    if (!p.id) continue;
+                    if (used.has(p.id)) continue;
+                    used.add(p.id);
+                    out.push(p);
+                }
+                return out;
+            };
+
+            const renderList = (containerId, list) => {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                container.innerHTML = '';
+                if (!list || !list.length) {
+                    container.innerHTML = `<p class="col-span-full text-center text-gray-500 py-6">Nenhum produto disponível no momento.</p>`;
+                    return;
+                }
+                list.forEach((p) => container.appendChild(createProductCard(p)));
+            };
+
+            // Sessão 1: mesma categoria do produto atual (quando existir)
+            renderList('seen-also-container', takeUnique(byCat.get(cat1) || [], LIMIT_PER_SECTION));
+
+            // Sessão 2: outra categoria (destaques)
+            renderList('ariana-highlights-container', takeUnique(byCat.get(cat2) || [], LIMIT_PER_SECTION));
+
+            // Sessão 3: outra categoria (queridinhos) — prioriza itens marcados como oferta, se existirem
+            const favPool = (byCat.get(cat3) || []).slice().sort((a,b) => (b.offer?1:0) - (a.offer?1:0));
+            renderList('internet-favorites-container', takeUnique(favPool, LIMIT_PER_SECTION));            } catch (error) {
+                console.error('[produto] erro ao carregar recomendações:', error);
+                const showErr = (containerId) => {
+                    const c = document.getElementById(containerId);
+                    if (!c) return;
+                    c.innerHTML = `<p class="col-span-full text-center text-red-500 py-6">Erro ao carregar produtos.</p>`;
+                };
+                ['seen-also-container','ariana-highlights-container','internet-favorites-container'].forEach(showErr);
+            }
+        }
+
+        function createProductCard(product) {
+            // ✅ aplica configurações globais de pagamento (settings/payments) sem alterar o layout do card
+            const decorated = (typeof window.decorateProductWithPayments === 'function')
+              ? window.decorateProductWithPayments(product)
+              : (product || {});
+            const payments = decorated.__payments || null;
+
+            const basePrice = Number(decorated.price || 0);
+            const cashPrice = payments?.cash?.enabled ? Number(payments.cash.price) : basePrice;
+
+            const priceParts = window.formatPriceParts(cashPrice);
+
+            const hasCashDiscount = !!payments?.cash?.enabled && Number(payments.cash.discountPercent) > 0 && cashPrice < basePrice;
+            const hasOldPrice = hasCashDiscount || (decorated.oldPrice && decorated.oldPrice > cashPrice);
+
+            // prioridade: desconto global -> oldPrice do produto
+            const oldPriceValue = hasCashDiscount ? basePrice : (hasOldPrice ? decorated.oldPrice : null);
+            const oldPriceFormatted = oldPriceValue ? formatCurrency(oldPriceValue) : null;
+
+            const discountValue = hasCashDiscount
+              ? Math.round(Number(payments.cash.discountPercent) || 0)
+              : (hasOldPrice ? Math.round(((decorated.oldPrice - cashPrice) / decorated.oldPrice) * 100) : null);
+
+            const installmentsText = payments?.card?.text
+              ? payments.card.text
+              : `ou ${decorated.installments || 12}x de ${formatCurrency(decorated.installmentValue || (basePrice / 12))}`;
+
+            const cashLabel = payments?.cash?.enabled ? (payments.cash.label || 'à vista') : 'à vista';
+
+            const card = document.createElement('a');
+            card.href = `produto.html?id=${decorated.id}`;
+            card.className = 'product-card animate-fade-in';
+            card.innerHTML = `
+                <div class="product-image-container">
+                    ${discountValue ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${discountValue}% OFF NO PIX </span></div>` : ''}
+                    <img src="${decorated.mainImage}" alt="${decorated.name}" loading="lazy">
+                </div>
+                <div class="product-card-body">
+                    <p class="product-name" title="${decorated.name}">${decorated.name}</p>
+                    <div class="mt-auto">
+                        ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
+                        <div class="product-price">
+                            <span class="currency">${priceParts.symbol}</span>
+                            <span class="price-integer">${priceParts.integer}</span>
+                            <span class="decimal-part">,${priceParts.decimal}</span>
+                            <span class="cash-text">${cashLabel}</span>
+                        </div>
+                        <p class="product-installments">${installmentsText}</p>
+                    </div>
+                </div>
+            `;
+
+        // =========================================================
+
+            return card;
+        }
+
+// =========================================================
+// 4.1 BANNERS DO DETALHE DO PRODUTO (2 HORIZONTAIS)
+// IDs esperados na coleção "banners":
+// - produto_detail_horizontal_1
+// - produto_detail_horizontal_2
+// Campos aceitos: imageUrl | url | image | desktopUrl | src
+// =========================================================
+window.loadProductDetailBanners = async function () {
+    const section = document.getElementById('product-detail-banners');
+    const slot1 = document.getElementById('product-detail-banner-1');
+    const slot2 = document.getElementById('product-detail-banner-2');
+    if (!section || !slot1 || !slot2) return;
+
+    const pickImage = (data) => {
+        if (!data) return '';
+        return data.imageUrl || data.url || data.image || data.desktopUrl || data.src || '';
+    };
+
+    const pickLink = (data) => {
+        if (!data) return '';
+        return data.link || data.href || data.linkUrl || data.targetUrl || data.to || '';
+    };
+
+    const renderSlot = (el, data) => {
+        const imgUrl = pickImage(data);
+        if (!imgUrl) return false;
+
+        const isActive = (data.active !== false) && (data.isActive !== false) && (data.enabled !== false);
+        if (!isActive) return false;
+
+        const link = pickLink(data);
+        if (link) {
+            el.href = link;
+            el.target = "_self";
+            try {
+                const u = new URL(link, window.location.href);
+                if (u.origin !== window.location.origin) el.target = "_blank";
+            } catch (_) {}
+        } else {
+            el.href = "#";
+            el.target = "_self";
+        }
+
+        el.innerHTML = `<img src="${imgUrl}" alt="${(data.title || data.nome || 'Banner promocional').toString().replace(/"/g,'&quot;')}" loading="lazy">`;
+        el.classList.remove('hidden');
+        return true;
+    };
+
+    try {
+        // aguarda firebase pronto (caso carregue depois)
+        const waitFirebase = () => new Promise((resolve) => {
+            if (window.db && window.getDoc && window.doc) return resolve(true);
+            const t0 = Date.now();
+            const tick = () => {
+                if (window.db && window.getDoc && window.doc) return resolve(true);
+                if (Date.now() - t0 > 4000) return resolve(false);
+                setTimeout(tick, 80);
+            };
+            tick();
+        });
+
+        const okFirebase = await waitFirebase();
+        if (!okFirebase) return;
+
+        const ref1 = window.doc(window.db, 'banners', 'produto_detail_horizontal_1');
+        const ref2 = window.doc(window.db, 'banners', 'produto_detail_horizontal_2');
+
+        const [s1, s2] = await Promise.all([window.getDoc(ref1), window.getDoc(ref2)]);
+        const d1 = s1.exists() ? (s1.data() || {}) : null;
+        const d2 = s2.exists() ? (s2.data() || {}) : null;
+
+        const ok1 = renderSlot(slot1, d1);
+        const ok2 = renderSlot(slot2, d2);
+
+        section.style.display = (ok1 || ok2) ? 'block' : 'none';
+    } catch (e) {
+        console.error('[produto] erro ao carregar banners do detalhe:', e);
+        section.style.display = 'none';
+    }
+};
+
+function updateClientHeaderUI(user) {
+            const clientStatusDisplay = document.getElementById('client-status-display');
+            const accountLink = document.getElementById('auth-link');
+            if (!clientStatusDisplay) return;
+            if (user && !user.isAnonymous) {
+                const displayName = user.displayName || (user.email ? user.email.split('@')[0] : '') || 'Cliente';
+                clientStatusDisplay.innerHTML = `<span class="text-sm font-semibold">Olá, ${displayName}</span><span class="text-sm text-gray-300">Minha Conta</span>`;
+                if (accountLink) accountLink.href = 'minha_conta.html';
+            } else {
+                clientStatusDisplay.innerHTML = `<span class="text-sm font-semibold">Entre ou Cadastre-se</span><span class="text-sm text-gray-300">para ver seus produtos</span>`;
+                if (accountLink) accountLink.href = 'login_cadastro.html';
+            }
+        }
+
+       async function loadClientAddress(user) {
+  // Espera o header existir (pode ser injetado depois pelo header.js)
+  const waitForEl = async (id, timeoutMs = 7000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const el = document.getElementById(id);
+      if (el) return el;
+      await new Promise(r => setTimeout(r, 80));
+    }
+    return null;
+  };
+
+  const root = await waitForEl('client-address-display', 7000);
+  if (!root) return;
+
+  const addressElement = root.querySelector('span') || root;
+
+  // Se NÃO estiver logado
+  if (!(user && !user.isAnonymous)) {
+    addressElement.textContent = "Rua Olegário de Andrade, 54A (Entrar)";
+    return;
+  }
+
+  // Se estiver logado (por enquanto só mostra um texto seguro)
+  addressElement.textContent = "Rua Olegário de Andrade, 54A";
+}
+
+        // =========================================================
+        // 5. FRETE (CORREIOS) - INTEGRADO COM API REAL
+        // =========================================================
+        function getApiBaseUrl() {
+            // Permite sobrescrever via <script> antes (opcional)
+            if (window.API_BASE_URL && typeof window.API_BASE_URL === "string") {
+                return window.API_BASE_URL.replace(/\/+$/, "");
+            }
+            // Produção (Cloud Run / Functions URL)
+            return "https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api";
+        }
+
+        function sanitizeCep(v) {
+            return String(v || "").replace(/\D/g, "").slice(0, 8);
+        }
+
+        function isArianaProduct(p) {
+            var sid = String((p && p.sellerId) ? p.sellerId : 'admin').toLowerCase().trim();
+            var sname = String((p && p.sellerName) ? p.sellerName : 'Ariana Móveis').toLowerCase();
+            return sid === 'admin' || sname.indexOf('ariana') !== -1;
+        }
+
+        function safeNumber(v, fallback) {
+            const n = Number(v);
+            return Number.isFinite(n) && n > 0 ? n : fallback;
+        }
+
+        function pickProductShippingData() {
+            // tenta achar campos comuns no seu Firestore, sem quebrar se não existir
+            const p = productData || {};
+            const dims =
+                p.dimensions ||
+                p.dimension ||
+                p.medidas ||
+                p.dimensoes ||
+                {};
+
+            const weight =
+                p.pesoKg ?? p.peso ?? p.weightKg ?? p.weight ?? p.shippingWeightKg ?? null;
+
+            const comprimento = dims.comprimento ?? dims.length ?? p.comprimento ?? p.length ?? null;
+            const largura = dims.largura ?? dims.width ?? p.largura ?? p.width ?? null;
+            const altura = dims.altura ?? dims.height ?? p.altura ?? p.height ?? null;
+
+            return {
+                pesoKg: safeNumber(weight, 5), // default 5kg (igual seus testes)
+                comprimento: comprimento != null ? safeNumber(comprimento, null) : null,
+                largura: largura != null ? safeNumber(largura, null) : null,
+                altura: altura != null ? safeNumber(altura, null) : null,
+            };
+        }
+
+        async function quoteCorreios(cepDestino) {
+            const apiBase = getApiBaseUrl();
+            if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
+            const ship = pickProductShippingData();
+
+            const payload = {
+                cepDestino: sanitizeCep(cepDestino),
+                pesoKg: ship.pesoKg,
+                isArianaOrder: isArianaProduct(productData),
+            };
+
+            // só envia dimensões se tiver pelo menos UMA (a API completa as faltantes)
+            const hasAnyDim = ship.comprimento || ship.largura || ship.altura;
+            if (hasAnyDim) {
+                if (ship.comprimento) payload.comprimento = ship.comprimento;
+                if (ship.largura) payload.largura = ship.largura;
+                if (ship.altura) payload.altura = ship.altura;
+            }
+
+            const resp = await fetch(`${apiBase}/shipping/correios/quote`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data || data.ok !== true) {
+                const msg = (data && (data.error || data.details)) ? `${data.error || data.details}` : `Erro HTTP ${resp.status}`;
+                throw new Error(msg);
+            }
+            return data;
+        }
+
+        
+        async function quoteLogistics(cepDestino, quantity) {
+            const apiBase = getApiBaseUrl();
+            if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
+            const ship = pickProductShippingData();
+            const qty = Math.max(1, Number(quantity || 1) || 1);
+
+            const payload = {
+                cepDestino: sanitizeCep(cepDestino),
+                enableOwnDelivery: true,
+                margin: 0.10,
+                items: [{
+                    pesoKg: ship.pesoKg,
+                    comprimento: ship.comprimento,
+                    largura: ship.largura,
+                    altura: ship.altura,
+                    quantity: qty,
+                }],
+            };
+
+            const resp = await fetch(`${apiBase}/shipping/logistics/quote`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            let data = null;
+            try { data = await resp.json(); } catch (_) { data = null; }
+
+            if (!resp.ok) {
+                const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `HTTP ${resp.status}`;
+                return { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: msg }] };
+            }
+
+            const quotes = Array.isArray(data?.quotes) ? data.quotes : [];
+            return { quotes, errors: [] };
+        }
+
+        async function quoteAllShipping(cepDestino, quantity) {
+            const cep = sanitizeCep(cepDestino);
+            const qty = Math.max(1, Number(quantity || 1) || 1);
+
+            const [corr, logi] = await Promise.allSettled([
+                quoteCorreios(cep),
+                quoteLogistics(cep, qty),
+            ]);
+
+            const corrVal = corr.status === "fulfilled" ? corr.value : { quotes: [], errors: [{ service: "Correios", name: "Correios", message: String(corr.reason || "Falha ao consultar Correios") }] };
+            const logiVal = logi.status === "fulfilled" ? logi.value : { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: String(logi.reason || "Falha ao consultar logística") }] };
+
+            return {
+                quotes: [...(corrVal.quotes || []), ...(logiVal.quotes || [])],
+                errors: [...(corrVal.errors || []), ...(logiVal.errors || [])],
+            };
+        }
+
+
+function renderShippingQuotes(result, cep) {
+            const shippingResult = document.getElementById('shipping-result');
+            const fretePriceEl = document.getElementById('frete-price');
+            if (!shippingResult || !fretePriceEl) return;
+
+            const quotes = Array.isArray(result.quotes) ? result.quotes : [];
+            const errors = Array.isArray(result.errors) ? result.errors : [];
+
+            if (!quotes.length && !errors.length) {
+                shippingResult.innerHTML = `<p class="text-gray-600">Nenhuma cotação retornada para o CEP ${cep}.</p>`;
+                fretePriceEl.textContent = "A calcular";
+                return;
+            }
+
+            // Ordena por menor preço
+            quotes.sort((a, b) => (Number(a.price) || 9e9) - (Number(b.price) || 9e9));
+
+            const makeOption = (q, idx) => {
+                const price = typeof q.price === "number" ? q.price : Number(String(q.price || "0").replace(",", "."));
+                const deadline = q.deadlineDays ? `${q.deadlineDays} dias úteis` : "prazo informado no rastreio";
+                const checked = idx === 0 ? "checked" : "";
+                const name = q.name || (q.service === "03298" ? "PAC" : (q.service === "03220" ? "SEDEX" : q.service));
+                return `
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary-blue cursor-pointer">
+                    <div class="flex items-center gap-3">
+                      <input type="radio" name="shippingOption" value="${q.service}" data-price="${price}" data-name="${name}" class="accent-[#2E6DA4]" ${checked}>
+                      <div class="flex flex-col">
+                        <span class="font-semibold text-text-dark">${name}</span>
+                        <span class="text-xs text-gray-500">Prazo: ${deadline}</span>
+                      </div>
+                    </div>
+                    <div class="font-extrabold text-primary-blue">${formatCurrency(price)}</div>
+                  </label>
+                `;
+            };
+
+            const optionsHtml = quotes.map(makeOption).join("");
+
+            const errorsHtml = errors.length
+                ? `
+                  <div class="mt-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                    <p class="text-xs font-bold text-yellow-700 mb-1">Alguns serviços não estão disponíveis:</p>
+                    <ul class="text-xs text-yellow-700 list-disc list-inside space-y-1">
+                      ${errors.map(e => `<li>${(e.name || e.service || 'Correios')}: ${e.message || "indisponível"}</li>`).join("")}
+                    </ul>
+                  </div>
+                `
+                : "";
+
+            shippingResult.innerHTML = `
+              <div class="space-y-2">
+                ${optionsHtml}
+                ${errorsHtml}
+                <p class="text-[11px] text-gray-400 mt-2">CEP destino: <span class="font-semibold">${cep}</span></p>
+              </div>
+            `;
+
+            // seleciona o mais barato por padrão
+            const first = quotes[0];
+            const firstPrice = Number(first?.price ?? 0);
+            if (Number.isFinite(firstPrice) && firstPrice > 0) {
+                fretePriceEl.textContent = formatCurrency(firstPrice);
+            } else {
+                fretePriceEl.textContent = "A calcular";
+            }
+
+            // salva seleção para usar no checkout (opcional)
+            const applySelection = () => {
+                const sel = shippingResult.querySelector('input[name="shippingOption"]:checked');
+                if (!sel) return;
+                const price = Number(sel.getAttribute("data-price") || "0");
+                const service = sel.value;
+                const name = sel.getAttribute("data-name") || service;
+
+                fretePriceEl.textContent = formatCurrency(price);
+
+                const payload = {
+                    service,
+                    name,
+                    price,
+                    cepDestino: sanitizeCep(cep),
+                    updatedAt: Date.now(),
+                };
+                window.__selectedShipping = payload;
+                try { localStorage.setItem("ariana_selected_shipping", JSON.stringify(payload)); } catch (_) {}
+            };
+
+            shippingResult.querySelectorAll('input[name="shippingOption"]').forEach((el) => {
+                el.addEventListener("change", applySelection);
+            });
+
+            applySelection();
+        }
+
+        function setupShippingCalculator() {
+            const cepInput = document.getElementById('cep-input');
+            const calculateBtn = document.getElementById('calculate-shipping-btn');
+            const shippingResult = document.getElementById('shipping-result');
+            const fretePriceEl = document.getElementById('frete-price');
+            if (!cepInput || !calculateBtn || !shippingResult || !fretePriceEl) return;
+
+            // máscara CEP
+            cepInput.addEventListener('input', (e) => {
+                let v = e.target.value.replace(/\D/g, '');
+                v = v.replace(/^(\d{5})(\d)/, '$1-$2');
+                e.target.value = v.substring(0, 9);
+            });
+
+            calculateBtn.addEventListener('click', async () => {
+                const cep = sanitizeCep(cepInput.value);
+                if (cep.length !== 8) {
+                    shippingResult.innerHTML = `<p class="text-red-500">CEP inválido. Digite 8 números.</p>`;
+                    fretePriceEl.textContent = "A calcular";
+                    return;
+                }
+
+                shippingResult.innerHTML = '<p class="text-primary-blue"><i class="fas fa-spinner fa-spin mr-2"></i> Calculando frete...</p>';
+                fretePriceEl.textContent = "Calculando...";
+
+                try {
+                    const qtyEl = document.getElementById('quantity-input');
+                    const qty = qtyEl ? Number(qtyEl.value || 1) : 1;
+                    const result = await quoteAllShipping(cep, qty);
+                    renderShippingQuotes(result, cep);
+                } catch (e) {
+                    console.error('[produto] frete erro:', e);
+                    shippingResult.innerHTML = `<p class="text-red-500">Erro ao calcular frete: ${String(e.message || e)}</p>`;
+                    fretePriceEl.textContent = "A calcular";
+                }
+            });
+
+            // tenta restaurar seleção anterior
+            try {
+                const saved = JSON.parse(localStorage.getItem("ariana_selected_shipping") || "null");
+                if (saved && saved.cepDestino && saved.price) {
+                    fretePriceEl.textContent = formatCurrency(Number(saved.price) || 0);
+                }
+            } catch (_) {}
+        }
+
+        let __productInitDone = false;
+        let __productAnonTimer = null;
+
+        function setupAuthAndInit() {
+            const bindAuthListener = () => {
+                onAuthStateChanged(auth, async (user) => {
+                    try {
+                        updateClientHeaderUI(user);
+                        loadClientAddress(user);
+                    } catch (_) {}
+
+                    if (user) {
+                        if (__productAnonTimer) {
+                            clearTimeout(__productAnonTimer);
+                            __productAnonTimer = null;
+                        }
+
+                        if (__productInitDone) return;
+                        __productInitDone = true;
+
+                        try {
+                            await loadProductDetails();
+                        } catch (e) {
+                            console.error('[produto] erro ao carregar detalhes:', e);
+                        }
+                        return;
+                    }
+
+                    if (!__productAnonTimer) {
+                        __productAnonTimer = setTimeout(async () => {
+                            try {
+                                if (!auth.currentUser) await signInAnonymously(auth);
+                            } catch (e) {
+                                console.error('[produto] falha no login anônimo:', e);
+                            }
+                        }, 700);
+                    }
+                });
+            };
+
+            setPersistence(auth, browserLocalPersistence)
+                .then(bindAuthListener)
+                .catch((err) => {
+                    console.error('[auth] persistence error:', err);
+                    bindAuthListener();
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const favBtn = document.getElementById('btn-toggle-favorite');
+            favBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                toggleFavorite();
+            });
+            setupQuantityControl();
+            setupButtonListeners();
+            setupShippingCalculator();
+            loadCartAndCounter();
+            if (COST_SAFE_FLAGS.enableProductRecommendations) { window.loadProductDetailBanners(); }
+            setupAuthAndInit();
+        });
+    </script>
+    <script src="js/header_auth_fix.js" defer></script>
+<script src="./header.js"></script>
+<script>
+        (function() {
+            const check = () => {
+                if (window.carregarHeader && window.db) { window.carregarHeader(); }
+                else { setTimeout(check, 100); }
+            };
+            check();
+        })();
+    </script>
+<script src="./marketplace-core.js"></script>
+<script src="./marketplace-core_global_payments.js"></script>
+<script src="footer.js"></script>
+
+<script>
+(function(){
+  try {
+    if (typeof loadRecommendations === 'function') {
+      loadRecommendations();
+    }
+  } catch(e){
+    console.error('[produto] erro ao carregar recomendações:', e);
+  }
+})();
+</script>
+
+<script src="js/layout-fit.js" defer></script>
+
+</body>
+</html>

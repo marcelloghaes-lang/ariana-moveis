@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+<body>
+
+    <!-- MAIN CONTENT - FAQ -->
+    <main class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 mt-6">
+        
+        <div class="text-center mb-10 bg-white p-8 rounded-xl shadow-lg">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-dark-bg mb-3">
+                Perguntas Frequentes
+            </h1>
+            <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+                Encontre aqui as respostas para as dúvidas mais comuns sobre pedidos, entregas, trocas e sua conta.
+            </p>
+        </div>
+
+        <!-- Lista de Perguntas (Acordeão) -->
+        <div id="faq-list" class="space-y-4">
+            
+            <!-- Categoria: Pedidos e Pagamentos -->
+            <h2 class="text-2xl font-bold text-primary-blue pt-4 border-t-2 border-primary-blue/30">
+                <i class="fas fa-credit-card mr-2"></i> Pedidos e Pagamentos
+            </h2>
+            <div class="bg-white rounded-xl shadow-md border border-gray-200">
+                <div class="accordion-item" data-category="pedidos">
+                    <div class="accordion-header p-4 flex justify-between items-center text-lg font-semibold text-text-dark rounded-t-xl" onclick="toggleAccordion(this)">
+                        <span>Qual é o prazo de entrega para minha região?</span>
+                        <i class="fas fa-chevron-down text-primary-blue transition-transform duration-300"></i>
+                    </div>
+                    <div class="accordion-content px-4 text-gray-700 border-t border-gray-100">
+                        <p>O prazo de entrega é calculado automaticamente na página do **Carrinho** e no **Checkout**, com base no CEP de destino. Ele considera o tempo de separação do produto, estoque e o tempo de trânsito da transportadora.</p>
+                    </div>
+                </div>
+                <div class="accordion-item" data-category="pedidos">
+                    <div class="accordion-header p-4 flex justify-between items-center text-lg font-semibold text-text-dark border-t border-gray-200" onclick="toggleAccordion(this)">
+                        <span>Quais formas de pagamento são aceitas?</span>
+                        <i class="fas fa-chevron-down text-primary-blue transition-transform duration-300"></i>
+                    </div>
+                    <div class="accordion-content px-4 text-gray-700 border-t border-gray-100">
+                        <p>Aceitamos Pix, Boleto Bancário e Cartões de Crédito (Visa, Mastercard, Elo, Hipercard) em até 12x sem juros (dependendo do valor e da promoção).</p>
+                    </div>
+                </div>
+                <div class="accordion-item" data-category="pedidos">
+                    <div class="accordion-header p-4 flex justify-between items-center text-lg font-semibold text-text-dark border-t border-gray-200" onclick="toggleAccordion(this)">
+                        <span>Posso alterar o endereço de entrega após finalizar o pedido?</span>
+                        <i class="fas fa-chevron-down text-primary-blue transition-transform duration-300"></i>
+                    </div>
+                    <div class="accordion-content px-4 text-gray-700 border-t border-gray-100">
+                        <p>Se o pedido **ainda não foi enviado**, entre em contato imediatamente com o nosso **<a href="fale_conosco.html" class="text-primary-blue underline hover:text-dark-bg">Fale Conosco</a>**. Caso o pedido já esteja em trânsito, a alteração pode não ser possível ou gerar custos adicionais.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categoria: Trocas e Devoluções -->
+            <h2 class="text-2xl font-bold text-primary-blue pt-8 border-t-2 border-primary-blue/30">
+                <i class="fas fa-dolly mr-2"></i> Trocas e Devoluções
+            </h2>
+            <div class="bg-white rounded-xl shadow-md border border-gray-200">
+                <div class="accordion-item" data-category="trocas">
+                    <div class="accordion-header p-4 flex justify-between items-center text-lg font-semibold text-text-dark" onclick="toggleAccordion(this)">
+                        <span>Como faço para solicitar uma troca ou devolução?</span>
+                        <i class="fas fa-chevron-down text-primary-blue transition-transform duration-300"></i>
+                    </div>
+                    <div class="accordion-content px-4 text-gray-700 border-t border-gray-100">
+                        <p>Acesse a seção **<a href="politica_trocas.html" class="text-primary-blue underline hover:text-dark-bg">Política de Trocas</a>** para entender todos os procedimentos e prazos. A solicitação deve ser feita através do e-mail de suporte.</p>
+                    </div>
+                </div>
+                <div class="accordion-item" data-category="trocas">
+                    <div class="accordion-header p-4 flex justify-between items-center text-lg font-semibold text-text-dark border-t border-gray-200" onclick="toggleAccordion(this)">
+                        <span>Recebi um produto com defeito, o que devo fazer?</span>
+                        <i class="fas fa-chevron-down text-primary-blue transition-transform duration-300"></i>
+                    </div>
+                    <div class="accordion-content px-4 text-gray-700 border-t border-gray-100">
+                        <p>Caso o produto apresente defeito de fabricação, você deve nos contatar em até 90 dias após o recebimento. Iremos providenciar a troca ou o reparo do item, conforme a garantia do fabricante.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categoria: Conta e Segurança -->
+            <h2 class="text-2xl font-bold text-primary-blue pt-8 border-t-2 border-primary-blue/30">
+                <i class="fas fa-user-lock mr-2"></i> Conta e Segurança
+            </h2>
+            <div class="bg-white rounded-xl shadow-md border border-gray-200">
+                <div class="accordion-item" data-category="conta">
+                    <div class="accordion-header p-4 flex justify-between items-center text-lg font-semibold text-text-dark" onclick="toggleAccordion(this)">
+                        <span>Como recuperar minha senha?</span>
+                        <i class="fas fa-chevron-down text-primary-blue transition-transform duration-300"></i>
+                    </div>
+                    <div class="accordion-content px-4 text-gray-700 border-t border-gray-100">
+                        <p>Na página de **<a href="login_cadastro.html" class="text-primary-blue underline hover:text-dark-bg">Login/Cadastro</a>**, clique em "Esqueci minha senha" e siga as instruções enviadas para o seu e-mail de cadastro.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Link para Contato -->
+            <div class="text-center mt-12 pt-8 border-t border-gray-300">
+                <p class="text-xl text-text-dark font-medium mb-4">
+                    A sua dúvida não foi respondida?
+                </p>
+                <a href="fale_conosco.html" class="inline-block bg-dark-bg text-white py-3 px-8 rounded-lg font-bold hover:bg-primary-blue transition-colors shadow-lg">
+                    Entre em Contato Conosco <i class="fas fa-arrow-right ml-2"></i>
+                </a>
+            </div>
+
+        </div>
+    </main>
+    
+    <!-- FIREBASE AND CLIENT-SIDE LOGIC -->
+    <script type="module">
+        // Variáveis globais obrigatórias do ambiente Canvas
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+        };
+        
+        // Imports do Firebase (necessários para auth do header)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            signInWithCustomToken, 
+            signInAnonymously
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel, collection, getDocs, getDoc, query, where, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        setLogLevel('Debug');
+        
+        let db = null;
+        let auth = null;
+        
+        // --- UTILITIES ---
+
+        /**
+         * Atualiza o cabeçalho com o nome do usuário logado.
+         */
+        window.updateClientHeader = function(userName = 'Minha Conta', isAnonymous = true) {
+            const accountLink = document.getElementById('client-account-link');
+            if (accountLink) {
+                if (isAnonymous) {
+                    accountLink.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i> Minha Conta`;
+                    accountLink.href = 'login_cadastro.html';
+                } else {
+                    const firstName = userName.split(' ')[0];
+                    accountLink.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i> Olá, ${firstName}`;
+                    accountLink.href = 'minha_conta.html';
+                }
+            }
+        };
+
+        /**
+         * Redireciona a busca do cabeçalho.
+         */
+        window.realizarBusca = function() {
+            const query = document.getElementById('campo-busca').value;
+            if (query.trim()) {
+                window.location.href = `busca.html?q=${encodeURIComponent(query)}`;
+            }
+        };
+
+        /**
+         * Lógica para abrir/fechar os itens do acordeão.
+         */
+        window.toggleAccordion = function(header) {
+            const item = header.closest('.accordion-item');
+            const content = item.querySelector('.accordion-content');
+            const icon = header.querySelector('i');
+
+            // Fecha todos os outros (opcional, mas melhora a usabilidade)
+            document.querySelectorAll('.accordion-content.active').forEach(activeContent => {
+                if (activeContent !== content) {
+                    activeContent.classList.remove('active');
+                    activeContent.previousElementSibling.querySelector('i').classList.remove('rotate-180');
+                }
+            });
+
+            // Alterna o item clicado
+            content.classList.toggle('active');
+            icon.classList.toggle('rotate-180');
+        };
+
+
+        // --- FIREBASE INITIALIZATION ---
+        
+        const checkAuthAndInit = async () => {
+            if (firebaseConfig === null) { 
+                console.error('ERRO: Configuração do Firebase não encontrada.');
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // 🔗 Bridge global para header.js (categorias + endereço)
+                window.db = db;
+                window.auth = auth;
+                window.collection = collection;
+                window.getDocs = getDocs;
+                window.getDoc = getDoc;
+                window.query = query;
+                window.where = where;
+                window.orderBy = orderBy;
+                window.limit = limit;
+                window.doc = doc;
+                try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken).catch(e => {
+                        console.warn("Token inicial inválido ou expirado. Entrando anonimamente.", e);
+                        return signInAnonymously(auth);
+                    });
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        window.updateClientHeader(user.displayName || user.email, user.isAnonymous);
+                    } else {
+                        signInAnonymously(auth); 
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro fatal na inicialização do Firebase/Auth:", error);
+            }
+        };
+
+        // --- PAGE LOAD ---
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuthAndInit();
+        });
+  </script>
+    <script src="./header.js"></script>
+    <script src="js/header_auth_fix.js"></script>
+
+   <script src="js/header_auth_fix.js" defer></script>
+
+<script>
+  window.carregarHeader();
+</script>
+
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js" defer></script>
+
+</body>
+</html>

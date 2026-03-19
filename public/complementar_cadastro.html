@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+    
+    <div id="message-box" class="fixed top-0 left-0 right-0 z-50 p-4"></div>
+
+    <div id="data-pending-container" class="max-w-md mx-auto w-full">
+        <div class="text-center mb-6">
+            <a href="index.html" class="text-3xl font-bold tracking-wider text-primary-blue">
+                ARIANA MOVEIS
+            </a>
+        </div>
+        <div class="p-6 sm:p-8 bg-white rounded-xl shadow-2xl border border-gray-100 w-full">
+            <h1 class="text-2xl font-bold text-center text-primary-blue mb-6">Complete Seu Cadastro</h1>
+            <p class="text-center text-sm text-gray-600 mb-6">Parabéns! Agora, preencha seus dados pessoais obrigatórios para começar a comprar.</p>
+
+            <form id="form-pending-data" class="space-y-4">
+                <div>
+                    <label for="pending-cpf" class="block text-sm font-medium text-text-dark">CPF <span class="text-red-500">*</span></label>
+                    <input type="text" id="pending-cpf" required class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="000.000.000-00">
+                </div>
+                <div>
+                    <label for="pending-phone" class="block text-sm font-medium text-text-dark">Telefone de Contato <span class="text-red-500">*</span></label>
+                    <input type="text" id="pending-phone" required class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="(31) 90000-0000">
+                </div>
+                <div>
+                    <label for="pending-birthdate" class="block text-sm font-medium text-text-dark">Data de Nascimento <span class="text-red-500">*</span></label>
+                    <input type="text" id="pending-birthdate" required class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="DD/MM/AAAA">
+                </div>
+
+                <button type="submit" id="pending-data-btn" class="w-full bg-secondary-light-blue text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-blue transition-colors shadow-lg">
+                    Salvar e Ir para o Dashboard
+                </button>
+            </form>
+             <div class="mt-6 text-center text-sm">
+                <button type="button" id="logout-pending-btn" class="text-error-red hover:text-dark-bg font-medium">
+                    Sair e Voltar para a Loja
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // =========================================================
+        // 1. CONFIGURAÇÃO E IMPORTS DO FIREBASE
+        // =========================================================
+
+        // CONFIGURAÇÃO REAL DO FIREBASE (COPIE E COLE DE MINHA_CONTA.HTML)
+        const firebaseConfig = {
+             apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+             authDomain: "ariana-moveis-final.firebaseapp.com",
+             projectId: "ariana-moveis-final",
+             storageBucket: "ariana-moveis-final.firebasestorage.app",
+             messagingSenderId: "695257365498",
+             appId: "1:695257365498:web:8e68494de6c4c9ecf67c70",
+             measurementId: "G-WNMWLYMW43"
+        };
+        
+        // Imports do Firebase/Firestore
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis globais de estado
+        let app, auth, db;
+        
+        // =========================================================
+        // 2. FUNÇÕES DE SUPORTE
+        // =========================================================
+
+        window.displayMessage = (message, type, duration = 5000) => {
+            const container = document.getElementById('message-box');
+            let bgColor, icon;
+            switch (type) {
+                case 'success': bgColor = 'bg-green-100 border-green-400 text-green-700'; icon = 'fa-check-circle'; break;
+                case 'error': bgColor = 'bg-red-100 border-red-400 text-red-700'; icon = 'fa-exclamation-triangle'; break;
+                case 'loading': bgColor = 'bg-yellow-100 border-yellow-400 text-yellow-700'; icon = 'fa-spinner fa-spin'; break;
+                default: bgColor = 'bg-blue-100 border-blue-400 text-blue-700'; icon = 'fa-info-circle'; break;
+            }
+
+            container.innerHTML = `
+                <div class="p-4 rounded-lg border animate-fade-in ${bgColor} text-sm flex items-center">
+                    <i class="fas ${icon} mr-3"></i>${message}
+                </div>
+            `;
+            container.style.display = 'block';
+
+            if (type !== 'loading') {
+                setTimeout(() => {
+                    container.style.display = 'none';
+                    container.innerHTML = '';
+                }, duration);
+            }
+        };
+
+        // =========================================================
+        // 3. LÓGICA DE DADOS PENDENTES
+        // =========================================================
+
+        /**
+         * Lida com o estado de autenticação (logado ou deslogado).
+         * Verifica se o usuário precisa completar o cadastro.
+         */
+        const handleAuthChange = async (user) => {
+            const container = document.getElementById('data-pending-container');
+
+            if (!user) {
+                // Não logado: Redireciona para o login
+                window.location.href = 'login_cadastro.html'; // Supondo uma tela de login/cadastro
+                return;
+            }
+            
+            // Logado: Verifica se os dados já estão completos
+            const clientRef = doc(db, 'clients', user.uid);
+            const docSnap = await getDoc(clientRef);
+            let isDataComplete = false;
+            
+            if (docSnap.exists()) {
+                const firestoreData = docSnap.data();
+                isDataComplete = firestoreData.cpf !== 'PENDING' && 
+                                 firestoreData.phone !== 'PENDING' && 
+                                 firestoreData.birthDate !== 'PENDING';
+            }
+            
+            if (isDataComplete) {
+                // Se o usuário acessar esta página mas já completou os dados, redireciona para o dashboard
+                window.location.href = 'minha_conta.html';
+            } else {
+                 // Caso contrário, exibe o formulário
+                 container.classList.remove('hidden');
+            }
+        };
+        
+        /**
+         * Lida com o evento de submit do formulário de Dados Pendentes (CPF, Telefone, Data de Nasc.).
+         */
+        const handlePendingDataSubmit = async (e) => {
+            e.preventDefault();
+            
+            const user = auth.currentUser;
+            if (!user) {
+                window.displayMessage('Usuário não autenticado. Tente fazer login novamente.', 'error');
+                return;
+            }
+
+            const newCpf = document.getElementById('pending-cpf').value.trim();
+            const newPhone = document.getElementById('pending-phone').value.trim();
+            const newBirthdate = document.getElementById('pending-birthdate').value.trim();
+
+            if (!newCpf || !newPhone || !newBirthdate) {
+                window.displayMessage('Todos os campos (CPF, Telefone e Data de Nascimento) são obrigatórios.', 'error');
+                return;
+            }
+
+            window.displayMessage('Salvando dados pessoais e finalizando cadastro...', 'loading');
+
+            try {
+                // 1. Criar objeto de dados para o Firestore
+                const dataToSave = {
+                    cpf: newCpf,
+                    phone: newPhone,
+                    birthDate: newBirthdate
+                };
+
+                // 2. Atualizar o documento no Firestore
+                const clientRef = doc(db, 'clients', user.uid);
+                await setDoc(clientRef, dataToSave, { merge: true });
+
+                // 3. Sucesso: Redireciona para o dashboard final
+                window.displayMessage('Cadastro concluído! Redirecionando para o Dashboard.', 'success');
+                setTimeout(() => {
+                    window.location.href = 'minha_conta.html?cadastro=completo';
+                }, 1000);
+
+
+            } catch (error) {
+                console.error("Erro ao salvar dados pendentes:", error);
+                window.displayMessage('Erro ao finalizar o cadastro: ' + error.message, 'error');
+            }
+        };
+        
+        /**
+         * Lida com o logout a partir desta tela.
+         */
+        const handleLogout = async () => {
+             try {
+                 window.displayMessage('Fazendo logout...', 'loading');
+                 await signOut(auth);
+                 // Redireciona para o login
+                 window.location.href = 'login_cadastro.html?logout=success'; 
+            } catch (error) {
+                 console.error("Erro ao fazer logout:", error);
+                 window.displayMessage('Erro ao fazer logout. Tente novamente.', 'error');
+            }
+        };
+
+        // =========================================================
+        // 4. INICIALIZAÇÃO E EVENTOS
+        // =========================================================
+
+        /**
+         * Inicializa o Firebase e configura os listeners de Auth.
+         */
+        const initFirebase = () => {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                onAuthStateChanged(auth, handleAuthChange);
+                
+            } catch (e) {
+                console.error("Erro de inicialização do Firebase:", e);
+                window.displayMessage('Erro de inicialização do Firebase. Verifique sua configuração no console.', 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initFirebase();
+            
+            document.getElementById('form-pending-data').addEventListener('submit', handlePendingDataSubmit);
+            document.getElementById('logout-pending-btn').addEventListener('click', handleLogout);
+        });
+    </script>
+<script type="module" src="firebase-config.js"></script>
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

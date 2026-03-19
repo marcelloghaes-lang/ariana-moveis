@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+  <style>
+    /* Mantenha apenas o CSS que for MUITO específico desta página */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F5F7FA; /* fundo-claro */
+    }
+    /* RESET DE NITIDEZ TOTAL */
+    * { opacity: 1 !important; backdrop-filter: none !important; filter: none !important; }
+    body { background-color: #F5F7FA !important; color: #1D2B3A; }
+    
+    /* Forçar inputs visíveis */
+    input, select, textarea {
+      background-color: #FFFFFF !important;
+      border: 2px solid #E2E8F0 !important;
+      color: #1D2B3A !important;
+      font-weight: 600 !important;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #2E6DA4 !important;
+      outline: none;
+    }
+    
+    label {
+      color: #1D2B3A !important;
+      font-weight: 900 !important;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body class="font-sans">
+
+  <header class="bg-dark-bg border-b-4 border-primary-blue py-6 shadow-xl">
+    <div class="max-w-7xl mx-auto px-4 flex justify-between items-center">
+      <h1 class="text-white text-xl font-black uppercase tracking-tighter">Central de Suporte</h1>
+      <a href="meus_chamados.html" class="text-white font-bold hover:text-primary-blue transition text-sm">MEUS CHAMADOS</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-12">
+    
+    <div class="mb-10">
+      <nav class="text-xs font-black text-primary-blue mb-2 uppercase tracking-widest">Início / Suporte / Novo</nav>
+      <h2 class="text-4xl font-black text-dark-bg uppercase">Abrir Novo Chamado</h2>
+      <p class="text-gray-500 font-bold mt-2">Preencha os dados abaixo e nossa equipe entrará em contato.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      
+      <div class="lg:col-span-2">
+        <form id="form" class="bg-white p-8 rounded-3xl shadow-2xl border border-gray-200 space-y-6">
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label for="category">Categoria do Atendimento</label>
+              <select id="category" class="w-full p-4 mt-2 rounded-xl transition-all" required>
+                <option value="Entrega">Entrega</option>
+                <option value="Pagamento">Pagamento</option>
+                <option value="Troca / Devolução">Troca / Devolução</option>
+                <option value="Garantia">Garantia</option>
+                <option value="Produto com defeito">Produto com defeito</option>
+                <option value="Dúvidas">Dúvidas</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+            <div>
+              <label for="orderId">Número do Pedido (Se houver)</label>
+              <input id="orderId" type="text" placeholder="Ex: 8542" class="w-full p-4 mt-2 rounded-xl transition-all">
+            </div>
+          </div>
+
+          <div>
+            <label for="subject">Assunto Resumido</label>
+            <input id="subject" type="text" placeholder="Ex: Atraso na entrega do guarda-roupa" class="w-full p-4 mt-2 rounded-xl transition-all" required maxlength="80">
+          </div>
+
+          <div>
+            <label for="message">Descrição Detalhada</label>
+            <textarea id="message" rows="5" placeholder="Conte-nos o que aconteceu com o máximo de detalhes..." class="w-full p-4 mt-2 rounded-xl transition-all" required></textarea>
+          </div>
+
+          <div class="bg-blue-50 p-6 rounded-2xl border-2 border-dashed border-primary-blue/30">
+            <label for="attachUi">Anexar Imagem ou Foto</label>
+            <input id="attachUi" type="file" accept="image/*" class="w-full mt-2 text-sm font-bold text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-black file:bg-primary-blue file:text-white hover:file:bg-dark-bg cursor-pointer">
+            <p class="text-[10px] text-primary-blue font-bold mt-3 uppercase">Dica: Fotos da etiqueta do produto e da nota fiscal agilizam muito o processo.</p>
+          </div>
+
+          <div class="flex items-center justify-between pt-4">
+            <button type="submit" class="bg-primary-blue text-white px-10 py-4 rounded-xl font-black uppercase text-sm hover:bg-dark-bg transition-all shadow-lg shadow-blue-900/20 transform hover:-translate-y-1">
+              Enviar Solicitação
+            </button>
+            <span id="saving" class="hidden font-black text-primary-blue animate-pulse">PROCESSANDO...</span>
+          </div>
+        </form>
+      </div>
+
+      <aside class="space-y-6">
+        <div class="bg-dark-bg text-white p-8 rounded-3xl shadow-xl">
+          <h3 class="text-primary-blue font-black uppercase text-sm mb-4 tracking-widest">Dicas Úteis</h3>
+          <ul class="space-y-4 text-sm font-bold">
+            <li class="flex gap-3">
+              <span class="text-primary-blue">✓</span>
+              <span>Confira se o número do pedido está correto.</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="text-primary-blue">✓</span>
+              <span>Em caso de avaria, anexe fotos de vários ângulos.</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="text-primary-blue">✓</span>
+              <span>Nosso prazo de resposta é de até 24h úteis.</span>
+            </li>
+          </ul>
+        </div>
+        
+        <div class="bg-white p-6 rounded-3xl border-2 border-gray-100 text-center">
+            <p class="text-xs font-black text-gray-400 uppercase">Precisa de ajuda urgente?</p>
+            <p class="text-dark-bg font-black mt-1">sac@arianamoveis.com.br</p>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <div id="toast" class="fixed bottom-6 right-6 bg-dark-bg text-white px-8 py-4 rounded-2xl font-black shadow-2xl translate-y-20 opacity-0 transition-all duration-500 z-50"></div>
+
+  <script>
+    // ... (Aqui vai toda a lógica de AUTH e STORAGE que você já tem no seu código)
+    // Eu apenas adicionei os IDs correspondentes para que o seu script continue funcionando.
+    
+    // NOTA: Reutilize as funções getUser, requireAuth, loadTickets, saveTickets, genId, etc. 
+    // do seu código original aqui dentro para manter a funcionalidade.
+  </script>
+  <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+   <script src="js/header_auth_fix.js"></script>
+
+   <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

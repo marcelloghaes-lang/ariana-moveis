@@ -1,0 +1,285 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, SafeAreaView, Button, Platform } from 'react-native';
+
+// Importações do Firebase (direto da biblioteca, sem arquivos de configuração externos)
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  query,
+  where // Função where para o filtro
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken 
+} from 'firebase/auth';
+
+// Variáveis globais para o ambiente Canvas (necessárias para inicialização)
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// ID fixo para demonstração (usado para filtro)
+const TEST_USER_ID = "usuario_logado_123";
+
+// Variáveis para as instâncias do Firebase
+let db = null;
+let auth = null;
+
+// =======================================================
+// LÓGICA DE SERVIÇO (CONSOLIDADA NO ARQUIVO)
+// =======================================================
+
+/**
+ * Funções para criação de dados iniciais (para fins de teste).
+ * Depende que o DB esteja inicializado.
+ */
+const createInitialUser = async (userId, userData) => {
+  if (!db) return;
+  try {
+    await setDoc(doc(db, "users", userId), userData, { merge: true });
+  } catch (e) {
+    console.error("Erro ao configurar usuário: ", e);
+  }
+};
+
+const createInitialOrder = async (orderId, orderData) => {
+  if (!db) return;
+  try {
+    await setDoc(doc(db, "orders", orderId), orderData);
+  } catch (e) {
+    console.error("Erro ao configurar pedido: ", e);
+  }
+};
+
+const setupInitialData = async () => {
+  if (!db) return;
+  await createInitialUser(TEST_USER_ID, { 
+    nome: "Alice Silva (Filtrada)", 
+    email: "alice@exemplo.com", 
+    role: "cliente" 
+  });
+  await createInitialOrder("p001", { userId: TEST_USER_ID, total: 150.00, status: "Entregue" });
+  await createInitialOrder("p002", { userId: TEST_USER_ID, total: 29.90, status: "Pendente" });
+  await createInitialOrder("p003", { userId: "outro_usuario_456", total: 500.00, status: "Enviado" });
+  console.log("Dados iniciais garantidos no Firestore.");
+};
+
+/**
+ * Listener que escuta todos os usuários (sem filtro).
+ */
+const startUsersListener = (setUsers) => {
+  if (!db) return () => {};
+  const usersCollectionRef = collection(db, "users");
+  
+  const unsubscribe = onSnapshot(usersCollectionRef, (querySnapshot) => {
+    const usersData = [];
+    querySnapshot.forEach((doc) => {
+      usersData.push({ id: doc.id, ...doc.data() });
+    });
+    setUsers(usersData);
+    console.log(`Users atualizados (Total: ${usersData.length})`);
+  }, (error) => {
+    console.error("ERRO no listener de usuários:", error);
+  });
+  
+  return unsubscribe;
+};
+
+/**
+ * Listener que escuta pedidos, filtrando por userId (com where).
+ */
+const startOrdersListener = (userId, setOrders) => {
+  if (!db) return () => {};
+  const ordersCollectionRef = collection(db, "orders"); 
+  
+  // Cria a Query: filtra onde 'userId' == valor fornecido
+  const q = query(
+    ordersCollectionRef, 
+    where("userId", "==", userId) 
+  );
+  
+  const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const ordersData = [];
+    querySnapshot.forEach((doc) => {
+      ordersData.push({ id: doc.id, ...doc.data() });
+    });
+    setOrders(ordersData);
+    console.log(`Pedidos filtrados para o usuário ${userId}: ${ordersData.length}`);
+    
+  }, (error) => {
+    console.error("ERRO no listener de pedidos:", error);
+  });
+
+  return unsubscribe;
+};
+
+// =======================================================
+// COMPONENTE PRINCIPAL
+// =======================================================
+
+export default function DataListenerScreen() {
+  const [users, setUsers] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const userId = TEST_USER_ID; 
+
+  // --- FUNÇÃO DE INICIALIZAÇÃO E AUTENTICAÇÃO ---
+  useEffect(() => {
+    if (!Object.keys(firebaseConfig).length) {
+      console.warn("Firebase config is missing. Data access will fail.");
+      return;
+    }
+    
+    // 1. Inicializa App e Serviços
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+
+    const initializeAndListen = async () => {
+      try {
+        // 2. Autentica o Usuário
+        if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
+        } else {
+          await signInAnonymously(auth);
+        }
+
+        // 3. Configura dados de teste e inicia Listeners
+        await setupInitialData();
+        
+        const unsubscribeUsers = startUsersListener(setUsers);
+        const unsubscribeOrders = startOrdersListener(userId, setOrders);
+        
+        setIsInitialized(true);
+
+        // 4. Função de Limpeza (Unsubscribe)
+        return () => {
+          unsubscribeUsers(); 
+          unsubscribeOrders(); 
+          console.log("Listeners de Firestore cancelados.");
+        };
+
+      } catch (error) {
+        console.error("Erro na inicialização ou autenticação do Firebase:", error);
+      }
+    };
+    
+    // Inicia a execução assíncrona
+    const cleanup = initializeAndListen();
+    // Retorna a função de limpeza (unsubscribe)
+    return cleanup;
+
+  }, [userId]); 
+
+  // Função para adicionar um novo pedido (botão de teste)
+  const addTestOrder = () => {
+    if (!db) return console.error("DB not initialized.");
+    const newId = `p${Date.now()}`;
+    console.log(`Simulando adição de pedido para ${userId}`);
+    
+    // setDoc dispara automaticamente o onSnapshot (listener)
+    setDoc(doc(db, "orders", newId), { 
+        userId: userId, 
+        total: Math.floor(Math.random() * 100) + 50, 
+        status: "Novo" 
+    }).catch(e => console.error("Erro ao adicionar pedido de teste:", e));
+  };
+
+  if (!isInitialized) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+        <Text style={{ marginTop: 10, color: '#1E293B' }}>Conectando ao Firestore...</Text>
+      </View>
+    );
+  }
+
+  const renderItem = ({ item }) => (
+    <View style={styles.itemContainer}>
+      <Text style={styles.itemTitle}>ID: {item.id}</Text>
+      <Text style={styles.itemDetail}>{item.nome || `Total: R$ ${item.total ? item.total.toFixed(2) : 'N/A'}`}</Text>
+      <Text style={styles.itemDetail}>Status/Role: {item.status || item.role}</Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Text style={styles.header}>👥 Usuários ({users.length} Total)</Text>
+        <FlatList
+          data={users}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          style={styles.list}
+          ListEmptyComponent={<Text style={styles.emptyText}>Nenhum usuário encontrado.</Text>}
+        />
+        
+        <Text style={styles.header}>🛒 Pedidos de {userId} ({orders.length} Filtrado)</Text>
+        <FlatList
+          data={orders}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          style={styles.list}
+          ListEmptyComponent={<Text style={styles.emptyText}>Nenhum pedido encontrado para este usuário.</Text>}
+        />
+
+        <View style={styles.buttonContainer}>
+          <Button title="Adicionar Novo Pedido (Teste)" onPress={addTestOrder} color="#4F46E5" />
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#f0f4f8' },
+  container: { flex: 1, padding: 20 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f4f8' },
+  header: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    color: '#1E293B', 
+    marginTop: 20, 
+    marginBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: '#CBD5E1',
+    paddingBottom: 5,
+  },
+  list: { maxHeight: '35%', backgroundColor: '#fff', borderRadius: 8, padding: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, elevation: 2, marginBottom: 15 },
+  itemContainer: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  itemDetail: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  buttonContainer: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#64748B',
+    padding: 10,
+  }
+});
+

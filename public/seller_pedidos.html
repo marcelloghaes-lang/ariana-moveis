@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Pedidos | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+
+  <style>
+/* Mantenha apenas o CSS que for MUITO específico desta página */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F5F7FA; /* fundo-claro */
+    }
+
+        /* Estilos Gerais da Seção de Produto */
+.product-section {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.product-section h2 {
+    font-size: 1.4em;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.product-section p {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* Estilo para a Grid de Dimensões (Layout 4 Colunas) */
+.dimensions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px; /* Espaçamento entre as colunas */
+    margin-bottom: 20px;
+}
+
+/* Garante que o input de file do CORA/CIELO não seja visível */
+.file-upload-cora input[type="file"] {
+    display: none;
+}
+
+/* Estilos de Animação */
+.animate-fade { animation: fade-in 0.3s ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Estilos de Cores */
+.bg-primary-blue { background-color: #2E6DA4; }
+.hover\:bg-secondary-light-blue:hover { background-color: #56B5FF; }
+.text-primary-blue { color: #2E6DA4; }
+.bg-dark-bg { background-color: #1D2B3A; }
+.text-dark { color: #333333; }
+.bg-fundo-claro { background-color: #F5F7FA; }
+.bg-dark-gray-bg { background-color: #222222; }
+.bg-error-red { background-color: #ef4444; }
+.bg-success-green { background-color: #10b981; }
+.text-error-red { color: #ef4444; }
+.text-success-green { color: #10b981; }
+
+/* Estilos de Toast */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 50; /* Garante que fique acima de tudo */
+}
+.toast {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.3s ease-out;
+}
+
+/* Estilos para o Modal de Visualização de Imagens */
+#image-modal-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+#image-modal-content {
+    max-height: 90vh;
+    max-width: 90vw;
+}
+  </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3">
+        </div>
+  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
+        <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
+            <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain">
+            <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
+        </div>
+    </div>
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+        <a href="#" class="text-white flex items-center space-x-2 px-4">
+            <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
+        </a>
+
+        <nav class="flex flex-col space-y-2">
+  <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-home"></i><span>Dashboard</span>
+  </a>
+  <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-box"></i><span>Meus Produtos</span>
+  </a>
+  <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span>
+  </a>
+  <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-shopping-cart"></i><span>Pedidos</span>
+  </a>
+  <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-chart-line"></i><span>Vendas</span>
+  </a>
+  <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-bell"></i><span>Notificações</span>
+  </a>
+  <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-credit-card"></i><span>Mercado Pago</span>
+  </a>
+  <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-cog"></i><span>Configurações</span>
+  </a>
+  <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-exchange-alt"></i><span>Devoluções</span>
+  </a>
+  <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-receipt"></i><span>Extrato</span>
+  </a>
+  <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
+      <i class="fas fa-sign-out-alt"></i><span>Sair</span>
+  </a>
+</nav>
+    </aside>
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <h1 id="view-title" class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
+            <div id="user-info" class="relative flex items-center space-x-4">
+                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
+                    <i class="fas fa-bell text-xl"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
+                </button>
+                <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div class="p-3 border-b flex items-center justify-between">
+                        <span class="font-semibold text-gray-800">Notificações</span>
+                        <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
+                    </div>
+                    <div id="notif-list" class="max-h-80 overflow-y-auto">
+                        <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
+                    </div>
+                </div>
+<span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+                <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+            </div>
+        </header>
+    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+<div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-black text-dark-bg">Pedidos</h1>
+          <p class="text-gray-500 mt-2 text-sm">Veja e gerencie os pedidos vinculados à sua loja.</p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <div class="relative">
+            <i class="fas fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <input id="search-input" type="text"
+              placeholder="Buscar por ID, comprador..."
+              class="pl-11 pr-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-blue outline-none text-sm w-[260px]">
+          </div>
+
+          <select id="status-filter"
+            class="px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-blue outline-none text-sm">
+            <option value="all">Todos os status</option>
+            <option value="pending">pending</option>
+            <option value="pending_payment">pending_payment</option>
+            <option value="paid">paid</option>
+            <option value="processing">processing</option>
+            <option value="shipped">shipped</option>
+            <option value="delivered">delivered</option>
+            <option value="cancelled">cancelled</option>
+            <option value="refunded">refunded</option>
+          </select>
+
+          <button id="refresh-btn"
+            class="inline-flex items-center gap-2 rounded-2xl bg-primary-blue px-4 py-3 text-white text-sm font-black hover:opacity-95 transition">
+            <i class="fas fa-rotate"></i> Atualizar
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+          <p class="text-xs font-black uppercase tracking-widest text-gray-400">Pedidos</p>
+          <p id="kpi-orders" class="text-3xl font-black text-dark-bg mt-2">0</p>
+        </div>
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+          <p class="text-xs font-black uppercase tracking-widest text-gray-400">Pendentes</p>
+          <p id="kpi-pending" class="text-3xl font-black text-dark-bg mt-2">0</p>
+        </div>
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+          <p class="text-xs font-black uppercase tracking-widest text-gray-400">Em envio</p>
+          <p id="kpi-shipped" class="text-3xl font-black text-dark-bg mt-2">0</p>
+        </div>
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+          <p class="text-xs font-black uppercase tracking-widest text-gray-400">Receita (itens)</p>
+          <p id="kpi-revenue" class="text-3xl font-black text-green-600 mt-2">R$ 0,00</p>
+          <p class="text-[11px] text-gray-400 mt-2">Somente itens desta loja.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <h2 class="text-lg font-black text-dark-bg">Lista de pedidos</h2>
+        <span id="orders-count" class="text-xs font-black text-gray-400 uppercase tracking-widest">0 itens</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left">
+          <thead class="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase">Pedido</th>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase">Comprador</th>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase">Status</th>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase">Pagamento</th>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase">Data</th>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase text-right">Total (itens)</th>
+              <th class="p-4 text-xs font-black text-gray-400 uppercase text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="orders-tbody" class="divide-y text-sm">
+            <tr>
+              <td colspan="7" class="p-10 text-center text-gray-400">
+                <i class="fas fa-circle-notch fa-spin mr-2"></i>
+                Carregando pedidos...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+</main>
+  </div>
+  
+<script type="module">
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+  import {
+    getFirestore, collection, getDocs, query, where, orderBy, limit,
+    doc, getDoc
+  } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+  // ===== Firebase (1 única inicialização) =====
+  const firebaseConfig = {
+    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+    authDomain: "ariana-moveis-final.firebaseapp.com",
+    projectId: "ariana-moveis-final",
+    storageBucket: "ariana-moveis-final.firebasestorage.app",
+    messagingSenderId: "695257365498",
+    appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+  };
+
+  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ===== Helpers =====
+  const $ = (id) => document.getElementById(id);
+  const brl = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  function toast(message, type = "info") {
+    const container = $("toast-container");
+    if (!container) { alert(message); return; }
+    const el = document.createElement("div");
+    const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
+    el.className = `toast p-4 rounded-lg text-white ${map[type] || map.info} animate-fade`;
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3500);
+  }
+  window.toast = toast;
+
+  // Modal de imagem (se algum lugar chamar)
+  window.openImageModal = function (src, name = "") {
+    const overlay = $("image-modal-overlay");
+    const img = $("modal-image");
+    const nm = $("modal-image-name");
+    if (!overlay || !img) return;
+    img.src = src || "";
+    if (nm) nm.textContent = name || "";
+    overlay.classList.remove("hidden");
+    overlay.classList.add("flex");
+  };
+  window.closeImageModal = function () {
+    const overlay = $("image-modal-overlay");
+    const img = $("modal-image");
+    if (img) img.src = "";
+    if (!overlay) return;
+    overlay.classList.add("hidden");
+    overlay.classList.remove("flex");
+  };
+
+  // Sidebar toggle
+  const sidebar = $("sidebar");
+  const sidebarToggle = $("sidebar-toggle");
+  if (sidebar && sidebarToggle) {
+    sidebarToggle.addEventListener("click", () => sidebar.classList.toggle("-translate-x-full"));
+  }
+
+  // Notificações (dropdown simples)
+  const notifBtn = $("notif-btn");
+  const notifDropdown = $("notif-dropdown");
+  if (notifBtn && notifDropdown) {
+    notifBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      notifDropdown.classList.toggle("hidden");
+    });
+    document.addEventListener("click", () => {
+      if (!notifDropdown.classList.contains("hidden")) notifDropdown.classList.add("hidden");
+    });
+  }
+
+  async function requireSeller(uid) {
+    const sref = doc(db, "sellers", uid);
+    const snap = await getDoc(sref);
+    if (!snap.exists()) throw new Error("Conta seller não encontrada no Firestore (coleção sellers).");
+    const data = snap.data() || {};
+    if (data.active === false) throw new Error("Seller desativado.");
+    if (String(data.status || "").toLowerCase() === "reprovado") throw new Error("Seller reprovado.");
+    return data;
+  }
+
+  function computeSellerTotal(order, sellerUid) {
+    const items = Array.isArray(order.items) ? order.items : [];
+    const matchesSingleSeller = (order.sellerId && String(order.sellerId) === String(sellerUid));
+    const myItems = matchesSingleSeller ? items : items.filter(it => String(it?.sellerId || "") === String(sellerUid));
+    const total = myItems.reduce((acc, it) => acc + (Number(it?.price || 0) * Number(it?.quantity || 1)), 0);
+    return { myItems, total };
+  }
+
+  function paymentText(payment) {
+    if (!payment) return "—";
+    const provider = payment.provider || "—";
+    const type = payment.type || "—";
+    const st = payment.mpStatus || payment.status || "";
+    return `${provider} • ${type}${st ? ` • ${st}` : ""}`;
+  }
+
+  function formatDate(ts) {
+    if (!ts) return "—";
+    try {
+      if (typeof ts.toDate === "function") return ts.toDate().toLocaleString("pt-BR");
+      if (ts?.seconds) return new Date(ts.seconds * 1000).toLocaleString("pt-BR");
+      return new Date(ts).toLocaleString("pt-BR");
+    } catch { return "—"; }
+  }
+
+  function statusBadge(status) {
+    const s = String(status || "pending");
+    const base = "inline-flex items-center px-3 py-1 rounded-full text-xs font-black";
+    if (["paid", "processing"].includes(s)) return `<span class="${base} bg-blue-50 text-primary-blue">${s}</span>`;
+    if (["shipped"].includes(s)) return `<span class="${base} bg-yellow-50 text-yellow-700">${s}</span>`;
+    if (["delivered"].includes(s)) return `<span class="${base} bg-green-50 text-green-700">${s}</span>`;
+    if (["cancelled", "refunded"].includes(s)) return `<span class="${base} bg-red-50 text-red-700">${s}</span>`;
+    return `<span class="${base} bg-gray-100 text-gray-700">${s}</span>`;
+  }
+
+
+function safeNumber(v) {
+  const n = Number(v || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function resolveSellerBreakdown(order, uid) {
+  const raw = order?.sellerBreakdown || {};
+  if (!raw || typeof raw !== "object") return null;
+  return raw[uid] || raw[String(uid)] || null;
+}
+
+function computeSellerMetrics(order, uid) {
+  const breakdown = resolveSellerBreakdown(order, uid);
+  if (breakdown) {
+    const gross = safeNumber(
+      breakdown.itemsSubtotal ??
+      breakdown.grossAmount ??
+      breakdown.gross ??
+      breakdown.subtotal
+    );
+    const fee = safeNumber(
+      breakdown.commissionAmount ??
+      breakdown.commission ??
+      gross * 0.12
+    );
+    const label = safeNumber(
+      breakdown.shippingLabelPaidByPlatform ??
+      breakdown.labelCost ??
+      breakdown.logisticsCost ??
+      0
+    );
+    const net = safeNumber(
+      breakdown.sellerNetAmount ??
+      breakdown.netAmount ??
+      (gross - fee - label)
+    );
+    return { gross, fee, label, net };
+  }
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const useAll = String(order?.sellerId || "") === String(uid);
+  const myItems = useAll ? items : items.filter(it => String(it?.sellerId || "") === String(uid));
+  const gross = myItems.reduce((acc, it) => acc + (safeNumber(it?.price) * Math.max(1, safeNumber(it?.quantity || it?.qty || it?.qtd || 1))), 0);
+  const fee = gross * 0.12;
+  const label = 0;
+  const net = gross - fee - label;
+  return { gross, fee, label, net };
+}
+
+function isSellerInOrder(order, uid) {
+  if (!order) return false;
+  if (String(order?.sellerId || "") === String(uid)) return true;
+  if (String(order?.sellerUid || "") === String(uid)) return true;
+  if (Array.isArray(order?.sellerIds) && order.sellerIds.map(String).includes(String(uid))) return true;
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return items.some(it => String(it?.sellerId || "") === String(uid));
+}
+
+async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
+  const collected = [];
+  const seen = new Set();
+
+  async function runAttempt(makeQuery) {
+    try {
+      const snap = await getDocs(makeQuery());
+      snap.forEach((d) => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        collected.push({ id: d.id, ...(d.data() || {}) });
+      });
+      return !snap.empty;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  const attempts = [
+    () => query(collection(db, "orders"), where("sellerId", "==", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerId", "==", uid), orderBy("createdAt", "desc"), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerUid", "==", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerUid", "==", uid), orderBy("createdAt", "desc"), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), orderBy("createdAt", "desc"), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerId", "==", uid), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerUid", "==", uid), limit(maxItems)),
+    () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), limit(maxItems)),
+  ];
+
+  for (const makeQuery of attempts) {
+    const found = await runAttempt(makeQuery);
+    if (found) break;
+  }
+
+  return collected
+    .filter(order => isSellerInOrder(order, uid))
+    .sort((a, b) => {
+      const ad = (a?.updatedAt?.seconds || a?.createdAt?.seconds || 0);
+      const bd = (b?.updatedAt?.seconds || b?.createdAt?.seconds || 0);
+      return bd - ad;
+    });
+}
+
+  // ===== Orders logic =====
+  let sellerUid = null;
+  let allRows = [];
+
+  const tbody = $("orders-tbody");
+  const ordersCountEl = $("orders-count");
+  const kpiOrders = $("kpi-orders");
+  const kpiPending = $("kpi-pending");
+  const kpiShipped = $("kpi-shipped");
+  const kpiRevenue = $("kpi-revenue");
+  const searchInput = $("search-input");
+  const statusFilter = $("status-filter");
+  const refreshBtn = $("refresh-btn");
+
+  function getFilteredRows() {
+    const q = (searchInput?.value || "").trim().toLowerCase();
+    const st = statusFilter?.value || "all";
+
+    return allRows.filter(r => {
+      const order = r.order || {};
+      const id = String(r.id || "").toLowerCase();
+      const buyerName = String(order.buyerName || "").toLowerCase();
+      const buyerEmail = String(order.buyerEmail || "").toLowerCase();
+      const status = String(order.status || "pending");
+
+      const statusOk = (st === "all") ? true : (status === st);
+      if (!statusOk) return false;
+
+      if (!q) return true;
+      return id.includes(q) || buyerName.includes(q) || buyerEmail.includes(q);
+    });
+  }
+
+  function renderKPIs(rows) {
+    if (kpiOrders) kpiOrders.textContent = rows.length;
+
+    const pendingCount = rows.filter(r => ["pending", "pending_payment"].includes(String(r.order?.status || "pending"))).length;
+    if (kpiPending) kpiPending.textContent = pendingCount;
+
+    const shippedCount = rows.filter(r => String(r.order?.status || "") === "shipped").length;
+    if (kpiShipped) kpiShipped.textContent = shippedCount;
+
+    const revenue = rows.reduce((acc, r) => acc + Number(r.sellerItemsTotal || 0), 0);
+    if (kpiRevenue) kpiRevenue.textContent = brl(revenue);
+  }
+
+  function renderTable() {
+    if (!tbody) return;
+    const rows = getFilteredRows();
+    if (ordersCountEl) ordersCountEl.textContent = `${rows.length} itens`;
+
+    if (!rows.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="p-10 text-center text-gray-400">Nenhum pedido encontrado.</td>
+        </tr>`;
+      return;
+    }
+
+    tbody.innerHTML = "";
+    for (const r of rows) {
+      const order = r.order || {};
+      const status = String(order.status || "pending");
+      const buyer = order.buyerName || order.buyerEmail || "—";
+      const pay = paymentText(order.payment);
+
+      const tr = document.createElement("tr");
+      tr.className = "hover:bg-gray-50 transition";
+      tr.innerHTML = `
+        <td class="p-4">
+          <div class="flex flex-col">
+            <span class="font-black text-dark-bg">#${String(r.id).substring(0,8).toUpperCase()}</span>
+            <span class="text-xs text-gray-400">${(order.items?.length || 0)} item(ns) no pedido</span>
+          </div>
+        </td>
+        <td class="p-4">
+          <div class="flex flex-col">
+            <span class="font-bold text-dark-bg">${buyer}</span>
+            <span class="text-xs text-gray-400">${order.buyerEmail || ""}</span>
+          </div>
+        </td>
+        <td class="p-4">${statusBadge(status)}</td>
+        <td class="p-4"><span class="text-xs font-bold text-gray-600">${pay}</span></td>
+        <td class="p-4"><span class="text-xs text-gray-600">${formatDate(order.createdAt)}</span></td>
+        <td class="p-4 text-right font-black text-dark-bg">${brl(r.sellerItemsTotal)}</td>
+        <td class="p-4 text-right">
+          <a class="inline-flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-2 text-xs font-black hover:bg-gray-200 transition"
+             href="seller_pedido_detalhes.html?orderId=${encodeURIComponent(r.id)}">
+            <i class="fas fa-eye"></i> Ver
+          </a>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+async function loadOrdersForSeller(uid) {
+  if (!tbody) return;
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="7" class="p-10 text-center text-gray-400">
+        <i class="fas fa-circle-notch fa-spin mr-2"></i> Carregando pedidos...
+      </td>
+    </tr>`;
+
+  const orders = await fetchOrdersOnlyForSeller(uid, 300);
+  const rows = orders.map(order => {
+    const m = computeSellerMetrics(order, uid);
+    return { id: order.id, order, sellerItemsTotal: m.gross };
+  });
+
+  allRows = rows;
+  renderKPIs(rows);
+  renderTable();
+}
+
+  // Inputs
+  if (searchInput) searchInput.addEventListener("input", renderTable);
+  if (statusFilter) statusFilter.addEventListener("change", renderTable);
+  if (refreshBtn) refreshBtn.addEventListener("click", () => sellerUid && loadOrdersForSeller(sellerUid));
+
+  // Logout
+  const sairBtn = $("btn-sair");
+  if (sairBtn) {
+    sairBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await signOut(auth);
+        window.location.href = "seller_login.html";
+      } catch (err) {
+        console.error(err);
+        toast("Não foi possível sair.", "error");
+      }
+    });
+  }
+
+  // ===== Auth start =====
+  const userLabel = $("user-display-name");
+
+  onAuthStateChanged(auth, async (user) => {
+    try {
+      if (!user) { window.location.href = "seller_login.html"; return; }
+      const s = await requireSeller(user.uid);
+      sellerUid = user.uid;
+      if (userLabel) userLabel.textContent = `Bem-vindo, ${(s.factoryName || s.name || user.email || "Seller")}!`;
+      window.__sellerAuth = { uid: user.uid, email: user.email || "", seller: s };
+
+      await loadOrdersForSeller(user.uid);
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || "Erro ao validar seller.", "error");
+      setTimeout(() => { window.location.href = "seller_login.html"; }, 1200);
+    }
+  });
+</script>
+
+<script>
+  // PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    });
+  }
+</script>
+
+<script src="js/layout-fit.js" defer></script>
+
+<script src="js/header_auth_fix.js"></script>
+
+</body>
+</html>

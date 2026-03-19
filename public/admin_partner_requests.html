@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Partner Requests | ARIANA MÓVEIS</title>
+
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    base-uri 'self';
+    object-src 'none';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://www.googletagmanager.com https://sdk.mercadopago.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;
+    img-src 'self' data: blob: https:;
+    font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:;
+    connect-src 'self' http://127.0.0.1:5500 http://localhost:5500 https://*.googleapis.com https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://sdk.mercadopago.com https://api.mercadopago.com;
+    frame-src 'self' https://www.mercadopago.com https://*.mercadopago.com https://*.google.com https://ariana-moveis-final.firebaseapp.com;
+  ">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
+    .animate-fade { animation: fade-in 0.3s ease-out; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }
+    .bg-primary-blue { background-color: #2E6DA4; }
+    .text-primary-blue { color: #2E6DA4; }
+    .bg-dark-bg { background-color: #1D2B3A; }
+    .bg-dark-gray-bg { background-color: #222222; }
+    .bg-fundo-claro { background-color: #F5F7FA; }
+    .bg-error-red { background-color: #ef4444; }
+    .bg-success-green { background-color: #10b981; }
+    .text-error-red { color: #ef4444; }
+    .text-success-green { color: #10b981; }
+    #toast-container { position: fixed; top: 20px; right: 20px; z-index: 60; }
+    .toast { box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); transition: opacity .3s ease-out; }
+  </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3"></div>
+
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+    <a href="#" class="text-white flex items-center space-x-2 px-4">
+      <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
+    </a>
+
+    <nav class="flex flex-col space-y-2">
+      <a href="admin_painel.htm" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white">
+        <i class="fas fa-home"></i><span>Dashboard</span>
+      </a>
+      <a href="admin_partner_requests.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white">
+        <i class="fas fa-store"></i><span>Solicitações de Parceiro</span>
+      </a>
+      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
+        <i class="fas fa-sign-out-alt"></i><span>Sair</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
+        <i class="fas fa-bars text-xl"></i>
+      </button>
+      <h1 class="text-xl font-semibold text-gray-800">Solicitações de Parceiro</h1>
+      <div class="relative flex items-center space-x-4">
+        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Admin!</span>
+        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 animate-fade">
+        <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800">Solicitações pendentes</h2>
+            <p class="text-sm text-gray-500 mt-1">Aprove ou reprove cadastros de parceiros.</p>
+          </div>
+          <button id="btn-refresh" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:opacity-95 transition">
+            <i class="fas fa-rotate mr-2"></i>Atualizar
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loja</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsável</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contato</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tb-requests" class="bg-white divide-y divide-gray-200">
+              <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getFirestore, collection, getDocs, query, orderBy, doc, getDoc, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+    };
+
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const $ = (id) => document.getElementById(id);
+
+    function toast(message, type = "info") {
+      const container = $("toast-container");
+      if (!container) { alert(message); return; }
+      const el = document.createElement("div");
+      const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
+      el.className = "toast p-4 rounded-lg text-white " + (map[type] || map.info) + " animate-fade";
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3500);
+    }
+
+    function esc(v) {
+      return String(v ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    async function requireAdmin(uid) {
+      const adminRef = doc(db, "admins", uid);
+      const adminSnap = await getDoc(adminRef);
+      if (!adminSnap.exists()) throw new Error("Usuário não é admin.");
+      const data = adminSnap.data() || {};
+      if (data.active === false) throw new Error("Admin desativado.");
+      return data;
+    }
+
+    async function listenRequests() {
+      const tbody = $("tb-requests");
+      tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Carregando...</td></tr>';
+
+      try {
+        const q = query(collection(db, "partner_requests"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Nenhuma solicitação encontrada.</td></tr>';
+          return;
+        }
+
+        const rows = [];
+        snap.forEach((d) => rows.push({ id: d.id, ...(d.data() || {}) }));
+
+        tbody.innerHTML = rows.map((item) => {
+          const storeName = item.storeName || item.factoryName || item.nomeFantasia || "Sem nome";
+          const ownerName = item.ownerName || item.name || item.responsavel || "—";
+          const email = item.email || item.ownerEmail || "—";
+          const phone = item.phone || item.telefone || "—";
+          const status = String(item.status || "pending").toLowerCase();
+
+          return `
+            <tr>
+              <td class="px-6 py-4">
+                <div class="font-bold text-gray-800">${esc(storeName)}</div>
+                <div class="text-xs text-gray-500">${esc(item.cnpj || "")}</div>
+              </td>
+              <td class="px-6 py-4">${esc(ownerName)}</td>
+              <td class="px-6 py-4">
+                <div>${esc(email)}</div>
+                <div class="text-xs text-gray-500">${esc(phone)}</div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${status === 'approved' ? 'bg-green-50 text-green-700' : status === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}">${esc(status)}</span>
+              </td>
+              <td class="px-6 py-4 text-right">
+                <div class="flex justify-end gap-2">
+                  <button class="approve-btn bg-success-green text-white px-3 py-2 rounded-lg text-sm font-bold" data-id="${esc(item.id)}" data-email="${esc(email)}">Aprovar</button>
+                  <button class="reject-btn bg-error-red text-white px-3 py-2 rounded-lg text-sm font-bold" data-id="${esc(item.id)}">Reprovar</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+
+        tbody.querySelectorAll(".approve-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            const email = btn.getAttribute("data-email") || "";
+            await approveRequest(id, email);
+          });
+        });
+
+        tbody.querySelectorAll(".reject-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-id");
+            await rejectRequest(id);
+          });
+        });
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-red-600">Erro ao carregar solicitações.</td></tr>';
+        toast(err?.message || "Erro ao carregar solicitações.", "error");
+      }
+    }
+
+    async function approveRequest(id, email) {
+      try {
+        const reqRef = doc(db, "partner_requests", id);
+        const reqSnap = await getDoc(reqRef);
+        if (!reqSnap.exists()) throw new Error("Solicitação não encontrada.");
+
+        const data = reqSnap.data() || {};
+        const sellerUid = data.uid || data.userId || id;
+
+        await updateDoc(reqRef, {
+          status: "approved",
+          approvedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        await setDoc(doc(db, "sellers", sellerUid), {
+          active: true,
+          status: "approved",
+          email: data.email || email || "",
+          ownerName: data.ownerName || data.name || "",
+          factoryName: data.storeName || data.factoryName || data.nomeFantasia || "",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        if (email) {
+          try {
+            await sendPasswordResetEmail(auth, email);
+          } catch (e) {
+            console.warn("Não foi possível enviar redefinição de senha:", e);
+          }
+        }
+
+        toast("Solicitação aprovada com sucesso.", "success");
+        await listenRequests();
+      } catch (err) {
+        console.error(err);
+        toast(err?.message || "Erro ao aprovar solicitação.", "error");
+      }
+    }
+
+    async function rejectRequest(id) {
+      try {
+        const reqRef = doc(db, "partner_requests", id);
+        await updateDoc(reqRef, {
+          status: "rejected",
+          rejectedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        toast("Solicitação reprovada.", "success");
+        await listenRequests();
+      } catch (err) {
+        console.error(err);
+        toast(err?.message || "Erro ao reprovar solicitação.", "error");
+      }
+    }
+
+    $("btn-refresh")?.addEventListener("click", async () => {
+      await listenRequests();
+    });
+
+    $("btn-sair")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await signOut(auth);
+        window.location.href = "admin_login.html";
+      } catch (err) {
+        console.error(err);
+        toast("Não foi possível sair.", "error");
+      }
+    });
+
+    const sidebar = $("sidebar");
+    $("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
+
+    onAuthStateChanged(auth, async (user) => {
+      try {
+        if (!user) {
+          window.location.href = "admin_login.html";
+          return;
+        }
+        await requireAdmin(user.uid);
+        $("user-display-name").textContent = "Bem-vindo, " + (user.email || "Admin") + "!";
+        await listenRequests();
+      } catch (err) {
+        console.error(err);
+        toast(err?.message || "Acesso negado.", "error");
+      }
+    });
+  </script>
+
+  <script src="js/layout-fit.js" defer></script>
+</body>
+</html>

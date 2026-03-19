@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Login do Seller | ARIANA MÓVEIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <style>
+    :root {
+      --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; --warning:#ea580c;
+    }
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); }
+    .bg-primary-blue{background:var(--primary)} .text-primary-blue{color:var(--primary)} .bg-dark-bg{background:var(--dark)}
+    .text-dark-bg{color:var(--dark)} .bg-fundo-claro{background:var(--bg)} .bg-success-green{background:var(--success)}
+    .bg-error-red{background:var(--danger)} .border-soft{border-color:#e5e7eb} .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+    .input{width:100%;border:1px solid #d1d5db;border-radius:1rem;padding:.85rem 1rem;outline:none;background:#fff}
+    .input:focus{box-shadow:0 0 0 4px rgba(46,109,164,.12);border-color:var(--primary)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.85rem 1.2rem;font-weight:800;transition:.2s}
+    .btn-primary{background:var(--primary);color:#fff} .btn-primary:hover{opacity:.95} .btn-dark{background:var(--dark);color:#fff}
+    .btn-light{background:#fff;color:var(--dark);border:1px solid #e5e7eb} .pill{display:inline-flex;align-items:center;padding:.35rem .75rem;border-radius:9999px;font-size:.75rem;font-weight:800}
+    .toast{box-shadow:0 10px 30px rgba(0,0,0,.12)}
+    #toast-container{position:fixed;right:1rem;top:1rem;z-index:80;display:flex;flex-direction:column;gap:.75rem}
+    .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}
+    .sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
+    .stat{padding:1.25rem;border-radius:1.25rem;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.05)}
+    .muted{color:#64748b} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse} th,td{padding:1rem;border-bottom:1px solid #eef2f7;vertical-align:top} th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;text-align:left}
+    .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
+  </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-4">
+<div id="toast-container"></div>
+<div class="w-full max-w-md card overflow-hidden">
+  <div class="p-8 bg-dark-bg text-white text-center">
+    <h1 class="text-2xl font-black tracking-widest">ARIANA MÓVEIS</h1>
+    <p class="text-slate-300 mt-2">Portal do Vendedor</p>
+  </div>
+  <form id="login-form" class="p-8 space-y-5">
+    <div><label class="block text-sm font-bold mb-2">E-mail</label><input id="email" type="email" required class="input"></div>
+    <div><label class="block text-sm font-bold mb-2">Senha</label><input id="password" type="password" required class="input"></div>
+    <p id="error" class="hidden text-sm text-red-600 font-semibold"></p>
+    <button id="btn-login" class="btn btn-primary w-full" type="submit">Entrar no painel</button>
+    <div class="flex items-center justify-between text-sm">
+      <a href="seller_recuperar_senha.html" class="text-primary-blue font-bold">Esqueci minha senha</a>
+      <a href="seller_cadastro.html" class="text-primary-blue font-bold">Criar solicitação</a>
+    </div>
+  </form>
+</div>
+<script type="module">
+
+    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+    };
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const $ = (id) => document.getElementById(id);
+    function toast(message, type='info') {
+      const c = $('toast-container'); if (!c) return alert(message);
+      const el = document.createElement('div');
+      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+      el.textContent = message; c.appendChild(el);
+      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+    }
+    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
+    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
+    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
+    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
+    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
+    function orderBelongsToSeller(order, uid){
+      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
+      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
+    }
+    function getMyItems(order, uid){
+      const items = Array.isArray(order?.items) ? order.items : [];
+      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
+      return items.filter(it => itemBelongsToSeller(it, uid));
+    }
+    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
+    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
+    async function requireApprovedSeller(uid){
+      const seller = await getSeller(uid);
+      if (!seller) throw new Error('Conta seller não encontrada.');
+      const status = String(seller.status || '').toLowerCase();
+      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
+      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
+      return seller;
+    }
+    async function recentOrdersForSeller(uid, max=300){
+      const ref = collection(db,'orders');
+      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
+      for (const qx of tries) {
+        try {
+          const snap = await getDocs(qx);
+          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
+        } catch (e) {}
+      }
+      return [];
+    }
+
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('error').classList.add('hidden');
+  const email = $('email').value.trim();
+  const password = $('password').value;
+  const btn = $('btn-login'); btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const seller = await getSeller(cred.user.uid);
+    if (!seller) throw new Error('Esta conta existe no login, mas não foi vinculada a um seller.');
+    const st = String(seller.status || '').toLowerCase();
+    if (seller.active === false || ['pending_analysis','pending_onboarding','em_analise'].includes(st)) {
+      localStorage.setItem('seller_pending_uid', cred.user.uid);
+      window.location.href = 'seller_pending.html';
+      return;
+    }
+    window.location.href = 'seller_dashboard.html';
+  } catch (e) {
+    console.error(e);
+    $('error').textContent = e.message || 'E-mail ou senha inválidos.';
+    $('error').classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Entrar no painel';
+  }
+});
+</script>
+<script src="js/layout-fit.js" defer></script>
+</body></html>

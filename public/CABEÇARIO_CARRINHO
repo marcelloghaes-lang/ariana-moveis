@@ -1,0 +1,92 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <title>Nosso Compromisso | Ariana Móveis</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
+
+        /* CSS ORIGINAL QUE MANTÉM O ALINHAMENTO DA IMAGEM */
+        .header-ajustado {
+            background-color: #2E6DA4;
+            color: white;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .voltar-loja-original {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .ambiente-seguro-original {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+        }
+
+        .escudo-original {
+            width: 45px;
+            height: 45px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .texto-seguro-original {
+            font-size: 13px;
+            line-height: 1.1;
+            text-transform: uppercase;
+        }
+
+        .texto-seguro-original strong {
+            font-size: 18px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body class="bg-fundo-claro">
+    <header class="shadow-xl">
+        <div class="header-ajustado">
+            
+            <a href="index.html" class="voltar-loja-original">
+                <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
+                <span>VOLTAR PARA A LOJA</span>
+            </a>
+
+            <div class="text-2xl font-bold tracking-wider uppercase">
+                ARIANA MOVEIS
+            </div>
+
+            <div class="ambiente-seguro-original">
+                <div class="escudo-original">
+                    <svg viewBox="0 0 24 24" width="28" height="28">
+                        <path d="M12 2L3 6v4a9 9 0 009 9 9 9 0 009-9V6L12 2z" fill="#2E6DA4"/>
+                        <path d="M12 11V7m0 0a1 1 0 011 1v3a1 1 0 01-2 0V8a1 1 0 011-1z" stroke="white" stroke-width="1.5" fill="none"/>
+                        <rect x="10" y="11" width="4" height="4" rx="1" fill="white"/>
+                    </svg>
+                </div>
+                <div class="texto-seguro-original">
+                    Ambiente <br>
+                    <strong>SEGURO</strong>
+                </div>
+            </div>
+
+        </div>
+    </header>

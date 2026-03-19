@@ -1,0 +1,3581 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <style>
+    /* Fix: custom color utility classes used in markup but not present in tailwind.min.css */
+    .bg-success-green{background-color:#16a34a !important;}
+    .text-success-green{color:#16a34a !important;}
+    .bg-error-red{background-color:#dc2626 !important;}
+    .text-error-red{color:#dc2626 !important;}
+    .bg-primary-blue{background-color:#1d4ed8 !important;}
+    .text-primary-blue{color:#1d4ed8 !important;}
+    .bg-secondary-light-blue{background-color:#2563eb !important;}
+    .text-secondary-light-blue{color:#2563eb !important;}
+  </style>
+</head>
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  base-uri 'self';
+  object-src 'none';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://www.googletagmanager.com https://sdk.mercadopago.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;
+  img-src 'self' data: blob: https:;
+  font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:;
+  connect-src 'self' http://127.0.0.1:5500 http://localhost:5500 https://*.googleapis.com https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://sdk.mercadopago.com https://api.mercadopago.com;
+  frame-src 'self' https://www.mercadopago.com https://*.mercadopago.com https://*.google.com https://ariana-moveis-final.firebaseapp.com;
+">
+
+<body class="bg-gray-100 min-h-screen">
+  <div id="toast-container" class="fixed top-4 right-4 z-[99999] flex flex-col gap-2 w-[320px] max-w-[90vw]"></div>
+
+<div class="relative min-h-screen md:flex">
+
+<aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+    <a href="#" class="text-white flex items-center space-x-2 px-4">
+        <span class="text-2xl font-extrabold tracking-widest">ADMIN-FIRE</span>
+    </a>
+
+    <nav class="flex flex-col space-y-2">
+        <a href="#" onclick="window.changeView('dashboard')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="dashboard">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+        </a>
+
+        <a href="#" onclick="window.changeView('atendimentos')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="atendimentos">
+            <i class="fas fa-headset"></i>
+            <div class="flex-1 flex items-center justify-between">
+                <span>Atendimentos</span>
+                <span id="badge-atendimentos" class="hidden bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">0</span>
+            </div>
+        </a>
+
+        <a href="#" onclick="window.changeView('products')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="products">
+            <i class="fas fa-box"></i>
+            <span>Produtos</span>
+        </a>
+
+        <a href="#" onclick="window.changeView('orders')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="orders">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Pedidos</span>
+        </a>
+
+        <a href="#" onclick="window.changeView('users')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="users">
+            <i class="fas fa-users"></i>
+            <span>Usuários</span>
+        </a>
+
+        <a href="#" onclick="window.changeView('categories')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="categories">
+            <i class="fas fa-tags"></i>
+            <span>Categorias</span>
+        </a>
+
+        <a href="#" onclick="window.changeView('payments')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="payments">
+            <i class="fas fa-money-check-alt"></i>
+            <span>Pagamentos</span>
+        </a>
+
+        <a href="#" onclick="window.handleSignOut()" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Sair</span>
+        </a>
+    </nav>
+</aside>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <h1 id="view-title" class="text-xl font-semibold text-text-dark"></h1>
+            <div id="user-info" class="relative flex items-center space-x-4">
+                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
+                    <i class="fas fa-bell text-xl"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
+                </button>
+                <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div class="p-3 border-b flex items-center justify-between">
+                        <span class="font-semibold text-gray-800">Notificações</span>
+                        <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
+                    </div>
+                    <div id="notif-list" class="max-h-80 overflow-y-auto">
+                        <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
+                    </div>
+                </div>
+<span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Admin!</span>
+                <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+            </div>
+        </header>
+
+        <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+
+            <div id="login-view" class="view hidden animate-fade max-w-md mx-auto my-20 bg-white p-8 rounded-lg shadow-xl">
+                <h2 class="text-3xl font-bold mb-6 text-center text-primary-blue">Login de Administrador</h2>
+                <form id="login-form" onsubmit="event.preventDefault(); window.handleSignIn()">
+                    <div class="mb-4">
+                        <label for="login-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                        <input type="email" id="login-email" value="admin@exemplo.com" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue focus:border-primary-blue">
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                        <input type="password" id="login-password" value="123456" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue focus:border-primary-blue">
+                    </div>
+                    <button type="submit" id="login-btn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-blue hover:bg-secondary-light-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-blue transition duration-150 ease-in-out">
+                        Entrar
+                    </button>
+                    <p class="text-sm text-center text-gray-500 mt-4">Use: admin@exemplo.com / 123456</p>
+                </form>
+            </div>
+
+            <div id="dashboard-view" class="view hidden animate-fade">
+                <div id="dashboard-content">
+                    </div>
+            </div>
+
+            <div id="products-view" class="view hidden animate-fade">
+                <div id="products-content">
+                    </div>
+            </div>
+
+            <div id="orders-view" class="view hidden animate-fade">
+                <div id="orders-content">
+                    </div>
+            </div>
+            
+            <div id="users-view" class="view hidden animate-fade">
+                <div id="users-content">
+                    </div>
+            </div>
+
+            <div id="categories-view" class="view hidden animate-fade">
+                <div id="categories-content">
+                    </div>
+            </div>
+
+            <div id="payments-view" class="view hidden animate-fade">
+                <div id="payments-content">
+                    </div>
+            </div>
+
+       <div class="flex-1 p-4 md:p-8 overflow-y-auto">
+
+        <div id="atendimentos-view" class="view hidden animate-fade">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                    <h2 class="text-2xl font-black text-gray-800">SAC & Ouvidoria</h2>
+                    <p class="text-gray-500 text-sm">Gerencie as mensagens e protocolos de atendimento</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-100">
+                                <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Protocolo / Data</th>
+                                <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Cliente</th>
+                                <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Departamento</th>
+                                <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase text-center">Status</th>
+                                <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-atendimentos-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="phones-config-panel" class="bg-gray-800 p-6 rounded-3xl mb-8 text-white shadow-lg border border-gray-700 hidden">
+    <div class="flex items-center gap-3 mb-4">
+        <i class="fas fa-cog text-blue-400"></i>
+        <h3 class="font-bold">Configurar Telefones do Site</h3>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1">Número 0800</label>
+            <input type="text" id="cfg-0800" class="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 transition" placeholder="0800 000 0000">
+        </div>
+        <div>
+            <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1">Número 4004 (Capitais)</label>
+            <input type="text" id="cfg-4004" class="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 transition" placeholder="4004-0000">
+        </div>
+        <div class="flex items-end">
+            <button onclick="window.salvarConfigTelefones()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition flex items-center justify-center gap-2">
+                <i class="fas fa-save"></i> ATUALIZAR NÚMEROS
+            </button>
+        </div>
+    </div>
+</div>
+
+    </main> </div> <div id="order-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl animate-fade">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h3 class="text-xl font-bold text-primary-blue">
+                Detalhes do Pedido <span id="modal-order-id" class="font-normal text-gray-500"></span>
+            </h3>
+            <button onclick="closeModal('order-detail-modal')" class="text-gray-400 hover:text-gray-700 text-2xl font-bold">&times;</button>
+        </div>
+        <div class="p-6 max-h-[80vh] overflow-y-auto">
+            <div id="modal-content-details">
+                </div>
+            
+            <div class="mt-6 pt-4 border-t">
+                <h4 class="text-lg font-semibold mb-3">Atualizar Status & Rastreio</h4>
+                <form id="update-order-form" onsubmit="event.preventDefault(); window.handleOrderUpdate(event)">
+                    <input type="hidden" id="modal-order-doc-id">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="update-status" class="block text-sm font-medium text-gray-700">Status</label>
+                            <select id="update-status" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                                <option value="Aguardando Pagamento">Aguardando Pagamento</option>
+                                <option value="Pagamento Confirmado">Pagamento Confirmado</option>
+                                <option value="Em Separação">Em Separação</option>
+                                <option value="Em Transporte">Em Transporte</option>
+                                <option value="Entregue">Entregue</option>
+                                <option value="Cancelado">Cancelado</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="update-tracking-code" class="block text-sm font-medium text-gray-700">Código de Rastreio (Opcional)</label>
+                            <input type="text" id="update-tracking-code" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue" placeholder="Ex: AB123456789BR">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
+                        Salvar Alterações
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+    
+    <script type="module">
+        
+        // Carrega Firebase via dynamic import (evita quebrar a página se o CDN falhar/for bloqueado)
+        let initializeApp, getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged;
+        let getFirestore, collection, getDocs, getDoc, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, query, where, orderBy, limit;
+        let getStorage, ref, uploadBytes, getDownloadURL, deleteObject;
+
+        async function loadFirebaseModules() {
+            try {
+                const appMod = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js");
+                const authMod = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js");
+                const fsMod = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js");
+                const stMod = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js");
+
+                // Firebase App
+                initializeApp = appMod.initializeApp;
+
+                // Firebase Auth
+                getAuth = authMod.getAuth;
+                signInWithEmailAndPassword = authMod.signInWithEmailAndPassword;
+                signOut = authMod.signOut;
+                onAuthStateChanged = authMod.onAuthStateChanged;
+
+                // Firestore
+                getFirestore = fsMod.getFirestore;
+                collection = fsMod.collection;
+                getDocs = fsMod.getDocs;
+                getDoc = fsMod.getDoc;
+                doc = fsMod.doc;
+                setDoc = fsMod.setDoc;
+                addDoc = fsMod.addDoc;
+                updateDoc = fsMod.updateDoc;
+                deleteDoc = fsMod.deleteDoc;
+                onSnapshot = fsMod.onSnapshot;
+                serverTimestamp = fsMod.serverTimestamp;
+                query = fsMod.query;
+                where = fsMod.where;
+                orderBy = fsMod.orderBy;
+                limit = fsMod.limit;
+
+                // Storage
+                getStorage = stMod.getStorage;
+                ref = stMod.ref;
+                uploadBytes = stMod.uploadBytes;
+                getDownloadURL = stMod.getDownloadURL;
+                deleteObject = stMod.deleteObject;
+
+                return true;
+            } catch (err) {
+                console.error("Falha ao carregar módulos do Firebase (gstatic/CDN).", err);
+                return false;
+            }
+        }
+
+        // =========================================================
+        // 1. CONFIGURAÇÃO INICIAL DO FIREBASE (SUBSTITUA PELAS SUAS CHAVES REAIS)
+        // =========================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c9ecf67c70",
+            measurementId: "G-WNMWLYMW43"
+        };
+
+        let app;
+        let auth;
+        let db;
+        let storage;
+        let userId = null;
+        let isAdmin = false;
+        let firebaseReady = false;
+
+        const initFirebase = async () => {
+            try {
+                const modulesOk = await loadFirebaseModules();
+                if (!modulesOk) {
+                    throw new Error("Firebase CDN bloqueado/indisponível (gstatic).");
+                }
+
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                storage = getStorage(app);
+
+                console.log("Firebase inicializado com sucesso.");
+                firebaseReady = true;
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                firebaseReady = false;
+                // Mostra no toast também
+                try { displayMessage('Erro ao inicializar Firebase. Verifique firebaseConfig e acesso ao CDN do Firebase.', 'error'); } catch (e) {}
+                // Pode-se optar por carregar dados simulados aqui se a inicialização falhar
+            }
+        };
+        
+        // Variáveis de cache e listeners
+        let allCategoriesCache = [];
+        let allProductsCache = [];
+        let allOrdersCache = [];
+        let allUsersCache = [];
+        let unsubscribeProducts = null;
+        let unsubscribeCategories = null;
+        let unsubscribeOrders = null;
+        let unsubscribeOrdersA = null;
+                let unsubscribeAtendimentos = null;
+        let __ordersCacheA = [];
+        let __currentOrderCol = 'orders';
+        let __currentOrderId = null;
+
+        let editingProductId = null; // ID do produto que está sendo editado
+        let productImagesCache = []; // Cache temporário para imagens do produto em edição
+
+        const CATEGORIAS_ARIANA = [
+            "Ar Condicionado", "Automotivo", "Bebês & Infantil", "Beleza e Saúde",
+            "Brinquedos", "Camas & Cabeceiras", "Colchões", "Eletrodomésticos",
+            "Eletroportáteis", "Esporte & Lazer", "Ferramentas & Segurança",
+            "Freezers", "Fritadeira elétrica", "Games", "Geladeiras & Refrigeradores",
+            "Informática", "Malas", "Móveis", "Notebooks e Computadores",
+            "Perfumes", "Pet Shop", "Pneus", "Quinzena do Consumidor!",
+            "Salas de Jantar", "Saúde & Higiene", "Smart Tv", "Smartphones",
+            "Som e Áudio", "Supermercado", "Utilidades Domésticas", "Ventiladores"
+        ];
+
+        // =========================================================
+        // CORREÇÃO FIREBASE: DEFINE O CAMINHO CORRETO DA COLEÇÃO DE PRODUTOS
+        // =========================================================
+        // ATENÇÃO: SUBSTITUÍDO 'SUA_COLECAO_DE_PRODUTOS' por 'products'.
+        const PRODUCTS_COLLECTION_PATH = 'products'; 
+        // =========================================================
+
+
+        // Formatação de Moeda
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        };
+        // helpers sem optional chaining / nullish
+        function pickFirst() {
+            for (var i = 0; i < arguments.length; i++) {
+                var v = arguments[i];
+                if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+            }
+            return '';
+        }
+        function pickNumber() {
+            for (var i = 0; i < arguments.length; i++) {
+                var v = arguments[i];
+                if (typeof v === 'number' && !isNaN(v)) return v;
+                if (typeof v === 'string' && v.trim() !== '') {
+                    var n = Number(v.replace(',', '.'));
+                    if (!isNaN(n)) return n;
+                }
+            }
+            return undefined;
+        }
+        function tsToMillis(ts){
+            try{
+                if(!ts) return 0;
+                if (typeof ts === 'number') return ts;
+                if (ts.toMillis) return ts.toMillis();
+                if (ts.seconds) return ts.seconds * 1000;
+                var d = new Date(ts);
+                if (!isNaN(d.getTime())) return d.getTime();
+            }catch(e){}
+            return 0;
+        }
+        function normalizeOrderDoc(id, data, col){
+            data = data || {};
+            var customerName = pickFirst(
+                data.customerName, data.nomeCliente, data.nome, data.name,
+                (data.customer && (data.customer.name || data.customer.nome)),
+                (data.customerProfile && (data.customerProfile.nome || data.customerProfile.name)),
+                (data.user && (data.user.name || data.user.nome)),
+                data.email
+            ) || 'Cliente Indefinido';
+
+            var createdAt = data.createdAt || data.created_at || data.dateCreated || data.data || data.timestamp;
+            var status = pickFirst(data.status, data.statusLabel, data.paymentStatus) || 'Pendente';
+
+            var items = Array.isArray(data.items) ? data.items : (Array.isArray(data.cartItems) ? data.cartItems : (Array.isArray(data.products) ? data.products : []));
+            // normaliza items
+            items = items.map(function(it){
+                it = it || {};
+                var qty = pickNumber(it.quantity, it.qty, it.qtd, it.amount, 1) || 1;
+                var price = pickNumber(it.price, it.unitPrice, it.valor, it.value, 0) || 0;
+                var name = pickFirst(it.name, it.title, it.nome, it.productName) || 'Item';
+                return { quantity: qty, qty: qty, name: name, price: price };
+            });
+
+            return Object.assign({}, data, {
+                id: id,
+                __col: col || 'orders',
+                customerName: customerName,
+                status: status,
+                createdAt: createdAt,
+                items: items
+            });
+        }
+
+
+
+        // ---------------------------------------------------------
+        // Helpers para datas (Firestore Timestamp) e total do pedido
+        // ---------------------------------------------------------
+        const toJSDate = (value) => {
+            if (!value) return null;
+            if (value instanceof Date) return value;
+
+            // Firestore Timestamp (v9/v10/v11)
+            if (typeof value === 'object') {
+                if (typeof value.toDate === 'function') return value.toDate();
+                if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+            }
+
+            // epoch ms / string ISO
+            if (typeof value === 'number') return new Date(value);
+            if (typeof value === 'string') {
+                const d = new Date(value);
+                return isNaN(d.getTime()) ? null : d;
+            }
+            return null;
+        };
+
+        const formatDateOnly = (value) => {
+            const d = toJSDate(value);
+            return d ? d.toLocaleDateString('pt-BR') : '—';
+        };
+
+        const formatDateTime = (value) => {
+            const d = toJSDate(value);
+            return d ? d.toLocaleString('pt-BR') : '—';
+        };
+
+        const calcOrderTotal = (order) => {
+            if (!order) return 0;
+
+            // tenta campos comuns
+            const direct = pickNumber(order.totalPrice, order.total, order.totalAmount, order.amount, order.valorTotal, order.valor);
+            if (typeof direct === 'number' && !isNaN(direct)) return direct;
+
+            const items = Array.isArray(order.items) ? order.items : [];
+            return items.reduce((sum, i) => {
+                const price = Number(i.price) || 0;
+                const qty = Number(i.quantity ?? i.qty ?? i.qtd ?? 0) || 0;
+                return sum + (price * qty);
+            }, 0);
+        };
+        
+        // Exibição de Mensagens (Toast)
+        const displayMessage = (message, type = 'info') => {
+            // garante container de toast (evita TypeError: appendChild of null)
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'fixed top-4 right-4 z-[99999] flex flex-col gap-2 w-[320px] max-w-[90vw]';
+                document.body.appendChild(container);
+            }
+            const toast = document.createElement('div');
+            
+            const colorClass = {
+                success: 'bg-success-green',
+                error: 'bg-error-red',
+                info: 'bg-primary-blue'
+            }[type];
+            
+            toast.className = `toast p-4 rounded-lg text-white ${colorClass} animate-fade`;
+            toast.textContent = message;
+            
+            container.appendChild(toast);
+            
+            // Remove o toast após 4 segundos
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        };
+        window.toast = (message, type = 'info') => displayMessage(message, type);
+
+        // Compat: algumas telas chamam showToast(...)
+        window.showToast = (message, type = 'info') => window.toast(message, type);
+
+        // =========================================================
+        // ATENDIMENTOS (SAC / OUVIDORIA) - TEMPO REAL
+        // =========================================================
+        const escHtml = window.escapeHtml || function(s){
+            return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        };
+        window.escapeHtml = escHtml;
+        function safeText(s){
+            return String(s || '').replace(/\s+/g,' ').trim();
+        }
+
+        const renderAtendimentosRow = (id, at) => {
+            at = at || {};
+            const protocolo = safeText(at.protocolo || id || '---');
+            const nome = safeText(at.nome || at.name || '---');
+            const email = safeText(at.email || '---');
+            const tipo = safeText(at.tipo || 'Atendimento');
+            const status = safeText(at.status || 'Novo');
+            const msg = safeText(at.mensagem || at.msg || at.message || '');
+
+            // data pode vir como Timestamp (data.toDate), createdAt, timestamp...
+            const rawDate = at.data || at.createdAt || at.timestamp || at.date;
+            let dataFmt = '---';
+            try{
+                if (rawDate && typeof rawDate.toDate === 'function') dataFmt = rawDate.toDate().toLocaleString('pt-BR');
+                else if (rawDate && rawDate.seconds) dataFmt = new Date(rawDate.seconds * 1000).toLocaleString('pt-BR');
+                else if (rawDate) dataFmt = new Date(rawDate).toLocaleString('pt-BR');
+            }catch(e){}
+
+            const isOuvidoria = (String(tipo).toLowerCase().includes('ouvid'));
+            const tipoCls = isOuvidoria ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600';
+
+            return `
+                <tr class="border-b border-gray-50 hover:bg-gray-50/50 transition">
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-gray-800">#${escHtml(protocolo)}</div>
+                        <div class="text-[10px] text-gray-400">${escHtml(dataFmt)}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm font-semibold text-gray-700">${escHtml(nome)}</div>
+                        <div class="text-xs text-gray-500">${escHtml(email)}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded-lg text-[10px] font-bold ${tipoCls}">
+                            ${escHtml(tipo)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <select data-at-id="${escHtml(id)}" class="at-status text-xs border-none bg-gray-100 rounded-lg p-1 font-semibold">
+                            <option value="Novo" ${status === 'Novo' ? 'selected' : ''}>Novo</option>
+                            <option value="Em Andamento" ${status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
+                            <option value="Resolvido" ${status === 'Resolvido' ? 'selected' : ''}>Resolvido</option>
+                        </select>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button type="button" class="at-view p-2 text-blue-500 hover:bg-blue-50 rounded-lg" data-msg="${escHtml(msg)}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        };
+
+        function bindAtendimentosTableActions(){
+            const tbody = document.getElementById('table-atendimentos-body');
+            if (!tbody) return;
+
+            // select status
+            tbody.querySelectorAll('select.at-status').forEach(sel => {
+                sel.addEventListener('change', async (e) => {
+                    const id = e.target.getAttribute('data-at-id');
+                    const val = e.target.value;
+                    await window.updateAtendimentoStatus(id, val);
+                });
+            });
+
+            // view message
+            tbody.querySelectorAll('button.at-view').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const msg = btn.getAttribute('data-msg') || '';
+                    alert('MENSAGEM:\n\n' + msg);
+                });
+            });
+        }
+
+        // Função para carregar atendimentos em tempo real
+        function loadAtendimentos() {
+            try {
+                if (!db) return;
+                if (typeof collection !== 'function' || typeof onSnapshot !== 'function' || typeof query !== 'function' || typeof orderBy !== 'function') {
+                    console.warn('Firestore helpers ainda não carregados.');
+                    return;
+                }
+
+                // evita múltiplos listeners
+                if (typeof unsubscribeAtendimentos === 'function') {
+                    unsubscribeAtendimentos();
+                    unsubscribeAtendimentos = null;
+                }
+
+                const q = query(collection(db, "atendimentos"), orderBy("data", "desc"));
+
+                unsubscribeAtendimentos = onSnapshot(q, (snapshot) => {
+                    const tbody = document.getElementById('table-atendimentos-body');
+                    const badge = document.getElementById('badge-atendimentos');
+                    if (!tbody || !badge) return;
+
+                    let novosCount = 0;
+                    let html = '';
+
+                    snapshot.forEach((d) => {
+                        const at = d.data() || {};
+                        const id = d.id;
+
+                        if ((at.status || 'Novo') === "Novo") novosCount++;
+                        html += renderAtendimentosRow(id, at);
+                    });
+
+                    tbody.innerHTML = html || '<tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">Nenhum atendimento.</td></tr>';
+                    bindAtendimentosTableActions();
+
+                    // Atualiza badge
+                    if (novosCount > 0) {
+                        badge.innerText = String(novosCount);
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }, (err) => {
+                    console.error("Erro no onSnapshot(atendimentos):", err);
+                });
+            } catch (e) {
+                console.error("Erro ao iniciar atendimentos:", e);
+            }
+        }
+
+        // Função global para atualizar status
+        window.updateAtendimentoStatus = async (id, newStatus) => {
+            try {
+                if (!id || !db) return;
+                await updateDoc(doc(db, "atendimentos", id), { status: newStatus });
+            } catch (e) { console.error("Erro ao atualizar status:", e); }
+        };
+
+        const renderAtendimentosView = () => {
+            // garante listener rodando quando abrir a view
+            loadAtendimentos();
+        };
+
+        // também expõe no escopo do módulo quando aplicável
+        const showToast = window.showToast;
+
+        window.displayMessage = displayMessage;
+
+        // Log global errors (ajuda a identificar erros externos como 'Unexpected end of input')
+        window.addEventListener('error', (e) => {
+            console.error('[GLOBAL ERROR]', e.message, e.filename, e.lineno, e.colno, e.error);
+        });
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('[UNHANDLED PROMISE]', e.reason);
+        });
+ // Torna global para uso em onsubmit
+
+         // --- GESTÃO DE CONFIGURAÇÕES DE CONTATO ---
+
+// 1. Salvar no Firebase
+window.salvarConfigTelefones = async () => {
+    try {
+        const tel0800 = document.getElementById('cfg-0800').value;
+        const tel4004 = document.getElementById('cfg-4004').value;
+        
+        // Salva no documento fixo 'contatos' dentro da coleção 'configuracoes'
+        await setDoc(doc(db, "configuracoes", "contatos"), {
+            numero0800: tel0800,
+            numero4004: tel4004,
+            ultimaAtualizacao: new Date()
+        });
+        
+        alert("Telefones atualizados com sucesso! Eles mudarão no site em instantes.");
+    } catch (e) {
+        console.error("Erro ao salvar telefones:", e);
+        alert("Erro ao salvar. Verifique o console.");
+    }
+};
+
+// 2. Carregar os dados nos inputs assim que o admin abrir
+async function carregarConfigTelefones() {
+    try {
+        const snap = await getDoc(doc(db, "configuracoes", "contatos"));
+        if (snap.exists()) {
+            const dados = snap.data();
+            document.getElementById('cfg-0800').value = dados.numero0800 || '';
+            document.getElementById('cfg-4004').value = dados.numero4004 || '';
+        }
+    } catch (e) {
+        console.error("Erro ao carregar configurações:", e);
+    }
+}
+
+// Chame carregarConfigTelefones() dentro do seu onAuthStateChanged(auth, (user) => { ... })
+        
+        // =========================================================
+        // 2. FUNÇÃO AUXILIAR PARA O CAMINHO DA COLEÇÃO (CORREÇÃO DO ERRO)
+        // =========================================================
+        const getPublicCollectionPath = (collectionName) => {
+            // Se você tiver uma estrutura multi-tenant (ex: /lojas/{tenantId}/produtos), 
+            // você deve incluir o tenantId aqui.
+            // Para a estrutura básica, retorna apenas o nome da coleção.
+            return collectionName;
+        };
+
+        // =========================================================
+        // 3. AUTENTICAÇÃO E NAVEGAÇÃO
+        // =========================================================
+
+        const renderUserDisplayName = (name) => {
+             document.getElementById('user-display-name').textContent = `Bem-vindo, ${name || 'Admin'}!`;
+        };
+        
+        const updateSidebarActiveLink = (view) => {
+            document.querySelectorAll('.view-link').forEach(link => {
+                link.classList.remove('bg-dark-gray-bg');
+                if (link.dataset.view === view) {
+                    link.classList.add('bg-dark-gray-bg');
+                }
+            });
+        };
+
+        const renderView = (viewName) => {
+            const phonesPanel = document.getElementById('phones-config-panel');
+            if (phonesPanel) phonesPanel.classList.add('hidden');
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.add('hidden');
+            });
+            
+            const viewElement = document.getElementById(`${viewName}-view`);
+            if (viewElement) {
+                viewElement.classList.remove('hidden');
+                document.getElementById('view-title').textContent = viewName.charAt(0).toUpperCase() + viewName.slice(1);
+                updateSidebarActiveLink(viewName);
+
+                // Chama a função de renderização específica para cada view
+                switch(viewName) {
+                    case 'dashboard':
+                        renderDashboardView();
+                        break;
+                    case 'products':
+                        renderProductsView();
+                        break;
+                    case 'orders':
+                        renderOrdersView();
+                        break;
+                    case 'users':
+                        renderUsersView();
+                        break;
+                    case 'categories':
+                        renderCategoriesView();
+                        break;
+                    case 'payments':
+                        renderPaymentsView();
+                        break;
+                
+                    case 'atendimentos':
+                        renderAtendimentosView();
+                        if (phonesPanel) phonesPanel.classList.remove('hidden');
+                        break;
+}
+                
+                // Fecha a sidebar em telas pequenas após a navegação
+                if (window.innerWidth < 768) {
+                    document.getElementById('sidebar').classList.add('-translate-x-full');
+                }
+                
+            } else {
+                 console.error(`View ${viewName} não encontrada.`);
+            }
+        };
+
+        let currentView = 'dashboard';
+        window.changeView = (viewName, force = false) => {
+            if (viewName !== currentView || force) {
+                currentView = viewName;
+                renderView(viewName);
+            }
+        };
+
+        window.handleSignIn = async () => {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const btn = document.getElementById('login-btn');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
+            btn.disabled = true;
+
+            try {
+                // Simulação: se o Firebase for desativado
+                if (firebaseConfig.apiKey === "SUA_API_KEY_AQUI") {
+                    if (email === "admin@exemplo.com" && password === "123456") {
+                        displayMessage('Login de Admin simulado com sucesso!', 'success');
+                        setTimeout(() => {
+                             // Simula o estado de autenticado
+                             userId = 'simulated_admin';
+                             isAdmin = true;
+                             window.changeView('dashboard', true); 
+                             renderUserDisplayName('Admin (Simulado)');
+                        }, 500);
+                        return;
+                    } else {
+                         throw new Error('Credenciais de login inválidas.');
+                    }
+                }
+                
+                // Login real com Firebase
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                // Aqui você pode adicionar uma checagem de role no Firestore para isAdmin
+                
+                displayMessage('Login realizado com sucesso!', 'success');
+                // onAuthStateChanged irá lidar com a mudança de view
+                
+            } catch (error) {
+                console.error("Erro no login:", error.message);
+                displayMessage(`Erro no login: ${error.message.substring(0, 50)}...`, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
+        
+        window.handleSignOut = async () => {
+            try {
+                // Simulação
+                if (userId === 'simulated_admin') {
+                     userId = null;
+                     isAdmin = false;
+                     displayMessage('Logout simulado realizado.', 'info');
+                     window.changeView('login', true);
+                     return;
+                }
+                
+                // Logout real
+                await signOut(auth);
+                
+            } catch (error) {
+                console.error("Erro no logout:", error.message);
+                displayMessage(`Erro ao sair: ${error.message}`, 'error');
+            }
+            // onAuthStateChanged irá lidar com a mudança de view
+        };
+        
+        // Observador de estado de autenticação
+        const setupAuthStateListener = () => {
+            if (firebaseConfig.apiKey === "SUA_API_KEY_AQUI") {
+                // Lógica de simulação já foi tratada em handleSignIn. 
+                // A view inicial será 'login' e o login simulado mudará para 'dashboard'.
+                window.changeView('login', true);
+                return;
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                try {
+                    if (user) {
+                        userId = user.uid;
+
+                        // ✅ Checa admin de forma segura (custom claim admin:true OU doc admins/{uid})
+                        let adminOk = false;
+
+                        // 1) Custom claim (se você usa)
+                        try {
+                            const tokenResult = await user.getIdTokenResult?.();
+                            adminOk = tokenResult?.claims?.admin === true;
+                        } catch (e) {
+                            // ignora e tenta o fallback
+                        }
+
+                        // 2) Fallback: documento em /admins/{uid}
+                        if (!adminOk) {
+                            try {
+                                const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+                                adminOk = adminSnap.exists();
+                            } catch (e) {
+                                // se falhar, mantém false
+                            }
+                        }
+
+                        isAdmin = adminOk;
+
+                        if (!isAdmin) {
+                            // ⚠️ Não é admin: impede acesso ao painel admin
+                            stopRealtimeListeners();
+                            renderUserDisplayName(user.email || '');
+                            try { await signOut(auth); } catch (e) {}
+                            window.location.href = '/seller_dashboard.html';
+                            return;
+                        }
+
+                        renderUserDisplayName(user.email);
+                        startRealtimeListeners();
+                        window.changeView('dashboard', true);
+                    } else {
+                        userId = null;
+                        isAdmin = false;
+                        renderUserDisplayName('');
+                        stopRealtimeListeners();
+                        window.changeView('login', true);
+                    }
+                } catch (err) {
+                    console.error('[AUTH_STATE_ERROR]', err);
+                    // fallback seguro
+                    try { showToast('Erro ao validar acesso. Faça login novamente.', 'error'); } catch (e) {}
+                    try { await signOut(auth); } catch (e) {}
+                    window.changeView('login', true);
+                }
+            });
+        };
+
+
+        // =========================================================
+        // 4. LISTENERS DE TEMPO REAL E CACHE DE DADOS
+        // =========================================================
+
+        const startRealtimeListeners = () => {
+            if (userId === 'simulated_admin') return; // Nao inicia listeners em modo de simulacao
+
+            // CATEGORIAS
+            unsubscribeCategories = onSnapshot(collection(db, getPublicCollectionPath('categories')), (snapshot) => {
+                allCategoriesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Apenas se a view for a de categorias, renderiza
+                if (currentView === 'categories') renderCategoriesView();
+            });
+
+            // CORREÇÃO FIREBASE: PRODUTOS - Usando a constante PRODUCTS_COLLECTION_PATH
+            unsubscribeProducts = onSnapshot(collection(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH)), (snapshot) => {
+                allProductsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (currentView === 'products') renderProductsView();
+            });
+            
+            // PEDIDOS (coleção oficial única: orders)
+            try {
+                if (unsubscribeOrdersA) { try { unsubscribeOrdersA(); } catch(e){} }
+            } catch(e) {}
+
+            var ordersQueryA = query(collection(db, getPublicCollectionPath('orders')), orderBy("createdAt", "desc"));
+
+            function recomputeOrdersCache() {
+                var merged = (__ordersCacheA || []);
+                merged.sort(function(a,b){ return tsToMillis(b.createdAt) - tsToMillis(a.createdAt); });
+                allOrdersCache = merged;
+                if (currentView === 'orders') renderOrdersView();
+            }
+
+            unsubscribeOrdersA = onSnapshot(ordersQueryA, function(snapshot){
+                __ordersCacheA = snapshot.docs.map(function(doc){ return normalizeOrderDoc(doc.id, doc.data(), 'orders'); });
+                recomputeOrdersCache();
+            });
+
+            if (currentView === 'orders') renderOrdersView();
+        };
+            
+            // USUÁRIOS (Apenas Leitura - A função de renderUsersView simula dados se a API for de exemplo)
+             // ... implementação real com onSnapshot (não implementado totalmente neste exemplo)
+
+        const stopRealtimeListeners = () => {
+            // Para todos os listeners ativos com segurança
+            try { if (typeof unsubscribeProducts === 'function') unsubscribeProducts(); } catch(e) {}
+            try { if (typeof unsubscribeCategories === 'function') unsubscribeCategories(); } catch(e) {}
+
+            // Orders (duas coleções)
+            try { if (typeof unsubscribeOrdersA === 'function') unsubscribeOrdersA(); } catch(e) {}
+            try { if (typeof unsubscribeOrdersB === 'function') unsubscribeOrdersB(); } catch(e) {}
+
+            // Atendimentos
+            try { if (typeof unsubscribeAtendimentos === 'function') unsubscribeAtendimentos(); } catch(e) {}
+
+            unsubscribeProducts = null;
+            unsubscribeCategories = null;
+            unsubscribeOrders = null; // mantido por compatibilidade
+            unsubscribeOrdersA = null;
+            unsubscribeOrdersB = null;
+            unsubscribeAtendimentos = null;
+
+            __ordersCacheA = [];
+                        allOrdersCache = [];
+        };
+
+        const timeAgo = (days) => {
+            const date = new Date();
+            date.setDate(date.getDate() - days);
+            return {
+                toDate: () => date,
+                toISOString: () => date.toISOString()
+            };
+        };
+
+        const loadInitialSimulatedData = () => {
+             // Dados simulados para Categorias
+             allCategoriesCache = [
+                 { id: 'cat1', name: 'Eletrônicos', description: 'Gadgets e tecnologia' },
+                 { id: 'cat2', name: 'Vestuário', description: 'Roupas e acessórios' },
+             ];
+
+             // Dados simulados para Produtos
+             // ADIÇÃO DE isOffer, isFavorite, isHighlight
+             allProductsCache = [
+                 { id: 'prod1', name: 'Smartphone X', price: 1500.00, stock: 10, categoryId: 'cat1', mainImageUrl: 'https://via.placeholder.com/150/0000FF/808080?Text=Smartphone', weight: 0.5, length: 15, height: 2, width: 8, images: [{url: 'https://via.placeholder.com/150/0000FF/808080?Text=Smartphone', name: 'main.jpg', isMain: true, path: 'simulated/products/prod1/main.jpg'}], isOffer: true, isFavorite: false, isHighlight: true },
+                 { id: 'prod2', name: 'Camiseta Algodão', price: 79.90, stock: 50, categoryId: 'cat2', mainImageUrl: 'https://via.placeholder.com/150/FF0000/FFFFFF?Text=Camiseta', weight: 0.2, length: 20, height: 5, width: 30, images: [{url: 'https://via.placeholder.com/150/FF0000/FFFFFF?Text=Camiseta', name: 'main.jpg', isMain: true, path: 'simulated/products/prod2/main.jpg'}], isOffer: false, isFavorite: true, isHighlight: false },
+             ];
+             
+             // Dados simulados para Pedidos
+             const now = new Date();
+             allOrdersCache = [
+                { id: 'ord1', status: 'Pagamento Confirmado', total: 1579.90, createdAt: now.toISOString(), customerName: 'João Silva', trackingCode: '', items: [{ name: 'Smartphone X', qty: 1, price: 1500.00 }, { name: 'Camiseta Algodão', qty: 1, price: 79.90 }] },
+                { id: 'ord2', status: 'Em Transporte', total: 450.00, createdAt: timeAgo(2).toISOString(), customerName: 'Maria Antunes', trackingCode: 'AB123456789BR', items: [{ name: 'Fones de Ouvido', qty: 2, price: 225.00 }] },
+                { id: 'ord3', status: 'Aguardando Pagamento', total: 99.90, createdAt: timeAgo(5).toISOString(), customerName: 'Pedro Souza', trackingCode: '', items: [{ name: 'Capinha de Celular', qty: 1, price: 99.90 }] },
+             ];
+
+             // Dados simulados para Usuários
+             allUsersCache = [
+                { id: 'user1', email: 'admin@exemplo.com', name: 'Admin Teste', role: 'admin', lastLogin: now.toISOString() },
+                { id: 'user2', email: 'joao@exemplo.com', name: 'João Silva', role: 'customer', lastLogin: timeAgo(5).toISOString() },
+                { id: 'user3', email: 'vendedor@exemplo.com', name: 'Moderador Vendas', role: 'moderator', lastLogin: timeAgo(2).toISOString() },
+             ]; 
+             console.log("Dados simulados carregados.");
+
+             // Renderiza o dashboard com os dados simulados se o Firebase falhar
+             window.changeView('login', true); // Começa na tela de login
+        };
+
+        // 5. FUNÇÕES DE RENDERIZAÇÃO E MANIPULAÇÃO DE CRUD
+        // =========================================================
+
+        // Helper para renderizar Checkboxes de Status
+        const renderCheckbox = (label, id) => {
+            return `
+                <div class="flex items-center p-3 border border-gray-300 rounded-md bg-white">
+                    <input id="${id}" type="checkbox" class="h-4 w-4 text-primary-blue border-gray-300 rounded focus:ring-primary-blue">
+                    <label for="${id}" class="ml-3 text-sm font-medium text-gray-700">
+                        ${label}
+                    </label>
+                </div>
+            `;
+        };
+
+        // 5.1 DASHBOARD
+        const renderDashboardView = () => {
+            const totalProducts = allProductsCache.length;
+            const totalOrders = allOrdersCache.length;
+            const ordersPending = allOrdersCache.filter(o => o.status === 'Aguardando Pagamento').length;
+            const ordersInTransit = allOrdersCache.filter(o => o.status === 'Em Transporte').length;
+
+            // Simulação de faturamento e vendas
+            const totalSales = allOrdersCache
+                .filter(o => o.status !== 'Cancelado')
+                .reduce((sum, order) => sum + (order.total || 0), 0);
+            
+            const dashboardHTML = `
+                <h2 class="text-2xl font-bold text-text-dark mb-6">Visão Geral do Sistema</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Total de Produtos</p>
+                            <p class="text-3xl font-bold text-primary-blue">${totalProducts}</p>
+                        </div>
+                        <i class="fas fa-box text-4xl text-primary-blue opacity-50"></i>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.05s;">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Pedidos Totais</p>
+                            <p class="text-3xl font-bold text-success-green">${totalOrders}</p>
+                        </div>
+                        <i class="fas fa-shopping-cart text-4xl text-success-green opacity-50"></i>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.1s;">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Faturamento (Não Filtrado)</p>
+                            <p class="text-3xl font-bold text-text-dark">${formatCurrency(totalSales)}</p>
+                        </div>
+                        <i class="fas fa-money-check-alt text-4xl text-text-dark opacity-50"></i>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.15s;">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Pedidos Pendentes</p>
+                            <p class="text-3xl font-bold text-error-red">${ordersPending}</p>
+                        </div>
+                        <i class="fas fa-clock text-4xl text-error-red opacity-50"></i>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md animate-fade">
+                        <h3 class="text-xl font-semibold mb-4 text-primary-blue">Últimos 5 Pedidos</h3>
+                        ${renderOrdersTable(allOrdersCache.slice(0, 5), true)}
+                        <a href="#" onclick="window.changeView('orders')" class="text-primary-blue hover:text-secondary-light-blue font-medium mt-4 block text-center">Ver todos os pedidos</a>
+                    </div>
+                </div>
+
+            `;
+            document.getElementById('dashboard-content').innerHTML = dashboardHTML;
+        };
+
+        
+        const populateCategoryParentOptions = () => {
+            const sel = document.getElementById('category-parent');
+            if (!sel) return;
+            const current = sel.value;
+            sel.innerHTML = '<option value="">(Principal)</option>';
+
+            // Só categorias principais (parentId null) para serem pais
+            const parents = (allCategoriesCache || []).filter(c => !c.parentId);
+            parents.sort((a,b) => {
+                const oa = Number(a.order ?? 0), ob = Number(b.order ?? 0);
+                if (oa !== ob) return oa - ob;
+                return String(a.name||'').localeCompare(String(b.name||''), 'pt-BR');
+            });
+
+            parents.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                sel.appendChild(opt);
+            });
+
+            // restaura seleção
+            sel.value = current || '';
+        };
+// 5.2 CATEGORIAS
+        let editingCategoryId = null;
+
+        const normalizeSlug = (str) => {
+            return String(str || '')
+                .trim()
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+        };
+
+        const buildCategoryTree = (categories) => {
+            const byParent = {};
+            const byId = {};
+            categories.forEach(c => { byId[c.id] = c; });
+
+            categories.forEach(c => {
+                const p = c.parentId || null;
+                if (!byParent[p]) byParent[p] = [];
+                byParent[p].push(c);
+            });
+
+            // ordena por order, depois name
+            Object.keys(byParent).forEach(k => {
+                byParent[k].sort((a,b) => {
+                    const oa = Number(a.order ?? 0);
+                    const ob = Number(b.order ?? 0);
+                    if (oa !== ob) return oa - ob;
+                    return String(a.name||'').localeCompare(String(b.name||''), 'pt-BR');
+                });
+            });
+
+            const out = [];
+            const walk = (parentId, level) => {
+                (byParent[parentId] || []).forEach(c => {
+                    out.push({ ...c, _level: level, _parentName: parentId ? (byId[parentId]?.name || '') : '' });
+                    walk(c.id, level + 1);
+                });
+            };
+
+            // principais
+            walk(null, 0);
+            return out;
+        };
+
+        const renderCategoryTable = (categories) => {
+            if (categories.length === 0) {
+                return '<tr><td class="px-6 py-4 text-center text-gray-500" colspan="6">Nenhuma categoria cadastrada.</td></tr>';
+            }
+
+            const flat = buildCategoryTree(categories);
+
+            return flat.map(cat => {
+                const indent = cat._level ? '&nbsp;'.repeat(cat._level * 6) + '↳ ' : '';
+                const active = (cat.active === false) ? false : true; // default true
+                const orderVal = (cat.order ?? 0);
+                const parentLabel = cat._parentName ? cat._parentName : (cat._level === 0 ? '-' : '');
+
+                return `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${indent}${cat.name}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${parentLabel}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${cat.description || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${orderVal}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                            ${active ? 'Ativa' : 'Inativa'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="window.editCategory(${JSON.stringify(cat.id)})" class="text-primary-blue hover:text-secondary-light-blue mr-3"><i class="fas fa-edit"></i> Editar</button>
+                        <button onclick="window.deleteCategory(${JSON.stringify(cat.id)}, ${JSON.stringify(cat.name)})" class="text-error-red hover:text-red-700"><i class="fas fa-trash"></i> Excluir</button>
+                    </td>
+                </tr>
+            `}).join('');
+        };
+
+        const renderCategoriesView = () => {
+            const categoriesContent = document.getElementById('categories-content');
+            
+            categoriesContent.innerHTML = `
+                <h2 class="text-2xl font-bold text-text-dark mb-6">Gerenciamento de Categorias</h2>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md animate-fade">
+                    <h3 class="text-xl font-semibold mb-4 text-primary-blue" id="category-form-title">Adicionar Nova Categoria</h3>
+                    <form id="category-form" onsubmit="event.preventDefault(); window.handleCategorySubmit(event)">
+                        <input type="hidden" id="category-id" value="">
+                        
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div class="md:col-span-2">
+                                <label for="category-name" class="block text-sm font-medium text-gray-700">Nome</label>
+                                <input type="text" id="category-name" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue" placeholder="Ex: Eletrônicos / TVs / Ferramentas...">
+                                <p class="text-xs text-gray-500 mt-1">Dica: use nomes claros. O Seller só deve escolher, não criar.</p>
+                            </div>
+
+                            <div>
+                                <label for="category-parent" class="block text-sm font-medium text-gray-700">Categoria Pai</label>
+                                <select id="category-parent" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                                    <option value="">(Principal)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="category-order" class="block text-sm font-medium text-gray-700">Ordem</label>
+                                <input type="number" id="category-order" value="0" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue" />
+                                <p class="text-xs text-gray-500 mt-1">Menor aparece primeiro.</p>
+                            </div>
+
+                            <div class="md:col-span-3">
+                                <label for="category-description" class="block text-sm font-medium text-gray-700">Descrição</label>
+                                <input type="text" id="category-description" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                            </div>
+
+                            <div class="flex items-center gap-2 mt-6 md:mt-0">
+                                <input type="checkbox" id="category-active" checked class="h-4 w-4 text-primary-blue border-gray-300 rounded">
+                                <label for="category-active" class="text-sm font-medium text-gray-700">Ativa</label>
+                            </div>
+
+                            <input type="hidden" id="category-slug" value="">
+                        </div>
+</div>
+                        <div class="mt-6 flex justify-between items-center">
+                            <div>
+                                <button type="submit" id="category-submit-btn" class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
+                                    Salvar Categoria
+                                </button>
+                                <button type="button" onclick="window.resetCategoryForm()" id="category-cancel-btn" class="ml-4 bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out hidden">
+                                    Cancelar Edição
+                                </button>
+
+                                <button type="button" onclick="window.importMarketplaceCategories()" class="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
+                                    <i class="fas fa-download"></i> Importar categorias padrão (Marketplace)
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md mt-6 animate-fade" style="animation-delay: 0.1s;">
+                    <h3 class="text-xl font-semibold mb-4 text-primary-blue">Lista de Categorias</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pai</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ordem</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="categories-table-body">
+                                ${renderCategoryTable(allCategoriesCache)}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // popula select de categoria pai
+            populateCategoryParentOptions();
+        };
+        
+        window.handleCategorySubmit = async (event) => {
+            const form = event.target;
+            const id = document.getElementById('category-id').value;
+            const name = document.getElementById('category-name').value.trim();
+            const description = document.getElementById('category-description').value.trim();
+            const parentId = document.getElementById('category-parent')?.value || '';
+            const active = document.getElementById('category-active') ? document.getElementById('category-active').checked : true;
+            const order = Number(document.getElementById('category-order')?.value ?? 0) || 0;
+
+            if (!name) return; // Basic validation
+
+            const slug = normalizeSlug(name);
+            document.getElementById('category-slug').value = slug;
+
+            const categoryData = {
+                name,
+                description,
+                slug,
+                parentId: parentId || null,
+                level: parentId ? 1 : 0,
+                active,
+                order
+            };
+            
+            const btn = document.getElementById('category-submit-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+            btn.disabled = true;
+try {
+                if (id) {
+                    // Edição
+                    const categoryRef = doc(db, getPublicCollectionPath('categories'), id);
+                    await updateDoc(categoryRef, categoryData);
+                    displayMessage(`Categoria "${name}" atualizada com sucesso!`, 'success');
+                    // Recarrega cache de categorias para refletir imediatamente
+                    try {
+                        const snap = await getDocs(collection(db, getPublicCollectionPath('categories')));
+                        allCategoriesCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    } catch (e) {}
+                } else {
+                    // Adição
+                    categoryData.createdAt = serverTimestamp();
+                    await addDoc(collection(db, getPublicCollectionPath('categories')), categoryData);
+                    displayMessage(`Categoria "${name}" adicionada com sucesso!`, 'success');
+                    // Recarrega cache de categorias para refletir imediatamente
+                    try {
+                        const snap = await getDocs(collection(db, getPublicCollectionPath('categories')));
+                        allCategoriesCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    } catch (e) {}
+                }
+                window.resetCategoryForm();
+            } catch (error) {
+                console.error("Erro ao salvar categoria:", error);
+                displayMessage(`Erro ao salvar: ${error.message}`, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
+
+        // Importa uma árvore padrão de categorias (marketplace vende de tudo)
+        window.importMarketplaceCategories = async () => {
+            if (!confirm('Isso vai criar (se não existirem) categorias principais e subcategorias padrão para marketplace. Continuar?')) return;
+
+            const btn = document.querySelector('button[onclick="window.importMarketplaceCategories()"]');
+            const old = btn ? btn.innerHTML : null;
+            if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...'; btn.disabled = true; }
+
+            try {
+                const seed = [{"name": "Eletrônicos", "children": ["TVs", "Áudio", "Games", "Câmeras", "Acessórios"]}, {"name": "Eletrodomésticos", "children": ["Refrigeradores", "Fogões", "Micro-ondas", "Lavadoras", "Ar-condicionado"]}, {"name": "Informática", "children": ["Notebook", "Computadores", "Monitores", "Periféricos", "Impressoras"]}, {"name": "Casa e Móveis", "children": ["Sofás", "Camas", "Guarda-roupas", "Mesa e Cadeiras", "Cozinha"]}, {"name": "Ferramentas e Segurança", "children": ["Ferramentas Elétricas", "Ferramentas Manuais", "EPIs", "Segurança Residencial"]}, {"name": "Automotivo", "children": ["Acessórios", "Som Automotivo", "Pneus", "Óleos e Fluidos"]}, {"name": "Beleza e Saúde", "children": ["Perfumaria", "Cuidados Pessoais", "Aparelhos", "Saúde"]}, {"name": "Bebês e Infantil", "children": ["Carrinhos", "Fraldas", "Roupas", "Alimentação"]}, {"name": "Brinquedos", "children": ["Educativos", "Bonecas", "Carrinhos", "Jogos"]}, {"name": "Esportes e Lazer", "children": ["Fitness", "Bicicletas", "Camping", "Pesca"]}, {"name": "Pet Shop", "children": ["Rações", "Higiene", "Acessórios", "Brinquedos Pet"]}, {"name": "Moda e Acessórios", "children": ["Masculino", "Feminino", "Calçados", "Bolsas"]}, {"name": "Construção e Reforma", "children": ["Iluminação", "Hidráulica", "Elétrica", "Pintura"]}, {"name": "Utilidades Domésticas", "children": ["Organização", "Limpeza", "Cozinha", "Decoração"]}];
+
+                // Mapa slug -> docId existente
+                const snap = await getDocs(collection(db, getPublicCollectionPath('categories')));
+                const existing = {};
+                snap.docs.forEach(d => {
+                    const data = d.data() || {};
+                    const slug = data.slug || normalizeSlug(data.name || '');
+                    if (slug) existing[slug] = d.id;
+                });
+
+                const ensureCategory = async (name, parentId, order) => {
+                    const slug = normalizeSlug(name);
+                    if (existing[slug]) return existing[slug];
+
+                    const data = {
+                        name,
+                        slug,
+                        description: '',
+                        parentId: parentId || null,
+                        level: parentId ? 1 : 0,
+                        active: true,
+                        order: Number(order || 0),
+                        createdAt: serverTimestamp()
+                    };
+                    const docRef = await addDoc(collection(db, getPublicCollectionPath('categories')), data);
+                    existing[slug] = docRef.id;
+                    return docRef.id;
+                };
+
+                let pOrder = 0;
+                for (const parent of seed) {
+                    const parentId = await ensureCategory(parent.name, null, pOrder);
+                    let cOrder = 0;
+                    for (const child of (parent.children || [])) {
+                        await ensureCategory(child, parentId, cOrder);
+                        cOrder++;
+                    }
+                    pOrder++;
+                }
+
+                displayMessage('Categorias padrão importadas com sucesso!', 'success');
+                // recarrega view
+                window.changeView('categories');
+            } catch (e) {
+                console.error(e);
+                displayMessage('Erro ao importar categorias: ' + (e.message || e), 'error');
+            } finally {
+                if (btn) { btn.innerHTML = old; btn.disabled = false; }
+            }
+        };
+
+
+        window.editCategory = (id) => {
+            const category = allCategoriesCache.find(cat => cat.id === id);
+            if (category) {
+                document.getElementById('category-id').value = category.id;
+                document.getElementById('category-name').value = category.name;
+                document.getElementById('category-description').value = category.description || '';
+                document.getElementById('category-order').value = (category.order ?? 0);
+                document.getElementById('category-active').checked = (category.active === false) ? false : true;
+                // parentId
+                const parentSelect = document.getElementById('category-parent');
+                if (parentSelect) parentSelect.value = category.parentId || '';
+                document.getElementById('category-form-title').textContent = `Editar Categoria: ${category.name}`;
+                document.getElementById('category-submit-btn').innerHTML = 'Atualizar Categoria';
+                document.getElementById('category-cancel-btn').style.display = 'inline-block';
+            }
+        };
+
+        window.resetCategoryForm = () => {
+            document.getElementById('category-id').value = '';
+            document.getElementById('category-name').value = '';
+            document.getElementById('category-description').value = '';
+            const parentSelect = document.getElementById('category-parent');
+            if (parentSelect) parentSelect.value = '';
+            const orderInput = document.getElementById('category-order');
+            if (orderInput) orderInput.value = 0;
+            const activeChk = document.getElementById('category-active');
+            if (activeChk) activeChk.checked = true;
+            const slugHidden = document.getElementById('category-slug');
+            if (slugHidden) slugHidden.value = '';
+            document.getElementById('category-form-title').textContent = 'Adicionar Nova Categoria';
+            document.getElementById('category-submit-btn').innerHTML = 'Salvar Categoria';
+            document.getElementById('category-cancel-btn').style.display = 'none';
+        };
+
+        window.deleteCategory = async (id, name) => {
+            if (!confirm(`Tem certeza que deseja deletar a categoria "${name}"? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+try {
+                const categoryRef = doc(db, getPublicCollectionPath('categories'), id);
+                await deleteDoc(categoryRef);
+                displayMessage(`Categoria "${name}" excluída com sucesso!`, 'success');
+            } catch (error) {
+                console.error("Erro ao deletar categoria:", error);
+                displayMessage(`Erro ao deletar: ${error.message}`, 'error');
+            }
+        };
+
+        // 5.3 PRODUTOS
+        const renderProductsTable = (products) => {
+            if (products.length === 0) {
+                return '<tr><td colspan="5" class="text-gray-500 py-4 text-center">Nenhum produto cadastrado.</td></tr>';
+            }
+            
+            return products.map(p => {
+                const category = allCategoriesCache.find(c => c.id === p.categoryId)?.name || 'Sem Categoria';
+                const stockClass = p.stock > 0 ? 'bg-success-green/20 text-success-green' : 'bg-error-red/20 text-error-red';
+                const safeName = String(p.name || '').replace(/'/g, "\'");
+                
+                return `
+                <tr class="align-middle hover:bg-gray-50 transition-colors">
+                    <td class="px-4 py-4 min-w-[320px] max-w-[420px]">
+                        <div class="flex items-center gap-3">
+                            <div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                <img class="h-full w-full object-cover" src="${p.mainImageUrl || 'https://via.placeholder.com/150/CCCCCC/808080?Text=NoImage'}" alt="Imagem do Produto">
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-semibold text-gray-900 leading-5 break-words">${p.name || 'Produto sem nome'}</div>
+                                <div class="text-xs text-gray-500 mt-1 break-words">${category}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 min-w-[120px]">
+                        ${formatCurrency(p.price)}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap min-w-[130px]">
+                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">
+                            ${p.stock} em Estoque
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-500 min-w-[120px]">
+                        ${p.isHighlight ? '<div><i class="fas fa-medal text-yellow-500 mr-1"></i>Destaque</div>' : ''}
+                        ${p.isOffer ? '<div><i class="fas fa-tag text-green-500 mr-1"></i>Oferta</div>' : ''}
+                        ${!p.isHighlight && !p.isOffer ? '<span class="text-gray-400">—</span>' : ''}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.35)] min-w-[170px]">
+                        <div class="flex items-center justify-end gap-2">
+                            <button onclick="window.editProduct('${p.id}')" class="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-primary-blue hover:bg-blue-100">
+                                <i class="fas fa-edit"></i><span>Editar</span>
+                            </button>
+                            <button onclick="window.deleteProduct('${p.id}', '${safeName}')" class="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-error-red hover:bg-red-100">
+                                <i class="fas fa-trash"></i><span>Excluir</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            }).join('');
+        };
+
+        // -----------------------------
+// Categorias fixas do formulário de produto
+// -----------------------------
+const renderCategoryOptions = () => {
+    return CATEGORIAS_ARIANA
+        .map(cat => `<option value="${cat}">${cat}</option>`)
+        .join('');
+};
+
+        const resetProductForm = () => {
+            editingProductId = null;
+            productImagesCache = [];
+            document.getElementById('product-form').reset();
+            document.getElementById('product-id').value = '';
+            document.getElementById('product-form-title').textContent = 'Adicionar Novo Produto';
+            document.getElementById('product-submit-btn').innerHTML = 'Salvar Produto';
+            // Esconde a seção de upload de imagens para um novo produto (só aparece após a primeira submissão)
+            document.getElementById('image-upload-controls').classList.add('hidden');
+            document.getElementById('product-image-preview').innerHTML = ''; // Limpa as miniaturas de imagens
+            document.getElementById('product-cancel-btn').style.display = 'none';
+
+            // Limpa seleção de arquivos e desabilita botão de upload (evita ficar preso com arquivos selecionados)
+            const fileInput = document.getElementById('product-image-file');
+            if (fileInput) fileInput.value = '';
+            const uploadBtn = document.getElementById('upload-image-btn');
+            if (uploadBtn) uploadBtn.disabled = true;
+        };
+
+        window.fillProductForm = (product) => {
+            if (!product) {
+                resetProductForm();
+                return;
+            }
+            
+            editingProductId = product.id;
+            // Carrega o cache de imagens com os dados do produto
+            productImagesCache = product.images || []; 
+
+            document.getElementById('product-id').value = product.id;
+            document.getElementById('product-name').value = product.name;
+            document.getElementById('product-price').value = product.price;
+            document.getElementById('product-stock').value = product.stock;
+            // Categoria
+            const categorySelect = document.getElementById('product-category');
+            if (categorySelect) {
+                const categoryValue =
+                    product.categoryName ||
+                    product.category ||
+                    product.categoria ||
+                    '';
+
+                categorySelect.value = categoryValue;
+
+                if (categoryValue && !Array.from(categorySelect.options).some(opt => opt.value === categoryValue)) {
+                    const extraOption = document.createElement('option');
+                    extraOption.value = categoryValue;
+                    extraOption.textContent = categoryValue;
+                    categorySelect.appendChild(extraOption);
+                    categorySelect.value = categoryValue;
+                }
+            }
+            document.getElementById('product-description').value = product.description || '';
+            
+            document.getElementById('product-weight').value = product.weight || 0.5;
+            document.getElementById('product-length').value = product.length || 10;
+            document.getElementById('product-height').value = product.height || 10;
+            document.getElementById('product-width').value = product.width || 10;
+            
+            document.getElementById('product-isOffer').checked = !!product.isOffer;
+document.getElementById('product-isFavorite').checked = !!product.isFavorite;
+document.getElementById('product-isHighlight').checked = !!product.isHighlight;
+document.getElementById('product-isBestSeller').checked = !!product.isBestSeller;
+document.getElementById('product-isNewArrival').checked = !!product.isNewArrival;
+document.getElementById('product-isRecommended').checked = !!product.isRecommended;
+
+            document.getElementById('product-form-title').textContent = `Editar Produto: ${product.name}`;
+            document.getElementById('product-submit-btn').innerHTML = 'Atualizar Produto';
+            document.getElementById('product-cancel-btn').style.display = 'inline-block';
+            
+            // Exibe a seção de upload de imagens
+            document.getElementById('image-upload-controls').classList.remove('hidden');
+            renderProductImages(); // Renderiza as imagens existentes
+
+            // Botão de upload só deve ficar ativo quando houver arquivos selecionados
+            const fileInput = document.getElementById('product-image-file');
+            const uploadBtn = document.getElementById('upload-image-btn');
+            if (uploadBtn) uploadBtn.disabled = !(fileInput && fileInput.files && fileInput.files.length);
+            
+             // Rola para o topo do formulário para facilitar a edição
+            document.getElementById('products-content').scrollIntoView({ behavior: 'smooth' });
+        };
+        
+        window.editProduct = (id) => {
+            const product = allProductsCache.find(p => p.id === id);
+            if (product) {
+                window.fillProductForm(product);
+            }
+        };
+
+        const renderProductImages = () => {
+            const previewContainer = document.getElementById('product-image-preview');
+            if (!previewContainer) return;
+            
+            if (productImagesCache.length === 0) {
+                previewContainer.innerHTML = '<p class="text-gray-500 py-4 text-center">Nenhuma imagem adicionada ainda.</p>';
+                return;
+            }
+
+            previewContainer.innerHTML = productImagesCache.map(img => {
+                return `
+                <div class="relative group border border-gray-200 rounded-lg overflow-hidden shadow-sm p-2">
+                    <img src="${img.url}" alt="${img.name}" class="w-full h-32 object-cover rounded-md cursor-pointer" onclick="window.openImageModal('${img.url}', '${img.name}')">
+                    <p class="text-xs text-center truncate mt-1 text-gray-700">${img.name}</p>
+                    <div class="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 space-y-2">
+                        <button onclick="window.setMainImage('${img.name}')" class="text-white text-xs font-semibold py-1 px-2 rounded-full 
+                            ${img.isMain ? 'bg-success-green' : 'bg-primary-blue hover:bg-secondary-light-blue'}">
+                            ${img.isMain ? '<i class="fas fa-check"></i> Principal' : '<i class="fas fa-star"></i> Definir Principal'}
+                        </button>
+                        <button onclick="window.deleteImage('${img.name}')" class="bg-error-red hover:bg-red-700 text-white text-xs font-semibold py-1 px-2 rounded-full">
+                            <i class="fas fa-trash"></i> Excluir
+                        </button>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button id="btn-test-api" class="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                            Testar API
+                        </button>
+                        <button id="btn-test-mp" class="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                            Testar Mercado Pago (Pix)
+                        </button>
+                        <p id="api-test-result" class="text-sm text-gray-600 flex-1 min-w-[240px]"></p>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        };
+
+        window.openImageModal = (url, name) => {
+            document.getElementById('modal-image').src = url;
+            document.getElementById('modal-image-name').textContent = name;
+            document.getElementById('image-modal-overlay').classList.remove('hidden');
+            document.getElementById('image-modal-overlay').classList.add('flex');
+        };
+
+        window.closeImageModal = () => {
+            document.getElementById('image-modal-overlay').classList.remove('flex');
+            document.getElementById('image-modal-overlay').classList.add('hidden');
+        };
+
+        const imageUploadHTML = `
+            <div id="image-upload-section" class="product-section animate-fade">
+                <h3 class="text-xl font-semibold mb-4 text-primary-blue">Imagens do Produto</h3>
+                
+                <div id="image-upload-controls" class="border-b pb-4 mb-4 hidden">
+                    <label for="product-image-file" class="block text-sm font-medium text-gray-700 mb-2">Fazer Upload de Nova Imagem</label>
+                    <input type="file" id="product-image-file" accept="image/*" multiple class="block w-full text-sm text-gray-500 
+                        file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold
+                        file:bg-primary-blue file:text-white hover:file:bg-secondary-light-blue cursor-pointer">
+                    <button onclick="window.handleImageUpload()" id="upload-image-btn" class="mt-3 bg-success-green hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
+                        Carregar Imagem(s)
+                    </button>
+                </div>
+
+                <div id="product-image-preview" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    </div>
+            </div>
+        `;
+
+        const renderProductsView = () => {
+            const productsContent = document.getElementById('products-content');
+            
+            
+            const pendingHTML = `
+                <div class=\"product-section animate-fade\">
+                    <div class=\"flex items-center justify-between mb-4\">
+                        <h3 class=\"text-xl font-semibold text-primary-blue\">Produtos Pendentes de Aprovação</h3>
+                        <button type=\"button\" id=\"refresh-pending-products\"
+                            class=\"text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-1 px-3 rounded-lg transition\">Atualizar</button>
+                    </div>
+                    <div id=\"pending-products-list\" class=\"space-y-3\"></div>
+                </div>
+            `;
+const productFormHTML = `
+                <div class="product-section animate-fade">
+                    <h3 class="text-xl font-semibold mb-4 text-primary-blue" id="product-form-title">Adicionar Novo Produto</h3>
+                    <form id="product-form" onsubmit="event.preventDefault(); window.handleProductSubmit(event)">
+                        <input type="hidden" id="product-id" value="">
+
+                        <div class="flex justify-end items-center mb-6">
+<button id="add-new-product-btn" type="button"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+        <i class="fas fa-plus mr-2"></i> Adicionar Novo Produto
+    </button>
+</div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div class="md:col-span-2">
+                                <label for="product-name" class="block text-sm font-medium text-gray-700">Nome do Produto</label>
+                                <input type="text" id="product-name" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                            </div>
+                            <div>
+                                <label for="product-price" class="block text-sm font-medium text-gray-700">Preço (R$)</label>
+                                <input type="number" step="0.01" id="product-price" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                            </div>
+                            <div>
+                                <label for="product-stock" class="block text-sm font-medium text-gray-700">Estoque</label>
+                                <input type="number" step="1" id="product-stock" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                            </div>
+                            <div class="md:col-span-4">
+                                <label for="product-category" class="block text-sm font-medium text-gray-700">Categoria</label>
+                                <select id="product-category" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue">
+                                    <option value="">Selecione uma Categoria</option>
+                                    ${renderCategoryOptions()}
+                                </select>
+                            </div>
+                            <div class="md:col-span-4">
+                                <label for="product-description" class="block text-sm font-medium text-gray-700">Descrição Detalhada</label>
+                                <textarea id="product-description" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue"></textarea>
+                            </div>
+                        </div>
+                        
+                        <h4 class="text-lg font-semibold mb-3 mt-4 text-gray-700">Dimensões & Peso (Para Cálculo de Frete)</h4>
+                        <div class="dimensions-grid">
+                            <div>
+                                <label for="product-weight" class="block text-sm font-medium text-gray-700">Peso (kg)</label>
+                                <input type="number" step="0.01" id="product-weight" required value="0.5" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label for="product-length" class="block text-sm font-medium text-gray-700">Comprimento (cm)</label>
+                                <input type="number" step="1" id="product-length" required value="10" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label for="product-height" class="block text-sm font-medium text-gray-700">Altura (cm)</label>
+                                <input type="number" step="1" id="product-height" required value="10" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                            <div>
+                                <label for="product-width" class="block text-sm font-medium text-gray-700">Largura (cm)</label>
+                                <input type="number" step="1" id="product-width" required value="10" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                        </div>
+
+                        <h4 class="text-lg font-semibold mb-3 mt-4 text-gray-700">Status do Produto</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            ${renderCheckbox('Produto em Oferta (Home > Ofertas)', 'product-isOffer')}
+                            ${renderCheckbox('Queridinho (Home > Queridinhos)', 'product-isBestSeller')}
+                            ${renderCheckbox('Lançamento (Home > Lançamentos)', 'product-isNewArrival')}
+                            ${renderCheckbox('Recomendado (Home > Recomendados)', 'product-isRecommended')}
+                            ${renderCheckbox('Destaque na Home (Topo)', 'product-isHighlight')}
+                            ${renderCheckbox('Item Favorito', 'product-isFavorite')}
+                        </div>
+
+                        <div class="mt-6 flex justify-between items-center">
+                            <div>
+                                <button type="submit" id="product-submit-btn" class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
+                                    Salvar Produto
+                                </button>
+                                <button type="button" onclick="window.fillProductForm(null)" id="product-cancel-btn" class="ml-4 bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out hidden">
+                                    Cancelar Edição
+                                </button>
+
+                                <button type="button" onclick="window.importMarketplaceCategories()" class="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150 ease-in-out">
+                                    <i class="fas fa-download"></i> Importar categorias padrão (Marketplace)
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            const productListHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-md mt-6 animate-fade" style="animation-delay: 0.1s;">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+                        <h3 class="text-xl font-semibold text-primary-blue">Lista de Produtos</h3>
+                        <p class="text-sm text-gray-500">Agora a coluna de ações fica visível à direita para facilitar a identificação do produto ao editar.</p>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-gray-200">
+                        <table class="min-w-full table-fixed divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[42%]">Produto/Categoria</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[14%]">Preço</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[14%]">Estoque</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">Status</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[18%] sticky right-0 bg-gray-50 shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.35)]">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="products-table-body">
+                                ${renderProductsTable(allProductsCache)}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            productsContent.innerHTML = `
+                <h2 class="text-2xl font-bold text-text-dark mb-6">Gerenciamento de Produtos</h2>
+                ${pendingHTML}
+                ${productFormHTML}
+                ${imageUploadHTML}
+                ${productListHTML}
+            `;
+
+            // Pendentes de aprovação
+            loadPendingProducts();
+            const refreshPendingBtn = document.getElementById('refresh-pending-products');
+            if (refreshPendingBtn) refreshPendingBtn.addEventListener('click', () => loadPendingProducts(true));
+
+            // Botão "Adicionar Novo Produto" deve apenas limpar o formulário (não submeter)
+            const addNewBtn = document.getElementById('add-new-product-btn');
+            if (addNewBtn) {
+                addNewBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    resetProductForm();
+                    // garante que a página volte pro topo do formulário
+                    const formEl = document.getElementById('product-form');
+                    if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            }
+
+            // Habilita/Desabilita upload conforme seleção de arquivos e modo de edição
+            const fileInput = document.getElementById('product-image-file');
+            const uploadBtn = document.getElementById('upload-image-btn');
+            if (fileInput && uploadBtn) {
+                uploadBtn.disabled = true;
+                fileInput.addEventListener('change', () => {
+                    uploadBtn.disabled = !(editingProductId && fileInput.files && fileInput.files.length);
+                });
+            }
+            
+            // Garante que o estado inicial do formulário é limpo
+            if (!editingProductId) {
+                resetProductForm();
+            } else {
+                window.editProduct(editingProductId); // Re-renderiza o formulário do produto em edição
+            }
+        };
+
+        window.handleProductSubmit = async (event) => {
+            const form = event.target;
+            const id = document.getElementById('product-id').value;
+            
+            const name = form.elements['product-name'].value;
+            const price = parseFloat(form.elements['product-price'].value);
+            const stock = parseInt(form.elements['product-stock'].value, 10);
+            const categorySelection = form.elements['product-category'].value;
+            const description = form.elements['product-description'].value;
+            
+            const weight = parseFloat(form.elements['product-weight'].value);
+            const length = parseInt(form.elements['product-length'].value, 10);
+            const height = parseInt(form.elements['product-height'].value, 10);
+            const width = parseInt(form.elements['product-width'].value, 10);
+            
+            const isOffer = form.elements['product-isOffer'].checked;
+const isFavorite = form.elements['product-isFavorite'].checked;
+const isHighlight = form.elements['product-isHighlight'].checked;
+const isBestSeller = form.elements['product-isBestSeller'].checked;
+const isNewArrival = form.elements['product-isNewArrival'].checked;
+const isRecommended = form.elements['product-isRecommended'].checked;
+
+            if (!name || isNaN(price) || isNaN(stock) || !categorySelection) return;
+            
+            const btn = document.getElementById('product-submit-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+            btn.disabled = true;
+
+            let categoryId = null;
+            let categoryName = categorySelection;
+            let categorySlug = normalizeSlug(categorySelection);
+
+            const productData = {
+                name,
+                price,
+                stock,
+
+                // ===== Identificação da loja própria =====
+                sellerId: "ArianaMoveis",
+                sellerName: "Ariana Móveis",
+                soldBy: "Ariana Móveis",
+                deliveredBy: "Ariana Móveis",
+                storeName: "Ariana Móveis",
+                lojaNome: "Ariana Móveis",
+                lojaTipo: "propria",
+                isOwnProduct: true,
+                isMarketplacePartner: false,
+
+                categoryId,
+                category: categoryName || categorySlug,
+                categoryName: categoryName || null,
+                categorySlug: categorySlug || null,
+                description,
+                weight,
+                length,
+                height,
+                width,
+
+                // Adiciona as flags ao objeto de dados
+                isOffer,
+                isFavorite,
+                isHighlight,
+                isBestSeller,
+                isNewArrival,
+                isRecommended,
+
+                mainImageUrl: productImagesCache.find(img => img.isMain)?.url || (productImagesCache[0]?.url || null),
+
+                // Compatibilidade com telas antigas e novas
+                imageUrl: productImagesCache.find(img => img.isMain)?.url || (productImagesCache[0]?.url || null),
+                mainImagePath: (productImagesCache.find(img => img.isMain)?.path || (productImagesCache[0]?.path || null)),
+                imageUrls: productImagesCache.map(i => i.url),
+                imagePaths: productImagesCache.map(i => i.path),
+                images: productImagesCache,
+
+                updatedAt: serverTimestamp(),
+            };
+try {
+                let docId = id;
+                if (id) {
+                    // Edição
+                    const productRef = doc(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH), id);
+                    await updateDoc(productRef, productData);
+                    displayMessage('Produto atualizado com sucesso!', 'success');
+                } else {
+                    // Adição - Cria um novo documento
+                    productData.createdAt = serverTimestamp();
+                    const docRef = await addDoc(collection(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH)), productData);
+                    docId = docRef.id;
+                    displayMessage('Produto salvo com sucesso!', 'success');
+                }
+                // ✅ Mantém o produto em edição (não limpa automaticamente).
+                // Para cadastrar um novo, use o botão "Adicionar Novo Produto".
+                if (docId) {
+                    // garante modo edição
+                    editingProductId = docId;
+                    document.getElementById('product-id').value = docId;
+
+                    // garante que a área de imagens apareça
+                    const imgControls = document.getElementById('image-upload-controls');
+                    if (imgControls) imgControls.classList.remove('hidden');
+
+                    // se for um produto recém-criado (sem id anterior), inicia cache de imagens vazio
+                    if (!id) {
+                        productImagesCache = [];
+                        // atualiza títulos/botões para modo edição
+                        document.getElementById('product-form-title').textContent = `Editar Produto: ${name}`;
+                        document.getElementById('product-submit-btn').innerHTML = 'Atualizar Produto';
+                        document.getElementById('product-cancel-btn').style.display = 'inline-block';
+
+                        // limpa seleção de arquivos e desabilita upload até selecionar novamente
+                        const fileInput = document.getElementById('product-image-file');
+                        if (fileInput) fileInput.value = '';
+                        const uploadBtn = document.getElementById('upload-image-btn');
+                        if (uploadBtn) uploadBtn.disabled = true;
+
+                        // renderiza preview vazio
+                        renderProductImages();
+
+                        displayMessage('Produto salvo! Agora selecione as imagens e clique em "Carregar Imagem(s)".', 'success');
+                    }
+                }
+
+            } catch (error) {
+                console.error("Erro ao salvar produto:", error);
+                displayMessage(`Erro ao salvar produto: ${error.message}`, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
+
+        window.deleteProduct = async (id, name) => {
+            if (!confirm(`Tem certeza que deseja deletar o produto "${name}" e todas as suas imagens? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+try {
+                // 1. Deleta todas as imagens associadas do Storage
+                const product = allProductsCache.find(p => p.id === id);
+                if (product && product.images && product.images.length > 0) {
+                    for (const image of product.images) {
+                        try {
+                            // Deleta o arquivo no Storage usando o path salvo
+                            const imageRef = ref(storage, image.path);
+                            await deleteObject(imageRef);
+                            console.log(`Imagem ${image.path} excluída do Storage.`);
+                        } catch (error) {
+                            console.warn(`Aviso: Não foi possível deletar a imagem ${image.path}. Pode não existir ou permissão negada.`, error);
+                        }
+                    }
+                }
+
+                // 2. Deleta o documento do Firestore
+                const productRef = doc(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH), id);
+                await deleteDoc(productRef);
+                displayMessage(`Produto "${name}" e imagens associadas excluídos com sucesso!`, 'success');
+                if (editingProductId === id) {
+                    window.fillProductForm(null); // Reseta o formulário se o produto atual foi deletado
+                }
+            } catch (error) {
+                console.error("Erro ao deletar produto:", error);
+                displayMessage(`Erro ao deletar produto: ${error.message}`, 'error');
+            }
+        };
+
+
+        // =========================================================
+        // HELPERS DE OTIMIZAÇÃO DE IMAGENS ANTES DO UPLOAD
+        // =========================================================
+        const readFileAsDataURL = (file) => new Promise((resolve, reject) => {
+            try {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+                reader.readAsDataURL(file);
+            } catch (e) {
+                reject(e);
+            }
+        });
+
+        const loadImageElement = (src) => new Promise((resolve, reject) => {
+            try {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('Falha ao carregar a imagem para compactação.'));
+                img.src = src;
+            } catch (e) {
+                reject(e);
+            }
+        });
+
+        const canvasToBlob = (canvas, type, quality) => new Promise((resolve, reject) => {
+            try {
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Não foi possível gerar o blob da imagem compactada.'));
+                }, type, quality);
+            } catch (e) {
+                reject(e);
+            }
+        });
+
+        const optimizeImageForUpload = async (file, options = {}) => {
+            const {
+                maxWidth = 1024,
+                maxHeight = 1024,
+                quality = 0.7,
+                outputType = 'image/webp'
+            } = options;
+
+            if (!file || !String(file.type || '').startsWith('image/')) {
+                throw new Error('Arquivo inválido para compactação.');
+            }
+
+            const dataUrl = await readFileAsDataURL(file);
+            const img = await loadImageElement(dataUrl);
+
+            let targetWidth = img.width || maxWidth;
+            let targetHeight = img.height || maxHeight;
+
+            if (targetWidth > maxWidth || targetHeight > maxHeight) {
+                const ratio = Math.min(maxWidth / targetWidth, maxHeight / targetHeight);
+                targetWidth = Math.max(1, Math.round(targetWidth * ratio));
+                targetHeight = Math.max(1, Math.round(targetHeight * ratio));
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+
+            const ctx = canvas.getContext('2d', { alpha: false });
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+            const optimizedBlob = await canvasToBlob(canvas, outputType, quality);
+            const baseName = String(file.name || 'imagem')
+                .replace(/\.[^.]+$/, '')
+                .normalize('NFD')
+                .replace(/[̀-ͯ]/g, '')
+                .replace(/[^a-zA-Z0-9._-]/g, '_') || 'imagem';
+
+            return new File(
+                [optimizedBlob],
+                `${baseName}.webp`,
+                {
+                    type: outputType,
+                    lastModified: Date.now()
+                }
+            );
+        };
+
+        window.handleImageUpload = async () => {
+            if (!editingProductId) {
+                displayMessage("Erro: Salve o produto primeiro.", 'error');
+                return;
+            }
+            const fileInput = document.getElementById('product-image-file');
+            const files = fileInput.files;
+            if (!files || files.length === 0) {
+                displayMessage("Selecione pelo menos uma imagem.", 'info');
+                return;
+            }
+
+            const btn = document.getElementById('upload-image-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Compactando e enviando...';
+            btn.disabled = true;
+
+            try {
+                const successfulUploads = [];
+                const currentUid = (auth && auth.currentUser && auth.currentUser.uid) ? auth.currentUser.uid : (userId || 'admin');
+                const targetFolder = String(currentUid || 'admin').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                for (let i = 0; i < files.length; i++) {
+                    const originalFile = files[i];
+
+                    if (!String(originalFile.type || '').startsWith('image/')) {
+                        console.warn('Arquivo ignorado por não ser imagem:', originalFile.name);
+                        continue;
+                    }
+
+                    console.log(`Iniciando compactação: ${originalFile.name}`);
+                    const optimizedFile = await optimizeImageForUpload(originalFile, {
+                        maxWidth: 1024,
+                        maxHeight: 1024,
+                        quality: 0.7,
+                        outputType: 'image/webp'
+                    });
+
+                    const originalSafeName = String(optimizedFile.name || 'imagem.webp')
+                        .normalize('NFD')
+                        .replace(/[̀-ͯ]/g, '')
+                        .replace(/[^a-zA-Z0-9._-]/g, '_');
+
+                    const newFileName = `${Date.now()}_${i}_${originalSafeName}`;
+
+                    // Caminho compatível com a regra do Storage:
+                    // /products/{UID_DO_SELLER}/{arquivo}
+                    const storageRef = ref(storage, `products/${targetFolder}/${newFileName}`);
+
+                    const snapshot = await uploadBytes(storageRef, optimizedFile, {
+                        contentType: 'image/webp'
+                    });
+
+                    const url = await getDownloadURL(snapshot.ref);
+
+                    successfulUploads.push({
+                        name: newFileName,
+                        url: url,
+                        isMain: productImagesCache.length === 0 && successfulUploads.length === 0,
+                        path: snapshot.ref.fullPath,
+                        contentType: 'image/webp'
+                    });
+
+                    console.log(`Upload bem-sucedido: ${newFileName}`);
+                }
+
+                if (successfulUploads.length === 0) {
+                    throw new Error('Nenhuma imagem válida foi enviada.');
+                }
+
+                productImagesCache.push(...successfulUploads);
+
+                const productRef = doc(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH), editingProductId);
+                const mainImageUrl = productImagesCache.find(img => img.isMain)?.url || (productImagesCache[0]?.url || null);
+
+                await updateDoc(productRef, {
+                    images: productImagesCache,
+                    mainImageUrl: mainImageUrl,
+                    imageUrl: mainImageUrl,
+                    mainImagePath: (productImagesCache.find(img => img.isMain)?.path || (productImagesCache[0]?.path || null)),
+                    imageUrls: productImagesCache.map(i => i.url),
+                    imagePaths: productImagesCache.map(i => i.path),
+                    updatedAt: serverTimestamp()
+                });
+
+                renderProductImages();
+                fileInput.value = null;
+                displayMessage('Imagens compactadas e carregadas com sucesso!', 'success');
+
+            } catch (error) {
+                console.error("Erro ao fazer upload da imagem:", error);
+                displayMessage(`Erro no upload: ${error.message}`, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
+
+        window.setMainImage = async (name) => {
+            if (!editingProductId) return;
+
+            // 1. Atualiza o cache local
+            productImagesCache = productImagesCache.map(img => ({ ...img, isMain: img.name === name }));
+// 2. Atualiza o Firestore
+            try {
+                // CORREÇÃO FIREBASE: Uso da constante PRODUCTS_COLLECTION_PATH
+                const productRef = doc(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH), editingProductId);
+                const mainImage = productImagesCache.find(img => img.isMain)?.url || (productImagesCache[0]?.url || null);
+
+                await updateDoc(productRef, {
+                    images: productImagesCache,
+                    mainImageUrl: mainImage,
+                    // Compat com telas antigas do site
+                    imageUrl: mainImage,
+                    mainImagePath: (productImagesCache.find(img => img.isMain)?.path || (productImagesCache[0]?.path || null)),
+                    imageUrls: productImagesCache.map(i => i.url),
+                    imagePaths: productImagesCache.map(i => i.path),
+                    updatedAt: serverTimestamp()
+                });
+                renderProductImages();
+                displayMessage('Imagem principal definida com sucesso!', 'info');
+            } catch (error) {
+                console.error("Erro ao definir imagem principal:", error);
+                displayMessage(`Erro: ${error.message}`, 'error');
+            }
+        };
+
+        window.deleteImage = async (name) => {
+            if (!editingProductId) return;
+            
+            const imageToDelete = productImagesCache.find(img => img.name === name);
+            if (!imageToDelete) return;
+            
+            if (!confirm(`Tem certeza que deseja deletar a imagem "${name}"?`)) {
+                return;
+            }
+try {
+                // 1. Deleta do Storage usando o caminho completo (imageToDelete.path)
+                const imageRef = ref(storage, imageToDelete.path);
+                await deleteObject(imageRef);
+
+                // 2. Remove do cache local
+                productImagesCache = productImagesCache.filter(img => img.name !== name);
+                
+                // Garante que se a principal foi deletada, a primeira restante se torne a principal (se houver)
+                if (imageToDelete.isMain && productImagesCache.length > 0) {
+                    productImagesCache[0].isMain = true;
+                }
+
+                // 3. Atualiza o Firestore
+                // CORREÇÃO FIREBASE: Uso da constante PRODUCTS_COLLECTION_PATH
+                const productRef = doc(db, getPublicCollectionPath(PRODUCTS_COLLECTION_PATH), editingProductId);
+                const mainImageUrl = productImagesCache.find(img => img.isMain)?.url || (productImagesCache[0]?.url || null);
+
+                await updateDoc(productRef, {
+                    images: productImagesCache,
+                    mainImageUrl: mainImageUrl,
+                    // Compat com telas antigas do site
+                    imageUrl: mainImageUrl,
+                    mainImagePath: (productImagesCache.find(img => img.isMain)?.path || (productImagesCache[0]?.path || null)),
+                    imageUrls: productImagesCache.map(i => i.url),
+                    imagePaths: productImagesCache.map(i => i.path),
+                    updatedAt: serverTimestamp()
+                });
+
+                renderProductImages();
+                displayMessage('Imagem excluída com sucesso!', 'success');
+            } catch (error) {
+                console.error("Erro ao deletar imagem:", error);
+                displayMessage(`Erro: ${error.message}`, 'error');
+            }
+        };
+
+        // 5.4 PEDIDOS
+        const renderOrdersTable = (orders, isDashboard = false) => {
+            return `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID/Data</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${orders.map(order => {
+                                const statusClass = {
+                                    'Aguardando Pagamento': 'bg-yellow-100 text-yellow-800',
+                                    'Pagamento Confirmado': 'bg-blue-100 text-primary-blue',
+                                    'Em Separação': 'bg-purple-100 text-purple-800',
+                                    'Em Transporte': 'bg-orange-100 text-orange-800',
+                                    'Entregue': 'bg-success-green/20 text-success-green',
+                                    'Cancelado': 'bg-error-red/20 text-error-red',
+                                }[order.status] || 'bg-gray-100 text-gray-800';
+                                
+                                const formattedDate = formatDateTime(order.createdAt);
+                                
+                                return `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            #${order.id}<br>
+                                            <span class="text-xs text-gray-500">${formattedDate}</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            ${order.customerName || 'Cliente Indefinido'}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            ${formatCurrency(calcOrderTotal(order))}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                                                ${order.status}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <button onclick="window.openOrderDetailModal('${order.id}')" class="text-primary-blue hover:text-secondary-light-blue">
+                                                <i class="fas fa-search"></i> ${isDashboard ? 'Ver Detalhes' : 'Ver/Editar'}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        };
+
+        // =========================================================
+        // PRODUTOS PENDENTES (APROVAÇÃO)
+        // =========================================================
+        async function loadPendingProducts(force = false) {
+            try {
+                const box = document.getElementById('pending-products-list');
+                if (!box) return;
+
+                box.innerHTML = `<div class="text-sm text-gray-600">Carregando...</div>`;
+
+                // Busca produtos pendentes (approved == false). Se não existir o campo, não aparece aqui.
+                const q = query(
+                    collection(db, 'products'),
+                    where('approved', '==', false)
+                );
+
+                const snap = await getDocs(q);
+
+                if (snap.empty) {
+                    box.innerHTML = `<div class="text-sm text-gray-600">Nenhum produto pendente 🎉</div>`;
+                    return;
+                }
+
+                const rows = [];
+                snap.forEach((d) => {
+                    const p = d.data() || {};
+                    const name = (p.name || 'Sem nome');
+                    const price = (typeof p.price === 'number') ? p.price : null;
+                    const sellerId = p.sellerId || '';
+                    const createdAt = p.createdAt?.toDate ? p.createdAt.toDate() : null;
+
+                    rows.push(`
+                      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 border border-gray-200 rounded-xl bg-white shadow-sm">
+                        <div class="min-w-0">
+                          <div class="font-semibold text-gray-900 truncate">${escHtml(name)}</div>
+                          <div class="text-xs text-gray-600 mt-1">
+                            ${price !== null ? ('R$ ' + price.toFixed(2).replace('.', ',')) : 'Preço: —'}
+                            ${sellerId ? (' • Seller: ' + escHtml(sellerId)) : ''}
+                            ${createdAt ? (' • ' + createdAt.toLocaleString('pt-BR')) : ''}
+                          </div>
+                        </div>
+                        <div class="flex gap-2 shrink-0">
+                          <button type="button"
+                            class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-lg shadow transition"
+                            onclick="window.approveProduct('${d.id}')">
+                            Aprovar
+                          </button>
+                          <button type="button"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-3 rounded-lg transition"
+                            onclick="window.rejectProduct('${d.id}')">
+                            Reprovar
+                          </button>
+                        </div>
+                      </div>
+                    `);
+                });
+
+                box.innerHTML = rows.join('');
+
+            } catch (e) {
+                console.error('Erro ao carregar pendentes:', e);
+                const box = document.getElementById('pending-products-list');
+                if (box) box.innerHTML = `<div class="text-sm text-red-600">Erro ao carregar pendentes.</div>`;
+            }
+        }
+        // (removido: escapeHtml duplicado)
+
+        window.approveProduct = async function(productId) {
+            try {
+                await updateDoc(doc(db, 'products', productId), {
+                    approved: true,
+                    active: true,
+                    approvedAt: serverTimestamp(),
+                    approvedBy: auth?.currentUser?.uid || null,
+                    updatedAt: serverTimestamp()
+                });
+                window.toast?.('Produto aprovado!', 'success');
+                loadPendingProducts(true);
+                // Se sua lista de produtos já estiver aberta, recarrega:
+                if (typeof renderProductsView === 'function' && currentView === 'products') {
+                    // mantém a view e atualiza os elementos
+                    // (não chamamos renderProductsView() aqui pra não resetar formulário)
+                }
+            } catch (e) {
+                console.error('Erro ao aprovar produto:', e);
+                window.toast?.('Falha ao aprovar produto.', 'error');
+            }
+        };
+
+        window.rejectProduct = async function(productId) {
+            try {
+                await updateDoc(doc(db, 'products', productId), {
+                    approved: false,
+                    active: false,
+                    rejectedAt: serverTimestamp(),
+                    rejectedBy: auth?.currentUser?.uid || null,
+                    updatedAt: serverTimestamp()
+                });
+                window.toast?.('Produto reprovado (voltou para rascunho).', 'info');
+                loadPendingProducts(true);
+            } catch (e) {
+                console.error('Erro ao reprovar produto:', e);
+                window.toast?.('Falha ao reprovar produto.', 'error');
+            }
+        };
+
+        const renderOrdersView = () => {
+            const ordersContent = document.getElementById('orders-content');
+            
+            ordersContent.innerHTML = `
+                <h2 class="text-2xl font-bold text-text-dark mb-6">Gerenciamento de Pedidos</h2>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md animate-fade">
+                    <h3 class="text-xl font-semibold mb-4 text-primary-blue">Lista de Pedidos Recentes</h3>
+                    ${renderOrdersTable(allOrdersCache)}
+                </div>
+            `;
+        };
+
+        window.openOrderDetailModal = (id) => {
+            const order = allOrdersCache.find(o => o.id === id);
+            if (!order) return;
+
+            document.getElementById('modal-order-id').textContent = `#${order.id}`;
+            document.getElementById('modal-order-doc-id').value = order.id; // Para o formulário de atualização
+
+            const itemsHTML = (order.items || []).map(item => `
+                <li class="flex justify-between text-sm text-gray-700 py-1">
+                    <span>${item.quantity ?? item.qty ?? item.qtd ?? 0}x ${item.name}</span>
+                    <span>${formatCurrency(item.price * item.qty)}</span>
+                </li>
+            `).join('');
+
+            const detailsHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h5 class="font-semibold text-primary-blue mb-2">Cliente & Entrega</h5>
+                        <p><strong>Nome:</strong> ${order.customerName || 'N/A'}</p>
+                        <p><strong>Status:</strong> <span class="font-bold text-primary-blue">${order.status}</span></p>
+                        <p><strong>Data:</strong> ${formatDateTime(order.createdAt)}</p>
+                        <p><strong>Rastreio:</strong> <span id="display-tracking-code">${order.trackingCode || 'N/A'}</span></p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h5 class="font-semibold text-primary-blue mb-2">Itens (${(order.items || []).length})</h5>
+                        <ul>${itemsHTML}</ul>
+                        <div class="mt-3 pt-3 border-t font-bold text-lg flex justify-between">
+                            <span>TOTAL:</span>
+                            <span>${formatCurrency(calcOrderTotal(order))}</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="mt-5 p-4 bg-white rounded-lg border">
+                    <h5 class="font-semibold text-primary-blue mb-3">Ações do Pedido (Pagamentos & Correios)</h5>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded" onclick="window.adminCreateMpPix('${order.id}')">
+                            <i class="fas fa-qrcode mr-2"></i> Criar Pix (Mercado Pago)
+                        </button>
+                        <button class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded" onclick="window.adminCreateMpBoleto('${order.id}')">
+                            <i class="fas fa-barcode mr-2"></i> Criar Boleto (Mercado Pago)
+                        </button>
+
+                        <button class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded" onclick="window.adminGenerateCorreiosLabel('${order.id}')">
+                            <i class="fas fa-tag mr-2"></i> Gerar Etiqueta (Correios)
+                        </button>
+                        <button class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded" onclick="window.adminOpenCorreiosLabel('${order.id}')">
+                            <i class="fas fa-print mr-2"></i> Abrir Etiqueta (HTML)
+                        </button>
+
+                        <button class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded" onclick="window.adminTrackCorreios('${order.trackingCode || ''}')">
+                            <i class="fas fa-route mr-2"></i> Rastrear
+                        </button>
+                        <button class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded" onclick="window.adminQueryCieloPayment('${(order.payments && order.payments.cielo && order.payments.cielo.paymentId) ? order.payments.cielo.paymentId : ''}')">
+                            <i class="fas fa-search mr-2"></i> Consultar Cielo (PaymentId)
+                        </button>
+                    </div>
+
+                    <p class="text-xs text-gray-500 mt-3">
+                        Obs.: cartão Cielo tokenizado é criado no checkout (cliente). No Admin você consulta/captura/cancela.
+                    </p>
+                </div>
+`;
+
+            document.getElementById('modal-content-details').innerHTML = detailsHTML;
+            // Preenche o formulário de atualização
+            document.getElementById('update-status').value = order.status;
+            document.getElementById('update-tracking-code').value = order.trackingCode || '';
+
+            document.getElementById('order-detail-modal').classList.remove('hidden');
+            document.getElementById('order-detail-modal').classList.add('flex');
+        };
+
+        window.closeModal = (id) => {
+  const el = document.getElementById(id);
+  if (!el) { console.warn('[admin] closeModal: modal não encontrado:', id); return; }
+  el.classList.remove('flex');
+  el.classList.add('hidden');
+};
+
+        window.handleOrderUpdate = async (event) => {
+  event?.preventDefault?.();
+
+  const docId = document.getElementById('modal-order-doc-id')?.value?.trim();
+  const newStatus = document.getElementById('update-status')?.value;
+  const trackingCode = document.getElementById('update-tracking-code')?.value?.trim() || '';
+
+  if (!docId) return;
+
+  const submitBtn = event?.target?.querySelector?.('button[type="submit"]') || null;
+  const originalHtml = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+    submitBtn.disabled = true;
+  }
+
+  const updateData = {
+    status: (newStatus || 'processing').toString(),
+    updatedAt: serverTimestamp()
+  };
+  if (trackingCode) updateData.trackingCode = trackingCode;
+
+  const tryUpdate = async (colName) => {
+    const ref = doc(db, getPublicCollectionPath(colName), docId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return false;
+    await updateDoc(ref, updateData);
+    return true;
+  };
+
+  try {
+    let ok = false;
+    try { ok = await tryUpdate('orders'); } catch (e) { console.warn('[admin] falha ao atualizar orders', docId, e); }
+
+    if (!ok) throw new Error("Pedido não encontrado em 'orders'.");
+
+    (window.toast || window.displayMessage || ((m)=>alert(m)))('Pedido atualizado com sucesso!', 'success');
+
+    // fecha modal se existir
+    window.closeModal?.('order-detail-modal');
+
+    // re-render
+    window.changeView?.('orders', true);
+
+  } catch (error) {
+    console.error('Erro ao atualizar pedido:', error);
+    (window.toast || window.displayMessage || ((m)=>alert(m)))(`Erro ao atualizar pedido: ${error.message}`, 'error');
+  } finally {
+    if (submitBtn) {
+      submitBtn.innerHTML = originalHtml;
+      submitBtn.disabled = false;
+    }
+  }
+};
+
+        // 5.5 USUÁRIOS
+        const renderUsersView = () => {
+             // Esta é uma implementação SIMULADA/BÁSICA. Para um sistema real, 
+             // você usaria a Admin SDK para gerenciar usuários no Firebase Authentication
+             // e o Firestore para dados de perfil/função (role).
+             const content = `
+                <h2 class="text-2xl font-bold text-text-dark mb-6">Gerenciamento de Usuários</h2>
+                
+                <div class="bg-white p-6 rounded-lg shadow-md animate-fade">
+                    <h3 class="text-xl font-semibold mb-4">Lista de Usuários (Dados Simulados/Cache)</h3>
+                    <p class="text-sm text-gray-500 mb-4">Atenção: A manipulação real de usuários do Firebase Auth exige o Admin SDK, geralmente executado em um ambiente de servidor (Cloud Functions).</p>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome/Email</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permissão</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Último Login</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${allUsersCache.map(user => {
+                                    const roleClass = user.role === 'admin' ? 'bg-primary-blue/20 text-primary-blue' :
+                                                      user.role === 'moderator' ? 'bg-yellow-500/20 text-yellow-700' :
+                                                      'bg-gray-200 text-gray-700';
+                                    const lastLoginDate = new Date(user.lastLogin).toLocaleString('pt-BR');
+                                    
+                                    return `
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                ${user.name}<br>
+                                                <span class="text-xs text-gray-500">${user.email}</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${roleClass}">
+                                                    ${user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                ${lastLoginDate}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onclick="window.displayMessage('Funcionalidade de Edição de Usuário não implementada.', 'info')" class="text-primary-blue hover:text-secondary-light-blue mr-3"><i class="fas fa-user-edit"></i> Editar Permissão</button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.getElementById('users-content').innerHTML = content;
+        };
+        
+        
+        // 5.6 PAGAMENTOS / FRETE / NOTIFICAÇÕES (Marketplace)
+        const SETTINGS_COL = 'settings';
+
+        const getApiBase = () => {
+            // Prioridade: localStorage (admin) -> window.API_BASE (se você quiser setar) -> fallback emulator/produção
+            const saved = localStorage.getItem('API_BASE_URL');
+            if (saved) return saved.replace(/\/+$/, '');
+            if (window.API_BASE_URL) return String(window.API_BASE_URL).replace(/\/+$/, '');
+
+            // tenta inferir (emulador functions)
+            const proto = location.protocol;
+            const host = location.hostname;
+            // Se estiver rodando via Hosting Emulator, chama o Functions Emulator no mesmo host
+            if (host === '127.0.0.1' || host === 'localhost') {
+                // ajuste o projectId/região se necessário
+                return 'http://127.0.0.1:5001/ariana-moveis-8fba4/southamerica-east1/api';
+            }
+            // produção: você pode trocar depois de publicar (domain + /api)
+            return '';
+        };
+
+        const apiFetch = async (path, opts = {}) => {
+            const base = getApiBase();
+            if (!base) throw new Error('API_BASE_URL não configurada.');
+
+            const buildUrl = (b, p) => `${b}${p.startsWith('/') ? '' : '/'}${p}`;
+            const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+
+            const doFetch = async (url) => {
+                const res = await fetch(url, { ...opts, headers });
+                const ct = res.headers.get('content-type') || '';
+                const data = ct.includes('application/json')
+                    ? await res.json().catch(()=>null)
+                    : await res.text().catch(()=>null);
+                return { res, data };
+            };
+
+            // 1) tenta como foi pedido
+            let url = buildUrl(base, path);
+            let { res, data } = await doFetch(url);
+
+            // 2) fallback: se o painel estiver chamando /api/... mas o backend expõe /...
+            if (!res.ok && res.status === 404 && typeof path === 'string' && path.startsWith('/api/')) {
+                const altPath = path.replace(/^\/api\//, '/');
+                const alt = await doFetch(buildUrl(base, altPath));
+                res = alt.res;
+                data = alt.data;
+                url = buildUrl(base, altPath);
+            }
+
+            if (!res.ok) {
+                const msg = (data && typeof data === 'object' && data.error) ? data.error : `HTTP ${res.status}`;
+                throw new Error(typeof data === 'string' ? data : `${msg} (${res.status})`);
+            }
+            return data;
+        };
+
+        const readSettingsDoc = async (docId, fallback = {}) => {
+            if (!firebaseReady || !db) return fallback;
+            const refDoc = doc(db, getPublicCollectionPath(SETTINGS_COL), docId);
+            const snap = await getDocs(query(collection(db, getPublicCollectionPath(SETTINGS_COL)), where('__name__', '==', docId), limit(1)));
+            // getDocs com where é mais compatível com o modo atual do arquivo (sem getDoc importado)
+            if (!snap.empty) return snap.docs[0].data() || fallback;
+            return fallback;
+        };
+
+        const writeSettingsDoc = async (docId, data) => {
+            if (!firebaseReady || !db) throw new Error('Firebase não inicializado.');
+            const refDoc = doc(db, getPublicCollectionPath(SETTINGS_COL), docId);
+            await setDoc(refDoc, { ...(data || {}), updatedAt: serverTimestamp() }, { merge: true });
+        };
+
+        const renderPaymentsView = async () => {
+            const box = document.getElementById('payments-content');
+            const payments = await readSettingsDoc('payments', {
+                cielo: { enabled: true, env: 'sandbox', captureAuto: false, maxInstallments: 12, softDescriptor: 'ARIANAMOVEIS' },
+                mercadopago: { enabled: true, pix: true, boleto: true },
+            });
+            const shipping = await readSettingsDoc('shipping', {
+                correios: {
+                    enabled: true,
+                    origemCep: '',
+                    servicos: ['03328','03298'], // SEDEX, PAC (exemplos)
+                    pesoKgPadrao: 1,
+                    alturaCmPadrao: 10,
+                    larguraCmPadrao: 15,
+                    comprimentoCmPadrao: 20,
+                    valorDeclaradoPadrao: 0
+                }
+            });
+            const notif = await readSettingsDoc('notifications', { enabled: true, sound: false, onlyPending: true });
+            const whatsapp = await readSettingsDoc('whatsapp_evolution', {
+                enabled: true,
+                apiUrl: 'http://167.86.108.75:8081',
+                apiKey: 'ariana_moveis_2026',
+                instanceName: 'Ariana_Oficial',
+                webhookUrl: '',
+                webhookEvents: ['MESSAGES_UPSERT','MESSAGES_UPDATE','SEND_MESSAGE','CONNECTION_UPDATE'],
+                autoNotifyOrderStatus: true,
+                defaultCountryCode: '55',
+                statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}',
+                testNumber: '',
+                testMessage: 'Olá! Este é um teste da integração WhatsApp da Ariana Móveis.'
+            });
+
+            const apiBase = localStorage.getItem('API_BASE_URL') || '';
+            const suggestedWebhookUrl = (whatsapp?.webhookUrl || 'https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api/whatsapp-callback');
+            const whatsappEvents = Array.isArray(whatsapp?.webhookEvents) && whatsapp.webhookEvents.length ? whatsapp.webhookEvents.join(', ') : 'MESSAGES_UPSERT, MESSAGES_UPDATE, SEND_MESSAGE, CONNECTION_UPDATE';
+            const whatsappApiUrl = (whatsapp?.apiUrl || 'http://167.86.108.75:8081').trim();
+            const whatsappInstanceName = (whatsapp?.instanceName || 'Ariana_Oficial').trim();
+
+            box.innerHTML = `
+                <h2 class="text-2xl font-bold text-text-dark mb-6">Integrações (Pagamentos + Correios) & Notificações</h2>
+
+                <div class="bg-white p-5 rounded-lg shadow-md mb-6">
+    <h3 class="text-lg font-semibold text-primary-blue mb-2">API do Backend</h3>
+    <p class="text-sm text-gray-600 mb-3">
+        Aqui você define a URL base da sua API (Firebase Functions). Isso é usado pelos botões do Admin (Pix, Boleto, Etiqueta, Consulta).
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700">API_BASE_URL</label>
+            <input id="settings-api-base" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                   placeholder="https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api"
+                   value="https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api">
+            <p class="text-xs text-gray-500 mt-1">Dica: Use a URL do southamerica-east1 para produção.</p>
+        </div>
+        <button id="btn-save-api-base" class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded">
+            Salvar API
+        </button>
+    </div>
+</div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- CIELO -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4 text-primary-blue">Cartão (Cielo API E-commerce)</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            As credenciais <strong>MerchantId/MerchantKey</strong> ficam no <code>.env</code> do backend (Functions).
+                            Aqui você configura o comportamento do checkout.
+                        </p>
+
+                        <div class="space-y-3">
+                            <label class="flex items-center gap-2">
+                                <input id="cielo-enabled" type="checkbox" ${payments?.cielo?.enabled ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Ativar Cielo</span>
+                            </label>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Ambiente</label>
+                                    <select id="cielo-env" class="mt-1 w-full border border-gray-300 rounded-md p-2">
+                                        <option value="sandbox" ${payments?.cielo?.env==='sandbox'?'selected':''}>Sandbox</option>
+                                        <option value="prod" ${payments?.cielo?.env==='prod'?'selected':''}>Produção</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Máx. parcelas</label>
+                                    <input id="cielo-max-installments" type="number" min="1" max="18"
+                                           class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                           value="${payments?.cielo?.maxInstallments ?? 12}">
+                                </div>
+                            </div>
+
+                            <label class="flex items-center gap-2">
+                                <input id="cielo-capture-auto" type="checkbox" ${payments?.cielo?.captureAuto ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Captura automática (autoriza e já captura)</span>
+                            </label>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Soft Descriptor (até 13)</label>
+                                <input id="cielo-soft" maxlength="13" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                       value="${(payments?.cielo?.softDescriptor || 'ARIANAMOVEIS').slice(0,13)}">
+                            </div>
+
+                            <button id="btn-save-payments" class="w-full bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded">
+                                Salvar Pagamentos
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- MERCADO PAGO -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4 text-primary-blue">Pix e Boleto (Mercado Pago)</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            O <strong>Access Token</strong> fica no <code>.env</code> do backend. Aqui você liga/desliga Pix/Boleto no checkout.
+                        </p>
+
+                        <div class="space-y-3">
+                            <label class="flex items-center gap-2">
+                                <input id="mp-enabled" type="checkbox" ${payments?.mercadopago?.enabled ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Ativar Mercado Pago</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input id="mp-pix" type="checkbox" ${payments?.mercadopago?.pix ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Pix</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input id="mp-boleto" type="checkbox" ${payments?.mercadopago?.boleto ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Boleto</span>
+                            </label>
+
+                            <div class="p-3 bg-gray-50 rounded border text-sm text-gray-700">
+                                <p class="font-semibold mb-1">Webhooks</p>
+                                <p class="text-xs text-gray-600">
+                                    Configure o webhook no painel do Mercado Pago apontando para: <br>
+                                    <code>${((getApiBase()||'SUA_API').replace(/\/api$/,''))}/webhooks/mercadopago</code>
+                                    <span class="block text-[11px] text-gray-500 mt-1">(Se você configurar a API_BASE_URL sem o <code>/api</code>, também funciona.)</span>
+                                </p>
+                            </div>
+
+                            <button id="btn-save-mp" class="w-full bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded">
+                                Salvar Mercado Pago
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CORREIOS -->
+                    <div class="bg-white p-6 rounded-lg shadow-md lg:col-span-2">
+                        <h3 class="text-xl font-semibold mb-4 text-primary-blue">Frete & Etiqueta (Correios API)</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            As credenciais do Correios (usuário/senha, contrato, cartão, DR) normalmente ficam no <code>.env</code> do backend.
+                            Aqui você define o que o checkout usa como padrão (CEP origem, serviços, dimensões fallback).
+                        </p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label class="flex items-center gap-2 md:col-span-2">
+                                <input id="correios-enabled" type="checkbox" ${shipping?.correios?.enabled ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Ativar Correios</span>
+                            </label>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">CEP de origem</label>
+                                <input id="correios-origem-cep" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                       placeholder="00000-000" value="${shipping?.correios?.origemCep || ''}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Serviços (códigos separados por vírgula)</label>
+                                <input id="correios-servicos" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                       value="${(shipping?.correios?.servicos || []).join(',')}">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Peso padrão (kg)</label>
+                                <input id="correios-peso" type="number" step="0.01" min="0.1"
+                                       class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                       value="${shipping?.correios?.pesoKgPadrao ?? 1}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Valor declarado padrão (R$)</label>
+                                <input id="correios-valor-declarado" type="number" step="0.01" min="0"
+                                       class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                       value="${shipping?.correios?.valorDeclaradoPadrao ?? 0}">
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-3 md:col-span-2">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Altura (cm)</label>
+                                    <input id="correios-altura" type="number" step="1" min="1" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                           value="${shipping?.correios?.alturaCmPadrao ?? 10}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Largura (cm)</label>
+                                    <input id="correios-largura" type="number" step="1" min="1" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                           value="${shipping?.correios?.larguraCmPadrao ?? 15}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Comprimento (cm)</label>
+                                    <input id="correios-comprimento" type="number" step="1" min="1" class="mt-1 w-full border border-gray-300 rounded-md p-2"
+                                           value="${shipping?.correios?.comprimentoCmPadrao ?? 20}">
+                                </div>
+                            </div>
+
+                            <button id="btn-save-shipping" class="md:col-span-2 bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded">
+                                Salvar Frete/Correios
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- NOTIFICAÇÕES -->
+                    <div class="bg-white p-6 rounded-lg shadow-md lg:col-span-2">
+                        <h3 class="text-xl font-semibold mb-4 text-primary-blue">Notificações (Vendas & Pendências)</h3>
+                        <p class="text-sm text-gray-600 mb-4">
+                            Mostra um sino no topo com contador. Baseado nos pedidos do Firestore.
+                        </p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <label class="flex items-center gap-2">
+                                <input id="notif-enabled" type="checkbox" ${notif?.enabled ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Ativar</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input id="notif-only-pending" type="checkbox" ${notif?.onlyPending ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Só pendências</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input id="notif-sound" type="checkbox" ${notif?.sound ? 'checked' : ''}>
+                                <span class="text-sm font-medium">Som (opcional)</span>
+                            </label>
+
+                            <button id="btn-save-notif" class="md:col-span-3 bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded">
+                                Salvar Notificações
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-md lg:col-span-2">
+                        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="text-xl font-semibold text-primary-blue">WhatsApp Automático (Evolution API)</h3>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    Esta integração envia avisos automáticos de status do pedido e registra mensagens recebidas via webhook no SAC.
+                                </p>
+                            </div>
+                            <div class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                                Endpoint sugerido: <code class="break-all">${suggestedWebhookUrl}</code>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <label class="flex items-center gap-2">
+                                    <input id="wa-enabled" type="checkbox" ${whatsapp?.enabled ? 'checked' : ''}>
+                                    <span class="text-sm font-medium">Ativar integração com a Evolution API</span>
+                                </label>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">URL da Evolution API</label>
+                                    <input id="wa-api-url" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsappApiUrl}" placeholder="http://167.86.108.75:8081">
+                                    <p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">Use exatamente <strong>http://167.86.108.75:8081</strong>. O painel não deve chamar essa URL direto pelo navegador; quem conversa com a Contabo é o backend do Firebase para evitar bloqueio de conteúdo misto (HTTPS x HTTP).</p>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Instância</label>
+                                        <input id="wa-instance" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsappInstanceName}" placeholder="Ariana_Oficial">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">DDI padrão</label>
+                                        <input id="wa-country-code" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsapp?.defaultCountryCode || '55'}" placeholder="55">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">API Key</label>
+                                    <input id="wa-api-key" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsapp?.apiKey || 'ariana_moveis_2026'}" placeholder="ariana_moveis_2026">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Webhook URL</label>
+                                    <input id="wa-webhook-url" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${suggestedWebhookUrl}" placeholder="https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api/whatsapp-callback">
+                                    <p class="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">Webhook oficial da Ariana Móveis: <strong>https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api/whatsapp-callback</strong></p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Eventos do webhook</label>
+                                    <p class="mt-1 text-xs text-gray-500">Mantenha <strong>MESSAGES_UPSERT</strong> marcado, pois é ele que alimenta o SAC &amp; Ouvidoria quando o cliente chama no WhatsApp.</p>
+                                    <input id="wa-events" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsappEvents}" placeholder="MESSAGES_UPSERT, MESSAGES_UPDATE">
+                                    <p class="text-xs text-gray-500 mt-1">Use pelo menos: <strong>MESSAGES_UPSERT</strong>, <strong>MESSAGES_UPDATE</strong>, <strong>SEND_MESSAGE</strong> e <strong>CONNECTION_UPDATE</strong>.</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <label class="flex items-center gap-2">
+                                    <input id="wa-auto-notify" type="checkbox" ${whatsapp?.autoNotifyOrderStatus !== false ? 'checked' : ''}>
+                                    <span class="text-sm font-medium">Avisar cliente automaticamente em mudança de status</span>
+                                </label>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Template da mensagem</label>
+                                    <textarea id="wa-status-template" rows="5" class="mt-1 w-full border border-gray-300 rounded-md p-2">${whatsapp?.statusTemplate || 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}'}</textarea>
+                                    <p class="text-xs text-gray-500 mt-1">Variáveis: <code>{customerName}</code>, <code>{orderId}</code>, <code>{status}</code>, <code>{trackingLine}</code>, <code>{trackingCode}</code>, <code>{storeName}</code>.</p>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Número de teste</label>
+                                        <input id="wa-test-number" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsapp?.testNumber || ''}" placeholder="5531999999999">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Mensagem de teste</label>
+                                        <input id="wa-test-message" class="mt-1 w-full border border-gray-300 rounded-md p-2" value="${whatsapp?.testMessage || 'Olá! Este é um teste da integração WhatsApp da Ariana Móveis.'}" placeholder="Mensagem de teste">
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-3 pt-2">
+                                    <button id="btn-save-whatsapp" class="bg-primary-blue hover:bg-secondary-light-blue text-white font-bold py-2 px-4 rounded">Salvar WhatsApp</button>
+                                    <button id="btn-sync-whatsapp-webhook" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded">Sincronizar Webhook</button>
+                                    <button id="btn-test-whatsapp" class="bg-success-green hover:opacity-90 text-white font-bold py-2 px-4 rounded">Enviar teste</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // handlers (somente nesta view)
+            document.getElementById('btn-save-api-base')?.addEventListener('click', () => {
+                const v = document.getElementById('settings-api-base').value.trim();
+                if (!v) { displayMessage('Informe a API_BASE_URL.', 'error'); return; }
+                localStorage.setItem('API_BASE_URL', v.replace(/\/+$/, ''));
+                displayMessage('API_BASE_URL salva no navegador.', 'success');
+            });
+
+            // Testes rápidos para validar a integração (sem mexer no backend)
+            document.getElementById('btn-test-api')?.addEventListener('click', async () => {
+                const out = document.getElementById('api-test-result');
+                try{
+                    if (out) out.textContent = 'Testando API...';
+                    // endpoint "leve" (tenta /health primeiro, depois /)
+                    let ok = false;
+                    try{
+                        await apiFetch('/health', { method: 'GET' });
+                        ok = true;
+                    }catch(e1){
+                        // fallback: tenta raiz
+                        await apiFetch('/', { method: 'GET' });
+                        ok = true;
+                    }
+                    if (out) out.textContent = ok ? '✅ API respondeu.' : '⚠️ Não foi possível validar.';
+                }catch(e){
+                    if (out) out.textContent = '❌ Erro: ' + (e?.message || e);
+                }
+            });
+
+            document.getElementById('btn-test-mp')?.addEventListener('click', async () => {
+                const out = document.getElementById('api-test-result');
+                try{
+                    if (out) out.textContent = 'Testando Mercado Pago (Pix)...';
+
+                    // Alguns backends usam /payments/mp/pix, outros /mp/pix.
+                    // Tentamos os dois para não quebrar.
+                    const payload = { orderId: 'TESTE-ADMIN-' + Date.now(), amount: 1, email: 'teste@teste.com', name: 'Teste', cpf: '19119119100' };
+
+                    let resp = null;
+                    try{
+                        resp = await apiFetch('/api/payments/mp/pix', { method: 'POST', body: JSON.stringify(payload) });
+                    }catch(e1){
+                        try{
+                            resp = await apiFetch('/payments/mp/pix', { method: 'POST', body: JSON.stringify(payload) });
+                        }catch(e2){
+                            resp = await apiFetch('/mp/pix', { method: 'POST', body: JSON.stringify(payload) });
+                        }
+                    }
+
+                    if (out) out.textContent = '✅ MP respondeu. Verifique o retorno no console.';
+                    console.log('[ADMIN] Teste MP PIX resp:', resp);
+                }catch(e){
+                    if (out) out.textContent = '❌ Erro MP: ' + (e?.message || e);
+                }
+            });
+
+            document.getElementById('btn-save-payments')?.addEventListener('click', async () => {
+                try{
+                    const data = {
+                        cielo: {
+                            enabled: !!document.getElementById('cielo-enabled').checked,
+                            env: document.getElementById('cielo-env').value,
+                            captureAuto: !!document.getElementById('cielo-capture-auto').checked,
+                            maxInstallments: Number(document.getElementById('cielo-max-installments').value || 12),
+                            softDescriptor: String(document.getElementById('cielo-soft').value || 'ARIANAMOVEIS').slice(0,13),
+                        },
+                        mercadopago: payments?.mercadopago || {}
+                    };
+                    await writeSettingsDoc('payments', data);
+                    displayMessage('Pagamentos salvos!', 'success');
+                }catch(e){
+                    console.error(e);
+                    displayMessage('Erro ao salvar pagamentos: ' + e.message, 'error');
+                }
+            });
+
+            document.getElementById('btn-save-mp')?.addEventListener('click', async () => {
+                try{
+                    const data = {
+                        cielo: payments?.cielo || {},
+                        mercadopago: {
+                            enabled: !!document.getElementById('mp-enabled').checked,
+                            pix: !!document.getElementById('mp-pix').checked,
+                            boleto: !!document.getElementById('mp-boleto').checked,
+                        }
+                    };
+                    await writeSettingsDoc('payments', data);
+                    displayMessage('Mercado Pago salvo!', 'success');
+                }catch(e){
+                    console.error(e);
+                    displayMessage('Erro ao salvar Mercado Pago: ' + e.message, 'error');
+                }
+            });
+
+            document.getElementById('btn-save-shipping')?.addEventListener('click', async () => {
+                try{
+                    const serv = document.getElementById('correios-servicos').value
+                        .split(',').map(s=>s.trim()).filter(Boolean);
+                    const data = {
+                        correios: {
+                            enabled: !!document.getElementById('correios-enabled').checked,
+                            origemCep: document.getElementById('correios-origem-cep').value.trim(),
+                            servicos: serv,
+                            pesoKgPadrao: Number(document.getElementById('correios-peso').value || 1),
+                            alturaCmPadrao: Number(document.getElementById('correios-altura').value || 10),
+                            larguraCmPadrao: Number(document.getElementById('correios-largura').value || 15),
+                            comprimentoCmPadrao: Number(document.getElementById('correios-comprimento').value || 20),
+                            valorDeclaradoPadrao: Number(document.getElementById('correios-valor-declarado').value || 0),
+                        }
+                    };
+                    await writeSettingsDoc('shipping', data);
+                    displayMessage('Frete/Correios salvo!', 'success');
+                }catch(e){
+                    console.error(e);
+                    displayMessage('Erro ao salvar frete: ' + e.message, 'error');
+                }
+            });
+
+            document.getElementById('btn-save-notif')?.addEventListener('click', async () => {
+                try{
+                    const data = {
+                        enabled: !!document.getElementById('notif-enabled').checked,
+                        onlyPending: !!document.getElementById('notif-only-pending').checked,
+                        sound: !!document.getElementById('notif-sound').checked,
+                    };
+                    await writeSettingsDoc('notifications', data);
+                    displayMessage('Notificações salvas!', 'success');
+                }catch(e){
+                    console.error(e);
+                    displayMessage('Erro ao salvar notificações: ' + e.message, 'error');
+                }
+            });
+
+            document.getElementById('btn-save-whatsapp')?.addEventListener('click', async () => {
+                try {
+                    const data = {
+                        enabled: !!document.getElementById('wa-enabled').checked,
+                        apiUrl: (document.getElementById('wa-api-url').value.trim() || 'http://167.86.108.75:8081').replace(/\/+$/, ''),
+                        apiKey: document.getElementById('wa-api-key').value.trim(),
+                        instanceName: document.getElementById('wa-instance').value.trim(),
+                        webhookUrl: document.getElementById('wa-webhook-url').value.trim(),
+                        webhookEvents: document.getElementById('wa-events').value.split(',').map(v => v.trim()).filter(Boolean),
+                        autoNotifyOrderStatus: !!document.getElementById('wa-auto-notify').checked,
+                        defaultCountryCode: document.getElementById('wa-country-code').value.replace(/\D/g, '').trim() || '55',
+                        statusTemplate: document.getElementById('wa-status-template').value.trim(),
+                        testNumber: document.getElementById('wa-test-number').value.replace(/\D/g, '').trim(),
+                        testMessage: document.getElementById('wa-test-message').value.trim(),
+                    };
+                    await writeSettingsDoc('whatsapp_evolution', data);
+                    displayMessage('Configuração do WhatsApp salva!', 'success');
+                } catch (e) {
+                    console.error(e);
+                    displayMessage('Erro ao salvar WhatsApp: ' + e.message, 'error');
+                }
+            });
+
+            document.getElementById('btn-sync-whatsapp-webhook')?.addEventListener('click', async () => {
+                try {
+                    const payload = {
+                        enabled: !!document.getElementById('wa-enabled').checked,
+                        apiUrl: (document.getElementById('wa-api-url').value.trim() || 'http://167.86.108.75:8081').replace(/\/+$/, ''),
+                        apiKey: document.getElementById('wa-api-key').value.trim(),
+                        instanceName: document.getElementById('wa-instance').value.trim(),
+                        webhookUrl: document.getElementById('wa-webhook-url').value.trim(),
+                        webhookEvents: document.getElementById('wa-events').value.split(',').map(v => v.trim()).filter(Boolean),
+                        autoNotifyOrderStatus: !!document.getElementById('wa-auto-notify').checked,
+                        defaultCountryCode: document.getElementById('wa-country-code').value.replace(/\D/g, '').trim() || '55',
+                        statusTemplate: document.getElementById('wa-status-template').value.trim(),
+                        testNumber: document.getElementById('wa-test-number').value.replace(/\D/g, '').trim(),
+                        testMessage: document.getElementById('wa-test-message').value.trim(),
+                    };
+                    await writeSettingsDoc('whatsapp_evolution', payload);
+                    const data = await apiFetch('/api/whatsapp/evolution/webhook/sync', { method:'POST', body: JSON.stringify({}) });
+                    console.log('[admin][whatsapp][sync]', data);
+                    displayMessage('Webhook sincronizado com a Evolution!', 'success');
+                } catch (e) {
+                    console.error(e);
+                    displayMessage('Erro ao sincronizar webhook: ' + e.message, 'error');
+                }
+            });
+
+            document.getElementById('btn-test-whatsapp')?.addEventListener('click', async () => {
+                try {
+                    const payload = {
+                        enabled: !!document.getElementById('wa-enabled').checked,
+                        apiUrl: (document.getElementById('wa-api-url').value.trim() || 'http://167.86.108.75:8081').replace(/\/+$/, ''),
+                        apiKey: document.getElementById('wa-api-key').value.trim(),
+                        instanceName: document.getElementById('wa-instance').value.trim(),
+                        webhookUrl: document.getElementById('wa-webhook-url').value.trim(),
+                        webhookEvents: document.getElementById('wa-events').value.split(',').map(v => v.trim()).filter(Boolean),
+                        autoNotifyOrderStatus: !!document.getElementById('wa-auto-notify').checked,
+                        defaultCountryCode: document.getElementById('wa-country-code').value.replace(/\D/g, '').trim() || '55',
+                        statusTemplate: document.getElementById('wa-status-template').value.trim(),
+                        testNumber: document.getElementById('wa-test-number').value.replace(/\D/g, '').trim(),
+                        testMessage: document.getElementById('wa-test-message').value.trim(),
+                    };
+                    await writeSettingsDoc('whatsapp_evolution', payload);
+                    const data = await apiFetch('/api/whatsapp/evolution/send-text', {
+                        method:'POST',
+                        body: JSON.stringify({
+                            number: payload.testNumber,
+                            text: payload.testMessage
+                        })
+                    });
+                    console.log('[admin][whatsapp][test]', data);
+                    displayMessage('Mensagem de teste enviada!', 'success');
+                } catch (e) {
+                    console.error(e);
+                    displayMessage('Erro ao enviar teste no WhatsApp: ' + e.message, 'error');
+                }
+            });
+        };
+// Conecta (ou reconecta) o listener do input de certificado da Cora.
+        // Precisa ser chamado após a view "payments" ser renderizada (pois o input é criado dinamicamente).
+        window.setupCoraFileInput = () => {
+            const fileInput = document.getElementById('cora-cert');
+            const fileStatus = document.getElementById('cora-file-status');
+            if (!fileInput || !fileStatus) return;
+
+            // Evita múltiplos listeners
+            if (fileInput.dataset.bound === '1') return;
+            fileInput.dataset.bound = '1';
+
+            fileInput.addEventListener('change', () => {
+                fileStatus.textContent = (fileInput.files && fileInput.files.length > 0)
+                    ? fileInput.files[0].name
+                    : 'Nenhum arquivo escolhido.';
+            });
+        };
+
+        const initApp = async () => {
+            await initFirebase();
+            // Se o Firebase não iniciou (config incorreta / bloqueio), cai para simulação
+            if (typeof firebaseReady !== 'undefined' && !firebaseReady) {
+                loadInitialSimulatedData();
+                return;
+            }
+
+            // Se o Firebase não estiver configurado corretamente (credenciais de exemplo),
+            // carrega dados simulados.
+            if (firebaseConfig.apiKey === "SUA_API_KEY_AQUI") {
+                loadInitialSimulatedData();
+            }
+
+            // Inicia o listener de autenticação (simulado ou real)
+            setupAuthStateListener();
+
+            // Toggle da Sidebar (com proteção)
+            const toggleBtn = document.getElementById('sidebar-toggle');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    document.getElementById('sidebar')?.classList.toggle('-translate-x-full');
+                });
+            }
+        };
+
+        // Inicializa somente quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+
+ // Inicia a aplicação e os listeners
+    
+
+        // -------------------- Admin Actions (Pagamentos / Correios) --------------------
+        const safeJsonString = (v) => {
+            try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+        };
+
+        window.adminCreateMpPix = async (orderId) => {
+            try{
+                const data = await apiFetch('/api/payments/mp/pix', { method:'POST', body: JSON.stringify({ orderId }) });
+                displayMessage('Pix criado! Veja detalhes no console.', 'success');
+                console.log('[admin][mp][pix]', data);
+                alert('Pix criado.\n\nQR Copia e Cola:\n' + (data.qr_code || 'N/A'));
+            }catch(e){
+                console.error(e);
+                displayMessage('Erro Pix MP: ' + e.message, 'error');
+            }
+        };
+
+        window.adminCreateMpBoleto = async (orderId) => {
+            try{
+                const data = await apiFetch('/api/payments/mp/boleto', { method:'POST', body: JSON.stringify({ orderId }) });
+                displayMessage('Boleto criado! Abrindo link...', 'success');
+                console.log('[admin][mp][boleto]', data);
+                if (data.boleto_url) window.open(data.boleto_url, '_blank');
+                else alert('Boleto criado, mas sem URL. Confira no console.');
+            }catch(e){
+                console.error(e);
+                displayMessage('Erro Boleto MP: ' + e.message, 'error');
+            }
+        };
+
+        window.adminGenerateCorreiosLabel = async (orderId) => {
+            try{
+                const data = await apiFetch('/api/shipping/correios/label', { method:'POST', body: JSON.stringify({ orderId }) });
+                displayMessage('Etiqueta gerada! Abra para imprimir.', 'success');
+                console.log('[admin][correios][label]', data);
+            }catch(e){
+                console.error(e);
+                displayMessage('Erro etiqueta Correios: ' + e.message, 'error');
+            }
+        };
+
+        window.adminOpenCorreiosLabel = (orderId) => {
+            try{
+                const base = getApiBase();
+                if (!base) { displayMessage('API_BASE_URL não configurada.', 'error'); return; }
+                const url = `${base}/api/shipping/correios/label/${encodeURIComponent(orderId)}/html`;
+                window.open(url, '_blank');
+            }catch(e){
+                console.error(e);
+                displayMessage('Erro ao abrir etiqueta: ' + e.message, 'error');
+            }
+        };
+
+        window.adminTrackCorreios = async (code) => {
+            try{
+                const tracking = String(code || '').trim();
+                if (!tracking) { displayMessage('Informe o código de rastreio no pedido.', 'error'); return; }
+                const data = await apiFetch(`/api/shipping/correios/tracking/${encodeURIComponent(tracking)}`, { method:'GET' });
+                console.log('[admin][correios][tracking]', data);
+                displayMessage('Rastreio carregado (veja no console).', 'success');
+                alert('Rastreio carregado.\n\nAbra o console (F12) para ver os eventos.');
+            }catch(e){
+                console.error(e);
+                displayMessage('Erro rastreio Correios: ' + e.message, 'error');
+            }
+        };
+
+        window.adminQueryCieloPayment = async (paymentId) => {
+            try{
+                const pid = String(paymentId || '').trim();
+                if (!pid) { displayMessage('Sem PaymentId da Cielo neste pedido.', 'error'); return; }
+                const data = await apiFetch(`/api/payments/cielo/query/${encodeURIComponent(pid)}`, { method:'GET' });
+                console.log('[admin][cielo][query]', data);
+                displayMessage('Consulta Cielo OK (veja no console).', 'success');
+                alert('Consulta Cielo OK.\n\nAbra o console (F12) para ver a resposta.');
+            }catch(e){
+                console.error(e);
+                displayMessage('Erro consulta Cielo: ' + e.message, 'error');
+            }
+        };
+
+        // -------------------- Notificações (sino) --------------------
+        const notifState = { enabled: true, onlyPending: true, sound: false, lastSeenIds: new Set() };
+
+        const isPendingStatus = (s) => {
+            const v = String(s || '').toLowerCase();
+            return ['pending','aguardando','aguardando_pagamento','awaiting_payment','unpaid'].some(k => v.includes(k));
+        };
+
+        const buildNotifList = (orders) => {
+            const box = document.getElementById('notif-list');
+            if (!box) return;
+
+            if (!orders.length) {
+                box.innerHTML = '<div class="p-4 text-sm text-gray-500">Sem notificações.</div>';
+                return;
+            }
+
+            box.innerHTML = orders.slice(0, 20).map(o => {
+                const total = formatCurrency(calcOrderTotal(o));
+                const created = formatDateTime(o.createdAt);
+                const status = o.status || 'pending';
+                return `
+                    <div class="p-3 border-b hover:bg-gray-50 cursor-pointer" onclick="window.openOrderDetailModal('${o.id}')">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold text-gray-800">Pedido #${o.id}</span>
+                            <span class="text-xs text-gray-500">${created}</span>
+                        </div>
+                        <div class="text-sm text-gray-700 mt-1">Status: <span class="font-semibold">${status}</span> • Total: <span class="font-semibold">${total}</span></div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const refreshNotif = async () => {
+            try{
+                const ncfg = await readSettingsDoc('notifications', { enabled: true, sound: false, onlyPending: true });
+                notifState.enabled = !!ncfg.enabled;
+                notifState.onlyPending = !!ncfg.onlyPending;
+                notifState.sound = !!ncfg.sound;
+            }catch(_){}
+
+            const btn = document.getElementById('notif-btn');
+            const badge = document.getElementById('notif-badge');
+            const dd = document.getElementById('notif-dropdown');
+            if (!btn || !badge || !dd) return;
+
+            if (!notifState.enabled) {
+                btn.classList.add('hidden');
+                dd.classList.add('hidden');
+                return;
+            } else {
+                btn.classList.remove('hidden');
+            }
+
+            const pool = (allOrdersCache || []).slice()
+                .sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+
+            const filtered = notifState.onlyPending ? pool.filter(o => isPendingStatus(o.status)) : pool;
+
+            const count = filtered.length;
+            badge.textContent = String(count);
+            badge.classList.toggle('hidden', count <= 0);
+
+            buildNotifList(filtered);
+
+            // som opcional quando entra pedido novo/pending
+            if (notifState.sound && count > 0) {
+                const newestId = filtered[0]?.id;
+                if (newestId && !notifState.lastSeenIds.has(newestId)) {
+                    notifState.lastSeenIds.add(newestId);
+                    try { new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=').play().catch(()=>{}); } catch(_){}
+                }
+            }
+        };
+
+        // Toggle dropdown
+        document.addEventListener('click', (ev) => {
+            const btn = document.getElementById('notif-btn');
+            const dd = document.getElementById('notif-dropdown');
+            if (!btn || !dd) return;
+
+            const inside = dd.contains(ev.target);
+            const isBtn = btn.contains(ev.target);
+
+            if (isBtn) {
+                dd.classList.toggle('hidden');
+            } else if (!inside) {
+                dd.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('click', (ev) => {
+            if (ev.target && ev.target.id === 'notif-mark-read') {
+                ev.preventDefault();
+                const badge = document.getElementById('notif-badge');
+                if (badge) { badge.textContent = '0'; badge.classList.add('hidden'); }
+                const dd = document.getElementById('notif-dropdown');
+                dd?.classList.add('hidden');
+            }
+        });
+
+        // Chama quando pedidos forem carregados/atualizados
+        const __origUpdateOrdersCache = window.updateOrdersCacheFromSnapshot;
+        // se existir, encadeia; senão, só roda refresh no fim do loadOrders
+        window.updateOrdersCacheFromSnapshot = (snap) => {
+            if (typeof __origUpdateOrdersCache === 'function') __origUpdateOrdersCache(snap);
+            refreshNotif();
+        };
+
+        // fallback: atualiza a cada 8s
+        setInterval(() => { try { refreshNotif(); } catch(_){} }, 8000);
+
+</script>
+
+  <a href="admin_pagamentos_global.html"
+     class="fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-primary-blue text-white font-black shadow-xl hover:bg-dark-bg transition">
+    <i class="fas fa-credit-card"></i> Pagamentos (Global)
+  </a>
+
+  <script>
+  // Service worker (PWA)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log("🚀 PWA Admin: Ativo", reg.scope))
+        .catch(err => console.log("❌ Erro no SW Admin:", err));
+    });
+  }
+  // Auth guard: a autenticação é controlada pelo módulo principal (Firebase v9).
+  // Removido o trecho legado `firebase.auth()` (causava: firebase is not defined).
+</script>
+  </div>
+
+<script type="module" src="firebase-config.js"></script>
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

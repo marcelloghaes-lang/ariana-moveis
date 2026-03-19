@@ -1,0 +1,1101 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+   <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <title>Nosso Compromisso | Ariana Móveis</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
+
+        /* CSS ORIGINAL QUE MANTÉM O ALINHAMENTO DA IMAGEM */
+        .header-ajustado {
+            background-color: #2E6DA4;
+            color: white;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .voltar-loja-original {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .ambiente-seguro-original {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+        }
+
+        .escudo-original {
+            width: 45px;
+            height: 45px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .texto-seguro-original {
+            font-size: 13px;
+            line-height: 1.1;
+            text-transform: uppercase;
+        }
+
+        .texto-seguro-original strong {
+            font-size: 18px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body class="bg-fundo-claro">
+    <header class="shadow-xl">
+        <div class="header-ajustado">
+            
+            <a href="index.html" class="voltar-loja-original">
+                <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
+                <span>VOLTAR PARA A LOJA</span>
+            </a>
+
+            <div class="text-2xl font-bold tracking-wider uppercase">
+                ARIANA MOVEIS
+            </div>
+
+            <div class="ambiente-seguro-original">
+                <div class="escudo-original">
+                    <svg viewBox="0 0 24 24" width="28" height="28">
+                        <path d="M12 2L3 6v4a9 9 0 009 9 9 9 0 009-9V6L12 2z" fill="#2E6DA4"/>
+                        <path d="M12 11V7m0 0a1 1 0 011 1v3a1 1 0 01-2 0V8a1 1 0 011-1z" stroke="white" stroke-width="1.5" fill="none"/>
+                        <rect x="10" y="11" width="4" height="4" rx="1" fill="white"/>
+                    </svg>
+                </div>
+                <div class="texto-seguro-original">
+                    Ambiente <br>
+                    <strong>SEGURO</strong>
+                </div>
+            </div>
+
+        </div>
+    </header>
+    
+    <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 mt-10">
+        <h1 class="text-4xl font-extrabold text-primary-blue mb-8 border-b pb-4">Seu Carrinho</h1>
+        
+        <div id="message-box" class="hidden"></div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div id="cart-items-container" class="lg:col-span-2 space-y-4">
+                <div class="bg-gray-100 p-4 rounded-lg font-medium text-center text-gray-500" id="loading-message">
+                    Carregando itens do carrinho...
+                </div>
+            </div>
+            
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 sticky top-28">
+                    <h2 class="text-2xl font-bold text-text-dark mb-4">Resumo</h2>
+                    
+                    <div class="space-y-3 border-b pb-4 mb-4 text-gray-700">
+                        <div class="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span id="subtotal">R$ 0,00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Frete:</span>
+                            <span id="frete" class="flex flex-col items-end gap-2">
+  <span id="frete-text">A calcular</span>
+  <span class="flex items-center gap-2">
+    <input id="frete-cep" placeholder="CEP" maxlength="9" class="border rounded-md px-2 py-1 text-xs w-24 text-gray-700" />
+    <button id="btn-calcular-frete" class="text-xs font-bold text-primary-blue border border-primary-blue px-2 py-1 rounded-md hover:bg-primary-blue hover:text-white transition">Calcular</button>
+  </span>
+</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Desconto:</span>
+                            <span id="desconto" class="text-red-500">- R$ 0,00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between text-xl font-extrabold text-primary-blue mb-6">
+                        <span>Total:</span>
+                        <span id="total-price">R$ 0,00</span>
+                    </div>
+
+                    <button id="finalizar-compra-btn" class="block w-full text-center bg-primary-blue text-white py-3 rounded-lg text-lg font-semibold hover:bg-dark-bg transition-colors shadow-lg">
+                        Finalizar Compra
+                    </button>
+                    <a href="index.html" class="block w-full text-center text-primary-blue mt-3 py-2 border border-primary-blue rounded-lg hover:bg-primary-blue hover:text-white transition-colors">
+                        Continuar Comprando
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-dark-bg text-white mt-12 pt-10">
+    <div class="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-12 pb-8">
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+                <li><a href="assistencia.html" class="hover:text-secondary-light-blue transition-colors">Assistência Técnica</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
+            </div>
+            
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-nowrap items-center gap-2">
+                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>
+    
+    <script type="module">
+        // Configuração REAL do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c99c67c70",
+        };
+        
+        const initialAuthToken = null; 
+
+        // Imports do Firebase 
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        let db = null;
+        let auth = null;
+        let userId = null;
+        
+        // VARIÁVEIS DE LÓGICA DO CARRINHO
+        let cartItems = [];
+  // ================= ID/DIMENSÕES (compatibilidade) =================
+  function resolveCartProductId(it) {
+    if (!it) return null;
+    return it.id || it.productId || it.produtoId || it.docId || it.firestoreId || it.productDocId || it.pid || it.sku || it.codigo || it.code || null;
+  }
+
+  
+  function computeCartShippingBox(items) {
+    // Regras simples e consistentes:
+    // - Peso: soma pesoKg * quantidade (fallback 5kg por item)
+    // - Comprimento/Largura: usa o maior entre itens (fallback 60/50)
+    // - Altura: soma alturas (fallback 20 por item)
+    var totalPesoKg = 0;
+    var maxComprimento = 60;
+    var maxLargura = 50;
+    var totalAltura = 0;
+
+    for (var i=0; i<(items||[]).length; i++) {
+      var it = items[i] || {};
+      var q = Number(it.quantity || it.qty || it.qtd || 1) || 1;
+      var peso = Number(it.pesoKg) || 5;
+      var comp = Number(it.comprimentoCm) || 60;
+      var larg = Number(it.larguraCm) || 50;
+      var alt = Number(it.alturaCm) || 20;
+
+      totalPesoKg += peso * q;
+      if (comp > maxComprimento) maxComprimento = comp;
+      if (larg > maxLargura) maxLargura = larg;
+      totalAltura += alt * q;
+    }
+    return { totalPesoKg: totalPesoKg, comprimento: maxComprimento, largura: maxLargura, altura: totalAltura };
+  }
+
+  function normalizeItemShippingFields(it) {
+    var dims = (it && (it.dimensions || it.dimension || it.medidas || it.dimensoes)) || {};
+    var pesoKg = (it && (it.pesoKg != null ? it.pesoKg : (it.weightKg != null ? it.weightKg : (it.peso != null ? it.peso : it.shippingWeightKg)))) ;
+    var alturaCm = (it && (it.alturaCm != null ? it.alturaCm : (it.heightCm != null ? it.heightCm : (it.altura != null ? it.altura : (dims.altura != null ? dims.altura : dims.height))))) ;
+    var larguraCm = (it && (it.larguraCm != null ? it.larguraCm : (it.widthCm != null ? it.widthCm : (it.largura != null ? it.largura : (dims.largura != null ? dims.largura : dims.width))))) ;
+    var comprimentoCm = (it && (it.comprimentoCm != null ? it.comprimentoCm : (it.lengthCm != null ? it.lengthCm : (it.comprimento != null ? it.comprimento : (dims.comprimento != null ? dims.comprimento : dims.length))))) ;
+
+    return {
+      pesoKg: pesoKg != null ? Number(pesoKg) : null,
+      alturaCm: alturaCm != null ? Number(alturaCm) : null,
+      larguraCm: larguraCm != null ? Number(larguraCm) : null,
+      comprimentoCm: comprimentoCm != null ? Number(comprimentoCm) : null
+    };
+  }
+ // Deve ser um array de objetos [ {id, name, price, quantity, ...} ]
+        const DISCOUNT_VALUE = 0.00; // Desconto fixo de exemplo
+
+// =========================================================
+// MODO SEGURO DE CUSTO - evita chamadas automáticas ao backend
+// Ative manualmente no navegador se precisar testar integrações:
+// localStorage.setItem('ENABLE_REMOTE_SHIPPING_API','true')
+// localStorage.setItem('ENABLE_FIRESTORE_SETTINGS','true')
+// localStorage.setItem('ENABLE_PRODUCT_RECOMMENDATIONS','true')
+// localStorage.setItem('ENABLE_PRODUCT_SHIPPING_FETCH','true')
+// =========================================================
+const COST_SAFE_FLAGS = {
+  enableRemoteShippingApi: localStorage.getItem('ENABLE_REMOTE_SHIPPING_API') === 'true',
+  enableFirestoreSettings: localStorage.getItem('ENABLE_FIRESTORE_SETTINGS') === 'true',
+  enableProductRecommendations: localStorage.getItem('ENABLE_PRODUCT_RECOMMENDATIONS') === 'true',
+  enableProductShippingFetch: localStorage.getItem('ENABLE_PRODUCT_SHIPPING_FETCH') === 'true',
+};
+
+// =========================================================
+// Integração: Settings (Firestore) + Frete (Correios via API)
+// =========================================================
+const getApiBaseUrl = () => {
+    const v = localStorage.getItem('API_BASE_URL') || '';
+    if (v) return v.replace(/\/+$/,'' );
+    return COST_SAFE_FLAGS.enableRemoteShippingApi ? 'https://api-4dx5luiipq-rj.a.run.app' : '';
+};
+
+let shippingSettings = null;
+let paymentSettings = null;
+let shippingState = { status: 'idle', price: 0, service: null, raw: null, cep: null };
+
+const maskCep = (v) => String(v||'').replace(/\D/g,'').replace(/^(\d{5})(\d)/,'$1-$2').slice(0,9);
+
+const normalizeShippingDefaults = (s = {}) => ({
+    originCep: (s.originCep || s.cepOrigem || '39740-000'),
+    services: Array.isArray(s.services) ? s.services : (Array.isArray(s.servicos) ? s.servicos : ['03328','03298','03220','03212']),
+    defaultWeightKg: Number(s.defaultWeightKg ?? s.pesoKgPadrao ?? 1) || 1,
+    defaultHeightCm: Number(s.defaultHeightCm ?? s.alturaCmPadrao ?? 10) || 10,
+    defaultWidthCm: Number(s.defaultWidthCm ?? s.larguraCmPadrao ?? 15) || 15,
+    defaultLengthCm: Number(s.defaultLengthCm ?? s.comprimentoCmPadrao ?? 20) || 20,
+    defaultDeclaredValue: Number(s.defaultDeclaredValue ?? s.valorDeclaradoPadrao ?? 0) || 0,
+    freeShippingAbove: Number(s.freeShippingAbove ?? s.freteGratisAcima ?? 0) || 0,
+});
+
+const productShippingCache = new Map();
+
+async function loadSettingsOnce() {
+    if (shippingSettings && paymentSettings) return;
+    if (!COST_SAFE_FLAGS.enableFirestoreSettings || !db) {
+        shippingSettings = normalizeShippingDefaults({});
+        paymentSettings = {};
+        return;
+    }
+    try {
+        const [shipSnap, paySnap] = await Promise.all([
+            getDoc(doc(db, 'settings', 'shipping')),
+            getDoc(doc(db, 'settings', 'payments')),
+        ]);
+        shippingSettings = normalizeShippingDefaults(shipSnap.exists() ? shipSnap.data() : {});
+        paymentSettings = paySnap.exists() ? paySnap.data() : {};
+    } catch (e) {
+        console.warn('[cart] Falha ao ler settings/*:', e);
+        shippingSettings = normalizeShippingDefaults({});
+        paymentSettings = {};
+    }
+}
+
+async function getProductShipping(productId) {
+    const id = String(productId || '').trim();
+    if (!id) return null;
+    if (productShippingCache.has(id)) return productShippingCache.get(id);
+    if (!COST_SAFE_FLAGS.enableProductShippingFetch || !db) {
+        productShippingCache.set(id, null);
+        return null;
+    }
+    try {
+        const pSnap = await getDoc(doc(db, 'products', id));
+        if (pSnap.exists()) {
+            const d = pSnap.data() || {};
+            const ship = {
+                pesoKg: Number(d.pesoKg ?? d.weightKg ?? d.peso ?? null),
+                alturaCm: Number(d.alturaCm ?? d.heightCm ?? d.altura ?? null),
+                larguraCm: Number(d.larguraCm ?? d.widthCm ?? d.largura ?? null),
+                comprimentoCm: Number(d.comprimentoCm ?? d.lengthCm ?? d.comprimento ?? null),
+            };
+            productShippingCache.set(id, ship);
+            return ship;
+        }
+    } catch (e) {
+        console.warn('[cart] Falha ao ler produto shipping:', id, e);
+    }
+    productShippingCache.set(id, null);
+    return null;
+}
+
+async function enrichCartWithShippingDefaults() {
+    await loadSettingsOnce();
+    const defs = shippingSettings || normalizeShippingDefaults({});
+
+    // garante CEP salvo
+    const cepInput = document.getElementById('frete-cep');
+    if (cepInput) {
+        const saved = localStorage.getItem('shipping_cep') || '';
+        if (!cepInput.value && saved) cepInput.value = maskCep(saved);
+        cepInput.addEventListener('input', (e) => { e.target.value = maskCep(e.target.value); });
+    }
+
+    for (const it of cartItems) {
+        if (!it) continue;
+        const id = it.id || it.productId || it.sku;
+        const hasAny = (it.pesoKg || it.alturaCm || it.larguraCm || it.comprimentoCm);
+        if (!hasAny && id) {
+            const ship = await getProductShipping(id);
+            if (ship) {
+                it.pesoKg = it.pesoKg ?? ship.pesoKg;
+                it.alturaCm = it.alturaCm ?? ship.alturaCm;
+                it.larguraCm = it.larguraCm ?? ship.larguraCm;
+                it.comprimentoCm = it.comprimentoCm ?? ship.comprimentoCm;
+            }
+        }
+        // fallback final
+        it.pesoKg = Number(it.pesoKg) || defs.defaultWeightKg;
+        it.alturaCm = Number(it.alturaCm) || defs.defaultHeightCm;
+        it.larguraCm = Number(it.larguraCm) || defs.defaultWidthCm;
+        it.comprimentoCm = Number(it.comprimentoCm) || defs.defaultLengthCm;
+    }
+}
+
+function computePackageFromCart() {
+    const defs = shippingSettings || normalizeShippingDefaults({});
+    let weight = 0;
+    let height = 0, width = 0, length = 0;
+    for (const it of cartItems) {
+        const qty = parseInt(it.quantity || 1);
+        weight += (Number(it.pesoKg) || defs.defaultWeightKg) * qty;
+        height = Math.max(height, Number(it.alturaCm) || defs.defaultHeightCm);
+        width  = Math.max(width , Number(it.larguraCm) || defs.defaultWidthCm);
+        length = Math.max(length, Number(it.comprimentoCm) || defs.defaultLengthCm);
+    }
+    // limites mínimos (Correios não aceita 0)
+    return {
+        pesoKg: Math.max(0.3, Number(weight.toFixed(3)) || defs.defaultWeightKg),
+        alturaCm: Math.max(2, Math.ceil(height || defs.defaultHeightCm)),
+        larguraCm: Math.max(11, Math.ceil(width || defs.defaultWidthCm)),
+        comprimentoCm: Math.max(16, Math.ceil(length || defs.defaultLengthCm)),
+    };
+}
+
+
+function isArianaSeller(item) {
+    var sid = String(item && item.sellerId ? item.sellerId : 'admin').toLowerCase().trim();
+    var sname = String(item && item.sellerName ? item.sellerName : 'Ariana Móveis').toLowerCase();
+    return sid === 'admin' || sname.indexOf('ariana') !== -1;
+}
+
+function isArianaOrderFromCartItems(items) {
+    if (!Array.isArray(items) || items.length === 0) return false;
+    for (var i = 0; i < items.length; i++) {
+        if (!isArianaSeller(items[i])) return false;
+    }
+    return true;
+}
+
+
+const quoteCorreios = async (cepDestino) => {
+    const cep = String(cepDestino || '').replace(/\D/g, '');
+    if (cep.length !== 8) throw new Error('CEP inválido.');
+
+    await loadSettingsOnce();
+    const defs = shippingSettings || normalizeShippingDefaults({});
+
+    // Garante que os itens tenham defaults de shipping antes de calcular o pacote
+    await enrichCartWithShippingDefaults();
+
+    const pkg = computePackageFromCart();
+
+    // ✅ Payload compatível com o backend (Correios)
+    const payload = {
+        cepDestino: cep,
+        pesoKg: pkg.pesoKg,
+        comprimento: pkg.comprimentoCm,
+        largura: pkg.larguraCm,
+        altura: pkg.alturaCm,
+        isArianaOrder: isArianaOrderFromCartItems(cartItems)
+    };
+
+    // Base URL (prod ou emulador)
+    const apiBase = (getApiBaseUrl() || '').replace(/\/+$/,'');
+    if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
+    const url = `${apiBase}/shipping/correios/quote`;
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+if (!response.ok) {
+        let details = '';
+        try {
+            const errorData = await response.json();
+            details = errorData?.details || errorData?.error || errorData?.message || JSON.stringify(errorData);
+        } catch (_) {
+            try { details = await response.text(); } catch (_) { /* ignore */ }
+        }
+        throw new Error(details || 'Erro no servidor ao cotar frete.');
+    }
+
+    const data = await response.json();
+
+    if (!data?.ok) {
+        const msg = data?.error || data?.message || 'Frete indisponível.';
+        throw new Error(msg);
+    }
+
+    const quotes = Array.isArray(data?.quotes) ? data.quotes : [];
+    if (!quotes.length) {
+        // Se só tiver errors, retorna a melhor mensagem
+        const errs = Array.isArray(data?.errors) ? data.errors : [];
+        if (errs.length) throw new Error(errs[0]?.message || 'Sem opções de frete para este CEP.');
+        throw new Error('Sem opções de frete para este CEP.');
+    }
+
+    // ✅ Já vem ordenado no backend; mas garantimos:
+    const best = quotes.reduce((best, q) => {
+        const p = Number(q?.price);
+        if (!Number.isFinite(p)) return best;
+        if (!best || p < best.price) return { price: p, name: q?.name || q?.service, service: q?.service, raw: q };
+        return best;
+    }, null);
+
+    if (!best) throw new Error('Não foi possível calcular o frete.');
+
+    shippingState = { status: 'quoted', price: best.price || 0, service: best.service, raw: data, cep, name: best.name };
+
+    // salva para o checkout ler exatamente o mesmo frete selecionado
+    try {
+        localStorage.setItem('ariana_selected_shipping', JSON.stringify({
+            cep,
+            service: best.service,
+            name: best.name,
+            quotedPrice: Number(best.price || 0),
+            // o checkout pode aplicar regras de frete grátis, mas já deixamos o preço efetivo calculado aqui também
+            effectivePrice: Number(best.price || 0),
+            updatedAt: Date.now(),
+            raw: data
+        }));
+    } catch(_) {}
+
+    await recalculateTotals();
+
+    return { raw: data, best, cep };
+};
+
+
+// --- UTILITIES ---
+
+        // Função de formatação de preço
+        window.formatPrice = (price) => {
+            if (typeof price !== 'number' || isNaN(price)) return 'R$ 0,00';
+            return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        };
+        
+        // Atualiza o cabeçalho com o nome do cliente
+        window.updateClientHeader = function(userName = 'Minha Conta') {
+            const accountLink = document.getElementById('client-account-link');
+            if (accountLink) {
+                if (userId && userId.length > 0 && userName !== 'Minha Conta') {
+                    const firstName = userName.split(' ')[0];
+                    // O HTML não tem um elemento para "Olá, [Nome]", então atualizamos o texto do link
+                    accountLink.innerHTML = `<i class="fas fa-user-circle text-lg"></i> Olá, ${firstName}`;
+                    accountLink.href = 'minha_conta.html';
+                } else {
+                     accountLink.innerHTML = `<i class="fas fa-user-circle text-lg"></i> Minha Conta`;
+                     accountLink.href = 'login_cadastro.html'; 
+                }
+            }
+        };
+
+        // Exibe mensagens de feedback ao usuário
+        window.displayMessage = function(message, type = 'info', targetId = 'message-box', duration = 3000) {
+            const msgBox = document.getElementById(targetId);
+            if (!msgBox) return;
+
+            msgBox.textContent = message;
+            
+            let classes = 'p-3 mb-4 rounded-lg font-bold transition-all duration-300 ';
+            if (type === 'error') {
+                classes += 'bg-red-100 text-red-700';
+            } else if (type === 'success') {
+                classes += 'bg-green-100 text-green-700';
+            } else if (type === 'loading') {
+                classes += 'bg-blue-100 text-blue-700 animate-pulse';
+            } else {
+                classes += 'bg-gray-100 text-gray-700';
+            }
+            msgBox.className = classes;
+            msgBox.classList.remove('hidden');
+
+            if (duration > 0 && type !== 'loading') {
+                setTimeout(() => {
+                    msgBox.classList.add('hidden');
+                    msgBox.textContent = '';
+                }, duration);
+            }
+        };
+        
+        window.realizarBusca = () => {
+             const input = document.getElementById('search-input-desktop') || document.getElementById('search-input-mobile');
+             const query = input ? input.value : '';
+             window.displayMessage(`Busca Simulado: "${query}"`, 'info'); 
+        }
+
+        // --- FUNÇÕES DE LÓGICA DO CARRINHO ---
+
+        /**
+         * @description Carrega os itens do carrinho do localStorage ou carrega os exemplos.
+         */
+        const loadCartItems = async () => {
+            // CORREÇÃO: Usa a chave padronizada e tenta carregar o array
+            const storedItems = localStorage.getItem('ariana_moveis_cart') || localStorage.getItem('arianaMoveisCart');
+            const container = document.getElementById('cart-items-container');
+            
+            if (storedItems && storedItems !== '[]' && storedItems !== '{}' ) {
+                try {
+                    const parsedItems = JSON.parse(storedItems);
+                    if (Array.isArray(parsedItems)) {
+                         cartItems = parsedItems;
+
+                         // NORMALIZAÇÃO: garante compatibilidade entre itens salvos por páginas diferentes (image vs imageUrl)
+                         cartItems = cartItems.map((it) => {
+                             const img =
+                                 it.imageUrl ||
+                                 it.image ||
+                                 it.mainImage ||
+                                 (Array.isArray(it.images) ? it.images[0] : null) ||
+                                 (it.images && typeof it.images === 'object' ? Object.values(it.images)[0] : null);
+
+                             // Se veio como objeto {url: "..."} pega o .url
+                             const imgUrl = (img && typeof img === 'object' && img.url) ? img.url : img;
+
+                             return {
+                    ...it,
+                    id: resolveCartProductId(it) || it.id,
+                    ...normalizeItemShippingFields(it),
+                                 imageUrl: imgUrl || it.imageUrl || it.image || '',
+                                 sellerId: it.sellerId || 'admin',
+                                 sellerName: it.sellerName || 'Ariana Móveis',
+                                 quantity: parseInt(it.quantity) || 1,
+                                 price: parseFloat(it.price) || 0
+                             };
+                         });
+
+                    } else if (parsedItems && typeof parsedItems === 'object') {
+                        // ✅ SUPORTE: alguns scripts salvam o carrinho como OBJETO (mapa por id)
+                        // Ex: { "PROD_ID": {name, price, quantity, ...}, ... }
+                        cartItems = Object.entries(parsedItems).map(([id, it]) => {
+                            const img =
+                                it?.imageUrl ||
+                                it?.image ||
+                                it?.mainImage ||
+                                (Array.isArray(it?.images) ? it.images[0] : null) ||
+                                (it?.images && typeof it.images === 'object' ? Object.values(it.images)[0] : null);
+
+                            const imgUrl = (img && typeof img === 'object' && img.url) ? img.url : img;
+
+                            return {
+                                ...it,
+                                id: resolveCartProductId(it) || id,
+                    ...normalizeItemShippingFields(it),
+                                imageUrl: imgUrl || it?.imageUrl || it?.image || '',
+                                sellerId: it?.sellerId || 'admin',
+                                sellerName: it?.sellerName || 'Ariana Móveis',
+                                quantity: parseInt(it?.quantity) || 1,
+                                price: parseFloat(it?.price) || 0
+                            };
+                        });
+
+                        // migra para o formato ARRAY padrão, para não quebrar nas próximas páginas
+                        try { saveCartItems(false); } catch (_) {}
+
+                    } else {
+                        // Se o JSON existir, mas não for reconhecido, limpa
+                        cartItems = [];
+                    }
+                } catch (e) {
+                    console.error("Erro ao parsear itens do carrinho:", e);
+                    cartItems = [];
+                }
+            } else {
+                // Sem itens simulados: carrinho começa vazio
+                cartItems = [];
+            }
+            // Chama o renderCart APÓS carregar/definir os itens
+            renderCart();
+            try { await enrichCartWithShippingDefaults(); } catch(_) {}
+        };
+
+        /**
+         * @description Salva os itens do carrinho no localStorage e atualiza o contador.
+         * @param {boolean} updateHeader - Se deve atualizar o contador do header.
+         */
+        const saveCartItems = (updateHeader = true) => {
+            // CORREÇÃO: Usa a chave padronizada
+            localStorage.setItem('ariana_moveis_cart', JSON.stringify(cartItems));
+            // espelha chave antiga por compatibilidade
+            localStorage.setItem('arianaMoveisCart', JSON.stringify(cartItems));
+            
+            if (updateHeader) {
+                const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+                const counter = document.getElementById('cart-counter-header');
+                
+                if (counter) counter.textContent = totalItems;
+                if (totalItems > 0) {
+                    counter?.classList.remove('hidden');
+                } else {
+                    counter?.classList.add('hidden');
+                }
+            }
+        }
+
+        /**
+         * @description Renderiza os itens na interface.
+         */
+        const renderCart = () => {
+            const container = document.getElementById('cart-items-container');
+            const checkoutBtn = document.getElementById('finalizar-compra-btn');
+            
+            // CORREÇÃO: Limpa o contêiner, removendo a mensagem de loading
+            container.innerHTML = ''; 
+
+            if (cartItems.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-yellow-100 text-yellow-800 p-6 rounded-xl shadow-lg border-l-4 border-yellow-500 font-medium text-center">
+                        <i class="fas fa-shopping-basket text-2xl mb-2"></i>
+                        <p>Seu carrinho está vazio.</p>
+                        <a href="index.html" class="text-primary-blue hover:underline font-bold mt-2 inline-block">Confira nossos produtos!</a>
+                    </div>`;
+                recalculateTotals(); 
+                saveCartItems();
+                if (checkoutBtn) {
+                    checkoutBtn.disabled = true;
+                    checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                return;
+            }
+
+            if (checkoutBtn) {
+                checkoutBtn.disabled = false;
+                checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            cartItems.forEach(item => {
+                // Usa strings para passar o ID na função onclick
+                const itemIdStr = `'${item.id}'`;
+                
+                // CORREÇÃO: Os campos item.imageUrl, item.name, item.price são essenciais e agora vêm de produto.html
+                const itemHTML = `
+                    <div class="cart-item flex flex-col sm:flex-row items-center bg-white p-4 rounded-xl shadow-md border border-gray-100 transition-all duration-300 ease-in-out" data-item-id="${item.id}">
+                        <img src="${(item.imageUrl || item.image) || 'https://placehold.co/100x100/CCCCCC/333333?text=AM'}" alt="${item.name}" class="w-24 h-24 object-cover rounded-lg mr-4 mb-4 sm:mb-0">
+                        <div class="flex-grow">
+                            <h2 class="text-xl font-semibold text-text-dark">${item.name}</h2>
+                            <p class="text-sm text-gray-500">Cor: ${item.color || 'Única'} | Entrega: ${item.delivery || 'A calcular'}</p>
+                            <p class="text-lg font-bold text-primary-blue mt-1 item-price" id="price-item-${item.id}">${window.formatPrice(item.price * item.quantity)}</p>
+                        </div>
+                        <div class="flex items-center space-x-4 mt-4 sm:mt-0">
+                            <div class="flex items-center border border-gray-300 rounded-lg">
+                                <button class="px-3 py-1 text-gray-700 hover:bg-gray-100 rounded-l-lg" onclick="updateQuantity(${itemIdStr}, -1)">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" value="${item.quantity}" id="quantity-item-${item.id}" class="w-10 text-center border-x border-gray-300 focus:outline-none" onchange="updateQuantity(${itemIdStr}, 0, this.value)" min="1">
+                                <button class="px-3 py-1 text-gray-700 hover:bg-gray-100 rounded-r-lg" onclick="updateQuantity(${itemIdStr}, 1)">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <button class="text-red-500 hover:text-red-700 transition-colors" onclick="removeItem(${itemIdStr})">
+                                <i class="fas fa-trash-alt text-xl"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', itemHTML);
+            });
+
+            recalculateTotals();
+            saveCartItems(); 
+        }
+
+        /**
+         * @description Calcula o subtotal e o total com base em 'cartItems' e atualiza o DOM do resumo.
+         */
+        const recalculateTotals = async () => {
+    let totalItemsPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    // Regras simples (podem vir do settings/shipping)
+    await loadSettingsOnce();
+    const defs = shippingSettings || normalizeShippingDefaults({});
+
+    let frete = shippingState?.price || 0;
+    let discount = 0;
+
+    // frete grátis acima de X (se configurado)
+    if (defs.freeShippingAbove > 0 && totalItemsPrice >= defs.freeShippingAbove) {
+        frete = 0;
+    }
+
+    // Atualiza o frete efetivo salvo (se existir) para o checkout ficar alinhado com o total mostrado no carrinho
+    if (shippingState && shippingState.status === 'quoted') {
+        shippingState.effectivePrice = frete;
+        try {
+            const saved = localStorage.getItem('ariana_selected_shipping');
+            if (saved) {
+                const obj = JSON.parse(saved);
+                obj.effectivePrice = Number(frete || 0);
+                obj.updatedAt = Date.now();
+                localStorage.setItem('ariana_selected_shipping', JSON.stringify(obj));
+            }
+        } catch(_) {}
+    }
+
+    // (opcional) desconto exemplo
+    if (totalItemsPrice > 1000) discount = DISCOUNT_VALUE;
+
+    const subtotal = totalItemsPrice;
+    // ✅ Total cheio (igual Mercado Livre): não aplica desconto aqui, só no checkout ao selecionar PIX/BOLETO
+    const totalGeral = subtotal + frete;
+document.getElementById('subtotal').textContent = window.formatPrice(subtotal);
+
+    
+    const freteTextEl = document.getElementById('frete-text');
+if (freteTextEl) {
+    if (shippingState.status === 'loading') {
+        freteTextEl.textContent = 'Calculando...';
+    } else if (shippingState.status === 'error') {
+        freteTextEl.textContent = 'Erro ao calcular';
+    } else if (shippingState.status === 'quoted') {
+        if (frete === 0) {
+            freteTextEl.textContent = 'Grátis';
+        } else {
+            const nome = shippingState.name || shippingState.service || '';
+            freteTextEl.textContent = (nome ? nome + ': ' : '') + window.formatPrice(frete);
+        }
+    } else {
+        freteTextEl.textContent = 'A calcular';
+    }
+}
+document.getElementById('desconto').textContent = `- ${window.formatPrice(0)}`;
+
+// Total principal = preço cheio (subtotal + frete)
+const totalEl = document.getElementById('total-price');
+if (totalEl) {
+    totalEl.textContent = window.formatPrice(totalGeral);
+
+    // Incentivo PIX (só visual, total continua cheio) — DESCONTO DINÂMICO (settings/payments)
+    const pixEnabled = !!(paymentSettings && paymentSettings.pix && paymentSettings.pix.enabled);
+    const pixDiscountPercent = pixEnabled ? Number(paymentSettings.pix.discountPercent || 0) : 0;
+    const fatorPix = (100 - pixDiscountPercent) / 100;
+    const valorPix = totalGeral * (Number.isFinite(fatorPix) ? fatorPix : 1);
+    let pixPromo = document.getElementById('pix-incentive');
+    if (!pixPromo) {
+        pixPromo = document.createElement('p');
+        pixPromo.id = 'pix-incentive';
+        pixPromo.className = "text-green-600 text-sm font-semibold mt-2 text-center";
+        totalEl.parentNode.appendChild(pixPromo);
+    }
+    if (pixDiscountPercent > 0) {
+        pixPromo.classList.remove('hidden');
+        pixPromo.innerHTML = `Pagando com PIX você paga apenas <br> <span class="text-lg">${window.formatPrice(valorPix)}</span> <span class="text-xs" style="color:#00a650">(${pixDiscountPercent}% OFF)</span>`;
+    } else {
+        pixPromo.innerHTML = '';
+        pixPromo.classList.add('hidden');
+    }
+}
+};
+
+        /**
+         * @description Atualiza a quantidade de um item no carrinho.
+         */
+        window.updateQuantity = (itemId, change, newValue = null) => {
+            const itemIndex = cartItems.findIndex(item => item.id === itemId);
+            
+            if (itemIndex === -1) return;
+
+            let newQuantity = cartItems[itemIndex].quantity;
+
+            if (newValue !== null) {
+                newQuantity = parseInt(newValue) || 1; 
+            } else {
+                newQuantity += change;
+            }
+
+            if (newQuantity < 1) {
+                window.removeItem(itemId);
+                return;
+            }
+            
+            // 1. ATUALIZA O ARRAY
+            cartItems[itemIndex].quantity = newQuantity;
+            
+            // 2. ATUALIZA O DOM E RECALCULA SEM RE-RENDERIZAR TUDO
+            const quantityInput = document.getElementById(`quantity-item-${itemId}`);
+            if (quantityInput) {
+                // Efeito visual no input para indicar a mudança
+                quantityInput.classList.add('bg-blue-50', 'text-primary-blue', 'font-extrabold');
+                quantityInput.value = newQuantity;
+                setTimeout(() => {
+                    quantityInput.classList.remove('bg-blue-50', 'text-primary-blue', 'font-extrabold');
+                }, 300);
+            }
+            
+            const itemElementPrice = document.getElementById(`price-item-${itemId}`);
+            if (itemElementPrice) itemElementPrice.textContent = window.formatPrice(cartItems[itemIndex].price * newQuantity);
+
+            recalculateTotals();
+            saveCartItems(); 
+        }
+        
+        /**
+         * @description Remove um item do carrinho.
+         */
+        window.removeItem = (itemId) => {
+            const itemToRemove = cartItems.find(item => item.id === itemId);
+            if (!itemToRemove) return;
+
+            // 1. ATUALIZA O ARRAY (Remove o item)
+            cartItems = cartItems.filter(item => item.id !== itemId);
+            
+            // 2. ATUALIZA O DOM (Remove o elemento fisicamente com animação)
+            const itemElement = document.querySelector(`.cart-item[data-item-id="${itemId}"]`);
+            if (itemElement) {
+                // Aplica classes para animação de desvanecimento e encolhimento
+                itemElement.classList.remove('p-4', 'shadow-md');
+                itemElement.classList.add('opacity-0', 'h-0', 'p-0', 'border-none', 'overflow-hidden');
+                
+                setTimeout(async () => {
+                    itemElement.remove();
+                    
+                    // 3. RECALCULA TOTAIS e SALVA (Após o elemento sair da tela)
+                    recalculateTotals();
+                    saveCartItems();
+                    
+                    // 4. Se o carrinho estiver vazio, re-renderiza para mostrar a mensagem
+                    if (cartItems.length === 0) {
+                         renderCart();
+            try { await enrichCartWithShippingDefaults(); } catch(_) {} 
+                    }
+                }, 400); // 400ms para a transição
+                
+            } else {
+                 // Caso o elemento não seja encontrado, apenas recalcula
+                 recalculateTotals();
+                 saveCartItems();
+            }
+            window.displayMessage(`"${itemToRemove.name}" removido do carrinho.`, 'success', 'message-box');
+        }
+
+        
+        function hasLegacyLogin() {
+            const raw =
+                localStorage.getItem('clienteLogado') ||
+                localStorage.getItem('usuarioLogado') ||
+                localStorage.getItem('currentUser');
+
+            if (!raw) return false;
+
+            const v = String(raw).trim();
+            if (!v || v === 'false' || v === 'null' || v === 'undefined' || v === '0') return false;
+            if (v === 'true') return true;
+
+            // Se for JSON, exige pelo menos um identificador útil (email/uid/id)
+            try {
+                const obj = JSON.parse(v);
+                if (obj && typeof obj === 'object') {
+                    if (obj.uid || obj.id || obj.email) return true;
+                }
+            } catch (_) {}
+
+            // Se for string simples (ex: email), valida minimamente
+            if (v.includes('@') && v.includes('.')) return true;
+
+            return false;
+        }
+
+// --- FUNÇÃO DE REDIRECIONAMENTO ---
+
+        /**
+         * @description Verifica o status de autenticação antes de prosseguir para o checkout.
+         */
+        window.checkOutOrLogin = () => {
+            if (cartItems.length === 0) {
+                window.displayMessage('Seu carrinho está vazio. Adicione itens antes de finalizar a compra.', 'error', 'message-box');
+                return;
+            }
+
+            // Aceita login via Firebase OU via storage legado (telas antigas)
+            const user = auth?.currentUser || null;
+            const legacyLogged = hasLegacyLogin();
+
+            // Só considera "logado" se for usuário Firebase NÃO anônimo OU storage legado válido
+            if ((user && !user.isAnonymous) || legacyLogged) {
+                window.location.href = 'checkout.html';
+                return;
+            }
+
+            sessionStorage.setItem('post_login_redirect', 'checkout.html');
+            sessionStorage.setItem('post_login_from', window.location.href);
+            window.location.href = 'login_cadastro.html?redirect=checkout.html';
+        };
+
+        // (Removido) Função duplicada checkOutOrLogin que sobrescrevia o redirecionamento correto.
+
+        // --- FUNÇÕES DE INICIALIZAÇÃO ---
+        
+        let _cartLoadedOnce = false;
+        const checkAuthAndLoad = async () => {
+            if (firebaseConfig === null) { 
+                console.error('ERRO: Configuração do Firebase não encontrada.');
+                // Se não tiver Firebase, ao menos carrega os itens do carrinho!
+                loadCartItems();
+                return; 
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Observa mudanças de autenticação
+                onAuthStateChanged(auth, async (user) => {
+                    userId = user ? user.uid : null;
+                    
+                    if (user && !user.isAnonymous) {
+                         // Lógica para carregar nome do usuário logado (simulada via sessionStorage)
+                         const clientDataString = sessionStorage.getItem('clientArianaMoveis');
+                         let clientName = 'Cliente';
+                         if (clientDataString) {
+                             try { clientName = JSON.parse(clientDataString).name || clientName; } catch (e) {}
+                         }
+                         window.updateClientHeader(clientName);
+                    } else if (!user) {
+                         // Tenta logar anonimamente se não houver user (para obter um userId)
+                         window.updateClientHeader('Minha Conta');
+                    } else {
+                        window.updateClientHeader('Minha Conta');
+                    }
+                    
+                    // Garante que o loadCartItems só é chamado UMA VEZ após a autenticação inicial
+                    if (!_cartLoadedOnce) {
+                        _cartLoadedOnce = true;
+                        loadCartItems();
+                    } 
+                });
+
+            } catch (error) {
+                console.error("Erro fatal na inicialização do Firebase/Auth:", error);
+                // Em caso de erro do Firebase, ainda tenta carregar o carrinho
+                loadCartItems();
+            }
+        };
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuthAndLoad();
+
+            // BOTÃO "FINALIZAR COMPRA"
+            const finalizarCompraBtn = document.getElementById('finalizar-compra-btn');
+            if (finalizarCompraBtn) {
+                finalizarCompraBtn.addEventListener('click', window.checkOutOrLogin);
+            }
+
+            // Frete: botão calcular
+            const btnFrete = document.getElementById('btn-calcular-frete');
+            const cepInput = document.getElementById('frete-cep');
+            if (btnFrete && cepInput) {
+                btnFrete.addEventListener('click', async () => {
+                    const cep = String(cepInput.value||'').replace(/\D/g,'');
+                    if (cep.length !== 8) { window.displayMessage('CEP inválido.', 'error', 'message-box'); return; }
+                    localStorage.setItem('shipping_cep', maskCep(cep));
+                    shippingState = { status: 'loading', price: 0, service: null, raw: null, cep };
+                    await recalculateTotals();
+
+                    try {
+                        await enrichCartWithShippingDefaults();
+                        await quoteCorreios(cep);
+                        window.displayMessage('Frete calculado.', 'success', 'message-box');
+                    } catch (e) {
+                        console.error('[cart] frete erro:', e);
+                        shippingState = { status: 'error', price: 0, service: null, raw: String(e), cep };
+                        await recalculateTotals();
+                        window.displayMessage('Erro ao calcular frete. Verifique o CEP e tente novamente.', 'error', 'message-box', 6000);
+                    }
+                });
+            }
+        });
+    </script>
+<script type="module" src="firebase-config.js"></script>
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

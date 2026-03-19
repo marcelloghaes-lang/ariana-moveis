@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+  <header class="bg-dark-bg border-b-4 border-primary-blue py-6 shadow-xl">
+    <div class="max-w-7xl mx-auto px-4 flex justify-between items-center">
+      <h1 class="text-white text-2xl font-black tracking-tighter uppercase">Ariana Móveis <span class="text-primary-blue">| Suporte</span></h1>
+      <a href="index.html" class="text-white font-bold hover:text-primary-blue transition">Voltar para Loja</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-12">
+    
+    <div class="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
+      <div>
+        <nav class="text-sm font-bold text-primary-blue mb-2 uppercase tracking-widest">Início / Central de Ajuda</nav>
+        <h2 class="text-4xl font-black text-dark-bg uppercase">Meus Chamados</h2>
+      </div>
+      <button id="btnNovo" class="bg-primary-blue hover:bg-dark-bg text-white px-8 py-4 rounded-lg font-black uppercase transition-all shadow-lg transform hover:-translate-y-1">
+        + Abrir Novo Chamado
+      </button>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-md mb-8 border border-gray-200 flex flex-col md:row gap-4">
+      <div class="flex-1">
+        <label class="block text-xs font-black text-dark-bg uppercase mb-2">Buscar por assunto:</label>
+        <input id="q" type="text" placeholder="Ex: Defeito, Atraso..." class="w-full border-2 border-gray-300 p-3 rounded-xl focus:border-primary-blue outline-none font-bold">
+      </div>
+      <div class="w-full md:w-64">
+        <label class="block text-xs font-black text-dark-bg uppercase mb-2">Filtrar Status:</label>
+        <select id="filterStatus" class="w-full border-2 border-gray-300 p-3 rounded-xl focus:border-primary-blue outline-none font-bold bg-white">
+          <option value="">Todos os status</option>
+          <option value="Aberto">Aberto</option>
+          <option value="Concluído">Concluído</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
+      <table class="w-full text-left border-collapse tabela-zebra">
+        <thead>
+          <tr class="bg-dark-bg text-white">
+            <th class="p-5 text-xs font-black uppercase">Protocolo</th>
+            <th class="p-5 text-xs font-black uppercase">Assunto Principal</th>
+            <th class="p-5 text-xs font-black uppercase text-center">Status</th>
+            <th class="p-5 text-xs font-black uppercase text-right">Ação</th>
+          </tr>
+        </thead>
+        <tbody id="tbody" class="texto-forte">
+          </tbody>
+      </table>
+      
+      <div id="loading" class="p-20 text-center">
+        <div class="animate-spin inline-block w-10 h-10 border-4 border-primary-blue border-t-transparent rounded-full mb-4"></div>
+        <p class="font-black text-dark-bg">CARREGANDO DADOS...</p>
+      </div>
+      
+      <div id="empty" class="hidden p-20 text-center">
+        <p class="text-2xl font-black text-gray-300">NENHUM CHAMADO ENCONTRADO</p>
+      </div>
+    </div>
+  </main>
+
+  
+  <!-- Firebase compat (necessário para firebase.initializeApp funcionar) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    // Mesmas credenciais do seu projeto
+    const firebaseConfig = {
+        apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+        authDomain: "ariana-moveis-final.firebaseapp.com",
+        projectId: "ariana-moveis-final",
+        storageBucket: "ariana-moveis-final.firebasestorage.app",
+        messagingSenderId: "695257365498",
+        appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    auth.onAuthStateChanged(user => {
+        const uid = user ? user.uid : "anonimo";
+        
+        db.collection('tickets').where('userId', '==', uid).orderBy('createdAt', 'desc')
+          .onSnapshot(snap => {
+            document.getElementById('loading').classList.add('hidden');
+            const tbody = document.getElementById('tbody');
+            const empty = document.getElementById('empty');
+            const q = document.getElementById('q').value.toLowerCase();
+            const fStatus = document.getElementById('filterStatus').value;
+            
+            tbody.innerHTML = '';
+            
+            if(snap.empty) {
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+
+            snap.forEach(doc => {
+                const t = doc.data();
+                if (fStatus && t.status !== fStatus) return;
+                const subject = (t.subject || '').toLowerCase();
+                if (q && !subject.includes(q)) return;
+
+                const statusCor = t.status === 'Aberto' ? 'bg-primary-blue' : 'bg-green-600';
+                
+                tbody.innerHTML += `
+                  <tr class="border-b border-gray-100 hover:bg-blue-50 transition">
+                    <td class="p-5 font-mono font-bold text-gray-400">#${doc.id.substring(0,6).toUpperCase()}</td>
+                    <td class="p-5">
+                      <div class="font-black text-lg text-dark-bg uppercase">${t.subject}</div>
+                      <div class="text-xs font-bold text-gray-500">Pedido: ${t.orderId || 'N/A'}</div>
+                    </td>
+                    <td class="p-5 text-center">
+                      <span class="${statusCor} text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">${t.status}</span>
+                    </td>
+                    <td class="p-5 text-right">
+                      <a href="chamado_detalhe.html?id=${doc.id}" class="inline-block border-2 border-primary-blue text-primary-blue hover:bg-primary-blue hover:text-white px-6 py-2 rounded-lg font-black text-xs transition uppercase">Ver</a>
+                    </td>
+                  </tr>
+                `;
+            });
+          });
+    });
+
+    document.getElementById('btnNovo').onclick = () => window.location.href = 'novo_chamado.html';
+  </script>
+  
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js" defer></script>
+
+   <script src="js/header_auth_fix.js"></script>
+
+   <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

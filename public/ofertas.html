@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Ofertas | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+
+  <script type="module" src="./firebase-config.js"></script>
+  <script src="./marketplace-core.js"></script>
+
+  <style>
+    :root{
+      --primary-blue:#0B4AA2;
+      --fundo-claro:#F5F7FA;
+      --text-dark:#111827;
+    }
+
+    html { height: 100%; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--fundo-claro);
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+      padding: 0;
+      color: var(--text-dark);
+    }
+
+    .category-menu a {
+      padding: 5px 0;
+      border-bottom: 2px solid transparent;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .category-menu a:hover {
+      color: var(--primary-blue);
+      border-bottom-color: var(--primary-blue);
+    }
+
+    .contador-carrinho {
+      position: absolute;
+      top: -5px;
+      right: -10px;
+      background-color: var(--primary-blue);
+      color: white;
+      border-radius: 9999px;
+      padding: 0 6px;
+      font-size: 0.7em;
+      line-height: 1.5;
+      font-weight: bold;
+      display: none;
+    }
+
+    .card-link {
+      position: relative;
+      display: block;
+    }
+
+    .card-link button {
+      position: relative;
+      z-index: 10;
+    }
+
+    #category-dropdown.active {
+      display: block;
+      max-height: 500px;
+      overflow: visible;
+    }
+
+    
+    .product-card{background-color:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .3s,box-shadow .3s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%;text-decoration:none}
+    .product-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.1)}
+    .product-image-container{width:100%;height:180px;position:relative;overflow:hidden;margin-bottom:10px;display:flex;justify-content:center;align-items:center;background:#fff;padding:0}
+    .product-image-container img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;transition:none}
+    .product-card-body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start}
+    .product-name{font-size:.85rem;font-weight:400;color:#444;height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px}
+    .product-old-price{font-size:.8rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2}
+    .product-price{font-size:1.25rem;font-weight:700;color:#333;margin-top:2px;display:flex;align-items:flex-end;line-height:1}
+    .product-price .currency{font-size:.7em;font-weight:400;align-self:flex-start}
+    .product-price .price-integer{font-size:1em;font-weight:700;margin-left:2px}
+    .product-price .decimal-part{font-size:.7em;font-weight:400}
+    .product-price .cash-text{font-size:.75rem;font-weight:400;color:#555;margin-left:5px;padding-bottom:1px}
+    .product-installments{font-size:.75rem;color:#777;margin-top:5px;line-height:1.4}
+    .product-tag-container{position:absolute;top:5px;left:5px;z-index:10;display:flex;flex-direction:column;gap:5px}
+    .product-tag{color:#fff;font-size:.75rem;font-weight:600;padding:2px 5px;border-radius:2px;display:block;width:fit-content;line-height:1}
+    .tag-orange{background-color:#ff931e}
+    .loading-text{grid-column:1 / -1;text-align:center;color:var(--primary-blue);font-weight:800;padding:32px 12px}
+    .error-text{grid-column:1 / -1;text-align:center;color:#dc2626;font-weight:700;padding:32px 12px}
+
+  </style>
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pt-10 flex-grow">
+    <h1 class="text-4xl font-extrabold text-center text-primary-blue mb-8">Ofertas Especiais da Semana!</h1>
+
+    <div id="message-box" class="hidden"></div>
+
+    <div id="product-list" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
+  </main>
+
+  <script>
+    (function () {
+      const loaded = new Set();
+
+      function loadScriptSequential(src) {
+        return new Promise((resolve, reject) => {
+          if (loaded.has(src)) return resolve(true);
+
+          const existing = document.querySelector(`script[data-src="${src}"]`) || document.querySelector(`script[src="${src}"]`);
+          if (existing) {
+            if (existing.dataset.loaded === "1") {
+              loaded.add(src);
+              return resolve(true);
+            }
+            existing.addEventListener("load", () => {
+              existing.dataset.loaded = "1";
+              loaded.add(src);
+              resolve(true);
+            }, { once: true });
+            existing.addEventListener("error", () => reject(new Error("Falha ao carregar " + src)), { once: true });
+            return;
+          }
+
+          const s = document.createElement("script");
+          s.src = src;
+          s.async = false;
+          s.defer = false;
+          s.dataset.src = src;
+          s.onload = () => {
+            s.dataset.loaded = "1";
+            loaded.add(src);
+            resolve(true);
+          };
+          s.onerror = () => reject(new Error("Falha ao carregar " + src));
+          document.head.appendChild(s);
+        });
+      }
+
+      async function tryCandidates(candidates) {
+        for (const src of candidates) {
+          try {
+            await loadScriptSequential(src);
+            return src;
+          } catch (_) {}
+        }
+        throw new Error("Nenhum caminho carregou: " + candidates.join(", "));
+      }
+
+      async function ensureMarketplaceHelpers() {
+        const candidates = [
+          "./marketplace-core_global_payments.js",
+          "./js/marketplace-core_global_payments.js",
+          "/marketplace-core_global_payments.js",
+          "/js/marketplace-core_global_payments.js"
+        ];
+
+        try {
+          await tryCandidates(candidates);
+        } catch (e) {
+          console.warn("[ofertas] helpers extras não carregaram, seguindo com fallback local.", e);
+        }
+
+        let tries = 0;
+        while (tries < 100) {
+          const ready =
+            typeof window.decorateProductWithPayments === "function" ||
+            typeof window.createProductCard === "function" ||
+            typeof window.getPaymentSettings === "function" ||
+            typeof window.loadGlobalPaymentsConfig === "function";
+
+          if (ready) {
+            window.__MARKETPLACE_HELPERS_READY__ = true;
+            window.dispatchEvent(new CustomEvent("marketplace:helpers-ready"));
+            return true;
+          }
+
+          await new Promise(r => setTimeout(r, 50));
+          tries++;
+        }
+
+        return false;
+      }
+
+      window.ensureMarketplaceHelpers = ensureMarketplaceHelpers;
+    })();
+  </script>
+
+  <script src="js/header_auth_fix.js"></script>
+  <script src="./header.js"></script>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+
+    window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
+      try {
+        if (v === null || v === undefined) return fallback;
+        if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+
+        let s = String(v).trim();
+        if (!s) return fallback;
+
+        s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
+
+        const hasComma = s.includes(',');
+        const hasDot = s.includes('.');
+
+        if (hasComma && hasDot) {
+          s = s.replace(/\./g, '').replace(',', '.');
+        } else if (hasComma && !hasDot) {
+          s = s.replace(',', '.');
+        }
+
+        const n = parseFloat(s);
+        return Number.isFinite(n) ? n : fallback;
+      } catch (_) {
+        return fallback;
+      }
+    };
+
+    const formatPrice = (price) => {
+      const n = window.__toNumberBR(price, 0);
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+    };
+
+    function waitFirebase(timeoutMs = 15000) {
+      const ok = () =>
+        !!window.db &&
+        !!window.auth &&
+        typeof window.collection === 'function' &&
+        typeof window.query === 'function' &&
+        typeof window.where === 'function' &&
+        typeof window.getDocs === 'function';
+
+      if (ok()) return Promise.resolve(true);
+
+      return new Promise((resolve, reject) => {
+        let finished = false;
+
+        const done = (result) => {
+          if (finished) return;
+          finished = true;
+          window.removeEventListener('firebase:ready', onReady);
+          result instanceof Error ? reject(result) : resolve(result);
+        };
+
+        const onReady = () => {
+          if (ok()) done(true);
+        };
+
+        window.addEventListener('firebase:ready', onReady);
+
+        const start = Date.now();
+        const tick = () => {
+          if (ok()) return done(true);
+          if (Date.now() - start >= timeoutMs) return done(new Error('Firebase não ficou pronto a tempo.'));
+          setTimeout(tick, 80);
+        };
+        tick();
+      });
+    }
+
+    async function waitPaymentsHelper() {
+      try { await window.ensureMarketplaceHelpers?.(); } catch (_) {}
+
+      const ready = () =>
+        typeof window.decorateProductWithPayments === 'function' ||
+        typeof window.getPaymentSettings === 'function' ||
+        typeof window.loadGlobalPaymentsConfig === 'function';
+
+      if (ready()) return true;
+
+      return new Promise((resolve) => {
+        let tries = 0;
+        const tick = () => {
+          if (ready()) return resolve(true);
+          tries++;
+          if (tries > 80) return resolve(false);
+          setTimeout(tick, 50);
+        };
+        tick();
+      });
+    }
+
+    function isOfferProduct(data) {
+      if (!data) return false;
+      if (data.active === false) return false;
+      if (data.isOffer === true) return true;
+      if (data.is_offer === true) return true;
+      if (data.offer === true) return true;
+      if (data.oferta === true) return true;
+      if (data.price_offer !== undefined && data.price_offer !== null && window.__toNumberBR(data.price_offer, 0) > 0) return true;
+      if (Array.isArray(data.homeSections) && data.homeSections.includes('offers')) return true;
+      if (Array.isArray(data.tags) && data.tags.some(t => ['oferta','offer','ofertas'].includes(String(t).toLowerCase()))) return true;
+      return false;
+    }
+
+    function getOldPrice(raw) {
+      const candidates = [
+        raw.oldPrice,
+        raw.precoAntigo,
+        raw.preco_anterior,
+        raw.precoAnterior,
+        raw.compareAtPrice,
+        raw.compare_at_price,
+        raw.precoDe,
+        raw.preco_de,
+        raw.listPrice,
+        raw.list_price,
+        raw.originalPrice,
+        raw.original_price
+      ];
+
+      for (const value of candidates) {
+        const n = window.__toNumberBR(value, NaN);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return null;
+    }
+
+    function getCurrentPrice(raw) {
+      const candidates = [
+        raw.price_offer,
+        raw.salePrice,
+        raw.sale_price,
+        raw.precoPor,
+        raw.preco_por,
+        raw.price,
+        raw.preco,
+        raw.valor
+      ];
+
+      for (const value of candidates) {
+        const n = window.__toNumberBR(value, NaN);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return 0;
+    }
+
+    function getGlobalPixDiscountPercent() {
+      const candidates = [
+        window?.GLOBAL_PAYMENT_SETTINGS?.cash?.discountPercent,
+        window?.GLOBAL_PAYMENT_SETTINGS?.pix?.discountPercent,
+        window?.paymentSettings?.cash?.discountPercent,
+        window?.paymentSettings?.pix?.discountPercent,
+        window?.globalPaymentSettings?.cash?.discountPercent,
+        window?.globalPaymentSettings?.pix?.discountPercent
+      ];
+
+      for (const value of candidates) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return 17;
+    }
+
+    function getGlobalInstallments() {
+      const candidates = [
+        window?.GLOBAL_PAYMENT_SETTINGS?.card?.maxInstallments,
+        window?.paymentSettings?.card?.maxInstallments,
+        window?.globalPaymentSettings?.card?.maxInstallments
+      ];
+
+      for (const value of candidates) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 1) return n;
+      }
+      return 12;
+    }
+
+    function applyLocalPaymentFallback(product) {
+      const basePrice = window.__toNumberBR(product.price, 0);
+      const explicitOld = window.__toNumberBR(product.oldPrice, NaN);
+      const discountPercent = getGlobalPixDiscountPercent();
+      const cardInstallments = getGlobalInstallments();
+
+      let oldPrice = Number.isFinite(explicitOld) && explicitOld > 0 ? explicitOld : null;
+      let cashPrice = basePrice;
+
+      if (oldPrice && oldPrice > basePrice) {
+        cashPrice = basePrice;
+      } else if (basePrice > 0 && discountPercent > 0) {
+        oldPrice = basePrice;
+        cashPrice = +(basePrice * (1 - discountPercent / 100)).toFixed(2);
+      }
+
+      return {
+        ...product,
+        oldPrice,
+        __payments: {
+          cash: {
+            enabled: true,
+            price: cashPrice,
+            discountPercent: discountPercent
+          },
+          card: {
+            enabled: cardInstallments > 1,
+            maxInstallments: cardInstallments,
+            text: cardInstallments > 1
+              ? `ou em até ${cardInstallments}x de ${formatPrice(basePrice / cardInstallments)} sem juros`
+              : ''
+          }
+        }
+      };
+    }
+
+    function getInstallmentsText(product, cardBasePrice) {
+      try {
+        if (product?.__payments?.card?.enabled && product?.__payments?.card?.text) {
+          return product.__payments.card.text;
+        }
+
+        if (typeof product?.parcelamentoTexto === 'string' && product.parcelamentoTexto.trim()) {
+          return product.parcelamentoTexto.trim();
+        }
+
+        if (typeof product?.installmentsText === 'string' && product.installmentsText.trim()) {
+          return product.installmentsText.trim();
+        }
+
+        if (typeof product?.parcelamento === 'string' && product.parcelamento.trim()) {
+          return product.parcelamento.trim();
+        }
+
+        const maxInstallments =
+          Number(product?.maxInstallments) ||
+          Number(product?.max_installments) ||
+          Number(product?.parcelasMaximas) ||
+          Number(product?.parcelas_maximas) ||
+          getGlobalInstallments();
+
+        if (maxInstallments > 1 && cardBasePrice > 0) {
+          const installmentValue = cardBasePrice / maxInstallments;
+          return `ou em até ${maxInstallments}x de ${formatPrice(installmentValue)} sem juros`;
+        }
+      } catch (_) {}
+
+      return '';
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function renderProductCard(raw) {
+      const normalized = {
+        ...raw,
+        id: raw.id,
+        name: raw.name || raw.nome || raw.title || raw.titulo || 'Produto',
+        nome: raw.name || raw.nome || raw.title || raw.titulo || 'Produto',
+        price: getCurrentPrice(raw),
+        preco: getCurrentPrice(raw),
+        oldPrice: getOldPrice(raw),
+        precoAntigo: getOldPrice(raw),
+        imageUrl:
+          raw.imageUrl ||
+          raw.mainImageUrl ||
+          raw.image_url ||
+          raw.imagemUrl ||
+          raw.imagem ||
+          raw.image ||
+          (Array.isArray(raw.images) ? raw.images[0] : null) ||
+          null,
+        images: Array.isArray(raw.images) ? raw.images : [],
+        category: raw.category || raw.categoria || raw.categorySlug || raw.categoryName || '',
+        active: raw.active !== false
+      };
+
+      let p = normalized;
+
+      if (typeof window.decorateProductWithPayments === 'function') {
+        try {
+          p = window.decorateProductWithPayments(normalized) || normalized;
+        } catch (_) {
+          p = normalized;
+        }
+      }
+
+      p = applyLocalPaymentFallback(p);
+
+      const cash = p.__payments?.cash || null;
+      const basePrice = window.__toNumberBR(p.price ?? 0, 0);
+      const oldPrice = window.__toNumberBR(p.oldPrice ?? null, NaN);
+
+      const displayPrice = (cash && cash.enabled)
+        ? window.__toNumberBR(cash.price ?? basePrice, basePrice)
+        : basePrice;
+
+      let badgePercent = 0;
+      let oldToShow = null;
+
+      if (Number.isFinite(oldPrice) && oldPrice > displayPrice) {
+        badgePercent = Math.round(((oldPrice - displayPrice) / oldPrice) * 100);
+        oldToShow = oldPrice;
+      } else if (cash && cash.enabled && Number(cash.discountPercent || 0) > 0 && displayPrice < basePrice) {
+        badgePercent = Number(cash.discountPercent || 0);
+        oldToShow = basePrice;
+      }
+
+      const installmentsText = getInstallmentsText(p, basePrice);
+
+      const imageUrl = p.imageUrl || `https://placehold.co/600x400/2E6DA4/ffffff?text=${encodeURIComponent(String(p.name || 'OFERTA').toUpperCase())}`;
+
+      const standardProduct = {
+        ...p,
+        id: p.id,
+        name: p.name,
+        nome: p.name,
+        imageUrl,
+        imagem: imageUrl,
+        images: p.images && p.images.length ? p.images : [imageUrl],
+        price: displayPrice,
+        preco: displayPrice,
+        oldPrice: oldToShow || basePrice || null,
+        precoAntigo: oldToShow || basePrice || null,
+        category: p.category || '',
+        __payments: p.__payments,
+        parcelamentoTexto: installmentsText,
+        installmentsText,
+        discountPercent: badgePercent,
+        descontoPercentual: badgePercent,
+        oferta: true,
+        isOffer: true
+      };
+
+      const priceParts = (window.formatPriceParts)
+        ? window.formatPriceParts(displayPrice)
+        : (() => {
+            const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+              .format(window.__toNumberBR(displayPrice, 0));
+            const noSymbol = formatted.replace('R$', '').trim();
+            const parts = noSymbol.split(',');
+            return {
+              symbol: 'R$',
+              integer: (parts[0] || '0').trim(),
+              decimal: (parts[1] || '00').trim()
+            };
+          })();
+
+      const oldPriceFormatted = oldToShow ? formatPrice(oldToShow) : null;
+
+      return `
+        <a href="produto.html?id=${encodeURIComponent(p.id)}" class="product-card">
+          <div class="product-image-container">
+            ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ''}
+            <img src="${imageUrl}" alt="${escapeHtml(p.name)}" loading="lazy">
+          </div>
+          <div class="product-card-body">
+            <p class="product-name">${escapeHtml(p.name)}</p>
+            <div class="mt-auto">
+              ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price" style="visibility:hidden">R$ 0,00</p>'}
+              <div class="product-price">
+                <span class="currency">${priceParts.symbol}</span>
+                <span class="price-integer">${priceParts.integer}</span>
+                <span class="decimal-part">,${priceParts.decimal}</span>
+                <span class="cash-text">à vista</span>
+              </div>
+              ${installmentsText ? `<p class="product-installments">${escapeHtml(installmentsText)}</p>` : '<p class="product-installments" style="visibility:hidden">em até 12x</p>'}
+            </div>
+          </div>
+        </a>
+      `;
+    }
+
+    async function fetchOfferDocs(colRef) {
+      const tryField = async (field) => {
+        try {
+          const snap = await window.getDocs(window.query(colRef, window.where(field, '==', true)));
+          return snap.docs || [];
+        } catch (_) {
+          return [];
+        }
+      };
+
+      let docs = await tryField('isOffer');
+      if (!docs.length) docs = await tryField('is_offer');
+      if (!docs.length) docs = await tryField('offer');
+      if (!docs.length) docs = await tryField('oferta');
+
+      if (!docs.length) {
+        try {
+          const snapAll = await window.getDocs(window.query(colRef));
+          docs = snapAll.docs || [];
+        } catch (e) {
+          console.error('[ofertas] erro ao buscar produtos:', e);
+          docs = [];
+        }
+      }
+
+      return docs;
+    }
+
+    async function loadOffers() {
+      const productListElement = $('product-list');
+      if (!productListElement) return;
+
+      productListElement.innerHTML = '<p class="loading-text">Carregando ofertas...</p>';
+
+      await waitFirebase();
+      await waitPaymentsHelper();
+
+      try {
+        if (typeof window.getPaymentSettings === 'function') {
+          await window.getPaymentSettings(true);
+        } else if (typeof window.loadGlobalPaymentsConfig === 'function') {
+          await window.loadGlobalPaymentsConfig();
+        }
+      } catch (e) {
+        console.warn('[ofertas] configuração global de pagamento não carregou, usando fallback local.', e);
+      }
+
+      const colRef = window.collection(window.db, 'products');
+      const docs = await fetchOfferDocs(colRef);
+
+      let items = [];
+      for (const d of docs) {
+        const data = d.data() || {};
+        if (!isOfferProduct(data)) continue;
+        items.push({ id: d.id, ...data });
+      }
+
+      if (!items.length) {
+        try {
+          const snapAll = await window.getDocs(window.query(colRef));
+          items = (snapAll.docs || [])
+            .map(d => ({ id: d.id, ...(d.data() || {}) }))
+            .filter(x => x && x.active !== false)
+            .filter(x => getCurrentPrice(x) > 0)
+            .slice(0, 20);
+        } catch (_) {}
+      }
+
+      if (!items.length) {
+        productListElement.innerHTML = '<p class="loading-text" style="color:#6b7280">Nenhuma oferta encontrada no momento.</p>';
+        return;
+      }
+
+      productListElement.innerHTML = items.map(renderProductCard).join('');
+    }
+
+    window.addToCart = () => {
+      const box = document.getElementById('message-box');
+      if (box) {
+        box.className = 'p-3 mb-4 rounded-lg font-bold bg-green-100 text-green-700';
+        box.textContent = 'Produto adicionado ao carrinho!';
+        box.classList.remove('hidden');
+        setTimeout(() => box.classList.add('hidden'), 1800);
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        window.carregarHeader?.();
+      } catch (e) {
+        console.warn('[ofertas] header não carregou:', e);
+      }
+
+      try {
+        await loadOffers();
+      } catch (e) {
+        const productListElement = $('product-list');
+        if (productListElement) {
+          productListElement.innerHTML = '<p class="error-text">Erro ao carregar as ofertas.</p>';
+        }
+        console.error('[ofertas] erro:', e);
+      }
+    });
+  </script>
+
+  <script src="js/layout-fit.js" defer></script>
+  <script src="footer.js" defer></script>
+</body>
+</html>

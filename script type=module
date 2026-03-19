@@ -1,0 +1,680 @@
+<script type="module">
+        // Importa Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, query, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+        import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-storage.js";
+
+        // Configuração REAL do Firebase
+        const USER_PROVIDED_CONFIG = {
+            apiKey: "AIzaSyCiMvsSVWIT1DoefdM2dmXFxbVWQVfSsYU",
+            authDomain: "ariana-moveis-8fba4.firebaseapp.com",
+            projectId: "ariana-moveis-8fba4",
+            storageBucket: "ariana-moveis-8fba4.firebasestorage.app",
+            messagingSenderId: "1055737187409",
+            appId: "1:1055737187409:web:8e68494de6c4c9ecf67c70",
+            measurementId: "G-G8NH3JXKQX"
+        };
+
+        // --- 2. CONFIGURAÇÃO GLOBAL ---
+        let firebaseConfig = USER_PROVIDED_CONFIG;
+        const appId = firebaseConfig.projectId;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // --- 3. VARIÁVEIS GLOBAIS/ESTADO ---
+        let db, auth, storage, userId;
+        let allProducts = []; // Cache de produtos (max 20)
+        window.BRAND_NAME = 'ARIANA MOVEIS';
+
+        // ===================================
+        // FUNÇÕES UTILITÁRIAS (Acesso Global)
+        // ===================================
+
+        window.displayMessage = (message, type = 'info') => {
+            const container = document.getElementById('message-container');
+            if (!container) return;
+            const colorClass = {
+                'success': 'bg-green-500 border-green-700',
+                'error': 'bg-red-500 border-red-700',
+                'info': 'bg-blue-500 border-blue-700',
+            }[type];
+            const iconClass = {
+                'success': 'fas fa-check-circle',
+                'error': 'fas fa-times-circle',
+                'info': 'fas fa-info-circle',
+            }[type];
+            const messageHtml = `
+                <div class="flex items-center p-4 mb-3 text-white rounded-lg shadow-lg border-l-4 ${colorClass} transition duration-300 animate-fade-in">
+                    <i class="${iconClass} mr-3"></i>
+                    <span class="text-sm font-medium">${message}</span>
+                </div>
+            `;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = messageHtml.trim();
+            const messageElement = tempDiv.children[0];
+            if (!messageElement) {
+                console.error("Falha ao criar elemento de mensagem.");
+                return;
+            }
+            container.prepend(messageElement);
+            setTimeout(() => {
+                messageElement.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+                messageElement.addEventListener('transitionend', () => messageElement.remove());
+            }, 5000);
+        };
+
+        window.formatCurrency = (value) => {
+            if (value === null || value === undefined) return 'R$ 0,00';
+            const num = parseFloat(value);
+            if (isNaN(num)) return 'R$ 0,00';
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }).format(num);
+        };
+        
+        // NOVO: Função para formatar e dividir o preço em partes (para o layout detalhado)
+        window.formatPriceParts = (value) => {
+            if (value === null || value === undefined || isNaN(parseFloat(value))) {
+                return { symbol: 'R$', integer: '0', decimal: '00' };
+            }
+            
+            const formatted = window.formatCurrency(value); 
+            // Remove 'R$' e espaços e substitui o ponto de milhar por nada
+            const numericString = formatted.replace('R$', '').replace(/\./g, '').trim(); 
+            const decimalSeparatorIndex = numericString.lastIndexOf(',');
+            
+            let integerPart = numericString;
+            let decimalPart = '00';
+            
+            if (decimalSeparatorIndex !== -1) {
+                integerPart = numericString.substring(0, decimalSeparatorIndex);
+                decimalPart = numericString.substring(decimalSeparatorIndex + 1).padEnd(2, '0').substring(0, 2);
+            }
+            
+            if (integerPart === '') {
+                integerPart = '0';
+            }
+
+            return {
+                symbol: 'R$',
+                integer: integerPart, 
+                decimal: decimalPart
+            };
+        };
+
+        // NOVO: Função para formatar o texto de parcelamento
+        const formatInstallments = (installments) => {
+            const { count, value, interestFree } = installments;
+            if (!count || !value) return '';
+
+            const formattedValue = window.formatCurrency(value);
+            const interestText = interestFree ? 'sem juros' : 's/ juros';
+            return `ou em até ${count}x de ${formattedValue} ${interestText}`;
+        };
+
+
+        // Funções para carregar o contador do carrinho (Mock/Placeholder)
+        const loadCartCounter = () => {
+            // Esta função deve ser implementada para ler o Firestore/LocalStorage e atualizar o counter
+            const cartItems = 2; // Exemplo: Simula 2 itens no carrinho
+            const counterElements = document.querySelectorAll('[id^="cart-counter"]');
+            counterElements.forEach(el => {
+                if (cartItems > 0) {
+                    el.textContent = cartItems.toString();
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+        };
+
+        // Função para atualizar elementos de marca (logo)
+        window.updateBranding = (name) => {
+            const footerBrand = document.querySelector('#footer-brand');
+            const title = document.querySelector('title');
+            
+            if (footerBrand) footerBrand.textContent = name;
+            if (title) title.textContent = 'Início | ' + name;
+        }
+
+        // ===================================
+        // NOVO: FUNÇÃO PARA ATUALIZAR O CABEÇALHO VISUALMENTE
+        // ===================================
+        const updateHeaderStatus = (user) => {
+            const statusDisplay = document.getElementById('client-status-display');
+            // CRÍTICO: Usa o ID que acabamos de adicionar
+            const accountLink = document.getElementById('client-account-link'); 
+
+            if (statusDisplay) {
+                if (user && !user.isAnonymous) {
+                    // Usuário LOGADO
+                    const displayName = user.displayName || user.email?.split('@')[0] || 'Cliente';
+                    
+                    statusDisplay.innerHTML = `
+                         <span class="text-sm font-semibold">Olá, ${displayName}</span>
+                         <span class="text-sm text-gray-300">Minha Conta</span>
+                    `;
+                    // O link deve apontar para o dashboard/minha_conta, não o formulário
+                    if (accountLink) accountLink.href = 'minha_conta.html'; 
+                } else {
+                    // Usuário DESLOGADO
+                    statusDisplay.innerHTML = `
+                        <span class="text-sm font-semibold">Entre ou Cadastre-se</span>
+                        <span class="text-sm text-gray-300">para ver seus produtos</span>
+                    `;
+                    // Link de volta para a página de login
+                    if (accountLink) accountLink.href = 'minha_conta.html';
+                }
+            }
+        };
+
+
+        // ===================================
+        // FUNÇÕES DE AUTENTICAÇÃO E DADOS
+        // ===================================
+
+        window.checkAuthAndInit = async () => {
+            try {
+                // 1. Inicializa o App
+                const app = initializeApp(firebaseConfig);
+                // 2. Obtém os serviços
+                db = getFirestore(app);
+                auth = getAuth(app);
+                storage = getStorage(app);
+                
+                let isAuthComplete = false;
+                
+                // CRÍTICO: onAuthStateChanged é o que fará a mágica
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                    
+                    // 1. ATUALIZAÇÃO VISUAL DO CABEÇALHO SEMPRE AQUI
+                    updateHeaderStatus(user);
+
+                    if (user) {
+                        if (!isAuthComplete) {
+                            isAuthComplete = true;
+                            userId = user.uid;
+                            console.log("Usuário autenticado (anonimamente/real):", userId);
+                            // Garante que o carregamento de dados inicie após a autenticação
+                            window.loadData();
+                            unsubscribe(); // Para de escutar após a inicialização principal
+                        }
+                    } else {
+                        // Tenta login se o token inicial for fornecido (ambiente Canvas)
+                        if (initialAuthToken) {
+                            try {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } catch (error) {
+                                console.warn("Erro no sign-in com custom token, tentando anônimo:", error);
+                                await signInAnonymously(auth);
+                            }
+                        } else {
+                            // Tenta autenticação anônima para carregar dados públicos
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                console.error("Erro na inicialização do Firebase ou autenticação:", error);
+                window.displayMessage(`Erro na inicialização do Firebase: ${error.message}`, 'error');
+            }
+        };
+
+        window.loadData = () => {
+            window.updateBranding(window.BRAND_NAME);
+            // Carrega os banners
+            loadBanner(); // MAIN TOP BANNER
+            loadSecondaryBanner1(); // SECONDARY BANNER 1
+            loadSecondaryBanner2(); // SECONDARY BANNER 2
+            loadCategories();
+            loadProducts(); // Esta função agora também chama loadBestSellers e loadOffers
+            loadCartCounter();
+        };
+
+        // ... (O restante das suas funções loadBanner, loadSecondaryBanner1, loadSecondaryBanner2, 
+        // loadCategories, loadProducts, loadOffers, loadBestSellers, renderProductCard, renderProductCards
+        // NÃO PRECISA SER ALTERADO, POIS ESTAVAM CORRETAS) ...
+        
+        // =============================================================
+        // FUNÇÃO: Carregar Banner Principal (Slot: main_top_banner)
+        // =============================================================
+        const loadBanner = () => {
+            const bannerLinkElement = document.getElementById('banner-link');
+            const bannerImageElement = document.getElementById('main-banner-image');
+            const bannerStatusElement = document.getElementById('banner-status');
+
+            if (!bannerImageElement || !bannerLinkElement || !bannerStatusElement || !db || !storage) {
+                console.error("Elementos do DOM ou Firebase não estão prontos para carregar o banner principal.");
+                return;
+            }
+            bannerStatusElement.textContent = 'Carregando banner...';
+
+            // Corresponde ao MAIN TOP BANNER
+            const bannerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'banners', 'main_top_banner');
+
+            onSnapshot(bannerDocRef, async (docSnapshot) => {
+                try {
+                    const data = docSnapshot.exists() ? docSnapshot.data() : null;
+
+                    const customLink = 'todos_produtos.html';
+                    
+                    // Se o documento não existe, ou não está ativo, ou não tem path
+                    if (!data || data.isActive !== true || !data.storagePath) {
+                        const placeholderText = data && data.isActive === false ? "BANNER PRINCIPAL INATIVO" : "NENHUM BANNER ATIVO";
+                        bannerImageElement.src = `https://placehold.co/1920x576/2E6DA4/ffffff?text=${placeholderText}`; // 1920x576 é 15:3
+                        bannerLinkElement.href = customLink; 
+                        bannerStatusElement.textContent = data ? 'Banner principal inativo ou sem imagem.' : 'Configuração de banner não encontrada.';
+                        return;
+                    }
+
+                    // Se está ativo e tem path
+                    const bannerPath = data.storagePath;
+                    const bannerLink = data.link || customLink; 
+
+                    // **** CORREÇÃO/VALIDAÇÃO DE CARREGAMENTO DO STORAGE ****
+                    const url = await getDownloadURL(storageRef(storage, bannerPath));
+
+                    bannerImageElement.src = url;
+                    bannerLinkElement.href = bannerLink;
+                    bannerStatusElement.textContent = '';
+
+                } catch (error) {
+                    console.error("Erro no listener/download do banner principal:", error);
+                    bannerImageElement.src = 'https://placehold.co/1920x576/FF0000/ffffff?text=ERRO+DE+CARREGAMENTO';
+                    bannerStatusElement.textContent = `Erro ao carregar o banner: ${error.code || error.message}.`;
+                }
+            });
+        };
+
+        // =============================================================
+        // FUNÇÕES: Carregar Banners Secundários (PRESERVADAS)
+        // =============================================================
+        const loadSecondaryBanner1 = () => {
+            const bannerSectionElement = document.getElementById('secondary-banner-1-section');
+            const bannerLinkElement = document.getElementById('secondary-banner-1-link');
+            const bannerImageElement = document.getElementById('secondary-banner-1-image');
+            const bannerStatusElement = document.getElementById('secondary-banner-1-status');
+
+            if (!bannerSectionElement || !bannerImageElement || !bannerLinkElement || !bannerStatusElement || !db || !storage) {
+                console.error("Elementos do DOM ou Firebase não estão prontos para carregar o SECONDARY BANNER 1.");
+                return;
+            }
+            bannerStatusElement.textContent = 'Carregando banner...';
+
+            const bannerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'banners', 'secondary_banner_1');
+
+            onSnapshot(bannerDocRef, async (docSnapshot) => {
+                try {
+                    const data = docSnapshot.exists() ? docSnapshot.data() : null;
+                    const customLink = 'queridinhos.html'; 
+
+                    if (!data || data.isActive !== true || !data.storagePath) {
+                        bannerSectionElement.classList.add('hidden');
+                        bannerLinkElement.href = customLink; 
+                        bannerStatusElement.textContent = 'Banner inativo.';
+                        return;
+                    }
+
+                    bannerSectionElement.classList.remove('hidden');
+
+                    const bannerPath = data.storagePath;
+                    const bannerLink = data.link || customLink; 
+                    const altText = data.categoryName || 'Ofertas Especiais';
+
+                    const url = await getDownloadURL(storageRef(storage, bannerPath));
+
+                    bannerImageElement.src = url;
+                    bannerImageElement.alt = altText;
+                    bannerLinkElement.href = bannerLink;
+                    bannerStatusElement.textContent = '';
+
+                } catch (error) {
+                    console.error("Erro no listener/download do SECONDARY BANNER 1:", error);
+                    bannerSectionElement.classList.add('hidden');
+                    bannerStatusElement.textContent = `Erro: ${error.code || error.message}`;
+                }
+            });
+        };
+
+        const loadSecondaryBanner2 = () => {
+            const bannerSectionElement = document.getElementById('secondary-banner-2-section');
+            const bannerLinkElement = document.getElementById('secondary-banner-2-link');
+            const bannerImageElement = document.getElementById('secondary-banner-2-image');
+            const bannerStatusElement = document.getElementById('secondary-banner-2-status');
+
+            if (!bannerSectionElement || !bannerImageElement || !bannerLinkElement || !bannerStatusElement || !db || !storage) {
+                console.error("Elementos do DOM ou Firebase não estão prontos para carregar o SECONDARY BANNER 2.");
+                return;
+            }
+            bannerStatusElement.textContent = 'Carregando banner...';
+
+            const bannerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'banners', 'secondary_banner_2');
+
+            onSnapshot(bannerDocRef, async (docSnapshot) => {
+                try {
+                    const data = docSnapshot.exists() ? docSnapshot.data() : null;
+                    const customLink = 'destaques.html'; 
+
+                    if (!data || data.isActive !== true || !data.storagePath) {
+                        bannerSectionElement.classList.add('hidden');
+                        bannerLinkElement.href = customLink; 
+                        bannerStatusElement.textContent = 'Banner inativo.';
+                        return;
+                    }
+
+                    bannerSectionElement.classList.remove('hidden');
+
+                    const bannerPath = data.storagePath;
+                    const bannerLink = data.link || customLink; 
+                    const altText = data.categoryName || 'Promoção Exclusiva';
+
+                    const url = await getDownloadURL(storageRef(storage, bannerPath));
+
+                    bannerImageElement.src = url;
+                    bannerImageElement.alt = altText;
+                    bannerLinkElement.href = bannerLink;
+                    bannerStatusElement.textContent = '';
+
+                } catch (error) {
+                    console.error("Erro no listener/download do SECONDARY BANNER 2:", error);
+                    bannerSectionElement.classList.add('hidden');
+                    bannerStatusElement.textContent = `Erro: ${error.code || error.message}`;
+                }
+            });
+        };
+
+
+        const loadCategories = async () => {
+            try {
+                if (!db) {
+                    console.error("Firestore não está inicializado para carregar categorias.");
+                    return;
+                }
+
+                const categoriesCollectionRef = collection(db, "categories");
+                const q = query(categoriesCollectionRef);
+                const querySnapshot = await getDocs(q);
+
+                const categories = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                renderCategories(categories);
+
+            } catch (error) {
+                console.error("Erro ao carregar categorias:", error);
+            }
+        };
+
+        // =============================================================
+        // FUNÇÃO: Carregar Produtos (PRESERVADA COM SEU FETCH REAL)
+        // =============================================================
+        const loadProducts = async () => {
+            const loadingContainer = document.getElementById('loading-container');
+            const productGrid = document.getElementById('featured-product-grid'); 
+
+            try {
+                if (!db || !storage) {
+                    throw new Error("Firestore ou Storage não estão inicializados.");
+                }
+
+                if (loadingContainer) loadingContainer.classList.remove('hidden');
+                if (productGrid) productGrid.innerHTML = ''; 
+
+                const productsCollectionRef = collection(db, "products");
+                const q = query(productsCollectionRef, limit(20));
+                const querySnapshot = await getDocs(q);
+
+                allProducts = await Promise.all(querySnapshot.docs.map(async (doc) => {
+                    const productData = doc.data();
+                    let imageUrl = productData.mainImageUrl || null;
+                    let imagePath = productData.mainImagePath || null;
+
+                    if (productData.images && Array.isArray(productData.images)) {
+                        const mainImage = productData.images.find(img => img.isMain === true && img.path);
+                        if (mainImage) {
+                            imagePath = mainImage.path; 
+                        }
+                    }
+
+                    if (imagePath && storage) {
+                        try {
+                            const pathRef = storageRef(storage, imagePath);
+                            const url = await getDownloadURL(pathRef);
+                            imageUrl = url;
+                        } catch (e) {
+                            console.warn(`[ERRO IMAGEM] Falha ao obter URL para o produto "${productData.nome || doc.id}". Caminho: "${imagePath}".`);
+                            imageUrl = `https://placehold.co/400x400/FF5733/FFFFFF?text=ERRO+IMAGEM`;
+                        }
+                    } else if (!imageUrl) {
+                        imageUrl = `https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM`;
+                    }
+                    
+                    // Cálculo de parcelamento (Mocking do cálculo para a renderização, usando o preço real)
+                    const installmentsData = {
+                         // Simula 12x com 10% de juros para valorizar a opção à vista
+                        count: 12, 
+                        value: (productData.preco || productData.price || 0) * 1.1 / 12, 
+                        interestFree: false 
+                    };
+
+
+                    return {
+                        id: doc.id,
+                        name: productData.nome || productData.name || 'Produto Sem Nome',
+                        price: productData.preco || productData.price || 0,
+                        oldPrice: productData.precoAntigo || productData.oldPrice || null,
+                        category: productData.category || productData.categoria || 'Geral',
+                        description: productData.description || productData.descricao || '',
+                        imageUrl: imageUrl, 
+                        isOffer: productData.isOffer === true,
+                        isBestSeller: productData.isBestSeller === true,
+                        installments: installmentsData // Adicionado para a renderização
+                    };
+                }));
+
+                renderProductCards(allProducts, 'featured-product-grid'); 
+                loadOffers();
+                loadBestSellers();
+
+            } catch (error) {
+                console.error("Erro ao carregar produtos:", error);
+                if(productGrid) productGrid.innerHTML = `<p class="col-span-full text-center text-lg text-red-500 py-10">❌ Erro ao carregar produtos: ${error.message}</p>`;
+                window.displayMessage(`Erro ao carregar produtos: ${error.message}`, 'error');
+            } finally {
+                if (loadingContainer) loadingContainer.classList.add('hidden');
+            }
+        };
+
+        // =============================================================
+        // FUNÇÕES: loadOffers e loadBestSellers (PRESERVADAS)
+        // =============================================================
+        const loadOffers = () => {
+            const offersSection = document.getElementById('offers-section');
+            if (!offersSection) return;
+
+            const offersProducts = allProducts.filter(product => product.isOffer);
+
+            if (offersProducts.length > 0) {
+                renderProductCards(offersProducts, 'offers-product-grid');
+                offersSection.classList.remove('hidden');
+            } else {
+                offersSection.classList.add('hidden');
+            }
+        };
+
+        const loadBestSellers = () => {
+            const bestSellersSection = document.getElementById('best-sellers-section');
+            if (!bestSellersSection) return;
+
+            if (!allProducts || allProducts.length === 0) {
+                bestSellersSection.classList.add('hidden');
+                return;
+            }
+
+            const bestSellers = allProducts.filter(product => product.isBestSeller);
+
+            if (bestSellers.length > 0) {
+                renderProductCards(bestSellers, 'best-sellers-grid'); 
+                bestSellersSection.classList.remove('hidden');
+            } else {
+                bestSellersSection.classList.add('hidden');
+            }
+        };
+
+        // ===================================
+        // FUNÇÕES DE RENDERIZAÇÃO (PRESERVADAS)
+        // ===================================
+
+        const renderCategories = (categories) => {
+            const allCategoriesDropdown = document.getElementById('all-categories-list'); 
+
+            if (allCategoriesDropdown) {
+                allCategoriesDropdown.innerHTML = '';
+                categories.forEach(category => {
+                    const categoryName = category.nome || category.name;
+                    if (categoryName) {
+                        const html = `
+                            <a href="categoria.html?category=${encodeURIComponent(categoryName)}" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">
+                                ${categoryName}
+                            </a>
+                        `;
+                        allCategoriesDropdown.innerHTML += html;
+                    }
+                });
+                // Adiciona o menu de conta no dropdown de categorias
+                const myAccountLinks = `
+                    <div class="border-t border-gray-200 my-2"></div>
+                    <p class="px-4 py-2 text-xs font-bold text-primary-blue uppercase">Minha Conta</p>
+                    <a href="favoritos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors"><i class="fas fa-heart w-4 mr-2"></i> Favoritos</a>
+                    <a href="minha_conta.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors"><i class="fas fa-user-circle w-4 mr-2"></i> Minha Conta</a>
+                    <a href="meus_pedidos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors"><i class="fas fa-box w-4 mr-2"></i> Meus Pedidos</a>
+                    <a href="meus_enderecos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors"><i class="fas fa-map-marker-alt w-4 mr-2"></i> Meus Endereços</a>
+                    <a href="fale_conosco.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors"><i class="fas fa-headset w-4 mr-2"></i> Fale Conosco</a>
+                    <a href="troca_devolucao.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors"><i class="fas fa-exchange-alt w-4 mr-2"></i> Troca e Devolução</a>
+                `;
+                allCategoriesDropdown.innerHTML += myAccountLinks;
+            }
+        };
+
+        // NOVO/CORRIGIDO: Função para renderizar um único card de produto com o layout detalhado
+        const renderProductCard = (product) => {
+            
+            const priceParts = window.formatPriceParts(product.price);
+            
+            // Só exibe preço antigo se for realmente maior que o novo
+            const hasOldPrice = product.oldPrice && product.oldPrice > product.price;
+            const oldPriceFormatted = hasOldPrice ? window.formatCurrency(product.oldPrice) : null;
+            
+            // Cálculo do desconto
+            const discountValue = hasOldPrice 
+                ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100) 
+                : null;
+
+            // Utiliza o objeto 'installments' mockado/calculado dentro de loadProducts
+            const installmentsText = product.installments ? formatInstallments(product.installments) : 'em até 12x';
+
+            return `
+                <a href="produto.html?id=${product.id}" class="product-card">
+                    <div class="product-image-container">
+                        ${discountValue ? 
+                            `<div class="product-tag-container">
+                                <span class="product-tag tag-orange">-${discountValue}% OFF</span>
+                            </div>` : ''
+                        }
+                        <img src="${product.imageUrl}" alt="${product.name}" loading="lazy">
+                    </div>
+                    <div class="product-card-body">
+                        <p class="product-name">${product.name}</p>
+                        
+                        <div class="mt-auto">
+                            ${hasOldPrice ? 
+                                `<p class="product-old-price">${oldPriceFormatted}</p>` :
+                                // Placeholder transparente para manter o espaçamento do layout
+                                '<p class="product-old-price opacity-0 text-transparent">.</p>' 
+                            }
+                            
+                            <div class="product-price">
+                                <span class="currency">${priceParts.symbol}</span>
+                                <span class="price-integer">${priceParts.integer}</span>
+                                <span class="decimal-part">,${priceParts.decimal}</span>
+                                <span class="cash-text">à vista</span>
+                            </div>
+                            
+                            <p class="product-installments">
+                                ${installmentsText}
+                            </p>
+                        </div>
+                    </div>
+                </a>
+            `;
+        };
+        
+        // Função de renderização principal
+        const renderProductCards = (products, gridId) => {
+            const gridContainer = document.getElementById(gridId);
+            if (!gridContainer) return;
+            
+            gridContainer.innerHTML = ''; 
+
+            if (products.length === 0) {
+                gridContainer.innerHTML = '<p class="col-span-full text-center text-lg text-gray-500 py-10">Nenhum produto encontrado neste segmento.</p>';
+                return;
+            }
+
+            products.forEach(product => {
+                gridContainer.innerHTML += renderProductCard(product);
+            });
+        };
+        
+        // ===================================
+        // LÓGICA DE INTERAÇÃO DO DOM
+        // ===================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const categoriesButton = document.getElementById('all-categories-button');
+            const categoriesDropdown = document.getElementById('all-categories-list'); 
+
+            window.toggleAllCategoriesDropdown = () => {
+                if (!categoriesDropdown) return;
+                const isHidden = categoriesDropdown.classList.contains('hidden');
+                if (isHidden) {
+                    categoriesDropdown.classList.remove('hidden');
+                    categoriesDropdown.offsetWidth;
+                } else {
+                    categoriesDropdown.classList.add('hidden');
+                }
+            };
+            
+            document.addEventListener('click', (event) => {
+                const isDropdownVisible = categoriesDropdown && !categoriesDropdown.classList.contains('hidden');
+                const clickedOutside = categoriesButton && !categoriesButton.contains(event.target) && categoriesDropdown && !categoriesDropdown.contains(event.target);
+                
+                if (isDropdownVisible && clickedOutside) {
+                    categoriesDropdown.classList.add('hidden');
+                }
+            });
+
+            // Adicionado placeholder para a função chamada no HTML
+            window.applySearchFilter = () => {
+                const desktopInput = document.getElementById('search-input-desktop');
+                const mobileInput = document.getElementById('search-input-mobile');
+                const query = (desktopInput?.value || mobileInput?.value || '').trim();
+                
+                if (query) {
+                    console.log(`Simulando busca por: ${query}`);
+                }
+            }
+             // Adicionado placeholder para a função chamada no HTML
+            window.openMobileMenu = () => {
+                window.displayMessage('O menu mobile será implementado futuramente.', 'info');
+            }
+
+
+            // Inicia o processo de Autenticação e Carregamento de Dados
+            window.checkAuthAndInit();
+        });
+
+    </script>

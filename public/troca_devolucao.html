@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./favicon.png">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <link rel="stylesheet" href="./css/tailwind.min.css">
+
+  <style>
+    /* Mantenha apenas o CSS que for MUITO específico desta página */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F5F7FA; /* fundo-claro */
+    }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilos para o input de arquivo personalizado */
+        .custom-file-input::-webkit-file-upload-button {
+            visibility: hidden;
+        }
+        .custom-file-input::before {
+            content: 'Selecionar Fotos';
+            display: inline-block;
+            background: #3B82F6;
+            color: white;
+            border: 1px solid #3B82F6;
+            border-radius: 0.5rem;
+            padding: 8px 12px;
+            outline: none;
+            white-space: nowrap;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.15s ease-in-out;
+        }
+        .custom-file-input:hover::before {
+            background: #2563EB;
+        }
+        .custom-file-input:active::before {
+            background: #1D4ED8;
+        }
+    </style>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Paleta de cores da marca
+                        'primary-blue': '#2E6DA4',
+                        'dark-bg': '#1D2B3A',
+                        'secondary-light-blue': '#56B5FF',
+                        'text-dark': '#333333',
+                        'fundo-claro': '#F5F7FA',
+                        'dark-gray-bg': '#222222',
+                        'error-red': '#D32F2F', // Definido aqui para o contador
+                    },
+                    boxShadow: {
+                        'inner-xl': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(-10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.2s ease-out',
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- Configurações e Inicialização do Firebase (Mandatório para ambiente Canvas) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, setLogLevel, getDocs, getDoc, query, where, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+        };
+        
+        // Log para debug
+        setLogLevel('Debug');
+
+        // Variáveis globais obrigatórias (Fornecidas pelo ambiente Canvas)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        let userId = null;
+
+        // Função de autenticação
+        async function authenticate() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser.uid;
+                console.log("Firebase Autenticado. User ID:", userId);
+            } catch (error) {
+                console.error("Erro na autenticação Firebase:", error);
+                userId = crypto.randomUUID(); // Fallback para ID anônimo
+            }
+        }
+
+        // Expor para uso global
+        window.db = db;
+        window.auth = auth;
+        
+        // 🔗 Bridge global para header.js (categorias + endereço)
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.getDoc = getDoc;
+        window.query = query;
+        window.where = where;
+        window.orderBy = orderBy;
+        window.limit = limit;
+        window.doc = doc;
+        try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+window.getUserId = () => userId;
+        window.appId = appId;
+
+        authenticate();
+    </script>
+</head>
+<body class="bg-fundo-claro min-h-screen flex flex-col">
+
+    <div id="message-container" class="fixed top-20 right-5 z-[1000] max-w-sm w-full">
+        <!-- Mensagens de notificação customizadas aparecerão aqui -->
+    </div>
+    
+    <div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold">
+        Atenção: Apenas produtos com defeito de fabricação podem ser trocados ou devolvidos.
+</div> 
+
+    <main class="flex-grow max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 my-10">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-100">
+            <h2 class="text-3xl font-bold text-text-dark mb-2 flex items-center">
+                <i class="fas fa-exchange-alt text-primary-blue mr-3"></i> 
+                Solicitação de Troca ou Devolução
+            </h2>
+            <p class="text-gray-600 mb-8 border-b pb-4">Preencha o formulário abaixo para iniciar o processo. Não se esqueça de anexar fotos para agilizar a análise!</p>
+
+            <form id="return-form" onsubmit="handleFormSubmission(event)">
+                
+                <!-- Passo 1: Informações Básicas (Simulação) -->
+                <div class="mb-6 bg-primary-blue/5 p-4 rounded-lg border border-primary-blue/20">
+                    <h3 class="text-lg font-semibold text-primary-blue mb-3">1. Dados do Pedido</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="order-id" class="block text-sm font-medium text-gray-700 mb-1">Número do Pedido (Obrigatório)</label>
+                            <input type="text" id="order-id" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        </div>
+                        <div>
+                            <label for="contact-email" class="block text-sm font-medium text-gray-700 mb-1">E-mail de Contato (Obrigatório)</label>
+                            <input type="email" id="contact-email" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 2: Detalhes da Troca/Devolução -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-text-dark mb-3 flex items-center"><i class="fas fa-comment-dots text-primary-blue mr-2"></i> 2. Motivo da Solicitação</h3>
+                    <label for="details" class="block text-sm font-medium text-gray-700 mb-1">Detalhes da Devolução (Descreva o defeito,ou o motivo da solicitação)</label>
+                    <textarea id="details" rows="6" required placeholder="Ex: O produto chegou com um arranhão na lateral direita. Gostaria de uma troca pelo mesmo modelo na cor azul, tamanho G."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue resize-y"></textarea>
+                </div>
+
+                <!-- Passo 3: Adicionar Fotos do Produto -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold text-text-dark mb-3 flex items-center"><i class="fas fa-camera text-primary-blue mr-2"></i> 3. Anexar Fotos do Produto (Obrigatório)</h3>
+                    <p class="text-sm text-gray-500 mb-3">Anexe fotos claras do produto e, se houver, do defeito ou dano. (Máximo 5 arquivos)</p>
+                    
+                    <div class="flex items-center space-x-4">
+                        <label for="product-photos" class="custom-file-input cursor-pointer text-sm"></label>
+                        <input type="file" id="product-photos" name="product-photos" accept="image/*" multiple required 
+                                class="hidden" onchange="updateFileCount()">
+                        <span id="file-count" class="text-sm text-gray-600 italic">Nenhum arquivo selecionado.</span>
+                    </div>
+
+                    <div id="preview-container" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        <!-- Previews das imagens aparecerão aqui -->
+                    </div>
+                </div>
+
+                <!-- Botão de Envio -->
+                <button type="submit" id="submit-button"
+                    class="w-full bg-primary-blue text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-secondary-light-blue transition-colors duration-300 flex items-center justify-center">
+                    <i class="fas fa-paper-plane mr-2"></i>
+                    Enviar Solicitação
+                </button>
+                <p id="loading-text" class="text-center text-primary-blue mt-3 hidden">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Enviando...
+                </p>
+            </form>
+        </div>
+    </main>
+    <!-- FIM DO CONTEÚDO PRINCIPAL -->
+
+    <footer class="bg-dark-bg text-white mt-12 pt-10">
+    <div class="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-12 pb-8">
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
+            </div>
+            
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-nowrap items-center gap-2">
+                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>
+
+    <script>
+        // Funções de UI do Cabeçalho (Mantenho para evitar erros no HTML fornecido)
+        function toggleAllCategoriesDropdown() {
+            const dropdown = document.getElementById('all-categories-list');
+            const arrow = document.getElementById('categories-arrow');
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+
+        function openMobileMenu() {
+            // Em uma aplicação real, aqui abriríamos um modal ou menu lateral.
+            showCustomMessage('Funcionalidade de Menu Mobile (Em Desenvolvimento)', 'info');
+        }
+
+        function applySearchFilter() {
+            const searchInput = document.getElementById('search-input-desktop') || document.getElementById('search-input-mobile');
+            if (searchInput.value.trim()) {
+                 showCustomMessage(`Buscando por: "${searchInput.value.trim()}"`, 'info');
+            }
+        }
+        
+        // Função para exibir notificações customizadas (simulando alert())
+        function showCustomMessage(message, type = 'success') {
+            const container = document.getElementById('message-container');
+            const color = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+
+            const messageHtml = `
+                <div class="${color} text-white p-4 mb-3 rounded-lg shadow-lg flex items-center animate-fade-in" role="alert">
+                    <div class="flex-grow">${message}</div>
+                    <button onclick="this.parentNode.remove()" class="ml-4 text-white opacity-70 hover:opacity-100">&times;</button>
+                </div>
+            `;
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = messageHtml;
+            container.appendChild(messageElement.firstChild);
+
+            setTimeout(() => {
+                if (messageElement.firstChild) messageElement.firstChild.remove();
+            }, 5000);
+        }
+
+        // Funções do Formulário de Troca/Devolução
+        
+        function updateFileCount() {
+            const fileInput = document.getElementById('product-photos');
+            const fileCountSpan = document.getElementById('file-count');
+            const previewContainer = document.getElementById('preview-container');
+            
+            const files = fileInput.files;
+            const maxFiles = 5;
+
+            // Limitar arquivos
+            if (files.length > maxFiles) {
+                showCustomMessage(`Você pode selecionar no máximo ${maxFiles} fotos.`, 'error');
+                // Limpar o input ou manter apenas os primeiros 5 (mais complexo via JS puro, mas necessário)
+                fileInput.value = ''; 
+                fileCountSpan.textContent = 'Nenhum arquivo selecionado.';
+                previewContainer.innerHTML = '';
+                return;
+            }
+
+            if (files.length === 1) {
+                fileCountSpan.textContent = `${files.length} arquivo selecionado.`;
+            } else if (files.length > 1) {
+                fileCountSpan.textContent = `${files.length} arquivos selecionados.`;
+            } else {
+                fileCountSpan.textContent = 'Nenhum arquivo selecionado.';
+            }
+
+            // Gerar Previews
+            previewContainer.innerHTML = '';
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imgHtml = `
+                        <div class="relative group aspect-square rounded-lg overflow-hidden shadow-md">
+                            <img src="${e.target.result}" alt="Preview da Foto" class="object-cover w-full h-full">
+                            <div class="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <i class="fas fa-search-plus text-white text-xl"></i>
+                            </div>
+                        </div>
+                    `;
+                    previewContainer.insertAdjacentHTML('beforeend', imgHtml);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleFormSubmission(event) {
+            event.preventDefault();
+            
+            const form = document.getElementById('return-form');
+            const submitButton = document.getElementById('submit-button');
+            const loadingText = document.getElementById('loading-text');
+
+            // Desabilitar UI
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            loadingText.classList.remove('hidden');
+
+            try {
+                // 1. Coleta de Dados
+                const orderId = document.getElementById('order-id').value;
+                const contactEmail = document.getElementById('contact-email').value;
+                const details = document.getElementById('details').value;
+                const photos = document.getElementById('product-photos').files;
+
+                // 2. Criação do Objeto de Dados
+                const submissionData = {
+                    userId: window.getUserId(),
+                    appId: window.appId,
+                    orderId: orderId,
+                    contactEmail: contactEmail,
+                    details: details,
+                    timestamp: new Date().toISOString(),
+                    status: 'Pendente',
+                    photoCount: photos.length,
+                    // NOTA: As fotos (arquivos grandes) não devem ser salvas no Firestore.
+                    // Em um app real, você as enviaria para o Cloud Storage e salvaria os URLs aqui.
+                    // Estamos apenas simulando o registro no Firestore.
+                };
+
+                // 3. Simulação de Envio (Aguardar autenticação, se não estiver pronta)
+                if (!window.db || !window.getUserId()) {
+                    console.warn("Aguardando inicialização do Firebase...");
+                    await new Promise(resolve => setTimeout(resolve, 1500)); 
+                }
+                
+                // 4. Salvar no Firestore (Coleção privada do usuário)
+                const db = window.db;
+                const userId = window.getUserId();
+                const appId = window.appId;
+
+                const collectionPath = `artifacts/${appId}/users/${userId}/returns`;
+                
+                const docRef = await addDoc(collection(db, collectionPath), submissionData);
+
+                // 5. Sucesso
+                showCustomMessage(`Solicitação enviada com sucesso! Seu código de protocolo é: ${docRef.id}.`, 'success');
+                console.log("Documento escrito com ID: ", docRef.id);
+
+                // Limpar formulário após 1 segundo
+                setTimeout(() => form.reset(), 1000);
+                document.getElementById('file-count').textContent = 'Nenhum arquivo selecionado.';
+                document.getElementById('preview-container').innerHTML = '';
+
+
+            } catch (error) {
+                console.error("Erro ao enviar solicitação:", error);
+                showCustomMessage(`Falha ao enviar solicitação. Tente novamente ou entre em contato. Erro: ${error.message}`, 'error');
+            } finally {
+                // Habilitar UI novamente
+                loadingText.classList.add('hidden');
+                submitButton.disabled = false;
+                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+    </script>
+    
+    <script src="./header.js"></script>
+<script>
+  (function () {
+    const tryInitHeader = () => {
+      if (typeof window.carregarHeader !== 'function') { setTimeout(tryInitHeader, 60); return; }
+      if (!(window.db && window.auth && typeof window.getDocs === 'function' && typeof window.orderBy === 'function')) {
+        setTimeout(tryInitHeader, 60);
+        return;
+      }
+      try { window.carregarHeader(); } catch (e) { console.error("[page] erro ao carregar header:", e); }
+    };
+    tryInitHeader();
+  })();
+</script>
+    <script src="marketplace-core.js"></script>
+    
+    <script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js"></script>
+</body>
+</html>

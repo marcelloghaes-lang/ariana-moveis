@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+  <header class="w-full z-50 shadow-xl">
+    <div class="bg-primary-blue text-white border-b border-gray-400">
+      <div class="container mx-auto flex justify-between items-center py-6 px-4">
+        <a href="minha_conta.html#pedidos" class="inline-flex items-center gap-2 uppercase font-semibold">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>Meus Pedidos</span>
+        </a>
+        <a href="index.html" class="text-2xl font-bold tracking-wider">ARIANA MOVEIS</a>
+        <div class="flex items-center gap-3">
+          <svg class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2L3 6v4a9 9 0 009 9 9 9 0 009-9V6L12 2z" fill="#FFFFFF" stroke="#CCCCCC" stroke-width="0.5"/>
+          </svg>
+          <div class="uppercase leading-tight text-sm">
+            Ambiente<br><strong class="text-lg">Seguro</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-8xl mx-auto px-4 mt-8 pb-10">
+    <div id="loading" class="text-center py-20 bg-white rounded-lg shadow-md border border-gray-200">
+      <div class="text-4xl mb-4">⏳</div>
+      <p class="text-lg text-text-dark font-semibold">Carregando detalhes do pedido...</p>
+    </div>
+
+    <div id="content" class="hidden">
+      <div class="flex items-start justify-between gap-4 mb-6">
+        <h1 class="text-2xl md:text-3xl font-extrabold text-text-dark">DETALHES DO PEDIDO</h1>
+        <div class="text-right">
+          <div class="text-sm text-gray-500">Pedido</div>
+          <div class="font-black text-primary-blue text-lg" id="order-short">#------</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+          <div id="tracking-card" class="hidden bg-white rounded-xl shadow-sm border p-5">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-xs uppercase tracking-widest text-green-700 font-black">Objeto em Trânsito</div>
+                <div class="text-lg font-black mt-1">Código de Rastreamento</div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="px-4 py-2 rounded-lg border font-black text-primary-blue" id="tracking-code"></div>
+                <button id="btn-copy-track" class="w-10 h-10 rounded-lg bg-primary-blue text-white font-black">⧉</button>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-3">* Utilize este código no site da transportadora.</p>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border p-6">
+            <div class="flex items-center justify-between gap-4 mb-6">
+              <h2 class="text-xl font-black">Status do Pedido</h2>
+              <span id="badge-status" class="text-[11px] uppercase font-black px-3 py-1 rounded bg-blue-100 text-blue-700">PROCESSANDO</span>
+            </div>
+
+            <ol class="space-y-6 text-sm text-gray-500">
+              <li class="flex gap-4">
+                <div class="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
+                <div>
+                  <div class="font-bold text-gray-700">Pedido Realizado</div>
+                  <div>Recebemos seu pedido.</div>
+                </div>
+              </li>
+              <li class="flex gap-4">
+                <div class="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
+                <div>
+                  <div class="font-bold text-gray-700">Pagamento Aprovado</div>
+                  <div>Pagamento confirmado.</div>
+                </div>
+              </li>
+              <li class="flex gap-4">
+                <div class="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
+                <div>
+                  <div class="font-bold text-gray-700">Em Preparação</div>
+                  <div>Estamos embalando.</div>
+                </div>
+              </li>
+              <li class="flex gap-4">
+                <div class="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
+                <div>
+                  <div class="font-bold text-gray-700">Em Transporte</div>
+                  <div>Com a transportadora.</div>
+                </div>
+              </li>
+              <li class="flex gap-4">
+                <div class="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
+                <div>
+                  <div class="font-bold text-gray-700">Entregue</div>
+                  <div>Pedido entregue.</div>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-xl font-black mb-4">Produtos Comprados</h2>
+            <div id="items" class="space-y-3"></div>
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h3 class="text-lg font-black mb-4">Resumo do Valor</h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-gray-600">Subtotal:</span><span class="font-bold">R$ <span id="v-subtotal">0,00</span></span></div>
+              <div class="flex justify-between"><span class="text-gray-600">Frete:</span><span class="font-bold">R$ <span id="v-frete">0,00</span></span></div>
+              <div class="border-t pt-3 mt-3 flex justify-between items-center">
+                <span class="font-black">Total:</span>
+                <span class="font-black text-primary-blue text-xl">R$ <span id="v-total">0,00</span></span>
+              </div>
+              <div class="border-t pt-3 mt-3">
+                <div class="text-xs uppercase tracking-widest text-gray-500 font-black">Pagamento</div>
+                <div class="mt-1 font-semibold" id="v-pagamento">-</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h3 class="text-lg font-black mb-4">Entrega em</h3>
+            <div class="text-sm text-gray-700 space-y-1">
+              <div class="font-black" id="addr-label">-</div>
+              <div id="addr-line1">-</div>
+              <div id="addr-line2">-</div>
+              <div class="pt-2 text-primary-blue font-black">CEP: <span id="addr-cep">-</span></div>
+            </div>
+          </div>
+
+          <div id="error-box" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<script type="module">
+// @ts-nocheck
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { 
+  getFirestore, doc, getDoc, collection, query, where, getDocs, limit
+} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  "apiKey": "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+  "authDomain": "ariana-moveis-final.firebaseapp.com",
+  "projectId": "ariana-moveis-final",
+  "storageBucket": "ariana-moveis-final.firebasestorage.app",
+  "messagingSenderId": "695257365498",
+  "appId": "1:695257365498:web:8e68494de6c4c99c67c70"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const $ = (id) => document.getElementById(id);
+
+function pick(obj, keys, fallback=null){
+  for (const k of keys){
+    const val = k.split('.').reduce((a,p)=> (a && a[p]!==undefined) ? a[p] : undefined, obj);
+    if (val !== undefined && val !== null && val !== "") return val;
+  }
+  return fallback;
+}
+
+function parseMoneyBR(v){
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+
+  // remove currency / spaces
+  let t = s.replace(/\s/g,'').replace(/^R\$/i,'').replace(/[^\d.,-]/g,'');
+  // if has both '.' and ',' assume '.' thousands and ',' decimal
+  if (t.includes(',') && t.includes('.')) {
+    t = t.replace(/\./g,'').replace(',', '.');
+  } else if (t.includes(',') && !t.includes('.')) {
+    // comma decimal
+    t = t.replace(',', '.');
+  }
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function moneyBR(v){
+  const n = parseMoneyBR(v);
+  return n.toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+
+function normalizeItems(order){
+  let raw = pick(order, ["items","cartItems","products","itens","order.items","pedido.items","cart","carrinho","order.cart","pedido.cart"], []);
+  // aceita JSON string
+  if (typeof raw === "string"){
+    try { raw = JSON.parse(raw); } catch(e) { raw = []; }
+  }
+  // aceita map objeto {id:{...}}
+  if (raw && !Array.isArray(raw) && typeof raw === "object"){
+    raw = Object.values(raw);
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.map(it=>({
+    id: it?.id || it?.productId || it?.sku || "",
+    name: it?.name || it?.title || it?.productName || it?.nome || "Produto",
+    image: it?.imageUrl || it?.image || it?.thumb || it?.foto || "",
+    quantity: Number(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1,
+    price: parseMoneyBR(it?.price ?? it?.unitPrice ?? it?.valor ?? it?.preco ?? it?.amount ?? 0)
+  }));
+}
+
+function calcTotals(order, items){
+  // tenta vários caminhos e aceita string BR
+  const subtotalRaw = pick(order, [
+    "subtotalPrice","subtotal","subTotal","itemsSubtotal","cartSubtotal",
+    "orderTotals.subtotal","totals.subtotal","amounts.subtotal","pricing.subtotal",
+    "values.subtotal","resumo.subtotal","orderTotals.items","totais.subtotal",
+    "payment.subtotal","pagamento.subtotal",
+    // alguns gateways salvam só o total
+    "payment.transaction_amount","payment.amount","payment.total","payment.value","payment.valor"
+  ], null);
+
+  const shippingRaw = pick(order, [
+    "shippingPrice","frete","freight","shippingValue","freteValor",
+    "orderTotals.shipping","totals.shipping","shipping.price","shipping.value",
+    "delivery.price","delivery.value","amounts.shipping","values.shipping",
+    "resumo.frete","totais.frete","payment.shipping","pagamento.frete"
+  ], null);
+
+  const totalRaw = pick(order, [
+    "totalPrice","total","totalValue","totalAmount","amount","valorTotal","grandTotal",
+    "orderTotals.total","orderTotals.grandTotal","orderTotals.final","orderTotals.finalTotal",
+    "totals.total","totals.grandTotal","amounts.total","pricing.total",
+    "values.total","resumo.total","totais.total",
+    "payment.total","payment.amount","payment.transaction_amount","payment.valor","payment.value",
+    "mp.transaction_amount","mp.total","cielo.amount","cielo.total"
+  ], null);
+
+  const discountRaw = pick(order, [
+    "discount","discountValue","orderTotals.discount","totals.discount","amounts.discount","values.discount"
+  ], 0);
+
+  const itemsSubtotal = items.reduce((acc,it)=> acc + (parseMoneyBR(it.price) * (Number(it.quantity)||1)), 0);
+
+  const subtotal = subtotalRaw !== null ? parseMoneyBR(subtotalRaw) : itemsSubtotal;
+  const shipping = shippingRaw !== null ? parseMoneyBR(shippingRaw) : parseMoneyBR(pick(order, ["shipping","shipping_cost","freteValor"], 0));
+  const discount = parseMoneyBR(discountRaw);
+
+  let total = totalRaw !== null ? parseMoneyBR(totalRaw) : (subtotal + shipping - discount);
+
+  // fallback extra: se total ainda 0 mas subtotal > 0
+  if ((!total || total <= 0) && subtotal > 0) total = subtotal + (shipping>0?shipping:0) - (discount>0?discount:0);
+
+  return { subtotal, shipping, total };
+}
+
+
+function normalizeAddress(order){
+  // no seu Firestore: address.{street,number,city,state,cep,...}
+  const a = pick(order, ["address","shippingAddress","deliveryAddress","enderecoEntrega","endereco","shipping_address"], {}) || {};
+  const label = pick(a, ["label","nome","tipo","nickname"], "") || pick(order, ["addressLabel"], "") || "Endereço";
+  const street = pick(a, ["street","rua","logradouro"], "");
+  const number = pick(a, ["number","numero"], "");
+  const complement = pick(a, ["complement","complemento"], "");
+  const neighborhood = pick(a, ["neighborhood","bairro"], "");
+  const city = pick(a, ["city","cidade"], "");
+  const state = pick(a, ["state","uf"], "");
+  const cep = (pick(a, ["cep","postalCode"], "") || "").toString();
+  return { label, street, number, complement, neighborhood, city, state, cep };
+}
+
+function paymentLabel(order){
+  const method = (pick(order, ["paymentMethod","payment.method","payment.type","pagamento.metodo","payment_method_id","payment.method_id"], "") || "").toString().toLowerCase();
+  if (method.includes("pix")) return "Pix";
+  if (method.includes("bol") || method.includes("boleto")) return "Boleto";
+  if (method.includes("card") || method.includes("credit")) return "Cartão de Crédito";
+  if (method.includes("cielo")) return "Cartão (Cielo)";
+  if (method.includes("mp")) return "Mercado Pago";
+  return method ? method.toUpperCase() : "—";
+}
+
+function statusToStep(order){
+  const s0 = (pick(order, ["status","orderStatus","state","mpStatus","payment.status","pagamento.status","statusPagamento"], "") || "").toString().toLowerCase();
+  const detail = (pick(order, ["statusDetail","mpStatusDetail","payment.status_detail"], "") || "").toString().toLowerCase();
+
+  // Etapas: 0 Pedido realizado, 1 Pagamento aprovado, 2 Em preparação, 3 Em transporte, 4 Entregue
+  if (["delivered","entregue","completed","concluido","concluído"].includes(s0)) return 4;
+  if (["shipped","in_transit","em_transporte","em transporte","transporting","enviado"].includes(s0)) return 3;
+
+  // preparação / separação
+  if (["preparing","processing","in_preparation","em_preparacao","em preparação","preparacao"].includes(s0)) return 2;
+
+  // pagamento
+  if (["paid","approved","pago","aprovado","pagamento_confirmado","pagamento confirmado"].includes(s0)) return 1;
+
+  // pending
+  if (["pending","pending_payment","pending_payment"].includes(s0) || s0.includes("pending")) return 0;
+  if (detail.includes("pending_waiting_payment") || detail.includes("waiting_payment")) return 0;
+
+  return 0;
+}
+
+function applySteps(order){
+  const status = pick(order, ["status","orderStatus","pedidoStatus","mpStatus","paymentStatus","statusPagamento","status_payment"], "") || "";
+  const step = statusToStep(status);
+
+  const badge = $("badge-status");
+  if (badge){
+    const label = (()=>{
+      if (step>=4) return "ENTREGUE";
+      if (step==3) return "EM TRANSPORTE";
+      if (step==2) return "EM PREPARAÇÃO";
+      if (step==1) return "PAGAMENTO CONFIRMADO";
+      return "PENDENTE";
+    })();
+    badge.textContent = label;
+    badge.className = "text-[11px] uppercase font-black px-3 py-1 rounded " + (
+      step>=4 ? "bg-green-100 text-green-700" :
+      step==3 ? "bg-indigo-100 text-indigo-700" :
+      step==2 ? "bg-amber-100 text-amber-700" :
+      step==1 ? "bg-blue-100 text-blue-700" :
+      "bg-gray-100 text-gray-700"
+    );
+  }
+
+  const ol = document.querySelector("ol");
+  if (!ol) return;
+  const lis = Array.from(ol.querySelectorAll("li"));
+  lis.forEach((li, idx)=>{
+    const dot = li.querySelector("div.w-2.h-2.rounded-full");
+    const title = li.querySelector("div.font-bold");
+    const done = idx <= step;
+    if (dot){
+      dot.classList.remove("bg-gray-300","bg-green-500");
+      dot.classList.add(done ? "bg-green-500" : "bg-gray-300");
+    }
+    if (title){
+      title.classList.remove("text-gray-700","text-green-700");
+      title.classList.add(done ? "text-green-700" : "text-gray-700");
+    }
+    li.classList.toggle("opacity-70", !done && idx>0);
+  });
+}
+
+function getOrderId(){
+  const url = new URL(window.location.href);
+  const qp = url.searchParams.get("id") || url.searchParams.get("orderId") || url.searchParams.get("pedidoId");
+  if (qp) return qp;
+
+  // fallback: algumas telas usam hash (#ID)
+  const h = (window.location.hash || "").replace(/^#/, "").trim();
+  if (h) return h;
+
+  return "";
+}
+
+
+async function tryFindByField(colName, orderId){
+  // tenta achar por campos comuns, caso a URL tenha só o shortId
+  const fields = ["shortId","code","orderId","pedidoId","orderNumber"];
+  for (const f of fields){
+    const q = query(collection(db, colName), where(f, "==", orderId), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty){
+      const d = snap.docs[0];
+      return { id: d.id, data: d.data() || {} };
+    }
+  }
+  return null;
+}
+async function tryFindByDocIdPrefix(colName, maybeShortId){
+  // fallback "sem index": busca um lote e filtra pelo prefixo do doc.id (case-insensitive)
+  const want = (maybeShortId || "").toString().trim();
+  if (!want) return null;
+
+  try {
+    const snap = await getDocs(query(collection(db, colName), limit(200)));
+    const lower = want.toLowerCase();
+    for (const d of snap.docs){
+      const id = d.id || "";
+      if (id.toLowerCase().startsWith(lower)){
+        return { id: d.id, data: d.data() || {} };
+      }
+    }
+  } catch(e){
+    // ignora
+  }
+  return null;
+}
+
+
+async function loadOrder(){
+
+  const idParam = getOrderId();
+  if (!idParam) {
+    setError("Pedido não informado.");
+    return null;
+  }
+
+  const collectionsToTry = ["pedidos","orders"];
+
+  let best = null;
+
+  for (const col of collectionsToTry){
+    try{
+      const ref = doc(db, col, idParam);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()){
+        best = {
+          col,
+          id: snap.id,
+          data: snap.data() || {}
+        };
+        break;
+      }
+
+    }catch(e){
+      console.warn("erro ao buscar pedido", e);
+    }
+  }
+
+  if (!best){
+    setError("Pedido não encontrado.");
+    return null;
+  }
+
+  const data = best.data;
+
+  // normaliza items
+  const items =
+    data.items ||
+    data.products ||
+    data.cart ||
+    data.itens ||
+    [];
+
+  // expõe items normalizados
+  best.data.__items = items;
+
+  return best;
+}
+
+function setError(msg){
+  const box = $("error-box");
+  if (!box) return;
+  box.textContent = msg;
+  box.classList.remove("hidden");
+}
+
+function render(orderDocId, order){
+  const short = (orderDocId || "").substring(0,6).toUpperCase();
+  if ($("order-short")) $("order-short").textContent = short;
+
+  // tracking
+  const track = (pick(order, ["trackingCode","tracking.code","rastreamento","rastreio.codigo"], "") || "").toString();
+  if (track){
+    $("tracking-code").textContent = track;
+    $("tracking-card")?.classList.remove("hidden");
+  } else {
+    $("tracking-card")?.classList.add("hidden");
+  }
+
+  const items = normalizeItems(order);
+  const totals = calcTotals(order, items);
+  const addr = normalizeAddress(order);
+
+  $("v-subtotal").textContent = "R$ " + moneyBR(totals.subtotal);
+  $("v-frete").textContent = "R$ " + moneyBR(totals.shipping);
+  $("v-total").textContent = "R$ " + moneyBR(totals.total);
+  $("v-pagamento").textContent = paymentLabel(order);
+
+  $("addr-label").textContent = addr.label || "Endereço";
+  const line1 = [addr.street, addr.number].filter(Boolean).join(", ");
+  const line2 = [addr.neighborhood, addr.city, addr.state].filter(Boolean).join(" - ");
+  $("addr-line1").textContent = line1 || "—";
+  $("addr-line2").textContent = [line2, addr.complement].filter(Boolean).join(" • ") || "—";
+  $("addr-cep").textContent = addr.cep ? `CEP: ${addr.cep}` : "CEP: —";
+
+  // items render
+  const itemsEl = $("items");
+  if (itemsEl){
+    if (!items.length){
+      itemsEl.innerHTML = `<div class="text-sm text-gray-500 italic">Nenhum item encontrado.</div>`;
+    } else {
+      itemsEl.innerHTML = items.map(it=>{
+        const lineTotal = parseMoneyBR(it.price) * (Number(it.quantity)||1);
+        return `
+        <div class="flex items-center gap-4 border rounded-xl p-3 bg-white">
+          <div class="w-14 h-14 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
+            ${it.image ? `<img src="${it.image}" class="w-full h-full object-cover" alt="">` : `<span class="text-xs text-gray-400">IMG</span>`}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="font-extrabold text-gray-800 truncate">${it.name}</div>
+            <div class="text-xs text-gray-500">Qtd: <b>${it.quantity}</b> • Unit: <b>R$ ${moneyBR(it.price)}</b></div>
+          </div>
+          <div class="text-right font-black text-gray-900">R$ ${moneyBR(lineTotal)}</div>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  // steps
+  applySteps(order);
+
+  // copy tracking
+  const btnCopy = $("btn-copy-track");
+  if (btnCopy){
+    btnCopy.onclick = async ()=>{
+      try{ await navigator.clipboard.writeText(track); }catch(_){}
+    };
+  }
+}
+
+onAuthStateChanged(auth, async (user)=>{
+  if (!user) {
+    window.location.href = "login_cadastro.html";
+    return;
+  }
+  const orderId = getOrderId();
+  if (!orderId) {
+    setError("ID do pedido não informado na URL.");
+    $("loading")?.classList.add("hidden");
+    $("content")?.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    const found = await loadOrder(orderId, user.uid);
+    render(found.id, found.data);
+    $("loading")?.classList.add("hidden");
+    $("content")?.classList.remove("hidden");
+  } catch (e) {
+    console.error(e);
+    setError(e?.message || "Erro ao carregar pedido.");
+    $("loading")?.classList.add("hidden");
+    $("content")?.classList.remove("hidden");
+  }
+});
+</script>
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js" defer></script>
+
+   <script src="js/header_auth_fix.js"></script>
+
+   <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

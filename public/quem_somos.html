@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <title>Quem Somos | Ariana Móveis</title>
+
+    <link rel="icon" type="image/png" href="./favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root {
+            --primary-blue: #2E6DA4;
+            --dark-bg: #1D2B3A;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; }
+        
+        /* Ajuste para a imagem de fundo no Mobile */
+        .mobile-hero {
+            background: linear-gradient(rgba(29, 43, 58, 0.9), rgba(46, 109, 164, 0.8)), 
+                        url('https://images.unsplash.com/photo-1524758631624-e2822e304c36?q=80&w=1000&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <header id="main-header"></header>
+
+    <div class="block md:hidden">
+        <section class="mobile-hero pt-16 pb-12 px-6 text-center text-white">
+            <h1 class="text-3xl font-black italic mb-2">QUEM SOMOS</h1>
+            <p class="text-sm opacity-80 uppercase tracking-widest">Ariana Móveis & Marketplace</p>
+        </section>
+
+        <main class="px-4 -mt-8 pb-12">
+            <div class="bg-white rounded-3xl shadow-xl p-6 mb-6">
+                <h2 class="text-2xl font-black text-[#2E6DA4] mb-4 italic">Sua casa, <br>nossa tecnologia.</h2>
+                <p class="text-gray-600 leading-relaxed mb-4 text-sm">
+                    A Ariana Móveis evoluiu. Hoje somos um marketplace robusto que une a tradição dos móveis com o que há de mais moderno em eletro e tecnologia.
+                </p>
+                <div class="bg-blue-50 border-l-4 border-[#2E6DA4] p-4 italic text-[#2E6DA4] text-sm rounded-r-xl">
+                    "Entregamos o conforto e a facilidade que a vida moderna exige."
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="flex items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="w-12 h-12 bg-blue-100 text-[#2E6DA4] rounded-xl flex items-center justify-center mr-4">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm">Tecnologia</h4>
+                        <p class="text-xs text-gray-500">As melhores marcas mundiais.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="w-12 h-12 bg-blue-100 text-[#2E6DA4] rounded-xl flex items-center justify-center mr-4">
+                        <i class="fas fa-couch"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm">Móveis & Eletro</h4>
+                        <p class="text-xs text-gray-500">Design para cada ambiente.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="w-12 h-12 bg-blue-100 text-[#2E6DA4] rounded-xl flex items-center justify-center mr-4">
+                        <i class="fas fa-truck-loading"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm">Entrega Garantida</h4>
+                        <p class="text-xs text-gray-500">Sua compra segura conosco.</p>
+                    </div>
+                </div>
+            </div>
+
+            <a href="index.html" class="block w-full bg-[#1D2B3A] text-white text-center py-4 rounded-2xl font-bold mt-8 shadow-lg">
+                <i class="fas fa-shopping-cart mr-2"></i> IR PARA A LOJA
+            </a>
+        </main>
+    </div>
+
+
+    <div class="hidden md:block">
+        <section class="bg-[#1D2B3A] text-white py-24 px-6 text-center">
+            <h1 class="text-7xl font-black italic tracking-tighter mb-4">ARIANA MÓVEIS</h1>
+            <p class="text-2xl font-light opacity-70">O site completo para o seu lar.</p>
+        </section>
+
+        <main class="max-w-6xl mx-auto px-12 -mt-12 pb-24">
+            <div class="grid grid-cols-3 gap-8 mb-16">
+                <div class="bg-white p-10 rounded-[2rem] shadow-xl text-center">
+                    <i class="fas fa-mobile-alt text-4xl text-[#2E6DA4] mb-6"></i>
+                    <h3 class="font-bold text-xl">Tecnologia</h3>
+                </div>
+                <div class="bg-white p-10 rounded-[2rem] shadow-xl text-center border-t-8 border-[#2E6DA4]">
+                    <i class="fas fa-couch text-4xl text-[#2E6DA4] mb-6"></i>
+                    <h3 class="font-bold text-xl">Móveis</h3>
+                </div>
+                <div class="bg-white p-10 rounded-[2rem] shadow-xl text-center">
+                    <i class="fas fa-shield-alt text-4xl text-[#2E6DA4] mb-6"></i>
+                    <h3 class="font-bold text-xl">Segurança</h3>
+                </div>
+            </div>
+
+            <div class="glass-card p-8 md:p-20 mb-20">
+            <div class="max-w-3xl mx-auto text-gray-600 text-lg leading-relaxed">
+                <h2 class="text-3xl md:text-4xl font-black mb-10 text-gradient italic">O que é a Ariana Móveis?</h2>
+                
+                <p class="mb-6">
+                    A <strong>Ariana Móveis</strong> nasceu da vontade de oferecer uma experiência de compra completa e segura. Evoluímos de uma loja especializada para um <strong>Marketplace robusto</strong>, onde a curadoria técnica é o nosso maior diferencial.
+                </p>
+
+                <p class="mb-6">
+                    Hoje, nossa plataforma reúne o que há de melhor em <strong>Eletrodomésticos, Eletroeletrônicos, Informática e Celulares</strong>, além da nossa tradicional linha de mobiliário. Nosso objetivo é que você encontre tudo para o seu dia a dia — do lazer ao trabalho — em um ambiente digital intuitivo e extremamente confiável.
+                </p>
+                
+                <div class="bg-blue-50 border-l-8 border-primary-blue p-8 my-12 rounded-r-2xl italic text-primary-blue font-semibold text-xl">
+                    "Não entregamos apenas produtos. Entregamos tecnologia, conforto e a facilidade que a sua vida moderna exige."
+                </div>
+
+                <h2 class="text-3xl font-black pt-8 mb-8 text-gradient italic">Variedade com Responsabilidade</h2>
+                <p>
+                    Ao comprar conosco, você tem a certeza de estar adquirindo itens de parceiros homologados. Seja um smartphone de última geração ou um conjunto de jantar, cada produto passa por um filtro de qualidade para garantir que sua única preocupação seja aproveitar a nova aquisição.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <footer id="main-footer"></footer>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js"></script>

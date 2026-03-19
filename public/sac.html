@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAC & Ouvidoria | Ariana Móveis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .input-focus:focus { border-color: #2E6DA4; box-shadow: 0 0 0 4px rgba(46, 109, 164, 0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #1D2B3A 0%, #2E6DA4 100%); }
+        .btn-voltar {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+        .btn-voltar:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(-5px);
+        }
+    </style>
+</head>
+<body class="bg-[#F8FAFC] min-h-screen pb-12">
+
+    <div class="gradient-bg h-64 w-full absolute top-0 left-0 z-0"></div>
+
+    <div class="relative z-10 max-w-5xl mx-auto pt-6 px-4">
+        
+        <div class="flex justify-start mb-6">
+            <a href="index.html" class="btn-voltar text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-medium text-sm border border-white/20">
+                <i class="fas fa-arrow-left"></i>
+                Voltar para o site
+            </a>
+        </div>
+
+        <div class="text-center mb-10">
+            <h1 class="text-white text-4xl font-extrabold tracking-tight">Como podemos ajudar?</h1>
+            <p class="text-blue-100 mt-3 text-lg opacity-90">Central de Atendimento e Ouvidoria Ariana Móveis</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-1 space-y-4">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="bg-blue-50 p-3 rounded-lg text-[#2E6DA4]">
+                            <i class="fas fa-phone-alt text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Capitais</p>
+                            <p id="display-4004" class="text-lg font-bold text-gray-800 tracking-tighter text-nowrap">Carregando...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="bg-green-50 p-3 rounded-lg text-green-600">
+                            <i class="fas fa-headset text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Demais Localidades</p>
+                            <p id="display-0800" class="text-lg font-bold text-gray-800 tracking-tighter text-nowrap">Carregando...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-[#1D2B3A] p-6 rounded-2xl shadow-lg text-white">
+                    <h3 class="font-bold text-lg mb-2">Horário de Atendimento</h3>
+                    <p class="text-sm text-gray-400 mb-4">Segunda a Sexta: 08h às 18h<br>Sábado: 09h às 13h</p>
+                    <div class="pt-4 border-t border-gray-700">
+                        <p class="text-xs text-gray-400">Tempo médio de resposta:</p>
+                        <p class="text-sm font-semibold text-blue-400">Até 24 horas úteis</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-3xl shadow-2xl shadow-blue-900/10 overflow-hidden">
+                    <div class="p-8 sm:p-10">
+                        <form id="form-atendimento" class="space-y-5">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-600 mb-2 ml-1">Nome Completo</label>
+                                    <input type="text" id="nome" required class="w-full px-4 py-3.5 rounded-xl border border-gray-200 outline-none transition input-focus text-gray-700 bg-gray-50/50" placeholder="Seu nome">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-600 mb-2 ml-1">E-mail</label>
+                                    <input type="email" id="email" required class="w-full px-4 py-3.5 rounded-xl border border-gray-200 outline-none transition input-focus text-gray-700 bg-gray-50/50" placeholder="exemplo@email.com">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-600 mb-2 ml-1">Número do Pedido (Opcional)</label>
+                                    <input type="text" id="pedido" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 outline-none transition input-focus text-gray-700 bg-gray-50/50" placeholder="#0000">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-600 mb-2 ml-1">Departamento</label>
+                                    <select id="tipo" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 outline-none transition input-focus text-gray-700 bg-gray-50/50 appearance-none">
+                                        <option value="SAC">SAC - Dúvidas e Trocas</option>
+                                        <option value="Ouvidoria">Ouvidoria - Reclamações</option>
+                                        <option value="Financeiro">Financeiro - Boletos e Pagamentos</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-600 mb-2 ml-1">Descreva sua solicitação</label>
+                                <textarea id="mensagem" rows="4" required class="w-full px-4 py-3.5 rounded-xl border border-gray-200 outline-none transition input-focus text-gray-700 bg-gray-50/50" placeholder="Como podemos ajudar você hoje?"></textarea>
+                            </div>
+
+                            <div class="pt-4">
+                                <button type="submit" id="btn-enviar" class="w-full bg-[#2E6DA4] hover:bg-[#1D2B3A] text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-3 transform hover:-translate-y-1">
+                                    <i class="fas fa-paper-plane"></i> ENVIAR SOLICITAÇÃO
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-sucesso" class="fixed inset-0 bg-black/50 hidden z-[100] flex items-center justify-center px-4">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">Enviado com Sucesso!</h3>
+            <p class="text-gray-500 mb-6">O seu protocolo é:<br><span id="proto-display" class="text-xl font-mono font-bold text-[#2E6DA4]"></span></p>
+            <button onclick="window.location.href='index.html'" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl">FECHAR E VOLTAR</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, addDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- LÓGICA DO FORMULÁRIO ---
+        const form = document.getElementById('form-atendimento');
+        const btn = document.getElementById('btn-enviar');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> PROCESSANDO...';
+
+            const agora = new Date();
+            const protocolo = agora.getFullYear().toString().slice(-2) + 
+                              (agora.getMonth() + 1).toString().padStart(2, '0') + 
+                              Math.floor(1000 + Math.random() * 9000);
+
+            const dados = {
+                protocolo: protocolo,
+                nome: document.getElementById('nome').value,
+                email: document.getElementById('email').value,
+                pedido: document.getElementById('pedido').value,
+                tipo: document.getElementById('tipo').value,
+                mensagem: document.getElementById('mensagem').value,
+                data: agora,
+                status: "Novo"
+            };
+
+            try {
+                await addDoc(collection(db, "atendimentos"), dados);
+                document.getElementById('proto-display').innerText = protocolo;
+                document.getElementById('modal-sucesso').classList.remove('hidden');
+                form.reset();
+            } catch (error) {
+                console.error("Erro:", error);
+                alert("Erro ao enviar. Verifique sua conexão.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane"></i> ENVIAR SOLICITAÇÃO';
+            }
+        });
+
+        // --- CARREGAR TELEFONES DO PAINEL ADMIN (SINCRO EM TEMPO REAL) ---
+        onSnapshot(doc(db, "configuracoes", "contatos"), (snapshot) => {
+            if (snapshot.exists()) {
+                const d = snapshot.data();
+                const tel0800 = document.getElementById('display-0800');
+                const tel4004 = document.getElementById('display-4004');
+
+                if (tel0800) tel0800.innerText = d.numero0800 || "0800 700 0000";
+                if (tel4004) tel4004.innerText = d.numero4004 || "4004-0000";
+            }
+        });
+    </script>
+</body>
+</html>

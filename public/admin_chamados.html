@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+<body class="bg-gray-100">
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-dark-bg text-white hidden md:block">
+      <div class="p-6 text-xl font-bold border-b border-gray-700 text-primary-blue">ADMIN ARIANA</div>
+      <nav class="p-4 space-y-2">
+        <a href="admin_painel.html" class="block p-3 hover:bg-dark-gray-bg rounded-lg">
+          <i class="fas fa-home mr-2"></i>Dashboard
+        </a>
+        <a href="admin_chamados.html" class="block p-3 bg-primary-blue rounded-lg text-white">
+          <i class="fas fa-headset mr-2"></i>Chamados
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Conteúdo -->
+    <main class="flex-1 p-8">
+      <header class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">Gerenciar Chamados</h1>
+        <div class="flex gap-3">
+          <span id="count-abertos" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">0 Abertos</span>
+        </div>
+      </header>
+
+      <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+        <table class="w-full text-left">
+          <thead class="bg-gray-50 border-b">
+            <tr>
+              <th class="p-4 font-semibold text-gray-600">Cliente</th>
+              <th class="p-4 font-semibold text-gray-600">Assunto</th>
+              <th class="p-4 font-semibold text-gray-600">Status</th>
+              <th class="p-4 font-semibold text-gray-600">Data</th>
+              <th class="p-4 text-right font-semibold text-gray-600">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="lista-chamados" class="divide-y divide-gray-100 text-sm"></tbody>
+        </table>
+      </div>
+
+      <div id="toast-container" class="fixed top-5 right-5 space-y-3 z-50"></div>
+    </main>
+  </div>
+
+  <!-- ✅ header_auth_fix continua igual -->
+  <script src="js/header_auth_fix.js"></script>
+
+  <!-- ✅ Script principal APÓS firebase compat estar carregado -->
+  <script>
+    // Firebase config (Ariana Móveis) — mesmo das outras telas
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+    };
+
+    // ✅ evita "firebase is not defined" e evita app duplicado
+    if (typeof firebase === "undefined") {
+      alert("Firebase não carregou. Verifique sua conexão ou bloqueadores de script.");
+      throw new Error("Firebase não carregou (firebase undefined).");
+    }
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Toast
+    function toast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      if (!container) { alert(message); return; }
+
+      const el = document.createElement("div");
+      const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
+      el.className = "toast p-4 rounded-lg text-white shadow-lg " + (map[type] || map.info) + " animate-fade";
+      el.textContent = message;
+      container.appendChild(el);
+
+      setTimeout(() => {
+        el.style.opacity = "0";
+        setTimeout(() => el.remove(), 250);
+      }, 3500);
+    }
+
+    // Render erro na tabela
+    function showErrorRow(msg) {
+      const tbody = document.getElementById("lista-chamados");
+      tbody.innerHTML = `
+        <tr>
+          <td class="p-4 text-red-600 font-bold" colspan="5">${msg}</td>
+        </tr>
+      `;
+    }
+
+    // Gate de admin (coleção admins/{uid})
+    async function checkAdmin(uid) {
+      try {
+        const snap = await db.collection("admins").doc(uid).get();
+        if (!snap.exists) return false;
+        const data = snap.data() || {};
+        if (data.active === false) return false;
+        const st = String(data.status || "").toLowerCase();
+        if (st === "bloqueado" || st === "reprovado") return false;
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Chamados
+    let unsubscribeTickets = null;
+
+    function loadTickets() {
+      if (unsubscribeTickets) unsubscribeTickets();
+
+      unsubscribeTickets = db.collection("tickets")
+        .orderBy("createdAt", "desc")
+        .onSnapshot((snapshot) => {
+          const tbody = document.getElementById("lista-chamados");
+          let abertos = 0;
+          tbody.innerHTML = "";
+
+          snapshot.forEach((docSnap) => {
+            const t = docSnap.data() || {};
+            if (t.status === "Aberto") abertos++;
+
+            const dataFormat = t.createdAt && t.createdAt.toDate
+              ? t.createdAt.toDate().toLocaleDateString("pt-BR")
+              : "---";
+
+            tbody.insertAdjacentHTML("beforeend", `
+              <tr class="hover:bg-blue-50 transition">
+                <td class="p-4 font-bold text-gray-700">${t.customerName || "Cliente"}</td>
+                <td class="p-4">
+                  <span class="block font-medium">${t.subject || "—"}</span>
+                  <span class="text-xs text-gray-500 italic">Pedido: ${t.orderId || "N/A"}</span>
+                </td>
+                <td class="p-4">
+                  <select onchange="updateStatus('${docSnap.id}', this.value)" class="bg-gray-50 border rounded p-1 text-xs font-bold">
+                    <option value="Aberto" ${t.status === "Aberto" ? "selected" : ""}>ABERTO</option>
+                    <option value="Em Análise" ${t.status === "Em Análise" ? "selected" : ""}>EM ANÁLISE</option>
+                    <option value="Concluído" ${t.status === "Concluído" ? "selected" : ""}>CONCLUÍDO</option>
+                  </select>
+                </td>
+                <td class="p-4 text-gray-500">${dataFormat}</td>
+                <td class="p-4 text-right">
+                  <button onclick="responder('${docSnap.id}')" class="bg-primary-blue text-white px-3 py-1 rounded hover:bg-blue-700">
+                    Responder
+                  </button>
+                </td>
+              </tr>
+            `);
+          });
+
+          document.getElementById("count-abertos").innerText = `${abertos} Abertos`;
+        }, (err) => {
+          console.error("[tickets] snapshot error:", err);
+          if (String(err && err.code) === "permission-denied") {
+            showErrorRow("Sem permissão para ler 'tickets'. Faça login como ADMIN (ou ajuste as rules).");
+          } else {
+            showErrorRow("Erro ao carregar chamados. Veja o console.");
+          }
+        });
+    }
+
+    async function updateStatus(id, novoStatus) {
+      try {
+        await db.collection("tickets").doc(id).update({ status: novoStatus });
+        toast("Status atualizado!", "success");
+      } catch (e) {
+        console.error(e);
+        toast("Erro ao atualizar status (permissão).", "error");
+      }
+    }
+    window.updateStatus = updateStatus;
+
+    function responder(id) {
+      const resposta = prompt("Digite sua resposta para o cliente:");
+      if (!resposta) return;
+
+      db.collection("tickets").doc(id).update({
+        status: "Em Análise",
+        adminReply: resposta,
+        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => toast("Resposta enviada!", "success"))
+        .catch((e) => {
+          console.error(e);
+          toast("Erro ao enviar resposta (permissão).", "error");
+        });
+    }
+    window.responder = responder;
+
+    // Proteção de rota
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = "login_admin.html";
+        return;
+      }
+
+      const ok = await checkAdmin(user.uid);
+      if (!ok) {
+        try { await auth.signOut(); } catch (_) {}
+        alert("Acesso negado: conta não é ADMIN.");
+        window.location.href = "login_admin.html";
+        return;
+      }
+
+      loadTickets();
+    });
+
+    console.log("admin_chamados: Firebase compat carregado e pronto.");
+  </script>
+  <script type="module" src="firebase-config.js"></script>
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="header.js" defer></script>
+  
+    <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>
+

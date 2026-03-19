@@ -1,0 +1,63 @@
+const renderGlobalFooter = () => {
+    const footerHTML = `
+    <footer class="bg-dark-bg text-white mt-12 pt-10">
+    <div class="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-12 pb-8">
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> contato@arianamoveis.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Institucional</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="quem_somos.html" class="hover:text-secondary-light-blue transition-colors">Quem Somos</a></li>
+                <li><a href="quem_somos_seller.html" class="hover:text-secondary-light-blue transition-colors font-bold text-blue-400">Seja um Vendedor</a></li>
+                <li><a href="sac.html" class="hover:text-secondary-light-blue transition-colors font-bold">SAC / Ouvidoria</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+                <li><a href="politica_privacidade.html" class="hover:text-secondary-light-blue transition-colors">Privacidade</a></li>
+            </ul>
+        </div>
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
+            </div>
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-nowrap items-center gap-2">
+                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
+            </div>
+        </div>
+    </div>
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2026 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>`;
+
+    const target = document.getElementById('main-footer') || document.body;
+    if (target.id === 'main-footer') {
+        target.innerHTML = footerHTML;
+    } else {
+        target.insertAdjacentHTML('beforeend', footerHTML);
+    }
+};
+
+// Executa após o carregamento do DOM para evitar problemas de cache
+document.addEventListener('DOMContentLoaded', renderGlobalFooter);

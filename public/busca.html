@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+<style>
+body{background-color:#fcfcfc;overflow-x:hidden;font-family:'Inter',sans-serif;}
+/* --- ESTILOS PARA O CARD DE PRODUTO --- */.product-card{background-color:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .3s,box-shadow .3s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%}
+    .product-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.1)}
+    .product-image-container{width:100%;height:180px;position:relative;overflow:hidden;margin-bottom:10px;display:flex;justify-content:center;align-items:center}
+    .product-image-container img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;transition:none}
+    .product-card-body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start}
+    .product-name{font-size:.85rem;font-weight:400;color:#444;height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px}
+    .product-old-price{font-size:.8rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2}
+    .product-price{font-size:1.25rem;font-weight:700;color:#333;margin-top:2px;display:flex;align-items:flex-end;line-height:1}
+    .product-price .currency{font-size:.7em;font-weight:400;align-self:flex-start}
+    .product-price .price-integer{font-size:1em;font-weight:700;margin-left:2px}
+    .product-price .decimal-part{font-size:.7em;font-weight:400}
+    .product-price .cash-text{font-size:.75rem;font-weight:400;color:#555;margin-left:5px;padding-bottom:1px}
+    .product-installments{font-size:.75rem;color:#777;margin-top:5px;line-height:1.4}
+    .product-tag-container{position:absolute;top:5px;left:5px;z-index:10;display:flex;flex-direction:column;gap:5px}
+    .product-tag{color:#fff;font-size:.75rem;font-weight:600;padding:2px 5px;border-radius:2px;display:block;width:fit-content;line-height:1}
+    .tag-orange{background-color:#ff931e}
+
+    /* Banner principal */
+    #hero-banners-section #banner-link { aspect-ratio: 4 / 1; }
+
+    /* Dropdown categorias */
+    .dropdown-open { max-height: 500px !important; padding-top: .5rem; padding-bottom: .5rem; }
+
+    /* Container de mensagens (suporte ao displayMessage) */
+    #message-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 2rem)); z-index: 60; }
+  
+    /* ===== BANNERS SEM CORTE (ajuste pro seu layout) ===== */
+    .banner-frame { width: 100%; border-radius: 16px; overflow: hidden; background: #ffffff; box-shadow: 0 10px 26px rgba(0,0,0,.10); }
+    .banner-4x1 { aspect-ratio: 4 / 1; }   /* 1920x480 e 1600x400 */
+    .banner-1x1 { aspect-ratio: 1 / 1; }   /* 800x800 */
+    .banner-mini { aspect-ratio: 16 / 9; }  /* mini banners */
+    .banner-secondary { aspect-ratio: 24 / 7; } /* 1200x350 (≈3.43:1) */
+    .banner-vertical { aspect-ratio: 2 / 3; }  /* 600x900 (vertical) */
+    .banner-duo { aspect-ratio: 3 / 1; }       /* 1200x400 (≈3:1) */
+
+    .banner-img-contain { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; background: #ffffff; }
+    
+    
+    /* ===== FIT INTELIGENTE (sem sobras) ===== */
+    .banner-img{width:100%;height:100%;display:block;object-position:center;background:#ffffff;}
+    .banner-fit-contain{object-fit:contain;}
+    .banner-fit-cover{object-fit:cover;}
+/* ===== Banner "sem corte" porém sem ficar pequeno: fundo blur + imagem em contain ===== */
+    .banner-frame{ position: relative; }
+    .banner-frame::before{
+      content:"";
+      position:absolute; inset:0;
+      background-image: var(--banner-bg);
+      background-size: cover;
+      background-position: center;
+      filter: blur(18px) saturate(1.1);
+      transform: scale(1.08);
+      opacity: .55;
+    }
+    .banner-frame::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(255,255,255,.25) 0%, rgba(255,255,255,.05) 40%, rgba(255,255,255,.15) 100%);
+      pointer-events:none;
+    }
+    .banner-frame > img{ position: relative; z-index: 1; }
+/* aumenta a área útil (menos espaço sobrando nas laterais) */
+    .page-wrap { width: 100%; max-width: 100%; margin: 0; padding-left: 0; padding-right: 0; }
+    @media (min-width: 1536px){ .page-wrap { max-width: 100%; } }
+  
+    /* mini banners mobile scroll */
+    @media (max-width: 640px) {
+      #mini-banners-carousel { 
+        display: flex !important; 
+        flex-wrap: nowrap !important; 
+        overflow-x: auto !important; 
+        -webkit-overflow-scrolling: touch; 
+        gap: 12px !important;
+        padding-bottom: 6px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; /* Firefox */
+
+      }
+            #mini-banners-carousel::-webkit-scrollbar { display: none; }
+#mini-banners-carousel > * { 
+        flex: 0 0 78% !important; 
+        max-width: 78% !important;
+        scroll-snap-align: start;
+
+      }
+      #mini-banners-carousel img { 
+        width: 100% !important; 
+        height: auto !important; 
+      }
+    }
+
+/* ===== Ajuste de layout (desktop) ===== */
+html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
+body { margin: 0; }
+
+/* Deixa banners e rodapé "de canto a canto" (full-bleed), mantendo conteúdo centralizado */
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/* Imagens de banner sempre preenchendo o card */
+.banner-frame, .mini-card, .hero-banner, .deal-banner { overflow: hidden; }
+.banner-frame img, .mini-card img, .hero-banner img, .deal-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+
+
+  /* Evita "sobras" dentro do banner (contain vira cover nos banners) */
+.banner-fit-contain{ object-fit: cover !important; }
+/* Mini-banners no mobile: evita ficar "tudo junto" / desorganizado */
+@media (max-width: 768px) {
+  .mini-banners { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+  .mini-banners .mini-card { height: 92px !important; }
+}
+@media (max-width: 420px) {
+  .mini-banners { grid-template-columns: 1fr !important; }
+  .mini-banners .mini-card { height: 110px !important; }
+}
+
+/* Rodapé full width (o footer.js injeta o conteúdo, então forçamos o fundo ocupar 100%) */
+footer, .site-footer, .footer, .footer-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+</style>
+<script>
+/* ✅ Payments/Card helper loader (evita 10x/sem desconto e resolve caminho /js/) */
+(function(){
+  function injectOnce(key, src){
+    if (window[key]) return;
+    window[key] = true;
+    var s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+  function loadAll(){
+    // core primeiro, payments depois (payments depende do core)
+    injectOnce('__CORE_LOADED__', 'js/marketplace-core.js');
+    // espera um tiquinho para o core registrar funções globais
+    setTimeout(function(){
+      injectOnce('__PAYMENTS_LOADED__', 'js/marketplace-core_global_payments.js');
+    }, 0);
+  }
+  if (window.db) loadAll();
+  else window.addEventListener('firebase:ready', loadAll, { once:true });
+})();
+</script>
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+    
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2"></div>
+<main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 mt-6">
+        
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-text-dark mb-4">
+            Resultados da Busca
+        </h1>
+        <p id="search-status" class="text-lg text-gray-600 mb-6"></p>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            <aside id="filters-sidebar" class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg h-fit sticky top-24">
+                <h2 class="text-xl font-bold text-text-dark mb-4 border-b pb-2">Filtrar Resultados</h2>
+                
+                <div class="mb-6">
+                    <h3 class="font-semibold text-lg mb-2 flex items-center text-primary-blue">
+                        <i class="fas fa-list-alt mr-2"></i> Categoria
+                    </h3>
+                    <!--
+                      IMPORTANTE:
+                      - Esta lista agora é preenchida dinamicamente com as categorias do Firestore (coleção "categories").
+                      - Assim, o filtro passa a bater com categorySlug / categoryName gravados nos produtos.
+                    -->
+                    <ul class="space-y-2 text-sm" id="category-filter">
+                        <li>
+                          <a href="#" class="text-gray-700 hover:text-primary-blue transition-colors filter-link font-bold text-primary-blue" data-category="all">
+                            Todas as Categorias
+                          </a>
+                        </li>
+                        <li>
+                          <span class="text-gray-400 text-xs">Carregando categorias...</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="mb-6 border-t pt-4">
+                    <h3 class="font-semibold text-lg mb-2 flex items-center text-primary-blue">
+                        <i class="fas fa-tags mr-2"></i> Faixa de Preço
+                    </h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm font-medium">
+                            <span>Mín: <span id="min-price-display">R$ 100</span></span>
+                            <span>Máx: <span id="max-price-display">R$ 5.000</span></span>
+                        </div>
+                        <input type="range" min="100" max="5000" value="5000" id="price-range" class="w-full h-2 bg-gray-200 appearance-none cursor-pointer rounded-full">
+                    </div>
+                </div>
+
+                <button onclick="limparFiltros()" class="w-full bg-gray-200 text-dark-bg font-semibold py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                    <i class="fas fa-sync-alt mr-2"></i> Limpar Filtros
+                </button>
+            </aside>
+            
+            <section class="lg:col-span-3">
+                
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-md">
+                    <div class="flex items-center space-x-2 mb-3 sm:mb-0">
+                        <label for="ordenacao" class="text-sm font-medium text-gray-700">Ordenar por:</label>
+                        <select id="ordenacao" onchange="applyFilters()" class="p-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="relevancia">Relevância</option>
+                            <option value="menor-preco">Menor Preço</option>
+                            <option value="maior-preco">Maior Preço</option>
+                            <option value="melhor-avaliacao">Melhor Avaliação</option>
+                        </select>
+                    </div>
+
+                    <div class="search-bar-local flex w-full sm:w-auto">
+                        <input type="text" id="campo-busca-local" placeholder="Refinar busca..." class="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-secondary-light-blue">
+                        <button onclick="realizarNovaBuscaLocal()" class="bg-secondary-light-blue text-white p-2 px-4 rounded-r-lg hover:bg-primary-blue transition-colors">
+                            <i class="fas fa-redo-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="product-results-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                </div>
+
+                <div id="empty-state" class="hidden text-center py-20 bg-white rounded-xl shadow-lg mt-6">
+                    <i class="fas fa-exclamation-triangle text-6xl text-warning-yellow mb-4"></i>
+                    <h2 class="text-xl font-semibold text-text-dark mb-2">Nenhum resultado encontrado.</h2>
+                    <p class="text-gray-500 mb-6">Tente refinar sua busca com termos mais genéricos ou verifique a ortografia.</p>
+                </div>
+                
+                <div id="pagination" class="flex justify-center mt-8">
+                    <button class="bg-primary-blue text-white py-2 px-4 rounded-l-lg hover:bg-dark-bg transition-colors disabled:opacity-50">Página Anterior</button>
+                    <span class="bg-white text-dark-bg py-2 px-4 border-y border-gray-200">Página 1</span>
+                    <button class="bg-primary-blue text-white py-2 px-4 rounded-r-lg hover:bg-dark-bg transition-colors">Próxima Página</button>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script>
+(function () {
+  const loaded = new Set();
+
+  function loadScriptSequential(src) {
+    return new Promise((resolve, reject) => {
+      if (loaded.has(src)) return resolve(true);
+
+      const existing = document.querySelector(`script[data-src="${src}"]`) || document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        if (existing.dataset.loaded === "1") {
+          loaded.add(src);
+          return resolve(true);
+        }
+        existing.addEventListener("load", () => {
+          existing.dataset.loaded = "1";
+          loaded.add(src);
+          resolve(true);
+        }, { once: true });
+        existing.addEventListener("error", () => reject(new Error("Falha ao carregar " + src)), { once: true });
+        return;
+      }
+
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = false;
+      s.defer = false;
+      s.dataset.src = src;
+      s.onload = () => {
+        s.dataset.loaded = "1";
+        loaded.add(src);
+        resolve(true);
+      };
+      s.onerror = () => reject(new Error("Falha ao carregar " + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function tryCandidates(candidates) {
+    for (const src of candidates) {
+      try {
+        await loadScriptSequential(src);
+        return src;
+      } catch (_) {}
+    }
+    throw new Error("Nenhum caminho carregou: " + candidates.join(", "));
+  }
+
+  async function ensureMarketplaceHelpers() {
+    const coreCandidates = [
+      "./marketplace-core.js",
+      "./js/marketplace-core.js",
+      "/marketplace-core.js",
+      "/js/marketplace-core.js"
+    ];
+
+    const paymentsCandidates = [
+      "./marketplace-core_global_payments.js",
+      "./js/marketplace-core_global_payments.js",
+      "/marketplace-core_global_payments.js",
+      "/js/marketplace-core_global_payments.js"
+    ];
+
+    try {
+      await tryCandidates(coreCandidates);
+      await tryCandidates(paymentsCandidates);
+
+      let tries = 0;
+      while (tries < 120) {
+        const hasPayments =
+          typeof window.decorateProductWithPayments === "function" ||
+          typeof window.createProductCard === "function";
+
+        if (hasPayments) {
+          window.__MARKETPLACE_HELPERS_READY__ = true;
+          window.dispatchEvent(new CustomEvent("marketplace:helpers-ready"));
+          return true;
+        }
+
+        await new Promise(r => setTimeout(r, 50));
+        tries++;
+      }
+
+      console.warn("Helpers do marketplace não ficaram prontos a tempo.");
+      return false;
+    } catch (e) {
+      console.error("Erro ao carregar helpers do marketplace:", e);
+      return false;
+    }
+  }
+
+  window.ensureMarketplaceHelpers = ensureMarketplaceHelpers;
+})();
+</script>
+
+    <script type="module">
+// ✅ Garante que o core de pagamentos carregou ANTES de renderizar cards (desconto/parcelamento).
+const __sleep = (ms)=> new Promise(r=>setTimeout(r, ms));
+async function __waitPaymentsCore(timeoutMs=12000){
+  const t0 = Date.now();
+  while(Date.now()-t0 < timeoutMs){
+    if (typeof window.createProductCard === "function" || typeof window.decorateProductWithPayments === "function") return true;
+    await __sleep(50);
+  }
+  console.warn("⚠️ payments core não carregou a tempo — cards podem ficar sem desconto/parcelamento.");
+  return false;
+}
+await __waitPaymentsCore();
+
+// ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
+// Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
+window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
+  try{
+    if (v === null || v === undefined) return fallback;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+    let s = String(v).trim();
+    if (!s) return fallback;
+    // remove R$, espaços e caracteres não numéricos exceto . e ,
+    s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g,'');
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot){
+      // 1.234,56 -> 1234.56
+      s = s.replace(/\./g,'').replace(',', '.');
+    } else if (hasComma && !hasDot){
+      // 1234,56 -> 1234.56
+      s = s.replace(',', '.');
+    }
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : fallback;
+  }catch(_e){
+    return fallback;
+  }
+};
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, getDocs, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+  // ========= GARANTE CORE DE PAGAMENTOS (desconto/parcelamento) =========
+  async function loadScriptOnce(src) {
+    return await new Promise((resolve, reject) => {
+      try {
+        const existing = document.querySelector(`script[data-src="${src}"]`) || document.querySelector(`script[src="${src}"]`);
+        if (existing && existing.getAttribute("data-loaded") === "1") return resolve(true);
+        if (existing) {
+          existing.addEventListener("load", () => resolve(true), { once: true });
+          existing.addEventListener("error", () => reject(new Error("Falha ao carregar " + src)), { once: true });
+          return;
+        }
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = false;
+        s.defer = false;
+        s.setAttribute("data-src", src);
+        s.onload = () => { s.setAttribute("data-loaded","1"); resolve(true); };
+        s.onerror = () => reject(new Error("Falha ao carregar " + src));
+        document.head.appendChild(s);
+      } catch (e) { reject(e); }
+    });
+  }
+
+  async function ensurePaymentsCore() {
+    // tenta 2 caminhos (arquivos estão em /public)
+    const candidatesCore = ["./marketplace-core.js", "./js/marketplace-core.js", "/marketplace-core.js", "/js/marketplace-core.js"];
+    const candidatesPay  = ["./marketplace-core_global_payments.js", "./js/marketplace-core_global_payments.js", "/marketplace-core_global_payments.js", "/js/marketplace-core_global_payments.js"];
+
+    let okCore = false;
+    for (const src of candidatesCore) {
+      try { await loadScriptOnce(src); okCore = true; break; } catch (_) {}
+    }
+    if (!okCore) console.warn("⚠️ Falha ao carregar marketplace-core.js");
+
+    let okPay = false;
+    for (const src of candidatesPay) {
+      try { await loadScriptOnce(src); okPay = true; break; } catch (_) {}
+    }
+    if (!okPay) console.warn("⚠️ Falha ao carregar marketplace-core_global_payments.js");
+
+    // pequena espera para registrar funções globais
+    await new Promise(r => setTimeout(r, 10));
+    return okCore && okPay;
+  }
+
+  // garante antes de renderizar cards
+  await ensurePaymentsCore();
+
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:ef7698ea5d33d701338243",
+            measurementId: "G-WNMWLYMW43"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        window.storage = storage;
+
+        window.db = db;
+        window.auth = auth;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.getDoc = getDoc;
+        window.query = query;
+        window.where = where;
+        window.orderBy = orderBy;
+        window.limit = limit;
+        window.doc = doc;
+
+        let currentFilters = {
+            query: '',
+            category: 'all',
+            // mantém o nome original (útil para exibir e bater com campos diferentes)
+            categoryName: '',
+            maxPrice: 5000,
+            sort: 'relevancia'
+        };
+
+        const PRODUCTS_COLLECTION = "products";
+        const CATEGORIES_COLLECTION = "categories";
+
+        // Normaliza texto para slug (tolerante a espaços/acentos)
+        const normalizeSlug = (text) => {
+            const s = String(text || '').trim().toLowerCase();
+            if (!s) return '';
+            return s
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/(^-|-$)/g, '');
+        };
+
+        const getCategoryAliases = (rawNameOrSlug) => {
+            const raw = String(rawNameOrSlug || '').trim();
+            if (!raw) return [];
+            const lower = raw.toLowerCase();
+            const slug = normalizeSlug(raw);
+            // Alguns produtos antigos podem ter categorySlug como lower com espaços, então mantemos também.
+            return Array.from(new Set([
+                raw,
+                lower,
+                slug,
+                lower.replace(/\s+/g, '-'),
+                lower.replace(/\s+/g, ' '),
+            ].filter(Boolean)));
+        };
+
+        window.displayMessage = function(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const colors = { success: 'bg-success-green', error: 'bg-danger-red', info: 'bg-info-blue' };
+            const toast = document.createElement('div');
+            toast.className = `p-4 text-white rounded-lg shadow-xl flex items-center space-x-3 transition-all duration-300 ${colors[type] || colors.info}`;
+            toast.innerHTML = `<span class="text-sm font-medium">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, duration);
+        };
+
+        window.addToCart = function(productId, event) {
+            if (event) event.stopPropagation();
+            window.displayMessage(`Produto adicionado ao carrinho!`, 'success');
+        };
+
+        const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+        window.applyFilters = async function() {
+            const ordenacaoSelect = document.getElementById('ordenacao');
+            if (ordenacaoSelect) currentFilters.sort = ordenacaoSelect.value;
+            
+            const products = await fetchProductsFromFirestore();
+            renderProducts(products);
+        };
+
+        const looksLikeSlug = (v) => /[a-z0-9-]/i.test(String(v || '')) && String(v || '').includes('-');
+
+        const productMatchesCategory = (p) => {
+            if (currentFilters.category === 'all') return true;
+            const wanted = String(currentFilters.category || '').toLowerCase();
+            const wanted2 = normalizeSlug(currentFilters.categoryName || currentFilters.category);
+            const wantedRaw = String(currentFilters.categoryName || '').toLowerCase();
+
+            const candidates = [
+                p.categorySlug,
+                p.category_slug,
+                p.category,
+                p.categoria,
+                p.categoryName,
+                p.category_name,
+                p.categoriaNome,
+                p.nomeCategoria,
+            ].filter(Boolean).map(v => String(v).trim());
+
+            for (const c of candidates) {
+                const cLower = c.toLowerCase();
+                if (cLower === wanted) return true;
+                if (cLower === wantedRaw && wantedRaw) return true;
+                if (normalizeSlug(c) === wanted2 && wanted2) return true;
+                // se o produto salvou "celulares" sem hífen e o filtro veio com hífen, tenta equivaler
+                if (!looksLikeSlug(c) && normalizeSlug(cLower) === wanted2 && wanted2) return true;
+            }
+            return false;
+        };
+
+        const fetchProductsFromFirestore = async () => {
+            try {
+                const productsRef = collection(db, PRODUCTS_COLLECTION);
+                let constraints = [];
+                // Importante: para evitar problemas de slug diferente entre painéis/telas,
+                // fazemos o filtro de categoria no front (productMatchesCategory).
+                // No Firestore, mantemos apenas preço para reduzir volume.
+                constraints.push(where("price", "<=", parseFloat(currentFilters.maxPrice)));
+
+                const q = query(productsRef, ...constraints);
+                const querySnapshot = await getDocs(q);
+                const rawDocs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+// Resolve imagens: aceita URL direta, path do Storage (ex: "products/abc.jpg"), gs://..., e imagens em arrays/objetos.
+const isHttpUrl = (s) => typeof s === 'string' && /^(https?:)?\/\//i.test(s);
+const isDataUrl = (s) => typeof s === 'string' && /^data:/i.test(s);
+const looksLikeStoragePath = (s) => typeof s === 'string' && s.trim() && !isHttpUrl(s) && !isDataUrl(s) && !s.startsWith('blob:') && !s.startsWith('file:');
+const pickFirstImageCandidate = (p) => {
+    if (!p) return null;
+    const direct = p.imageUrl || p.mainImageUrl || p.mainImage || p.imagemUrl || p.imagem || p.image || null;
+    if (typeof direct === 'string' && direct.trim()) return direct.trim();
+    // images array
+    if (Array.isArray(p.images)) {
+        const main = p.images.find(x => x && (x.isMain === true || x.main === true) && (x.url || x.path));
+        const any = main || p.images.find(x => x && (x.url || x.path));
+        const v = any?.url || any?.path;
+        if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    // images object {0:{url},1:{url}}
+    if (p.images && typeof p.images === 'object') {
+        const keys = Object.keys(p.images).sort((a,b)=>parseInt(a)-parseInt(b));
+        for (const k of keys) {
+            const v = p.images[k]?.url || p.images[k]?.path;
+            if (typeof v === 'string' && v.trim()) return v.trim();
+        }
+    }
+    // explicit path
+    if (typeof p.mainImagePath === 'string' && p.mainImagePath.trim()) return p.mainImagePath.trim();
+    return null;
+};
+const resolveImageUrl = async (candidate) => {
+    if (!candidate) return null;
+    const c = String(candidate).trim();
+    if (!c) return null;
+    if (isHttpUrl(c) || isDataUrl(c)) return c.startsWith('http://') ? ('https://' + c.slice(7)) : c;
+    try {
+        const r = storageRef(storage, c); // aceita "gs://..." e paths
+        return await getDownloadURL(r);
+    } catch (e) {
+        return null;
+    }
+};
+
+let products = await Promise.all(rawDocs.map(async (p) => {
+    const cand = pickFirstImageCandidate(p);
+    const resolved = await resolveImageUrl(cand);
+    return { ...p, imageUrlResolved: resolved || null };
+}));
+
+// fallback de campo (para render)
+products = products.map(p => ({
+    ...p,
+    // prioridade: resolved -> url existente -> placeholder
+    imageUrl: p.imageUrlResolved || p.imageUrl || p.mainImageUrl || (typeof p.imagem === 'string' ? p.imagem : null) || 'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM'
+}));
+
+return sortProducts(products);
+            } catch (error) {
+                console.error("Erro Firestore:", error);
+                return [];
+            }
+        };
+
+        const sortProducts = (products) => {
+            switch (currentFilters.sort) {
+                case 'menor-preco': return products.sort((a, b) => a.price - b.price);
+                case 'maior-preco': return products.sort((a, b) => b.price - a.price);
+                case 'melhor-avaliacao': return products.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+                default: return products.sort((a, b) => a.name.localeCompare(b.name));
+            }
+        };
+
+        const renderProducts = (products) => {
+            const grid = document.getElementById('product-results-grid');
+            const status = document.getElementById('search-status');
+            const empty = document.getElementById('empty-state');
+            const term = currentFilters.query.toLowerCase();
+
+            const filtered = products
+              .filter(p => productMatchesCategory(p))
+              .filter(p => {
+                if (!term) return true;
+                const name = String(p.name || p.nome || '').toLowerCase();
+                const cat = String(p.categoryName || p.categoriaNome || p.category || p.categoria || '').toLowerCase();
+                return name.includes(term) || cat.includes(term);
+              });
+
+            grid.innerHTML = '';
+            if (filtered.length === 0) {
+                empty.classList.remove('hidden');
+                status.textContent = `Nenhum resultado para "${currentFilters.query}"`;
+                return;
+            }
+
+            empty.classList.add('hidden');
+            if (currentFilters.category !== 'all') {
+                const label = currentFilters.categoryName || currentFilters.category;
+                status.textContent = `${filtered.length} resultados em "${label}" para "${currentFilters.query}"`;
+            } else {
+                status.textContent = `${filtered.length} resultados para "${currentFilters.query}"`;
+            }
+
+            const formatPriceParts = (v) => {
+                const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
+                const noSymbol = formatted.replace('R$', '').trim();
+                const parts = noSymbol.split(',');
+                return { symbol: 'R$', integer: (parts[0] || '0').trim(), decimal: (parts[1] || '00').trim() };
+            };
+
+            const calcPercent = (o, n) => {
+                if (!Number.isFinite(o) || !Number.isFinite(n) || o <= n || o <= 0) return 0;
+                return Math.round(((o - n) / o) * 100);
+            };
+
+            grid.innerHTML = filtered.map(raw => {
+                // base do produto (padroniza campos)
+                const base = {
+                    id: raw.id,
+                    name: raw.name || raw.nome || 'Produto',
+                    price: Number(raw.price || raw.preco || 0),
+                    oldPrice: raw.oldPrice ?? raw.precoAntigo ?? raw.preco_anterior ?? null,
+                    imageUrl: raw.imageUrl || raw.mainImageUrl || raw.imagem || raw.image || 'https://placehold.co/400',
+                    categoryName: raw.categoryName || raw.categoriaNome || raw.category || raw.categoria || ''
+                };
+
+                // ✅ aplica pagamentos globais (settings/payments)
+                const p = (typeof window.decorateProductWithPayments === 'function')
+                  ? window.decorateProductWithPayments(base)
+                  : base;
+
+                const cash = p.__payments?.cash || null;
+                const card = p.__payments?.card || null;
+
+                const basePrice = window.__toNumberBR(p.price ?? 0, 0);
+                const displayPrice = (cash && cash.enabled) ? window.__toNumberBR(cash.price ?? basePrice, basePrice) : basePrice;
+
+                // desconto: prioridade para oldPrice do produto, senão usa desconto global (PIX/BOLETO)
+                const oldP = (p.oldPrice !== null && p.oldPrice !== undefined) ? window.__toNumberBR(p.oldPrice, 0) : NaN;
+                const hasOld = Number.isFinite(oldP) && oldP > basePrice;
+
+                let badgePercent = 0;
+                let oldPriceToShow = null;
+
+                if (hasOld) {
+                    badgePercent = calcPercent(oldP, basePrice);
+                    oldPriceToShow = oldP;
+                } else if (cash && cash.enabled && Number(cash.discountPercent || 0) > 0) {
+                    badgePercent = Number(cash.discountPercent || 0);
+                    oldPriceToShow = basePrice;
+                }
+
+                const priceParts = formatPriceParts(displayPrice);
+                const oldPriceFormatted = oldPriceToShow ? formatCurrency(oldPriceToShow) : null;
+                const installmentsText = (card && card.enabled && card.text) ? card.text : 'em até 12x';
+
+                return `
+                  <a href="produto.html?id=${p.id}" class="product-card">
+                    <div class="product-image-container">
+                      ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ''}
+                      <img src="${p.imageUrl}" alt="${p.name}" loading="lazy">
+                    </div>
+                    <div class="product-card-body">
+                      <p class="product-name">${p.name}</p>
+                      <div class="mt-auto">
+                        ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
+                        <div class="product-price">
+                          <span class="currency">${priceParts.symbol}</span>
+                          <span class="price-integer">${priceParts.integer}</span>
+                          <span class="decimal-part">,${priceParts.decimal}</span>
+                          <span class="cash-text">à vista</span>
+                        </div>
+                        <p class="product-installments">${installmentsText}</p>
+                      </div>
+                    </div>
+                  </a>`;
+            }).join('');
+        };
+
+        document.getElementById('price-range').addEventListener('input', (e) => {
+            document.getElementById('max-price-display').textContent = formatCurrency(e.target.value);
+            currentFilters.maxPrice = e.target.value;
+        });
+        document.getElementById('price-range').addEventListener('change', applyFilters);
+
+        window.limparFiltros = () => {
+            currentFilters = { query: currentFilters.query, category: 'all', maxPrice: 5000, sort: 'relevancia' };
+            document.getElementById('price-range').value = 5000;
+            document.getElementById('max-price-display').textContent = formatCurrency(5000);
+            applyFilters();
+        };
+
+        window.realizarNovaBuscaLocal = () => {
+            const val = document.getElementById('campo-busca-local').value;
+            if(val) window.location.href = `busca.html?q=${encodeURIComponent(val)}`;
+        };
+
+        const setActiveCategoryUI = (slug) => {
+            const list = document.getElementById('category-filter');
+            if (!list) return;
+            list.querySelectorAll('a.filter-link').forEach(a => {
+                const isActive = (a.dataset.category || 'all') === (slug || 'all');
+                a.classList.toggle('font-bold', isActive);
+                a.classList.toggle('text-primary-blue', isActive);
+            });
+        };
+
+        const bindCategoryClicks = () => {
+            const list = document.getElementById('category-filter');
+            if (!list) return;
+            list.addEventListener('click', (e) => {
+                const a = e.target?.closest?.('a.filter-link');
+                if (!a) return;
+                e.preventDefault();
+                const slug = a.dataset.category || 'all';
+                const label = a.dataset.label || '';
+                currentFilters.category = slug;
+                currentFilters.categoryName = label;
+                setActiveCategoryUI(slug);
+                applyFilters();
+            });
+        };
+
+        const loadCategoriesSidebar = async () => {
+            const list = document.getElementById('category-filter');
+            if (!list) return;
+            try {
+                const catsRef = collection(db, 'categories');
+                const qs = await getDocs(query(catsRef, orderBy('order', 'asc')));
+                const cats = [];
+                qs.forEach(d => cats.push({ id: d.id, ...d.data() }));
+                const activeCats = cats.filter(c => c && c.active !== false);
+
+                // mantém o primeiro item (Todas as Categorias)
+                list.innerHTML = `
+                  <li>
+                    <a href="#" class="text-gray-700 hover:text-primary-blue transition-colors filter-link" data-category="all" data-label="">
+                      Todas as Categorias
+                    </a>
+                  </li>
+                `;
+
+                if (!activeCats.length) {
+                    list.insertAdjacentHTML('beforeend', `
+                      <li><span class="text-gray-400 text-xs">Nenhuma categoria ativa.</span></li>
+                    `);
+                } else {
+                    for (const c of activeCats) {
+                        const name = String(c.name || c.nome || c.title || 'Categoria').trim();
+                        const slug = String(c.slug || c.categorySlug || '').trim() || normalizeSlug(name) || name.toLowerCase();
+                        list.insertAdjacentHTML('beforeend', `
+                          <li>
+                            <a href="#" class="text-gray-700 hover:text-primary-blue transition-colors filter-link" data-category="${slug}" data-label="${name.replace(/"/g,'&quot;')}">
+                              ${name}
+                            </a>
+                          </li>
+                        `);
+                    }
+                }
+
+                bindCategoryClicks();
+                setActiveCategoryUI(currentFilters.category);
+            } catch (err) {
+                console.warn('[busca] não foi possível carregar categorias do Firestore:', err);
+                // mantém click do "Todas as categorias" pelo menos
+                bindCategoryClicks();
+            }
+        };
+
+        const init = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            currentFilters.query = urlParams.get('q') || '';
+            // Suporte para páginas do tipo categoria.html?name=...
+            const categoryFromUrl = urlParams.get('name') || urlParams.get('categoria') || urlParams.get('category');
+            if (categoryFromUrl) {
+                const decoded = decodeURIComponent(categoryFromUrl);
+                currentFilters.categoryName = decoded;
+                // slug principal usado nas telas (pode ser diferente do que está gravado). O filtro final é no front.
+                currentFilters.category = normalizeSlug(decoded) || String(decoded).toLowerCase().trim();
+            }
+            if (currentFilters.query) document.getElementById('campo-busca-local').value = currentFilters.query;
+            await signInAnonymously(auth);
+            await loadCategoriesSidebar();
+            try { if (typeof window.loadGlobalPaymentsConfig === 'function') await window.loadGlobalPaymentsConfig(); } catch(_) {}
+            applyFilters();
+            window.dispatchEvent(new Event('firebase:ready'));
+        };
+
+        init();
+    </script>
+    <script src="js/header_auth_fix.js" defer></script>
+<script src="./header.js"></script>
+<script>
+(function () {
+  const tryInitHeader = () => {
+    if (typeof window.carregarHeader !== 'function') { setTimeout(tryInitHeader, 60); return; }
+    // Aguarda bridge do Firebase (db/doc/getDoc) antes de renderizar categorias/endereço
+    if (!(window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function')) { setTimeout(tryInitHeader, 60); return; }
+    // Evita duplicar caso alguém chame novamente
+    if (document.querySelector('header[data-ariana="1"]')) return;
+    try {
+      window.carregarHeader();
+      // marca o header inserido
+      const h = document.querySelector('header');
+      if (h) h.setAttribute('data-ariana','1');
+    } catch (e) { console.error("[page] erro ao carregar header:", e); }
+  };
+  tryInitHeader();
+  window.addEventListener('firebase:ready', tryInitHeader);
+})();
+</script>
+
+  <script type="module" src="firebase-config.js"></script>
+<script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Produtos - Ariana Móveis</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuração de Fonte -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // ADICIONADO: Import do Analytics
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        // Adicionando signInWithCustomToken para autenticação mais robusta
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+        // ====================================================================
+        // 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE
+        // ====================================================================
+        const firebaseConfig = {
+            // CREDENCIAIS FORNECIDAS INTEGRADAS AQUI
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c9ecf67c70",
+            measurementId: "G-WNMWLYMW43"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        // ADICIONADO: Inicialização do Analytics
+        const analytics = getAnalytics(app); 
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const auth = getAuth(app);
+        
+        // Variável que armazenará o ID do usuário autenticado
+        let userId = 'anon-user';
+
+        // Variáveis globais MANDATÓRIAS do ambiente
+        // É crucial usar o initialAuthToken se disponível para autenticação
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // ====================================================================
+        // 2. LÓGICA DO APP
+        // ====================================================================
+        let selectedFiles = []; // Armazena os objetos File
+        let mainImageIndex = 0; // Índice da imagem principal
+        
+        // Elementos da UI
+        const statusMessage = document.getElementById('status-message');
+        const imagePreviewContainer = document.getElementById('image-previews');
+        const submitButton = document.getElementById('submit-button');
+
+        // Função para mostrar mensagens de status (substitui alert())
+        function showStatus(message, type = 'success') {
+            statusMessage.textContent = message;
+            statusMessage.className = `p-3 rounded-lg text-sm mb-4 ${
+                type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' :
+                type === 'loading' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                'bg-green-100 text-green-700 border border-green-200'
+            }`;
+            statusMessage.style.display = 'block';
+        }
+
+        function hideStatus() {
+            statusMessage.style.display = 'none';
+        }
+
+        // 2.1. Manipulação de Arquivos e Pré-visualização
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            selectedFiles = []; // Limpa a seleção anterior
+            mainImageIndex = 0;
+
+            files.forEach(file => {
+                // Adiciona apenas arquivos de imagem
+                if (file.type.startsWith('image/')) {
+                    selectedFiles.push(file);
+                }
+            });
+
+            if (selectedFiles.length > 0) {
+                renderPreviews();
+            } else {
+                imagePreviewContainer.innerHTML = '<p class="text-gray-500">Nenhuma imagem válida selecionada.</p>';
+            }
+        }
+
+        function renderPreviews() {
+            imagePreviewContainer.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const isMain = index === mainImageIndex;
+                    
+                    const container = document.createElement('div');
+                    container.className = `w-24 h-24 sm:w-32 sm:h-32 rounded-lg overflow-hidden relative cursor-pointer transition-all duration-200 
+                                           ${isMain ? 'ring-4 ring-indigo-500 shadow-xl' : 'ring-2 ring-gray-300 hover:ring-indigo-400'}`;
+                    container.onclick = () => {
+                        mainImageIndex = index;
+                        renderPreviews(); // Renderiza novamente para atualizar a seleção
+                    };
+
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = `Pré-visualização ${index + 1}`;
+                    img.className = 'w-full h-full object-cover';
+                    
+                    container.appendChild(img);
+
+                    if (isMain) {
+                        const badge = document.createElement('span');
+                        badge.className = 'absolute top-1 left-1 bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg';
+                        badge.textContent = 'Principal';
+                        container.appendChild(badge);
+                    }
+
+                    imagePreviewContainer.appendChild(container);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 2.2. Upload para Storage e Firestore
+        async function handleProductSubmit(event) {
+            event.preventDefault();
+            
+            // 0. Validação de Dados
+            const name = document.getElementById('product-name').value;
+            const price = parseFloat(document.getElementById('product-price').value);
+            const description = document.getElementById('product-description').value;
+
+            if (!name || isNaN(price) || price <= 0 || !description || selectedFiles.length === 0) {
+                showStatus('Por favor, preencha todos os campos e selecione pelo menos uma imagem.', 'error');
+                return;
+            }
+
+            // ATENÇÃO: O bloqueio para 'LOCAL-DEV' foi removido para permitir testes no 127.0.0.1
+            // A falha só ocorrerá se as Regras de Segurança estiverem fechadas.
+            
+            showStatus('Iniciando o upload do produto...', 'loading');
+            submitButton.disabled = true;
+
+            try {
+                // 1. Upload das Imagens para o Firebase Storage
+                const imageUploadPromises = selectedFiles.map((file, index) => {
+                    // Cria um nome de arquivo único
+                    const extension = file.name.split('.').pop();
+                    const fileName = `${crypto.randomUUID()}.${extension}`;
+                    
+                    // Caminho correto para armazenamento público: /artifacts/{appId}/public/data/product_images/{fileName}
+                    const storageRef = ref(storage, `artifacts/${appId}/public/data/product_images/${fileName}`);
+                    
+                    return uploadBytes(storageRef, file).then(snapshot => {
+                        return getDownloadURL(snapshot.ref).then(url => ({
+                            url: url,
+                            isMain: index === mainImageIndex
+                        }));
+                    });
+                });
+
+                const uploadedImages = await Promise.all(imageUploadPromises);
+                
+                // 2. Prepara os Dados do Produto para o Firestore
+                const mainImageUrl = uploadedImages.find(img => img.isMain)?.url || uploadedImages[0].url;
+
+                const productData = {
+                    name: name,
+                    price: price,
+                    description: description,
+                    createdAt: new Date(),
+                    userId: userId,
+                    images: uploadedImages, // Array de { url, isMain }
+                    mainImageUrl: mainImageUrl
+                };
+
+                // 3. Salva os Dados no Firestore
+                // Coleção: /artifacts/{appId}/public/data/products
+                const productsCollectionRef = collection(db, `artifacts/${appId}/public/data/products`);
+                await addDoc(productsCollectionRef, productData);
+
+                showStatus(`Produto "${name}" cadastrado com sucesso!`, 'success');
+                
+                // Limpa o formulário
+                document.getElementById('product-form').reset();
+                selectedFiles = [];
+                mainImageIndex = 0;
+                imagePreviewContainer.innerHTML = '<p class="text-gray-500">Nenhuma imagem selecionada.</p>';
+
+            } catch (error) {
+                console.error("Erro no cadastro do produto: ", error);
+                
+                let userFriendlyError = `Erro ao salvar o produto: ${error.message}`;
+                if (error.code && error.code.includes('permission-denied')) {
+                     userFriendlyError = 'Erro de Permissão: O Firebase negou a escrita. O usuário deve estar **autenticado** e as **Regras de Segurança** devem permitir a escrita (ex: `allow write: if request.auth != null`).';
+                }
+                showStatus(userFriendlyError, 'error');
+
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
+        // 2.3. Configuração Inicial e Listeners
+        window.onload = async function() {
+            const authStatusElement = document.getElementById('auth-status');
+            
+            try {
+                if (initialAuthToken) {
+                    // 1. MÉTODO PRINCIPAL (Canvas): Usa o token customizado do ambiente.
+                    const userCredential = await signInWithCustomToken(auth, initialAuthToken);
+                    userId = userCredential.user.uid;
+                    authStatusElement.textContent = `Conectado. Usuário ID: ${userId}`;
+                    authStatusElement.className = 'text-sm text-green-600 mt-2 font-medium';
+                    console.log("Usuário autenticado com token personalizado. UID:", userId);
+                } else {
+                    // 2. FALLBACK DIRETO: Modo de Desenvolvimento Local.
+                    // Ocorre se o app for carregado fora do Canvas (ex: 127.0.0.1) ou se o token não estiver disponível.
+                    userId = `LOCAL-DEV-${crypto.randomUUID()}`;
+                    authStatusElement.textContent = `Modo de Desenvolvimento Local (ID: ${userId}). Autenticação desativada.`;
+                    authStatusElement.className = 'text-sm text-yellow-600 mt-2 font-medium';
+                    console.log("Caindo para Modo de Desenvolvimento Local, pois o initialAuthToken não foi encontrado.");
+                }
+
+                document.getElementById('product-form').addEventListener('submit', handleProductSubmit);
+                document.getElementById('image-upload').addEventListener('change', handleFileSelect);
+
+            } catch (error) {
+                // Captura erros FATAL (ex: token inválido no Canvas)
+                console.error("Erro FATAL na autenticação do Firebase:", error);
+                
+                let errorMessage = `Erro FATAL de Conexão: ${error.message}`;
+                // ... (tratamento de erros)
+
+                // Define o userId para 'anon-user' se a autenticação falhou
+                userId = 'anon-user';
+
+                authStatusElement.innerHTML = errorMessage;
+                authStatusElement.classList.remove('text-green-600');
+                authStatusElement.classList.add('text-red-600', 'font-bold');
+                submitButton.disabled = true;
+                submitButton.textContent = 'ERRO DE CONEXÃO';
+            }
+        }
+
+    </script>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-2xl shadow-xl">
+        <header class="mb-8 border-b pb-4">
+            <h1 class="text-3xl font-extrabold text-indigo-700">
+                Cadastro de Novo Produto
+            </h1>
+            <p class="text-gray-500 mt-1">
+                Adicione um novo móvel ou item à sua loja Ariana Móveis.
+            </p>
+            <p id="auth-status" class="text-sm text-green-600 mt-2 font-medium"></p>
+        </header>
+
+        <!-- Mensagem de Status (Custom Alert) -->
+        <div id="status-message" style="display: none;"></div>
+
+        <form id="product-form" class="space-y-6">
+            
+            <!-- Detalhes Básicos -->
+            <fieldset class="space-y-4 p-4 border rounded-xl">
+                <legend class="text-lg font-semibold text-gray-800 px-2">
+                    Informações do Produto
+                </legend>
+                
+                <div>
+                    <label for="product-name" class="block text-sm font-medium text-gray-700 mb-1">Nome do Produto</label>
+                    <input type="text" id="product-name" name="product-name" placeholder="Ex: Sofá Elegance 3 Lugares"
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="product-price" class="block text-sm font-medium text-gray-700 mb-1">Preço (R$)</label>
+                        <input type="number" step="0.01" min="0" id="product-price" name="product-price" placeholder="999.99"
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="product-description" class="block text-sm font-medium text-gray-700 mb-1">Descrição Detalhada</label>
+                    <textarea id="product-description" name="product-description" rows="4" placeholder="Detalhes, materiais e dimensões do produto..."
+                              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"></textarea>
+                </div>
+            </fieldset>
+
+            <!-- Upload de Imagens -->
+            <fieldset class="space-y-4 p-4 border rounded-xl">
+                <legend class="text-lg font-semibold text-gray-800 px-2">
+                    Upload de Imagens
+                </legend>
+                
+                <div>
+                    <label for="image-upload" class="block text-sm font-medium text-gray-700 mb-1">Selecione Múltiplas Imagens (.jpg, .png)</label>
+                    <input type="file" id="image-upload" name="image-upload" multiple accept="image/*"
+                           class="block w-full text-sm text-gray-500
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-full file:border-0
+                                  file:text-sm file:font-semibold
+                                  file:bg-indigo-50 file:text-indigo-700
+                                  hover:file:bg-indigo-100 cursor-pointer">
+                </div>
+
+                <div class="mt-4">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Pré-visualizações (Clique para definir a Principal)</h4>
+                    <div id="image-previews" class="flex flex-wrap gap-4 p-2 bg-gray-50 rounded-lg border border-dashed border-gray-300 min-h-[100px] items-center justify-center">
+                        <p class="text-gray-500 text-sm">Nenhuma imagem selecionada.</p>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Botão de Envio -->
+            <button type="submit" id="submit-button"
+                    class="w-full py-3 px-4 bg-indigo-600 text-white font-bold rounded-lg shadow-lg hover:bg-indigo-700 transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 disabled:bg-indigo-400">
+                Cadastrar Produto
+            </button>
+        </form>
+    </div>
+
+</body>
+</html>
+

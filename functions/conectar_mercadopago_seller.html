@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conectar Mercado Pago | Área do Seller</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            'brand-blue': '#2E6C90',
+            'brand-dark': '#101923',
+            'bg-light': '#F4F7FA',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #F4F7FA; color: #333; }
+    .sidebar { background: white; border-right: 1px solid #E2E8F0; height: 100vh; position: sticky; top: 0; }
+    .nav-link {
+      display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+      color: #64748B; font-weight: 700; border-radius: 12px; transition: all 0.3s;
+      margin-bottom: 4px;
+    }
+    .nav-link:hover { background: #F1F5F9; color: #2E6C90; }
+    .nav-link.active { background: #2E6C90; color: white; box-shadow: 0 4px 12px rgba(46, 108, 144, 0.2); }
+    .card { background: white; border: 1px solid #E2E8F0; border-radius: 16px; }
+  </style>
+</head>
+
+<body class="font-sans">
+  <div class="flex">
+    <!-- SIDEBAR -->
+    <aside class="sidebar w-[280px] p-5 hidden lg:block">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-brand-blue flex items-center justify-center text-white font-black">AM</div>
+        <div>
+          <div class="font-black leading-tight">Área do Seller</div>
+          <div id="seller-name" class="text-xs text-slate-500 font-semibold">Carregando...</div>
+        </div>
+      </div>
+
+      <nav class="mt-2">
+        <a class="nav-link" href="dashboard_seller.html"><i class="fa-solid fa-chart-line"></i>Dashboard</a>
+        <a class="nav-link" href="meus_produtos_seller.html"><i class="fa-solid fa-box"></i>Meus Produtos</a>
+        <a class="nav-link" href="pedidos_seller.html"><i class="fa-solid fa-bag-shopping"></i>Pedidos</a>
+        <a class="nav-link" href="configuracoes_parceiro.html"><i class="fa-solid fa-gear"></i>Configurações</a>
+        <a class="nav-link active" href="#"><i class="fa-brands fa-cc-visa"></i>Mercado Pago</a>
+
+        <button id="btn-logout" class="nav-link w-full text-left mt-3">
+          <i class="fa-solid fa-right-from-bracket"></i>Sair
+        </button>
+      </nav>
+
+      <div class="mt-6 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+        <div class="font-extrabold text-sm">Split automático</div>
+        <div class="text-xs text-slate-600 mt-1">
+          Comissão da plataforma: <span class="font-black text-brand-blue">12%</span> (frete pago pelo cliente).
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 p-6 md:p-10">
+      <div class="max-w-4xl mx-auto">
+        <header class="flex items-start md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-black text-slate-900">Conectar Mercado Pago</h1>
+            <p class="text-slate-600 font-semibold mt-1">
+              Conecte sua conta para receber pagamentos diretamente e já descontar a comissão do marketplace automaticamente.
+            </p>
+          </div>
+          <a href="configuracoes_parceiro.html" class="px-4 py-2 rounded-xl border border-slate-300 bg-white font-extrabold text-slate-700 hover:bg-slate-50">
+            <i class="fa-solid fa-arrow-left mr-2"></i>Voltar
+          </a>
+        </header>
+
+        <div class="card p-6 md:p-8">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div class="text-sm font-black text-slate-900">Status da conexão</div>
+              <div id="mp-status" class="mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-extrabold text-sm">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                Verificando...
+              </div>
+              <div id="mp-detail" class="text-xs text-slate-600 mt-2 font-semibold"></div>
+            </div>
+
+            <div class="flex gap-3">
+              <button id="btn-connect" class="px-5 py-3 rounded-2xl bg-brand-blue text-white font-black hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-link mr-2"></i>Conectar Mercado Pago
+              </button>
+              <button id="btn-refresh" class="px-5 py-3 rounded-2xl bg-slate-900 text-white font-black hover:opacity-95">
+                <i class="fa-solid fa-rotate mr-2"></i>Atualizar
+              </button>
+            </div>
+          </div>
+
+          <hr class="my-6 border-slate-200" />
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <div class="font-black text-slate-900">O que acontece quando conectar?</div>
+              <ul class="mt-2 text-sm text-slate-700 font-semibold list-disc pl-5 space-y-1">
+                <li>Pagamentos (Pix, Boleto e Cartão) são criados no Mercado Pago do seller.</li>
+                <li>A plataforma desconta automaticamente <b>12%</b> (application_fee).</li>
+                <li>O webhook atualiza o status do pedido normalmente.</li>
+              </ul>
+            </div>
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <div class="font-black text-slate-900">Pré-requisitos</div>
+              <ul class="mt-2 text-sm text-slate-700 font-semibold list-disc pl-5 space-y-1">
+                <li>Seller deve estar logado.</li>
+                <li>Backend com OAuth habilitado (MP_CLIENT_ID / MP_CLIENT_SECRET / MP_OAUTH_REDIRECT_URI).</li>
+                <li>Seu backend deve estar acessível via HTTPS.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div id="error-box" class="hidden mt-6 bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm font-bold"></div>
+          <div id="ok-box" class="hidden mt-6 bg-green-50 border border-green-200 text-green-700 rounded-2xl p-4 text-sm font-bold"></div>
+        </div>
+
+        <footer class="text-center text-xs text-slate-500 font-semibold mt-8">
+          © <span id="year"></span> Ariana Móveis — Seller Panel
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    // Firebase v9 (compatível com suas telas)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      "apiKey": "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      "authDomain": "ariana-moveis-final.firebaseapp.com",
+      "projectId": "ariana-moveis-final",
+      "storageBucket": "ariana-moveis-final.firebasestorage.app",
+      "messagingSenderId": "695257365498",
+      "appId": "1:695257365498:web:8e68494de6c4c99c67c70"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "https://api-4dx5luiipq-rj.a.run.app/api"; // padrão do seu projeto
+
+    const $ = (id) => document.getElementById(id);
+
+    function showError(msg){
+      const b = $("error-box");
+      b.textContent = msg;
+      b.classList.remove("hidden");
+      $("ok-box").classList.add("hidden");
+    }
+    function showOk(msg){
+      const b = $("ok-box");
+      b.textContent = msg;
+      b.classList.remove("hidden");
+      $("error-box").classList.add("hidden");
+    }
+
+    function setMpStatus(kind, text, detail=""){
+      const el = $("mp-status");
+      const dot = el.querySelector("span");
+      el.className = "mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full font-extrabold text-sm";
+      if (kind === "ok"){
+        el.classList.add("bg-green-100","text-green-700");
+        dot.className = "w-2 h-2 rounded-full bg-green-500";
+      } else if (kind === "warn"){
+        el.classList.add("bg-amber-100","text-amber-700");
+        dot.className = "w-2 h-2 rounded-full bg-amber-500";
+      } else if (kind === "err"){
+        el.classList.add("bg-red-100","text-red-700");
+        dot.className = "w-2 h-2 rounded-full bg-red-500";
+      } else {
+        el.classList.add("bg-slate-100","text-slate-700");
+        dot.className = "w-2 h-2 rounded-full bg-slate-400";
+      }
+      el.childNodes[2].textContent = text; // texto após o dot
+      $("mp-detail").textContent = detail || "";
+    }
+
+    async function loadSeller(uid){
+      const ref = doc(db, "sellers", uid);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) throw new Error("Seller não encontrado no Firestore.");
+      const s = snap.data() || {};
+      $("seller-name").textContent = s.name || s.nome || auth.currentUser?.email || "Seller";
+      const connected = !!(s.mp_connected || s.mp_access_token || s.mpAccessToken);
+      if (connected){
+        setMpStatus("ok", "Conectado", "Seu Mercado Pago já está conectado. Split 12% ativo.");
+        $("btn-connect").disabled = true;
+      } else {
+        setMpStatus("warn", "Não conectado", "Conecte seu Mercado Pago para receber diretamente.");
+        $("btn-connect").disabled = false;
+      }
+      return s;
+    }
+
+    async function connectMp(){
+      try{
+        $("btn-connect").disabled = true;
+        $("btn-connect").innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Redirecionando...';
+
+        const user = auth.currentUser;
+        if (!user) throw new Error("Você precisa estar logado.");
+
+        const idToken = await user.getIdToken(true);
+
+        // Busca a URL no backend (precisa do Bearer)
+        const resp = await fetch(`${API_BASE}/mp/oauth/url`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${idToken}` }
+        });
+
+        const data = await resp.json().catch(()=> ({}));
+        if (!resp.ok || !data?.ok || !data?.url){
+          throw new Error(data?.error || "Não foi possível gerar a URL de conexão.");
+        }
+
+        // Redireciona para o MP
+        window.location.href = data.url;
+      } catch(e){
+        showError(e?.message || String(e));
+        $("btn-connect").disabled = false;
+        $("btn-connect").innerHTML = '<i class="fa-solid fa-link mr-2"></i>Conectar Mercado Pago';
+      }
+    }
+
+    async function refresh(){
+      try{
+        const user = auth.currentUser;
+        if (!user) return;
+        await loadSeller(user.uid);
+        showOk("Status atualizado.");
+      } catch(e){
+        showError(e?.message || String(e));
+      }
+    }
+
+    $("btn-connect").addEventListener("click", connectMp);
+    $("btn-refresh").addEventListener("click", refresh);
+
+    $("btn-logout").addEventListener("click", async ()=>{
+      try{
+        await signOut(auth);
+        window.location.href = "login_seller.html";
+      }catch(e){
+        showError("Não foi possível sair.");
+      }
+    });
+
+    onAuthStateChanged(auth, async (user)=>{
+      try{
+        $("year").textContent = String(new Date().getFullYear());
+        if (!user){
+          window.location.href = "login_seller.html";
+          return;
+        }
+        await loadSeller(user.uid);
+
+        const url = new URL(window.location.href);
+        const msg = url.searchParams.get("msg");
+        const err = url.searchParams.get("err");
+        if (msg) showOk(msg);
+        if (err) showError(err);
+      }catch(e){
+        showError(e?.message || String(e));
+      }
+    });
+  </script>
+</body>
+</html>

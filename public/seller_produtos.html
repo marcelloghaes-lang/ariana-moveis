@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Meus Produtos | ARIANA MÓVEIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <style>
+    :root { --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; }
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); }
+    .bg-primary-blue{background:var(--primary)} .text-primary-blue{color:var(--primary)} .bg-dark-bg{background:var(--dark)}
+    .text-dark-bg{color:var(--dark)} .bg-fundo-claro{background:var(--bg)} .bg-success-green{background:var(--success)}
+    .bg-error-red{background:var(--danger)} .border-soft{border-color:#e5e7eb} .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.85rem 1.2rem;font-weight:800;transition:.2s}
+    .btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{opacity:.95}.btn-light{background:#fff;color:var(--dark);border:1px solid #e5e7eb}
+    .toast{box-shadow:0 10px 30px rgba(0,0,0,.12)} #toast-container{position:fixed;right:1rem;top:1rem;z-index:80;display:flex;flex-direction:column;gap:.75rem}
+    .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}.sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
+    .muted{color:#64748b} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse;table-layout:fixed} th,td{padding:.85rem .75rem;border-bottom:1px solid #eef2f7;vertical-align:middle} th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;text-align:left} .col-product{width:48%}.col-sku{width:14%}.col-stock{width:10%}.col-price{width:14%}.col-actions{width:14%} .product-cell{min-width:320px}.product-card{display:flex;align-items:center;gap:.85rem;min-width:0}.product-thumb{width:72px;height:72px;border-radius:1rem;overflow:hidden;border:1px solid #e5e7eb;background:#f8fafc;display:flex;align-items:center;justify-content:center;flex-shrink:0}.product-info{min-width:0}.product-name{font-weight:900;color:var(--dark);line-height:1.25;word-break:break-word}.product-category{color:#64748b;font-size:.875rem;margin-top:.15rem;word-break:break-word}.actions-cell{text-align:right;position:sticky;right:0;background:#fff}.actions-wrap{display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}.action-btn{min-width:92px;padding:.65rem .8rem;border-radius:.85rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border:1px solid #e5e7eb;background:#fff;color:var(--dark)} .action-btn.edit{color:#2563eb}.action-btn.delete{color:#dc2626} .price-main{font-weight:900} .sku-cell,.stock-cell,.price-cell{white-space:nowrap} .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} .product-thumb{width:60px;height:60px} .action-btn{min-width:auto;padding:.6rem .7rem} }
+  </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+<div id="toast-container"></div>
+<aside id="sidebar" class="bg-dark-bg w-64 min-h-screen space-y-6 py-7 px-3 absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition z-40">
+  <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
+  <nav class="flex flex-col gap-1">
+    <a href="seller_dashboard.html" class="sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+    <a href="seller_produtos.html" class="sidebar-link active"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+    <a href="seller_produto_novo.html" class="sidebar-link"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+    <a href="seller_pedidos.html" class="sidebar-link"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+    <a href="seller_vendas.html" class="sidebar-link"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+    <a href="seller_notificacoes.html" class="sidebar-link"><i class="fas fa-bell"></i><span>Notificações</span></a>
+    <a href="seller_configuracoes.html" class="sidebar-link"><i class="fas fa-cog"></i><span>Configurações</span></a>
+    <a href="seller_devolucoes.html" class="sidebar-link"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+    <a href="seller_extrato.html" class="sidebar-link"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+    <a href="#" id="btn-sair" class="sidebar-link text-red-300"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+  </nav>
+</aside>
+<div class="flex-1 flex flex-col min-w-0">
+<header class="flex items-center justify-between p-4 bg-white border-b border-soft shadow-sm">
+  <button id="sidebar-toggle" class="text-gray-500 md:hidden"><i class="fas fa-bars text-xl"></i></button>
+  <h1 class="text-xl font-semibold text-dark-bg">Meus Produtos</h1>
+  <div class="flex items-center gap-3">
+    <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+    <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+  </div>
+</header>
+<main class="page-main">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+    <div><h2 class="text-3xl font-black text-dark-bg">Gestão de Estoque</h2><p class="muted mt-1">Gerencie todos os produtos da sua loja.</p></div>
+    <a href="seller_produto_novo.html" class="btn btn-primary"><i class="fas fa-plus"></i>Novo produto</a>
+  </div>
+  <div class="card p-0 overflow-hidden table-wrap">
+    <table>
+      <thead><tr><th class="col-product">Produto</th><th class="col-sku">SKU</th><th class="col-stock">Estoque</th><th class="col-price">Preço</th><th class="col-actions" style="text-align:right">Ações</th></tr></thead>
+      <tbody id="lista-produtos-corpo"><tr><td colspan="5" class="text-center muted">Carregando produtos...</td></tr></tbody>
+    </table>
+  </div>
+</main></div>
+
+<script type="module">
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+  import { getFirestore, collection, query, where, getDocs, deleteDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+    authDomain: "ariana-moveis-final.firebaseapp.com",
+    projectId: "ariana-moveis-final",
+    storageBucket: "ariana-moveis-final.firebasestorage.app",
+    messagingSenderId: "695257365498",
+    appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+  };
+
+  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const $ = (id) => document.getElementById(id);
+
+  function toast(message, type = "info") {
+    const c = $("toast-container");
+    if (!c) return alert(message);
+    const el = document.createElement("div");
+    const color = type === "success" ? "bg-success-green" : type === "error" ? "bg-error-red" : "bg-primary-blue";
+    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    el.textContent = message;
+    c.appendChild(el);
+    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3400);
+  }
+  function brl(v) { return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+  function escapeHtml(value) {
+    return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+  }
+  async function getSeller(uid) {
+    const snap = await getDoc(doc(db, "sellers", uid));
+    return snap.exists() ? snap.data() : null;
+  }
+  async function requireApprovedSeller(uid) {
+    const seller = await getSeller(uid);
+    if (!seller) throw new Error("Conta seller não encontrada.");
+    const status = String(seller.status || "").toLowerCase();
+    if (seller.active === false || ["rejected","reprovado","bloqueado"].includes(status)) throw new Error("Conta seller bloqueada ou reprovada.");
+    if (!seller.active || ["pending_analysis","pending_onboarding","em_analise"].includes(status)) { window.location.href = "seller_pending.html"; throw new Error("Conta em análise."); }
+    return seller;
+  }
+  const sidebar = $("sidebar");
+  $("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
+  $("btn-sair")?.addEventListener("click", async (e) => { e.preventDefault(); try { await signOut(auth); } catch {} window.location.href = "seller_login.html"; });
+
+  function productCategoryLabel(p) { return p.categoryName || p.category || p.categoria || "Sem categoria"; }
+  function productImage(p) {
+    const candidates = [ ...(Array.isArray(p.images) ? p.images : []), ...(Array.isArray(p.imageUrls) ? p.imageUrls : []) ];
+    for (const item of candidates) {
+      if (typeof item === "string" && item) return item;
+      if (item && typeof item === "object" && item.url) return item.url;
+    }
+    return p.imageUrl || p.mainImageUrl || "";
+  }
+  function productPrice(p) { return p.salePrice || p.price || 0; }
+  function productSku(p) { return p.sku || "—"; }
+
+  async function loadProducts(uid) {
+    const tbody = $("lista-produtos-corpo");
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-8">Carregando produtos...</td></tr>';
+    const snap = await getDocs(query(collection(db, "products"), where("sellerId", "==", uid)));
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => ((b.updatedAt?.seconds || b.createdAt?.seconds || 0) - (a.updatedAt?.seconds || a.createdAt?.seconds || 0)));
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-8">Nenhum produto cadastrado.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((p) => {
+      const img = productImage(p);
+      const categoryLabel = productCategoryLabel(p);
+      const currentPrice = productPrice(p);
+      const originalPrice = num(p.price);
+      const salePrice = num(p.salePrice);
+      const showStrike = salePrice > 0 && salePrice < originalPrice;
+      return `<tr>
+        <td class="product-cell">
+          <div class="product-card">
+            <div class="product-thumb">
+              ${img ? `<img src="${escapeHtml(img)}" class="w-full h-full object-cover">` : `<i class="fas fa-image muted"></i>`}
+            </div>
+            <div class="product-info">
+              <div class="product-name">${escapeHtml(p.name || "Sem nome")}</div>
+              <div class="product-category">${escapeHtml(categoryLabel)}</div>
+              ${p.active === false ? '<div class="text-xs text-red-600 font-bold mt-1">Inativo</div>' : ''}
+            </div>
+          </div>
+        </td>
+        <td class="sku-cell"><span class="font-black">${escapeHtml(productSku(p))}</span></td>
+        <td class="stock-cell"><span class="font-black">${num(p.stock)}</span></td>
+        <td class="price-cell"><div class="price-main">${brl(currentPrice)}</div>${showStrike ? `<div class="muted text-xs line-through">${brl(originalPrice)}</div>` : ''}</td>
+        <td class="actions-cell"><div class="actions-wrap"><a class="action-btn edit" href="seller_produto_editar.html?id=${encodeURIComponent(p.id)}"><i class="fas fa-pen"></i><span>Editar</span></a><button class="action-btn delete" data-delete-id="${escapeHtml(p.id)}"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
+      </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll("[data-delete-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-delete-id");
+        if (!id || !confirm("Excluir este produto?")) return;
+        try {
+          await deleteDoc(doc(db, "products", id));
+          toast("Produto excluído.", "success");
+          await loadProducts(uid);
+        } catch (e) {
+          console.error(e);
+          toast("Erro ao excluir produto.", "error");
+        }
+      });
+    });
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = "seller_login.html"; return; }
+    try {
+      const seller = await requireApprovedSeller(user.uid);
+      $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || "Seller"}!`;
+      await loadProducts(user.uid);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || "Erro ao validar seller.", "error");
+    }
+  });
+</script>
+<script src="js/layout-fit.js" defer></script>
+</body>
+</html>

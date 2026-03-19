@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendas | Seller - ARIANA MOVEIS</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="icon" href="https://placehold.co/16x16/2E6DA4/ffffff?text=AM" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        'primary-blue': '#2E6DA4', 
+                        'dark-bg': '#1D2B3A', 
+                        'secondary-light-blue': '#56B5FF', 
+                        'text-dark': '#333333',
+                        'fundo': '#f8f8f8',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f8f8; }
+        .contador-carrinho {
+            position: absolute;
+            top: -5px;
+            right: -10px;
+            background-color: #2E6DA4;
+            color: white;
+            border-radius: 9999px; 
+            padding: 0 6px;
+            font-size: 0.7em;
+            line-height: 1.5; 
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-fundo min-h-screen flex flex-col">
+<header class="w-full z-50 shadow-xl bg-primary-blue text-white">
+        <div class="max-w-8xl mx-auto flex justify-between items-center p-4">
+            <a href="index.html" class="text-2xl font-bold tracking-wider">ARIANA MOVEIS</a>
+            <div class="hidden md:flex space-x-6 text-sm font-medium">
+                <a href="dashboard_seller.html" class="hover:text-secondary-light-blue">Dashboard</a>
+                <a href="meus_produtos_seller.html" class="border-b-2 border-white">Meus Produtos</a>
+                <a href="pedidos_seller.html" class="hover:text-secondary-light-blue">Pedidos Recebidos</a>
+        <a href="conectar_mercadopago_seller.html" class="hover:text-secondary-light-blue flex items-center gap-1"><i class="fa-brands fa-cc-visa"></i>Mercado Pago</a>
+                <a href="configuracoes_parceiro.html" class="hover:text-secondary-light-blue">Configurações</a>
+            </div>
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-user-circle text-2xl"></i>
+                <span class="text-sm font-semibold">Painel Seller</span>
+            </div>
+        </div>
+    </header>
+<main class="flex-grow container mx-auto px-4 py-12">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
+      <div>
+        <h2 class="text-2xl font-bold text-dark-bg flex items-center">
+          <i class="fas fa-chart-line mr-3 text-primary-blue"></i> Vendas
+        </h2>
+        <p class="text-gray-600 font-medium mt-2">
+          Acompanhe suas vendas, comissão do marketplace e saldo estimado.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <a href="dashboard_seller.html"
+           class="bg-white px-4 py-2 rounded-xl font-bold text-dark-bg border border-gray-200 hover:bg-gray-50 transition-all">
+          <i class="fas fa-home mr-2 text-primary-blue"></i> Dashboard
+        </a>
+        <button id="btn-refresh"
+           class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:bg-dark-bg transition-all shadow">
+          <i class="fas fa-rotate mr-2"></i> Atualizar
+        </button>
+      </div>
+    </div>
+
+    <div id="alert" class="hidden mb-6 p-4 rounded-xl font-bold"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+        <div class="text-xs text-gray-500 font-bold">Total vendido (aprovado)</div>
+        <div id="gross" class="text-2xl font-bold text-dark-bg mt-2">R$ 0,00</div>
+        <div class="text-xs text-gray-500 mt-2">Somatório dos pedidos com pagamento aprovado.</div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+        <div class="text-xs text-gray-500 font-bold">Comissão (12%)</div>
+        <div id="fee" class="text-2xl font-bold text-dark-bg mt-2">R$ 0,00</div>
+        <div class="text-xs text-gray-500 mt-2">Percentual do marketplace sobre o total aprovado.</div>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+        <div class="text-xs text-gray-500 font-bold">Saldo estimado</div>
+        <div id="net" class="text-2xl font-bold text-primary-blue mt-2">R$ 0,00</div>
+        <div class="text-xs text-gray-500 mt-2">Total aprovado menos comissão (frete por conta do cliente).</div>
+      </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 mt-8">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div>
+          <h3 class="text-lg font-bold text-dark-bg flex items-center">
+            <i class="fas fa-receipt mr-2 text-primary-blue"></i> Pedidos pagos (últimos)
+          </h3>
+          <p class="text-sm text-gray-600 mt-1">Clique em um pedido para ver detalhes.</p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <select id="range" class="border border-gray-200 rounded-xl px-4 py-2 font-bold text-dark-bg bg-white">
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="365">Últimos 12 meses</option>
+            <option value="all">Tudo</option>
+          </select>
+          <span id="countPill" class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-2 rounded-xl">0 pedidos</span>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-600">
+              <th class="py-3 px-3">Pedido</th>
+              <th class="py-3 px-3">Data</th>
+              <th class="py-3 px-3">Pagamento</th>
+              <th class="py-3 px-3">Status</th>
+              <th class="py-3 px-3 text-right">Total</th>
+              <th class="py-3 px-3 text-right">Comissão</th>
+              <th class="py-3 px-3 text-right">Saldo</th>
+            </tr>
+          </thead>
+          <tbody id="tbody" class="divide-y"></tbody>
+        </table>
+      </div>
+
+      <div id="empty" class="hidden text-center text-gray-600 font-medium py-10">
+        Nenhuma venda encontrada nesse período.
+      </div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+  import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+    authDomain: "ariana-moveis-final.firebaseapp.com",
+    projectId: "ariana-moveis-final",
+    storageBucket: "ariana-moveis-final.firebasestorage.app",
+    messagingSenderId: "695257365498",
+    appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const COMMISSION = 0.12;
+  const $ = (id) => document.getElementById(id);
+
+  function moneyBRL(v){
+    const n = Number(v || 0);
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
+  function showAlert(type, msg) {
+    const el = $("alert");
+    el.classList.remove("hidden");
+    if (type === "error") el.className = "mb-6 p-4 rounded-xl font-bold bg-red-100 text-red-700 border border-red-200";
+    else el.className = "mb-6 p-4 rounded-xl font-bold bg-emerald-100 text-emerald-700 border border-emerald-200";
+    el.textContent = msg;
+  }
+
+  function dateFromAny(ts){
+    try {
+      if (ts && typeof ts.toDate === "function") return ts.toDate();
+      const n = Number(ts);
+      if (Number.isFinite(n) && n > 0) return new Date(n);
+    } catch {}
+    return null;
+  }
+
+  function fmtDate(ts){
+    const d = dateFromAny(ts);
+    return d ? d.toLocaleDateString("pt-BR") : "—";
+  }
+
+  async function requireSeller(uid){
+    const sref = doc(db, "sellers", uid);
+    const ss = await getDoc(sref);
+    if (!ss.exists()) throw new Error("Conta seller não encontrada no Firestore.");
+    const s = ss.data() || {};
+    if (s.active === false) throw new Error("Seller desativado.");
+    return s;
+  }
+
+  async function fetchOrders(uid){
+    // Evita índice composto: filtra pagamento aprovado no frontend.
+    const qy = query(
+      collection(db, "orders"),
+      where("sellerId", "==", uid),
+      orderBy("updatedAt", "desc"),
+      limit(300)
+    );
+    const snap = await getDocs(qy);
+    const list = [];
+    snap.forEach((d) => list.push({ id: d.id, ... (d.data() || {}) }));
+    return list;
+  }
+
+  function isApproved(o){
+    const mp = o.payment && o.payment.mpStatus ? String(o.payment.mpStatus) : "";
+    // "approved" no MP; aceita "paid" se algum lugar usar esse status
+    return mp.toLowerCase() === "approved" || mp.toLowerCase() === "paid";
+  }
+
+  function inRange(o, days){
+    if (days === "all") return true;
+    const d = dateFromAny(o.updatedAt) || dateFromAny(o.createdAt);
+    if (!d) return true;
+    const ms = Number(days) * 24 * 60 * 60 * 1000;
+    return (Date.now() - d.getTime()) <= ms;
+  }
+
+  function safeTotal(o){
+    const t = o.totals && typeof o.totals.total !== "undefined" ? Number(o.totals.total) : 0;
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function row(o){
+    const total = safeTotal(o);
+    const fee = total * COMMISSION;
+    const net = total - fee;
+    const pay = o.payment && o.payment.mpStatus ? String(o.payment.mpStatus) : "—";
+    const status = o.status ? String(o.status) : "—";
+    const date = fmtDate(o.updatedAt || o.createdAt);
+
+    return `
+      <tr class="hover:bg-gray-50">
+        <td class="py-3 px-3 font-mono text-xs">
+          <a class="text-primary-blue font-bold hover:underline" href="detalhes_pedido_seller.html?orderId=${encodeURIComponent(o.id)}">${o.id}</a>
+        </td>
+        <td class="py-3 px-3">${date}</td>
+        <td class="py-3 px-3"><span class="font-bold text-dark-bg">${pay}</span></td>
+        <td class="py-3 px-3"><span class="font-bold text-dark-bg">${status}</span></td>
+        <td class="py-3 px-3 text-right font-bold text-dark-bg">${moneyBRL(total)}</td>
+        <td class="py-3 px-3 text-right font-bold text-gray-700">${moneyBRL(fee)}</td>
+        <td class="py-3 px-3 text-right font-bold text-primary-blue">${moneyBRL(net)}</td>
+      </tr>
+    `;
+  }
+
+  async function render(uid){
+    const range = $("range").value;
+    const orders = await fetchOrders(uid);
+    const filtered = orders.filter(isApproved).filter(o => inRange(o, range));
+
+    // totals
+    const gross = filtered.reduce((a, o) => a + safeTotal(o), 0);
+    const fee = gross * COMMISSION;
+    const net = gross - fee;
+
+    $("gross").textContent = moneyBRL(gross);
+    $("fee").textContent = moneyBRL(fee);
+    $("net").textContent = moneyBRL(net);
+    $("countPill").textContent = `${filtered.length} pedidos`;
+
+    const tb = $("tbody");
+    tb.innerHTML = "";
+
+    if (!filtered.length){
+      $("empty").classList.remove("hidden");
+      return;
+    }
+
+    $("empty").classList.add("hidden");
+    filtered.slice(0, 120).forEach(o => tb.insertAdjacentHTML("beforeend", row(o)));
+  }
+
+  // Bind UI
+  $("btn-refresh").addEventListener("click", async () => {
+    try {
+      showAlert("ok", "Atualizando...");
+      const user = auth.currentUser;
+      if (!user) return;
+      await render(user.uid);
+      showAlert("ok", "Atualizado.");
+    } catch (e) {
+      console.error(e);
+      showAlert("error", e?.message || "Erro ao atualizar.");
+    }
+  });
+
+  $("range").addEventListener("change", async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try { await render(user.uid); } catch {}
+  });
+
+  // Logout hook
+  const maybeLogout = document.getElementById("btn-logout") || document.getElementById("logout");
+  if (maybeLogout) {
+    maybeLogout.addEventListener("click", async () => {
+      try { await signOut(auth); window.location.href = "login_seller.html"; }
+      catch { showAlert("error", "Não foi possível sair."); }
+    });
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    try {
+      if (!user) { window.location.href = "login_seller.html"; return; }
+      await requireSeller(user.uid);
+      await render(user.uid);
+    } catch (e) {
+      console.error(e);
+      showAlert("error", e?.message || "Erro ao carregar.");
+    }
+  });
+</script>
+<footer class="bg-dark-bg text-white mt-12 pt-10">
+    <div class="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-12 pb-8">
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+                <li><a href="assistencia.html" class="hover:text-secondary-light-blue transition-colors">Assistência Técnica</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
+            </div>
+            
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-nowrap items-center gap-2">
+                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
+                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>
+</body>
+</html>

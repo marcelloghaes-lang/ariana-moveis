@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Categorias | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="./css/tailwind.min.css">
+
+  <script type="module" src="./firebase-config.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
+    .product-card { transition: all 0.3s ease; }
+    .product-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,.1); }
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .product-card{background-color:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%}
+    .product-image-container{width:100%;height:180px;position:relative;overflow:hidden;margin-bottom:10px;display:flex;justify-content:center;align-items:center;background:#fff}
+    .product-image-container img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+    .product-card-body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start}
+    .product-name{font-size:.85rem;font-weight:400;color:#444;height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px}
+    .product-old-price{font-size:.8rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2}
+    .product-price{font-size:1.25rem;font-weight:700;color:#333;margin-top:2px;display:flex;align-items:flex-end;line-height:1}
+    .product-price .currency{font-size:.7em;font-weight:400;align-self:flex-start}
+    .product-price .price-integer{font-size:1em;font-weight:700;margin-left:2px}
+    .product-price .decimal-part{font-size:.7em;font-weight:400}
+    .product-price .cash-text{font-size:.75rem;font-weight:400;color:#555;margin-left:5px;padding-bottom:1px}
+    .product-installments{font-size:.75rem;color:#777;margin-top:5px;line-height:1.4}
+    .product-tag-container{position:absolute;top:5px;left:5px;z-index:10;display:flex;flex-direction:column;gap:5px}
+    .product-tag{color:#fff;font-size:.75rem;font-weight:600;padding:2px 5px;border-radius:2px;display:block;width:fit-content;line-height:1}
+    .tag-orange{background-color:#ff931e}
+    .product-card-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+  </style>
+</head>
+<body class="bg-fundo text-text-dark font-sans">
+
+  <div id="header-container"></div>
+  <div id="header-placeholder"></div>
+  <div id="message-container" class="fixed top-24 right-4 z-[9999] w-80"></div>
+
+  <main class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-6">
+    <div class="flex flex-col md:flex-row gap-8">
+
+      <aside class="w-full md:w-64 flex-shrink-0">
+        <div class="bg-white rounded-xl shadow-sm p-6 sticky top-24 border border-gray-100">
+          <h2 class="text-lg font-bold mb-6 flex items-center gap-2">
+            <i class="fa-solid fa-filter text-primary-blue text-sm"></i> Filtros
+          </h2>
+
+          <div class="mb-8">
+            <h3 class="font-bold text-xs uppercase text-gray-400 mb-4">Categorias</h3>
+            <ul id="categories-sidebar" class="space-y-3"></ul>
+          </div>
+
+          <div class="border-t pt-6">
+            <h3 class="font-bold text-xs uppercase text-gray-400 mb-4">Pesquisar na Categoria</h3>
+            <div class="relative">
+              <input type="text" id="search" placeholder="Buscar..."
+                class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-blue outline-none">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="flex-1">
+        <div class="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-8 gap-4">
+          <div>
+            <nav class="flex text-xs text-gray-400 mb-2 gap-2" id="breadcrumb">
+              <a href="index.html">Início</a><span>/</span><span class="text-gray-600">Categorias</span>
+            </nav>
+            <h1 id="category-title" class="text-3xl font-extrabold text-dark-bg">Carregando...</h1>
+          </div>
+
+          <div class="flex items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+            <span class="text-sm text-gray-500 font-medium">Ordenar:</span>
+            <select id="sort" class="text-sm font-bold bg-transparent outline-none cursor-pointer">
+              <option value="default">Relevância</option>
+              <option value="price-asc">Menor Preço</option>
+              <option value="price-desc">Maior Preço</option>
+              <option value="name-asc">A-Z</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="loading" class="flex flex-col items-center justify-center py-20">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue mb-4"></div>
+        </div>
+
+        <div id="product-grid" class="grid gap-6 product-card-grid"></div>
+
+        <div id="empty-state" class="hidden text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+          <h2 class="text-xl font-bold text-gray-600">Nenhum produto encontrado</h2>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="main-footer"></div>
+
+  <script src="./marketplace-core.js" defer></script>
+  <script src="./marketplace-core_global_payments.js" defer></script>
+
+<script type="module">
+    window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
+      try{
+        if (v === null || v === undefined) return fallback;
+        if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+        let s = String(v).trim();
+        if (!s) return fallback;
+        s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g,'');
+        const hasComma = s.includes(',');
+        const hasDot = s.includes('.');
+        if (hasComma && hasDot){
+          s = s.replace(/\./g,'').replace(',', '.');
+        } else if (hasComma && !hasDot){
+          s = s.replace(',', '.');
+        }
+        const n = parseFloat(s);
+        return Number.isFinite(n) ? n : fallback;
+      }catch(_e){
+        return fallback;
+      }
+    };
+
+    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, query, where, orderBy, getDocs, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:ef7698ea5d33d701338243",
+      measurementId: "G-WNMWLYMW43"
+    };
+
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    window.storage = storage;
+    window.db = db;
+    window.auth = auth;
+    window.collection = collection;
+    window.getDocs = getDocs;
+    window.getDoc = getDoc;
+    window.query = query;
+    window.where = where;
+    window.orderBy = orderBy;
+    window.limit = limit;
+    window.doc = doc;
+
+    const $ = id => document.getElementById(id);
+    let allProducts = [];
+    let allCategories = [];
+
+    async function waitForMarketplacePayments(maxMs = 8000) {
+      const start = Date.now();
+      while (Date.now() - start < maxMs) {
+        if (typeof window.decorateProductWithPayments === 'function' || typeof window.getPaymentSettings === 'function') {
+          return true;
+        }
+        await new Promise(r => setTimeout(r, 60));
+      }
+      return false;
+    }
+
+    const formatCurrency = (v) =>
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(window.__toNumberBR(v, 0));
+
+    const formatPriceParts = (value) => {
+      const formatted = formatCurrency(value);
+      const numericString = formatted.replace("R$", "").replace(/\./g, "").trim();
+      const idx = numericString.lastIndexOf(",");
+      let integerPart = (idx >= 0) ? numericString.substring(0, idx) : numericString;
+      let decimalPart = (idx >= 0) ? numericString.substring(idx + 1) : "00";
+      integerPart = integerPart || "0";
+      decimalPart = String(decimalPart || "00").padEnd(2, "0").substring(0, 2);
+      return { symbol: "R$", integer: integerPart, decimal: decimalPart };
+    };
+
+    const normalizeSlug = (s) => String(s || '').trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+    const isHttpUrl = (s) => typeof s === 'string' && /^(https?:)?\/\//i.test(s);
+    const isDataUrl = (s) => typeof s === 'string' && /^data:/i.test(s);
+    const looksLikeStoragePath = (s) => typeof s === 'string' && s.trim() && !isHttpUrl(s) && !isDataUrl(s) && !s.startsWith('blob:') && !s.startsWith('file:');
+
+    const pickImageCandidate = (p) => {
+      if (!p) return null;
+      const direct = p.mainImageUrl || p.imageUrl || p.imagemUrl || p.imagem || p.image || p.mainImage || null;
+      if (typeof direct === 'string' && direct.trim()) return direct.trim();
+
+      const path = p.mainImagePath || p.imagePath || p.path || null;
+      if (typeof path === 'string' && path.trim()) return path.trim();
+
+      if (Array.isArray(p.images)) {
+        const main = p.images.find(x => x && (x.isMain === true || x.main === true) && (x.url || x.path));
+        const any = main || p.images.find(x => x && (x.url || x.path));
+        const v = any?.url || any?.path || (typeof any === 'string' ? any : null);
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+
+      if (p.images && typeof p.images === 'object') {
+        const keys = Object.keys(p.images).sort((a,b)=>parseInt(a)-parseInt(b));
+        for (const k of keys) {
+          const entry = p.images[k];
+          const v = entry?.url || entry?.path || (typeof entry === 'string' ? entry : null);
+          if (typeof v === 'string' && v.trim()) return v.trim();
+        }
+      }
+      return null;
+    };
+
+    const resolveImageUrl = async (candidate) => {
+      const c = (typeof candidate === 'string') ? candidate.trim() : '';
+      if (!c) return null;
+      if (isHttpUrl(c) || isDataUrl(c)) return c.startsWith('http://') ? ('https://' + c.slice(7)) : c;
+      if (!looksLikeStoragePath(c) && !c.startsWith('gs://')) return null;
+      try {
+        return await getDownloadURL(storageRef(storage, c));
+      } catch (_) {
+        return null;
+      }
+    };
+
+    function getOldPrice(raw) {
+      const candidates = [
+        raw.oldPrice, raw.precoAntigo, raw.preco_antigo, raw.preco_anterior,
+        raw.compareAtPrice, raw.compare_at_price, raw.precoDe, raw.preco_de,
+        raw.listPrice, raw.list_price, raw.originalPrice, raw.original_price,
+        raw.priceFrom, raw.precoOriginal, raw.preco_original
+      ];
+      for (const value of candidates) {
+        const n = window.__toNumberBR(value, NaN);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return null;
+    }
+
+    function getCurrentPrice(raw) {
+      const candidates = [
+        raw.price, raw.preco, raw.valor, raw.salePrice,
+        raw.sale_price, raw.precoPor, raw.preco_por, raw.finalPrice, raw.final_price
+      ];
+      for (const value of candidates) {
+        const n = window.__toNumberBR(value, NaN);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return 0;
+    }
+
+    function getGlobalPaymentSettings() {
+      return (
+        window?.GLOBAL_PAYMENT_SETTINGS ||
+        window?.globalPaymentSettings ||
+        window?.PAYMENT_SETTINGS ||
+        window?.paymentSettings ||
+        window?.APP_PAYMENT_SETTINGS ||
+        {}
+      );
+    }
+
+    function getCashDiscountPercent(product) {
+      const candidates = [
+        product?.__payments?.cash?.discountPercent,
+        product?.cashDiscountPercent,
+        product?.discountPercent,
+        product?.descontoPercentual,
+        product?.desconto_percentual,
+        getGlobalPaymentSettings()?.cash?.discountPercent,
+        getGlobalPaymentSettings()?.cashDiscountPercent,
+        getGlobalPaymentSettings()?.pix?.discountPercent
+      ];
+      for (const value of candidates) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return 0;
+    }
+
+    function getCashDisplayPrice(product, basePrice) {
+      const explicitCandidates = [
+        product?.__payments?.cash?.price,
+        product?.cashPrice,
+        product?.priceCash,
+        product?.precoPix,
+        product?.preco_pix,
+        product?.precoAvista,
+        product?.preco_avista
+      ];
+      for (const value of explicitCandidates) {
+        const n = window.__toNumberBR(value, NaN);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+
+      const discountPercent = getCashDiscountPercent(product);
+      if (discountPercent > 0 && basePrice > 0) {
+        return basePrice * (1 - (discountPercent / 100));
+      }
+
+      return basePrice;
+    }
+
+    function getInstallmentsText(product, displayPrice) {
+      try {
+        if (product?.__payments?.card?.enabled && product?.__payments?.card?.text) {
+          return product.__payments.card.text;
+        }
+        if (typeof product?.parcelamentoTexto === 'string' && product.parcelamentoTexto.trim()) {
+          return product.parcelamentoTexto.trim();
+        }
+        if (typeof product?.installmentsText === 'string' && product.installmentsText.trim()) {
+          return product.installmentsText.trim();
+        }
+        if (typeof product?.parcelamento === 'string' && product.parcelamento.trim()) {
+          return product.parcelamento.trim();
+        }
+        if (typeof product?.parcelasTexto === 'string' && product.parcelasTexto.trim()) {
+          return product.parcelasTexto.trim();
+        }
+
+        const gs = getGlobalPaymentSettings();
+        const maxInstallments =
+          Number(product?.maxInstallments) ||
+          Number(product?.max_installments) ||
+          Number(product?.parcelasMaximas) ||
+          Number(product?.parcelas_maximas) ||
+          Number(gs?.card?.maxInstallments) ||
+          Number(gs?.maxInstallments) ||
+          Number(gs?.installments) ||
+          12;
+
+        if (maxInstallments > 1 && displayPrice > 0) {
+          const installmentValue = displayPrice / maxInstallments;
+          return `em até ${maxInstallments}x de ${formatCurrency(installmentValue)} sem juros`;
+        }
+      } catch (_) {}
+      return '';
+    }
+
+    function getCategoryLabel(p) {
+      return String(
+        p.subcategoryName || p.subcategory || p.subcategoria ||
+        p.categoryName || p.category || p.categoria || ''
+      ).trim();
+    }
+
+    function applyFilters() {
+      const term = ($('search')?.value || '').toLowerCase().trim();
+      const sort = $('sort')?.value || 'default';
+
+      let filtered = allProducts.filter(p => {
+        const name = String(p.name || p.nome || p.titulo || '').toLowerCase();
+        const cat = getCategoryLabel(p).toLowerCase();
+        const desc = String(p.description || p.descricao || '').toLowerCase();
+        return !term || name.includes(term) || cat.includes(term) || desc.includes(term);
+      });
+
+      if (sort === 'price-asc') filtered.sort((a,b) => getCurrentPrice(a) - getCurrentPrice(b));
+      else if (sort === 'price-desc') filtered.sort((a,b) => getCurrentPrice(b) - getCurrentPrice(a));
+      else if (sort === 'name-asc') filtered.sort((a,b) => String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR'));
+
+      renderProducts(filtered);
+    }
+
+    function renderProducts(products) {
+      const grid = $('product-grid');
+      const empty = $('empty-state');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      if (!products || products.length === 0) {
+        empty?.classList.remove('hidden');
+        return;
+      }
+      empty?.classList.add('hidden');
+
+      grid.innerHTML = products.map(raw => {
+        const currentPrice = getCurrentPrice(raw);
+        const oldPriceRaw = getOldPrice(raw);
+        const normalized = {
+          ...raw,
+          id: raw.id,
+          name: raw.name || raw.nome || raw.titulo || '',
+          title: raw.title || raw.name || raw.nome || raw.titulo || '',
+          price: currentPrice,
+          preco: currentPrice,
+          valor: currentPrice,
+          oldPrice: oldPriceRaw,
+          precoAntigo: oldPriceRaw,
+          preco_antigo: oldPriceRaw,
+          compareAtPrice: oldPriceRaw,
+          categoryName: raw.categoryName || raw.category || raw.categoria || '',
+          subcategoryName: raw.subcategoryName || raw.subcategory || raw.subcategoria || '',
+          imageUrl: raw.imageUrl || raw.mainImageUrl || raw.imageUrlResolved || raw.imagemUrl || raw.imagem || raw.image || 'https://placehold.co/400x400?text=SEM+IMAGEM',
+          mainImageUrl: raw.mainImageUrl || raw.imageUrl || raw.imageUrlResolved || raw.imagemUrl || raw.imagem || raw.image || 'https://placehold.co/400x400?text=SEM+IMAGEM'
+        };
+
+        let p = normalized;
+        try {
+          if (typeof window.decorateProductWithPayments === 'function') {
+            p = window.decorateProductWithPayments(normalized) || normalized;
+          }
+        } catch (_) {
+          p = normalized;
+        }
+
+        const basePrice = window.__toNumberBR(
+          p.price ?? p.preco ?? p.valor ?? currentPrice ?? 0,
+          0
+        );
+        const oldPrice = window.__toNumberBR(
+          p.oldPrice ?? p.precoAntigo ?? p.preco_antigo ?? oldPriceRaw ?? null,
+          NaN
+        );
+
+        const discountPercent = getCashDiscountPercent(p);
+        const displayPrice = getCashDisplayPrice(p, basePrice);
+
+        let badgePercent = null;
+        let showOld = null;
+
+        if (Number.isFinite(oldPrice) && oldPrice > basePrice) {
+          badgePercent = Math.round(((oldPrice - basePrice) / oldPrice) * 100);
+          showOld = oldPrice;
+        } else if (discountPercent > 0 && displayPrice < basePrice) {
+          badgePercent = Math.round(discountPercent);
+          showOld = basePrice;
+        }
+
+        const priceParts = formatPriceParts(displayPrice);
+        const installmentsText = getInstallmentsText(p, displayPrice) || 'em até 12x';
+
+        return `
+          <a href="produto.html?id=${encodeURIComponent(p.id)}" class="product-card">
+            <div class="product-image-container">
+              ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ``}
+              <img src="${p.imageUrl || p.mainImageUrl || 'https://placehold.co/400x400?text=SEM+IMAGEM'}" alt="${String(p.name||'').replace(/"/g,'&quot;')}" loading="lazy">
+            </div>
+            <div class="product-card-body">
+              <p class="product-name">${p.name || ''}</p>
+              <div class="mt-auto">
+                ${showOld ? `<p class="product-old-price">${formatCurrency(showOld)}</p>` : `<p class="product-old-price" style="opacity:0">.</p>`}
+                <div class="product-price">
+                  <span class="currency">${priceParts.symbol}</span>
+                  <span class="price-integer">${priceParts.integer}</span>
+                  <span class="decimal-part">,${priceParts.decimal}</span>
+                  <span class="cash-text">à vista</span>
+                </div>
+                <p class="product-installments">${installmentsText}</p>
+              </div>
+            </div>
+          </a>`;
+      }).join('');
+    }
+
+    function buildSidebar(parentCategories, currentParent, currentSub, childrenByParent) {
+      const sidebar = $('categories-sidebar');
+      if (!sidebar) return;
+      sidebar.innerHTML = parentCategories.map(cat => {
+        const nm = cat.name || cat.nome || '';
+        const sl = cat.slug || normalizeSlug(nm);
+        const isParentActive = currentParent && cat.id === currentParent.id;
+        const children = childrenByParent.get(cat.id) || [];
+        return `
+          <li class="space-y-2">
+            <a href="categoria.html?slug=${encodeURIComponent(sl)}" class="text-sm ${isParentActive && !currentSub ? 'font-bold text-primary-blue' : 'text-gray-500 hover:text-primary-blue'} transition-colors">
+              ${nm}
+            </a>
+            ${isParentActive && children.length ? `
+              <ul class="pl-3 border-l border-gray-200 space-y-2">
+                ${children.map(sub => {
+                  const subName = sub.name || sub.nome || '';
+                  const subSlug = sub.slug || normalizeSlug(subName);
+                  const subActive = currentSub && sub.id === currentSub.id;
+                  return `<li><a href="categoria.html?id=${encodeURIComponent(sub.id)}" class="text-xs ${subActive ? 'font-bold text-primary-blue' : 'text-gray-500 hover:text-primary-blue'} transition-colors">${subName}</a></li>`;
+                }).join('')}
+              </ul>` : ''}
+          </li>`;
+      }).join('');
+    }
+
+    function setBreadcrumb(currentParent, currentSub) {
+      const breadcrumb = $('breadcrumb');
+      if (!breadcrumb) return;
+      const parentName = currentParent?.name || currentParent?.nome || 'Categorias';
+      const parentSlug = currentParent?.slug || normalizeSlug(parentName);
+      breadcrumb.innerHTML = currentSub
+        ? `<a href="index.html">Início</a><span>/</span><a href="categoria.html?slug=${encodeURIComponent(parentSlug)}">${parentName}</a><span>/</span><span class="text-gray-600">${currentSub.name || currentSub.nome || 'Subcategoria'}</span>`
+        : `<a href="index.html">Início</a><span>/</span><span class="text-gray-600">${parentName}</span>`;
+    }
+
+    async function fetchCategories() {
+      let docs = [];
+      try {
+        const snap = await getDocs(query(collection(db, 'categories'), orderBy('order'), orderBy('name'), limit(500)));
+        docs = snap.docs;
+      } catch (_) {
+        try {
+          const snap = await getDocs(query(collection(db, 'categories'), limit(500)));
+          docs = snap.docs;
+        } catch (_) {
+          const snap = await getDocs(query(collection(db, 'categorias'), limit(500)));
+          docs = snap.docs;
+        }
+      }
+      return docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.active !== false);
+    }
+
+    function findCurrentCategory(categories, params) {
+      const catId = params.get('id') || params.get('categoryId');
+      const catSlugParam = params.get('slug') || params.get('categorySlug');
+      const catNameParam = params.get('name') || params.get('categoria') || params.get('category');
+
+      let found = null;
+      if (catId) found = categories.find(c => c.id === catId) || null;
+      if (!found && catSlugParam) {
+        const wanted = normalizeSlug(catSlugParam);
+        found = categories.find(c => normalizeSlug(c.slug || c.name || c.nome || c.id) === wanted) || null;
+      }
+      if (!found && catNameParam) {
+        const wantedSlug = normalizeSlug(catNameParam);
+        found = categories.find(c => normalizeSlug(c.slug || c.name || c.nome || c.id) === wantedSlug) || null;
+        if (!found) {
+          found = categories.find(c => String(c.name || c.nome || '').trim().toLowerCase() === String(catNameParam).trim().toLowerCase()) || null;
+        }
+      }
+      return found || null;
+    }
+
+    async function collectProductsForContext(currentParent, currentSub) {
+      const productsRef = collection(db, 'products');
+      const map = new Map();
+      const addDocs = (docs) => docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+
+      const queryTargets = [];
+      if (currentSub) {
+        const subName = currentSub.name || currentSub.nome || '';
+        const subSlug = currentSub.slug || normalizeSlug(subName);
+        queryTargets.push(['subcategoryId', currentSub.id]);
+        queryTargets.push(['subcategorySlug', subSlug]);
+        queryTargets.push(['subcategoryName', subName]);
+        queryTargets.push(['subcategory', subName]);
+        queryTargets.push(['subcategoria', subName]);
+      } else if (currentParent) {
+        const parentName = currentParent.name || currentParent.nome || '';
+        const parentSlug = currentParent.slug || normalizeSlug(parentName);
+        queryTargets.push(['categoryId', currentParent.id]);
+        queryTargets.push(['categorySlug', parentSlug]);
+        queryTargets.push(['categoryName', parentName]);
+        queryTargets.push(['category', parentName]);
+        queryTargets.push(['categoria', parentName]);
+      }
+
+      for (const [field, value] of queryTargets) {
+        if (!value) continue;
+        try {
+          const qs = await getDocs(query(productsRef, where(field, '==', value)));
+          addDocs(qs.docs);
+        } catch (_) {}
+      }
+
+      let products = Array.from(map.values());
+      products = await Promise.all(products.map(async (p) => {
+        const cand = pickImageCandidate(p);
+        const url = await resolveImageUrl(cand);
+        return {
+          ...p,
+          imageUrlResolved: url || null,
+          imageUrl: url || p.imageUrl || p.mainImageUrl || (typeof p.imagem === 'string' ? p.imagem : null) || 'https://placehold.co/400x400?text=SEM+IMAGEM'
+        };
+      }));
+      return products;
+    }
+
+    async function initCategoria() {
+      try {
+        $('loading')?.classList.remove('hidden');
+        await signInAnonymously(auth);
+      } catch (_) {}
+
+      try {
+        await waitForMarketplacePayments();
+        if (typeof window.getPaymentSettings === 'function') {
+          await window.getPaymentSettings(true);
+        }
+      } catch (_) {}
+
+      const params = new URLSearchParams(window.location.search);
+      allCategories = await fetchCategories();
+
+      if (!allCategories.length) {
+        $('loading')?.classList.add('hidden');
+        $('empty-state')?.classList.remove('hidden');
+        return;
+      }
+
+      const currentNode = findCurrentCategory(allCategories, params) || allCategories.find(c => !c.parentId) || allCategories[0];
+      const parentCategories = allCategories.filter(c => !c.parentId);
+      const childrenByParent = new Map();
+      allCategories.filter(c => c.parentId).forEach(c => {
+        const arr = childrenByParent.get(c.parentId) || [];
+        arr.push(c);
+        childrenByParent.set(c.parentId, arr);
+      });
+      for (const arr of childrenByParent.values()) {
+        arr.sort((a,b) => Number(a.order || 9999) - Number(b.order || 9999) || String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR'));
+      }
+
+      const currentSub = currentNode.parentId ? currentNode : null;
+      const currentParent = currentSub
+        ? (allCategories.find(c => c.id === currentSub.parentId) || null)
+        : currentNode;
+
+      $('category-title').textContent = currentSub
+        ? (currentSub.name || currentSub.nome || 'Subcategoria')
+        : (currentParent?.name || currentParent?.nome || 'Categoria');
+
+      setBreadcrumb(currentParent, currentSub);
+      buildSidebar(parentCategories, currentParent, currentSub, childrenByParent);
+
+      allProducts = await collectProductsForContext(currentParent, currentSub);
+
+      $('loading')?.classList.add('hidden');
+      applyFilters();
+      window.dispatchEvent(new Event('firebase:ready'));
+    }
+
+    $('search')?.addEventListener('input', applyFilters);
+    $('sort')?.addEventListener('change', applyFilters);
+
+    initCategoria().catch(err => {
+      console.error('[categoria] erro:', err);
+      $('loading')?.classList.add('hidden');
+      $('empty-state')?.classList.remove('hidden');
+    });
+  </script>
+
+  <script src="header.js" defer></script>
+  <script>
+  (function () {
+    const tryInitHeader = () => {
+      if (typeof window.carregarHeader !== 'function') {
+        setTimeout(tryInitHeader, 60);
+        return;
+      }
+      if (!(window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function')) {
+        setTimeout(tryInitHeader, 60);
+        return;
+      }
+      if (document.querySelector('header[data-ariana="1"]')) return;
+
+      try {
+        window.carregarHeader();
+        const h = document.querySelector('header');
+        if (h) h.setAttribute('data-ariana', '1');
+      } catch (e) {
+        console.error("[page] erro ao carregar header:", e);
+      }
+    };
+    tryInitHeader();
+    window.addEventListener('firebase:ready', tryInitHeader);
+  })();
+  </script>
+
+  <script src="footer.js" defer></script>
+
+  <script>
+  (function(){
+    try {
+      if (typeof loadRecommendations === 'function') {
+        loadRecommendations();
+      }
+    } catch(e){
+      console.error('[produto] erro ao carregar recomendações:', e);
+    }
+  })();
+  </script>
+
+  <script>
+  (function () {
+    if (typeof window.bindHeaderAuthListener === 'function') return;
+    window.bindHeaderAuthListener = function (auth) {
+      try {
+        if (!auth || typeof auth.onAuthStateChanged !== 'function') return;
+        auth.onAuthStateChanged(function (user) {
+          try { if (typeof window.updateClientHeaderUI === 'function') window.updateClientHeaderUI(user); } catch (e) {}
+          try { if (typeof window.loadClientAddress === 'function') window.loadClientAddress(user); } catch (e) {}
+        });
+      } catch (e) {
+        console.error('[header_auth_inline] erro:', e);
+      }
+    };
+  })();
+  </script>
+
+  <script src="js/layout-fit.js" defer></script>
+</body>
+</html>

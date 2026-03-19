@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+<body class="min-h-screen">
+  <div class="flex min-h-screen">
+
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-dark-bg text-white hidden md:flex md:flex-col">
+      <div class="p-6 border-b border-white/10">
+        <div class="text-2xl font-black tracking-tight">ADMIN ARIANA</div>
+        <div class="text-xs text-white/60 mt-1">Pagamentos & Fretes</div>
+      </div>
+
+      <nav class="p-4 space-y-2 text-sm">
+        <a href="admin_painel.html" class="block px-3 py-2 rounded-lg hover:bg-white/10">
+          <i class="fa-solid fa-gauge mr-2"></i> Painel
+        </a>
+        <a href="admin_entrega.html" class="block px-3 py-2 rounded-lg bg-white/10">
+          <i class="fa-solid fa-truck-fast mr-2"></i> Fretes & Pagamentos
+        </a>
+      </nav>
+
+      <div class="mt-auto p-4 border-t border-white/10">
+        <button id="btnLogout" class="w-full px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 font-bold">
+          <i class="fa-solid fa-right-from-bracket mr-2"></i> Sair
+        </button>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="flex-1 p-4 md:p-8">
+      <div class="max-w-6xl mx-auto">
+
+        <!-- HEADER -->
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h1 class="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">Pagamentos e Fretes</h1>
+            <p class="text-gray-600 mt-1">Mercado Pago + Correios + Transportadoras de frete pesado + Frete manual por UF (capital/interior).</p>
+          </div>
+
+          <div class="flex gap-3">
+            <button id="btnSalvarTudo"
+              class="bg-primary-blue text-white px-6 py-3 rounded-xl font-black shadow hover:opacity-95">
+              <i class="fa-solid fa-floppy-disk mr-2"></i> SALVAR
+            </button>
+          </div>
+        </div>
+
+        <!-- MESSAGES -->
+        <div id="msgBox" class="hidden mb-6 px-4 py-3 rounded-xl border"></div>
+
+        <!-- SECTION: MERCADO PAGO -->
+        <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-black text-gray-900">
+                <i class="fa-brands fa-cc-mastercard text-primary-blue mr-2"></i>
+                Mercado Pago (PIX, Cartão e Boleto)
+              </h2>
+              <p class="text-gray-600 text-sm mt-1">
+                Dica: <b>NUNCA</b> deixe <b>Access Token</b> no front-end. Guarde no backend (Cloud Run/Functions).
+                Aqui no painel, salve apenas chaves públicas e flags.
+              </p>
+            </div>
+            <span class="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold">ATIVO</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div>
+              <label class="text-sm font-bold text-gray-700">Public Key (MP_PUBLIC_KEY)</label>
+              <input id="mpPublicKey" class="mt-2 w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 ring-primary-blue"
+                     placeholder="APP_USR-xxxx ou TEST-xxxx (public key)"/>
+              <p class="text-xs text-gray-500 mt-2">Usada no front para inicializar checkout/SDK (não é segredo).</p>
+            </div>
+
+            <div>
+              <label class="text-sm font-bold text-gray-700">Modo</label>
+              <select id="mpMode" class="mt-2 w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 ring-primary-blue">
+                <option value="prod">Produção</option>
+                <option value="test">Teste</option>
+              </select>
+              <p class="text-xs text-gray-500 mt-2">Seu backend escolhe o Access Token conforme o modo.</p>
+            </div>
+
+            <div class="md:col-span-2">
+              <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-2 text-sm font-semibold">
+                  <input id="mpEnablePix" type="checkbox" class="w-5 h-5 accent-[#2E6DA4]"> PIX
+                </label>
+                <label class="flex items-center gap-2 text-sm font-semibold">
+                  <input id="mpEnableCard" type="checkbox" class="w-5 h-5 accent-[#2E6DA4]"> Cartão
+                </label>
+                <label class="flex items-center gap-2 text-sm font-semibold">
+                  <input id="mpEnableBoleto" type="checkbox" class="w-5 h-5 accent-[#2E6DA4]"> Boleto
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION: CORREIOS LIMITS -->
+        <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+          <h2 class="text-xl font-black text-gray-900">
+            <i class="fa-solid fa-box text-primary-blue mr-2"></i>
+            Correios (limitações)
+          </h2>
+          <p class="text-gray-600 text-sm mt-1">
+            Você já usa Correios com limite de <b>30kg</b> e dimensão máx. <b>100cm</b>.
+            Aqui você pode definir quando o sistema deve <b>bloquear</b> Correios e mandar para frete pesado/ manual.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div>
+              <label class="text-sm font-bold text-gray-700">Peso máximo Correios (kg)</label>
+              <input id="correiosMaxKg" type="number" step="0.1" min="0"
+                     class="mt-2 w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 ring-primary-blue"/>
+            </div>
+            <div>
+              <label class="text-sm font-bold text-gray-700">Maior dimensão máx. (cm)</label>
+              <input id="correiosMaxDimCm" type="number" step="1" min="0"
+                     class="mt-2 w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 ring-primary-blue"/>
+            </div>
+            <div class="flex items-center gap-3 pt-6">
+              <input id="correiosEnabled" type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" />
+              <label class="text-sm font-bold text-gray-700">Usar Correios quando permitido</label>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION: HEAVY CARRIERS -->
+        <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-black text-gray-900">
+                <i class="fa-solid fa-truck-ramp-box text-primary-blue mr-2"></i>
+                Transportadoras (frete pesado)
+              </h2>
+              <p class="text-gray-600 text-sm mt-1">
+                Cadastre transportadoras e regras básicas. A cotação real normalmente é via API/contrato no backend.
+                Aqui você liga/desliga e configura parâmetros.
+              </p>
+            </div>
+            <button id="btnAddCarrier" class="px-4 py-2 rounded-xl border-2 border-primary-blue text-primary-blue font-black hover:bg-primary-blue hover:text-white transition">
+              <i class="fa-solid fa-plus mr-2"></i> ADICIONAR
+            </button>
+          </div>
+
+          <div class="mt-6 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b">
+                <tr>
+                  <th class="text-left p-3 font-black text-gray-700">Ativo</th>
+                  <th class="text-left p-3 font-black text-gray-700">Nome</th>
+                  <th class="text-left p-3 font-black text-gray-700">Atende UF</th>
+                  <th class="text-left p-3 font-black text-gray-700">Prazo base (dias)</th>
+                  <th class="text-left p-3 font-black text-gray-700">Observação</th>
+                  <th class="text-right p-3 font-black text-gray-700">Ação</th>
+                </tr>
+              </thead>
+              <tbody id="carriersTbody"></tbody>
+            </table>
+          </div>
+
+          <p class="text-xs text-gray-500 mt-4">
+            * “Atende UF” é uma lista tipo: <code>SP,RJ,MG</code>. Se vazio, entende como “todas”.
+          </p>
+        </section>
+
+        <!-- SECTION: MANUAL FREIGHT RULES -->
+        <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-10">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-black text-gray-900">
+                <i class="fa-solid fa-map-location-dot text-primary-blue mr-2"></i>
+                Frete manual (por UF + Capital/Interior)
+              </h2>
+              <p class="text-gray-600 text-sm mt-1">
+                Você define o valor manual por estado e se é <b>capital</b>, <b>interior</b> ou <b>ambos</b>.
+                Ideal para móveis/eletros quando não dá Correios.
+              </p>
+            </div>
+            <button id="btnAddRule" class="px-4 py-2 rounded-xl border-2 border-primary-blue text-primary-blue font-black hover:bg-primary-blue hover:text-white transition">
+              <i class="fa-solid fa-plus mr-2"></i> ADICIONAR REGRA
+            </button>
+          </div>
+
+          <div class="mt-6 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b">
+                <tr>
+                  <th class="text-left p-3 font-black text-gray-700">Ativo</th>
+                  <th class="text-left p-3 font-black text-gray-700">UF</th>
+                  <th class="text-left p-3 font-black text-gray-700">Capital/Interior</th>
+                  <th class="text-left p-3 font-black text-gray-700">Peso mín (kg)</th>
+                  <th class="text-left p-3 font-black text-gray-700">Peso máx (kg)</th>
+                  <th class="text-left p-3 font-black text-gray-700">Maior dim máx (cm)</th>
+                  <th class="text-left p-3 font-black text-gray-700">Preço (R$)</th>
+                  <th class="text-left p-3 font-black text-gray-700">Prazo (dias)</th>
+                  <th class="text-right p-3 font-black text-gray-700">Ação</th>
+                </tr>
+              </thead>
+              <tbody id="rulesTbody"></tbody>
+            </table>
+          </div>
+
+          <div class="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900">
+            <b>Como o sistema decide “Capital x Interior”?</b><br/>
+            No checkout, dá pra usar o CEP (ViaCEP) e comparar com a capital do UF. Se a cidade do CEP for a capital, aplica “Capital”, senão “Interior”.
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+    };
+
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const APP_ID = "ariana-moveis-final";
+
+    // refs: tenta salvar em 2 lugares:
+    // 1) por admin (quase sempre permitido nas rules privadas)
+    // 2) global (se suas rules permitirem)
+    const adminSettingsRef = (uid) => doc(db, "artifacts", APP_ID, "users", uid, "store_settings", "global_config");
+    const globalSettingsRef = () => doc(db, "artifacts", APP_ID, "store_settings", "global_config");
+
+    const el = (id) => document.getElementById(id);
+    const msgBox = el("msgBox");
+
+    function msg(text, type="info") {
+      msgBox.className = "mb-6 px-4 py-3 rounded-xl border";
+      msgBox.classList.remove("hidden");
+      if (type === "error") msgBox.classList.add("bg-red-50","border-red-200","text-red-700");
+      else if (type === "success") msgBox.classList.add("bg-green-50","border-green-200","text-green-700");
+      else msgBox.classList.add("bg-blue-50","border-blue-200","text-blue-700");
+      msgBox.textContent = text;
+      setTimeout(()=> msgBox.classList.add("hidden"), 4500);
+    }
+
+    // UI state
+    let carriers = [];
+    let rules = [];
+    let currentUid = null;
+
+    function carrierRow(c, idx){
+      return `
+        <tr class="border-b">
+          <td class="p-3">
+            <input type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" data-carrier-idx="${idx}" data-k="enabled" ${c.enabled ? "checked":""}>
+          </td>
+          <td class="p-3">
+            <input class="w-full border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="name" value="${escapeHtml(c.name||"")}">
+          </td>
+          <td class="p-3">
+            <input class="w-full border rounded-lg px-3 py-2" placeholder="SP,RJ,MG" data-carrier-idx="${idx}" data-k="ufs" value="${escapeHtml((c.ufs||"").toUpperCase())}">
+          </td>
+          <td class="p-3">
+            <input type="number" min="0" step="1" class="w-28 border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="baseDays" value="${Number(c.baseDays||0)}">
+          </td>
+          <td class="p-3">
+            <input class="w-full border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="note" value="${escapeHtml(c.note||"")}">
+          </td>
+          <td class="p-3 text-right">
+            <button class="px-3 py-2 rounded-lg bg-red-50 text-red-600 font-black hover:bg-red-100" data-remove-carrier="${idx}">
+              Remover
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    function ruleRow(r, idx){
+      const regionOptions = [
+        ["all","Capital + Interior"],
+        ["capital","Apenas Capital"],
+        ["interior","Apenas Interior"],
+      ].map(([v,l]) => `<option value="${v}" ${r.region===v?"selected":""}>${l}</option>`).join("");
+
+      return `
+        <tr class="border-b">
+          <td class="p-3">
+            <input type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" data-rule-idx="${idx}" data-k="enabled" ${r.enabled ? "checked":""}>
+          </td>
+          <td class="p-3">
+            <input maxlength="2" class="w-16 uppercase border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="uf" value="${escapeHtml((r.uf||"").toUpperCase())}" placeholder="UF">
+          </td>
+          <td class="p-3">
+            <select class="border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="region">
+              ${regionOptions}
+            </select>
+          </td>
+          <td class="p-3"><input type="number" min="0" step="0.1" class="w-24 border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="minKg" value="${Number(r.minKg ?? 0)}"></td>
+          <td class="p-3"><input type="number" min="0" step="0.1" class="w-24 border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="maxKg" value="${Number(r.maxKg ?? 9999)}"></td>
+          <td class="p-3"><input type="number" min="0" step="1" class="w-28 border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="maxDimCm" value="${Number(r.maxDimCm ?? 9999)}"></td>
+          <td class="p-3"><input type="number" min="0" step="0.01" class="w-28 border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="price" value="${Number(r.price ?? 0)}"></td>
+          <td class="p-3"><input type="number" min="0" step="1" class="w-24 border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="days" value="${Number(r.days ?? 0)}"></td>
+          <td class="p-3 text-right">
+            <button class="px-3 py-2 rounded-lg bg-red-50 text-red-600 font-black hover:bg-red-100" data-remove-rule="${idx}">
+              Remover
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    function escapeHtml(s){
+      return String(s ?? "").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[m]));
+    }
+
+    function renderTables(){
+      el("carriersTbody").innerHTML = carriers.map(carrierRow).join("");
+      el("rulesTbody").innerHTML = rules.map(ruleRow).join("");
+    }
+
+    function bindTableEvents(){
+      document.addEventListener("input", (e) => {
+        const t = e.target;
+        if (t?.dataset?.carrierIdx !== undefined){
+          const idx = Number(t.dataset.carrierIdx);
+          const k = t.dataset.k;
+          if (!carriers[idx]) return;
+          carriers[idx][k] = (t.type === "checkbox") ? t.checked : t.value;
+        }
+        if (t?.dataset?.ruleIdx !== undefined){
+          const idx = Number(t.dataset.ruleIdx);
+          const k = t.dataset.k;
+          if (!rules[idx]) return;
+          if (t.type === "checkbox") rules[idx][k] = t.checked;
+          else if (t.tagName === "SELECT") rules[idx][k] = t.value;
+          else rules[idx][k] = t.value;
+        }
+      });
+
+      document.addEventListener("click", (e) => {
+        const t = e.target;
+        const rc = t?.dataset?.removeCarrier;
+        const rr = t?.dataset?.removeRule;
+        if (rc !== undefined){
+          carriers.splice(Number(rc),1);
+          renderTables();
+        }
+        if (rr !== undefined){
+          rules.splice(Number(rr),1);
+          renderTables();
+        }
+      });
+    }
+
+    // Load + Save
+    async function loadAll(uid){
+      // tenta primeiro global, depois admin
+      let data = null;
+      try {
+        const g = await getDoc(globalSettingsRef());
+        if (g.exists()) data = g.data();
+      } catch(_) {}
+      if (!data){
+        const a = await getDoc(adminSettingsRef(uid));
+        if (a.exists()) data = a.data();
+      }
+
+      const payments = data?.payments || {};
+      const shipping  = data?.shipping  || {};
+
+      el("mpPublicKey").value = payments.mercadopago?.publicKey || "";
+      el("mpMode").value = payments.mercadopago?.mode || "prod";
+      el("mpEnablePix").checked = payments.mercadopago?.enablePix !== false;
+      el("mpEnableCard").checked = payments.mercadopago?.enableCard !== false;
+      el("mpEnableBoleto").checked = payments.mercadopago?.enableBoleto !== false;
+
+      el("correiosEnabled").checked = shipping.correios?.enabled !== false;
+      el("correiosMaxKg").value = shipping.correios?.maxKg ?? 30;
+      el("correiosMaxDimCm").value = shipping.correios?.maxDimCm ?? 100;
+
+      carriers = Array.isArray(shipping.heavyCarriers) ? shipping.heavyCarriers : [];
+      rules    = Array.isArray(shipping.manualRules)  ? shipping.manualRules  : [];
+
+      if (!carriers.length) carriers = [{ enabled:true, name:"", ufs:"", baseDays:7, note:"" }];
+      if (!rules.length) rules = [{ enabled:true, uf:"SP", region:"all", minKg:0, maxKg:9999, maxDimCm:9999, price:0, days:7 }];
+
+      renderTables();
+    }
+
+    async function saveAll(uid){
+      const payload = {
+        updatedAt: new Date(),
+        payments: {
+          mercadopago: {
+            publicKey: el("mpPublicKey").value.trim(),
+            mode: el("mpMode").value,
+            enablePix: el("mpEnablePix").checked,
+            enableCard: el("mpEnableCard").checked,
+            enableBoleto: el("mpEnableBoleto").checked
+          }
+        },
+        shipping: {
+          correios: {
+            enabled: el("correiosEnabled").checked,
+            maxKg: Number(el("correiosMaxKg").value || 30),
+            maxDimCm: Number(el("correiosMaxDimCm").value || 100)
+          },
+          heavyCarriers: carriers.map(c => ({
+            enabled: !!c.enabled,
+            name: String(c.name||"").trim(),
+            ufs: String(c.ufs||"").toUpperCase().replace(/\s+/g,""),
+            baseDays: Number(c.baseDays || 0),
+            note: String(c.note||"").trim()
+          })).filter(c => c.name || c.ufs || c.note),
+          manualRules: rules.map(r => ({
+            enabled: !!r.enabled,
+            uf: String(r.uf||"").toUpperCase().slice(0,2),
+            region: (r.region==="capital"||r.region==="interior"||r.region==="all") ? r.region : "all",
+            minKg: Number(r.minKg ?? 0),
+            maxKg: Number(r.maxKg ?? 9999),
+            maxDimCm: Number(r.maxDimCm ?? 9999),
+            price: Number(r.price ?? 0),
+            days: Number(r.days ?? 0)
+          })).filter(r => r.uf)
+        }
+      };
+
+      // tenta escrever nos dois locais
+      let okAdmin = false, okGlobal = false;
+
+      try {
+        await setDoc(adminSettingsRef(uid), payload, { merge:true });
+        okAdmin = true;
+      } catch (e) {
+        console.error("[save] admin ref:", e);
+      }
+
+      try {
+        await setDoc(globalSettingsRef(), payload, { merge:true });
+        okGlobal = true;
+      } catch (e) {
+        console.warn("[save] global ref negado (rules):", e);
+      }
+
+      if (okAdmin && okGlobal) msg("Configurações salvas (admin + global).", "success");
+      else if (okAdmin) msg("Salvo no painel admin. (Global bloqueado pelas rules — tudo bem.)", "success");
+      else msg("Não foi possível salvar. Verifique permissões do Firestore (admin).", "error");
+    }
+
+    // Admin gate
+    async function isAdmin(uid){
+      try {
+        const snap = await getDoc(doc(db,"admins",uid));
+        if (!snap.exists()) return false;
+        const a = snap.data() || {};
+        if (a.active === false) return false;
+        const st = String(a.status||"").toLowerCase();
+        if (st === "bloqueado" || st === "reprovado") return false;
+        return true;
+      } catch(e){
+        return false;
+      }
+    }
+
+    // Buttons
+    el("btnAddCarrier").addEventListener("click", () => {
+      carriers.push({ enabled:true, name:"", ufs:"", baseDays:7, note:"" });
+      renderTables();
+    });
+
+    el("btnAddRule").addEventListener("click", () => {
+      rules.push({ enabled:true, uf:"", region:"all", minKg:0, maxKg:9999, maxDimCm:9999, price:0, days:7 });
+      renderTables();
+    });
+
+    el("btnSalvarTudo").addEventListener("click", async () => {
+      if (!currentUid) { msg("Sessão inválida. Faça login novamente.", "error"); return; }
+      await saveAll(currentUid);
+    });
+
+    el("btnLogout").addEventListener("click", async () => {
+      try { await signOut(auth); } catch(_) {}
+      location.href = "login_admin.html";
+    });
+
+    // init
+    bindTableEvents();
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user){
+        location.href = "login_admin.html";
+        return;
+      }
+      currentUid = user.uid;
+
+      const ok = await isAdmin(user.uid);
+      if (!ok){
+        msg("Acesso negado: conta não é ADMIN.", "error");
+        try { await signOut(auth); } catch(_) {}
+        location.href = "login_admin.html";
+        return;
+      }
+
+      await loadAll(user.uid);
+      msg("Configurações carregadas.", "success");
+    });
+  </script>
+  <script type="module" src="firebase-config.js"></script>
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="header.js" defer></script>
+  
+    <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

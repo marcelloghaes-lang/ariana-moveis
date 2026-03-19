@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Seja um Parceiro | Ariana Móveis Seller</title>
+
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <link rel="stylesheet" href="./css/tailwind.min.css" />
+
+  <style>
+    :root { --primary-blue: #2E6DA4; --dark-bg: #1D2B3A; --soft-gray: #F9FAFB; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--soft-gray); color: var(--dark-bg); }
+    .hero-seller { background: linear-gradient(135deg, #1D2B3A 0%, #2E6DA4 100%); }
+    .feature-card { transition: transform 0.3s ease; border: 1px solid #e5e7eb; }
+    .feature-card:hover { transform: translateY(-5px); border-color: var(--primary-blue); }
+  </style>
+</head>
+
+<body>
+  <header class="bg-white shadow-sm sticky top-0 z-50 py-4">
+    <div class="container mx-auto px-6 flex justify-between items-center">
+      <h1 class="text-2xl font-black text-primary-blue">
+        ARIANA MÓVEIS <span class="text-xs font-normal text-gray-400">PARTNERS</span>
+      </h1>
+      <a href="seller_login.html" class="bg-primary-blue text-white px-6 py-2 rounded-full font-bold hover:bg-blue-700 transition">
+        ENTRAR
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero-seller py-20 text-white text-center px-6">
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-4xl md:text-6xl font-black mb-6">
+          Sua Fábrica em Destaque no Maior Marketplace de Móveis
+        </h2>
+        <p class="text-xl opacity-90 mb-10">
+          Crie sua loja exclusiva, gerencie seus produtos e venda para todo o Brasil com a infraestrutura da Ariana Móveis.
+        </p>
+
+        <div class="flex flex-col md:flex-row justify-center gap-4">
+          <a href="seller_cadastro.html" class="bg-white text-primary-blue px-10 py-4 rounded-xl font-black text-lg shadow-xl hover:bg-gray-100 transition">
+            COMEÇAR MINHA LOJA AGORA
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="py-20 container mx-auto px-6">
+      <div class="text-center mb-16">
+        <h3 class="text-3xl font-black text-slate-900">Por que vender na Ariana Móveis?</h3>
+        <p class="text-gray-500 mt-2">Tecnologia pensada para o fabricante de móveis.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <!-- Card 1 -->
+        <div class="feature-card bg-white p-8 rounded-2xl">
+          <div class="w-16 h-16 bg-blue-50 text-primary-blue rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
+            <i class="fas fa-store"></i>
+          </div>
+          <h4 class="text-xl font-bold mb-3">Sua Vitrine Exclusiva</h4>
+          <p class="text-gray-600">
+            Cada parceiro ganha uma página de loja personalizada com sua marca e catálogo completo dentro do nosso portal.
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="feature-card bg-white p-8 rounded-2xl">
+          <div class="w-16 h-16 bg-blue-50 text-primary-blue rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
+            <i class="fas fa-truck-fast"></i>
+          </div>
+          <h4 class="text-xl font-bold mb-3">Frete Inteligente</h4>
+          <p class="text-gray-600">
+            Cálculo automático de frete saindo direto do CEP da sua fábrica. Logística simplificada para o seu negócio.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="feature-card bg-white p-8 rounded-2xl shadow-sm">
+          <div class="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl border border-green-100">
+            <i class="fas fa-hand-holding-usd"></i>
+          </div>
+          <h4 class="text-xl font-bold mb-3 text-slate-800">Pagamento Split</h4>
+          <p class="text-gray-600">
+            Receba suas vendas direto na sua conta Mercado Pago. O sistema divide a comissão automaticamente e com total segurança.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PASSO A PASSO -->
+    <section class="bg-white py-20 px-6 border-y border-gray-100">
+      <div class="container mx-auto max-w-5xl">
+        <h3 class="text-3xl font-black text-center mb-16 text-slate-900">Passo a Passo para o Sucesso</h3>
+
+        <div class="flex flex-col md:flex-row items-start gap-12">
+          <div class="flex-1">
+            <div class="flex gap-4 mb-8">
+              <span class="bg-primary-blue text-white w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold">1</span>
+              <div>
+                <h5 class="font-bold text-lg">Cadastro e Onboarding</h5>
+                <p class="text-gray-600">
+                  Insira seus dados comerciais e bancários. Nossa equipe analisa e aprova sua conta rapidamente.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-4 mb-8">
+              <span class="bg-primary-blue text-white w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold">2</span>
+              <div>
+                <h5 class="font-bold text-lg">Catálogo de Produtos</h5>
+                <p class="text-gray-600">
+                  Suba fotos, descrições e preços dos seus móveis através de um painel simples e intuitivo.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-4">
+              <span class="bg-primary-blue text-white w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold">3</span>
+              <div>
+                <h5 class="font-bold text-lg">Venda e Envie</h5>
+                <p class="text-gray-600">
+                  Seja notificado a cada venda. Gere a etiqueta e despache o produto direto da sua fábrica.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-1 bg-slate-100 rounded-2xl p-4">
+            <img
+              src="https://firebasestorage.googleapis.com/v0/b/ariana-moveis-final.firebasestorage.app/o/products%2F1770762155063_p644xrq6.png?alt=media&token=b6452b1e-56ed-4ec9-9ee2-20b3963d245d"
+              alt="Móveis Planejados"
+              class="rounded-xl shadow-lg"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-dark-bg text-white py-12 text-center">
+    <p class="opacity-60">&copy; 2026 Ariana Móveis Marketplace. Todos os direitos reservados.</p>
+  </footer>
+</body>
+</html>

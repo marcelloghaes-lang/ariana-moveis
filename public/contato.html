@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+
+    
+    <div id="message-container" class="fixed top-4 right-4 z-50 space-y-2">
+    </div>
+
+    <main class="main-content p-4 md:p-8">
+        <div class="max-w-7xl mx-auto">
+            
+            <div class="grid lg:grid-cols-2 gap-8 lg:gap-12 mt-4 md:mt-8">
+                
+                <div class="space-y-6">
+                    
+                    <h1 class="text-4xl font-extrabold text-primary-brown">Fale Conosco</h1>
+                    <p class="text-lg text-gray-600">
+                        Estamos prontos para atender suas dúvidas, sugestões e solicitações. Escolha o canal que preferir!
+                    </p>
+
+                    <h2 class="text-2xl font-bold text-secondary-gold pt-4 border-b border-gray-200 pb-2">Canais de Contato</h2>
+
+                    <div class="space-y-4">
+                        <div class="flex items-start p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                            <i class="fas fa-envelope text-2xl text-secondary-gold mr-4 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <span class="block font-bold text-sm text-gray-700">E-mail para Atendimento (Geral)</span>
+                                <p class="text-primary-brown font-semibold">sndigital@outlook.com.br</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                            <i class="fas fa-phone-alt text-2xl text-secondary-gold mr-4 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <span class="block font-bold text-sm text-gray-700">Telefone e WhatsApp</span>
+                                <p class="text-primary-brown font-semibold">(31) 98514-7119</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                            <i class="fas fa-clock text-2xl text-secondary-gold mr-4 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <span class="block font-bold text-sm text-gray-700">Horário de Atendimento</span>
+                                <p class="text-gray-800">Segunda a Sexta, das 9h às 18h</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-secondary-gold pt-4 border-b border-gray-200 pb-2">Nossa Localização</h2>
+                    
+                    <div class="flex items-start p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                        <i class="fas fa-map-marker-alt text-2xl text-secondary-gold mr-4 mt-1 flex-shrink-0"></i>
+                        <div>
+                            <span class="block font-bold text-sm text-gray-700">Endereço (Escritório Central)</span>
+                            <p class="text-gray-800">Rua Olegário de Andrade, 54A, Bairro Amazonas, Guanhães - MG, CEP 39740-000</p>
+                        </div>
+                    </div>
+                    <div class="rounded-xl overflow-hidden shadow-lg border-2 border-primary-brown/50">
+                        <img src="https://placehold.co/800x300/2E6DA4/ffffff?text=Mapa+Localizacao+Ariana+Moveis" alt="Mapa de Localização" class="w-full h-auto">
+                    </div>
+                </div>
+
+                <div class="h-fit">
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-xl border-t-4 border-secondary-gold">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Envie uma Mensagem Rápida</h2>
+                        <p class="text-gray-600 mb-6">Use o formulário abaixo para dúvidas não urgentes ou feedback.</p>
+                        <form id="contact-form" onsubmit="submitContactForm(event)" class="space-y-5">
+                            <div class="form-group">
+                                <label for="nome" class="block mb-2 font-semibold text-gray-700">Nome Completo *</label>
+                                <input type="text" id="nome" name="nome" required class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-blue">
+                            </div>
+                            <div class="form-group">
+                                <label for="email" class="block mb-2 font-semibold text-gray-700">Seu E-mail *</label>
+                                <input type="email" id="email" name="email" required class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-blue">
+                            </div>
+                            <div class="form-group">
+                                <label for="assunto" class="block mb-2 font-semibold text-gray-700">Assunto</label>
+                                <select id="assunto" name="assunto" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-blue">
+                                    <option value="Dúvida Geral">Dúvida Geral</option>
+                                    <option value="Problema com Pedido">Problema com Pedido</option>
+                                    <option value="Sugestão/Feedback">Sugestão/Feedback</option>
+                                    <option value="Outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="mensagem" class="block mb-2 font-semibold text-gray-700">Mensagem *</label>
+                                <textarea id="mensagem" name="mensagem" rows="5" required class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-blue"></textarea>
+                            </div>
+                            
+                            <button type="submit" id="submit-button" class="w-full bg-primary-brown hover:bg-dark-brown text-white font-bold py-3 rounded-lg transition duration-300 flex items-center justify-center shadow-lg">
+                                <i class="fas fa-paper-plane mr-2"></i> <span>Enviar Mensagem</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+    
+    <script type="module">
+        // IMPORTAÇÕES DO FIREBASE (Versões 10.12.3)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, getDoc, query, where, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+
+
+        // ⚠️ As credenciais devem ser substituídas pelas suas credenciais reais do Firebase
+        const USER_PROVIDED_CONFIG = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:ef7698ea5d33d701338243",
+      measurementId: "G-WNMWLYMW43"
+    };
+
+        let db = null;
+        let auth = null;
+        let userId = null; 
+        const appId = USER_PROVIDED_CONFIG.appId; // Usa o AppId da configuração
+
+        /**
+         * Inicializa o Firebase, Firestore e Autenticação (Anônima para contato)
+         */
+        const initializeFirebase = async () => {
+            try {
+                const app = initializeApp(USER_PROVIDED_CONFIG);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                
+                // 🔗 Bridge global para header.js (categorias + endereço)
+                window.db = db;
+                window.auth = auth;
+                window.collection = collection;
+                window.getDocs = getDocs;
+                window.getDoc = getDoc;
+                window.query = query;
+                window.where = where;
+                window.orderBy = orderBy;
+                window.limit = limit;
+                window.doc = doc;
+                try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+// Realiza login anônimo para obter um userId para salvar a mensagem
+                const userCredential = await signInAnonymously(auth);
+                userId = userCredential.user.uid;
+                
+                console.log("Firebase e Login Anônimo para contato inicializados com sucesso.");
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase ou fazer login anônimo:", error);
+                userId = "guest_contact_" + Date.now(); // Fallback ID
+                showMessage("Erro de Configuração", "O sistema de contato pode estar offline. Tente um dos outros canais.", true);
+            }
+        };
+        
+        /**
+         * Função utilitária para gerenciar o estado do botão de envio.
+         * @param {boolean} isLoading - Se TRUE, desabilita o botão e muda o texto.
+         */
+        const setButtonState = (isLoading) => {
+            const button = document.getElementById('submit-button');
+            const span = button.querySelector('span');
+
+            button.disabled = isLoading;
+            if (isLoading) {
+                span.textContent = "Enviando...";
+                button.classList.add('opacity-70', 'cursor-not-allowed'); 
+            } else {
+                span.textContent = "Enviar Mensagem";
+                button.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        };
+
+
+        /**
+         * Exibe uma mensagem de notificação temporária
+         */
+        const showMessage = (title, body, isError = false) => {
+            const container = document.getElementById('message-container');
+            const colorClass = isError ? 'text-error border-error' : 'text-success border-success';
+            const icon = isError ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle';
+            const bgClass = isError ? 'bg-red-100' : 'bg-green-100'; 
+
+            const toast = document.createElement('div');
+            toast.className = `p-4 border-l-4 ${colorClass} ${bgClass} rounded-lg shadow-lg max-w-sm flex items-start opacity-0 translate-x-full transition-all duration-500`;
+            toast.innerHTML = `
+                <div class="mr-3 flex-shrink-0">
+                    <i class="${icon} text-lg ${isError ? 'text-error' : 'text-success'}"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-sm text-gray-800">${title}</p>
+                    <p class="text-sm text-gray-600">${body}</p>
+                </div>
+            `;
+            container.appendChild(toast);
+
+            // Animação de entrada
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-x-full');
+            }, 10); 
+
+            // Animação de saída e remoção
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-full');
+                setTimeout(() => toast.remove(), 500); 
+            }, 5000); 
+        };
+
+
+        /**
+         * Manipulador de submissão do formulário de contato.
+         */
+        window.submitContactForm = async (e) => {
+            e.preventDefault();
+            
+            setButtonState(true); 
+
+            if (!db || !userId) {
+                showMessage("Erro de Configuração", "O sistema de contato não está totalmente inicializado. Tente novamente ou use o email.", true);
+                setButtonState(false); 
+                return;
+            }
+
+            const form = e.target;
+            const nome = form.nome.value.trim();
+            const email = form.email.value.trim();
+            const assunto = form.assunto.value;
+            const mensagem = form.mensagem.value.trim();
+
+            if (!nome || !email || !mensagem) {
+                showMessage("Erro de Validação", "Por favor, preencha todos os campos obrigatórios (*).", true);
+                setButtonState(false); 
+                return;
+            }
+
+            try {
+                const messageData = {
+                    nome: nome,
+                    email: email,
+                    assunto: assunto,
+                    mensagem: mensagem,
+                    status: 'Aberto',
+                    timestamp: new Date() 
+                };
+                
+                // Caminho do Firestore: artifacts/{appId}/users/{userId}/contact_messages
+                const collectionPath = `artifacts/${appId}/users/${userId}/contact_messages`;
+                
+                // Salva no Firestore
+                const docRef = await addDoc(collection(db, collectionPath), messageData);
+
+                showMessage(`Obrigado, ${nome}!`, `Sua mensagem (ID: ${docRef.id.substring(0, 8)}) foi enviada com sucesso. Retornaremos em breve!`);
+                
+                // Limpa o formulário
+                document.getElementById('contact-form').reset();
+                
+            } catch (error) {
+                console.error("Erro ao salvar mensagem no Firestore:", error);
+                showMessage('Erro ao enviar mensagem', `Houve um problema ao salvar sua solicitação: ${error.message}. Por favor, tente novamente ou use o email.`, true);
+            } finally {
+                setButtonState(false); 
+            }
+        };
+
+        /**
+         * Atualiza o texto do ano no rodapé.
+         */
+        const updateCurrentYear = () => {
+            const yearSpan = document.getElementById('current-year');
+            if (yearSpan) {
+                yearSpan.textContent = new Date().getFullYear();
+            }
+        };
+        
+        // --- INICIALIZAÇÃO ---
+        // Inicia o Firebase o quanto antes (para o header conseguir carregar categorias/endereço)
+        initializeFirebase();
+        updateCurrentYear();
+
+        // Garante que o header seja carregado após Firebase estar pronto
+        (function () {
+            const tryInitHeader = () => {
+                if (typeof window.carregarHeader !== 'function') { setTimeout(tryInitHeader, 60); return; }
+                if (!(window.db && typeof window.getDocs === 'function' && typeof window.orderBy === 'function')) {
+                    setTimeout(tryInitHeader, 60);
+                    return;
+                }
+                try { window.carregarHeader(); } catch (e) { console.error("[page] erro ao carregar header:", e); }
+            };
+            tryInitHeader();
+        })();
+        
+    </script>
+
+    <script src="./header.js"></script>
+<script>
+  // header inicializado via rotina que espera firebase ficar pronto
+</script>
+    <script src="marketplace-core.js"></script>
+
+    <script type="module" src="firebase-config.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="marketplace-core_global_payments.js"></script>
+
+    <script src="footer.js" defer></script>
+
+    <script src="js/header_auth_fix.js"></script>
+
+</body>
+</html>

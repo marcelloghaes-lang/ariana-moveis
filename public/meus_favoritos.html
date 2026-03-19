@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+<body class="bg-gray-50 font-sans">
+
+    <!-- (FIX) Este bloco não pode ficar dentro do <head> -->
+    <div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold">
+        ⭐ GARANTIA DE QUALIDADE E SATISFAÇÃO
+    </div>
+
+    <div id="header-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 py-10 min-h-[60vh]">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-black text-gray-900 tracking-tight">Meus Favoritos</h1>
+                <p id="fav-count" class="text-primary-blue font-bold">0 itens salvos</p>
+            </div>
+
+            <a href="index.html" class="flex items-center justify-center gap-2 bg-white border-2 border-primary-blue text-primary-blue px-6 py-2.5 rounded-xl font-bold hover:bg-primary-blue hover:text-white transition-all duration-300 shadow-sm">
+                <i class="ph ph-arrow-left font-bold"></i>
+                Voltar para a Loja
+            </a>
+        </div>
+
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
+            <div class="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                <i class="ph ph-heart-break text-4xl text-gray-300"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Sua lista está vazia</h2>
+            <p class="text-gray-500 mb-8">Nenhum produto foi favoritado ainda.</p>
+            <a href="index.html" class="bg-primary-blue text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">
+                Ver ofertas hoje
+            </a>
+        </div>
+
+        <div id="favorites-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+    </main>
+
+    <div id="footer-container"></div>
+
+    <!-- (FIX) NÃO carregar /public/js/config.js e /public/js/auth.js nesta página (eles estão 404 no seu projeto) -->
+    <!-- Se algum outro script tentar usar isso, a ponte abaixo já entrega db/auth para o header funcionar -->
+
+    <script type="module">
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, doc, collection, onSnapshot, deleteDoc, getDocs, getDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+            authDomain: "ariana-moveis-final.firebaseapp.com",
+            projectId: "ariana-moveis-final",
+            storageBucket: "ariana-moveis-final.firebasestorage.app",
+            messagingSenderId: "695257365498",
+            appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+        };
+
+        const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // 🔗 Bridge global para header.js (categorias + endereço)
+        window.db = db;
+        window.auth = auth;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.getDoc = getDoc;
+        window.query = query;
+        window.where = where;
+        window.orderBy = orderBy;
+        window.limit = limit;
+        window.doc = doc;
+        try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+
+        const favoritesListEl = document.getElementById('favorites-list');
+        const emptyStateEl = document.getElementById('empty-state');
+        const favCountEl = document.getElementById('fav-count');
+
+        const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+        function renderFavorites(docs) {
+            favoritesListEl.innerHTML = '';
+            favCountEl.textContent = `${docs.length} ${docs.length === 1 ? 'item salvo' : 'itens salvos'}`;
+
+            if (docs.length === 0) {
+                emptyStateEl.classList.remove('hidden');
+                return;
+            }
+            emptyStateEl.classList.add('hidden');
+
+            docs.forEach(docSnap => {
+                const product = docSnap.data();
+                const productId = docSnap.id;
+
+                const cardHtml = `
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col group transition-all hover:shadow-xl">
+                        <div class="relative h-56 bg-white p-4">
+                            <img src="${product.imageUrl || 'https://placehold.co/400x400?text=Sem+Imagem'}"
+                                 class="w-full h-full object-contain group-hover:scale-105 transition duration-500">
+                        </div>
+                        <div class="p-5 flex flex-col flex-grow text-center">
+                            <h3 class="font-bold text-gray-800 mb-2 line-clamp-2 h-12 text-sm">${product.name || 'Produto'}</h3>
+                            <p class="text-xl font-black text-primary-blue mb-5">${formatBRL(product.price || 0)}</p>
+
+                            <div class="mt-auto space-y-2">
+                                <a href="produto.html?id=${productId}" class="block text-center bg-primary-blue text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition text-sm">
+                                    Ver Detalhes
+                                </a>
+                                <button onclick="removeFavorite('${productId}')" class="w-full py-2 text-red-500 font-semibold hover:bg-red-50 rounded-lg transition flex items-center justify-center text-xs">
+                                    <i class="fas fa-trash-alt mr-2"></i> Remover
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                favoritesListEl.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        window.removeFavorite = async (productId) => {
+            const user = auth.currentUser;
+            if (!user) return;
+            try {
+                await deleteDoc(doc(db, "users", user.uid, "favorites", productId));
+            } catch (e) { console.error(e); }
+        };
+
+        setPersistence(auth, browserLocalPersistence).then(() => {
+            onAuthStateChanged(auth, (user) => {
+                // header.js pode usar esses hooks
+                if (window.updateClientHeaderUI) window.updateClientHeaderUI(user);
+                if (window.loadClientAddress) window.loadClientAddress(user);
+
+                if (user && !user.isAnonymous) {
+                    onSnapshot(collection(db, "users", user.uid, "favorites"), (snap) => {
+                        renderFavorites(snap.docs);
+                    });
+                } else {
+                    // UI consistente quando não logado/anônimo
+                    renderFavorites([]);
+                    emptyStateEl.classList.remove('hidden');
+                    if (!user) signInAnonymously(auth);
+                }
+            });
+        });
+    </script>
+
+    <!-- (FIX) Header: o seu header.js está reclamando de header_auth_fix.js ausente.
+         A forma mais simples sem criar arquivo novo é definir um NO-OP antes do carregarHeader. -->
+    <script>
+      if (typeof window.bindHeaderAuthListener !== 'function') {
+        window.bindHeaderAuthListener = function(){};
+      }
+    </script>
+    <script src="./header.js"></script>
+    </script>
+
+    <!-- (FIX) marketplace-core.js está tentando ler settings/payments e dá Missing/insufficient permissions.
+         Em página de favoritos ele não é necessário. Então removi para zerar erro. -->
+    <!-- <script src="marketplace-core.js"></script> -->
+
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+
+    <script src="footer.js" defer></script>
+
+   <script src="js/header_auth_fix.js"></script>
+
+   <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

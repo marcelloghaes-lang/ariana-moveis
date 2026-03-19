@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loja Parceira | ARIANA MÓVEIS Marketplace</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+
+  <style>
+    body { background-color:#fcfcfc; overflow-x:hidden; margin:0; }
+    #pageApp { font-family:'Inter',sans-serif; }
+
+    .product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+    @media (min-width:640px){.product-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media (min-width:1024px){.product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    @media (min-width:1280px){.product-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+    .product-card{background-color:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .3s,box-shadow .3s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%;text-decoration:none}
+    .product-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.1)}
+    .product-image-container{width:100%;height:180px;position:relative;overflow:hidden;margin-bottom:10px;display:flex;justify-content:center;align-items:center;background:#fff}
+    .product-image-container img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;transition:none}
+    .product-card-body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start}
+    .product-name{font-size:.85rem;font-weight:400;color:#444;height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px}
+    .product-old-price{font-size:.8rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2}
+    .product-price{font-size:1.25rem;font-weight:700;color:#333;margin-top:2px;display:flex;align-items:flex-end;line-height:1}
+    .product-price .currency{font-size:.7em;font-weight:400;align-self:flex-start}
+    .product-price .price-integer{font-size:1em;font-weight:700;margin-left:2px}
+    .product-price .decimal-part{font-size:.7em;font-weight:400}
+    .product-price .cash-text{font-size:.75rem;font-weight:400;color:#555;margin-left:5px;padding-bottom:1px}
+    .product-installments{font-size:.75rem;color:#777;margin-top:5px;line-height:1.4}
+    .product-tag-container{position:absolute;top:5px;left:5px;z-index:10;display:flex;flex-direction:column;gap:5px}
+    .product-tag{color:#fff;font-size:.75rem;font-weight:600;padding:2px 5px;border-radius:2px;display:block;width:fit-content;line-height:1}
+    .tag-orange{background-color:#ff931e}
+
+    :root{
+      --primary-blue:#0B4AA2;
+      --secondary-blue:#56B5FF;
+      --site-bg:#F5F7FA;
+      --text-dark:#111827;
+    }
+    .page-shell { max-width: 1280px; margin: 0 auto; padding: 28px 16px 80px; }
+    .topbar {
+      width:100%;
+      background:linear-gradient(90deg,var(--primary-blue) 0%, #2e6da4 70%, #3d85c6 100%);
+      box-shadow:0 10px 28px rgba(11,74,162,.14);
+      position:sticky;
+      top:0;
+      z-index:20;
+    }
+    .topbar-inner {
+      max-width:1280px;
+      margin:0 auto;
+      padding:14px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      color:#fff;
+    }
+    .brand {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-weight:900;
+      color:#fff;
+      font-style:italic;
+      letter-spacing:-.02em;
+      text-transform:uppercase;
+      font-size:28px;
+      line-height:1;
+    }
+    .brand-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.18);
+      font-size:11px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+    .brand-badge .dot{width:8px;height:8px;border-radius:999px;background:#4ade80;display:inline-block}
+    .backlink {
+      color:#fff;
+      font-weight:800;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 14px;
+      border-radius:12px;
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.18);
+      transition:.2s ease;
+    }
+    .backlink:hover { background:rgba(255,255,255,.2); transform:translateY(-1px); }
+    .store-hero {
+      background:linear-gradient(135deg,#ffffff 0%, #f8fbff 100%);
+      border:1px solid #e5edf8;
+      border-radius:28px;
+      padding:28px;
+      display:flex;
+      align-items:flex-start;
+      gap:18px;
+      box-shadow:0 16px 40px rgba(15,23,42,.06);
+      position:relative;
+      overflow:hidden;
+    }
+    .store-hero::after{
+      content:"";
+      position:absolute;
+      right:-60px; top:-60px;
+      width:220px; height:220px;
+      background:radial-gradient(circle, rgba(86,181,255,.16) 0%, rgba(86,181,255,0) 70%);
+      pointer-events:none;
+    }
+    .store-hero .store-icon {
+      width:72px;
+      height:72px;
+      border-radius:22px;
+      background:linear-gradient(180deg,#e9f3ff 0%, #dcecff 100%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--primary-blue);
+      flex:0 0 auto;
+      font-size:28px;
+      box-shadow:inset 0 0 0 1px #d5e5fb;
+    }
+    .store-hero h1 {
+      font-size:32px;
+      font-weight:900;
+      font-style:italic;
+      letter-spacing:-0.03em;
+      text-transform:uppercase;
+      margin:0;
+      color:var(--primary-blue);
+      line-height:1.05;
+    }
+    .store-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom:10px;
+      padding:7px 12px;
+      border-radius:999px;
+      background:#edf5ff;
+      border:1px solid #d7e8ff;
+      color:#2b6cb0;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .store-kicker .dot{width:8px;height:8px;border-radius:999px;background:#4ade80;display:inline-block}
+    .store-hero p { margin: 4px 0 0; color:#64748b; }
+    .store-description-box{
+      margin-top:14px;
+      padding:14px 16px;
+      border-radius:18px;
+      background:#fff;
+      border:1px solid #e5edf8;
+      color:#475569;
+      line-height:1.7;
+      font-size:14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .store-meta-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:14px;
+    }
+    .meta-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 14px;
+      border-radius:14px;
+      background:#fff;
+      border:1px solid #e7eef8;
+      color:#334155;
+      font-size:13px;
+      font-weight:700;
+    }
+    .store-grid-wrap { margin-top: 24px; }
+    .store-loading { display:flex; align-items:center; justify-content:center; padding: 42px 0; color:#6b7280; }
+    .empty-state { text-align:center; padding: 46px 0; color:#6b7280; }
+    .empty-state i { font-size: 46px; opacity: .25; }
+    .empty-state h3 { margin-top: 10px; font-weight: 900; letter-spacing:-.01em; }
+    .seo-footer{
+      margin-top:40px;
+      background:linear-gradient(180deg,#ffffff 0%, #f8fbff 100%);
+      border-top:1px solid #e5edf8;
+      box-shadow:0 -12px 30px rgba(15,23,42,.03);
+    }
+    .seo-footer-inner{
+      max-width:1280px;
+      margin:0 auto;
+      padding:26px 16px 34px;
+    }
+    .seo-footer-grid{
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:22px;
+      align-items:start;
+    }
+    .seo-footer-card{
+      background:#fff;
+      border:1px solid #e5edf8;
+      border-radius:22px;
+      padding:20px;
+      box-shadow:0 10px 24px rgba(15,23,42,.04);
+    }
+    .seo-footer h3{
+      margin:0 0 10px;
+      color:var(--primary-blue);
+      font-size:18px;
+      font-weight:900;
+      letter-spacing:-.02em;
+    }
+    .seo-footer p{
+      margin:0;
+      color:#64748b;
+      line-height:1.75;
+      font-size:14px;
+    }
+    .seo-footer .small-note{
+      margin-top:16px;
+      color:#94a3b8;
+      font-size:12px;
+    }
+    .hidden{display:none!important}
+    @media (max-width: 860px){
+      .brand{font-size:22px}
+      .topbar-inner{flex-direction:column;align-items:flex-start}
+      .store-hero{padding:22px;flex-direction:column}
+      .seo-footer-grid{grid-template-columns:1fr}
+    }
+  </style>
+
+  <meta name="description" content="Conheça a vitrine da loja parceira no marketplace Ariana Móveis. Produtos com qualidade, ofertas especiais e atendimento confiável.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Ariana Móveis">
+  <meta property="og:title" content="Loja Parceira | Ariana Móveis Marketplace">
+  <meta property="og:description" content="Conheça a vitrine da loja parceira no marketplace Ariana Móveis.">
+  <meta property="og:image" content="https://placehold.co/1200x630/0B4AA2/FFFFFF?text=Ariana+M%C3%B3veis">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json" id="seller-jsonld">{
+    "@context":"https://schema.org",
+    "@type":"Store",
+    "name":"Loja Parceira",
+    "description":"Conheça a vitrine da loja parceira no marketplace Ariana Móveis.",
+    "url":""
+  }</script>
+
+</head>
+
+<body id="pageApp">
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div class="brand-badge"><span class="dot"></span> Feita pra você</div>
+        <div class="brand">ARIANA MÓVEIS</div>
+      </div>
+      <a class="backlink" href="index.html"><i class="fa-solid fa-chevron-left"></i> Voltar para o Início</a>
+    </div>
+  </div>
+
+  <main class="page-shell">
+    <section class="store-hero">
+      <div class="store-icon" id="store-icon"><i class="fa-solid fa-store"></i></div>
+      <img id="store-logo" class="hidden" alt="Logo da Loja" style="width:72px;height:72px;border-radius:22px;object-fit:cover;border:1px solid #dbeafe;box-shadow:0 8px 20px rgba(11,74,162,.10);">
+      <div style="flex:1 1 auto;position:relative;z-index:1">
+        <div class="store-kicker"><span class="dot"></span> Loja parceira no marketplace Ariana Móveis</div>
+        <h1 id="store-name">CARREGANDO LOJA...</h1>
+        <p id="store-subtitle">Conheça nossa vitrine exclusiva.</p>
+
+        <div id="store-description-box" class="store-description-box hidden">
+          <p id="store-description" class="text-gray-600 text-sm leading-relaxed"></p>
+        </div>
+
+        <div class="store-meta-row">
+          <a id="whatsapp-store-link" class="hidden meta-chip" href="#" target="_blank" rel="noopener">
+            <i class="fab fa-whatsapp" style="color:#16a34a"></i> Falar com o vendedor
+          </a>
+          <div class="meta-chip">
+            <i class="fa-solid fa-shield-heart" style="color:#0B4AA2"></i> Loja exibida no marketplace Ariana Móveis
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="store-grid-wrap">
+      <div id="loading-spinner" class="store-loading">
+        <i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando produtos...
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <i class="fa-solid fa-box-open"></i>
+        <h3>NENHUM PRODUTO ENCONTRADO</h3>
+        <p class="mt-2">Esta loja ainda não possui produtos publicados na vitrine.</p>
+      </div>
+
+      <div id="products-grid" class="product-grid hidden"></div>
+    </section>
+  </main>
+
+  <footer class="seo-footer">
+    <div class="seo-footer-inner">
+      <div class="seo-footer-grid">
+        <div class="seo-footer-card">
+          <h3>Sobre a loja parceira</h3>
+          <p id="store-footer-description">Conheça a vitrine desta loja parceira no marketplace Ariana Móveis. Aqui você encontra produtos selecionados, atendimento confiável e ofertas especiais.</p>
+          <p class="small-note">Esta área ajuda a reforçar a relevância da página para buscas no Google com informações reais da loja.</p>
+        </div>
+        <div class="seo-footer-card">
+          <h3>Marketplace Ariana Móveis</h3>
+          <p>Comparamos qualidade, apresentação profissional e experiência de compra para destacar parceiros confiáveis dentro do ecossistema Ariana Móveis.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function unregisterDevServiceWorkers(){
+      try{
+        if (!('serviceWorker' in navigator)) return;
+        const h = location.hostname;
+        if (h === 'localhost' || h === '127.0.0.1') {
+          navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(()=>{});
+        }
+      }catch(_){}
+    })();
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, getDoc, collection, query, where, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+      authDomain: "ariana-moveis-final.firebaseapp.com",
+      projectId: "ariana-moveis-final",
+      storageBucket: "ariana-moveis-final.firebasestorage.app",
+      messagingSenderId: "695257365498",
+      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    const $ = (id) => document.getElementById(id);
+
+    let __paymentsConfig = {
+      cash: { enabled: false, discountPercent: 0, label: "no PIX", price: null },
+      card: { enabled: true, installments: 12, text: "em até 12x" },
+    };
+
+    function __num(v, def = 0) {
+      if (v === null || v === undefined) return def;
+      if (typeof v === 'number') return Number.isFinite(v) ? v : def;
+      let s = String(v).trim();
+      if (!s) return def;
+      s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
+      const hasComma = s.includes(',');
+      const hasDot = s.includes('.');
+      if (hasComma && hasDot) s = s.replace(/\./g, '').replace(',', '.');
+      else if (hasComma) s = s.replace(',', '.');
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : def;
+    }
+
+    async function loadGlobalPaymentsConfig() {
+      const tryPaths = [
+        ["settings", "payments"],
+        ["configuracoes", "payments"],
+        ["configuracoes", "pagamentos"],
+        ["settings", "pagamentos"],
+      ];
+
+      for (const [col, id] of tryPaths) {
+        try {
+          const snap = await getDoc(doc(db, col, id));
+          if (!snap.exists()) continue;
+
+          const data = snap.data() || {};
+          const cashEnabled =
+            data.cash?.enabled ?? data.pix?.enabled ?? data.pixEnabled ?? data.cashEnabled ?? data.enabled ?? false;
+
+          const disc =
+            __num(data.cash?.discountPercent ?? data.pix?.discountPercent ?? data.pixDiscountPercent ?? data.descontoPix ?? data.desconto_pix, 0);
+
+          const cashLabel = data.cash?.label ?? data.pix?.label ?? data.cashLabel ?? "no PIX";
+
+          const installments =
+            Math.max(1, Math.round(__num(data.card?.installments ?? data.installments ?? data.parcelas ?? 12, 12)));
+
+          const cardText = data.card?.text ?? data.installmentsText ?? data.textParcelamento ?? `em até ${installments}x`;
+
+          __paymentsConfig = {
+            cash: {
+              enabled: !!cashEnabled && disc > 0,
+              discountPercent: disc,
+              label: cashLabel,
+              price: null,
+            },
+            card: {
+              enabled: true,
+              installments,
+              text: cardText,
+            },
+          };
+          break;
+        } catch (_) {}
+      }
+    }
+
+    window.formatCurrency = function(value) {
+      return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
+    };
+
+    window.formatPriceParts = function(value) {
+      const v = Number(value || 0);
+      const fixed = v.toFixed(2);
+      const [i, d] = fixed.split(".");
+      const integer = i.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return { symbol: "R$", integer, decimal: d };
+    };
+
+    function decorateProductWithPayments(product) {
+      const p = { ...(product || {}) };
+      const basePrice = Number(p.price || 0);
+
+      const cash = { ...(__paymentsConfig.cash || {}) };
+      if (cash.enabled) {
+        const disc = __num(cash.discountPercent, 0);
+        cash.price = Math.max(0, basePrice * ((100 - disc) / 100));
+      } else {
+        cash.price = basePrice;
+      }
+
+      const card = { ...(__paymentsConfig.card || {}) };
+      p.__payments = { cash, card };
+      return p;
+    }
+
+    function pickStoreName(sellerPublic) {
+      const d = sellerPublic || {};
+      return d.storeName || d.store_name || d.name || d.factoryName || d.companyName || "Loja Parceira";
+    }
+
+    function normalizeWhatsapp(v) {
+      const raw = String(v || "").replace(/\D/g, "");
+      if (!raw) return null;
+      return raw.startsWith("55") ? raw : ("55" + raw);
+    }
+
+    async function resolveMainImageUrl(productData) {
+      const p = productData || {};
+
+      const direct =
+        p.imageUrl ||
+        p.mainImageUrl ||
+        p.urlImagem ||
+        p.url ||
+        (Array.isArray(p.images) && (typeof p.images[0] === "string" ? p.images[0] : (p.images[0]?.url || p.images[0]?.downloadURL))) ||
+        null;
+
+      if (direct && typeof direct === "string" && /^https?:/i.test(direct)) return direct;
+
+      const path =
+        p.mainImagePath ||
+        p.imagePath ||
+        (Array.isArray(p.images) ? (p.images.find(x => x && x.isMain === true && x.path)?.path || p.images.find(x => x && x.path)?.path) : null) ||
+        null;
+
+      if (path && typeof path === "string") {
+        try {
+          return await getDownloadURL(storageRef(storage, path.trim()));
+        } catch (e) {
+          console.warn("[loja] falha ao resolver imagem:", path, e);
+        }
+      }
+
+      return "https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM";
+    }
+
+    function createIndexStyleCard(product) {
+      const decorated = decorateProductWithPayments(product);
+      const payments = decorated.__payments || null;
+
+      const basePrice = Number(decorated.price || 0);
+      const cashPrice = payments?.cash?.enabled ? Number(payments.cash.price || basePrice) : basePrice;
+
+      const priceParts = window.formatPriceParts(cashPrice);
+
+      const hasCashDiscount = !!payments?.cash?.enabled && __num(payments.cash.discountPercent, 0) > 0 && cashPrice < basePrice;
+      const explicitOldPrice = __num(decorated.oldPrice, 0);
+      const hasOldPrice = hasCashDiscount || explicitOldPrice > cashPrice;
+
+      const oldPriceValue = hasCashDiscount ? basePrice : (hasOldPrice ? explicitOldPrice : null);
+      const oldPriceFormatted = oldPriceValue ? window.formatCurrency(oldPriceValue) : null;
+
+      const discountValue = hasCashDiscount
+        ? Math.round(__num(payments.cash.discountPercent, 0))
+        : (hasOldPrice ? Math.round(((explicitOldPrice - cashPrice) / explicitOldPrice) * 100) : 0);
+
+      let installmentsText = payments?.card?.text || "";
+      const installments = Number(payments?.card?.installments || 12);
+      if (!installmentsText && installments > 1 && basePrice > 0) {
+        installmentsText = `ou em até ${installments}x de ${window.formatCurrency(basePrice / installments)} sem juros`;
+      }
+
+      const cashLabel = payments?.cash?.enabled ? (payments.cash.label || "no PIX") : "à vista";
+
+      const card = document.createElement("a");
+      card.href = `produto.html?id=${encodeURIComponent(decorated.id)}`;
+      card.className = "product-card";
+      card.innerHTML = `
+        <div class="product-image-container">
+          ${discountValue ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${discountValue}% OFF</span></div>` : ""}
+          <img src="${decorated.imageUrl}" alt="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}" loading="lazy">
+        </div>
+        <div class="product-card-body">
+          <p class="product-name" title="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}">${decorated.name || "Produto"}</p>
+          <div class="mt-auto">
+            ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : `<p class="product-old-price" style="visibility:hidden">R$ 0,00</p>`}
+            <div class="product-price">
+              <span class="currency">${priceParts.symbol}</span>
+              <span class="price-integer">${priceParts.integer}</span>
+              <span class="decimal-part">,${priceParts.decimal}</span>
+              <span class="cash-text">${cashLabel}</span>
+            </div>
+            <p class="product-installments">${installmentsText || " "}</p>
+          </div>
+        </div>
+      `;
+      return card;
+    }
+
+    function isVisibleProduct(p) {
+      if (!p) return false;
+      if (p.active === false) return false;
+      if (p.approved === false) return false;
+      return true;
+    }
+
+    function getSellerIdCandidates(sellerId) {
+      const raw = String(sellerId || "").trim();
+      if (!raw) return [];
+      const set = new Set([raw]);
+
+      const lower = raw.toLowerCase();
+      const upper = raw.toUpperCase();
+      set.add(lower);
+      set.add(upper);
+
+      if (raw === "ArianaMoveis") {
+        set.add("arianamoveis");
+        set.add("ARIANAMOVEIS");
+      }
+      if (lower === "arianamoveis") {
+        set.add("ArianaMoveis");
+      }
+      return Array.from(set).filter(Boolean);
+    }
+
+    async function fetchProductsBySellerId(sellerId) {
+      const candidates = getSellerIdCandidates(sellerId);
+      const collected = new Map();
+
+      for (const candidate of candidates) {
+        try {
+          const q = query(collection(db, "products"), where("sellerId", "==", candidate), limit(120));
+          const snap = await getDocs(q);
+          snap.docs.forEach((d) => {
+            if (!collected.has(d.id)) collected.set(d.id, { id: d.id, ...(d.data() || {}) });
+          });
+        } catch (e) {
+          console.warn("[loja] erro ao buscar products por sellerId:", candidate, e);
+        }
+      }
+
+      return Array.from(collected.values());
+    }
+
+
+    function sanitizeText(str) {
+      return String(str || "").replace(/\s+/g, " ").trim();
+    }
+
+    function excerptText(str, max = 320) {
+      const clean = sanitizeText(String(str || "").replace(/[*_`#>-]/g, ""));
+      if (!clean) return "";
+      if (clean.length <= max) return clean;
+      return clean.slice(0, max).replace(/\s+\S*$/, "") + "...";
+    }
+
+    function updateSeoForStore(storeName, storeDescription, logoUrl = "") {
+      const name = sanitizeText(storeName || "Loja Parceira");
+      const desc = excerptText(storeDescription || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.", 320) || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.";
+      document.title = `${name} | Ariana Móveis Marketplace`;
+
+      const setMeta = (selector, value, attr = "content") => {
+        const el = document.querySelector(selector);
+        if (el) el.setAttribute(attr, value);
+      };
+
+      setMeta('meta[name="description"]', desc);
+      setMeta('meta[property="og:title"]', `${name} | Ariana Móveis Marketplace`);
+      setMeta('meta[property="og:description"]', desc);
+      if (logoUrl && /^https?:/i.test(logoUrl)) {
+        setMeta('meta[property="og:image"]', logoUrl);
+      }
+
+      const jsonld = document.getElementById("seller-jsonld");
+      if (jsonld) {
+        jsonld.textContent = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Store",
+          "name": name,
+          "description": desc,
+          "url": window.location.href,
+          "image": logoUrl || undefined
+        });
+      }
+    }
+
+    async function initLoja() {
+      const params = new URLSearchParams(window.location.search);
+      const sellerId = params.get("sellerId") || params.get("id");
+
+      const grid = $("products-grid");
+      const spinner = $("loading-spinner");
+      const emptyState = $("empty-state");
+
+      const finishAsEmpty = (msg = null) => {
+        spinner.classList.add("hidden");
+        grid.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+        if (msg) {
+          const p = emptyState.querySelector("p");
+          if (p) p.textContent = msg;
+        }
+      };
+
+      if (!sellerId) {
+        finishAsEmpty("Loja não encontrada.");
+        return;
+      }
+
+      try {
+        await loadGlobalPaymentsConfig();
+
+        let sellerPublic = null;
+        try {
+          const sSnap = await getDoc(doc(db, "sellers_public", sellerId));
+          if (sSnap.exists()) sellerPublic = sSnap.data();
+        } catch (e) {
+          console.warn("[loja] erro ao buscar sellers_public:", e);
+        }
+
+        const storeName = pickStoreName(sellerPublic);
+        $("store-name").textContent = storeName;
+
+        const desc = sellerPublic?.bio || sellerPublic?.description || sellerPublic?.descricao || "Conheça nossa vitrine exclusiva.";
+        const descExcerpt = excerptText(desc, 520);
+
+        if (descExcerpt) {
+          $("store-description").textContent = descExcerpt;
+          $("store-description-box").classList.remove("hidden");
+          $("store-footer-description").textContent = descExcerpt;
+        }
+
+        $("store-subtitle").textContent = "Confira os produtos disponíveis desta loja.";
+
+        const logoUrl = sellerPublic?.logoUrl || sellerPublic?.logo || sellerPublic?.photoUrl || null;
+        if (logoUrl && typeof logoUrl === "string" && /^https?:/i.test(logoUrl)) {
+          $("store-logo").src = logoUrl;
+          $("store-logo").classList.remove("hidden");
+          $("store-icon").classList.add("hidden");
+        }
+
+        updateSeoForStore(storeName, desc, (logoUrl && /^https?:/i.test(logoUrl)) ? logoUrl : "");
+
+        const wa = normalizeWhatsapp(sellerPublic?.whatsapp || sellerPublic?.phone || sellerPublic?.telefone);
+        if (wa) {
+          const href = `https://wa.me/${wa}`;
+          $("whatsapp-store-link").classList.remove("hidden");
+          $("whatsapp-store-link").href = href;
+        }
+
+        const rawProducts = (await fetchProductsBySellerId(sellerId))
+          .map((data) => ({
+            id: data.id,
+            name: data.nome || data.name || "Produto",
+            price: data.preco ?? data.price ?? 0,
+            oldPrice: data.precoAntigo ?? data.oldPrice ?? data.old_price ?? null,
+            ...data,
+          }))
+          .filter(isVisibleProduct);
+
+        const products = await Promise.all(rawProducts.map(async (p) => {
+          const imageUrl = await resolveMainImageUrl(p);
+          return { ...p, imageUrl };
+        }));
+
+        spinner.classList.add("hidden");
+
+        if (!products.length) {
+          finishAsEmpty();
+          return;
+        }
+
+        grid.classList.remove("hidden");
+        grid.innerHTML = "";
+        products.forEach((p) => grid.appendChild(createIndexStyleCard(p)));
+      } catch (err) {
+        console.error("[loja] erro:", err);
+        finishAsEmpty("Não foi possível carregar a vitrine desta loja no momento.");
+      }
+    }
+
+    initLoja();
+  </script>
+</body>
+</html>

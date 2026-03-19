@@ -1,0 +1,64 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    signInAnonymously
+    // ... outros imports
+} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+
+// Configuração do Firebase
+const firebaseConfig = {
+    apiKey: "AIzaSyCiMvsSVWIT1DoefdM2dmXFxbVWQVfSsYU", 
+    authDomain: "ariana-moveis-8fba4.firebaseapp.com",
+    projectId: "ariana-moveis-8fba4", 
+    storageBucket: "ariana-moveis-8fba4.firebasestorage.app",
+    messagingSenderId: "1055737187409",
+    appId: "1:1055737187409:web:8e68494de6c4c99c67c70"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+/**
+ * FUNÇÃO PADRONIZADA: Atualiza o status de login no header.
+ * Deve ser definida no escopo global (window.)
+ */
+window.updateClientHeaderUI = (user) => {
+    const clientStatusDisplay = document.getElementById('client-status-display');
+    const clientAccountLink = document.getElementById('client-account-link');
+
+    if (!clientStatusDisplay || !clientAccountLink) return;
+
+    if (user && !user.isAnonymous) {
+        const displayName = user.displayName || user.email?.split('@')[0] || 'Cliente';
+        clientStatusDisplay.innerHTML = `
+            <span class="text-sm font-semibold">Olá, ${displayName}</span>
+            <span class="text-sm text-gray-300">Minha Conta</span>
+        `;
+        clientAccountLink.href = 'minha_conta.html'; 
+    } else {
+        clientStatusDisplay.innerHTML = `
+            <span class="text-sm font-semibold">Entre ou Cadastre-se</span>
+            <span class="text-sm text-gray-300">para ver seus produtos</span>
+        `;
+        clientAccountLink.href = 'login_cadastro.html'; 
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Listener PRINCIPAL que verifica a sessão em CADA página
+    onAuthStateChanged(auth, async (user) => {
+        window.updateClientHeaderUI(user);
+        
+        // Opcional: Tenta login anônimo para manter a sessão de convidado
+        if (!user) {
+             try {
+                await signInAnonymously(auth);
+             } catch(e) {
+                 console.warn("Não foi possível iniciar sessão anônima.");
+             }
+        }
+    });
+
+    // ... (Outras funções de inicialização da página)
+});

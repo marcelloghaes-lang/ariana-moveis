@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+<body class="bg-fundo-claro min-h-screen flex flex-col">
+    
+    <!-- INÍCIO DO CABEÇALHO (Reutilizado de troca_devolucao.html) -->
+    <div class="bg-primary-blue text-white text-xs text-center py-2 relative z-20">
+        <p class="font-semibold uppercase tracking-wider">
+            denúncia de anúncios ou conteúdos irregulares ajudam a manter nossa plataforma segura para todos os usuarios, contamos com voce!
+        </p>
+    </div>
+
+    <!-- INÍCIO DO CONTEÚDO PRINCIPAL: FORMULÁRIO DE DENÚNCIA -->
+    <main class="flex-grow max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 my-10">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-100">
+            <h2 class="text-3xl font-bold text-text-dark mb-2 flex items-center">
+                <i class="fas fa-flag text-primary-blue mr-3"></i> 
+                Denunciar Anúncio ou Conteúdo
+            </h2>
+            <p class="text-gray-600 mb-8 border-b pb-4">Sua denúncia é muito importante! Preencha o máximo de detalhes possível para que possamos analisar e tomar as medidas necessárias.</p>
+
+            <form id="report-form" onsubmit="handleFormSubmission(event)">
+                
+                <!-- Passo 1: Informações do Anúncio -->
+                <div class="mb-6 bg-primary-blue/5 p-4 rounded-lg border border-primary-blue/20">
+                    <h3 class="text-lg font-semibold text-primary-blue mb-3">1. Dados do Anúncio Denunciado</h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label for="ad-url" class="block text-sm font-medium text-gray-700 mb-1">Link ou URL do Anúncio (Obrigatório)</label>
+                            <input type="url" id="ad-url" required placeholder="Ex: https://www.arianamoveis.com.br/anuncio/123456"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                        </div>
+                        <div>
+                            <label for="report-type" class="block text-sm font-medium text-gray-700 mb-1">Tipo de Denúncia (Obrigatório)</label>
+                            <select id="report-type" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue bg-white">
+                                <option value="" disabled selected>Selecione o Motivo</option>
+                                <option value="Fraude">Fraude ou Golpe</option>
+                                <option value="Ofensivo">Conteúdo Ofensivo/Discurso de Ódio</option>
+                                <option value="Proibido">Produto ou Serviço Proibido</option>
+                                <option value="Incorreto">Informação Incorreta/Falsa</option>
+                                <option value="Outro">Outro Motivo (Descreva nos Detalhes)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 2: Detalhes da Denúncia -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-text-dark mb-3 flex items-center"><i class="fas fa-exclamation-triangle text-primary-blue mr-2"></i> 2. Detalhes e Evidências</h3>
+                    <label for="report-details" class="block text-sm font-medium text-gray-700 mb-1">Descrição Completa da Denúncia (Obrigatório)</label>
+                    <textarea id="report-details" rows="6" required placeholder="Ex: O anúncio promete entrega em 2 dias, mas o código de rastreio fornecido é falso. O vendedor 'XYZ' está me ignorando."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue resize-y"></textarea>
+                </div>
+
+                <!-- Passo 3: Adicionar Fotos/Evidências -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold text-text-dark mb-3 flex items-center"><i class="fas fa-images text-primary-blue mr-2"></i> 3. Capturas de Tela (Opcional)</h3>
+                    <p class="text-sm text-gray-500 mb-3">Anexe capturas de tela do anúncio ou da conversa como evidência. (Máximo 5 arquivos)</p>
+                    
+                    <div class="flex items-center space-x-4">
+                        <label for="report-photos" class="custom-file-input cursor-pointer text-sm"></label>
+                        <input type="file" id="report-photos" name="report-photos" accept="image/*" multiple 
+                                class="hidden" onchange="updateFileCount()">
+                        <span id="file-count" class="text-sm text-gray-600 italic">Nenhum arquivo selecionado.</span>
+                    </div>
+
+                    <div id="preview-container" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        <!-- Previews das imagens aparecerão aqui -->
+                    </div>
+                </div>
+
+                <!-- Botão de Envio -->
+                <button type="submit" id="submit-button"
+                    class="w-full bg-primary-blue text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-secondary-light-blue transition-colors duration-300 flex items-center justify-center">
+                    <i class="fas fa-shield-alt mr-2"></i>
+                    Enviar Denúncia
+                </button>
+                <p id="loading-text" class="text-center text-primary-blue mt-3 hidden">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Enviando...
+                </p>
+            </form>
+        </div>
+    </main>
+    <!-- INÍCIO DO JAVASCRIPT -->
+    <script>
+        // Funções de UI do Cabeçalho (Reutilizadas)
+        function toggleAllCategoriesDropdown() {
+            const dropdown = document.getElementById('all-categories-list');
+            const arrow = document.getElementById('categories-arrow');
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+
+        function openMobileMenu() {
+            showCustomMessage('Funcionalidade de Menu Mobile (Em Desenvolvimento)', 'info');
+        }
+
+        function applySearchFilter() {
+            const searchInput = document.getElementById('search-input-desktop') || document.getElementById('search-input-mobile');
+            if (searchInput.value.trim()) {
+                 showCustomMessage(`Buscando por: "${searchInput.value.trim()}"`, 'info');
+            }
+        }
+        
+        // Função para exibir notificações customizadas
+        function showCustomMessage(message, type = 'success') {
+            const container = document.getElementById('message-container');
+            const color = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+
+            const messageHtml = `
+                <div class="${color} text-white p-4 mb-3 rounded-lg shadow-lg flex items-center animate-fade-in" role="alert">
+                    <div class="flex-grow">${message}</div>
+                    <button onclick="this.parentNode.remove()" class="ml-4 text-white opacity-70 hover:opacity-100">&times;</button>
+                </div>
+            `;
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = messageHtml;
+            container.appendChild(messageElement.firstChild);
+
+            setTimeout(() => {
+                if (messageElement.firstChild) messageElement.firstChild.remove();
+            }, 5000);
+        }
+
+        // Funções do Formulário de Denúncia
+        
+        function updateFileCount() {
+            const fileInput = document.getElementById('report-photos');
+            const fileCountSpan = document.getElementById('file-count');
+            const previewContainer = document.getElementById('preview-container');
+            
+            const files = fileInput.files;
+            const maxFiles = 5;
+
+            // Limitar arquivos
+            if (files.length > maxFiles) {
+                showCustomMessage(`Você pode selecionar no máximo ${maxFiles} fotos.`, 'error');
+                // Simplesmente limpamos o input
+                fileInput.value = ''; 
+                fileCountSpan.textContent = 'Nenhum arquivo selecionado.';
+                previewContainer.innerHTML = '';
+                return;
+            }
+
+            if (files.length === 1) {
+                fileCountSpan.textContent = `${files.length} arquivo selecionado.`;
+            } else if (files.length > 1) {
+                fileCountSpan.textContent = `${files.length} arquivos selecionados.`;
+            } else {
+                fileCountSpan.textContent = 'Nenhum arquivo selecionado.';
+            }
+
+            // Gerar Previews
+            previewContainer.innerHTML = '';
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imgHtml = `
+                        <div class="relative group aspect-square rounded-lg overflow-hidden shadow-md">
+                            <img src="${e.target.result}" alt="Preview da Foto" class="object-cover w-full h-full">
+                            <div class="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <i class="fas fa-search-plus text-white text-xl"></i>
+                            </div>
+                        </div>
+                    `;
+                    previewContainer.insertAdjacentHTML('beforeend', imgHtml);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleFormSubmission(event) {
+            event.preventDefault();
+            
+            const form = document.getElementById('report-form');
+            const submitButton = document.getElementById('submit-button');
+            const loadingText = document.getElementById('loading-text');
+
+            // Desabilitar UI
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            loadingText.classList.remove('hidden');
+
+            try {
+                // 1. Coleta de Dados
+                const adUrl = document.getElementById('ad-url').value;
+                const reportType = document.getElementById('report-type').value;
+                const details = document.getElementById('report-details').value;
+                const photos = document.getElementById('report-photos').files;
+
+                // 2. Criação do Objeto de Dados
+                const submissionData = {
+                    userId: window.getUserId(),
+                    appId: window.appId,
+                    adUrl: adUrl,
+                    reportType: reportType,
+                    details: details,
+                    timestamp: new Date().toISOString(),
+                    status: 'Aguardando Análise',
+                    photoCount: photos.length,
+                    // NOTA: As fotos são apenas contadas, não salvas no Firestore.
+                };
+
+                // 3. Simulação de Envio (Aguardar autenticação, se não estiver pronta)
+                if (!window.db || !window.getUserId()) {
+                    console.warn("Aguardando inicialização do Firebase...");
+                    await new Promise(resolve => setTimeout(resolve, 1500)); 
+                }
+                
+                // 4. Salvar no Firestore (Coleção privada do usuário para seus relatórios)
+                const db = window.db;
+                const userId = window.getUserId();
+                const appId = window.appId;
+
+                const collectionPath = `artifacts/${appId}/users/${userId}/ad_reports`;
+                
+                const docRef = await addDoc(collection(db, collectionPath), submissionData);
+
+                // 5. Sucesso
+                showCustomMessage(`Denúncia enviada! Agradecemos sua colaboração. Seu protocolo é: ${docRef.id}.`, 'success');
+                console.log("Documento escrito com ID: ", docRef.id);
+
+                // Limpar formulário após 1 segundo
+                setTimeout(() => form.reset(), 1000);
+                document.getElementById('file-count').textContent = 'Nenhum arquivo selecionado.';
+                document.getElementById('preview-container').innerHTML = '';
+
+
+            } catch (error) {
+                console.error("Erro ao enviar denúncia:", error);
+                showCustomMessage(`Falha ao enviar denúncia. Por favor, tente novamente. Erro: ${error.message}`, 'error');
+            } finally {
+                // Habilitar UI novamente
+                loadingText.classList.add('hidden');
+                submitButton.disabled = false;
+                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+        </script>
+        <script src="js/header_auth_fix.js"></script>
+    <script src="./header.js"></script>
+<script>
+  window.carregarHeader();
+</script>
+    <script src="marketplace-core.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+     
+    <script src="footer.js"></script>
+</body>
+</html>

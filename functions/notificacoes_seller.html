@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notificações | Seller</title>
+    <!-- BUILD: admin_painel_fix_v3 -->
+
+    <link rel="manifest" href="/manifest-admin.webmanifest">
+    <meta name="theme-color" content="#0b1220">
+    <link rel="icon" href="./favicon.ico">
+    <link rel="apple-touch-icon" href="./icons/icon-admin-192.png">
+    <script>console.log('ADMIN_PAINEL_FIX_V3 carregado');</script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* Estilos Gerais da Seção de Produto */
+.product-section {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.product-section h2 {
+    font-size: 1.4em;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.product-section p {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* Estilo para a Grid de Dimensões (Layout 4 Colunas) */
+.dimensions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px; /* Espaçamento entre as colunas */
+    margin-bottom: 20px;
+}
+
+/* Garante que o input de file do CORA/CIELO não seja visível */
+.file-upload-cora input[type="file"] {
+    display: none;
+}
+
+/* Estilos de Animação */
+.animate-fade { animation: fade-in 0.3s ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Estilos de Cores */
+.bg-primary-blue { background-color: #2E6DA4; }
+.hover\:bg-secondary-light-blue:hover { background-color: #56B5FF; }
+.text-primary-blue { color: #2E6DA4; }
+.bg-dark-bg { background-color: #1D2B3A; }
+.text-dark { color: #333333; }
+.bg-fundo-claro { background-color: #F5F7FA; }
+.bg-dark-gray-bg { background-color: #222222; }
+.bg-error-red { background-color: #ef4444; }
+.bg-success-green { background-color: #10b981; }
+.text-error-red { color: #ef4444; }
+.text-success-green { color: #10b981; }
+
+/* Estilos de Toast */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 50; /* Garante que fique acima de tudo */
+}
+.toast {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.3s ease-out;
+}
+
+/* Estilos para o Modal de Visualização de Imagens */
+#image-modal-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+#image-modal-content {
+    max-height: 90vh;
+    max-width: 90vw;
+}
+
+    </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3">
+        </div>
+  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
+        <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
+            <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain">
+            <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
+        </div>
+    </div>
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+        <a href="#" class="text-white flex items-center space-x-2 px-4">
+            <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
+        </a>
+
+        <nav class="flex flex-col space-y-2">
+  <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-home"></i><span>Dashboard</span>
+  </a>
+  <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-box"></i><span>Meus Produtos</span>
+  </a>
+  <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span>
+  </a>
+  <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-shopping-cart"></i><span>Pedidos</span>
+  </a>
+  <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-chart-line"></i><span>Vendas</span>
+  </a>
+  <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-bell"></i><span>Notificações</span>
+  </a>
+  <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-credit-card"></i><span>Mercado Pago</span>
+  </a>
+  <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-cog"></i><span>Configurações</span>
+  </a>
+  <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-exchange-alt"></i><span>Devoluções</span>
+  </a>
+  <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-receipt"></i><span>Extrato</span>
+  </a>
+  <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
+      <i class="fas fa-sign-out-alt"></i><span>Sair</span>
+  </a>
+</nav>
+    </aside>
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <h1 id="view-title" class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
+            <div id="user-info" class="relative flex items-center space-x-4">
+                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
+                    <i class="fas fa-bell text-xl"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
+                </button>
+                <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div class="p-3 border-b flex items-center justify-between">
+                        <span class="font-semibold text-gray-800">Notificações</span>
+                        <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
+                    </div>
+                    <div id="notif-list" class="max-h-80 overflow-y-auto">
+                        <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
+                    </div>
+                </div>
+<span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+                <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+            </div>
+        </header>
+    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
+      <div>
+        <h2 class="text-2xl font-bold text-dark-bg flex items-center">
+          <i class="fas fa-bell mr-3 text-primary-blue"></i> Notificações
+        </h2>
+        <p class="text-gray-600 font-medium mt-2">
+          Avisos rápidos sobre pedidos e atualizações recentes.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <a href="seller_pedidos.html"
+           class="bg-white px-4 py-2 rounded-xl font-bold text-dark-bg border border-gray-200 hover:bg-gray-50 transition-all">
+          <i class="fas fa-receipt mr-2 text-primary-blue"></i> Pedidos
+        </a>
+        <button id="btn-refresh"
+           class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:bg-dark-bg transition-all shadow">
+          <i class="fas fa-rotate mr-2"></i> Atualizar
+        </button>
+      </div>
+    </div>
+
+    <div id="alert" class="hidden mb-6 p-4 rounded-xl font-bold"></div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="countPill" class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-2 rounded-xl">0 notificações</span>
+          <span class="text-xs text-gray-500 font-medium">Baseado nos seus pedidos (últimos 300).</span>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <select id="filter" class="border border-gray-200 rounded-xl px-4 py-2 font-bold text-dark-bg bg-white">
+            <option value="all">Todas</option>
+            <option value="new">Novos pedidos</option>
+            <option value="paid">Pagamentos aprovados</option>
+            <option value="shipped">Pedidos enviados</option>
+            <option value="pending">Pendências</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="list" class="space-y-3"></div>
+      <div id="empty" class="hidden text-center text-gray-600 font-medium py-10">Nenhuma notificação encontrada.</div>
+    </div>
+  </div>
+</main>
+  </div>
+  <script type="module">
+  import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
+    authDomain: "ariana-moveis-final.firebaseapp.com",
+    projectId: "ariana-moveis-final",
+    storageBucket: "ariana-moveis-final.firebasestorage.app",
+    messagingSenderId: "695257365498",
+    appId: "1:695257365498:web:8e68494de6c4c99c67c70"
+  };
+
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ===== UI helpers (toast / sidebar / dropdown) =====
+  function toast(message, type){
+    type = type || 'info';
+    const container = document.getElementById('toast-container');
+    if(!container){ console.log(message); return; }
+    const el = document.createElement('div');
+    const map = { success:'bg-success-green', error:'bg-error-red', info:'bg-primary-blue' };
+    const color = map[type] || 'bg-primary-blue';
+    el.className = 'toast p-4 rounded-lg text-white ' + color + ' animate-fade';
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 3500);
+  }
+  window.toast = toast;
+
+  // Sidebar mobile toggle
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebar-toggle');
+  if (toggleBtn && sidebar){
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('-translate-x-full');
+    });
+  }
+
+  // Notifications dropdown (UI only)
+  const notifBtn = document.getElementById('notif-btn');
+  const notifDropdown = document.getElementById('notif-dropdown');
+  if (notifBtn && notifDropdown){
+    notifBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifDropdown.classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => notifDropdown.classList.add('hidden'));
+  }
+
+  const userLabel = document.getElementById('user-display-name');
+  const sairBtn = document.getElementById('btn-sair');
+  if (sairBtn){
+    sairBtn.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      try { await signOut(auth); window.location.href='seller_login.html'; }
+      catch { toast('Não foi possível sair.','error'); }
+    });
+  }
+
+
+  const $ = (id) => document.getElementById(id);
+
+  function showAlert(type, msg) {
+    const el = $("alert");
+    el.classList.remove("hidden");
+    if (type === "error") el.className = "mb-6 p-4 rounded-xl font-bold bg-red-100 text-red-700 border border-red-200";
+    else el.className = "mb-6 p-4 rounded-xl font-bold bg-emerald-100 text-emerald-700 border border-emerald-200";
+    el.textContent = msg;
+  }
+
+  function dateFromAny(ts){
+    try {
+      if (ts && typeof ts.toDate === "function") return ts.toDate();
+      const n = Number(ts);
+      if (Number.isFinite(n) && n > 0) return new Date(n);
+    } catch {}
+    return null;
+  }
+
+  function whenText(o){
+    const d = dateFromAny(o.updatedAt) || dateFromAny(o.createdAt);
+    return d ? d.toLocaleString("pt-BR") : "—";
+  }
+
+  function mpStatus(o){
+    return (o.payment && o.payment.mpStatus) ? String(o.payment.mpStatus).toLowerCase() : "";
+  }
+
+  function isPaid(o){
+    const s = mpStatus(o);
+    return s === "approved" || s === "paid";
+  }
+
+  function typeOf(o){
+    const st = String(o.status || "").toLowerCase();
+    const pay = mpStatus(o);
+
+    if (!st || st === "pending") return "pending";
+    if (st === "shipped") return "shipped";
+    if (isPaid(o) && (st === "paid" || st === "processing" || st === "pending")) return "paid";
+    if (isPaid(o)) return "paid";
+    if (st === "cancelled" || st === "canceled") return "pending";
+    return "all";
+  }
+
+  function titleFor(o){
+    const st = String(o.status || "").toLowerCase();
+    const pay = mpStatus(o);
+
+    if (st === "shipped") return "Pedido enviado";
+    if (isPaid(o)) return "Pagamento aprovado";
+    if (!st || st === "pending") return "Novo pedido / pendência";
+    return "Atualização de pedido";
+  }
+
+  function iconFor(o){
+    const st = String(o.status || "").toLowerCase();
+    if (st === "shipped") return "fas fa-truck";
+    if (isPaid(o)) return "fas fa-circle-check";
+    if (!st || st === "pending") return "fas fa-clock";
+    return "fas fa-bell";
+  }
+
+  function colorFor(o){
+    const st = String(o.status || "").toLowerCase();
+    if (st === "shipped") return "bg-blue-50 border-blue-200 text-blue-700";
+    if (isPaid(o)) return "bg-emerald-50 border-emerald-200 text-emerald-700";
+    if (!st || st === "pending") return "bg-amber-50 border-amber-200 text-amber-700";
+    return "bg-gray-50 border-gray-200 text-gray-700";
+  }
+
+  function card(o){
+    const id = o.id;
+    const t = titleFor(o);
+    const when = whenText(o);
+    const pay = mpStatus(o) || "—";
+    const st = o.status || "—";
+
+    const items = Array.isArray(o.items) ? o.items : [];
+    const first = items[0] ? String(items[0].name || "") : "";
+    const qty = items.reduce((a,i)=>a + Number(i.quantity||0), 0);
+
+    return `
+      <div class="border rounded-2xl p-4 ${colorFor(o)}">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div class="min-w-[200px]">
+            <div class="font-bold text-dark-bg flex items-center">
+              <i class="${iconFor(o)} mr-2 text-primary-blue"></i> ${t}
+            </div>
+            <div class="text-xs opacity-80 mt-1">Pedido: <span class="font-mono">${id}</span> • ${when}</div>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <a href="seller_pedido_detalhes.html?orderId=${encodeURIComponent(id)}"
+               class="bg-white px-4 py-2 rounded-xl font-bold text-dark-bg border border-gray-200 hover:bg-gray-50 transition-all">
+              Ver detalhes
+            </a>
+            <a href="marcar_pedido_enviado_seller_PADRAO_CORES.html?orderId=${encodeURIComponent(id)}"
+               class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:bg-dark-bg transition-all shadow">
+              Marcar enviado
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+          <div class="bg-white/70 border border-white/60 rounded-xl p-3">
+            <div class="text-xs text-gray-500 font-bold">Status</div>
+            <div class="font-bold text-dark-bg">${st}</div>
+          </div>
+          <div class="bg-white/70 border border-white/60 rounded-xl p-3">
+            <div class="text-xs text-gray-500 font-bold">Pagamento</div>
+            <div class="font-bold text-dark-bg">${pay}</div>
+          </div>
+          <div class="bg-white/70 border border-white/60 rounded-xl p-3">
+            <div class="text-xs text-gray-500 font-bold">Itens</div>
+            <div class="font-bold text-dark-bg">${qty || 0}${first ? " • " + first : ""}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function requireSeller(uid){
+    const sref = doc(db, "sellers", uid);
+    const ss = await getDoc(sref);
+    if (!ss.exists()) throw new Error("Conta seller não encontrada no Firestore.");
+    const s = ss.data() || {};
+    if (s.active === false) throw new Error("Seller desativado.");
+    return s;
+  }
+
+  async function fetchOrders(uid){
+    const qy = query(
+      collection(db, "orders"),
+      where("sellerId", "==", uid),
+      orderBy("updatedAt", "desc"),
+      limit(300)
+    );
+    const snap = await getDocs(qy);
+    const list = [];
+    snap.forEach((d) => list.push({ id: d.id, ...(d.data() || {}) }));
+    return list;
+  }
+
+  let cache = [];
+
+  async function render(uid){
+    const filter = $("filter").value;
+    const listEl = $("list");
+    listEl.innerHTML = "";
+
+    const items = cache
+      .filter(o => filter === "all" ? true : typeOf(o) === filter)
+      .slice(0, 80);
+
+    $("countPill").textContent = `${items.length} notificações`;
+
+    if (!items.length){
+      $("empty").classList.remove("hidden");
+      return;
+    }
+    $("empty").classList.add("hidden");
+
+    items.forEach(o => listEl.insertAdjacentHTML("beforeend", card(o)));
+  }
+
+  $("btn-refresh").addEventListener("click", async () => {
+    try {
+      showAlert("ok", "Atualizando...");
+      const user = auth.currentUser;
+      if (!user) return;
+      cache = await fetchOrders(user.uid);
+      await render(user.uid);
+      showAlert("ok", "Atualizado.");
+    } catch (e) {
+      console.error(e);
+      showAlert("error", e?.message || "Erro ao atualizar.");
+    }
+  });
+
+  $("filter").addEventListener("change", async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    await render(user.uid);
+  });
+
+  const maybeLogout = document.getElementById("btn-logout") || document.getElementById("logout");
+  if (maybeLogout) {
+    maybeLogout.addEventListener("click", async () => {
+      try { await signOut(auth); window.location.href = "seller_login.html"; }
+      catch { showAlert("error", "Não foi possível sair."); }
+    });
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    try {
+      if (!user) { window.location.href = "seller_login.html"; return; }
+      await requireSeller(user.uid);
+      cache = await fetchOrders(user.uid);
+      await render(user.uid);
+    } catch (e) {
+      console.error(e);
+      showAlert("error", e?.message || "Erro ao carregar.");
+    }
+  });
+</script>
+</body>
+</html>

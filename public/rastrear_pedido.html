@@ -1,0 +1,298 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <title>Nosso Compromisso | Ariana Móveis</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
+
+        /* CSS ORIGINAL QUE MANTÉM O ALINHAMENTO DA IMAGEM */
+        .header-ajustado {
+            background-color: #2E6DA4;
+            color: white;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .voltar-loja-original {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .ambiente-seguro-original {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+        }
+
+        .escudo-original {
+            width: 45px;
+            height: 45px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .texto-seguro-original {
+            font-size: 13px;
+            line-height: 1.1;
+            text-transform: uppercase;
+        }
+
+        .texto-seguro-original strong {
+            font-size: 18px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body class="bg-fundo-claro">
+    <header class="shadow-xl">
+        <div class="header-ajustado">
+            
+            <a href="index.html" class="voltar-loja-original">
+                <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
+                <span>VOLTAR PARA A LOJA</span>
+            </a>
+
+            <div class="text-2xl font-bold tracking-wider uppercase">
+                ARIANA MOVEIS
+            </div>
+
+            <div class="ambiente-seguro-original">
+                <div class="escudo-original">
+                    <svg viewBox="0 0 24 24" width="28" height="28">
+                        <path d="M12 2L3 6v4a9 9 0 009 9 9 9 0 009-9V6L12 2z" fill="#2E6DA4"/>
+                        <path d="M12 11V7m0 0a1 1 0 011 1v3a1 1 0 01-2 0V8a1 1 0 011-1z" stroke="white" stroke-width="1.5" fill="none"/>
+                        <rect x="10" y="11" width="4" height="4" rx="1" fill="white"/>
+                    </svg>
+                </div>
+                <div class="texto-seguro-original">
+                    Ambiente <br>
+                    <strong>SEGURO</strong>
+                </div>
+            </div>
+
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 flex-grow">
+        
+        <div class="bg-white p-6 sm:p-10 rounded-xl shadow-lg border border-gray-200 max-w-4xl mx-auto">
+            
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-primary-blue border-b-2 border-accent-cyan pb-3 mb-6 text-center">
+                <i class="fas fa-search mr-2"></i> Rastrear Seu Pedido
+            </h1>
+            
+            <p class="text-gray-700 text-center leading-relaxed mb-6">
+                Digite o número do seu pedido e seu CPF/CNPJ para verificar o status de entrega.
+            </p>
+
+            <form id="tracking-form" class="flex flex-col sm:flex-row gap-4 mb-8 items-end">
+                <div class="flex-1 w-full">
+                    <label for="order-id" class="block mb-1 font-semibold text-sm">Número do Pedido</label>
+                    <input type="text" id="order-id" placeholder="#20251022-0050" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                </div>
+                <div class="flex-1 w-full">
+                    <label for="cpf-cnpj" class="block mb-1 font-semibold text-sm">CPF/CNPJ do Comprador</label>
+                    <input type="text" id="cpf-cnpj" placeholder="000.000.000-00" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
+                </div>
+                <button type="submit" class="w-full sm:w-auto bg-primary-blue hover:bg-dark-blue text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex justify-center items-center">
+                    <i class="fas fa-search mr-1"></i> Buscar
+                </button>
+            </form>
+            
+            <div id="tracking-error" class="p-4 bg-error bg-opacity-10 border border-error text-error font-semibold rounded-lg hidden">
+                Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.
+            </div>
+
+            <div class="border border-gray-300 p-4 rounded-lg mt-8" id="tracking-results" style="display: none;">
+                
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-text-default">Pedido #<span id="display-order-id">20251022-0050</span></h2>
+                    <span class="status font-bold text-sm px-3 py-1 rounded-full text-white bg-warning" id="display-status">Em Transporte</span>
+                </div>
+                
+                <div class="timeline">
+                    
+                    <div class="timeline-event relative pl-10 mb-6">
+                        <span class="date text-sm text-gray-500">22/10/2025 - 10:30h</span>
+                        <div class="description font-bold text-text-default mt-1">Saiu para entrega ao destinatário</div>
+                        <div class="icon"><i class="fas fa-truck-moving"></i></div>
+                    </div>
+                    
+                    <div class="timeline-event relative pl-10 mb-6">
+                        <span class="date text-sm text-gray-500">22/10/2025 - 08:00h</span>
+                        <div class="description font-bold text-text-default mt-1">Chegou na unidade de distribuição da sua cidade</div>
+                        <div class="icon"><i class="fas fa-box"></i></div>
+                    </div>
+                    
+                    <div class="timeline-event relative pl-10 mb-6">
+                        <span class="date text-sm text-gray-500">20/10/2025 - 18:00h</span>
+                        <div class="description font-bold text-text-default mt-1">Em rota de transferência entre centros logísticos</div>
+                        <div class="icon"><i class="fas fa-route"></i></div>
+                    </div>
+                    
+                    <div class="timeline-event delivered relative pl-10 mb-6">
+                        <span class="date text-sm text-gray-500">18/10/2025 - 14:00h</span>
+                        <div class="description mt-1">Pedido Faturado e Coletado pela Transportadora</div>
+                        <div class="icon"><i class="fas fa-clipboard-check"></i></div>
+                    </div>
+
+                    <div class="timeline-event relative pl-10 mb-6">
+                        <span class="date text-sm text-gray-500">17/10/2025 - 10:00h</span>
+                        <div class="description font-bold text-text-default mt-1">Pagamento Confirmado (Pedido #20251022-0050)</div>
+                        <div class="icon"><i class="fas fa-money-check-alt"></i></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <p class="text-center mt-6 text-sm text-gray-500">
+                O status é atualizado em tempo real pela nossa transportadora parceira.
+            </p>
+
+        </div>
+    </main>
+    
+    <<footer class="bg-dark-bg text-white mt-12 pt-10">
+    <div class="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 pb-8">
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-xl font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+            </ul>
+        </div>
+        
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="whatsapp"><i class="fab fa-whatsapp"></i></a>
+            </div>
+
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-wrap gap-2 text-2xl text-gray-400">
+                <i class="fab fa-cc-visa"></i>
+                <i class="fab fa-cc-mastercard"></i>
+                <i class="fab fa-cc-paypal"></i>
+                <i class="fab fa-cc-amex"></i>
+                <i class="fas fa-money-bill-wave"></i>
+                <i class="fas fa-qrcode"></i> </div>
+        </div>
+    </div>
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>
+
+</body>
+</html>
+    
+    <script>
+        // Lógica de simulação ajustada para usar as classes Tailwind recém-definidas
+        document.getElementById('tracking-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const orderId = document.getElementById('order-id').value.trim();
+            const cpfCnpj = document.getElementById('cpf-cnpj').value.trim();
+            const resultsBox = document.getElementById('tracking-results');
+            const errorBox = document.getElementById('tracking-error');
+            const statusSpan = document.getElementById('display-status');
+            const timelineEvents = document.querySelectorAll('.timeline-event'); // Pega todos os eventos
+
+            resultsBox.style.display = 'none';
+            errorBox.style.display = 'none';
+            
+            // Limpa classes de status e de 'delivered' antigas de todos os eventos
+            statusSpan.classList.remove('bg-warning', 'bg-success');
+            timelineEvents.forEach(event => event.classList.remove('delivered')); 
+
+            // SIMULAÇÃO DE BUSCA
+            if (orderId && cpfCnpj) {
+                
+                // Exemplo 1: Pedido em Transporte (exibe a timeline padrão)
+                if (orderId === '#20251022-0050') { 
+                    document.getElementById('display-order-id').innerText = orderId;
+                    statusSpan.innerText = 'Em Transporte';
+                    statusSpan.classList.add('bg-warning');
+                    resultsBox.style.display = 'block';
+                    // Reverte a ordem dos eventos (para simular cronologia reversa)
+                    // Este bloco é opcional, mas melhora a visualização da linha do tempo.
+                    const timelineContainer = document.querySelector('.timeline');
+                    Array.from(timelineContainer.children).reverse().forEach(child => timelineContainer.appendChild(child));
+                } 
+                // Exemplo 2: Pedido Entregue (aplica a classe 'delivered' a todos para o efeito visual de sucesso)
+                else if (orderId === '#20250901-0030') {
+                    document.getElementById('display-order-id').innerText = orderId;
+                    statusSpan.innerText = 'Entregue';
+                    statusSpan.classList.add('bg-success');
+                    resultsBox.style.display = 'block';
+                    
+                    // ADICIONA CLASSE 'delivered' a todos os eventos para o status Entregue (para fins de simulação visual)
+                    timelineEvents.forEach(event => event.classList.add('delivered')); 
+                    
+                    // Reverte a ordem dos eventos
+                    const timelineContainer = document.querySelector('.timeline');
+                    Array.from(timelineContainer.children).reverse().forEach(child => timelineContainer.appendChild(child));
+
+                } 
+                // Exemplo 3: Pedido não encontrado ou CPF/CNPJ errado
+                else {
+                    errorBox.innerText = 'Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.';
+                    errorBox.style.display = 'block';
+                }
+            } else {
+                errorBox.innerText = 'Por favor, preencha todos os campos.';
+                errorBox.style.display = 'block';
+            }
+        });
+</script>
+
+<script src="marketplace-core.js"></script>
+<script src="marketplace-core_global_payments.js"></script>
+
+ <script src="js/layout-fit.js" defer></script>
+
+<script src="js/header_auth_fix.js"></script>
+
+   <script src="js/header_auth_fix.js" defer></script>
+
+</body>
+</html>

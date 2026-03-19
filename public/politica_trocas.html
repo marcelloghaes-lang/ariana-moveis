@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <title>Trocas e Devoluções | Ariana Móveis</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; color: #334155; }
+
+        /* HEADER PROFISSIONAL */
+        .header-ajustado {
+            background-color: #2E6DA4;
+            color: white;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .voltar-loja-original {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        /* CARDS DE POLÍTICA */
+        .policy-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .policy-card:hover { transform: translateY(-4px); }
+
+        /* ESTILO DO CONTEÚDO DINÂMICO */
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1E293B;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+        .highlight-box {
+            background-color: #FFFBEB;
+            border-left: 4px solid #F59E0B;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body class="flex flex-col min-h-screen">
+    <header class="shadow-xl">
+        <div class="header-ajustado">
+            <a href="index.html" class="voltar-loja-original">
+                <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
+                <span>VOLTAR PARA A LOJA</span>
+            </a>
+            <div class="text-2xl font-bold tracking-wider uppercase">
+                ARIANA MOVEIS
+            </div>
+            <div class="hidden md:flex items-center gap-3">
+                <i class="fas fa-shield-alt text-2xl"></i>
+                <span class="text-xs uppercase leading-tight">Ambiente<br><strong>SEGURO</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto p-4 sm:p-8 lg:p-12 mt-6 flex-grow">
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-4">Política de Trocas e Devoluções</h1>
+            <p class="text-gray-500 max-w-2xl mx-auto">Respeito ao consumidor em conformidade com o Código de Defesa do Consumidor.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            <div class="policy-card p-6 border-t-4 border-blue-500 text-center md:text-left">
+                <i class="fas fa-undo-alt text-blue-500 text-3xl mb-4"></i>
+                <h3 class="font-bold text-gray-800">Direito de Arrependimento</h3>
+                <p class="text-2xl font-bold text-gray-900">07 Dias Corridos</p>
+                <p class="text-sm text-gray-500">Após o recebimento do produto.</p>
+            </div>
+            <div class="policy-card p-6 border-t-4 border-green-500 text-center md:text-left">
+                <i class="fas fa-check-circle text-green-500 text-3xl mb-4"></i>
+                <h3 class="font-bold text-gray-800">Garantia Técnica</h3>
+                <p class="text-2xl font-bold text-gray-900">90 Dias Corridos</p>
+                <p class="text-sm text-gray-500">Garantia legal para móveis.</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-8 sm:p-12 rounded-xl shadow-lg border border-gray-100">
+            <div id="policy-content" class="markdown-content">
+                </div>
+        </div>
+    </main>
+
+    <script type="module">
+        const policyMarkdown = `
+        <h2 class="text-2xl font-bold">1. Diretrizes Gerais</h2>
+        <p>Nossa política fundamentada rigorosamente no <strong>Código de Defesa do Consumidor (Lei Federal nº 8.078/90)</strong>.</p>
+        <hr class="my-6">
+        <h2 class="text-2xl font-bold">2. Arrependimento ou Desistência</h2>
+        <p>Conforme o Artigo 49 do CDC, o cliente dispõe de até <strong>7 dias corridos</strong> para desistência.</p>
+        <ul class="list-disc ml-6 mt-4 space-y-2 text-gray-600">
+            <li>Produto na embalagem original, sem sinais de montagem.</li>
+            <li>Deve acompanhar Nota Fiscal (DANFE).</li>
+        </ul>
+        <div class="highlight-box">
+            <strong>Atenção:</strong> A garantia não cobre danos decorrentes de montagem inadequada realizada por terceiros.
+        </div>
+        `;
+
+        const renderPolicy = () => {
+            const container = document.getElementById('policy-content');
+            if(container) container.innerHTML = policyMarkdown;
+        };
+
+        document.addEventListener('DOMContentLoaded', renderPolicy);
+        // REMOVIDO: start(); que causava o erro.
+    </script>
+
+    <script src="./marketplace-core.js"></script>
+
+     <script src="js/layout-fit.js" defer></script>
+     
+    <script src="footer.js"></script>
+</body>
+</html>

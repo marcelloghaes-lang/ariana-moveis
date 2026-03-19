@@ -1,0 +1,7 @@
+# app.yaml
+runtime: python311
+entrypoint: python main.py
+
+automatic_scaling:
+  min_instances: 0
+  max_instances: 5

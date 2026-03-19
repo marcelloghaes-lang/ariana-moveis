@@ -1,0 +1,341 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isAuth() && (
+        request.auth.token.admin == true ||
+        (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true
+        )
+      );
+    }
+
+    function isSellerSelf(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function orderReadableByUser() {
+      return isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        (resource.data.sellerIds is list && request.auth.uid in resource.data.sellerIds) ||
+        isAdmin()
+      );
+    }
+
+    function isSellerOfExistingOrder() {
+      return isAuth() && (
+        resource.data.sellerId == request.auth.uid ||
+        (resource.data.sellerIds is list && request.auth.uid in resource.data.sellerIds)
+      );
+    }
+
+    function isParticipantOfExistingOrder() {
+      return isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        (resource.data.sellerIds is list && request.auth.uid in resource.data.sellerIds) ||
+        isAdmin()
+      );
+    }
+
+    function sellerCanUpdateOrderOperationalFields() {
+      return isSellerOfExistingOrder() &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.items == resource.data.items &&
+        request.resource.data.totals == resource.data.totals &&
+        request.resource.data.payment == resource.data.payment &&
+        request.resource.data.sellerId == resource.data.sellerId &&
+        request.resource.data.sellerIds == resource.data.sellerIds &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "shippingStatus",
+          "trackingCode",
+          "carrier",
+          "shippedAt",
+          "deliveredAt",
+          "sellerStatus",
+          "sellerNote",
+          "sellerUpdatedAt",
+          "updatedAt"
+        ]);
+    }
+
+    function participantCanUpdateOrderChatMeta() {
+      return isParticipantOfExistingOrder() &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.items == resource.data.items &&
+        request.resource.data.totals == resource.data.totals &&
+        request.resource.data.payment == resource.data.payment &&
+        request.resource.data.sellerId == resource.data.sellerId &&
+        request.resource.data.sellerIds == resource.data.sellerIds &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "chatMeta",
+          "updatedAt"
+        ]);
+    }
+
+    function orderDocPath(orderId) {
+      return /databases/$(database)/documents/orders/$(orderId);
+    }
+
+    function pedidoDocPath(orderId) {
+      return /databases/$(database)/documents/pedidos/$(orderId);
+    }
+
+    function canReadOrderMessages(orderId) {
+      return isAuth() && (
+        get(orderDocPath(orderId)).data.userId == request.auth.uid ||
+        get(orderDocPath(orderId)).data.sellerId == request.auth.uid ||
+        (
+          get(orderDocPath(orderId)).data.sellerIds is list &&
+          request.auth.uid in get(orderDocPath(orderId)).data.sellerIds
+        ) ||
+        isAdmin()
+      );
+    }
+
+    function canCreateOrderMessages(orderId) {
+      return isAuth() &&
+        canReadOrderMessages(orderId) &&
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 2000 &&
+        request.resource.data.senderName is string &&
+        request.resource.data.senderName.size() > 0 &&
+        request.resource.data.senderName.size() <= 120 &&
+        request.resource.data.senderType is string &&
+        (
+          request.resource.data.senderType == "customer" ||
+          request.resource.data.senderType == "seller" ||
+          request.resource.data.senderType == "admin"
+        ) &&
+        (
+          (request.resource.data.senderType == "customer" &&
+            get(orderDocPath(orderId)).data.userId == request.auth.uid) ||
+          (request.resource.data.senderType == "seller" && (
+            get(orderDocPath(orderId)).data.sellerId == request.auth.uid ||
+            (
+              get(orderDocPath(orderId)).data.sellerIds is list &&
+              request.auth.uid in get(orderDocPath(orderId)).data.sellerIds
+            )
+          )) ||
+          (request.resource.data.senderType == "admin" && isAdmin())
+        );
+    }
+
+    function canReadPedidoMessages(orderId) {
+      return isAuth() && (
+        get(pedidoDocPath(orderId)).data.userId == request.auth.uid ||
+        get(pedidoDocPath(orderId)).data.sellerId == request.auth.uid ||
+        (
+          get(pedidoDocPath(orderId)).data.sellerIds is list &&
+          request.auth.uid in get(pedidoDocPath(orderId)).data.sellerIds
+        ) ||
+        isAdmin()
+      );
+    }
+
+    function canCreatePedidoMessages(orderId) {
+      return isAuth() &&
+        canReadPedidoMessages(orderId) &&
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 2000 &&
+        request.resource.data.senderName is string &&
+        request.resource.data.senderName.size() > 0 &&
+        request.resource.data.senderName.size() <= 120 &&
+        request.resource.data.senderType is string &&
+        (
+          request.resource.data.senderType == "customer" ||
+          request.resource.data.senderType == "seller" ||
+          request.resource.data.senderType == "admin"
+        ) &&
+        (
+          (request.resource.data.senderType == "customer" &&
+            get(pedidoDocPath(orderId)).data.userId == request.auth.uid) ||
+          (request.resource.data.senderType == "seller" && (
+            get(pedidoDocPath(orderId)).data.sellerId == request.auth.uid ||
+            (
+              get(pedidoDocPath(orderId)).data.sellerIds is list &&
+              request.auth.uid in get(pedidoDocPath(orderId)).data.sellerIds
+            )
+          )) ||
+          (request.resource.data.senderType == "admin" && isAdmin())
+        );
+    }
+
+    // VITRINE PÚBLICA
+    match /banners/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /mini_banners/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categories/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categorias/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // SETTINGS PÚBLICAS NECESSÁRIAS
+    match /settings/payments {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/site_public {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/home_public {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{doc=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /configuracoes/site_publicas/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /configuracoes/{doc=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /artifacts/{doc=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // PRODUTOS
+    match /products/{productId} {
+      allow read: if true;
+
+      allow create: if isAdmin() || (
+        isAuth() &&
+        request.resource.data.sellerId is string &&
+        request.resource.data.sellerId == request.auth.uid
+      );
+
+      allow update: if isAdmin() || (
+        isAuth() &&
+        resource.data.sellerId == request.auth.uid &&
+        request.resource.data.sellerId == resource.data.sellerId
+      );
+
+      allow delete: if isAdmin() || (
+        isAuth() &&
+        resource.data.sellerId == request.auth.uid
+      );
+    }
+
+    // ATENDIMENTOS
+    // antes estava create: if true; isso abre spam e gravações desnecessárias
+    match /atendimentos/{id} {
+      allow create: if isAuth();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // SOLICITAÇÕES DE PARCEIROS
+    match /partner_requests/{requestId} {
+      allow create: if isAuth();
+      allow read, list, update, delete: if isAdmin();
+    }
+
+    // SELLERS
+    match /sellers_public/{uid} {
+      allow read: if true;
+      allow write: if isAdmin() || isOwner(uid);
+    }
+
+    match /sellers/{uid} {
+      allow read, write: if isAdmin() || isOwner(uid);
+    }
+
+    match /sellers_private/{uid} {
+      allow read, write: if isAdmin() || isOwner(uid);
+    }
+
+    // USERS
+    match /users/{uid} {
+      allow read, write: if isOwner(uid) || isAdmin();
+
+      match /{sub=**} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // ORDERS
+    match /orders/{orderId} {
+      allow create: if isAuth() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow read: if orderReadableByUser();
+      allow delete, list: if isAdmin();
+
+      allow update: if isAdmin();
+      allow update: if sellerCanUpdateOrderOperationalFields();
+      allow update: if participantCanUpdateOrderChatMeta();
+
+      match /messages/{messageId} {
+        allow read: if canReadOrderMessages(orderId);
+        allow create: if canCreateOrderMessages(orderId);
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /pedidos/{orderId} {
+      allow create: if isAuth() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow read: if orderReadableByUser();
+      allow delete, list: if isAdmin();
+
+      allow update: if isAdmin();
+      allow update: if sellerCanUpdateOrderOperationalFields();
+      allow update: if participantCanUpdateOrderChatMeta();
+
+      match /messages/{messageId} {
+        allow read: if canReadPedidoMessages(orderId);
+        allow create: if canCreatePedidoMessages(orderId);
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ADMINS
+    match /admins/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+      allow write: if isAdmin();
+    }
+
+    // BLOQUEIO TOTAL DO RESTO
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
