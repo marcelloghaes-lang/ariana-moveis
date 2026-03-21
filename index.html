@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Início | ARIANA MÓVEIS</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <link rel="stylesheet" href="css/tailwind.min.css">
+</head>
+
+<body class="bg-fundo-claro font-sans text-text-dark">
+
+  <style>
+    body { background-color: #fcfcfc; overflow-x: hidden; }
+
+    /* scoped app typography */
+    #pageApp { font-family: 'Inter', sans-serif; }
+
+
+    /* --- ESTILOS PARA O CARD DE PRODUTO --- */
+    .product-card{background-color:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .3s,box-shadow .3s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%}
+    .product-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.1)}
+    .product-image-container{width:100%;height:180px;position:relative;overflow:hidden;margin-bottom:10px;display:flex;justify-content:center;align-items:center}
+    .product-image-container img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;transition:none}
+    .product-card-body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start}
+    .product-name{font-size:.85rem;font-weight:400;color:#444;height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px}
+    .product-old-price{font-size:.8rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2}
+    .product-price{font-size:1.25rem;font-weight:700;color:#333;margin-top:2px;display:flex;align-items:flex-end;line-height:1}
+    .product-price .currency{font-size:.7em;font-weight:400;align-self:flex-start}
+    .product-price .price-integer{font-size:1em;font-weight:700;margin-left:2px}
+    .product-price .decimal-part{font-size:.7em;font-weight:400}
+    .product-price .cash-text{font-size:.75rem;font-weight:400;color:#555;margin-left:5px;padding-bottom:1px}
+    .product-installments{font-size:.75rem;color:#777;margin-top:5px;line-height:1.4}
+    .product-tag-container{position:absolute;top:5px;left:5px;z-index:10;display:flex;flex-direction:column;gap:5px}
+    .product-tag{color:#fff;font-size:.75rem;font-weight:600;padding:2px 5px;border-radius:2px;display:block;width:fit-content;line-height:1}
+    .tag-orange{background-color:#ff931e}
+
+    /* Banner principal */
+    #hero-banners-section #banner-link { aspect-ratio: 4 / 1; }
+
+    /* Dropdown categorias */
+    .dropdown-open { max-height: 500px !important; padding-top: .5rem; padding-bottom: .5rem; }
+
+    /* Container de mensagens (suporte ao displayMessage) */
+    #message-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 2rem)); z-index: 60; }
+  
+    /* ===== BANNERS SEM CORTE (ajuste pro seu layout) ===== */
+    .banner-frame { width: 100%; border-radius: 16px; overflow: hidden; background: #ffffff; box-shadow: 0 10px 26px rgba(0,0,0,.10); }
+    .banner-4x1 { aspect-ratio: 4 / 1; }   /* 1920x480 e 1600x400 */
+    .banner-1x1 { aspect-ratio: 1 / 1; }   /* 800x800 */
+    .banner-mini { aspect-ratio: 16 / 9; }  /* mini banners */
+    .banner-secondary { aspect-ratio: 24 / 7; } /* 1200x350 (≈3.43:1) */
+    .banner-vertical { aspect-ratio: 2 / 3; }  /* 600x900 (vertical) */
+    .banner-duo { aspect-ratio: 3 / 1; }       /* 1200x400 (≈3:1) */
+
+    .banner-img-contain { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; background: #ffffff; }
+    
+    
+    /* ===== FIT INTELIGENTE (sem sobras) ===== */
+    .banner-img{width:100%;height:100%;display:block;object-position:center;background:#ffffff;}
+    .banner-fit-contain{object-fit:contain;}
+    .banner-fit-cover{object-fit:cover;}
+/* ===== Banner "sem corte" porém sem ficar pequeno: fundo blur + imagem em contain ===== */
+    .banner-frame{ position: relative; }
+    .banner-frame::before{
+      content:"";
+      position:absolute; inset:0;
+      background-image: var(--banner-bg);
+      background-size: cover;
+      background-position: center;
+      filter: blur(18px) saturate(1.1);
+      transform: scale(1.08);
+      opacity: .55;
+    }
+    .banner-frame::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(255,255,255,.25) 0%, rgba(255,255,255,.05) 40%, rgba(255,255,255,.15) 100%);
+      pointer-events:none;
+    }
+    .banner-frame > img{ position: relative; z-index: 1; }
+/* aumenta a área útil (menos espaço sobrando nas laterais) */
+    .page-wrap { width: 100%; max-width: 100%; margin: 0; padding-left: 0; padding-right: 0; }
+    @media (min-width: 1536px){ .page-wrap { max-width: 100%; } }
+  
+    /* ===== hero e mini-banners ===== */
+    #hero-banners-section .hero-main-expanded{grid-column:1 / -1 !important;}
+    #hero-banners-section .hero-main-expanded.banner-4x1{aspect-ratio:24 / 7;}
+    #hero-banners-section .hero-side-hidden{display:none !important;}
+
+    #mini-banners-carousel.is-carousel{
+      display:flex !important;
+      flex-wrap:nowrap !important;
+      overflow-x:auto !important;
+      gap:16px !important;
+      padding-bottom:6px;
+      scroll-snap-type:x mandatory;
+      scroll-behavior:smooth;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:none;
+    }
+    #mini-banners-carousel.is-carousel::-webkit-scrollbar{display:none;}
+    #mini-banners-carousel.is-carousel > *{
+      flex:0 0 calc((100% - 48px) / 4);
+      max-width:calc((100% - 48px) / 4);
+      min-width:calc((100% - 48px) / 4);
+      scroll-snap-align:start;
+    }
+    @media (max-width: 1279px){
+      #mini-banners-carousel.is-carousel > *{
+        flex-basis:calc((100% - 32px) / 3);
+        max-width:calc((100% - 32px) / 3);
+        min-width:calc((100% - 32px) / 3);
+      }
+    }
+    @media (max-width: 767px){
+      #mini-banners-carousel.is-carousel{
+        gap:12px !important;
+      }
+      #mini-banners-carousel.is-carousel > *{
+        flex-basis:78% !important;
+        max-width:78% !important;
+        min-width:78% !important;
+      }
+      #mini-banners-carousel.is-carousel img{
+        width:100% !important;
+        height:auto !important;
+      }
+    }
+
+/* ===== Ajuste de layout (desktop) ===== */
+html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
+body { margin: 0; }
+
+/* Deixa banners e rodapé "de canto a canto" (full-bleed), mantendo conteúdo centralizado */
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/* Imagens de banner sempre preenchendo o card */
+.banner-frame, .mini-card, .hero-banner, .deal-banner { overflow: hidden; }
+.banner-frame img, .mini-card img, .hero-banner img, .deal-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+
+
+  /* Evita "sobras" dentro do banner (contain vira cover nos banners) */
+.banner-fit-contain{ object-fit: cover !important; }
+/* Mini-banners no mobile: evita ficar "tudo junto" / desorganizado */
+@media (max-width: 768px) {
+  .mini-banners { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+  .mini-banners .mini-card { height: 92px !important; }
+}
+@media (max-width: 420px) {
+  .mini-banners { grid-template-columns: 1fr !important; }
+  .mini-banners .mini-card { height: 110px !important; }
+}
+
+/* Rodapé full width (o footer.js injeta o conteúdo, então forçamos o fundo ocupar 100%) */
+footer, .site-footer, .footer, .footer-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+</style>
+
+<!-- === Layout clamp (padronizar visual no desktop) === -->
+<style>
+  html{ font-size:16px; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  *, *::before, *::after{ box-sizing:border-box; }
+  img, video{ max-width:100%; height:auto; }
+  body{ margin:0; min-width:320px; }
+
+  /* Centraliza e evita "zoom" em telas muito grandes */
+  @media (min-width: 1200px){
+    .page-wrap, .page-container, .container, .site-container, .main-container, main, .main, .content, #app, #root{
+      max-width: 1360px;
+      margin-left:auto;
+      margin-right:auto;
+    }
+  }
+  @media (min-width: 1600px){
+    html{ font-size:15px; } /* leve redução para não ficar gigante em monitores grandes */
+  }
+
+
+/* ===== OVERRIDE (index): sem sobras laterais no desktop e no mobile ===== */
+.page-wrap, .page-container, .container, .site-container, .main-container, main, .main, .content, #app, #root{
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+/* Mantém respiro interno só nos blocos de produtos/texto (não nos banners) */
+.content-pad{
+  padding-left: 16px;
+  padding-right: 16px;
+}
+@media (min-width: 1200px){
+  .content-pad{
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+</style>
+
+<script>
+// ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
+// Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
+window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
+  try{
+    if (v === null || v === undefined) return fallback;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+    let s = String(v).trim();
+    if (!s) return fallback;
+    // remove R$, espaços e caracteres não numéricos exceto . e ,
+    s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g,'');
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot){
+      // 1.234,56 -> 1234.56
+      s = s.replace(/\./g,'').replace(',', '.');
+    } else if (hasComma && !hasDot){
+      // 1234,56 -> 1234.56
+      s = s.replace(',', '.');
+    }
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : fallback;
+  }catch(_e){
+    return fallback;
+  }
+};
+
+  // Helper usado pelo header (evita "wrap is not defined")
+  window.wrap = window.wrap || function(html){
+    const t = document.createElement("template");
+    t.innerHTML = String(html ?? "").trim();
+    return t.content.firstElementChild || document.createElement("span");
+  };
+</script>
+
+</head>
+<body>
+
+  <!-- Mensagens (suporte ao displayMessage) -->
+  <div id="message-container"></div>
+
+  <main class="min-h-screen pt-8 bg-fundo-claro space-y-12">
+
+
+    <!-- MINI BANNERS (5) - abaixo do header -->
+    <section id="mini-banners-section" class="page-wrap hidden">
+      <div id="mini-banners-carousel" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <a id="mini_banner_1_link" href="categoria.html?category=moveis"
+           class="banner-frame banner-mini block relative group transition-shadow duration-300 hover:shadow-primary-blue/30">
+          <img id="mini_banner_1_image"
+               src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+1"
+               alt="Mini Banner 1"
+               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               loading="lazy"
+               onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
+          <p id="mini_banner_1_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
+        </a>
+        <a id="mini_banner_2_link" href="categoria.html?category=Caixa de som"
+           class="banner-frame banner-mini block relative group transition-shadow duration-300 hover:shadow-primary-blue/30">
+          <img id="mini_banner_2_image"
+               src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+2"
+               alt="Mini Banner 2"
+               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               loading="lazy"
+               onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
+          <p id="mini_banner_2_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
+        </a>
+        <a id="mini_banner_3_link" href="categoria.html?category=Climatizadores"
+           class="banner-frame banner-mini block relative group transition-shadow duration-300 hover:shadow-primary-blue/30">
+          <img id="mini_banner_3_image"
+               src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+3"
+               alt="Mini Banner 3"
+               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               loading="lazy"
+               onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
+          <p id="mini_banner_3_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
+        </a>
+        <a id="mini_banner_4_link" href="categoria.html?category=Celulares"
+           class="banner-frame banner-mini block relative group transition-shadow duration-300 hover:shadow-primary-blue/30">
+          <img id="mini_banner_4_image"
+               src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+4"
+               alt="Mini Banner 4"
+               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               loading="lazy"
+               onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
+          <p id="mini_banner_4_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
+        </a>
+        <a id="mini_banner_5_link" href="categoria.html?category=Smart tv"
+           class="banner-frame banner-mini block relative group transition-shadow duration-300 hover:shadow-primary-blue/30">
+          <img id="mini_banner_5_image"
+               src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+5"
+               alt="Mini Banner 5"
+               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               loading="lazy"
+               onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
+          <p id="mini_banner_5_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
+        </a>
+      </div>
+    </section>
+
+    <!-- BANNER PRINCIPAL -->
+    
+<section id="hero-banners-section" class="page-wrap hidden">
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+    <!-- Banner principal (horizontal) -->
+    <a id="banner-link" href="todos_produtos.html?section=offers"
+       class="banner-frame banner-4x1 block relative group transition-all hover:shadow-2xl lg:col-span-3">
+      <img id="main-banner-image"
+           src="https://placehold.co/1200x350?text=Banner+Principal"
+           alt="Banner principal"
+           class="banner-img" loading="lazy" decoding="async">
+      <div class="absolute inset-0 bg-gradient-to-r from-black/30 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+      <span id="main-banner-status"
+            class="hidden absolute top-4 left-4 text-xs font-black bg-white/90 text-gray-800 px-3 py-1 rounded-full shadow">
+        Inativo
+      </span>
+    </a>
+
+    <!-- Banner vertical (lateral direita) -->
+    <a id="index-vertical-banner-link" href="todos_produtos.html"
+       class="banner-frame banner-vertical block relative group transition-all hover:shadow-2xl lg:col-span-1">
+      <img id="index-vertical-banner-image"
+           src="https://placehold.co/600x900?text=Banner+Vertical"
+           alt="Banner vertical"
+           class="banner-img" loading="lazy" decoding="async">
+      <div class="absolute inset-0 bg-gradient-to-b from-black/25 via-black/0 to-black/15 opacity-0 group-hover:opacity-100 transition"></div>
+      <span id="index-vertical-banner-status"
+            class="hidden absolute top-4 left-4 text-xs font-black bg-white/90 text-gray-800 px-3 py-1 rounded-full shadow">
+        Inativo
+      </span>
+    </a>
+  </div>
+</section>
+
+
+    <!-- PRODUTOS EM DESTAQUE -->
+    <section id="featured-products-section" class="page-wrap content-pad">
+      <h2 id="search-results-header" class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2">
+        Produtos em Destaque
+      </h2>
+
+      <div id="featured-product-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div class="animate-pulse bg-white rounded-xl shadow-lg p-4 h-80">
+          <div class="h-40 bg-gray-200 rounded-lg mb-4"></div>
+          <div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
+          <div class="h-4 bg-gray-300 rounded w-1/2 mb-4"></div>
+          <div class="h-6 bg-gray-400 rounded w-1/3"></div>
+        </div>
+        <div class="animate-pulse bg-white rounded-xl shadow-lg p-4 h-80">
+          <div class="h-40 bg-gray-200 rounded-lg mb-4"></div>
+          <div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
+          <div class="h-4 bg-gray-300 rounded w-1/2 mb-4"></div>
+          <div class="h-6 bg-gray-400 rounded w-1/3"></div>
+        </div>
+      </div>
+
+      <div id="loading-container" class="col-span-full text-center py-12 hidden">
+        <div class="flex flex-col items-center justify-center">
+          <i class="fas fa-spinner fa-spin text-4xl text-primary-blue mb-4"></i>
+          <p class="text-lg text-gray-600">Carregando produtos...</p>
+        </div>
+      </div>
+
+      <div class="text-center mt-8">
+        <a href="todos_produtos.html"
+           class="inline-flex items-center justify-center px-6 py-2 border border-primary-blue text-base font-medium rounded-lg text-primary-blue bg-white hover:bg-fundo-claro shadow-md transition-colors">
+          Navegar por Todos os Produtos <i class="fas fa-arrow-right ml-2"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- CARDS DE DESTAQUE (3) - estilo Magazine/Amazon -->
+    <section id="home-cards-section" class="page-wrap hidden content-pad">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <a id="home_card_1_link" href="todos_produtos.html?q=eletro"
+           class="group block bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <div class="relative aspect-square">
+            <img id="home_card_1_image"
+                 src="https://placehold.co/800x800/2E6DA4/ffffff?text=Carregando+Card+1"
+                 alt="Card de destaque 1"
+                 class="w-full h-full object-contain bg-white transition-transform duration-500 group-hover:scale-[1.02]"
+                 loading="lazy">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
+            <div class="absolute bottom-3 left-3 right-3">
+              <p id="home_card_1_status" class="text-white text-xs font-medium bg-dark-bg/60 inline-block px-2 py-1 rounded-md"></p>
+            </div>
+          </div>
+        </a>
+
+        <a id="home_card_2_link" href="todos_produtos.html?q=informatica"
+           class="group block bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <div class="relative aspect-square">
+            <img id="home_card_2_image"
+                 src="https://placehold.co/800x800/56B5FF/1D2B3A?text=Carregando+Card+2"
+                 alt="Card de destaque 2"
+                 class="w-full h-full object-contain bg-white transition-transform duration-500 group-hover:scale-[1.02]"
+                 loading="lazy">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
+            <div class="absolute bottom-3 left-3 right-3">
+              <p id="home_card_2_status" class="text-white text-xs font-medium bg-dark-bg/60 inline-block px-2 py-1 rounded-md"></p>
+            </div>
+          </div>
+        </a>
+
+        <a id="home_card_3_link" href="todos_produtos.html?q=moveis"
+           class="group block bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <div class="relative aspect-square">
+            <img id="home_card_3_image"
+                 src="https://placehold.co/800x800/1D2B3A/ffffff?text=Carregando+Card+3"
+                 alt="Card de destaque 3"
+                 class="w-full h-full object-contain bg-white transition-transform duration-500 group-hover:scale-[1.02]"
+                 loading="lazy">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
+            <div class="absolute bottom-3 left-3 right-3">
+              <p id="home_card_3_status" class="text-white text-xs font-medium bg-dark-bg/60 inline-block px-2 py-1 rounded-md"></p>
+            </div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- BANNER SECUNDÁRIO 1 -->
+    
+<section id="secondary-banner-1-section" class="w-full hidden page-wrap">
+      <a id="secondary-banner-1-link" href="todos_produtos.html?section=best_sellers"
+         class="banner-frame banner-4x1 block relative group transition-shadow duration-300 hover:shadow-secondary-light-blue/50">
+        <img id="secondary-banner-1-image"
+             src="https://placehold.co/1600x400/56B5FF/1D2B3A?text=Queridinhos+da+Internet"
+             alt="Banner Queridinhos da Internet"
+             class="banner-img banner-fit-contain transition-transform duration-500 group-hover:scale-[1.01]"
+             loading="lazy"
+             onerror="this.src='https://placehold.co/1600x400/FF5733/FFFFFF?text=ERRO+AO+CARREGAR+IMAGEM'">
+        <p id="secondary-banner-1-status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow"></p>
+      </a>
+    </section>
+
+    <!-- OFERTAS -->
+    <section id="offers-section" class="hidden page-wrap content-pad">
+      <h2 class="text-3xl font-extrabold text-red-600 mb-6 border-b-2 border-red-600/30 pb-2 flex items-center">
+        <i class="fas fa-fire text-red-600 mr-3"></i> Ofertas Imperdíveis
+      </h2>
+      <div id="offers-product-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
+      <div class="text-center mt-8">
+        <a href="todos_produtos.html?section=offers"
+           class="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-md transition-colors">
+          Ver Todas as Ofertas <i class="fas fa-arrow-right ml-2"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- DUO BANNERS (2 mini-banners grandes) -->
+<section id="index-duo-banners-section" class="page-wrap hidden">
+  <div class="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
+    <a id="index-duo-1-link" href="todos_produtos.html"
+       class="banner-frame banner-duo block relative group transition-all hover:shadow-2xl">
+      <img id="index-duo-1-image"
+           src="https://placehold.co/1200x400?text=Banner+Duo+1"
+           alt="Banner duo 1"
+           class="banner-img" loading="lazy" decoding="async">
+      <div class="absolute inset-0 bg-gradient-to-r from-black/20 via-black/0 to-black/10 opacity-0 group-hover:opacity-100 transition"></div>
+      <span id="index-duo-1-status"
+            class="hidden absolute top-4 left-4 text-xs font-black bg-white/90 text-gray-800 px-3 py-1 rounded-full shadow">
+        Inativo
+      </span>
+    </a>
+
+    <a id="index-duo-2-link" href="todos_produtos.html"
+       class="banner-frame banner-duo block relative group transition-all hover:shadow-2xl">
+      <img id="index-duo-2-image"
+           src="https://placehold.co/1200x400?text=Banner+Duo+2"
+           alt="Banner duo 2"
+           class="banner-img" loading="lazy" decoding="async">
+      <div class="absolute inset-0 bg-gradient-to-r from-black/20 via-black/0 to-black/10 opacity-0 group-hover:opacity-100 transition"></div>
+      <span id="index-duo-2-status"
+            class="hidden absolute top-4 left-4 text-xs font-black bg-white/90 text-gray-800 px-3 py-1 rounded-full shadow">
+        Inativo
+      </span>
+    </a>
+  </div>
+</section>
+
+    <!-- RECOMENDADOS PARA VOCÊ -->
+    <section id="recommended-section" class="hidden page-wrap content-pad">
+      <h2 class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2 flex items-center">
+        <i class="fas fa-thumbs-up text-primary-blue mr-3"></i> Recomendados para Você
+      </h2>
+      <div id="recommended-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
+      <div class="text-center mt-8">
+        <a href="todos_produtos.html?section=recommended"
+           class="inline-flex items-center justify-center px-6 py-2 border border-primary-blue text-base font-medium rounded-lg text-primary-blue bg-white hover:bg-fundo-claro shadow-md transition-colors">
+          Ver Mais Recomendações <i class="fas fa-arrow-right ml-2"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- BANNER SECUNDÁRIO 2 -->
+    <section id="secondary-banner-2-section" class="w-full hidden page-wrap">
+      <a id="secondary-banner-2-link" href="todos_produtos.html?section=featured"
+         class="banner-frame banner-secondary block relative group transition-shadow duration-300 hover:shadow-secondary-light-blue/50">
+        <img id="secondary-banner-2-image"
+             src="https://placehold.co/1600x400/2E6DA4/ffffff?text=Promoção+Exclusiva"
+             alt="Banner Promoção Exclusiva"
+             class="banner-img banner-fit-contain transition-transform duration-500 group-hover:scale-[1.01]"
+             loading="lazy"
+             onerror="this.src='https://placehold.co/1600x400/3498DB/FFFFFF?text=ERRO+AO+CARREGAR+IMAGEM'">
+        <p id="secondary-banner-2-status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow"></p>
+      </a>
+    </section>
+
+    <!-- LANÇAMENTOS -->
+    <section id="new-arrivals-section" class="hidden page-wrap content-pad">
+      <h2 class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2 flex items-center">
+        <i class="fas fa-bolt text-yellow-500 mr-3"></i> Lançamentos
+      </h2>
+      <div id="new-arrivals-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
+      <div class="text-center mt-8">
+        <a href="todos_produtos.html?section=new_arrivals"
+           class="inline-flex items-center justify-center px-6 py-2 border border-primary-blue text-base font-medium rounded-lg text-primary-blue bg-white hover:bg-fundo-claro shadow-md transition-colors">
+          Ver Todos os Lançamentos <i class="fas fa-arrow-right ml-2"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- BANNER FOOTER (slot: footer_banner) -->
+    <section id="footer-banner-section" class="w-full hidden page-wrap">
+      <a id="footer-banner-link" href="todos_produtos.html?q=celular"
+         class="banner-frame banner-4x1 block relative group transition-shadow duration-300 hover:shadow-primary-blue/40">
+        <img id="footer-banner-image"
+             src="https://placehold.co/1600x400/1D2B3A/ffffff?text=Carregando+Banner+Extra"
+             alt="Banner Extra"
+             class="banner-img banner-fit-contain transition-transform duration-500 group-hover:scale-[1.01]"
+             loading="lazy">
+        <p id="footer-banner-status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow"></p>
+      </a>
+    </section>
+
+
+    <!-- MAIS PRODUTOS (NOVAS OFERTAS) -->
+    <section id="more-products-section" class="hidden page-wrap content-pad">
+      <h2 class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2 flex items-center">
+        <i class="fas fa-store text-primary-blue mr-3"></i> Mais Ofertas para Você
+      </h2>
+      <div id="more-products-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
+      <div class="text-center mt-8">
+        <a href="todos_produtos.html"
+           class="inline-flex items-center justify-center px-6 py-2 border border-primary-blue text-base font-medium rounded-lg text-primary-blue bg-white hover:bg-fundo-claro shadow-md transition-colors">
+          Ver Mais Produtos <i class="fas fa-arrow-right ml-2"></i>
+        </a>
+      </div>
+    </section>
+
+    <footer></footer>
+ 
+  </main>
+
+  
+  
+  <script>
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "http://localhost:3000/api";
+
+    let db = {};
+    let auth = { currentUser: null };
+    let storage = {};
+    let userId = null;
+    let allProducts = [];
+    let __homeDataBooted = false;
+    let __homeProductsBooted = false;
+    let miniCarouselBooted = false;
+    window.BRAND_NAME = 'ARIANA MOVEIS';
+
+    const API_CANDIDATES = {
+      banners: [
+        '/banners',
+        '/banner-slots',
+        '/index/banners',
+        '/home/banners'
+      ],
+      bannerItem: (slotId) => [
+        `/banners/${encodeURIComponent(slotId)}`,
+        `/banner-slots/${encodeURIComponent(slotId)}`,
+        `/index/banners/${encodeURIComponent(slotId)}`,
+        `/home/banners/${encodeURIComponent(slotId)}`
+      ],
+      products: [
+        '/products',
+        '/catalog/products',
+        '/home/products',
+        '/store/products'
+      ],
+      categories: [
+        '/categories',
+        '/catalog/categories',
+        '/home/categories'
+      ],
+      userById: (id) => [
+        `/users/${encodeURIComponent(id)}`,
+        `/customers/${encodeURIComponent(id)}`,
+        `/me`
+      ],
+      indexData: [
+        '/index-data',
+        '/home',
+        '/home/index-data'
+      ]
+    };
+
+    function buildCandidateUrls(path) {
+      const direct = String(path || '').trim();
+      const base = String(API_BASE || '').replace(/\/+$/, '');
+      const raw = [];
+      if (direct.startsWith('http://') || direct.startsWith('https://')) raw.push(direct);
+      else {
+        raw.push(base + direct);
+        if (!base.endsWith('/api') && !direct.startsWith('/api/')) raw.push(base + '/api' + direct);
+      }
+      return [...new Set(raw)];
+    }
+
+    async function fetchFirstJson(paths, options = {}) {
+      const errors = [];
+      for (const p of paths) {
+        const urls = buildCandidateUrls(p);
+        for (const url of urls) {
+          try {
+            const res = await fetch(url, {
+              ...options,
+              headers: {
+                'Accept': 'application/json',
+                ...(options.headers || {})
+              }
+            });
+            if (!res.ok) {
+              errors.push(`${url} -> ${res.status}`);
+              continue;
+            }
+            const data = await res.json();
+            return { ok: true, url, data };
+          } catch (e) {
+            errors.push(`${url} -> ${e.message}`);
+          }
+        }
+      }
+      return { ok: false, errors };
+    }
+
+    function unwrapArray(payload) {
+      if (Array.isArray(payload)) return payload;
+      if (!payload || typeof payload !== 'object') return [];
+      const candidates = [
+        payload.items, payload.data, payload.products, payload.categories,
+        payload.banners, payload.results, payload.rows, payload.docs
+      ];
+      for (const c of candidates) if (Array.isArray(c)) return c;
+      return [];
+    }
+
+    function unwrapObject(payload) {
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        const candidates = [payload.data, payload.item, payload.banner, payload.user, payload.product];
+        for (const c of candidates) {
+          if (c && typeof c === 'object' && !Array.isArray(c)) return c;
+        }
+        return payload;
+      }
+      return null;
+    }
+
+    function toImageUrl(value) {
+      const v = String(value || '').trim();
+      if (!v) return '';
+      if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:')) return v;
+      const base = String(API_BASE || '').replace(/\/api$/, '').replace(/\/+$/, '');
+      if (v.startsWith('/')) return base + v;
+      return `${base}/${v}`;
+    }
+
+    function getLocalLoggedUser() {
+      const candidates = [
+        "usuarioLogado", "usuario_logado",
+        "clienteLogado", "cliente_logado",
+        "ariana_user", "arianaUser"
+      ];
+      const read = (store) => {
+        for (const k of candidates) {
+          const raw = store.getItem(k);
+          if (!raw) continue;
+          try {
+            const obj = JSON.parse(raw);
+            if (obj && typeof obj === "object") return obj;
+          } catch {}
+        }
+        return null;
+      };
+      const u = read(localStorage) || read(sessionStorage);
+      if (!u) return null;
+      const nome =
+        u.nome || u.name || u.displayName || u.fullName ||
+        (u.email ? String(u.email).split("@")[0] : null) ||
+        (u.usuario ? String(u.usuario) : null);
+      const email = u.email || u.userEmail || u.mail || null;
+      const uid = u.uid || u.id || u._id || u.userId || u.clienteId || null;
+      return { ...u, uid, _nomeExibicao: nome || "Cliente", _emailExibicao: email };
+    }
+
+    function syncPseudoAuthFromStorage() {
+      const localUser = getLocalLoggedUser();
+      auth.currentUser = localUser ? {
+        uid: localUser.uid || null,
+        email: localUser._emailExibicao || localUser.email || null,
+        displayName: localUser._nomeExibicao || null,
+        isAnonymous: false
+      } : null;
+      userId = auth.currentUser?.uid || null;
+    }
+
+    window.displayMessage = (message, type = 'info') => {
+      const container = document.getElementById('message-container');
+      if (!container) return;
+      const colorClass = ({ success: 'bg-green-500 border-green-700', error: 'bg-red-500 border-red-700', info: 'bg-blue-500 border-blue-700' }[type]) || 'bg-blue-500 border-blue-700';
+      const iconClass = ({ success: 'fas fa-check-circle', error: 'fas fa-times-circle', info: 'fas fa-info-circle' }[type]) || 'fas fa-info-circle';
+      const el = document.createElement('div');
+      el.className = `flex items-center p-4 mb-3 text-white rounded-lg shadow-lg border-l-4 ${colorClass} transition duration-300 animate-fade-in`;
+      el.innerHTML = `<i class="${iconClass} mr-3"></i><span class="text-sm font-medium">${message}</span>`;
+      container.prepend(el);
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+        el.addEventListener('transitionend', () => el.remove());
+      }, 5000);
+    };
+
+    window.formatCurrency = (value) => {
+      if (value === null || value === undefined) return 'R$ 0,00';
+      const num = parseFloat(value);
+      if (isNaN(num)) return 'R$ 0,00';
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+    };
+
+    window.formatPriceParts = (value) => {
+      if (value === null || value === undefined || isNaN(parseFloat(value))) return { symbol: 'R$', integer: '0', decimal: '00' };
+      const formatted = window.formatCurrency(value);
+      const numericString = formatted.replace('R$', '').replace(/\./g, '').trim();
+      const idx = numericString.lastIndexOf(',');
+      let integerPart = numericString;
+      let decimalPart = '00';
+      if (idx !== -1) {
+        integerPart = numericString.substring(0, idx);
+        decimalPart = numericString.substring(idx + 1).padEnd(2, '0').substring(0, 2);
+      }
+      if (integerPart === '') integerPart = '0';
+      return { symbol: 'R$', integer: integerPart, decimal: decimalPart };
+    };
+
+    const loadCartCounter = () => {
+      const keys = ['ariana_moveis_cart', 'arianaMoveisCart', 'cart', 'carrinho', 'cartItems', 'shoppingCart'];
+      let raw = null;
+      for (const k of keys) {
+        raw = localStorage.getItem(k);
+        if (raw && String(raw).trim() && raw !== 'null') break;
+        raw = null;
+      }
+      let total = 0;
+      if (raw) {
+        try {
+          const data = JSON.parse(raw);
+          const pickArray = (obj) => {
+            if (!obj) return null;
+            if (Array.isArray(obj)) return obj;
+            if (Array.isArray(obj.items)) return obj.items;
+            if (Array.isArray(obj.cart)) return obj.cart;
+            if (Array.isArray(obj.carrinho)) return obj.carrinho;
+            return null;
+          };
+          const arr = pickArray(data);
+          if (arr) {
+            total = arr.reduce((sum, it) => {
+              const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? it?.quantidade ?? 0);
+              return sum + (Number.isFinite(q) ? q : 0);
+            }, 0);
+          } else if (data && typeof data === 'object') {
+            total = Object.values(data).reduce((sum, it) => {
+              const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? it?.quantidade ?? 0);
+              return sum + (Number.isFinite(q) ? q : 0);
+            }, 0);
+          }
+        } catch (_) { total = 0; }
+      }
+      document.querySelectorAll('[id^="cart-counter"]').forEach(el => {
+        if (total > 0) {
+          el.textContent = String(total);
+          el.classList.remove('hidden');
+        } else {
+          el.textContent = '0';
+          el.classList.add('hidden');
+        }
+      });
+    };
+
+    window.updateBranding = (name) => {
+      const footerBrand = document.querySelector('#footer-brand');
+      const title = document.querySelector('title');
+      if (footerBrand) footerBrand.textContent = name;
+      if (title) title.textContent = 'Início | ' + name;
+    };
+
+    const updateClientStatusUI = () => {
+      const clientStatusDisplay = document.getElementById('client-status-display');
+      if (!clientStatusDisplay) return;
+      const localUser = getLocalLoggedUser();
+      if (localUser && localUser._nomeExibicao) {
+        clientStatusDisplay.innerHTML =
+          `<span class="text-sm font-semibold">Olá, ${localUser._nomeExibicao}!</span>` +
+          `<span class="text-sm text-gray-300">Acesse sua conta</span>`;
+        return;
+      }
+      clientStatusDisplay.innerHTML =
+        `<span class="text-sm font-semibold">Entre ou Cadastre-se</span>` +
+        `<span class="text-sm text-gray-300">para ver seus pedidos</span>`;
+    };
+
+    function exposeCompatApiHelpers() {
+      window.db = db;
+      window.auth = auth;
+      window.storage = storage;
+      window.__INDEX_DB__ = db;
+
+      window.collection = (_db, name) => ({ __type: 'collection', name });
+      window.doc = (_db, collectionName, id) => ({ __type: 'doc', collectionName, id });
+      window.where = (field, op, value) => ({ type: 'where', field, op, value });
+      window.orderBy = (field, dir = 'asc') => ({ type: 'orderBy', field, dir });
+      window.limit = (n) => ({ type: 'limit', n });
+      window.query = (ref, ...clauses) => ({ ...ref, clauses });
+
+      window.getDocs = async (ref) => {
+        let rows = [];
+        if (ref?.name === 'categories') rows = await getCategoriesApi();
+        else if (ref?.name === 'products') rows = await getProductsApi();
+        const n = ref?.clauses?.find?.(c => c.type === 'limit')?.n;
+        if (n) rows = rows.slice(0, n);
+        return {
+          docs: rows.map(item => ({
+            id: String(item.id || item._id || ''),
+            data: () => item
+          }))
+        };
+      };
+
+      window.getDoc = async (ref) => {
+        let data = null;
+        if (ref?.collectionName === 'banners') data = await getBannerBySlot(ref.id);
+        else if (ref?.collectionName === 'users') data = await getUserById(ref.id);
+        return {
+          exists: () => !!data,
+          data: () => data
+        };
+      };
+
+      window.onSnapshot = async (ref, callback) => {
+        try {
+          const snap = await window.getDoc(ref);
+          callback(snap);
+        } catch (e) {
+          console.error('[compat onSnapshot]', e);
+        }
+        return () => {};
+      };
+
+      window.dispatchEvent(new Event("firebase:ready"));
+    }
+
+    async function getIndexDataApi() {
+      const result = await fetchFirstJson(API_CANDIDATES.indexData);
+      return result.ok ? unwrapObject(result.data) : null;
+    }
+
+    async function getProductsApi() {
+      const result = await fetchFirstJson(API_CANDIDATES.products);
+      if (!result.ok) return [];
+      return unwrapArray(result.data);
+    }
+
+    async function getCategoriesApi() {
+      const result = await fetchFirstJson(API_CANDIDATES.categories);
+      if (!result.ok) return [];
+      return unwrapArray(result.data);
+    }
+
+    async function getBannersApi() {
+      const result = await fetchFirstJson(API_CANDIDATES.banners);
+      if (!result.ok) return [];
+      return unwrapArray(result.data);
+    }
+
+    async function getBannerBySlot(slotId) {
+      const direct = await fetchFirstJson(API_CANDIDATES.bannerItem(slotId));
+      if (direct.ok) return unwrapObject(direct.data);
+      const banners = await getBannersApi();
+      return banners.find(b => String(b.slot || b.slotId || b.key || b.id) === String(slotId)) || null;
+    }
+
+    async function getUserById(id) {
+      if (!id) return null;
+      const result = await fetchFirstJson(API_CANDIDATES.userById(id));
+      return result.ok ? unwrapObject(result.data) : null;
+    }
+
+    function normalizeCategory(item = {}) {
+      return {
+        id: item.id || item._id || item.slug || item.nome || item.name,
+        nome: item.nome || item.name || item.title || '',
+        name: item.name || item.nome || item.title || ''
+      };
+    }
+
+    function normalizeBannerData(slotId, data = {}) {
+      return {
+        active: data.active === true || data.enabled === true || data.status === 'active',
+        imageUrl: toImageUrl(
+          data.imageUrl || data.image || data.url || data.image_path || data.imagePath || data.bannerUrl || ''
+        ),
+        linkUrl:
+          data.linkUrl || data.href || data.link ||
+          (data.categorySlug ? `categoria.html?slug=${encodeURIComponent(data.categorySlug)}` : null) ||
+          (data.slug ? `categoria.html?slug=${encodeURIComponent(data.slug)}` : null) ||
+          (data.categoryId ? `categoria.html?id=${encodeURIComponent(data.categoryId)}` : null) ||
+          (data.category ? `categoria.html?id=${encodeURIComponent(data.category)}` : null) ||
+          null,
+        raw: data
+      };
+    }
+
+    function normalizeProduct(item = {}) {
+      const images = Array.isArray(item.images) ? item.images : [];
+      const mainImageObj = images.find(img => img && (img.isMain === true || img.main === true)) || images[0] || null;
+      const imageUrl = toImageUrl(
+        item.mainImageUrl || item.imageUrl || item.image || item.thumbnail || item.foto ||
+        item.mainImagePath || item.imagePath || mainImageObj?.url || mainImageObj?.path || ''
+      ) || 'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM';
+
+      const tsRaw = item.updatedAt || item.createdAt || item.created_at || item.timestamp || item.date || null;
+      let ts = 0;
+      if (typeof tsRaw === 'number') ts = tsRaw;
+      else if (typeof tsRaw === 'string') {
+        const ms = Date.parse(tsRaw);
+        ts = Number.isFinite(ms) ? ms : 0;
+      }
+
+      const oldPrice = window.__toNumberBR(item.precoAntigo ?? item.oldPrice ?? item.compareAtPrice ?? null, 0);
+      return {
+        id: item.id || item._id || item.slug || item.sku || cryptoRandomId(),
+        name: item.nome || item.name || item.titulo || 'Produto Sem Nome',
+        price: window.__toNumberBR(item.preco ?? item.price ?? item.valor ?? 0, 0),
+        oldPrice: oldPrice > 0 ? oldPrice : null,
+        category: item.category || item.categoria || 'Geral',
+        description: item.description || item.descricao || '',
+        imageUrl,
+        _ts: ts,
+        isOffer: item.isOffer === true || item.offer === true || item.promocao === true,
+        isBestSeller: item.isBestSeller === true || item.bestSeller === true || item.maisVendido === true,
+        isNew: item.isNew === true || item.new === true || item.lancamento === true,
+        isRecommended: item.isRecommended === true || item.recommended === true,
+        isFeatured: item.isFeatured === true || item.featured === true || item.destaque === true,
+        homeSections: Array.isArray(item.homeSections) ? item.homeSections : [],
+        installments: item.installments || null
+      };
+    }
+
+    function cryptoRandomId() {
+      return 'id_' + Math.random().toString(36).slice(2, 11);
+    }
+
+    const bannerSlots = {
+      index_main: { sectionId:'hero-banners-section', containerId:'banner-link', linkId:'banner-link', imgId:'main-banner-image', statusId:'main-banner-status', defaultHref:'todos_produtos.html?section=offers', placeholderText:'Banner Principal' },
+      index_sidebar_vertical: { sectionId:'hero-banners-section', containerId:'index-vertical-banner-link', linkId:'index-vertical-banner-link', imgId:'index-vertical-banner-image', statusId:'index-vertical-banner-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Vertical' },
+      index_duo_1: { sectionId:'index-duo-banners-section', containerId:'index-duo-1-link', linkId:'index-duo-1-link', imgId:'index-duo-1-image', statusId:'index-duo-1-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Duo 1' },
+      index_duo_2: { sectionId:'index-duo-banners-section', containerId:'index-duo-2-link', linkId:'index-duo-2-link', imgId:'index-duo-2-image', statusId:'index-duo-2-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Duo 2' },
+      index_mini_1: { sectionId:'mini-banners-section', linkId:'mini_banner_1_link', imgId:'mini_banner_1_image', statusId:'mini_banner_1_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 1' },
+      index_mini_2: { sectionId:'mini-banners-section', linkId:'mini_banner_2_link', imgId:'mini_banner_2_image', statusId:'mini_banner_2_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 2' },
+      index_mini_3: { sectionId:'mini-banners-section', linkId:'mini_banner_3_link', imgId:'mini_banner_3_image', statusId:'mini_banner_3_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 3' },
+      index_mini_4: { sectionId:'mini-banners-section', linkId:'mini_banner_4_link', imgId:'mini_banner_4_image', statusId:'mini_banner_4_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 4' },
+      index_mini_5: { sectionId:'mini-banners-section', linkId:'mini_banner_5_link', imgId:'mini_banner_5_image', statusId:'mini_banner_5_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 5' },
+      index_secondary_1: { sectionId:'secondary-banner-1-section', linkId:'secondary-banner-1-link', imgId:'secondary-banner-1-image', statusId:'secondary-banner-1-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Secundário 1' },
+      index_secondary_2: { sectionId:'secondary-banner-2-section', linkId:'secondary-banner-2-link', imgId:'secondary-banner-2-image', statusId:'secondary-banner-2-status', defaultHref:'todos_produtos.html?section=featured', placeholderText:'Banner Secundário 2' },
+      footer_banner: { sectionId:'footer-banner-section', linkId:'footer-banner-link', imgId:'footer-banner-image', statusId:'footer-banner-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Rodapé' },
+      home_card_1: { sectionId:'home-cards-section', linkId:'home_card_1_link', imgId:'home_card_1_image', statusId:'home_card_1_status', defaultHref:'todos_produtos.html', placeholderText:'Card 1' },
+      home_card_2: { sectionId:'home-cards-section', linkId:'home_card_2_link', imgId:'home_card_2_image', statusId:'home_card_2_status', defaultHref:'todos_produtos.html', placeholderText:'Card 2' },
+      home_card_3: { sectionId:'home-cards-section', linkId:'home_card_3_link', imgId:'home_card_3_image', statusId:'home_card_3_status', defaultHref:'todos_produtos.html', placeholderText:'Card 3' }
+    };
+
+    const sharedSectionSlots = {
+      'home-cards-section': ['home_card_1','home_card_2','home_card_3'],
+      'mini-banners-section': ['index_mini_1','index_mini_2','index_mini_3','index_mini_4','index_mini_5'],
+      'hero-banners-section': ['index_main','index_sidebar_vertical'],
+      'index-duo-banners-section': ['index_duo_1','index_duo_2'],
+    };
+    const slotActive = {};
+
+    const isSharedSection = (sectionId) => !!sharedSectionSlots[sectionId];
+
+    const setHiddenById = (id, hidden) => {
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('hidden', !!hidden);
+    };
+
+    const updateSharedSectionsVisibility = () => {
+      Object.entries(sharedSectionSlots).forEach(([sectionId, slotIds]) => {
+        const sectionEl = document.getElementById(sectionId);
+        if (!sectionEl) return;
+        const anyActive = (slotIds || []).some((sid) => !!slotActive[sid]);
+        sectionEl.classList.toggle('hidden', !anyActive);
+      });
+    };
+
+    async function bindBannerSlot(slotId, cachedMap = null) {
+      const slot = bannerSlots[slotId];
+      if (!slot) return;
+      const sectionEl = slot.sectionId ? document.getElementById(slot.sectionId) : null;
+      const linkEl = document.getElementById(slot.linkId);
+      const imgEl = document.getElementById(slot.imgId);
+      const statusEl = slot.statusId ? document.getElementById(slot.statusId) : null;
+      const containerId = slot.containerId || slot.linkId;
+
+      const applyInactive = () => {
+        slotActive[slotId] = false;
+        setHiddenById(containerId, true);
+        if (!isSharedSection(slot.sectionId) && sectionEl) sectionEl.classList.add('hidden');
+        if (imgEl) imgEl.src = `https://placehold.co/1200x350?text=${encodeURIComponent(slot.placeholderText || 'Banner')}`;
+        if (linkEl) linkEl.href = slot.defaultHref || '#';
+        if (statusEl) statusEl.classList.remove('hidden');
+        updateSharedSectionsVisibility();
+      };
+
+      try {
+        let raw = cachedMap?.[slotId] || null;
+        if (!raw) raw = await getBannerBySlot(slotId);
+        if (!raw) return applyInactive();
+
+        const data = normalizeBannerData(slotId, raw);
+        if (!data.active) return applyInactive();
+
+        slotActive[slotId] = true;
+        setHiddenById(containerId, false);
+        if (sectionEl) sectionEl.classList.remove('hidden');
+        if (statusEl) statusEl.classList.add('hidden');
+        if (linkEl) linkEl.href = data.linkUrl || slot.defaultHref || '#';
+        if (imgEl && data.imageUrl) imgEl.src = data.imageUrl;
+        updateSharedSectionsVisibility();
+      } catch (err) {
+        console.error('[index] erro ao carregar banner', slotId, err);
+        applyInactive();
+      }
+    }
+
+    async function loadAllBanners() {
+      const indexData = await getIndexDataApi();
+      let cachedMap = null;
+      if (indexData) {
+        const list = unwrapArray(indexData.banners || indexData.bannerSlots || []);
+        if (list.length) {
+          cachedMap = {};
+          list.forEach(item => {
+            const key = String(item.slot || item.slotId || item.key || item.id || '').trim();
+            if (key) cachedMap[key] = item;
+          });
+        }
+      }
+      if (!cachedMap) {
+        const banners = await getBannersApi();
+        cachedMap = {};
+        banners.forEach(item => {
+          const key = String(item.slot || item.slotId || item.key || item.id || '').trim();
+          if (key) cachedMap[key] = item;
+        });
+      }
+      await Promise.all(Object.keys(bannerSlots).map(slotId => bindBannerSlot(slotId, cachedMap)));
+    }
+
+    const syncHeroBannerLayout = () => {
+      const main = document.getElementById('banner-link');
+      const side = document.getElementById('index-vertical-banner-link');
+      if (!main || !side) return;
+      const sideHidden = side.classList.contains('hidden');
+      main.classList.toggle('lg:col-span-3', !sideHidden);
+      main.classList.toggle('lg:col-span-4', sideHidden);
+      main.classList.toggle('hero-main-expanded', sideHidden);
+      side.classList.toggle('hero-side-hidden', sideHidden);
+    };
+
+    const initMiniBannersCarousel = () => {
+      const wrap = document.getElementById('mini-banners-carousel');
+      if (!wrap || miniCarouselBooted) return;
+      const originals = Array.from(wrap.querySelectorAll(':scope > a')).filter((el) => !el.classList.contains('hidden'));
+      if (originals.length <= 1) return;
+
+      miniCarouselBooted = true;
+      wrap.classList.remove('grid', 'grid-cols-2', 'sm:grid-cols-3', 'lg:grid-cols-5');
+      wrap.classList.add('is-carousel');
+
+      originals.forEach((card) => {
+        const clone = card.cloneNode(true);
+        clone.dataset.clone = 'true';
+        wrap.appendChild(clone);
+      });
+
+      const cards = Array.from(wrap.querySelectorAll(':scope > a'));
+      let currentIndex = 0;
+      let timer = null;
+      const scrollToCard = (index, behavior = 'smooth') => {
+        const card = cards[index];
+        if (!card) return;
+        wrap.scrollTo({ left: card.offsetLeft, behavior });
+      };
+      const start = () => {
+        if (timer) clearInterval(timer);
+        timer = window.setInterval(() => {
+          if (document.hidden) return;
+          currentIndex += 1;
+          scrollToCard(currentIndex);
+          if (currentIndex >= originals.length) {
+            window.setTimeout(() => {
+              currentIndex = 0;
+              scrollToCard(currentIndex, 'auto');
+            }, 450);
+          }
+        }, window.innerWidth <= 767 ? 3200 : 2800);
+      };
+      const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+      let resumeTimeout = null;
+      const pauseTemporarily = () => {
+        stop();
+        if (resumeTimeout) clearTimeout(resumeTimeout);
+        resumeTimeout = setTimeout(start, 5000);
+      };
+
+      wrap.addEventListener('mouseenter', stop);
+      wrap.addEventListener('mouseleave', start);
+      wrap.addEventListener('touchstart', pauseTemporarily, { passive: true });
+      wrap.addEventListener('touchmove', pauseTemporarily, { passive: true });
+      wrap.addEventListener('wheel', pauseTemporarily, { passive: true });
+      window.addEventListener('resize', () => {
+        currentIndex = 0;
+        scrollToCard(0, 'auto');
+        start();
+      });
+      start();
+    };
+
+    const loadCategories = async () => {
+      try {
+        const categories = (await getCategoriesApi()).map(normalizeCategory).filter(c => c.name || c.nome);
+        const allCategoriesDropdown = document.getElementById('all-categories-list');
+        if (!allCategoriesDropdown) return;
+        allCategoriesDropdown.innerHTML = '';
+        allCategoriesDropdown.innerHTML += `<a href="todos_produtos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">Todos os Produtos</a>`;
+        allCategoriesDropdown.innerHTML += `<a href="meus_pedidos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">Meus Pedidos</a>`;
+        allCategoriesDropdown.innerHTML += `<div class="border-t border-gray-200 my-1"></div>`;
+        categories.forEach(category => {
+          const categoryName = category.nome || category.name;
+          if (categoryName) {
+            allCategoriesDropdown.innerHTML += `
+              <a href="categoria.html?name=${encodeURIComponent(categoryName)}" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">
+                ${categoryName}
+              </a>`;
+          }
+        });
+      } catch (error) {
+        console.error("Erro ao carregar categorias:", error);
+      }
+    };
+
+    const loadClientAddress = async () => {
+      const addressElement = document.getElementById('client-address-display');
+      if (!addressElement) return;
+      const setText = (txt) => {
+        const addressSpan = addressElement.querySelector('span');
+        if (addressSpan) addressSpan.textContent = txt;
+      };
+      const localUser = getLocalLoggedUser();
+      const fallback = 'Selecione um endereço';
+      if (!localUser?.uid) {
+        const cached = String(localStorage.getItem('header_cityuf_cache') || '').trim();
+        setText(cached || fallback);
+        return;
+      }
+      try {
+        const userData = await getUserById(localUser.uid);
+        const addresses = userData?.addresses || userData?.addressesList || userData?.enderecos || userData?.address || null;
+        let addr = null;
+        if (Array.isArray(addresses)) {
+          addr = addresses.find(a => a?.isDefault || a?.default) || addresses[0] || null;
+        } else if (addresses && typeof addresses === 'object') {
+          addr = addresses;
+        } else if (userData && (userData.street || userData.rua || userData.city || userData.cidade)) {
+          addr = userData;
+        }
+        if (!addr) {
+          const cached = String(localStorage.getItem('header_cityuf_cache') || '').trim();
+          setText(cached || fallback);
+          return;
+        }
+        const street = addr.street || addr.rua || addr.logradouro || '';
+        const number = addr.number || addr.numero || '';
+        const neighborhood = addr.neighborhood || addr.bairro || '';
+        const city = addr.city || addr.cidade || '';
+        const state = addr.state || addr.uf || '';
+        const parts = [];
+        const line1 = [street, number].filter(Boolean).join(', ');
+        if (line1) parts.push(line1);
+        const line2 = [neighborhood, city].filter(Boolean).join(' - ');
+        if (line2) parts.push(line2);
+        if (state) parts.push(state);
+        const formatted = parts.filter(Boolean).join(' • ') || fallback;
+        setText(formatted);
+        localStorage.setItem('header_cityuf_cache', formatted);
+      } catch (error) {
+        console.error('Erro ao carregar endereço:', error);
+        setText(String(localStorage.getItem('header_cityuf_cache') || '').trim() || fallback);
+      }
+    };
+
+    const renderProductCard = (product) => {
+      const p = (typeof window.decorateProductWithPayments === 'function')
+        ? window.decorateProductWithPayments(product)
+        : product;
+      const basePrice = window.__toNumberBR(p.price ?? 0, 0);
+      const cash = p.__payments?.cash || null;
+      const card = p.__payments?.card || null;
+      const displayPrice = (cash && cash.enabled) ? window.__toNumberBR(cash.price ?? basePrice, basePrice) : basePrice;
+      const hasOldPrice = p.oldPrice && window.__toNumberBR(p.oldPrice, 0) > basePrice;
+      const oldPriceValue = hasOldPrice ? window.__toNumberBR(p.oldPrice, 0) : ((cash && cash.enabled && Number(cash.discountPercent || 0) > 0) ? basePrice : null);
+      const discountValue = hasOldPrice
+        ? Math.round(((window.__toNumberBR(p.oldPrice, 0) - basePrice) / window.__toNumberBR(p.oldPrice, 0)) * 100)
+        : (cash && cash.enabled ? Number(cash.discountPercent || 0) : 0);
+      const priceParts = window.formatPriceParts(displayPrice);
+      const oldPriceFormatted = oldPriceValue ? window.formatCurrency(oldPriceValue) : null;
+      const installmentsText = (card && card.enabled && card.text) ? card.text : 'em até 12x';
+
+      return `
+        <a href="produto.html?id=${p.id}" class="product-card">
+          <div class="product-image-container">
+            ${discountValue ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${discountValue}% OFF</span></div>` : ''}
+            <img src="${p.imageUrl}" alt="${p.name}" loading="lazy">
+          </div>
+          <div class="product-card-body">
+            <p class="product-name">${p.name}</p>
+            <div class="mt-auto">
+              ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
+              <div class="product-price">
+                <span class="currency">${priceParts.symbol}</span>
+                <span class="price-integer">${priceParts.integer}</span>
+                <span class="decimal-part">,${priceParts.decimal}</span>
+                <span class="cash-text">à vista</span>
+              </div>
+              <p class="product-installments">${installmentsText}</p>
+            </div>
+          </div>
+        </a>`;
+    };
+
+    const renderProductCards = (products, gridId) => {
+      const gridContainer = document.getElementById(gridId);
+      if (!gridContainer) return;
+      gridContainer.innerHTML = '';
+      if (!products.length) {
+        gridContainer.innerHTML = '<p class="col-span-full text-center text-lg text-gray-500 py-10">Nenhum produto encontrado neste segmento.</p>';
+        return;
+      }
+      products.forEach(p => { gridContainer.innerHTML += renderProductCard(p); });
+    };
+
+    const loadFeaturedProducts = () => {
+      const header = document.getElementById('search-results-header');
+      const flagged = allProducts.filter(p => p.isFeatured === true || (Array.isArray(p.homeSections) && p.homeSections.includes('featured')));
+      const pick = flagged.length ? flagged.slice(0, 20) : [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0)).slice(0, 20);
+      if (header) header.textContent = 'Produtos em Destaque';
+      renderProductCards(pick, 'featured-product-grid');
+    };
+
+    const loadOffers = () => {
+      const section = document.getElementById('offers-section');
+      if (!section) return;
+      const products = allProducts.filter(p => p.isOffer);
+      if (products.length) { renderProductCards(products, 'offers-product-grid'); section.classList.remove('hidden'); }
+      else section.classList.add('hidden');
+    };
+
+    const loadBestSellers = () => {
+      const section = document.getElementById('best-sellers-section');
+      if (!section) return;
+      const products = allProducts.filter(p => p.isBestSeller);
+      if (products.length) { renderProductCards(products, 'best-sellers-grid'); section.classList.remove('hidden'); }
+      else section.classList.add('hidden');
+    };
+
+    const loadRecommended = () => {
+      const section = document.getElementById('recommended-section');
+      if (!section) return;
+      const flagged = allProducts.filter(p => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')));
+      const pick = flagged.length ? flagged.slice(0, 20) : [...allProducts].filter(p => !p.isOffer && !p.isBestSeller).sort((a, b) => (b._ts || 0) - (a._ts || 0)).slice(0, 20);
+      if (pick.length) { renderProductCards(pick, 'recommended-grid'); section.classList.remove('hidden'); }
+      else section.classList.add('hidden');
+    };
+
+    const loadNewArrivals = () => {
+      const section = document.getElementById('new-arrivals-section');
+      if (!section) return;
+      const flagged = allProducts.filter(p => p.isNew === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')));
+      const pick = flagged.length ? flagged.slice(0, 20) : [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0)).slice(0, 20);
+      if (pick.length) { renderProductCards(pick, 'new-arrivals-grid'); section.classList.remove('hidden'); }
+      else section.classList.add('hidden');
+    };
+
+    const loadMoreProducts = () => {
+      const section = document.getElementById('more-products-section');
+      if (!section) return;
+      const usedIds = new Set();
+      const markUsed = (list) => list.forEach(p => usedIds.add(p.id));
+      markUsed(allProducts.filter(p => p.isOffer));
+      markUsed(allProducts.filter(p => p.isBestSeller));
+      markUsed(allProducts.filter(p => p.isNew));
+      markUsed(allProducts.filter(p => p.isRecommended));
+      markUsed(allProducts.filter(p => p.isFeatured));
+      const pick = [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0)).filter(p => !usedIds.has(p.id)).slice(0, 20);
+      if (pick.length) { renderProductCards(pick, 'more-products-grid'); section.classList.remove('hidden'); }
+      else section.classList.add('hidden');
+    };
+
+    const loadProducts = async () => {
+      const loadingContainer = document.getElementById('loading-container');
+      const productGrid = document.getElementById('featured-product-grid');
+      try {
+        if (loadingContainer) loadingContainer.classList.remove('hidden');
+        if (productGrid) productGrid.innerHTML = '';
+        const indexData = await getIndexDataApi();
+        let rawProducts = unwrapArray(indexData?.products || []);
+        if (!rawProducts.length) rawProducts = await getProductsApi();
+        allProducts = rawProducts.map(normalizeProduct);
+        loadFeaturedProducts();
+        loadOffers();
+        loadBestSellers();
+        loadRecommended();
+        loadNewArrivals();
+        loadMoreProducts();
+      } catch (error) {
+        console.error("Erro ao carregar produtos:", error);
+        if (productGrid) productGrid.innerHTML = `<p class="col-span-full text-center text-lg text-red-500 py-10">❌ Erro ao carregar produtos: ${error.message}</p>`;
+        window.displayMessage(`Erro ao carregar produtos: ${error.message}`, 'error');
+      } finally {
+        if (loadingContainer) loadingContainer.classList.add('hidden');
+      }
+    };
+
+    async function waitPaymentsHelpersReady(timeoutMs = 12000) {
+      const ready = () => typeof window.decorateProductWithPayments === 'function' || typeof window.createProductCard === 'function';
+      if (ready()) return true;
+      const startedAt = Date.now();
+      return new Promise((resolve) => {
+        const tick = () => {
+          if (ready()) return resolve(true);
+          if ((Date.now() - startedAt) >= timeoutMs) return resolve(false);
+          setTimeout(tick, 80);
+        };
+        tick();
+      });
+    }
+
+    async function loadHomeProductsWhenReady() {
+      if (__homeProductsBooted) return;
+      __homeProductsBooted = true;
+      await waitPaymentsHelpersReady();
+      await loadProducts();
+      loadCartCounter();
+    }
+
+    window.loadData = async () => {
+      if (!__homeDataBooted) {
+        __homeDataBooted = true;
+        window.updateBranding(window.BRAND_NAME);
+        updateClientStatusUI();
+        await loadClientAddress();
+        await loadAllBanners();
+        syncHeroBannerLayout();
+        initMiniBannersCarousel();
+        await loadCategories();
+      }
+      await loadHomeProductsWhenReady();
+    };
+
+    window.toggleCategoryDropdown = () => {
+      const categoriesDropdown = document.getElementById('category-dropdown');
+      const categoryIcon = document.getElementById('category-icon');
+      if (!categoriesDropdown) return;
+      const isHidden = categoriesDropdown.classList.contains('hidden');
+      if (isHidden) {
+        categoriesDropdown.classList.remove('hidden');
+        categoriesDropdown.offsetHeight;
+        categoriesDropdown.classList.add('dropdown-open');
+        categoriesDropdown.setAttribute('aria-expanded', 'true');
+        if (categoryIcon) categoryIcon.classList.add('rotate-180');
+      } else {
+        categoriesDropdown.classList.remove('dropdown-open');
+        categoriesDropdown.setAttribute('aria-expanded', 'false');
+        if (categoryIcon) categoryIcon.classList.remove('rotate-180');
+        setTimeout(() => categoriesDropdown.classList.add('hidden'), 300);
+      }
+    };
+
+    window.toggleMobileMenu = () => {
+      const mobileMenu = document.getElementById('mobile-menu');
+      if (!mobileMenu) return;
+      mobileMenu.classList.toggle('hidden');
+    };
+
+    window.applySearchFilter = (eventOrQuery) => {
+      if (eventOrQuery && typeof eventOrQuery.preventDefault === 'function') eventOrQuery.preventDefault();
+      const desktopInput = document.getElementById('search-input-desktop');
+      const mobileInput = document.getElementById('search-input-mobile');
+      if (typeof eventOrQuery === 'string') {
+        const q = eventOrQuery.trim();
+        if (q) window.location.href = `todos_produtos.html?q=${encodeURIComponent(q)}`;
+        else window.displayMessage('Por favor, digite um termo para buscar.', 'info');
+        return;
+      }
+      let q = '';
+      const target = eventOrQuery && eventOrQuery.target ? eventOrQuery.target : null;
+      if (target && target.tagName === 'FORM') {
+        const input = target.querySelector('input[type="search"]');
+        if (input) q = input.value || '';
+      } else {
+        q = (desktopInput?.value || mobileInput?.value || '');
+      }
+      q = (q || '').trim();
+      if (q) window.location.href = `todos_produtos.html?q=${encodeURIComponent(q)}`;
+      else window.displayMessage('Por favor, digite um termo para buscar.', 'info');
+    };
+
+    window.checkAuthAndInit = async () => {
+      try {
+        syncPseudoAuthFromStorage();
+        exposeCompatApiHelpers();
+        await window.loadData();
+      } catch (error) {
+        console.error("Erro na inicialização da página:", error);
+        window.displayMessage(`Erro na inicialização: ${error.message}`, 'error');
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const categoriesButton = document.getElementById('category-dropdown-btn');
+      const categoriesDropdown = document.getElementById('category-dropdown');
+      document.addEventListener('click', (event) => {
+        if (!categoriesDropdown || !categoriesButton) return;
+        const isVisible = !categoriesDropdown.classList.contains('hidden');
+        const clickedOutside = !categoriesButton.contains(event.target) && !categoriesDropdown.contains(event.target);
+        if (isVisible && clickedOutside) {
+          categoriesDropdown.classList.remove('dropdown-open');
+          categoriesDropdown.setAttribute('aria-expanded', 'false');
+          const categoryIcon = document.getElementById('category-icon');
+          if (categoryIcon) categoryIcon.classList.remove('rotate-180');
+          setTimeout(() => categoriesDropdown.classList.add('hidden'), 300);
+        }
+      });
+
+      window.addEventListener('storage', () => {
+        syncPseudoAuthFromStorage();
+        updateClientStatusUI();
+        loadCartCounter();
+      });
+
+      window.checkAuthAndInit();
+    });
+  </script>
+
+  
+  <script>
+    // Garante que qualquer link para login/cadastro a partir do INDEX volte para o INDEX
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('a[href*="login_cadastro.html"]').forEach(a => {
+        try {
+          const url = new URL(a.getAttribute('href'), window.location.href);
+          if (!url.searchParams.get('redirect')) {
+            url.searchParams.set('redirect', 'index.html');
+            a.setAttribute('href', url.pathname + '?' + url.searchParams.toString());
+          }
+        } catch {}
+      });
+    });
+  </script>
+<script>
+  // Ajusta automaticamente o "fit" (contain/cover) + aplica fundo blur, para nunca ficar com sobras feias.
+  function applyBannerSmartFit() {
+    const frames = document.querySelectorAll('.banner-frame');
+    frames.forEach(frame => {
+      const img = frame.querySelector('img');
+      if (!img) return;
+
+      const getTargetRatio = () => {
+        if (frame.classList.contains('banner-1x1')) return 1;
+        // padrão 4x1 (1600x400, 1920x480 etc)
+        return 4;
+      };
+
+      const setBg = () => {
+        const src = img.currentSrc || img.src;
+        if (src) frame.style.setProperty('--banner-bg', `url("${src}")`);
+      };
+
+      const setFit = () => {
+        const w = img.naturalWidth || 0;
+        const h = img.naturalHeight || 0;
+        if (!w || !h) return;
+
+        const ratio = w / h;
+        const target = getTargetRatio();
+        const diff = Math.abs(ratio - target) / target;
+
+        // Se a imagem já bate com a proporção do quadro, usa CONTAIN (zero corte).
+        // Se não bater, usa COVER (preenche o quadro sem sobras).
+        const shouldContain = diff <= 0.03; // ~3% de tolerância
+
+        img.classList.remove('banner-fit-contain', 'banner-fit-cover');
+        img.classList.add(shouldContain ? 'banner-fit-contain' : 'banner-fit-cover');
+
+        setBg();
+      };
+
+      if (img.complete) setFit();
+      img.addEventListener('load', setFit);
+      img.addEventListener('error', () => frame.style.removeProperty('--banner-bg'));
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', applyBannerSmartFit);
+
+  </script>
+
+   <script src="header.js" defer></script>
+
+<script>
+  (function() {
+    const check = () => {
+      if (window.carregarHeader && window.db) { window.carregarHeader(); }
+      else { setTimeout(check, 100); }
+    };
+    check();
+  })();
+</script>
+<script src="./marketplace-core.js"></script>
+<script src="./footer.js"></script>
+
+<script src="js/header_auth_fix.js" defer></script>
+
+<script>
+window.addEventListener('load', () => {
+  try {
+    syncHeroBannerLayout();
+    initMiniBannersCarousel();
+  } catch (e) {
+    console.error('Erro ao iniciar carrossel/layout dos banners:', e);
+  }
+});
+</script>
+<script src="marketplace-core.js"></script>
+<script src="marketplace-core_global_payments.js"></script>
+
+ <script src="js/layout-fit.js" defer></script>
+
+</body>
+</html>
