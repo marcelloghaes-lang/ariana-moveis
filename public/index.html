@@ -571,11 +571,14 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
  
   </main>
 
+  
+  <script src="firebase-config.js"></script>
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
-    import { getFirestore, doc, onSnapshot, collection, query, limit, getDocs, getDoc, where, orderBy, setLogLevel } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
-    import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-storage.js";
+    const {
+      initializeApp, getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
+      setPersistence, browserLocalPersistence, getFirestore, doc, onSnapshot, collection,
+      query, limit, getDocs, getDoc, where, orderBy, setLogLevel, getStorage, storageRef, getDownloadURL
+    } = window;
 
     const firebaseConfig = {
     apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",

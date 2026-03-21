@@ -73,86 +73,244 @@
   </div>
 </div>
 </main></div>
-<script type="module">
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+<script>
+  const API_BASE = window.API_BASE || window.API_URL || localStorage.getItem('apiBaseUrl') || 'http://localhost:3000/api';
+  const $ = (id) => document.getElementById(id);
+
+  const state = {
+    seller: null,
+    order: null,
+    orderId: new URLSearchParams(location.search).get('id')
+  };
+
+  function toast(message, type='info') {
+    const c = $('toast-container');
+    if (!c) return alert(message);
+    const el = document.createElement('div');
+    const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    el.textContent = message;
+    c.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 300);
+    }, 3400);
+  }
+
+  function brl(v) {
+    return Number(v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
+
+  function num(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function dt(v) {
+    if (!v) return '—';
+    try {
+      return new Date(v).toLocaleString('pt-BR');
+    } catch {
+      return '—';
     }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
+  }
+
+  function statusClass(st='') {
+    st = String(st).toLowerCase();
+    if (['approved','paid','delivered','aprovado','enviado','shipped'].includes(st)) return 'bg-green-100 text-green-700';
+    if (['pending','pending_payment','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700';
+    if (['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-700';
+  }
+
+  function getSellerToken() {
+    return localStorage.getItem('seller_token') || '';
+  }
+
+  function getSellerProfile() {
+    try {
+      return JSON.parse(localStorage.getItem('seller_profile') || '{}');
+    } catch {
+      return {};
     }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
-      return seller;
-    }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
+  }
+
+  async function apiFetch(path, options = {}) {
+    const token = getSellerToken();
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
       }
-      return [];
+    });
+
+    const text = await response.text();
+    let data = null;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
     }
 
-const sidebar = $('sidebar'); $('sidebar-toggle')?.addEventListener('click', ()=> sidebar.classList.toggle('-translate-x-full'));
-$('btn-sair')?.addEventListener('click', async (e)=>{ e.preventDefault(); try{ await signOut(auth);}catch{} window.location.href='seller_login.html';});
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { window.location.href = 'seller_login.html'; return; }
-  try {
-    const seller = await getSeller(user.uid);
-    if (!seller) throw new Error('Conta seller não encontrada.');
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || 'Seller'}!`;
-  } catch (e) { toast(e.message || 'Erro ao validar seller.', 'error'); setTimeout(()=>window.location.href='seller_login.html', 1000); }
-});
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
+    }
 
-const params = new URLSearchParams(location.search); const orderId = params.get('id'); let orderData = null;
-function fillOrder(data, uid){ const myItems = getMyItems(data, uid); $('order-id').textContent = data.id || orderId || '—'; $('order-date').textContent = dt(data.createdAt||data.updatedAt); $('order-status').textContent = data.status || '—'; $('order-status').className = 'pill ' + statusClass(data.status); $('items-count').textContent = `${myItems.length} item(ns)`; $('subtotal').textContent = brl(getMyOrderTotal(data, uid)); $('ship-link').href = `seller_pedido_enviar.html?id=${data.id||orderId}`;
-  $('items-list').innerHTML = myItems.length ? myItems.map(it => `<div class="flex items-center gap-4 p-4 rounded-2xl border border-soft bg-slate-50"><div class="w-14 h-14 rounded-2xl overflow-hidden bg-white border border-soft flex items-center justify-center">${(it.image || it.imageUrl || it.images?.[0]) ? `<img src="${it.image || it.imageUrl || it.images?.[0]}" class="w-full h-full object-cover">` : '<i class="fas fa-image muted"></i>'}</div><div class="flex-1"><div class="font-black text-dark-bg">${it.name || 'Item'}</div><div class="muted text-xs mt-1">${num(it.quantity||1)} × ${brl(it.price)} = <span class="font-bold">${brl(num(it.quantity||1)*num(it.price))}</span></div></div></div>`).join('') : '<div class="muted">Nenhum item desta loja encontrado.</div>';
-  const pay=data.payment||{}; $('payment').textContent = pay.provider || pay.type || '—'; $('payment-status').textContent = pay.mpStatus || pay.status ? `Status: ${pay.mpStatus || pay.status}` : ''; $('tracking-view').textContent = data.trackingCode || '—'; $('buyer').textContent = data.customer?.name || data.buyer?.name || data.shipping?.name || '—'; $('buyer-email').textContent = data.customer?.email || data.buyer?.email || '—'; $('address').textContent = [data.shippingAddress?.street, data.shippingAddress?.number, data.shippingAddress?.district, data.shippingAddress?.city, data.shippingAddress?.state, data.shippingAddress?.zip].filter(Boolean).join(', ') || '—'; $('status-select').value = data.status || 'processing'; }
-onAuthStateChanged(auth, async (user)=>{ if(!user) return; try { await requireApprovedSeller(user.uid); if(!orderId) throw new Error('ID do pedido ausente.'); const snap = await getDoc(doc(db,'orders',orderId)); if(!snap.exists()) throw new Error('Pedido não encontrado.'); orderData = {id:snap.id, ...snap.data()}; if(!orderBelongsToSeller(orderData, user.uid)) throw new Error('Pedido não pertence a esta loja.'); fillOrder(orderData, user.uid); } catch(e){ console.error(e); toast(e.message||'Erro ao carregar pedido.','error'); } });
-$('btn-save-status').addEventListener('click', async ()=>{ const user=auth.currentUser; if(!user||!orderId||!orderData) return; try { await updateDoc(doc(db,'orders',orderId), { status:$('status-select').value, updatedAt:serverTimestamp() }); toast('Status atualizado.','success'); orderData.status = $('status-select').value; fillOrder(orderData, user.uid); } catch(e){ console.error(e); toast('Erro ao atualizar status.','error'); } });
+    return data;
+  }
 
+  async function ensureSellerSession() {
+    const profile = getSellerProfile();
+    const token = getSellerToken();
+
+    if (!token) {
+      window.location.href = 'seller_login.html';
+      throw new Error('Sessão expirada.');
+    }
+
+    try {
+      const me = await apiFetch('/seller/me');
+      state.seller = me?.seller || me?.data || me || profile;
+      return state.seller;
+    } catch (e) {
+      if (profile && (profile.id || profile._id || profile.uid)) {
+        state.seller = profile;
+        return profile;
+      }
+      window.location.href = 'seller_login.html';
+      throw e;
+    }
+  }
+
+  function itemBelongsToSeller(item, seller) {
+    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
+    return String(item?.sellerId || item?.sellerUid || '') === sellerId;
+  }
+
+  function orderBelongsToSeller(order, seller) {
+    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
+    if (String(order?.sellerId || order?.sellerUid || '') === sellerId) return true;
+    return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, seller));
+  }
+
+  function getMyItems(order, seller) {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
+    if (String(order?.sellerId || order?.sellerUid || '') === sellerId) return items;
+    return items.filter(it => String(it?.sellerId || it?.sellerUid || '') === sellerId);
+  }
+
+  function getMyOrderTotal(order, seller) {
+    return getMyItems(order, seller).reduce((acc, it) => acc + num(it?.price) * Math.max(1, num(it?.quantity || 1)), 0);
+  }
+
+  function fillOrder(data, seller) {
+    const myItems = getMyItems(data, seller);
+
+    $('order-id').textContent = data.id || data._id || state.orderId || '—';
+    $('order-date').textContent = dt(data.createdAt || data.updatedAt || data.date);
+    $('order-status').textContent = data.status || '—';
+    $('order-status').className = 'pill ' + statusClass(data.status);
+    $('items-count').textContent = `${myItems.length} item(ns)`;
+    $('subtotal').textContent = brl(getMyOrderTotal(data, seller));
+    $('ship-link').href = `seller_pedido_enviar.html?id=${encodeURIComponent(data.id || data._id || state.orderId)}`;
+
+    $('items-list').innerHTML = myItems.length
+      ? myItems.map(it => `
+        <div class="flex items-center gap-4 p-4 rounded-2xl border border-soft bg-slate-50">
+          <div class="w-14 h-14 rounded-2xl overflow-hidden bg-white border border-soft flex items-center justify-center">
+            ${(it.image || it.imageUrl || it.images?.[0]) ? `<img src="${it.image || it.imageUrl || it.images?.[0]}" class="w-full h-full object-cover">` : '<i class="fas fa-image muted"></i>'}
+          </div>
+          <div class="flex-1">
+            <div class="font-black text-dark-bg">${it.name || 'Item'}</div>
+            <div class="muted text-xs mt-1">${num(it.quantity || 1)} × ${brl(it.price)} = <span class="font-bold">${brl(num(it.quantity || 1) * num(it.price))}</span></div>
+          </div>
+        </div>
+      `).join('')
+      : '<div class="muted">Nenhum item desta loja encontrado.</div>';
+
+    const pay = data.payment || {};
+    $('payment').textContent = pay.provider || pay.type || pay.method || '—';
+    $('payment-status').textContent = pay.mpStatus || pay.status ? `Status: ${pay.mpStatus || pay.status}` : '';
+    $('tracking-view').textContent = data.trackingCode || '—';
+    $('buyer').textContent = data.customer?.name || data.buyer?.name || data.shipping?.name || '—';
+    $('buyer-email').textContent = data.customer?.email || data.buyer?.email || '—';
+
+    const addr = data.shippingAddress || data.address || {};
+    $('address').textContent = [
+      addr.street || addr.rua,
+      addr.number || addr.numero,
+      addr.district || addr.bairro,
+      addr.city || addr.cidade,
+      addr.state || addr.estado,
+      addr.zip || addr.cep
+    ].filter(Boolean).join(', ') || '—';
+
+    $('status-select').value = data.status || 'processing';
+  }
+
+  async function loadOrder() {
+    if (!state.orderId) {
+      toast('ID do pedido ausente.', 'error');
+      return;
+    }
+
+    try {
+      await ensureSellerSession();
+
+      const data = await apiFetch(`/seller/orders/${encodeURIComponent(state.orderId)}`);
+      const order = data?.order || data?.data || data;
+
+      if (!order) throw new Error('Pedido não encontrado.');
+      if (!orderBelongsToSeller(order, state.seller)) throw new Error('Pedido não pertence a esta loja.');
+
+      state.order = order;
+      fillOrder(order, state.seller);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'Erro ao carregar pedido.', 'error');
+    }
+  }
+
+  $('btn-save-status').addEventListener('click', async () => {
+    if (!state.orderId || !state.order) return;
+
+    try {
+      const payload = { status: $('status-select').value };
+      const data = await apiFetch(`/seller/orders/${encodeURIComponent(state.orderId)}/status`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      const updated = data?.order || data?.data || { ...state.order, status: payload.status };
+      state.order = { ...state.order, ...updated, status: payload.status };
+      fillOrder(state.order, state.seller);
+      toast('Status atualizado.', 'success');
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'Erro ao atualizar status.', 'error');
+    }
+  });
+
+  const sidebar = $('sidebar');
+  $('sidebar-toggle')?.addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
+
+  $('btn-sair')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    localStorage.removeItem('seller_token');
+    localStorage.removeItem('seller_profile');
+    window.location.href = 'seller_login.html';
+  });
+
+  (async () => {
+    const profile = getSellerProfile();
+    $('user-display-name').textContent = `Bem-vindo, ${profile.factoryName || profile.storeName || profile.name || profile.email || 'Seller'}!`;
+    await loadOrder();
+  })();
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body></html>

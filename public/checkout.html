@@ -1,1471 +1,1358 @@
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+  <title>Checkout | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="css/tailwind.min.css">
+
+  <style>
+    .card {
+      background: #fff;
+      border: 1px solid #f0f0f0;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+      padding: 1.5rem;
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 900;
+      margin-bottom: .4rem;
+      color: #111827;
+    }
+    .card-subtitle {
+      font-size: 1rem;
+      font-weight: 800;
+      margin-bottom: .75rem;
+      color: #111827;
+    }
+    .muted {
+      color: #6b7280;
+      font-size: .92rem;
+    }
+    .totals-grid {
+      display: grid;
+      gap: .75rem;
+      margin-top: 1rem;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      font-size: .95rem;
+      color: #374151;
+    }
+    .totals-row.total {
+      font-size: 1.125rem;
+      font-weight: 900;
+      color: #2E6DA4;
+      padding-top: .4rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      gap: .75rem;
+      margin-top: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: none;
+      border-radius: .9rem;
+      font-weight: 800;
+      padding: .95rem 1.2rem;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+    .btn-primary {
+      background: #2E6DA4;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      filter: brightness(.95);
+    }
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #111827;
+    }
+    .btn-secondary:hover {
+      background: #e5e7eb;
+    }
+    .pay-grid {
+      display: grid;
+      gap: .75rem;
+      margin-top: 1rem;
+    }
+    .pay-method {
+      display: block;
+      border: 1px solid #e5e7eb;
+      border-radius: 1rem;
+      padding: 1rem;
+      cursor: pointer;
+      transition: .2s ease;
+      background: #fff;
+    }
+    .pay-method:hover {
+      border-color: #2E6DA4;
+      box-shadow: 0 1px 6px rgba(46,109,164,.08);
+    }
+    .pay-method input {
+      display: none;
+    }
+    .pay-method.active {
+      border-color: #2E6DA4;
+      background: #eff6ff;
+    }
+    .pay-method-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    .pay-title {
+      font-weight: 900;
+      color: #111827;
+    }
+    .pay-desc {
+      color: #6b7280;
+      font-size: .9rem;
+      margin-top: .15rem;
+    }
+    .divider {
+      margin: 1rem 0;
+      border: none;
+      border-top: 1px solid #e5e7eb;
+    }
+    .resumo-list {
+      display: grid;
+      gap: .7rem;
+    }
+    .resumo-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: .75rem;
+      font-size: .85rem;
+      color: #374151;
+      border-bottom: 1px dashed #eee;
+      padding-bottom: .5rem;
+    }
+    .addr-card {
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      padding: 1rem 1.25rem;
+      border-radius: 1rem;
+      cursor: pointer;
+      transition: all .2s ease;
+      position: relative;
+    }
+    .addr-card:hover {
+      border-color: #2E6DA4;
+      box-shadow: 0 1px 6px rgba(46,109,164,.08);
+    }
+    .addr-card.active {
+      border-color: #2E6DA4;
+      background: #eff6ff;
+    }
+  </style>
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
-<div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(248,248,248,.92);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:#2E6DA4;font-weight:800;">Carregando...</div>
-<header class="bg-primary-blue text-white p-4 shadow-md">
-<div class="container mx-auto flex justify-between items-center">
-<a class="text-2xl font-bold tracking-tighter italic" href="index.html">ARIANA MOVEIS</a>
-<div class="flex items-center space-x-4">
-<i class="fas fa-lock text-sm opacity-70"></i>
-<span class="text-xs font-bold uppercase tracking-widest">Checkout Seguro</span>
-</div>
-</div>
-</header>
-<main class="container mx-auto p-4 md:p-8 max-w-6xl">
-<div class="flex justify-between items-center max-w-2xl mx-auto mb-10">
-<div class="text-center flex-1">
-<div class="w-8 h-8 bg-primary-blue text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-1">1</div>
-<span class="text-[10px] font-black uppercase">Entrega</span>
-</div>
-<div class="h-1 bg-gray-200 flex-1 mb-6"></div>
-<div class="text-center flex-1">
-<div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-2">2</div>
-<span class="text-[10px] font-black uppercase text-gray-400">Pagamento</span>
-</div>
-<div class="h-1 bg-gray-200 flex-1 mb-6"></div>
-<div class="text-center flex-1">
-<div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-3">3</div>
-<span class="text-[10px] font-black uppercase text-gray-400">Fim</span>
-</div>
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-<div class="lg:col-span-7 space-y-6">
-<section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100" id="step-1">
-<div class="flex justify-between items-center mb-6">
-<h2 class="text-xl font-black">Endereço de entrega</h2>
-<a class="text-blue-600 underline" href="minha_conta.html?tab=address&amp;from=checkout">
-                             Novo endereço
-                        </a>
-</div>
-<div class="text-sm text-gray-500 -mt-4 mb-6">Selecione onde você quer receber seu pedido.</div>
-<div class="grid grid-cols-1 gap-3" id="address-options">
-</div>
-<div class="mt-8 flex justify-end">
-<button class="bg-primary-blue text-white px-10 py-3 rounded-xl font-bold opacity-50 cursor-not-allowed transition-all" disabled="" id="btn-next-1" type="button">
-                            Ir para pagamento <i class="fas fa-arrow-right ml-2"></i>
-</button>
-</div>
-</section>
-<section class="hidden" id="step-2">
-<div class="card">
-<h2 class="card-title">Resumo e frete</h2>
-<p class="muted">Confira os valores antes de ir para o pagamento.</p>
-<div class="totals-grid">
-<div class="totals-row"><span>Produtos</span><strong id="products-total">R$ 0,00</strong></div>
-<div class="totals-row"><span>Frete</span><strong id="shipping-price">R$ 0,00</strong></div>
-<div class="totals-row total"><span>Total</span><strong id="total-geral">R$ 0,00</strong></div>
-</div>
-<div class="actions">
-<button class="btn btn-secondary" id="btn-back-2" type="button">Voltar</button>
-<button class="btn btn-primary" id="btn-next-2" type="button">Continuar</button>
-</div>
-</div>
-</section>
+  <div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(248,248,248,.92);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:#2E6DA4;font-weight:800;">
+    Carregando...
+  </div>
 
-<section class="hidden" id="step-3">
-<div class="card">
-<h2 class="card-title">Forma de pagamento</h2>
-<p class="muted">Escolha como deseja pagar. Você será redirecionado para <strong>pagamento.html</strong>.</p>
-<div class="pay-grid">
-<label class="pay-method" id="label-pix">
-<input checked="" name="pay" type="radio" value="pix"/>
-<div class="pay-method-body">
-<div class="pay-title">Pix</div>
-<div class="pay-desc">Aprovação rápida</div>
-</div>
-</label>
-<label class="pay-method" id="label-card">
-<input name="pay" type="radio" value="card"/>
-<div class="pay-method-body">
-<div class="pay-title">Cartão</div>
-<div class="pay-desc">Parcelamento no pagamento</div>
-</div>
-</label>
-<label class="pay-method" id="label-boleto">
-<input name="pay" type="radio" value="boleto"/>
-<div class="pay-method-body">
-<div class="pay-title">Boleto</div>
-<div class="pay-desc">Compensação bancária</div>
-</div>
-</label>
-</div>
-<hr class="divider"/>
-<h3 class="card-subtitle">Itens do pedido</h3>
-<div class="muted" id="resumo-end" style="margin-bottom:10px;"></div>
-<div class="resumo-list" id="lista-resumo"></div>
-<div class="totals-grid" style="margin-top:12px;">
-<div class="totals-row total"><span>Total</span><strong id="resumo-total">R$ 0,00</strong></div>
-</div>
-<div class="actions">
-<button class="btn btn-secondary" id="btn-back-3" type="button">Voltar</button>
-<button class="btn btn-primary" id="btn-pay" type="button">Ir para pagamento</button>
-</div>
-</div>
-</section>
+  <header class="bg-primary-blue text-white p-4 shadow-md">
+    <div class="container mx-auto flex justify-between items-center">
+      <a class="text-2xl font-bold tracking-tighter italic" href="index.html">ARIANA MOVEIS</a>
+      <div class="flex items-center space-x-4">
+        <i class="fas fa-lock text-sm opacity-70"></i>
+        <span class="text-xs font-bold uppercase tracking-widest">Checkout Seguro</span>
+      </div>
+    </div>
+  </header>
 
-<section class="hidden text-center py-16 bg-white rounded-2xl shadow-sm" id="step-4">
-<i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
-<h2 class="text-3xl font-black">Pedido criado!</h2>
-<p class="text-gray-500 mb-6" id="step4-subtitle">Seu pedido foi recebido.</p>
-<!-- Resultado de pagamento (PIX / BOLETO) -->
-<div class="hidden max-w-2xl mx-auto text-left p-5 rounded-2xl border border-gray-200 bg-gray-50" id="payment-result">
-<p class="font-bold mb-2" id="payment-result-title">Pagamento</p>
-<div class="hidden" id="boleto-result">
-<p class="text-sm text-gray-600 mb-3">Boleto gerado com sucesso. Você pode abrir o boleto e copiar a linha digitável.</p>
-<div class="grid md:grid-cols-2 gap-3">
-<div>
-<label class="text-sm font-semibold">Linha digitável</label>
-<div class="flex gap-2 mt-1">
-<input class="flex-1 p-3 rounded-lg border border-gray-300 bg-white" id="boleto-digitable" readonly="" type="text"/>
-<button class="px-4 py-3 rounded-lg bg-gray-900 text-white font-bold" id="btn-copy-digitable">Copiar</button>
-</div>
-</div>
-<div>
-<label class="text-sm font-semibold">Link do boleto</label>
-<a class="block mt-1 p-3 rounded-lg border border-gray-300 bg-white text-primary-blue font-bold" href="#" id="boleto-link" target="_blank">
-            Abrir boleto
-          </a>
-</div>
-</div>
-<p class="text-xs text-gray-500 mt-3">ID do pagamento: <span id="boleto-payment-id"></span></p>
-</div>
-<div class="hidden" id="pix-result">
-<p class="text-sm text-gray-600 mb-3">PIX gerado. Use o QR Code para pagar.</p>
-<div class="flex flex-col md:flex-row gap-4 items-start">
-<img alt="QR Code PIX" class="w-56 h-56 rounded-xl border border-gray-200 bg-white object-contain" id="pix-qr-img"/>
-<div class="flex-1">
-<label class="text-sm font-semibold">Copia e cola</label>
-<div class="flex gap-2 mt-1">
-<textarea class="flex-1 p-3 rounded-lg border border-gray-300 bg-white" id="pix-copy" readonly="" rows="4"></textarea>
-<button class="px-4 py-3 rounded-lg bg-gray-900 text-white font-bold" id="btn-copy-pix">Copiar</button>
-</div>
-<p class="text-xs text-gray-500 mt-2">ID do pagamento: <span id="pix-payment-id"></span></p>
-</div>
-</div>
-</div>
-</div>
-<div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-<a class="bg-primary-blue text-white px-8 py-3 rounded-xl font-bold text-center" href="minha_conta.html">Ver Meus Pedidos</a>
-<a class="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold text-center" href="index.html">Voltar para a loja</a>
-</div>
-</section>
-</div>
-<div class="lg:col-span-5">
-<div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-4">
-<h3 class="font-black text-lg mb-4 border-b pb-2">Resumo do pedido</h3>
-<div class="space-y-3 mb-4 max-h-60 overflow-y-auto pr-2" id="lista-resumo"></div>
-<div class="border-t pt-4 space-y-2">
-<div class="flex justify-between text-gray-500"><span>Produtos</span><span id="products-total">R$ 0,00</span></div>
-<div class="flex justify-between text-gray-500"><span>Frete</span><span class="text-gray-700 font-bold" id="shipping-price">A calcular</span></div>
-<div class="flex justify-between text-xl font-black text-primary-blue"><span>Total</span><span id="total-geral">R$ 0,00</span></div>
-</div>
-</div>
-</div>
-</div>
-</main>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-  import { getFirestore,
-    collection,
-    addDoc, setDoc,
-    getDocs,
-    doc,
-    getDoc,
-    query,
-    orderBy,
-    serverTimestamp,
-    updateDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+  <main class="container mx-auto p-4 md:p-8 max-w-6xl">
+    <div class="flex justify-between items-center max-w-2xl mx-auto mb-10">
+      <div class="text-center flex-1">
+        <div class="w-8 h-8 bg-primary-blue text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-1">1</div>
+        <span class="text-[10px] font-black uppercase">Entrega</span>
+      </div>
+      <div class="h-1 bg-gray-200 flex-1 mb-6"></div>
+      <div class="text-center flex-1">
+        <div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-2">2</div>
+        <span class="text-[10px] font-black uppercase text-gray-400">Pagamento</span>
+      </div>
+      <div class="h-1 bg-gray-200 flex-1 mb-6"></div>
+      <div class="text-center flex-1">
+        <div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-3">3</div>
+        <span class="text-[10px] font-black uppercase text-gray-400">Fim</span>
+      </div>
+    </div>
 
-  
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-7 space-y-6">
 
-// =========================================================
-// MODO SEGURO DE CUSTO - evita chamadas automáticas ao backend
-// Ative manualmente no navegador se precisar testar integrações:
-// localStorage.setItem('ENABLE_REMOTE_SHIPPING_API','true')
-// localStorage.setItem('ENABLE_FIRESTORE_SETTINGS','true')
-// localStorage.setItem('ENABLE_PRODUCT_RECOMMENDATIONS','true')
-// localStorage.setItem('ENABLE_PRODUCT_SHIPPING_FETCH','true')
-// =========================================================
-const COST_SAFE_FLAGS = {
-  enableRemoteShippingApi: localStorage.getItem('ENABLE_REMOTE_SHIPPING_API') === 'true',
-  enableFirestoreSettings: localStorage.getItem('ENABLE_FIRESTORE_SETTINGS') === 'true',
-  enableProductRecommendations: localStorage.getItem('ENABLE_PRODUCT_RECOMMENDATIONS') === 'true',
-  enableProductShippingFetch: localStorage.getItem('ENABLE_PRODUCT_SHIPPING_FETCH') === 'true',
-};
+        <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100" id="step-1">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-black">Endereço de entrega</h2>
+            <a class="text-blue-600 underline" href="minha_conta.html?tab=address&amp;from=checkout">
+              Novo endereço
+            </a>
+          </div>
 
-// =========================================================
-// FIX: Funções ausentes (para não quebrar o cálculo de frete)
-// - enrichCartShipping(): garante que itens do carrinho tenham peso/dimensões
-// - computePackage(): consolida o carrinho em um "pacote" para cotação
-// =========================================================
-let __enrichedShippingDone = false;
+          <div class="text-sm text-gray-500 -mt-4 mb-6">
+            Selecione onde você quer receber seu pedido.
+          </div>
 
-async function enrichCartShipping() {
-  if (__enrichedShippingDone) return;
-  __enrichedShippingDone = true;
-  const canFetch = COST_SAFE_FLAGS.enableProductShippingFetch && (typeof db !== "undefined") && (typeof getDoc === "function") && (typeof doc === "function");
-  const tryCols = ["products", "produtos", "product", "produtosAriana", "produtos_ariana"];
+          <div class="grid grid-cols-1 gap-3" id="address-options"></div>
 
-  async function fetchProductById(pid) {
-    if (!canFetch || !pid) return null;
-    for (const c of tryCols) {
+          <div class="mt-8 flex justify-end">
+            <button class="bg-primary-blue text-white px-10 py-3 rounded-xl font-bold opacity-50 cursor-not-allowed transition-all" disabled id="btn-next-1" type="button">
+              Ir para pagamento <i class="fas fa-arrow-right ml-2"></i>
+            </button>
+          </div>
+        </section>
+
+        <section class="hidden" id="step-2">
+          <div class="card">
+            <h2 class="card-title">Resumo e frete</h2>
+            <p class="muted">Confira os valores antes de ir para o pagamento.</p>
+
+            <div class="totals-grid">
+              <div class="totals-row"><span>Produtos</span><strong id="products-total-main">R$ 0,00</strong></div>
+              <div class="totals-row"><span>Frete</span><strong id="shipping-price-main">R$ 0,00</strong></div>
+              <div class="totals-row total"><span>Total</span><strong id="total-geral-main">R$ 0,00</strong></div>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-secondary" id="btn-back-2" type="button">Voltar</button>
+              <button class="btn btn-primary" id="btn-next-2" type="button">Continuar</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="hidden" id="step-3">
+          <div class="card">
+            <h2 class="card-title">Forma de pagamento</h2>
+            <p class="muted">Escolha como deseja pagar. Você será redirecionado para <strong>pagamento.html</strong>.</p>
+
+            <div class="pay-grid">
+              <label class="pay-method active" id="label-pix">
+                <input checked name="pay" type="radio" value="pix"/>
+                <div class="pay-method-body">
+                  <div>
+                    <div class="pay-title">Pix</div>
+                    <div class="pay-desc">Aprovação rápida</div>
+                  </div>
+                </div>
+              </label>
+
+              <label class="pay-method" id="label-card">
+                <input name="pay" type="radio" value="card"/>
+                <div class="pay-method-body">
+                  <div>
+                    <div class="pay-title">Cartão</div>
+                    <div class="pay-desc">Parcelamento no pagamento</div>
+                  </div>
+                </div>
+              </label>
+
+              <label class="pay-method" id="label-boleto">
+                <input name="pay" type="radio" value="boleto"/>
+                <div class="pay-method-body">
+                  <div>
+                    <div class="pay-title">Boleto</div>
+                    <div class="pay-desc">Compensação bancária</div>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <hr class="divider"/>
+
+            <h3 class="card-subtitle">Itens do pedido</h3>
+            <div class="muted" id="resumo-end" style="margin-bottom:10px;"></div>
+            <div class="resumo-list" id="lista-resumo-main"></div>
+
+            <div class="totals-grid" style="margin-top:12px;">
+              <div class="totals-row total"><span>Total</span><strong id="resumo-total">R$ 0,00</strong></div>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-secondary" id="btn-back-3" type="button">Voltar</button>
+              <button class="btn btn-primary" id="btn-pay" type="button">Ir para pagamento</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="hidden text-center py-16 bg-white rounded-2xl shadow-sm" id="step-4">
+          <i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
+          <h2 class="text-3xl font-black">Pedido criado!</h2>
+          <p class="text-gray-500 mb-6" id="step4-subtitle">Seu pedido foi recebido.</p>
+
+          <div class="hidden max-w-2xl mx-auto text-left p-5 rounded-2xl border border-gray-200 bg-gray-50" id="payment-result">
+            <p class="font-bold mb-2" id="payment-result-title">Pagamento</p>
+
+            <div class="hidden" id="boleto-result">
+              <p class="text-sm text-gray-600 mb-3">Boleto gerado com sucesso. Você pode abrir o boleto e copiar a linha digitável.</p>
+              <div class="grid md:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-sm font-semibold">Linha digitável</label>
+                  <div class="flex gap-2 mt-1">
+                    <input class="flex-1 p-3 rounded-lg border border-gray-300 bg-white" id="boleto-digitable" readonly type="text"/>
+                    <button class="px-4 py-3 rounded-lg bg-gray-900 text-white font-bold" id="btn-copy-digitable">Copiar</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm font-semibold">Link do boleto</label>
+                  <a class="block mt-1 p-3 rounded-lg border border-gray-300 bg-white text-primary-blue font-bold" href="#" id="boleto-link" target="_blank">
+                    Abrir boleto
+                  </a>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 mt-3">ID do pagamento: <span id="boleto-payment-id"></span></p>
+            </div>
+
+            <div class="hidden" id="pix-result">
+              <p class="text-sm text-gray-600 mb-3">PIX gerado. Use o QR Code para pagar.</p>
+              <div class="flex flex-col md:flex-row gap-4 items-start">
+                <img alt="QR Code PIX" class="w-56 h-56 rounded-xl border border-gray-200 bg-white object-contain" id="pix-qr-img"/>
+                <div class="flex-1">
+                  <label class="text-sm font-semibold">Copia e cola</label>
+                  <div class="flex gap-2 mt-1">
+                    <textarea class="flex-1 p-3 rounded-lg border border-gray-300 bg-white" id="pix-copy" readonly rows="4"></textarea>
+                    <button class="px-4 py-3 rounded-lg bg-gray-900 text-white font-bold" id="btn-copy-pix">Copiar</button>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-2">ID do pagamento: <span id="pix-payment-id"></span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+            <a class="bg-primary-blue text-white px-8 py-3 rounded-xl font-bold text-center" href="minha_conta.html">Ver Meus Pedidos</a>
+            <a class="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold text-center" href="index.html">Voltar para a loja</a>
+          </div>
+        </section>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-4">
+          <h3 class="font-black text-lg mb-4 border-b pb-2">Resumo do pedido</h3>
+
+          <div class="space-y-3 mb-4 max-h-60 overflow-y-auto pr-2" id="lista-resumo-side"></div>
+
+          <div class="border-t pt-4 space-y-2">
+            <div class="flex justify-between text-gray-500"><span>Produtos</span><span id="products-total-side">R$ 0,00</span></div>
+            <div class="flex justify-between text-gray-500"><span>Frete</span><span class="text-gray-700 font-bold" id="shipping-price-side">A calcular</span></div>
+            <div class="flex justify-between text-xl font-black text-primary-blue"><span>Total</span><span id="total-geral-side">R$ 0,00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="firebase-config.js"></script>
+  <script src="marketplace-core.js"></script>
+  <script src="marketplace-core_global_payments.js"></script>
+  <script src="js/layout-fit.js" defer></script>
+  <script src="js/header_auth_fix.js" defer></script>
+
+  <script>
+    const API_BASE = window.API_BASE || "http://localhost:3000/api";
+
+    let user = null;
+    let customerProfile = null;
+    let selectedAddrObj = null;
+    let selectedAddrText = null;
+    let selectedPay = "Pix";
+    let selectedPayCode = "pix";
+    let addressesCache = [];
+    let settingsShipping = null;
+    let settingsPayments = null;
+    let shippingQuote = null;
+
+    let cart = (() => {
       try {
-        const s = await getDoc(doc(db, c, pid));
-        if (s.exists()) return s.data();
-      } catch (_) {}
-    }
-    return null;
-  }
+        const raw = localStorage.getItem("arianaMoveisCart") || localStorage.getItem("ariana_moveis_cart") || "[]";
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    })();
 
-  const normalized = [];
-  for (const it of (Array.isArray(cart) ? cart : [])) {
-    const need = it?.pesoKg == null || it?.alturaCm == null || it?.larguraCm == null || it?.comprimentoCm == null;
-    if (!need) { normalized.push(it); continue; }
-    const pid = resolveCartProductId(it) || it.id;
-    const pdata = await fetchProductById(pid);
-    const fromDb = pdata ? { ...pdata, id: pid } : null;
-    const dims = fromDb ? normalizeItemShippingFields(fromDb) : {};
-    const pesoKg = (it?.pesoKg != null ? Number(it.pesoKg) : (dims.pesoKg != null ? Number(dims.pesoKg) : 1));
-    const alturaCm = (it?.alturaCm != null ? Number(it.alturaCm) : (dims.alturaCm != null ? Number(dims.alturaCm) : 10));
-    const larguraCm = (it?.larguraCm != null ? Number(it.larguraCm) : (dims.larguraCm != null ? Number(dims.larguraCm) : 10));
-    const comprimentoCm = (it?.comprimentoCm != null ? Number(it.comprimentoCm) : (dims.comprimentoCm != null ? Number(dims.comprimentoCm) : 10));
-    normalized.push({ ...it, id: pid, pesoKg, alturaCm, larguraCm, comprimentoCm });
-  }
-
-  cart = normalized;
-  try { localStorage.setItem("arianaMoveisCart", JSON.stringify(cart)); } catch (_) {}
-}
-
-function computePackage() {
-  const items = Array.isArray(cart) ? cart : [];
-  let pesoKg = 0;
-  let alturaCm = 0;
-  let larguraCm = 0;
-  let comprimentoCm = 0;
-
-  for (const it of items) {
-    const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1;
-    const w = Number(it?.pesoKg ?? 1) || 1;
-    const h = Number(it?.alturaCm ?? 10) || 10;
-    const wi = Number(it?.larguraCm ?? 10) || 10;
-    const l = Number(it?.comprimentoCm ?? 10) || 10;
-
-    pesoKg += w * q;
-    alturaCm = Math.max(alturaCm, h);
-    larguraCm = Math.max(larguraCm, wi);
-    // comprimento: soma para simular itens na mesma caixa (aproximação)
-    comprimentoCm += l * q;
-  }
-
-  // mínimos para evitar zeros
-  pesoKg = Math.max(0.1, Math.round(pesoKg * 100) / 100);
-  alturaCm = Math.max(1, Math.round(alturaCm));
-  larguraCm = Math.max(1, Math.round(larguraCm));
-  comprimentoCm = Math.max(1, Math.round(comprimentoCm));
-
-  // correios costuma ter limites; não "quebramos" aqui, só retornamos os valores
-  return { pesoKg, alturaCm, larguraCm, comprimentoCm };
-}
-
-// =========================================================
-  // Firebase Config
-  // =========================================================
-  const firebaseConfig = {
-    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-    authDomain: "ariana-moveis-final.firebaseapp.com",
-    projectId: "ariana-moveis-final",
-    storageBucket: "ariana-moveis-final.firebasestorage.app",
-    messagingSenderId: "695257365498",
-    appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-
-  // =========================================================
-  // Estado
-  // =========================================================
-  let user = null;
-  let customerProfile = null;
-  let selectedAddrObj = null;
-  let selectedAddrText = null;
-  let selectedPay = "Cartão de Crédito";
-  let selectedPayCode = "card"; // card | pix | boleto
-  let cart = (function(){
-    try {
-      const raw = localStorage.getItem("arianaMoveisCart") || localStorage.getItem("ariana_moveis_cart") || "[]";
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  })();
-  let addressesCache = [];
-
-  
-
-  // ✅ Regra: frete grátis local só quando o pedido é 100% "Vendido e entregue por Ariana Móveis"
-  function isArianaSeller(item) {
-    var sid = String(item && item.sellerId ? item.sellerId : 'admin').toLowerCase().trim();
-    var sname = String(item && item.sellerName ? item.sellerName : 'Ariana Móveis').toLowerCase();
-    return sid === 'admin' || sname.indexOf('ariana') !== -1;
-  }
-
-  function isArianaOrderFromCartItems(items) {
-    if (!Array.isArray(items) || items.length === 0) return false;
-    for (var i = 0; i < items.length; i++) {
-      if (!isArianaSeller(items[i])) return false;
-    }
-    return true;
-  }
-
-  // Normaliza ID e campos de frete (para bater com a tela do produto)
-  const resolveCartProductId = (it) => {
-    if (!it) return null;
-    return (
-      it.id ||
-      it.productId ||
-      it.produtoId ||
-      it.docId ||
-      it.firestoreId ||
-      it.productDocId ||
-      it.pid ||
-      it.sku ||
-      it.codigo ||
-      it.code ||
-      null
-    );
-  };
-
-  const normalizeItemShippingFields = (it) => {
-    const dims = it?.dimensions || it?.dimension || it?.medidas || it?.dimensoes || {};
-    const pesoKg = it?.pesoKg ?? it?.weightKg ?? it?.peso ?? it?.shippingWeightKg ?? null;
-
-    const alturaCm = it?.alturaCm ?? it?.heightCm ?? it?.altura ?? dims?.altura ?? dims?.height ?? null;
-    const larguraCm = it?.larguraCm ?? it?.widthCm ?? it?.largura ?? dims?.largura ?? dims?.width ?? null;
-    const comprimentoCm = it?.comprimentoCm ?? it?.lengthCm ?? it?.comprimento ?? dims?.comprimento ?? dims?.length ?? null;
-
-    return {
-      pesoKg: pesoKg != null ? Number(pesoKg) : null,
-      alturaCm: alturaCm != null ? Number(alturaCm) : null,
-      larguraCm: larguraCm != null ? Number(larguraCm) : null,
-      comprimentoCm: comprimentoCm != null ? Number(comprimentoCm) : null,
+    const COST_SAFE_FLAGS = {
+      enableRemoteShippingApi: localStorage.getItem('ENABLE_REMOTE_SHIPPING_API') === 'true',
+      enableFirestoreSettings: false,
+      enableProductRecommendations: false,
+      enableProductShippingFetch: false,
     };
-  };
 
-  // aplica normalização no carrinho assim que a tela carrega
-  cart = (Array.isArray(cart) ? cart : []).map((it) => ({
-    ...it,
-    id: resolveCartProductId(it) || it.id,
-    ...normalizeItemShippingFields(it),
-    quantity: Number(it.quantity ?? it.qty ?? it.qtd ?? 1) || 1,
-    price: Number(it.price) || 0,
-  }));
+    const brl = (value) =>
+      new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 
-  // salva no formato padrão (para manter compatibilidade entre páginas)
-  try { localStorage.setItem("arianaMoveisCart", JSON.stringify(cart)); } catch (_) {}
-
-// =========================================================
-  // Helpers
-  // =========================================================
-  const brl = (value) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
-
-  const safeNumber = (v) => {
-    if (v === undefined || v === null) return 0;
-
-    // aceita "R$ 6,99", "6,99", "6.99", 6.99
-    if (typeof v === "string") {
-      let s = v.trim();
-      if (!s) return 0;
-      s = s.replace(/[^\d,.\-]/g, ""); // remove R$, espaços etc
-
-      const lastComma = s.lastIndexOf(",");
-      const lastDot = s.lastIndexOf(".");
-
-      // Se tem vírgula e ponto, decide qual é decimal pelo último separador
-      if (lastComma !== -1 && lastDot !== -1) {
-        if (lastComma > lastDot) {
-          // "1.234,56" -> remove pontos e troca vírgula por ponto
-          s = s.replace(/\./g, "").replace(",", ".");
-        } else {
-          // "1,234.56" -> remove vírgulas
-          s = s.replace(/,/g, "");
+    const safeNumber = (v) => {
+      if (v === undefined || v === null) return 0;
+      if (typeof v === "string") {
+        let s = v.trim();
+        if (!s) return 0;
+        s = s.replace(/[^\d,.\-]/g, "");
+        const lastComma = s.lastIndexOf(",");
+        const lastDot = s.lastIndexOf(".");
+        if (lastComma !== -1 && lastDot !== -1) {
+          if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
+          else s = s.replace(/,/g, "");
+        } else if (lastComma !== -1 && lastDot === -1) {
+          s = s.replace(",", ".");
         }
-      } else if (lastComma !== -1 && lastDot === -1) {
-        // "1234,56" -> "1234.56"
-        s = s.replace(",", ".");
-      } // se só ponto, mantém
-
-      const n = Number(s);
+        const n = Number(s);
+        return Number.isFinite(n) ? n : 0;
+      }
+      const n = Number(v);
       return Number.isFinite(n) ? n : 0;
-    }
-
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const computeCartTotal = () =>
-    (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
-      const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1);
-      const price = safeNumber(i.price ?? i.valor ?? 0);
-      return sum + price * qty;
-    }, 0);
-
-  
-  const pick = (...vals) => {
-    for (const v of vals) {
-      if (v === undefined || v === null) continue;
-      const s = String(v).trim();
-      if (s) return s;
-    }
-    return "";
-  };
-
-  const onlyDigits = (s) => String(s || "").replace(/\D+/g, "");
-
-  const normalizeCpf = (cpf) => {
-    const d = onlyDigits(cpf);
-    return d.length === 11 ? d : "";
-  };
-
-  const normalizePhone = (p) => {
-    const d = onlyDigits(p);
-    return (d.length >= 10 && d.length <= 13) ? d : d; // mantém dígitos; validação pode ser feita depois
-  };
-
-  // ================= MP (Mercado Pago) normalização de cliente/endereço =================
-  const normalizeUF = (uf) => {
-    const s = String(uf || "").trim().toUpperCase();
-    return s.length === 2 ? s : s.slice(0, 2);
-  };
-
-  const splitFullName = (full) => {
-    const p = String(full || "").trim().split(/\s+/).filter(Boolean);
-    if (!p.length) return { first_name: "", last_name: "" };
-    if (p.length === 1) return { first_name: p[0], last_name: "" };
-    return { first_name: p[0], last_name: p.slice(1).join(" ") };
-  };
-
-  const normalizeCep = (cep) => {
-    const d = onlyDigits(cep);
-    return d.length === 8 ? d : "";
-  };
-
-  const normalizeAddress = (addr) => {
-    const a = addr || {};
-    return {
-      street: pick(a.street, a.logradouro, a.rua, a.address, a.endereco),
-      number: pick(a.number, a.numero, a.street_number),
-      complement: pick(a.complement, a.complemento),
-      neighborhood: pick(a.neighborhood, a.bairro),
-      city: pick(a.city, a.cidade),
-      state: normalizeUF(pick(a.state, a.uf, a.federal_unit)),
-      cep: normalizeCep(pick(a.cep, a.zip, a.zip_code, a.postal_code)),
-      nickname: pick(a.nickname, a.name)
     };
-  };
 
-  const buildMpPayerAndShipments = ({ authUser, customerProfile, cpfDigits, normalizedAddr }) => {
-    const fullName =
-      pick(customerProfile?.name, customerProfile?.nome, authUser?.displayName) ||
-      (authUser?.email ? authUser.email.split("@")[0] : "Cliente");
+    const computeCartTotal = () =>
+      (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1);
+        const price = safeNumber(i.price ?? i.valor ?? 0);
+        return sum + price * qty;
+      }, 0);
 
-    const nm = splitFullName(fullName);
+    const pick = (...vals) => {
+      for (const v of vals) {
+        if (v === undefined || v === null) continue;
+        const s = String(v).trim();
+        if (s) return s;
+      }
+      return "";
+    };
 
-    const phoneDigits = onlyDigits(pick(customerProfile?.phone, customerProfile?.telefone, ""));
-    const area_code = phoneDigits.length >= 10 ? phoneDigits.slice(0, 2) : "";
-    const number = phoneDigits.length >= 10 ? phoneDigits.slice(2, 11) : phoneDigits;
+    const onlyDigits = (s) => String(s || "").replace(/\D+/g, "");
+    const normalizeCpf = (cpf) => {
+      const d = onlyDigits(cpf);
+      return d.length === 11 ? d : "";
+    };
+    const normalizePhone = (p) => onlyDigits(p);
+    const normalizeUF = (uf) => String(uf || "").trim().toUpperCase().slice(0, 2);
+    const normalizeCep = (cep) => {
+      const d = onlyDigits(cep);
+      return d.length === 8 ? d : "";
+    };
 
-    const payer = {
-      email: authUser?.email || "",
-      first_name: nm.first_name,
-      last_name: nm.last_name,
-      identification: { type: "CPF", number: cpfDigits },
-      phone: { area_code, number },
-      address: {
+    const splitFullName = (full) => {
+      const p = String(full || "").trim().split(/\s+/).filter(Boolean);
+      if (!p.length) return { first_name: "", last_name: "" };
+      if (p.length === 1) return { first_name: p[0], last_name: "" };
+      return { first_name: p[0], last_name: p.slice(1).join(" ") };
+    };
+
+    const normalizeAddress = (addr) => {
+      const a = addr || {};
+      return {
+        id: a.id || a._id || "",
+        street: pick(a.street, a.logradouro, a.rua, a.address, a.endereco),
+        number: pick(a.number, a.numero, a.street_number),
+        complement: pick(a.complement, a.complemento),
+        neighborhood: pick(a.neighborhood, a.bairro),
+        city: pick(a.city, a.cidade),
+        state: normalizeUF(pick(a.state, a.uf, a.federal_unit)),
+        cep: normalizeCep(pick(a.cep, a.zip, a.zip_code, a.postal_code)),
+        nickname: pick(a.nickname, a.name, a.label)
+      };
+    };
+
+    const buildMpPayerAndShipments = ({ authUser, customerProfile, cpfDigits, normalizedAddr }) => {
+      const fullName =
+        pick(customerProfile?.name, customerProfile?.nome, authUser?.name, authUser?.displayName) ||
+        (authUser?.email ? authUser.email.split("@")[0] : "Cliente");
+
+      const nm = splitFullName(fullName);
+      const phoneDigits = onlyDigits(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || ""));
+      const area_code = phoneDigits.length >= 10 ? phoneDigits.slice(0, 2) : "";
+      const number = phoneDigits.length >= 10 ? phoneDigits.slice(2, 11) : phoneDigits;
+
+      const payer = {
+        email: authUser?.email || "",
+        first_name: nm.first_name,
+        last_name: nm.last_name,
+        identification: { type: "CPF", number: cpfDigits },
+        phone: { area_code, number },
+        address: {
+          zip_code: normalizedAddr.cep,
+          street_name: normalizedAddr.street,
+          street_number: String(normalizedAddr.number || "S/N"),
+          neighborhood: normalizedAddr.neighborhood,
+          city: normalizedAddr.city,
+          federal_unit: normalizedAddr.state
+        }
+      };
+
+      const receiver_address = {
         zip_code: normalizedAddr.cep,
         street_name: normalizedAddr.street,
         street_number: String(normalizedAddr.number || "S/N"),
         neighborhood: normalizedAddr.neighborhood,
-        city: normalizedAddr.city,
-        federal_unit: normalizedAddr.state
-      }
+        city_name: normalizedAddr.city,
+        state_name: normalizedAddr.state,
+        apartment: normalizedAddr.complement || "",
+        receiver_name: fullName
+      };
+
+      return { payer, receiver_address, fullName };
     };
 
-    const receiver_address = {
-      zip_code: normalizedAddr.cep,
-      street_name: normalizedAddr.street,
-      street_number: String(normalizedAddr.number || "S/N"),
-      neighborhood: normalizedAddr.neighborhood,
-      city_name: normalizedAddr.city,
-      state_name: normalizedAddr.state,
-      apartment: normalizedAddr.complement || "",
-      receiver_name: fullName
+    const validateMpBasics = ({ cpfDigits, addr }) => {
+      const probs = [];
+      if (!cpfDigits || cpfDigits.length !== 11) probs.push("CPF inválido.");
+      if (!addr.cep) probs.push("CEP inválido.");
+      if (!addr.street) probs.push("Rua/logradouro vazio.");
+      if (!addr.neighborhood) probs.push("Bairro vazio.");
+      if (!addr.city) probs.push("Cidade vazia.");
+      if (!addr.state) probs.push("UF vazia.");
+      return probs;
     };
 
-    return { payer, receiver_address, fullName };
-  };
+    const resolveCartProductId = (it) => {
+      if (!it) return null;
+      return (
+        it.id ||
+        it.productId ||
+        it.produtoId ||
+        it.docId ||
+        it.firestoreId ||
+        it.productDocId ||
+        it.pid ||
+        it.sku ||
+        it.codigo ||
+        it.code ||
+        null
+      );
+    };
 
-  const validateMpBasics = ({ cpfDigits, addr }) => {
-    const probs = [];
-    if (!cpfDigits || cpfDigits.length !== 11) probs.push("CPF inválido (precisa 11 dígitos).");
-    if (!addr.cep) probs.push("CEP inválido.");
-    if (!addr.street) probs.push("Rua/logradouro vazio.");
-    if (!addr.neighborhood) probs.push("Bairro vazio.");
-    if (!addr.city) probs.push("Cidade vazia.");
-    if (!addr.state) probs.push("UF vazia.");
-    return probs;
-  };
+    const normalizeItemShippingFields = (it) => {
+      const dims = it?.dimensions || it?.dimension || it?.medidas || it?.dimensoes || {};
+      const pesoKg = it?.pesoKg ?? it?.weightKg ?? it?.peso ?? it?.shippingWeightKg ?? null;
+      const alturaCm = it?.alturaCm ?? it?.heightCm ?? it?.altura ?? dims?.altura ?? dims?.height ?? null;
+      const larguraCm = it?.larguraCm ?? it?.widthCm ?? it?.largura ?? dims?.largura ?? dims?.width ?? null;
+      const comprimentoCm = it?.comprimentoCm ?? it?.lengthCm ?? it?.comprimento ?? dims?.comprimento ?? dims?.length ?? null;
 
+      return {
+        pesoKg: pesoKg != null ? Number(pesoKg) : null,
+        alturaCm: alturaCm != null ? Number(alturaCm) : null,
+        larguraCm: larguraCm != null ? Number(larguraCm) : null,
+        comprimentoCm: comprimentoCm != null ? Number(comprimentoCm) : null,
+      };
+    };
 
+    cart = (Array.isArray(cart) ? cart : []).map((it) => ({
+      ...it,
+      id: resolveCartProductId(it) || it.id,
+      ...normalizeItemShippingFields(it),
+      quantity: Number(it.quantity ?? it.qty ?? it.qtd ?? 1) || 1,
+      price: Number(it.price) || 0,
+    }));
 
-// =========================================================
-// Settings (Firestore) + Frete real (Correios via API)
-// =========================================================
-const getApiBaseUrl = () => {
-  const v = localStorage.getItem('API_BASE_URL') || '';
-  if (v) return v.replace(/\/+$/, '');
-  return COST_SAFE_FLAGS.enableRemoteShippingApi ? 'https://api-4dx5luiipq-rj.a.run.app' : '';
-};
-
-let settingsShipping = null;
-let settingsPayments = null;
-
-// =========================================================
-// DESCONTO GLOBAL (PIX/BOLETO) - DINÂMICO (vem do Admin/Firestore)
-// =========================================================
-const num = (v, fb = 0) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fb;
-};
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-
-function getDiscountPercentFor(method) {
-  const p = settingsPayments || {};
-  const obj =
-    method === 'boleto' ? (p.boleto || {}) :
-    (p.pix || {});
-  if (!obj || !obj.enabled) return 0;
-  const d = clamp(num(obj.discountPercent ?? obj.descontoPercent ?? obj.descontoPix, 0), 0, 90);
-  return d;
-}
-
-function getDiscountFactorFor(method) {
-  const d = getDiscountPercentFor(method);
-  return (100 - d) / 100;
-}
-
-
-
-let shippingQuote = null;
-
-  // Se o usuário já calculou frete na tela do produto, reaproveita como valor inicial (1 item)
-  try {
-    const saved = JSON.parse(localStorage.getItem("ariana_selected_shipping") || "null");
-    if (saved && saved.price && cart.length === 1) {
-      shippingQuote = { price: Number(saved.price) || 0, service: saved.service || null, name: saved.name || null, cepDestino: saved.cepDestino || null };
-    }
-  } catch (_) {} // {price, service, raw, pkg, cepDestino}
-
-const normalizeShippingDefaults = (s = {}) => ({
-  originCep: (s.originCep || s.cepOrigem || '39740-000'),
-  services: Array.isArray(s.services) ? s.services : (Array.isArray(s.servicos) ? s.servicos : ['03328','03298','03220','03212']),
-  defaultWeightKg: Number(s.defaultWeightKg ?? s.pesoKgPadrao ?? 1) || 1,
-  defaultHeightCm: Number(s.defaultHeightCm ?? s.alturaCmPadrao ?? 10) || 10,
-  defaultWidthCm:  Number(s.defaultWidthCm  ?? s.larguraCmPadrao ?? 15) || 15,
-  defaultLengthCm: Number(s.defaultLengthCm ?? s.comprimentoCmPadrao ?? 20) || 20,
-  defaultDeclaredValue: Number(s.defaultDeclaredValue ?? s.valorDeclaradoPadrao ?? 0) || 0,
-  freeShippingAbove: Number(s.freeShippingAbove ?? s.freteGratisAcima ?? 0) || 0,
-});
-
-const productShipCache = new Map();
-
-let settingsPromise = null;
-
-// =========================================================
-// NOVO: Settings (Admin Entrega) em artifacts/.../store_settings/global_config
-// 1) Tenta ler em: artifacts/ariana-moveis-final/store_settings/global_config (global)
-// 2) Fallback: artifacts/ariana-moveis-final/users/{uid}/store_settings/global_config
-// 3) Fallback legado: settings/shipping e settings/payments
-// =========================================================
-const APP_ID = "ariana-moveis-final";
-const settingsGlobalRef = () => doc(db, "artifacts", APP_ID, "store_settings", "global_config");
-const settingsAdminRef = (uid) => doc(db, "artifacts", APP_ID, "users", uid, "store_settings", "global_config");
-
-async function loadSettings() {
-  if (!COST_SAFE_FLAGS.enableFirestoreSettings) { settingsShipping = normalizeShippingDefaults({}); settingsPayments = {}; return { shipping: settingsShipping, payments: settingsPayments }; }
-  if (settingsShipping && settingsPayments) return { shipping: settingsShipping, payments: settingsPayments };
-  if (settingsPromise) return settingsPromise;
-
-  settingsPromise = (async () => {
     try {
-      const [shipSnap, paySnap] = await Promise.all([
-        getDoc(doc(db, 'settings', 'shipping')),
-        getDoc(doc(db, 'settings', 'payments')),
-      ]);
-      settingsShipping = normalizeShippingDefaults(shipSnap.exists() ? shipSnap.data() : {});
-      settingsPayments = paySnap.exists() ? (paySnap.data() || {}) : {};
-      return { shipping: settingsShipping, payments: settingsPayments };
-    } catch (e) {
-      console.warn('[checkout] Falha ao ler settings/*', e);
+      localStorage.setItem("arianaMoveisCart", JSON.stringify(cart));
+      localStorage.setItem("ariana_moveis_cart", JSON.stringify(cart));
+    } catch (_) {}
+
+    function getApiBaseUrl() {
+      const v = localStorage.getItem('API_BASE_URL') || '';
+      if (v) return v.replace(/\/+$/, '');
+      return API_BASE;
+    }
+
+    function normalizeShippingDefaults(s = {}) {
+      return {
+        originCep: (s.originCep || s.cepOrigem || '39740-000'),
+        services: Array.isArray(s.services) ? s.services : (Array.isArray(s.servicos) ? s.servicos : ['03328','03298','03220','03212']),
+        defaultWeightKg: Number(s.defaultWeightKg ?? s.pesoKgPadrao ?? 1) || 1,
+        defaultHeightCm: Number(s.defaultHeightCm ?? s.alturaCmPadrao ?? 10) || 10,
+        defaultWidthCm: Number(s.defaultWidthCm ?? s.larguraCmPadrao ?? 15) || 15,
+        defaultLengthCm: Number(s.defaultLengthCm ?? s.comprimentoCmPadrao ?? 20) || 20,
+        defaultDeclaredValue: Number(s.defaultDeclaredValue ?? s.valorDeclaradoPadrao ?? 0) || 0,
+        freeShippingAbove: Number(s.freeShippingAbove ?? s.freteGratisAcima ?? 0) || 0,
+      };
+    }
+
+    const num = (v, fb = 0) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fb;
+    };
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+    function getDiscountPercentFor(method) {
+      const p = settingsPayments || {};
+      const obj =
+        method === 'boleto' ? (p.boleto || {}) :
+        (p.pix || {});
+      if (!obj || !obj.enabled) return 0;
+      return clamp(num(obj.discountPercent ?? obj.descontoPercent ?? obj.descontoPix, 0), 0, 90);
+    }
+
+    function getDiscountFactorFor(method) {
+      const d = getDiscountPercentFor(method);
+      return (100 - d) / 100;
+    }
+
+    async function loadSettings() {
+      if (settingsShipping && settingsPayments) return { shipping: settingsShipping, payments: settingsPayments };
+
       settingsShipping = normalizeShippingDefaults({});
       settingsPayments = {};
+
+      try {
+        if (typeof window.getPaymentSettings === 'function') {
+          settingsPayments = await window.getPaymentSettings(false);
+        }
+      } catch (_) {}
+
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/settings/shipping`, { headers: { "Content-Type": "application/json" } });
+        if (res.ok) {
+          const data = await res.json();
+          const payload = data?.item || data?.shipping || data || {};
+          settingsShipping = normalizeShippingDefaults(payload);
+        }
+      } catch (_) {}
+
       return { shipping: settingsShipping, payments: settingsPayments };
     }
-  })();
 
-  return settingsPromise;
-}
-
-
-// --------- Capital map (para decidir Capital x Interior)
-const UF_CAPITAL = {
-  AC:"Rio Branco", AL:"Maceió", AP:"Macapá", AM:"Manaus", BA:"Salvador", CE:"Fortaleza",
-  DF:"Brasília", ES:"Vitória", GO:"Goiânia", MA:"São Luís", MT:"Cuiabá", MS:"Campo Grande",
-  MG:"Belo Horizonte", PA:"Belém", PB:"João Pessoa", PR:"Curitiba", PE:"Recife", PI:"Teresina",
-  RJ:"Rio de Janeiro", RN:"Natal", RS:"Porto Alegre", RO:"Porto Velho", RR:"Boa Vista",
-  SC:"Florianópolis", SP:"São Paulo", SE:"Aracaju", TO:"Palmas"
-};
-
-const normCity = (s) => String(s||"").trim().toLowerCase()
-  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-async function isCapitalByCep(cepDigits) {
-  try {
-    const cep = String(cepDigits||"").replace(/\D/g,"");
-    if (cep.length !== 8) return { ok:false };
-    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-    const j = await r.json();
-    if (!j || j.erro) return { ok:false };
-    const uf = String(j.uf||"").toUpperCase();
-    const city = String(j.localidade||"").trim();
-    const cap = UF_CAPITAL[uf] || "";
-    const isCap = cap && normCity(cap) === normCity(city);
-    return { ok:true, uf, city, isCapital:isCap };
-  } catch(e) {
-    return { ok:false };
-  }
-}
-
-function pickManualRule(rules, uf, region, pkg) {
-  const list = (Array.isArray(rules) ? rules : []).filter(r => r && r.enabled !== false);
-  const u = String(uf||"").toUpperCase().slice(0,2);
-
-  const candidates = [];
-  for (const r of list) {
-    const ruf = String(r.uf||"").toUpperCase().slice(0,2);
-    if (ruf && ruf !== u) continue;
-
-    const reg = (r.region||"all");
-    if (reg === "capital" && region !== "capital") continue;
-    if (reg === "interior" && region !== "interior") continue;
-
-    const minKg = Number(r.minKg ?? 0);
-    const maxKg = Number(r.maxKg ?? 9999);
-    const maxDim = Number(r.maxDimCm ?? 9999);
-
-    if (pkg.pesoKg < minKg) continue;
-    if (pkg.pesoKg > maxKg) continue;
-
-    const biggerDim = Math.max(pkg.alturaCm, pkg.larguraCm, pkg.comprimentoCm);
-    if (biggerDim > maxDim) continue;
-
-    candidates.push(r);
-  }
-  if (!candidates.length) return null;
-
-  candidates.sort((a,b) => (Number(a.price||0) - Number(b.price||0)) || (Number(a.days||0) - Number(b.days||0)));
-  return candidates[0];
-}
-
-function carrierMatches(carriers, uf) {
-  const u = String(uf||"").toUpperCase().slice(0,2);
-  const list = (Array.isArray(carriers) ? carriers : []).filter(c => c && c.enabled !== false);
-  const matches = list.filter(c => {
-    const ufs = String(c.ufs||"").toUpperCase().replace(/\s+/g,"");
-    if (!ufs) return true;
-    return ufs.split(",").map(x=>x.trim()).filter(Boolean).includes(u);
-  });
-  return matches;
-}
-
-async function quoteCorreiosForCep(cepDestino) {
-  const api = getApiBaseUrl();
-  await loadSettings();
-  await enrichCartShipping();
-  const pkg = computePackage();
-
-  const payload = {
-    cepDestino: String(cepDestino || '').replace(/\D/g, ''),
-    pesoKg: pkg.pesoKg,
-    altura: pkg.alturaCm,
-    largura: pkg.larguraCm,
-    comprimento: pkg.comprimentoCm,
-    isArianaOrder: isArianaOrderFromCartItems(cart)
-  };
-
-  const r = await fetch(`${api}/shipping/correios/quote`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok || data?.ok === false) {
-    const msg = data?.errors?.[0]?.message || data?.details?.msgs?.[0] || data?.error || 'Falha ao cotar frete';
-    throw new Error(msg);
-  }
-
-  const quotes = Array.isArray(data?.quotes) ? data.quotes : [];
-  if (!quotes.length) {
-    const errMsg = data?.errors?.[0]?.message || 'Nenhuma opção de frete disponível para este CEP.';
-    throw new Error(errMsg);
-  }
-
-  quotes.sort((a, b) => (a?.price ?? Infinity) - (b?.price ?? Infinity));
-  const best = quotes[0];
-
-  shippingQuote = {
-    provider: "correios",
-    price: Number(best.price) || 0,
-    service: best.service || null,
-    name: best.name || best.service || "Correios",
-    deadlineDays: best.deadlineDays ?? null,
-    raw: best.raw || best,
-    pkg,
-    cepDestino: payload.cepDestino,
-    request: payload,
-    full: data
-  };
-
-  return shippingQuote;
-}
-
-async function quoteShippingForSelectedAddress(addrObj){
-  await loadSettings();
-  await enrichCartShipping();
-  const pkg = computePackage();
-  const biggerDim = Math.max(pkg.alturaCm, pkg.larguraCm, pkg.comprimentoCm);
-
-  const cep = String(addrObj?.cep || addrObj?.zip || "").replace(/\D/g,"");
-  const via = await isCapitalByCep(cep);
-  const uf = String(addrObj?.state || addrObj?.uf || via.uf || "").toUpperCase().slice(0,2);
-  const region = via.ok ? (via.isCapital ? "capital" : "interior") : "all";
-
-  // 1) Tenta Correios se habilitado e dentro das limitações
-  const cor = settingsShipping?._correios || { enabled:true, maxKg:30, maxDimCm:100 };
-  const withinCorreios = (cor.enabled !== false) && (pkg.pesoKg <= Number(cor.maxKg ?? 30)) && (biggerDim <= Number(cor.maxDimCm ?? 100));
-
-  if (withinCorreios && cep.length === 8) {
-    try {
-      return await quoteCorreiosForCep(cep);
-    } catch (e) {
-      console.warn("[shipping] Correios falhou, tentando manual:", e);
-    }
-  }
-
-  // 2) Manual rules por UF + capital/interior
-  const rules = settingsShipping?._manualRules || [];
-  const rule = pickManualRule(rules, uf, (region==="all" ? "interior" : region), pkg) || pickManualRule(rules, uf, "all", pkg);
-
-  if (rule) {
-    shippingQuote = {
-      provider: "manual",
-      name: "Frete combinado",
-      manual: true,
-      rule,
-      price: Number(rule.price || 0),
-      deadlineDays: Number(rule.days || 0),
-      pkg,
-      cepDestino: cep,
-      uf,
-      region: rule.region || "all"
-    };
-    return shippingQuote;
-  }
-
-  // 3) Transportadora: se existir atendendo UF, mostra "Sob consulta"
-  const matches = carrierMatches(settingsShipping?._heavyCarriers || [], uf);
-  if (matches.length) {
-    shippingQuote = {
-      provider: "carrier",
-      name: "Transportadora (sob consulta)",
-      price: 0,
-      deadlineDays: Number(matches[0].baseDays || 0),
-      carrier: matches[0],
-      pkg,
-      cepDestino: cep,
-      uf,
-      region
-    };
-    return shippingQuote;
-  }
-
-  // 4) Sem opções
-  shippingQuote = null;
-  throw new Error("Não foi possível calcular frete. Configure regras manuais/transportadora para este destino.");
-}
-
-
-function updateTotalsUI() {
-  const products = computeCartTotal();
-  const ship = shippingQuote?.price || 0;
-  const defs = settingsShipping || normalizeShippingDefaults({});
-  const shippingFinal = (defs.freeShippingAbove > 0 && products >= defs.freeShippingAbove) ? 0 : ship;
-  const grand = products + shippingFinal;
-
-  document.querySelectorAll('#products-total').forEach(el => { el.textContent = brl(products); });
-
-  document.querySelectorAll('#shipping-price').forEach(el => { el.textContent = shippingQuote ? (shippingFinal === 0 ? 'Grátis' : `${(shippingQuote.name||'Frete')}: ${brl(shippingFinal)}`) : 'A calcular'; });
-
-  document.querySelectorAll('#total-geral').forEach(el => { el.textContent = brl(grand); });
-
-  // Atualiza o visual das opções PIX/BOLETO (sem mudar o total principal)
-  try { atualizarVisualPagamentos(grand); } catch(_) {}
-
-  return { products, shipping: shippingFinal, grandTotal: grand };
-}
-
-
-// =========================================================
-// Visual de pagamento (estilo Mercado Livre)
-// - Total do pedido continua cheio (grand total)
-// - PIX/BOLETO mostram o valor com 10% OFF apenas na UI
-// =========================================================
-function atualizarVisualPagamentos(totalCheio) {
-  const total = Number(totalCheio || 0);
-  const desc = getDiscountPercentFor('pix');
-  const fator = getDiscountFactorFor('pix');
-  const valorComDesconto = total * fator;
-  const formatado = brl(valorComDesconto);
-// cor exata do ML para destaque
-  const mlGreen = "#00a650";
-
-  const pixLabel = document.getElementById('label-pix');
-  if (pixLabel) {
-    const input = pixLabel.querySelector('input[name="pay"][value="pix"]') || pixLabel.querySelector('input');
-    const body = pixLabel.querySelector('.pay-method-body');
-    if (body) {
-      body.innerHTML = `
-        <div class="flex justify-between items-center w-full">
-          <div>
-            <div class="pay-title">Pix</div>
-            <div class="pay-desc">Aprovação rápida</div>
-          </div>
-          <div style="color:${mlGreen};font-weight:800;">${formatado} ${desc>0 ? `<small>(${desc}% OFF)</small>` : ``}</div>
-        </div>
-      `;
-    }
-    if (input) input.value = "pix";
-  }
-
-  const boletoLabel = document.getElementById('label-boleto');
-  if (boletoLabel) {
-    const input = boletoLabel.querySelector('input[name="pay"][value="boleto"]') || boletoLabel.querySelector('input');
-    const body = boletoLabel.querySelector('.pay-method-body');
-    if (body) {
-      body.innerHTML = `
-        <div class="flex justify-between items-center w-full">
-          <div>
-            <div class="pay-title">Boleto</div>
-            <div class="pay-desc">Compensação bancária</div>
-          </div>
-          <div style="color:${mlGreen};font-weight:800;">${formatado} ${desc>0 ? `<small>(${desc}% OFF)</small>` : ``}</div>
-        </div>
-      `;
-    }
-    if (input) input.value = "boleto";
-  }
-}
-  const setLoadingButton = (btn, loading, text = null) => {
-    if (!btn) return;
-    btn.disabled = !!loading;
-    if (loading) {
-      btn.dataset.originalText = btn.dataset.originalText || btn.innerText;
-      btn.innerText = text || "PROCESSANDO...";
-      btn.classList.add("opacity-80");
-    } else {
-      btn.innerText = btn.dataset.originalText || btn.innerText;
-      btn.classList.remove("opacity-80");
-    }
-  };
-
-  // =========================================================
-  // Auth Boot
-  // =========================================================
-  onAuthStateChanged(auth, async (u) => {
-    // ✅ Não considera usuário anônimo como "logado" no checkout
-    if (u && !u.isAnonymous) {
-      const ov = document.getElementById("auth-guard-overlay"); if (ov) ov.remove();
-      user = u;
-      await loadCustomerProfile();
-      await loadAddresses();
-      renderCart();
-    } else {
-      const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = `login_cadastro.html?redirect=${returnTo}`;
-    }
-  });
-
-  async function loadCustomerProfile() {
-    const uid = auth.currentUser?.uid;
-    if (!uid) { customerProfile = null; return; }
-
-    // Tenta em /users, depois /clients e /clientes (você usa essas coleções nas rules)
-    const tryPaths = [
-      ["users", uid],
-      ["clients", uid],
-      ["clientes", uid],
-    ];
-
-    let data = null;
-    for (const [col, id] of tryPaths) {
-      try {
-        const snap = await getDoc(doc(db, col, id));
-        if (snap.exists()) { data = snap.data() || {}; break; }
-      } catch (e) {
-        // continua tentando os outros caminhos
-      }
+    async function enrichCartShipping() {
+      await loadSettings();
+      const defs = settingsShipping || normalizeShippingDefaults({});
+      cart = cart.map((it) => ({
+        ...it,
+        pesoKg: Number(it.pesoKg) || defs.defaultWeightKg,
+        alturaCm: Number(it.alturaCm) || defs.defaultHeightCm,
+        larguraCm: Number(it.larguraCm) || defs.defaultWidthCm,
+        comprimentoCm: Number(it.comprimentoCm) || defs.defaultLengthCm,
+      }));
     }
 
-    if (!data) { customerProfile = null; return; }
+    function computePackage() {
+      const items = Array.isArray(cart) ? cart : [];
+      let pesoKg = 0;
+      let alturaCm = 0;
+      let larguraCm = 0;
+      let comprimentoCm = 0;
 
-    // Normaliza os nomes dos campos mais comuns do seu projeto
-    const name = pick(data.nome, data.name, data.displayName, data.fullName);
-    const cpf = normalizeCpf(pick(data.cpf, data.CPF, data.cpfNumber));
-    const phone = normalizePhone(pick(data.celular, data.telefone, data.phone, data.phoneNumber));
+      for (const it of items) {
+        const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1;
+        const w = Number(it?.pesoKg ?? 1) || 1;
+        const h = Number(it?.alturaCm ?? 10) || 10;
+        const wi = Number(it?.larguraCm ?? 10) || 10;
+        const l = Number(it?.comprimentoCm ?? 10) || 10;
 
-    customerProfile = { ...data, name, cpf, phone };
-  }
-
-  async function loadAddresses() {
-      addressesCache = [];
-      const uid = auth.currentUser.uid;
-      
-      // 1) Busca na subcoleção
-      try {
-        const addressesRef = collection(db, 'users', uid, 'addresses');
-        const snap = await getDocs(query(addressesRef, orderBy('createdAt', 'desc')));
-        snap.forEach((docu) => addressesCache.push({ id: docu.id, ...docu.data() }));
-      } catch (err) {
-        console.warn('Falha ao buscar subcoleção addresses:', err);
+        pesoKg += w * q;
+        alturaCm = Math.max(alturaCm, h);
+        larguraCm = Math.max(larguraCm, wi);
+        comprimentoCm += l * q;
       }
 
-      // 2) Fallback documento único
-      if (addressesCache.length === 0) {
-        try {
-          const userRef = doc(db, 'users', uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            const data = userSnap.data();
-            const addr = data.address || data.endereco;
-            const addrs = data.addresses || data.enderecos;
+      pesoKg = Math.max(0.1, Math.round(pesoKg * 100) / 100);
+      alturaCm = Math.max(1, Math.round(alturaCm));
+      larguraCm = Math.max(1, Math.round(larguraCm));
+      comprimentoCm = Math.max(1, Math.round(comprimentoCm));
 
-            if (addr && typeof addr === 'object' && !Array.isArray(addr)) {
-              addressesCache = [{ id: 'address_doc', ...addr }];
-            } else if (Array.isArray(addrs)) {
-              addressesCache = addrs.map((a, i) => ({ id: a.id || `address_${i}`, ...a }));
-            }
-          }
-        } catch (err) {
-          console.warn('Falha no fallback de endereço:', err);
+      return { pesoKg, alturaCm, larguraCm, comprimentoCm };
+    }
+
+    function isArianaSeller(item) {
+      const sid = String(item && item.sellerId ? item.sellerId : 'admin').toLowerCase().trim();
+      const sname = String(item && item.sellerName ? item.sellerName : 'Ariana Móveis').toLowerCase();
+      return sid === 'admin' || sname.indexOf('ariana') !== -1;
+    }
+
+    function isArianaOrderFromCartItems(items) {
+      if (!Array.isArray(items) || items.length === 0) return false;
+      for (let i = 0; i < items.length; i++) {
+        if (!isArianaSeller(items[i])) return false;
+      }
+      return true;
+    }
+
+    async function quoteCorreiosForCep(cepDestino) {
+      await loadSettings();
+      await enrichCartShipping();
+
+      const pkg = computePackage();
+      const payload = {
+        cepDestino: String(cepDestino || '').replace(/\D/g, ''),
+        pesoKg: pkg.pesoKg,
+        altura: pkg.alturaCm,
+        largura: pkg.larguraCm,
+        comprimento: pkg.comprimentoCm,
+        isArianaOrder: isArianaOrderFromCartItems(cart)
+      };
+
+      const r = await fetch(`${getApiBaseUrl()}/shipping/correios/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || data?.ok === false) {
+        const msg = data?.errors?.[0]?.message || data?.details?.msgs?.[0] || data?.error || 'Falha ao cotar frete';
+        throw new Error(msg);
+      }
+
+      const quotes = Array.isArray(data?.quotes) ? data.quotes : [];
+      if (!quotes.length) {
+        const errMsg = data?.errors?.[0]?.message || 'Nenhuma opção de frete disponível para este CEP.';
+        throw new Error(errMsg);
+      }
+
+      quotes.sort((a, b) => (a?.price ?? Infinity) - (b?.price ?? Infinity));
+      const best = quotes[0];
+
+      shippingQuote = {
+        provider: "correios",
+        price: Number(best.price) || 0,
+        service: best.service || null,
+        name: best.name || best.service || "Correios",
+        deadlineDays: best.deadlineDays ?? null,
+        raw: best.raw || best,
+        pkg,
+        cepDestino: payload.cepDestino,
+        request: payload,
+        full: data
+      };
+
+      try {
+        localStorage.setItem('ariana_selected_shipping', JSON.stringify({
+          cep: payload.cepDestino,
+          service: shippingQuote.service,
+          name: shippingQuote.name,
+          quotedPrice: shippingQuote.price,
+          effectivePrice: shippingQuote.price,
+          updatedAt: Date.now(),
+          raw: data
+        }));
+      } catch (_) {}
+
+      return shippingQuote;
+    }
+
+    async function quoteShippingForSelectedAddress(addrObj) {
+      await loadSettings();
+
+      const cep = String(addrObj?.cep || addrObj?.zip || "").replace(/\D/g,"");
+
+      try {
+        const saved = JSON.parse(localStorage.getItem("ariana_selected_shipping") || "null");
+        if (saved && String(saved.cep || "") === cep && Number.isFinite(Number(saved.effectivePrice ?? saved.quotedPrice))) {
+          shippingQuote = {
+            provider: "correios",
+            price: Number(saved.quotedPrice ?? 0),
+            service: saved.service || null,
+            name: saved.name || saved.service || "Correios",
+            cepDestino: cep,
+            effectivePrice: Number(saved.effectivePrice ?? saved.quotedPrice ?? 0),
+            full: saved.raw || null
+          };
+          return shippingQuote;
+        }
+      } catch (_) {}
+
+      return quoteCorreiosForCep(cep);
+    }
+
+    function updateTotalsUI() {
+      const products = computeCartTotal();
+      const ship = Number(shippingQuote?.effectivePrice ?? shippingQuote?.price ?? 0) || 0;
+      const defs = settingsShipping || normalizeShippingDefaults({});
+      const shippingFinal = (defs.freeShippingAbove > 0 && products >= defs.freeShippingAbove) ? 0 : ship;
+      const grand = products + shippingFinal;
+
+      const productsEls = [
+        document.getElementById('products-total-main'),
+        document.getElementById('products-total-side')
+      ];
+      productsEls.forEach(el => { if (el) el.textContent = brl(products); });
+
+      const shipEls = [
+        document.getElementById('shipping-price-main'),
+        document.getElementById('shipping-price-side')
+      ];
+      shipEls.forEach(el => {
+        if (!el) return;
+        el.textContent = shippingQuote ? (shippingFinal === 0 ? 'Grátis' : `${(shippingQuote.name || 'Frete')}: ${brl(shippingFinal)}`) : 'A calcular';
+      });
+
+      const totalEls = [
+        document.getElementById('total-geral-main'),
+        document.getElementById('total-geral-side'),
+        document.getElementById('resumo-total')
+      ];
+      totalEls.forEach(el => { if (el) el.textContent = brl(grand); });
+
+      try { atualizarVisualPagamentos(grand); } catch (_) {}
+
+      return { products, shipping: shippingFinal, grandTotal: grand };
+    }
+
+    function atualizarVisualPagamentos(totalCheio) {
+      const total = Number(totalCheio || 0);
+      const desc = getDiscountPercentFor('pix');
+      const fator = getDiscountFactorFor('pix');
+      const valorComDesconto = total * fator;
+      const formatado = brl(valorComDesconto);
+      const mlGreen = "#00a650";
+
+      const pixLabel = document.getElementById('label-pix');
+      if (pixLabel) {
+        const body = pixLabel.querySelector('.pay-method-body');
+        if (body) {
+          body.innerHTML = `
+            <div class="flex justify-between items-center w-full">
+              <div>
+                <div class="pay-title">Pix</div>
+                <div class="pay-desc">Aprovação rápida</div>
+              </div>
+              <div style="color:${mlGreen};font-weight:800;">${formatado} ${desc > 0 ? `<small>(${desc}% OFF)</small>` : ``}</div>
+            </div>
+          `;
         }
       }
-      renderAddressSelect();
-  }
 
-  function renderAddressSelect() {
-    const container = document.getElementById("address-options");
-    if (!container) return;
-    
-    try {
-        if (addressesCache.length === 0) {
-            container.innerHTML = `<div class="col-span-full py-4 text-gray-500 italic">Nenhum endereço cadastrado.</div>`;
-            return;
+      const boletoLabel = document.getElementById('label-boleto');
+      if (boletoLabel) {
+        const body = boletoLabel.querySelector('.pay-method-body');
+        if (body) {
+          body.innerHTML = `
+            <div class="flex justify-between items-center w-full">
+              <div>
+                <div class="pay-title">Boleto</div>
+                <div class="pay-desc">Compensação bancária</div>
+              </div>
+              <div style="color:${mlGreen};font-weight:800;">${formatado} ${desc > 0 ? `<small>(${desc}% OFF)</small>` : ``}</div>
+            </div>
+          `;
         }
-
-                container.innerHTML = addressesCache.map((a) => {
-          const nickname = a.nickname || a.name || "Endereço";
-          const street = a.street || "";
-          const number = a.number || "";
-          const city = a.city || "";
-          const state = a.state || "";
-          const cep = a.cep || a.zip || "";
-
-          const line1 = [street, number].filter(Boolean).join(", ");
-          const line2 = [city, state].filter(Boolean).join(" - ") + (cep ? ` • CEP ${cep}` : "");
-
-const isPrimary = !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main);
-const tag = (a.tag || a.type || a.label || "").toString().trim(); // ex: Casa/Trabalho (opcional)
-const pill = (tag || (isPrimary ? "Endereço principal" : "")).trim();
-
-return `
-<div class="addr-card group border border-gray-200 bg-white p-4 md:p-5 rounded-2xl cursor-pointer transition-all hover:border-primary-blue hover:shadow-sm relative"
-     data-addr-id="${a.id}">
-  <div class="flex items-start gap-4">
-    <div class="mt-1 w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0">
-      <span class="w-2.5 h-2.5 rounded-full bg-transparent dot"></span>
-    </div>
-
-    <div class="flex-1 min-w-0">
-      <div class="flex items-center gap-2 flex-wrap">
-        <p class="text-sm font-extrabold text-gray-800 truncate">${nickname}</p>
-        ${pill ? `<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-secondary-light-blue text-primary-blue border border-blue-100">${pill}</span>` : ``}
-      </div>
-      <p class="mt-2 font-bold text-gray-900">${line1 || "—"}</p>
-      <p class="text-sm text-gray-500">${line2 || "—"}</p>
-      <p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>
-    </div>
-
-    <div class="check-icon text-gray-200">
-      <i class="fas fa-check-circle text-2xl"></i>
-    </div>
-  </div>
-</div>`;
-        }).join("");
-    } catch (e) {
-      container.innerHTML = `<div class="col-span-full text-red-500 font-bold">Erro ao renderizar.</div>`;
+      }
     }
-  }
 
-  // =========================================================
-  // UI Controls (Expostos ao Global)
-  // =========================================================
-  window.setAddr = async (el, addrId) => {
-    const addr = addressesCache.find((a) => a.id === addrId);
-    if (!addr) return;
-    selectedAddrObj = addr;
-    // calcula frete assim que selecionar endereço
-    try {
-      const cep = (addr.cep || addr.zip || '').toString();
-      if (cep && cep.replace(/\D/g,'').length === 8) {
-        document.querySelectorAll('#shipping-price').forEach(el => { el.classList.add('opacity-70'); el.textContent = 'Calculando...'; });
-        await quoteShippingForSelectedAddress(addr);
+    const setLoadingButton = (btn, loading, text = null) => {
+      if (!btn) return;
+      btn.disabled = !!loading;
+      if (loading) {
+        btn.dataset.originalText = btn.dataset.originalText || btn.innerText;
+        btn.innerText = text || "PROCESSANDO...";
+        btn.classList.add("opacity-80");
       } else {
-        shippingQuote = null;
+        btn.innerText = btn.dataset.originalText || btn.innerText;
+        btn.classList.remove("opacity-80");
       }
-    } catch (e) {
-      console.error('[checkout] frete erro:', e);
-      shippingQuote = null;
-      document.querySelectorAll('#shipping-price').forEach(el => { el.textContent = 'Erro ao calcular'; });
-    } finally {
-      document.querySelectorAll('#shipping-price').forEach(el => { el.classList.remove('opacity-70'); });
+    };
+
+    function getStoredUser() {
+      const sources = [
+        localStorage.getItem('currentUser'),
+        localStorage.getItem('clienteLogado'),
+        localStorage.getItem('usuarioLogado')
+      ];
+
+      for (const raw of sources) {
+        if (!raw) continue;
+        try {
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === 'object') {
+            return {
+              uid: obj.uid || obj.id || obj._id || "",
+              id: obj.id || obj.uid || obj._id || "",
+              name: obj.name || obj.nome || obj.displayName || "",
+              displayName: obj.displayName || obj.name || obj.nome || "",
+              email: obj.email || "",
+              phone: obj.phone || obj.telefone || obj.celular || "",
+              cpf: obj.cpf || "",
+              addresses: obj.addresses || obj.enderecos || [],
+              address: obj.address || obj.endereco || null
+            };
+          }
+        } catch (_) {
+          if (raw.includes("@")) {
+            return { uid: "", id: "", name: "", displayName: "", email: raw };
+          }
+        }
+      }
+
+      const clientSession = sessionStorage.getItem('clientArianaMoveis');
+      if (clientSession) {
+        try {
+          const obj = JSON.parse(clientSession);
+          return {
+            uid: obj.uid || obj.id || "",
+            id: obj.id || obj.uid || "",
+            name: obj.name || obj.nome || "",
+            displayName: obj.displayName || obj.name || obj.nome || "",
+            email: obj.email || "",
+            phone: obj.phone || obj.telefone || obj.celular || "",
+            cpf: obj.cpf || "",
+            addresses: obj.addresses || obj.enderecos || [],
+            address: obj.address || obj.endereco || null
+          };
+        } catch (_) {}
+      }
+
+      return null;
+    }
+
+    async function apiGet(path) {
+      const res = await fetch(`${getApiBaseUrl()}${path}`, {
+        headers: { "Content-Type": "application/json" }
+      });
+      if (!res.ok) throw new Error(`Erro GET ${path}`);
+      return res.json();
+    }
+
+    async function apiPost(path, payload) {
+      const res = await fetch(`${getApiBaseUrl()}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        let msg = "Erro ao salvar";
+        try {
+          const j = await res.json();
+          msg = j?.error || j?.message || msg;
+        } catch (_) {}
+        throw new Error(msg);
+      }
+      return res.json();
+    }
+
+    async function bootAuthAndProfile() {
+      const overlay = document.getElementById("auth-guard-overlay");
+
+      user = getStoredUser();
+
+      if (!user || !(user.uid || user.id || user.email)) {
+        const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `login_cadastro.html?redirect=${returnTo}`;
+        return false;
+      }
+
+      customerProfile = {
+        uid: user.uid || user.id || "",
+        name: user.name || user.displayName || "",
+        nome: user.name || user.displayName || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        telefone: user.phone || "",
+        cpf: user.cpf || ""
+      };
+
+      if (overlay) overlay.remove();
+      return true;
+    }
+
+    async function loadAddresses() {
+      addressesCache = [];
+      const uid = user?.uid || user?.id || "";
+
+      if (Array.isArray(user?.addresses) && user.addresses.length) {
+        addressesCache = user.addresses.map((a, i) => ({ id: a.id || `address_${i}`, ...a }));
+      } else if (user?.address && typeof user.address === "object") {
+        addressesCache = [{ id: user.address.id || "address_doc", ...user.address }];
+      }
+
+      if (!addressesCache.length && uid) {
+        try {
+          const data = await apiGet(`/users/${encodeURIComponent(uid)}/addresses`);
+          const items = Array.isArray(data) ? data : (data.items || data.addresses || []);
+          addressesCache = items.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
+        } catch (_) {}
+      }
+
+      renderAddressSelect();
+    }
+
+    function renderAddressSelect() {
+      const container = document.getElementById("address-options");
+      if (!container) return;
+
+      if (addressesCache.length === 0) {
+        container.innerHTML = `<div class="col-span-full py-4 text-gray-500 italic">Nenhum endereço cadastrado.</div>`;
+        return;
+      }
+
+      container.innerHTML = addressesCache.map((a) => {
+        const n = normalizeAddress(a);
+        const nickname = n.nickname || "Endereço";
+        const line1 = [n.street, n.number].filter(Boolean).join(", ");
+        const line2 = [n.city, n.state].filter(Boolean).join(" - ") + (n.cep ? ` • CEP ${n.cep}` : "");
+
+        const isPrimary = !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main);
+        const tag = (a.tag || a.type || a.label || "").toString().trim();
+        const pill = (tag || (isPrimary ? "Endereço principal" : "")).trim();
+
+        return `
+          <div class="addr-card" data-addr-id="${a.id}">
+            <div class="flex items-start gap-4">
+              <div class="mt-1 w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-transparent dot"></span>
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <p class="text-sm font-extrabold text-gray-800 truncate">${nickname}</p>
+                  ${pill ? `<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-secondary-light-blue text-primary-blue border border-blue-100">${pill}</span>` : ``}
+                </div>
+                <p class="mt-2 font-bold text-gray-900">${line1 || "—"}</p>
+                <p class="text-sm text-gray-500">${line2 || "—"}</p>
+                <p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>
+              </div>
+
+              <div class="check-icon text-gray-200">
+                <i class="fas fa-check-circle text-2xl"></i>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function setAddr(el, addrId) {
+      const addr = addressesCache.find((a) => String(a.id) === String(addrId));
+      if (!addr) return;
+
+      selectedAddrObj = normalizeAddress(addr);
+      selectedAddrText = `${[selectedAddrObj.street, selectedAddrObj.number].filter(Boolean).join(", ")} - ${[selectedAddrObj.city, selectedAddrObj.state].filter(Boolean).join("/")}`.trim();
+
+      try {
+        const cep = String(selectedAddrObj.cep || '').replace(/\D/g,'');
+        if (cep && cep.length === 8) {
+          const shipEls = [document.getElementById('shipping-price-main'), document.getElementById('shipping-price-side')];
+          shipEls.forEach(node => { if (node) { node.classList.add('opacity-70'); node.textContent = 'Calculando...'; } });
+          await quoteShippingForSelectedAddress(selectedAddrObj);
+        } else {
+          shippingQuote = null;
+        }
+      } catch (e) {
+        console.error('[checkout] frete erro:', e);
+        shippingQuote = null;
+        const shipEls = [document.getElementById('shipping-price-main'), document.getElementById('shipping-price-side')];
+        shipEls.forEach(node => { if (node) node.textContent = 'Erro ao calcular'; });
+      } finally {
+        const shipEls = [document.getElementById('shipping-price-main'), document.getElementById('shipping-price-side')];
+        shipEls.forEach(node => { if (node) node.classList.remove('opacity-70'); });
+        updateTotalsUI();
+      }
+
+      document.querySelectorAll(".addr-card").forEach((c) => {
+        c.classList.remove("active", "border-primary-blue", "bg-blue-50");
+        const icon = c.querySelector(".check-icon");
+        if (icon) icon.classList.replace("text-primary-blue", "text-gray-200");
+        const d = c.querySelector(".dot");
+        if (d) d.classList.remove("bg-primary-blue");
+        const ring = c.querySelector("div.w-5.h-5");
+        if (ring) ring.classList.replace("border-primary-blue", "border-gray-300");
+      });
+
+      el.classList.add("active", "border-primary-blue", "bg-blue-50");
+      const dot = el.querySelector(".dot");
+      if (dot) dot.classList.add("bg-primary-blue");
+      const ring = el.querySelector("div.w-5.h-5");
+      if (ring) ring.classList.replace("border-gray-300", "border-primary-blue");
+      const ic = el.querySelector(".check-icon");
+      if (ic) ic.classList.replace("text-gray-200", "text-primary-blue");
+
+      const btn = document.getElementById("btn-next-1");
+      if (btn) {
+        btn.classList.remove("opacity-50", "cursor-not-allowed");
+        btn.disabled = false;
+      }
+    }
+
+    async function applyPaymentSettingsUI() {
+      try { await loadSettings(); } catch (_) {}
+
+      const mp = (settingsPayments && (settingsPayments.mercadopago || settingsPayments.mercadoPago || settingsPayments.mp)) || {};
+      const enPix = mp.enablePix !== false;
+      const enCard = mp.enableCard !== false;
+      const enBoleto = mp.enableBoleto !== false;
+
+      const labelPix = document.getElementById("label-pix");
+      const labelCard = document.getElementById("label-card");
+      const labelBoleto = document.getElementById("label-boleto");
+
+      if (labelPix) labelPix.style.display = enPix ? "" : "none";
+      if (labelCard) labelCard.style.display = enCard ? "" : "none";
+      if (labelBoleto) labelBoleto.style.display = enBoleto ? "" : "none";
+
+      const allowed = [];
+      if (enPix) allowed.push("pix");
+      if (enCard) allowed.push("card");
+      if (enBoleto) allowed.push("boleto");
+
+      if (!allowed.includes(selectedPayCode)) {
+        selectedPayCode = allowed[0] || "card";
+        selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
+        const radio = document.querySelector(`input[name="pay"][value="${selectedPayCode}"]`);
+        if (radio) radio.checked = true;
+      }
+
+      updatePayMethodClasses();
+    }
+
+    function updatePayMethodClasses() {
+      document.querySelectorAll('.pay-method').forEach((el) => el.classList.remove('active'));
+      const active = document.querySelector(`input[name="pay"][value="${selectedPayCode}"]`)?.closest('.pay-method');
+      if (active) active.classList.add('active');
+    }
+
+    function goToStep(n) {
+      document.querySelectorAll('section[id^="step-"]').forEach((s) => s.classList.add("hidden"));
+      document.getElementById(`step-${n}`)?.classList.remove("hidden");
+
+      [1, 2, 3].forEach(stepNum => {
+        const dot = document.getElementById(`step-dot-${stepNum}`);
+        const label = dot?.parentElement?.querySelector("span");
+        if (!dot) return;
+        if (stepNum <= n) {
+          dot.classList.remove("bg-gray-300");
+          dot.classList.add("bg-primary-blue");
+          label?.classList.remove("text-gray-400");
+        } else {
+          dot.classList.remove("bg-primary-blue");
+          dot.classList.add("bg-gray-300");
+          label?.classList.add("text-gray-400");
+        }
+      });
+
+      if (n === 3) {
+        applyPaymentSettingsUI();
+        document.getElementById("resumo-end").innerText = selectedAddrText || "—";
+      }
+    }
+
+    function renderCart() {
+      const listMain = document.getElementById("lista-resumo-main");
+      const listSide = document.getElementById("lista-resumo-side");
+
+      if (!Array.isArray(cart) || cart.length === 0) {
+        const empty = `<p class="text-xs text-gray-400">Seu carrinho está vazio.</p>`;
+        if (listMain) listMain.innerHTML = empty;
+        if (listSide) listSide.innerHTML = empty;
+        shippingQuote = null;
+        updateTotalsUI();
+        return;
+      }
+
+      const html = cart.map((i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
+        const name = i.name || i.title || "Produto";
+        const price = safeNumber(i.price ?? i.valor ?? 0);
+        return `
+          <div class="resumo-item">
+            <span>${qty}x ${name}</span>
+            <span class="font-bold">${brl(price * qty)}</span>
+          </div>
+        `;
+      }).join("");
+
+      if (listMain) listMain.innerHTML = html;
+      if (listSide) listSide.innerHTML = html;
+
       updateTotalsUI();
     }
 
+    async function finalizarPedido() {
+      const btn = document.getElementById("btn-pay");
+      if (!selectedAddrObj) {
+        alert("Selecione um endereço.");
+        goToStep(1);
+        return;
+      }
+      if (!Array.isArray(cart) || cart.length === 0) {
+        alert("Carrinho vazio.");
+        return;
+      }
 
-    const street = addr.street || "";
-    const number = addr.number || "";
-    const city = addr.city || "";
-    const state = addr.state || "";
-    selectedAddrText = `${[street, number].filter(Boolean).join(", ")} - ${[city, state].filter(Boolean).join("/")}`.trim();
+      const authUser = user;
+      if (!authUser) {
+        alert("Faça login novamente.");
+        window.location.href = "login_cadastro.html";
+        return;
+      }
 
-    document.querySelectorAll(".addr-card").forEach((c) => {
-      c.classList.remove("border-primary-blue", "bg-blue-50");
-      const icon = c.querySelector(".check-icon");
-      if (icon) icon.classList.replace("text-primary-blue", "text-gray-200");
-      const d = c.querySelector(".dot");
-      if (d) d.classList.remove("bg-primary-blue");
-      const ring = c.querySelector("div.w-5.h-5");
-      if (ring) ring.classList.replace("border-primary-blue", "border-gray-300");
-    });
+      let cpfToUse = "";
+      if (customerProfile && customerProfile.cpf) {
+        cpfToUse = String(customerProfile.cpf).replace(/\D/g, "");
+      }
+      if (!cpfToUse && authUser?.cpf) {
+        cpfToUse = String(authUser.cpf).replace(/\D/g, "");
+      }
+      if (!cpfToUse) {
+        try {
+          const legacy = JSON.parse(localStorage.getItem("clienteLogado") || "{}");
+          if (legacy && legacy.cpf) cpfToUse = String(legacy.cpf).replace(/\D/g, "");
+        } catch (_) {}
+      }
 
-    el.classList.add("border-primary-blue", "bg-blue-50");
-    const dot = el.querySelector(".dot");
-    if (dot) dot.classList.add("bg-primary-blue");
-    const ring = el.querySelector("div.w-5.h-5");
-    if (ring) ring.classList.replace("border-gray-300", "border-primary-blue");
-    const ic = el.querySelector(".check-icon");
-    if (ic) ic.classList.replace("text-gray-200", "text-primary-blue");
+      if (!cpfToUse) {
+        alert("CPF é obrigatório. Complete seu cadastro para continuar.");
+        window.location.href = "minha_conta.html?tab=profile";
+        return;
+      }
 
-    const btn = document.getElementById("btn-next-1");
-    if (btn) btn.classList.remove("opacity-50", "cursor-not-allowed");
-    if (btn) btn.disabled = false;
-  };
+      setLoadingButton(btn, true);
 
-  
+      try {
+        const totalsComputed = updateTotalsUI();
 
-  // =========================================================
-  // Pagamentos (Mercado Pago) — habilita/desabilita métodos conforme settings
-  // =========================================================
-  async function applyPaymentSettingsUI() {
-    try { await loadSettings(); } catch (_) {}
-    const mp = (settingsPayments && (settingsPayments.mercadopago || settingsPayments.mercadoPago || settingsPayments.mp)) || {};
-    const enPix = mp.enablePix !== false;
-    const enCard = mp.enableCard !== false;
-    const enBoleto = mp.enableBoleto !== false;
+        const paySelected = document.querySelector('input[name="pay"]:checked')?.value || selectedPayCode || 'card';
+        selectedPayCode = paySelected;
+        selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : 'Cartão de Crédito');
 
-    const labelPix = document.getElementById("label-pix");
-    const labelCard = document.getElementById("label-card");
-    const labelBoleto = document.getElementById("label-boleto");
+        let valorFinal = totalsComputed.grandTotal;
+        const desc = getDiscountPercentFor('pix');
+        const fator = getDiscountFactorFor('pix');
 
-    if (labelPix) labelPix.style.display = enPix ? "" : "none";
-    if (labelCard) labelCard.style.display = enCard ? "" : "none";
-    if (labelBoleto) labelBoleto.style.display = enBoleto ? "" : "none";
-
-    const allowed = [];
-    if (enCard) allowed.push("card");
-    if (enPix) allowed.push("pix");
-    if (enBoleto) allowed.push("boleto");
-
-    if (!allowed.includes(selectedPayCode)) {
-      selectedPayCode = allowed[0] || "card";
-      selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
-      const radio = document.querySelector(`input[name="pay"][value="${selectedPayCode}"]`);
-      if (radio) radio.checked = true;
-    }
-  }
-
-window.selectPay = (type) => {
-  const card = document.getElementById("label-card");
-  const pix = document.getElementById("label-pix");
-  const boleto = document.getElementById("label-boleto");
-
-  const setActive = (el, active) => {
-    if (!el) return;
-    if (active) {
-      el.classList.replace("border-gray-100", "border-primary-blue");
-      el.classList.add("bg-blue-50");
-      el.querySelector(".fa-check-circle")?.classList.replace("text-gray-100", "text-primary-blue");
-    } else {
-      el.classList.replace("border-primary-blue", "border-gray-100");
-      el.classList.remove("bg-blue-50");
-      el.querySelector(".fa-check-circle")?.classList.replace("text-primary-blue", "text-gray-100");
-    }
-  };
-
-  if (type === "pix") {
-    selectedPay = "Pix";
-    selectedPayCode = "pix";
-    setActive(pix, true);
-    setActive(card, false);
-    setActive(boleto, false);
-  } else if (type === "boleto") {
-    selectedPay = "Boleto";
-    selectedPayCode = "boleto";
-    setActive(boleto, true);
-    setActive(card, false);
-    setActive(pix, false);
-  } else {
-    selectedPay = "Cartão de Crédito";
-    selectedPayCode = "card";
-    setActive(card, true);
-    setActive(pix, false);
-    setActive(boleto, false);
-  }
-
-  updateBoletoExtraUI();
-};
-
-function updateBoletoExtraUI() {
-  const boletoExtra = document.getElementById("boleto-extra");
-  if (!boletoExtra) return;
-
-  if (selectedPayCode === "boleto") {
-    boletoExtra.classList.remove("hidden");
-
-    const nm = document.getElementById("boleto-name");
-    const cpfEl = document.getElementById("boleto-cpf");
-
-    const authUser = auth.currentUser;
-
-    const autoName = pick(
-      customerProfile?.nome,
-      customerProfile?.name,
-      customerProfile?.displayName,
-      authUser?.displayName,
-      authUser?.email ? authUser.email.split("@")[0] : ""
-    );
-
-    const autoCpf = normalizeCpf(pick(customerProfile?.cpf, customerProfile?.CPF));
-
-    if (nm && !String(nm.value || "").trim() && autoName) nm.value = autoName;
-    if (cpfEl && !onlyDigits(cpfEl.value) && autoCpf) cpfEl.value = autoCpf;
-  } else {
-    boletoExtra.classList.add("hidden");
-  }
-}
-
-// garante que ao carregar e ao trocar a forma de pagamento, os extras do boleto fiquem corretos
-updateBoletoExtraUI();
-
-
-  window.goToStep = (n) => {
-    document.querySelectorAll('section[id^="step-"]').forEach((s) => s.classList.add("hidden"));
-    document.getElementById(`step-${n}`)?.classList.remove("hidden");
-    
-    // Atualiza Stepper
-    [1, 2, 3].forEach(stepNum => {
-        const dot = document.getElementById(`step-dot-${stepNum}`);
-        const label = dot?.parentElement?.querySelector("span");
-        if(stepNum <= n) {
-            dot.classList.replace("bg-gray-300", "bg-primary-blue");
-            label?.classList.remove("text-gray-400");
-        } else {
-            dot.classList.replace("bg-primary-blue", "bg-gray-300");
-            label?.classList.add("text-gray-400");
+        if ((paySelected === 'pix' || paySelected === 'boleto') && desc > 0) {
+          valorFinal = totalsComputed.grandTotal * fator;
         }
-    });
 
-    if (n === 3) {
-      applyPaymentSettingsUI?.();
+        const addrN = normalizeAddress(selectedAddrObj);
+        if (!addrN.number) addrN.number = "S/N";
 
-      document.getElementById("resumo-end").innerText = selectedAddrText || "—";
-          }
-  };
+        cpfToUse = onlyDigits(cpfToUse);
+        if (cpfToUse.length !== 11) {
+          alert("CPF inválido. Corrija no seu cadastro para continuar.");
+          window.location.href = "minha_conta.html?tab=profile";
+          return;
+        }
 
-  function renderCart() {
-  const list = document.getElementById("lista-resumo");
-  if (!list) return;
+        const { payer: mpPayer, receiver_address: mpReceiverAddress, fullName } =
+          buildMpPayerAndShipments({ authUser, customerProfile, cpfDigits: cpfToUse, normalizedAddr: addrN });
 
-  // sempre carregue settings para regras como frete grátis acima de X
-  loadSettings().catch(() => {});
+        const mpProblems = validateMpBasics({ cpfDigits: cpfToUse, addr: addrN });
+        if (mpProblems.length) {
+          alert("Complete seu endereço/cadastro:\n- " + mpProblems.join("\n- "));
+          window.location.href = "minha_conta.html?tab=address&from=checkout";
+          return;
+        }
 
-  if (!Array.isArray(cart) || cart.length === 0) {
-    list.innerHTML = `<p class="text-xs text-gray-400">Seu carrinho está vazio.</p>`;
-    shippingQuote = null;
-    const elProducts = document.getElementById("products-total");
-    if (elProducts) elProducts.textContent = brl(0);
-    const elShip = document.getElementById("shipping-price");
-    if (elShip) elShip.textContent = "A calcular";
-    const elTotal = document.getElementById("total-geral");
-    if (elTotal) elTotal.textContent = brl(0);
-    return;
-  }
+        const shippingToSave = shippingQuote ? {
+          provider: "correios",
+          cepOrigem: String(settingsShipping?.originCep || ""),
+          cepDestino: shippingQuote.cepDestino,
+          service: shippingQuote.service,
+          name: shippingQuote.name || null,
+          price: totalsComputed.shipping,
+          pkg: shippingQuote.pkg || null,
+          quote: shippingQuote.full || null,
+        } : null;
 
-  list.innerHTML = cart.map((i) => {
-    const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
-    const name = i.name || i.title || "Produto";
-    const price = safeNumber(i.price ?? i.valor ?? 0);
-    return `<div class="flex justify-between text-xs"><span>${qty}x ${name}</span><span class="font-bold">${brl(price * qty)}</span></div>`;
-  }).join("");
+        const orderPayload = {
+          userId: authUser.uid || authUser.id || "",
+          cpf: cpfToUse || "",
+          phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || "",
+          customer: {
+            uid: authUser.uid || authUser.id || "",
+            name: fullName,
+            email: authUser.email || "",
+            cpf: cpfToUse || "",
+            phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || ""
+          },
+          address: addrN,
+          totals: {
+            products: totalsComputed.products,
+            shipping: totalsComputed.shipping,
+            grandTotalOriginal: totalsComputed.grandTotal,
+            grandTotal: valorFinal,
+            discountApplied: (valorFinal < totalsComputed.grandTotal) ? `${getDiscountPercentFor('pix')}%` : '0%',
+            paymentMethod: selectedPayCode
+          },
+          shipping: shippingToSave,
+          items: cart,
+          mp: {
+            payer: mpPayer,
+            additional_info: {
+              shipments: {
+                receiver_address: mpReceiverAddress
+              }
+            }
+          },
+          status: "pending_payment",
+          createdAt: new Date().toISOString()
+        };
 
-  // atualiza subtotal/total (frete continua "A calcular" até escolher endereço)
-  updateTotalsUI();
-}
+        const response = await apiPost("/orders", orderPayload);
+        const orderId = response?.id || response?.orderId || response?._id || response?.item?.id || response?.item?._id;
 
+        if (!orderId) throw new Error("Pedido criado sem ID retornado pela API.");
 
-  // =========================================================
-  // Binds (sem onclick inline) - corrige botão "Continuar"
-  // =========================================================
-  // Delegação de clique para cards de endereço
-  document.addEventListener('click', async (ev) => {
-    const card = ev.target?.closest?.('.addr-card');
-    if (!card) return;
-    const id = card.getAttribute('data-addr-id');
-    if (!id) return;
-    // Chama a mesma função global já existente
-    if (typeof window.setAddr === 'function') {
-      await window.setAddr(card, id);
-    }
-  });
+        try {
+          localStorage.removeItem("arianaMoveisCart");
+          localStorage.removeItem("ariana_moveis_cart");
+        } catch (_) {}
 
-  // Botões de navegação
-  document.getElementById('btn-next-1')?.addEventListener('click', async () => {
-    if (typeof window.finalizar === 'function') {
-      await window.finalizar();
-    }
-  });
+        try {
+          localStorage.setItem("arianaLastOrderId", orderId);
+          localStorage.setItem("arianaLastOrderPayment", selectedPayCode || "");
+        } catch (_) {}
 
-
-window.finalizar = async () => {
-  const btn = document.getElementById("btn-final");
-
-  if (!selectedAddrObj) { alert("Selecione um endereço."); window.goToStep?.(1); return; }
-  if (!Array.isArray(cart) || cart.length === 0) { alert("Carrinho vazio."); return; }
-
-  const authUser = auth.currentUser;
-  if (!authUser) { alert("Faça login novamente."); window.location.href = "login_cadastro.html"; return; }
-
-// ===== GARANTE CPF DO CLIENTE (OBRIGATÓRIO PARA PAGAMENTO) =====
-let cpfToUse = "";
-
-// 1) tenta pegar do perfil já carregado
-if (customerProfile && customerProfile.cpf) {
-  cpfToUse = String(customerProfile.cpf).replace(/\D/g, "");
-}
-
-// 2) se ainda não tiver, tenta pegar direto do Firestore (users/{uid})
-if (!cpfToUse && authUser) {
-  try {
-    const snap = await getDoc(doc(db, "users", authUser.uid));
-    if (snap.exists()) {
-      const data = snap.data() || {};
-      if (data.cpf) cpfToUse = String(data.cpf).replace(/\D/g, "");
-    }
-  } catch (e) {
-    console.warn("Erro ao buscar CPF no Firestore:", e);
-  }
-}
-
-// 3) fallback para input do boleto (se existir na tela)
-const cpfFromInput = document.getElementById("boleto-cpf");
-if (!cpfToUse && cpfFromInput && cpfFromInput.value) {
-  cpfToUse = String(cpfFromInput.value).replace(/\D/g, "");
-}
-
-// 4) fallback legado (se você ainda usa)
-if (!cpfToUse) {
-  try {
-    const legacy = JSON.parse(localStorage.getItem("clienteLogado") || "{}");
-    if (legacy && legacy.cpf) cpfToUse = String(legacy.cpf).replace(/\D/g, "");
-  } catch (_) {}
-}
-
-if (!cpfToUse) {
-  alert("CPF é obrigatório. Complete seu cadastro para continuar.");
-  window.location.href = "minha_conta.html?tab=profile";
-  return;
-}
-
-
-  setLoadingButton(btn, true);
-
-  try {
-    const name = customerProfile?.name || authUser.displayName || (authUser.email ? authUser.email.split("@")[0] : "Cliente");
-    const totalsComputed = updateTotalsUI();
-
-    // ✅ Regra Mercado Livre: desconto só vira real se PIX ou BOLETO for selecionado
-    const paySelected = document.querySelector('input[name="pay"]:checked')?.value || selectedPayCode || 'card';
-    selectedPayCode = paySelected;
-    let valorFinal = totalsComputed.grandTotal;
-    const desc = getDiscountPercentFor('pix');
-const fator = getDiscountFactorFor('pix');
-if ((paySelected === 'pix' || paySelected === 'boleto') && desc > 0) {
-  valorFinal = totalsComputed.grandTotal * fator;
-}
-
-    const shippingToSave = shippingQuote ? {
-      provider: "correios",
-      cepOrigem: String(settingsShipping?.originCep || ""),
-      cepDestino: shippingQuote.cepDestino,
-      service: shippingQuote.service,
-      name: shippingQuote.name || null,
-      price: totalsComputed.shipping,
-      pkg: shippingQuote.pkg,
-      quote: shippingQuote.full,
-    } : null;
-
-    // ... código anterior da função finalizarPedido
-
-        // --- ENDEREÇO + DADOS MP (Mercado Pago) — padroniza e valida ---
-    if (!selectedAddrObj) {
-      const backupAddr = localStorage.getItem("ariana_selected_address");
-      if (backupAddr) {
-        try { selectedAddrObj = JSON.parse(backupAddr); } catch (_) {}
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}`;
+      } catch (e) {
+        console.error(e);
+        alert(e?.message || "Erro ao finalizar pedido.");
+      } finally {
+        setLoadingButton(btn, false);
       }
     }
-    if (!selectedAddrObj) {
-      alert("Por favor, selecione um endereço de entrega para prosseguir.");
-      window.goToStep?.(1);
-      return;
+
+    function bindEvents() {
+      document.addEventListener('click', async (ev) => {
+        const card = ev.target?.closest?.('.addr-card');
+        if (!card) return;
+        const id = card.getAttribute('data-addr-id');
+        if (!id) return;
+        await setAddr(card, id);
+      });
+
+      document.getElementById('btn-next-1')?.addEventListener('click', () => goToStep(2));
+      document.getElementById('btn-back-2')?.addEventListener('click', () => goToStep(1));
+      document.getElementById('btn-next-2')?.addEventListener('click', () => goToStep(3));
+      document.getElementById('btn-back-3')?.addEventListener('click', () => goToStep(2));
+      document.getElementById('btn-pay')?.addEventListener('click', finalizarPedido);
+
+      document.querySelectorAll('input[name="pay"]').forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+          selectedPayCode = e.target.value;
+          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
+          updatePayMethodClasses();
+        });
+      });
     }
 
-    const addrN = normalizeAddress(selectedAddrObj);
-    if (!addrN.number) addrN.number = "S/N";
+    (async function init() {
+      bindEvents();
 
-    // CPF: garante 11 dígitos
-    cpfToUse = onlyDigits(cpfToUse);
-    if (cpfToUse.length !== 11) {
-      alert("CPF inválido. Corrija no seu cadastro para continuar.");
-      window.location.href = "minha_conta.html?tab=profile";
-      return;
-    }
+      const ok = await bootAuthAndProfile();
+      if (!ok) return;
 
-    const { payer: mpPayer, receiver_address: mpReceiverAddress, fullName } =
-      buildMpPayerAndShipments({ authUser, customerProfile, cpfDigits: cpfToUse, normalizedAddr: addrN });
+      await loadSettings();
+      await loadAddresses();
+      renderCart();
+      await applyPaymentSettingsUI();
 
-    const mpProblems = validateMpBasics({ cpfDigits: cpfToUse, addr: addrN });
-    if (mpProblems.length) {
-      alert("Complete seu endereço/cadastro:\n- " + mpProblems.join("\n- "));
-      window.location.href = "minha_conta.html?tab=address&from=checkout";
-      return;
-    }
-
-const orderPayload = {
-      userId: authUser.uid,
-      cpf: cpfToUse || "",
-      phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, "")) || "",
-      customer: {
-        uid: authUser.uid,
-        name: fullName,
-        email: authUser.email || "",
-        cpf: cpfToUse || "",
-        phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, "")) || ""
-      },
-      address: addrN,
-      totals: {
-        products: totalsComputed.products,
-        shipping: totalsComputed.shipping,
-        grandTotalOriginal: totalsComputed.grandTotal,
-        grandTotal: valorFinal,
-        discountApplied: (valorFinal < totalsComputed.grandTotal) ? '10%' : '0%',
-        paymentMethod: selectedPayCode
-      },
-      shipping: shippingToSave,
-      items: cart,
-      mp: {
-        payer: mpPayer,
-        additional_info: {
-          shipments: {
-            receiver_address: mpReceiverAddress
-          }
-        }
-      },
-      status: "pending_payment",
-      createdAt: serverTimestamp()
-    };
-
-    const orderRef = await addDoc(collection(db, "orders"), orderPayload);
-
-    // limpa carrinho local
-    try { localStorage.removeItem("arianaMoveisCart"); } catch (_) {}
-
-    // salva referência do último pedido
-    try {
-      localStorage.setItem("arianaLastOrderId", orderRef.id);
-      localStorage.setItem("arianaLastOrderPayment", selectedPayCode || "");
-    } catch (_) {}
-
-    // segue para pagamento
-    window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderRef.id)}`;
-  } catch (e) {
-    console.error(e);
-    alert("Erro ao finalizar pedido.");
-  } finally {
-    setLoadingButton(btn, false);
-  }
-};
-</script>
-<script>
-        // Inicialização rápida da tela
-        console.log("Tela carregada com Tailwind local e APIs ativas.");
-    </script>
-    <script type="module" src="firebase-config.js"></script>
-    <script src="marketplace-core.js"></script>
-    <script src="marketplace-core_global_payments.js"></script>
-
-     <script src="js/layout-fit.js" defer></script>
-
-    <script src="js/header_auth_fix.js" defer></script>
+      console.log("Tela carregada com API ativa.");
+    })();
+  </script>
 </body>
 </html>

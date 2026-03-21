@@ -59,83 +59,174 @@
 
 <div class="max-w-3xl mx-auto"><div class="flex items-start justify-between gap-4 flex-wrap mb-6"><div><h2 class="text-2xl font-bold text-dark-bg"><i class="fas fa-truck mr-3 text-primary-blue"></i>Marcar pedido como enviado</h2><p class="muted mt-2">Informe o código de rastreio e a transportadora.</p></div><a href="seller_pedidos.html" class="btn btn-light"><i class="fas fa-arrow-left"></i>Voltar</a></div><div class="card p-6"><div class="grid md:grid-cols-2 gap-6"><div><div class="muted text-xs font-black uppercase">Código do pedido</div><div id="orderId" class="font-mono text-sm bg-gray-100 p-3 rounded-xl break-all">—</div></div><div><div class="muted text-xs font-black uppercase">Status atual</div><div id="status" class="font-bold text-primary-blue">—</div></div><div class="md:col-span-2"><label class="block font-bold mb-2 text-dark-bg">Código de rastreio</label><input id="tracking" class="input" placeholder="Ex: BR123456789"></div><div class="md:col-span-2"><label class="block font-bold mb-2 text-dark-bg">Transportadora</label><input id="carrier" class="input" placeholder="Ex: Correios, Jadlog, Loggi"></div></div><div class="mt-6 flex gap-3 flex-col md:flex-row"><button id="btn-send" class="btn btn-primary flex-1">Marcar como enviado</button><a href="seller_pedidos.html" class="btn btn-light md:w-48">Cancelar</a></div></div></div>
 </main></div>
-<script type="module">
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+<script>
+  const API_BASE = window.API_BASE || window.API_URL || localStorage.getItem('apiBaseUrl') || 'http://localhost:3000/api';
+  const $ = (id) => document.getElementById(id);
+
+  const state = {
+    seller: null,
+    order: null,
+    orderId: new URLSearchParams(location.search).get('id')
+  };
+
+  function toast(message, type='info') {
+    const c = $('toast-container');
+    if (!c) return alert(message);
+    const el = document.createElement('div');
+    const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    el.textContent = message;
+    c.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 300);
+    }, 3400);
+  }
+
+  function getSellerToken() {
+    return localStorage.getItem('seller_token') || '';
+  }
+
+  function getSellerProfile() {
+    try {
+      return JSON.parse(localStorage.getItem('seller_profile') || '{}');
+    } catch {
+      return {};
     }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
-      return seller;
-    }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
+  }
+
+  async function apiFetch(path, options = {}) {
+    const token = getSellerToken();
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
       }
-      return [];
+    });
+
+    const text = await response.text();
+    let data = null;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
     }
 
-const sidebar = $('sidebar'); $('sidebar-toggle')?.addEventListener('click', ()=> sidebar.classList.toggle('-translate-x-full'));
-$('btn-sair')?.addEventListener('click', async (e)=>{ e.preventDefault(); try{ await signOut(auth);}catch{} window.location.href='seller_login.html';});
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { window.location.href = 'seller_login.html'; return; }
-  try {
-    const seller = await getSeller(user.uid);
-    if (!seller) throw new Error('Conta seller não encontrada.');
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || 'Seller'}!`;
-  } catch (e) { toast(e.message || 'Erro ao validar seller.', 'error'); setTimeout(()=>window.location.href='seller_login.html', 1000); }
-});
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
+    }
 
-const params = new URLSearchParams(location.search); const orderId = params.get('id'); let currentOrder = null;
-onAuthStateChanged(auth, async (user)=>{ if(!user) return; try { await requireApprovedSeller(user.uid); const snap = await getDoc(doc(db,'orders',orderId)); if(!snap.exists()) throw new Error('Pedido não encontrado.'); currentOrder = {id:snap.id, ...snap.data()}; if(!orderBelongsToSeller(currentOrder, user.uid)) throw new Error('Acesso negado ao pedido.'); $('orderId').textContent = currentOrder.id; $('status').textContent = currentOrder.status || '—'; $('tracking').value = currentOrder.trackingCode || ''; $('carrier').value = currentOrder.carrier || ''; } catch(e){ console.error(e); toast(e.message||'Erro ao carregar pedido.','error'); } });
-$('btn-send').addEventListener('click', async ()=>{ const user=auth.currentUser; if(!user||!orderId) return; const tracking=($('tracking').value||'').trim(); if(!tracking) { toast('Informe o código de rastreio.','error'); return; } try { await updateDoc(doc(db,'orders',orderId), { trackingCode:tracking, carrier:($('carrier').value||'').trim(), status:'shipped', updatedAt:serverTimestamp() }); toast('Pedido marcado como enviado.','success'); setTimeout(()=>window.location.href='seller_pedidos.html',700);} catch(e){ console.error(e); toast('Erro ao atualizar pedido.','error'); } });
+    return data;
+  }
 
+  async function ensureSellerSession() {
+    const profile = getSellerProfile();
+    const token = getSellerToken();
+
+    if (!token) {
+      window.location.href = 'seller_login.html';
+      throw new Error('Sessão expirada.');
+    }
+
+    try {
+      const me = await apiFetch('/seller/me');
+      state.seller = me?.seller || me?.data || me || profile;
+      return state.seller;
+    } catch (e) {
+      if (profile && (profile.id || profile._id || profile.uid)) {
+        state.seller = profile;
+        return profile;
+      }
+      window.location.href = 'seller_login.html';
+      throw e;
+    }
+  }
+
+  function itemBelongsToSeller(item, seller) {
+    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
+    return String(item?.sellerId || item?.sellerUid || '') === sellerId;
+  }
+
+  function orderBelongsToSeller(order, seller) {
+    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
+    if (String(order?.sellerId || order?.sellerUid || '') === sellerId) return true;
+    return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, seller));
+  }
+
+  async function loadOrder() {
+    if (!state.orderId) {
+      toast('ID do pedido ausente.', 'error');
+      return;
+    }
+
+    try {
+      await ensureSellerSession();
+
+      const data = await apiFetch(`/seller/orders/${encodeURIComponent(state.orderId)}`);
+      const order = data?.order || data?.data || data;
+
+      if (!order) throw new Error('Pedido não encontrado.');
+      if (!orderBelongsToSeller(order, state.seller)) throw new Error('Acesso negado ao pedido.');
+
+      state.order = order;
+      $('orderId').textContent = order.id || order._id || state.orderId;
+      $('status').textContent = order.status || '—';
+      $('tracking').value = order.trackingCode || '';
+      $('carrier').value = order.carrier || '';
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'Erro ao carregar pedido.', 'error');
+    }
+  }
+
+  $('btn-send').addEventListener('click', async () => {
+    if (!state.orderId) return;
+
+    const tracking = ($('tracking').value || '').trim();
+    if (!tracking) {
+      toast('Informe o código de rastreio.', 'error');
+      return;
+    }
+
+    try {
+      await apiFetch(`/seller/orders/${encodeURIComponent(state.orderId)}/ship`, {
+        method: 'POST',
+        body: JSON.stringify({
+          trackingCode: tracking,
+          tracking: tracking,
+          carrier: ($('carrier').value || '').trim()
+        })
+      });
+
+      toast('Pedido marcado como enviado.', 'success');
+      setTimeout(() => {
+        window.location.href = 'seller_pedidos.html';
+      }, 700);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'Erro ao atualizar pedido.', 'error');
+    }
+  });
+
+  const sidebar = $('sidebar');
+  $('sidebar-toggle')?.addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
+
+  $('btn-sair')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    localStorage.removeItem('seller_token');
+    localStorage.removeItem('seller_profile');
+    window.location.href = 'seller_login.html';
+  });
+
+  (async () => {
+    const profile = getSellerProfile();
+    $('user-display-name').textContent = `Bem-vindo, ${profile.factoryName || profile.storeName || profile.name || profile.email || 'Seller'}!`;
+    await loadOrder();
+  })();
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body></html>

@@ -1,36 +1,87 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getFirestore, collection, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { getFunctions } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-functions.js";
+// =======================================================
+// API CONFIG - SUBSTITUTO DO FIREBASE
+// =======================================================
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-  authDomain: "ariana-moveis-final.firebaseapp.com",
-  projectId: "ariana-moveis-final",
-  storageBucket: "ariana-moveis-final.firebasestorage.app",
-  messagingSenderId: "695257365498",
-  appId: "1:695257365498:web:ef7698ea5d33d701338243",
-  measurementId: "G-WNMWLYMW43"
+// 👉 URL do seu backend (ajuste depois)
+const API_BASE = "http://localhost:3000/api";
+
+// =======================================================
+// 🔒 RATE LIMIT (mantido igual ao seu)
+// =======================================================
+let lastCall = 0;
+const MIN_INTERVAL = 300; // mais leve que 1s
+
+function rateLimit() {
+  const now = Date.now();
+  if (now - lastCall < MIN_INTERVAL) {
+    throw new Error("Muitas requisições seguidas. Aguarde.");
+  }
+  lastCall = now;
+}
+
+// =======================================================
+// 🔥 FUNÇÕES PADRÃO (equivalente ao Firebase)
+// =======================================================
+
+async function safeFetch(url, options = {}) {
+  rateLimit();
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      ...options
+    });
+
+    if (!response.ok) {
+      throw new Error("Erro na API");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Erro API:", error);
+    throw error;
+  }
+}
+
+// =======================================================
+// 📦 PRODUTOS
+// =======================================================
+
+window.getDocs = async (path) => {
+  return safeFetch(`${API_BASE}/${path}`);
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const storage = getStorage(app);
+window.getDoc = async (path, id) => {
+  return safeFetch(`${API_BASE}/${path}/${id}`);
+};
 
-// Isso aqui é o que faz o Header e o Resto do site funcionar:
-window.db = db;
-window.auth = auth;
-window.storage = storage;
-window.collection = collection;
-window.getDocs = getDocs;
-window.query = query;
-window.where = where;
-window.orderBy = orderBy;
-window.limit = limit;
+// =======================================================
+// 🔎 QUERY SIMPLES (simulando Firestore)
+// =======================================================
 
-console.log("✅ Firebase configurado e liberado!");
+window.query = (path, params = {}) => {
+  const queryString = new URLSearchParams(params).toString();
+  return `${path}?${queryString}`;
+};
+
+window.collection = (name) => name;
+
+// =======================================================
+// 🧾 COMPATIBILIDADE COM SEU SISTEMA
+// =======================================================
+
+window.db = {};        // dummy
+window.auth = {};      // dummy
+window.storage = {};   // dummy
+
+window.storageRef = () => {};
+window.getDownloadURL = (url) => url;
+
+// =======================================================
+// EVENTO (mantido igual)
+// =======================================================
+
+console.log("✅ API (Mongo) inicializada!");
 window.dispatchEvent(new Event("firebase:ready"));
-
-export { app, db, storage, auth };

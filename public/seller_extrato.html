@@ -152,24 +152,8 @@
     </main>
   </div>
 
-  <script type="module">
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
+  <script>
+    const API_BASE = window.API_BASE || window.API_URL || localStorage.getItem('apiBaseUrl') || 'http://localhost:3000/api';
     const byId = (id) => document.getElementById(id);
 
     function toast(message, type = "info") {
@@ -193,121 +177,73 @@
       return Number.isFinite(n) ? n : 0;
     }
 
-    function mpApproved(order) {
-      const s = String(order?.payment?.mpStatus || order?.payment?.status || "").toLowerCase();
-      return s === "approved" || s === "paid";
+    function getSellerToken() {
+      return localStorage.getItem('seller_token') || '';
     }
 
-    async function requireSeller(uid) {
-      const sref = doc(db, "sellers", uid);
-      const snap = await getDoc(sref);
-      if (!snap.exists()) throw new Error("Conta seller não encontrada no Firestore.");
-      const data = snap.data() || {};
-      if (data.active === false) throw new Error("Seller desativado.");
-      const st = String(data.status || "").toLowerCase();
-      if (st === "reprovado" || st === "bloqueado") throw new Error("Seller bloqueado/reprovado.");
+    function getSellerProfile() {
+      try {
+        return JSON.parse(localStorage.getItem('seller_profile') || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    async function apiFetch(path, options = {}) {
+      const token = getSellerToken();
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {})
+        }
+      });
+
+      const text = await response.text();
+      let data = null;
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
+      }
+
       return data;
     }
 
-    function ensureSellerSession() {
-      return new Promise((resolve) => {
-        onAuthStateChanged(auth, async (user) => {
-          try {
-            if (!user) return resolve({ ok: false, user: null, seller: null });
-            const seller = await requireSeller(user.uid);
-            resolve({ ok: true, user, seller });
-          } catch (e) {
-            console.error(e);
-            resolve({ ok: false, user, seller: null, error: e });
-          }
-        });
-      });
-    }
+    async function ensureSellerSession() {
+      const profile = getSellerProfile();
+      const token = getSellerToken();
 
-    function resolveSellerBreakdown(order, uid) {
-      const raw = order?.sellerBreakdown || {};
-      if (!raw || typeof raw !== "object") return null;
-      return raw[uid] || raw[String(uid)] || null;
-    }
-
-    function isSellerInOrder(order, uid) {
-      if (!order) return false;
-      if (String(order?.sellerId || "") === String(uid)) return true;
-      if (String(order?.sellerUid || "") === String(uid)) return true;
-      if (Array.isArray(order?.sellerIds) && order.sellerIds.map(String).includes(String(uid))) return true;
-      const items = Array.isArray(order?.items) ? order.items : [];
-      return items.some(it => String(it?.sellerId || "") === String(uid));
-    }
-
-    function computeSellerMetrics(order, uid) {
-      const breakdown = resolveSellerBreakdown(order, uid);
-      if (breakdown) {
-        const gross = safeNumber(breakdown.itemsSubtotal ?? breakdown.grossAmount ?? breakdown.gross ?? breakdown.subtotal);
-        const fee = safeNumber(breakdown.commissionAmount ?? breakdown.commission ?? gross * 0.12);
-        const label = safeNumber(breakdown.shippingLabelPaidByPlatform ?? breakdown.labelCost ?? breakdown.logisticsCost ?? 0);
-        const net = safeNumber(breakdown.sellerNetAmount ?? breakdown.netAmount ?? (gross - fee - label));
-        return { gross, fee, label, net };
+      if (!token) {
+        window.location.href = 'seller_login.html';
+        throw new Error('Sessão expirada.');
       }
 
-      const items = Array.isArray(order?.items) ? order.items : [];
-      const useAll = String(order?.sellerId || "") === String(uid);
-      const myItems = useAll ? items : items.filter(it => String(it?.sellerId || "") === String(uid));
-      const gross = myItems.reduce((acc, it) => {
-        const price = safeNumber(it?.price);
-        const qty = Math.max(1, safeNumber(it?.quantity || it?.qty || it?.qtd || 1));
-        return acc + (price * qty);
-      }, 0);
-      const fee = gross * 0.12;
-      const label = 0;
-      const net = gross - fee - label;
+      try {
+        const me = await apiFetch('/seller/me');
+        return me?.seller || me?.data || me || profile;
+      } catch (e) {
+        if (profile && (profile.id || profile._id || profile.uid)) return profile;
+        window.location.href = 'seller_login.html';
+        throw e;
+      }
+    }
+
+    function computeSellerMetrics(order) {
+      const gross = safeNumber(order?.gross ?? order?.bruto ?? order?.itemsSubtotal);
+      const fee = safeNumber(order?.fee ?? order?.commission ?? order?.comissao);
+      const label = safeNumber(order?.label ?? order?.labelCost ?? order?.shippingLabel ?? order?.etiqueta);
+      const net = safeNumber(order?.net ?? order?.liquido ?? (gross - fee - label));
       return { gross, fee, label, net };
     }
 
-    async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
-      const collected = [];
-      const seen = new Set();
-
-      async function runAttempt(makeQuery) {
-        try {
-          const snap = await getDocs(makeQuery());
-          snap.forEach((d) => {
-            if (seen.has(d.id)) return;
-            seen.add(d.id);
-            collected.push({ id: d.id, ...(d.data() || {}) });
-          });
-          return !snap.empty;
-        } catch (_e) {
-          return false;
-        }
-      }
-
-      const attempts = [
-        () => query(collection(db, "orders"), where("sellerId", "==", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerId", "==", uid), orderBy("createdAt", "desc"), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerUid", "==", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerUid", "==", uid), orderBy("createdAt", "desc"), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), orderBy("createdAt", "desc"), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerId", "==", uid), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerUid", "==", uid), limit(maxItems)),
-        () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), limit(maxItems)),
-      ];
-
-      for (const makeQuery of attempts) {
-        const found = await runAttempt(makeQuery);
-        if (found) break;
-      }
-
-      return collected
-        .filter(order => isSellerInOrder(order, uid))
-        .sort((a, b) => {
-          const ad = (a?.updatedAt?.seconds || a?.createdAt?.seconds || 0);
-          const bd = (b?.updatedAt?.seconds || b?.createdAt?.seconds || 0);
-          return bd - ad;
-        });
-    }
-
-    async function renderExtrato(uid) {
+    async function renderExtrato() {
       const tb = byId("tb");
       const kpiGross = byId("kpi-gross");
       const kpiFee = byId("kpi-fee");
@@ -316,8 +252,8 @@
 
       if (tb) tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Carregando...</td></tr>';
 
-      const orders = await fetchOrdersOnlyForSeller(uid, 300);
-      const items = orders.filter(mpApproved);
+      const data = await apiFetch('/seller/extrato');
+      const items = Array.isArray(data) ? data : (data?.items || data?.rows || data?.extrato || []);
 
       if (!items.length) {
         if (tb) tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Sem movimentos.</td></tr>';
@@ -336,7 +272,7 @@
       if (tb) tb.innerHTML = "";
 
       items.slice(0, 100).forEach((order) => {
-        const m = computeSellerMetrics(order, uid);
+        const m = computeSellerMetrics(order);
         grossTotal += m.gross;
         feeTotal += m.fee;
         labelTotal += m.label;
@@ -344,7 +280,7 @@
 
         tb.insertAdjacentHTML("beforeend", `
           <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">${order.id}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">${order.id || order.orderId || order._id || '—'}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${money(m.gross)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-error-red text-right">-${money(m.fee)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-700 text-right">-${money(m.label)}</td>
@@ -381,13 +317,9 @@
     if (sairBtn) {
       sairBtn.addEventListener("click", async (e) => {
         e.preventDefault();
-        try {
-          await signOut(auth);
-          window.location.href = "seller_login.html";
-        } catch (err) {
-          console.error(err);
-          toast("Não foi possível sair.", "error");
-        }
+        localStorage.removeItem('seller_token');
+        localStorage.removeItem('seller_profile');
+        window.location.href = "seller_login.html";
       });
     }
 
@@ -395,13 +327,11 @@
     if (refreshBtn) {
       refreshBtn.addEventListener("click", async () => {
         try {
-          const user = auth.currentUser;
-          if (!user) return;
-          await renderExtrato(user.uid);
+          await renderExtrato();
           toast("Extrato atualizado.", "success");
         } catch (err) {
           console.error(err);
-          toast("Erro ao atualizar extrato.", "error");
+          toast(err.message || "Erro ao atualizar extrato.", "error");
         }
       });
     }
@@ -427,24 +357,18 @@
     };
 
     (async () => {
-      const session = await ensureSellerSession();
-      if (!session.ok) {
-        window.location.href = "seller_login.html";
-        return;
-      }
-
-      const userLabel = byId("user-display-name");
-      if (userLabel) {
-        userLabel.textContent = "Bem-vindo, " + (session.seller.factoryName || session.seller.name || session.user.email || "Seller") + "!";
-      }
-
       try {
-        await renderExtrato(session.user.uid);
+        const seller = await ensureSellerSession();
+
+        const userLabel = byId("user-display-name");
+        if (userLabel) {
+          userLabel.textContent = "Bem-vindo, " + (seller.factoryName || seller.storeName || seller.name || seller.email || "Seller") + "!";
+        }
+
+        await renderExtrato();
       } catch (err) {
         console.error(err);
-        toast("Erro ao carregar extrato. Verifique índices/regras do Firestore.", "error");
-        const tb = byId("tb");
-        if (tb) tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Não foi possível carregar.</td></tr>';
+        window.location.href = "seller_login.html";
       }
     })();
 

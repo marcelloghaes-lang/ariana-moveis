@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -10,7 +12,6 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
 
-        /* CSS ORIGINAL QUE MANTÉM O ALINHAMENTO DA IMAGEM */
         .header-ajustado {
             background-color: #2E6DA4;
             color: white;
@@ -58,13 +59,118 @@
             font-size: 18px;
             display: block;
         }
+
+        .timeline {
+            position: relative;
+            padding-left: 8px;
+        }
+
+        .timeline-event {
+            position: relative;
+            padding-left: 40px;
+            margin-bottom: 24px;
+        }
+
+        .timeline-event:last-child {
+            margin-bottom: 0;
+        }
+
+        .timeline-event::before {
+            content: "";
+            position: absolute;
+            left: 12px;
+            top: 26px;
+            width: 2px;
+            height: calc(100% + 10px);
+            background: #D1D5DB;
+        }
+
+        .timeline-event:last-child::before {
+            display: none;
+        }
+
+        .timeline-event .icon {
+            position: absolute;
+            left: 0;
+            top: 2px;
+            width: 26px;
+            height: 26px;
+            border-radius: 9999px;
+            background: #2E6DA4;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,.15);
+        }
+
+        .timeline-event.delivered .icon {
+            background: #16A34A;
+        }
+
+        .bg-warning {
+            background-color: #F59E0B;
+        }
+
+        .bg-success {
+            background-color: #16A34A;
+        }
+
+        .bg-error {
+            background-color: #FEE2E2;
+        }
+
+        .text-error {
+            color: #B91C1C;
+        }
+
+        .text-primary-blue {
+            color: #2E6DA4;
+        }
+
+        .border-accent-cyan {
+            border-color: #56B5FF;
+        }
+
+        .bg-dark-bg {
+            background-color: #1D2B3A;
+        }
+
+        .hover\:text-secondary-light-blue:hover {
+            color: #56B5FF;
+        }
+
+        @media (max-width: 768px) {
+            .header-ajustado {
+                padding: 14px 16px;
+                gap: 10px;
+            }
+
+            .voltar-loja-original span {
+                display: none;
+            }
+
+            .texto-seguro-original {
+                display: none;
+            }
+
+            .header-ajustado > div.text-2xl {
+                font-size: 1rem;
+                text-align: center;
+            }
+
+            .escudo-original {
+                width: 38px;
+                height: 38px;
+            }
+        }
     </style>
 </head>
 
 <body class="bg-fundo-claro">
     <header class="shadow-xl">
         <div class="header-ajustado">
-            
             <a href="index.html" class="voltar-loja-original">
                 <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
                 <span>VOLTAR PARA A LOJA</span>
@@ -87,14 +193,11 @@
                     <strong>SEGURO</strong>
                 </div>
             </div>
-
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-8 flex-grow">
-        
         <div class="bg-white p-6 sm:p-10 rounded-xl shadow-lg border border-gray-200 max-w-4xl mx-auto">
-            
             <h1 class="text-3xl sm:text-4xl font-extrabold text-primary-blue border-b-2 border-accent-cyan pb-3 mb-6 text-center">
                 <i class="fas fa-search mr-2"></i> Rastrear Seu Pedido
             </h1>
@@ -117,19 +220,17 @@
                 </button>
             </form>
             
-            <div id="tracking-error" class="p-4 bg-error bg-opacity-10 border border-error text-error font-semibold rounded-lg hidden">
+            <div id="tracking-error" class="p-4 bg-error bg-opacity-10 border border-red-200 text-error font-semibold rounded-lg hidden">
                 Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.
             </div>
 
             <div class="border border-gray-300 p-4 rounded-lg mt-8" id="tracking-results" style="display: none;">
-                
                 <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
                     <h2 class="text-xl font-bold text-text-default">Pedido #<span id="display-order-id">20251022-0050</span></h2>
                     <span class="status font-bold text-sm px-3 py-1 rounded-full text-white bg-warning" id="display-status">Em Transporte</span>
                 </div>
                 
-                <div class="timeline">
-                    
+                <div class="timeline" id="tracking-timeline">
                     <div class="timeline-event relative pl-10 mb-6">
                         <span class="date text-sm text-gray-500">22/10/2025 - 10:30h</span>
                         <div class="description font-bold text-text-default mt-1">Saiu para entrega ao destinatário</div>
@@ -159,75 +260,150 @@
                         <div class="description font-bold text-text-default mt-1">Pagamento Confirmado (Pedido #20251022-0050)</div>
                         <div class="icon"><i class="fas fa-money-check-alt"></i></div>
                     </div>
-
                 </div>
             </div>
 
             <p class="text-center mt-6 text-sm text-gray-500">
                 O status é atualizado em tempo real pela nossa transportadora parceira.
             </p>
-
         </div>
     </main>
     
-    <<footer class="bg-dark-bg text-white mt-12 pt-10">
-    <div class="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 pb-8">
-        <div class="footer-column space-y-2 text-gray-300">
-            <h3 class="text-xl font-bold text-primary-blue mb-4">Ariana Móveis</h3>
-            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
-            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
-            <p class="text-sm">CEP: 39740-000</p>
-            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
-        </div>
-        
-        <div class="footer-column space-y-2 text-gray-300">
-            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
-            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
-            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
-            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
-            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
-            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
-        </div>
-        
-        <div class="footer-column space-y-2 text-gray-300">
-            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
-            <ul class="space-y-2 text-sm">
-                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
-                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
-                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
-                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
-            </ul>
-        </div>
-        
-        <div class="footer-column space-y-4 text-gray-300">
-            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
-            <div class="social-icons flex space-x-4 text-2xl">
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="whatsapp"><i class="fab fa-whatsapp"></i></a>
+    <footer class="bg-dark-bg text-white mt-12 pt-10">
+        <div class="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 pb-8">
+            <div class="footer-column space-y-2 text-gray-300">
+                <h3 class="text-xl font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+                <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+                <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+                <p class="text-sm">CEP: 39740-000</p>
+                <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
             </div>
+            
+            <div class="footer-column space-y-2 text-gray-300">
+                <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+                <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+                <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+                <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+                <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+                <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+            </div>
+            
+            <div class="footer-column space-y-2 text-gray-300">
+                <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                    <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                    <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                    <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column space-y-4 text-gray-300">
+                <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+                <div class="social-icons flex space-x-4 text-2xl">
+                    <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="whatsapp"><i class="fab fa-whatsapp"></i></a>
+                </div>
 
-            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
-            <div class="flex flex-wrap gap-2 text-2xl text-gray-400">
-                <i class="fab fa-cc-visa"></i>
-                <i class="fab fa-cc-mastercard"></i>
-                <i class="fab fa-cc-paypal"></i>
-                <i class="fab fa-cc-amex"></i>
-                <i class="fas fa-money-bill-wave"></i>
-                <i class="fas fa-qrcode"></i> </div>
+                <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+                <div class="flex flex-wrap gap-2 text-2xl text-gray-400">
+                    <i class="fab fa-cc-visa"></i>
+                    <i class="fab fa-cc-mastercard"></i>
+                    <i class="fab fa-cc-paypal"></i>
+                    <i class="fab fa-cc-amex"></i>
+                    <i class="fas fa-money-bill-wave"></i>
+                    <i class="fas fa-qrcode"></i>
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
-        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
-    </div>
-</footer>
+        <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+            &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+        </div>
+    </footer>
 
-</body>
-</html>
-    
     <script>
-        // Lógica de simulação ajustada para usar as classes Tailwind recém-definidas
-        document.getElementById('tracking-form').addEventListener('submit', function(e) {
+        const API_BASE =
+            window.API_BASE_URL ||
+            window.API_URL ||
+            localStorage.getItem('apiBaseUrl') ||
+            '/api';
+
+        const STATUS_CLASS_MAP = {
+            'pendente': 'bg-warning',
+            'em processamento': 'bg-warning',
+            'processando': 'bg-warning',
+            'enviado': 'bg-warning',
+            'em transporte': 'bg-warning',
+            'saiu para entrega': 'bg-warning',
+            'entregue': 'bg-success',
+            'finalizado': 'bg-success'
+        };
+
+        const EVENT_ICON_MAP = {
+            'pagamento confirmado': 'fa-money-check-alt',
+            'pedido faturado': 'fa-clipboard-check',
+            'coletado pela transportadora': 'fa-clipboard-check',
+            'em rota de transferência entre centros logísticos': 'fa-route',
+            'chegou na unidade de distribuição da sua cidade': 'fa-box',
+            'saiu para entrega ao destinatário': 'fa-truck-moving',
+            'entregue ao destinatário': 'fa-check-circle'
+        };
+
+        function normalizeStatus(status) {
+            return String(status || '').trim().toLowerCase();
+        }
+
+        function formatDateTime(value) {
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return value || '';
+            return date.toLocaleDateString('pt-BR') + ' - ' + date.toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            }) + 'h';
+        }
+
+        function pickIcon(description) {
+            const desc = String(description || '').trim().toLowerCase();
+            return EVENT_ICON_MAP[desc] || 'fa-circle';
+        }
+
+        function buildTimelineItemHtml(item, delivered = false) {
+            return `
+                <div class="timeline-event ${delivered ? 'delivered' : ''} relative pl-10 mb-6">
+                    <span class="date text-sm text-gray-500">${formatDateTime(item.data || item.date || item.createdAt || '')}</span>
+                    <div class="description font-bold text-text-default mt-1">${item.descricao || item.description || ''}</div>
+                    <div class="icon"><i class="fas ${pickIcon(item.descricao || item.description || '')}"></i></div>
+                </div>
+            `;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const response = await fetch(`${API_BASE}${path}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(options.headers || {})
+                }
+            });
+
+            const text = await response.text();
+            let data = null;
+
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = text;
+            }
+
+            if (!response.ok) {
+                throw new Error((data && (data.message || data.error)) || `Erro HTTP ${response.status}`);
+            }
+
+            return data;
+        }
+
+        document.getElementById('tracking-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const orderId = document.getElementById('order-id').value.trim();
@@ -235,64 +411,63 @@
             const resultsBox = document.getElementById('tracking-results');
             const errorBox = document.getElementById('tracking-error');
             const statusSpan = document.getElementById('display-status');
-            const timelineEvents = document.querySelectorAll('.timeline-event'); // Pega todos os eventos
+            const timelineContainer = document.getElementById('tracking-timeline');
 
             resultsBox.style.display = 'none';
-            errorBox.style.display = 'none';
-            
-            // Limpa classes de status e de 'delivered' antigas de todos os eventos
+            errorBox.classList.add('hidden');
+            errorBox.innerText = 'Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.';
             statusSpan.classList.remove('bg-warning', 'bg-success');
-            timelineEvents.forEach(event => event.classList.remove('delivered')); 
 
-            // SIMULAÇÃO DE BUSCA
-            if (orderId && cpfCnpj) {
-                
-                // Exemplo 1: Pedido em Transporte (exibe a timeline padrão)
-                if (orderId === '#20251022-0050') { 
-                    document.getElementById('display-order-id').innerText = orderId;
-                    statusSpan.innerText = 'Em Transporte';
-                    statusSpan.classList.add('bg-warning');
-                    resultsBox.style.display = 'block';
-                    // Reverte a ordem dos eventos (para simular cronologia reversa)
-                    // Este bloco é opcional, mas melhora a visualização da linha do tempo.
-                    const timelineContainer = document.querySelector('.timeline');
-                    Array.from(timelineContainer.children).reverse().forEach(child => timelineContainer.appendChild(child));
-                } 
-                // Exemplo 2: Pedido Entregue (aplica a classe 'delivered' a todos para o efeito visual de sucesso)
-                else if (orderId === '#20250901-0030') {
-                    document.getElementById('display-order-id').innerText = orderId;
-                    statusSpan.innerText = 'Entregue';
-                    statusSpan.classList.add('bg-success');
-                    resultsBox.style.display = 'block';
-                    
-                    // ADICIONA CLASSE 'delivered' a todos os eventos para o status Entregue (para fins de simulação visual)
-                    timelineEvents.forEach(event => event.classList.add('delivered')); 
-                    
-                    // Reverte a ordem dos eventos
-                    const timelineContainer = document.querySelector('.timeline');
-                    Array.from(timelineContainer.children).reverse().forEach(child => timelineContainer.appendChild(child));
-
-                } 
-                // Exemplo 3: Pedido não encontrado ou CPF/CNPJ errado
-                else {
-                    errorBox.innerText = 'Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.';
-                    errorBox.style.display = 'block';
-                }
-            } else {
+            if (!orderId || !cpfCnpj) {
                 errorBox.innerText = 'Por favor, preencha todos os campos.';
-                errorBox.style.display = 'block';
+                errorBox.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                let data;
+
+                try {
+                    data = await apiFetch(`/pedidos/rastrear?orderId=${encodeURIComponent(orderId)}&cpfCnpj=${encodeURIComponent(cpfCnpj)}`);
+                } catch {
+                    data = await apiFetch(`/pedidos/rastrear?id=${encodeURIComponent(orderId)}&cpf=${encodeURIComponent(cpfCnpj)}`);
+                }
+
+                const pedido = data?.pedido || data?.order || data;
+                const tracking = pedido?.rastreamento || pedido?.tracking || data?.rastreamento || [];
+                const status = pedido?.status || data?.status || 'Em Transporte';
+
+                document.getElementById('display-order-id').innerText =
+                    pedido?.orderId || pedido?._id || pedido?.id || orderId;
+
+                statusSpan.innerText = status;
+                statusSpan.classList.add(STATUS_CLASS_MAP[normalizeStatus(status)] || 'bg-warning');
+
+                if (Array.isArray(tracking) && tracking.length) {
+                    const ordered = [...tracking].sort((a, b) => {
+                        const da = new Date(a.data || a.date || a.createdAt || 0).getTime();
+                        const db = new Date(b.data || b.date || b.createdAt || 0).getTime();
+                        return db - da;
+                    });
+
+                    timelineContainer.innerHTML = ordered.map(item =>
+                        buildTimelineItemHtml(item, normalizeStatus(status) === 'entregue' || normalizeStatus(status) === 'finalizado')
+                    ).join('');
+                }
+
+                resultsBox.style.display = 'block';
+            } catch (err) {
+                console.error('Erro ao rastrear pedido:', err);
+                errorBox.innerText = 'Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.';
+                errorBox.classList.remove('hidden');
             }
         });
-</script>
+    </script>
 
-<script src="marketplace-core.js"></script>
-<script src="marketplace-core_global_payments.js"></script>
-
- <script src="js/layout-fit.js" defer></script>
-
-<script src="js/header_auth_fix.js"></script>
-
-   <script src="js/header_auth_fix.js" defer></script>
-
+    <script src="marketplace-core.js"></script>
+    <script src="marketplace-core_global_payments.js"></script>
+    <script src="js/layout-fit.js" defer></script>
+    <script src="js/header_auth_fix.js"></script>
+    <script src="js/header_auth_fix.js" defer></script>
 </body>
 </html>

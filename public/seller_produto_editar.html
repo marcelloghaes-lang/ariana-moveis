@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -168,120 +167,19 @@
     </main>
   </div>
 
-  <script type="module">
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-    import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-    import { createUploadService } from "./uploadImage.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const uploader = createUploadService(app);
+  <script>
+    const API_BASE = window.API_BASE || "http://localhost:3000/api";
     const $ = (id) => document.getElementById(id);
 
-
-    const IMAGE_UPLOAD_MAX_WIDTH = 1024;
-    const IMAGE_UPLOAD_MAX_HEIGHT = 1024;
-    const IMAGE_UPLOAD_QUALITY = 0.7;
-
-    function loadImageFromBlob(blob) {
-      return new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve(img);
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error("Não foi possível processar a imagem selecionada."));
-        };
-        img.src = objectUrl;
-      });
-    }
-
-    async function compressImageFile(file) {
-      if (!file || !String(file.type || "").startsWith("image/")) return file;
-
-      const imageBitmap = await loadImageFromBlob(file);
-      const originalWidth = imageBitmap.naturalWidth || imageBitmap.width || 0;
-      const originalHeight = imageBitmap.naturalHeight || imageBitmap.height || 0;
-      if (!originalWidth || !originalHeight) return file;
-
-      const ratio = Math.min(
-        1,
-        IMAGE_UPLOAD_MAX_WIDTH / originalWidth,
-        IMAGE_UPLOAD_MAX_HEIGHT / originalHeight
-      );
-      const targetWidth = Math.max(1, Math.round(originalWidth * ratio));
-      const targetHeight = Math.max(1, Math.round(originalHeight * ratio));
-
-      const canvas = document.createElement("canvas");
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return file;
-      ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
-
-      const webpBlob = await new Promise((resolve, reject) => {
-        canvas.toBlob(
-          (blob) => blob ? resolve(blob) : reject(new Error("Falha ao compactar a imagem.")),
-          "image/webp",
-          IMAGE_UPLOAD_QUALITY
-        );
-      });
-
-      const cleanName = String(file.name || "imagem")
-        .replace(/\.[^.]+$/, "")
-        .replace(/[^a-zA-Z0-9_-]+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "") || `imagem-${Date.now()}`;
-
-      return new File([webpBlob], `${cleanName}.webp`, {
-        type: "image/webp",
-        lastModified: Date.now()
-      });
-    }
-
-    async function optimizeImagesBeforeUpload(files) {
-      const result = [];
-      for (const file of Array.from(files || [])) {
-        result.push(await compressImageFile(file));
-      }
-      return result;
-    }
-
-
-    async function saveProductViaApi(productId, payload) {
-      const user = auth.currentUser;
-      if (!user) throw new Error("Sessão expirada. Faça login novamente.");
-      const idToken = await user.getIdToken();
-      const resp = await fetch("/api/seller/products/upsert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ productId, data: payload })
-      });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json?.ok) throw new Error(json?.error || "Não foi possível salvar o produto.");
-      return json;
-    }
+    let currentUser = null;
+    let currentProduct = null;
+    let currentProductId = "";
+    let allCategories = [];
+    let rootCategories = [];
 
     function toast(message, type="info"){
       const container = $("toast-container");
-      if(!container){ alert(message); return; }
+      if(!container) return alert(message);
       const el = document.createElement("div");
       const map = { success:"bg-success-green", error:"bg-error-red", info:"bg-primary-blue" };
       el.className = "toast p-4 rounded-lg text-white " + (map[type] || "bg-primary-blue") + " animate-fade";
@@ -300,11 +198,58 @@
       el.textContent = msg;
     }
 
+    async function apiFetch(url, options = {}) {
+      const token = localStorage.getItem("seller_token") || "";
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {})
+        },
+        ...options
+      });
+
+      let data = null;
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = text ? { message: text } : null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `Erro HTTP ${response.status}`);
+      }
+      return data;
+    }
+
+    function clearSession() {
+      localStorage.removeItem("seller_token");
+      localStorage.removeItem("seller_profile");
+    }
+
     function normalizeSlug(value) {
       return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     }
     function sanitizeSku(value) {
       return String(value || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9_-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+    }
+    function sortCategories(items) {
+      return [...items].sort((a, b) => {
+        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999999;
+        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999999;
+        if (ao !== bo) return ao - bo;
+        return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
+      });
+    }
+    function updateCategorySlugField() {
+      const selected = $("category")?.selectedOptions?.[0];
+      $("categorySlug").value = selected?.dataset?.slug || "";
+    }
+    function updateSubcategorySlugField() {
+      const selected = $("subcategory")?.selectedOptions?.[0];
+      $("subcategorySlug").value = selected?.dataset?.slug || "";
     }
     function productNameToken(name) {
       const token = normalizeSlug(name).replace(/-/g, "").slice(0, 4).toUpperCase();
@@ -320,9 +265,10 @@
     async function skuExists(sku, excludeId = "") {
       const skuClean = sanitizeSku(sku);
       if (!skuClean) return false;
-      const snap = await getDocs(query(collection(db, "products"), where("sku", "==", skuClean), limit(3)));
-      return snap.docs.some(d => d.id !== excludeId);
+      const data = await apiFetch(`${API_BASE}/seller/products/check-sku?sku=${encodeURIComponent(skuClean)}&excludeId=${encodeURIComponent(excludeId || "")}`);
+      return !!(data?.exists);
     }
+
     async function ensureUniqueSku(base, excludeId = "") {
       const root = sanitizeSku(base) || "PROD-ITEM";
       let candidate = `${root}-${Date.now().toString(36).toUpperCase()}`;
@@ -333,15 +279,6 @@
         if (tries > 5) throw new Error("Não foi possível gerar um SKU único.");
       }
       return candidate;
-    }
-
-    async function requireSeller(uid){
-      const snap = await getDoc(doc(db, "sellers", uid));
-      if(!snap.exists()) throw new Error("Conta seller não encontrada.");
-      const data = snap.data() || {};
-      if(data.active === false) throw new Error("Seller desativado.");
-      if(["reprovado","rejected","bloqueado"].includes(String(data.status || "").toLowerCase())) throw new Error("Seller reprovado.");
-      return data;
     }
 
     function getProductId() {
@@ -375,6 +312,7 @@
     function imagesToArray() {
       return Array.from(document.querySelectorAll(".imgUrl")).map(i => (i.value || "").trim()).filter(Boolean);
     }
+
     function specsToObject() {
       const obj = {};
       document.querySelectorAll("#specsWrap > div").forEach((row) => {
@@ -385,157 +323,169 @@
       return obj;
     }
 
-    const sidebar = $("sidebar");
-    $("sidebar-toggle")?.addEventListener("click", () => sidebar.classList.toggle("-translate-x-full"));
-    $("btn-sair")?.addEventListener("click", async (e) => {
-      e.preventDefault();
-      try { await signOut(auth); } catch {}
-      window.location.href = "seller_login.html";
-    });
-
-    window.openImageModal = function(src, name=""){
-      const overlay = $("image-modal-overlay");
-      const img = $("modal-image");
-      const nm = $("modal-image-name");
-      if(!overlay || !img) return;
-      img.src = src || "";
-      if(nm) nm.textContent = name || "";
-      overlay.classList.remove("hidden");
-      overlay.classList.add("flex");
-    };
-    window.closeImageModal = function(){
-      const overlay = $("image-modal-overlay");
-      const img = $("modal-image");
-      if(img) img.src = "";
-      if(!overlay) return;
-      overlay.classList.add("hidden");
-      overlay.classList.remove("flex");
-    };
-
-    let allCategories = [];
-    let rootCategories = [];
-    let currentUser = null;
-    let currentProduct = null;
-    let currentProductRef = null;
-
-    function sortCategories(items) {
-      return [...items].sort((a, b) => {
-        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999999;
-        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999999;
-        if (ao !== bo) return ao - bo;
-        return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
-      });
-    }
     function getCategoryChildren(parentId) {
       return sortCategories(allCategories.filter(item => item.active !== false && String(item.parentId || "") === String(parentId || "")));
     }
+
     function buildOption(item, selectedId = "") {
       const sel = String(item.id) === String(selectedId) ? " selected" : "";
-      return `<option value="${item.id}" data-name="${String(item.name || "").replace(/"/g, "&quot;")}" data-slug="${String(item.slug || "").replace(/"/g, "&quot;")}"${sel}>${item.name || "Sem nome"}</option>`;
+      return `<option value="${item.id}" data-name="${(item.name || "").replace(/"/g, "&quot;")}" data-slug="${(item.slug || "").replace(/"/g, "&quot;")}"${sel}>${item.name || "Sem nome"}</option>`;
     }
-    function updateCategorySlugField() {
-      $("categorySlug").value = $("category")?.selectedOptions?.[0]?.dataset?.slug || "";
-    }
-    function updateSubcategorySlugField() {
-      $("subcategorySlug").value = $("subcategory")?.selectedOptions?.[0]?.dataset?.slug || "";
-    }
+
     function preencherCategorias(selectedId = "") {
-      $("category").innerHTML = '<option value="">Selecione uma categoria</option>' + rootCategories.map(item => buildOption(item, selectedId)).join("");
+      $("category").innerHTML = '<option value="">Selecione uma Categoria</option>' + rootCategories.map(item => buildOption(item, selectedId)).join("");
       updateCategorySlugField();
     }
+
     function preencherSubcategorias(parentId = "", selectedId = "") {
       const subcats = parentId ? getCategoryChildren(parentId) : [];
-      $("subcategory").innerHTML = '<option value="">Selecione uma subcategoria</option>' + subcats.map(item => buildOption(item, selectedId)).join("");
+      $("subcategory").innerHTML = '<option value="">Selecione uma Subcategoria</option>' + subcats.map(item => buildOption(item, selectedId)).join("");
       const enabled = subcats.length > 0;
       $("subcategory").disabled = !enabled;
       $("subcategory").required = enabled;
       if (!enabled) $("subcategory").value = "";
       updateSubcategorySlugField();
     }
-    async function carregarCategoriasFirebase(selectedCategoryId = "", selectedSubcategoryId = "") {
-      const snap = await getDocs(collection(db, "categories"));
-      allCategories = snap.docs.map(ds => {
-        const d = ds.data() || {};
-        return { id: ds.id, name: d.name || "", slug: d.slug || normalizeSlug(d.name || ""), level: Number(d.level ?? 0), parentId: d.parentId || "", active: d.active !== false, order: d.order ?? 999999 };
-      });
+
+    async function carregarCategorias() {
+      const data = await apiFetch(`${API_BASE}/categories`);
+      allCategories = (Array.isArray(data) ? data : (data.items || data.categories || [])).map(item => ({
+        id: item.id || item._id,
+        name: item.name || "",
+        slug: item.slug || normalizeSlug(item.name || ""),
+        level: Number(item.level ?? 0),
+        parentId: item.parentId || "",
+        active: item.active !== false,
+        order: item.order ?? 999999
+      }));
+
       rootCategories = sortCategories(allCategories.filter(item => item.active !== false && Number(item.level || 0) === 0));
-      preencherCategorias(selectedCategoryId);
-      preencherSubcategorias(selectedCategoryId, selectedSubcategoryId);
+      preencherCategorias();
+      preencherSubcategorias("");
     }
 
-    $("category")?.addEventListener("change", () => {
-      preencherSubcategorias($("category").value || "");
-      updateCategorySlugField();
+    function fillProduct(product) {
+      currentProduct = product;
+      currentProductId = product.id || product._id || "";
+
+      $("productIdPill").textContent = currentProductId;
+      $("productIdPill").classList.remove("hidden");
+      $("sellerPill").textContent = product.sellerName || product.storeName || "Seu produto";
+      $("sellerPill").classList.remove("hidden");
+
+      $("name").value = product.name || "";
+      $("sku").value = product.sku || "";
+      $("price").value = Number(product.price || 0);
+      $("stock").value = Number(product.stock || 0);
+      $("description").value = product.description || "";
+      $("active").checked = product.active !== false;
+
+      $("pesoKg").value = product.pesoKg ?? product.weight ?? "";
+      $("comprimento").value = product.comprimento ?? product.length ?? "";
+      $("largura").value = product.largura ?? product.width ?? "";
+      $("altura").value = product.altura ?? product.height ?? "";
+
+      const categoryId = product.categoryId || "";
+      const subcategoryId = product.subcategoryId || "";
+
+      preencherCategorias(categoryId);
+      preencherSubcategorias(categoryId, subcategoryId);
+
+      $("imagesWrap").innerHTML = "";
+      const imgs = Array.isArray(product.images) ? product.images : (Array.isArray(product.imageUrls) ? product.imageUrls : []);
+      (imgs.length ? imgs : [""]).forEach(url => $("imagesWrap").appendChild(createImageRow(typeof url === "string" ? url : (url?.url || ""))));
+
+      const specs = product.technicalSpecs && typeof product.technicalSpecs === "object" ? product.technicalSpecs : {};
+      $("specsWrap").innerHTML = "";
+      const keys = Object.keys(specs);
+      (keys.length ? keys : ["marca"]).forEach((k) => $("specsWrap").appendChild(createSpecRow(k, keys.length ? specs[k] : "")));
+    }
+
+    async function uploadSelectedImages(files) {
+      if (!files.length) return [];
+      const token = localStorage.getItem("seller_token") || "";
+      const form = new FormData();
+      files.forEach(file => form.append("images", file));
+
+      const response = await fetch(`${API_BASE}/seller/uploads/images`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: form
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.message || "Falha ao enviar imagens.");
+
+      return data?.files || data?.images || [];
+    }
+
+    async function loadProduct(productId) {
+      const data = await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
+      const product = data?.item || data?.product || data;
+      if (!product) throw new Error("Produto não encontrado.");
+      fillProduct(product);
+    }
+
+    window.openImageModal = function(src, name=""){
+      const overlay = $("image-modal-overlay");
+      const img = $("modal-image");
+      const nm = $("modal-image-name");
+      if (!overlay || !img) return;
+      img.src = src || "";
+      if (nm) nm.textContent = name || "";
+      overlay.classList.remove("hidden");
+      overlay.classList.add("flex");
+    };
+
+    window.closeImageModal = function(){
+      const overlay = $("image-modal-overlay");
+      const img = $("modal-image");
+      if (img) img.src = "";
+      if (!overlay) return;
+      overlay.classList.add("hidden");
+      overlay.classList.remove("flex");
+    };
+
+    const sidebar = $("sidebar");
+    $("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
+    $("btn-sair")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      clearSession();
+      window.location.href = "seller_login.html";
     });
+
+    $("btn-add-image")?.addEventListener("click", () => $("imagesWrap").appendChild(createImageRow("")));
+    $("btn-add-spec")?.addEventListener("click", () => $("specsWrap").appendChild(createSpecRow("", "")));
+    $("category")?.addEventListener("change", () => { preencherSubcategorias($("category").value || ""); updateCategorySlugField(); });
     $("subcategory")?.addEventListener("change", updateSubcategorySlugField);
     $("sku")?.addEventListener("blur", () => { $("sku").value = sanitizeSku($("sku").value); });
 
     $("btn-generate-sku")?.addEventListener("click", async () => {
       try {
-        if (!currentUser || !currentProductRef) return;
         const base = buildSkuBase({
-          sellerUid: currentUser.uid,
+          sellerUid: currentUser?.id || currentUser?._id || currentUser?.uid || "",
           categorySlug: $("category")?.selectedOptions?.[0]?.dataset?.slug || "",
           productName: $("name").value || ""
         });
-        $("sku").value = await ensureUniqueSku(base, currentProductRef.id);
+        $("sku").value = await ensureUniqueSku(base, currentProductId);
         toast("SKU gerado com sucesso.", "success");
       } catch (e) {
-        toast(e.message || "Não foi possível gerar SKU.", "error");
+        toast(e.message || "Não foi possível gerar o SKU.", "error");
       }
     });
 
-    async function loadProduct(productId, uid) {
-      const pref = doc(db, "products", productId);
-      const psnap = await getDoc(pref);
-      if (!psnap.exists()) throw new Error("Produto não encontrado.");
-      const p = { id: psnap.id, ...psnap.data() };
-      if (String(p.sellerId || p.sellerUid || "") !== String(uid)) throw new Error("Você não tem permissão para editar este produto.");
-
-      currentProduct = p;
-      currentProductRef = pref;
-
-      $("productIdPill").classList.remove("hidden");
-      $("productIdPill").textContent = `ID: ${productId}`;
-      $("sellerPill").classList.remove("hidden");
-      $("sellerPill").textContent = `Seller: ${uid}`;
-
-      $("name").value = p.name || "";
-      $("sku").value = p.sku || "";
-      $("price").value = (p.price ?? "").toString();
-      $("stock").value = (p.stock ?? "").toString();
-      $("description").value = p.description || "";
-
-      await carregarCategoriasFirebase(p.categoryId || "", p.subcategoryId || "");
-      $("categorySlug").value = p.categorySlug || $("category")?.selectedOptions?.[0]?.dataset?.slug || "";
-      $("subcategorySlug").value = p.subcategorySlug || $("subcategory")?.selectedOptions?.[0]?.dataset?.slug || "";
-
-      $("pesoKg").value = (p.pesoKg ?? p.weight ?? "").toString();
-      $("comprimento").value = (p.comprimento ?? p.length ?? "").toString();
-      $("largura").value = (p.largura ?? p.width ?? "").toString();
-      $("altura").value = (p.altura ?? p.height ?? "").toString();
-      $("active").checked = p.active !== false;
-
-      const imgs = Array.isArray(p.images) ? p.images : (Array.isArray(p.imageUrls) ? p.imageUrls : []);
-      $("imagesWrap").innerHTML = "";
-      (imgs.length ? imgs : [""]).forEach(url => $("imagesWrap").appendChild(createImageRow(typeof url === "string" ? url : (url?.url || ""))));
-
-      const specs = p.technicalSpecs && typeof p.technicalSpecs === "object" ? p.technicalSpecs : {};
-      $("specsWrap").innerHTML = "";
-      const keys = Object.keys(specs);
-      (keys.length ? keys : ["marca"]).forEach((k) => $("specsWrap").appendChild(createSpecRow(k, keys.length ? specs[k] : "")));
-
-      return pref;
-    }
-
-    $("btn-add-image")?.addEventListener("click", () => $("imagesWrap").appendChild(createImageRow("")));
-    $("btn-add-spec")?.addEventListener("click", () => $("specsWrap").appendChild(createSpecRow("", "")));
-
     $("btn-inactivate")?.addEventListener("click", async () => {
       try {
-        if (!currentProductRef) throw new Error("Produto não carregado.");
+        if (!currentProductId) throw new Error("Produto não carregado.");
         if (!confirm("Deseja inativar este produto?")) return;
-        await updateDoc(currentProductRef, { active: false, updatedAt: serverTimestamp() });
+
+        await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(currentProductId)}`, {
+          method: "PUT",
+          body: JSON.stringify({ active: false })
+        });
+
         $("active").checked = false;
         showAlert("ok", "Produto inativado.");
       } catch (e) {
@@ -544,25 +494,10 @@
       }
     });
 
-    onAuthStateChanged(auth, async (user) => {
-      try {
-        if (!user) { window.location.href = "seller_login.html"; return; }
-        currentUser = user;
-        const seller = await requireSeller(user.uid);
-        $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || "Seller"}!`;
-        const productId = getProductId();
-        if (!productId) throw new Error("Abra esta tela com ?id=ID_DO_PRODUTO");
-        await loadProduct(productId, user.uid);
-      } catch (e) {
-        console.error(e);
-        showAlert("error", e.message || "Erro ao carregar.");
-      }
-    });
-
     $("form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
-        if (!currentProductRef || !currentUser) throw new Error("Produto não carregado.");
+        if (!currentProductId || !currentUser) throw new Error("Produto não carregado.");
 
         const categoryId = $("category").value || "";
         const subcategoryId = $("subcategory").value || "";
@@ -584,9 +519,13 @@
 
         let sku = sanitizeSku($("sku").value);
         if (!sku) {
-          const base = buildSkuBase({ sellerUid: currentUser.uid, categorySlug, productName: $("name").value || "" });
-          sku = await ensureUniqueSku(base, currentProductRef.id);
-        } else if (await skuExists(sku, currentProductRef.id)) {
+          const base = buildSkuBase({
+            sellerUid: currentUser?.id || currentUser?._id || currentUser?.uid || "",
+            categorySlug,
+            productName: $("name").value || ""
+          });
+          sku = await ensureUniqueSku(base, currentProductId);
+        } else if (await skuExists(sku, currentProductId)) {
           throw new Error("Já existe outro produto com este SKU.");
         }
         $("sku").value = sku;
@@ -594,19 +533,14 @@
         const currentUrls = imagesToArray();
         const freshFiles = Array.from($("newImages")?.files || []);
         let uploadedUrls = [];
-        let uploadedPaths = [];
         if (freshFiles.length) {
-          toast("Compactando imagens antes do upload...", "info");
-          const optimizedFiles = await optimizeImagesBeforeUpload(freshFiles);
-          const uploaded = await uploader.uploadMultipleImages(optimizedFiles, { sellerUid: currentUser.uid });
-          uploadedUrls = uploaded.map(img => img.url).filter(Boolean);
-          uploadedPaths = uploaded.map(img => img.path || null).filter(Boolean);
+          toast("Enviando imagens...", "info");
+          const uploaded = await uploadSelectedImages(freshFiles);
+          uploadedUrls = uploaded.map(img => typeof img === "string" ? img : (img.url || img.imageUrl)).filter(Boolean);
         }
+
         const imageUrls = [...currentUrls, ...uploadedUrls].filter(Boolean);
-        const existingPaths = Array.isArray(currentProduct.imagePaths) ? currentProduct.imagePaths.filter(Boolean) : [];
-        const imagePaths = [...existingPaths, ...uploadedPaths];
         const mainImageUrl = imageUrls[0] || null;
-        const mainImagePath = imagePaths[0] || null;
 
         const payload = {
           name: ($("name").value || "").trim(),
@@ -614,8 +548,14 @@
           skuNormalized: sku,
           price: Number($("price").value || 0),
           stock: Number($("stock").value || 0),
-          pesoKg, comprimento: Math.round(comprimento), largura: Math.round(largura), altura: Math.round(altura),
-          weight: pesoKg, length: Math.round(comprimento), width: Math.round(largura), height: Math.round(altura),
+          pesoKg,
+          comprimento: Math.round(comprimento),
+          largura: Math.round(largura),
+          altura: Math.round(altura),
+          weight: pesoKg,
+          length: Math.round(comprimento),
+          width: Math.round(largura),
+          height: Math.round(altura),
           categoryId,
           category: categoryName || categorySlug,
           categoryName: categoryName || null,
@@ -628,18 +568,20 @@
           active: $("active").checked,
           images: imageUrls,
           imageUrls,
-          imagePaths,
           imageUrl: mainImageUrl,
           mainImageUrl,
-          mainImagePath,
-          technicalSpecs: specsToObject(),
-          updatedAt: serverTimestamp()
+          technicalSpecs: specsToObject()
         };
 
         const btn = $("btn-save");
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
-        await saveProductViaApi(currentProductRef.id, payload);
+
+        await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(currentProductId)}`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+
         currentProduct = { ...currentProduct, ...payload };
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar alterações';
@@ -651,9 +593,31 @@
         $("btn-save").innerHTML = '<i class="fas fa-save mr-2"></i> Salvar alterações';
       }
     });
+
+    async function boot() {
+      try {
+        const me = await apiFetch(`${API_BASE}/seller/auth/me`);
+        currentUser = me?.seller || me?.user || me?.profile || me;
+        if (!currentUser) throw new Error("Sessão seller inválida.");
+
+        $("user-display-name").textContent = `Bem-vindo, ${currentUser.factoryName || currentUser.storeName || currentUser.name || currentUser.email || "Seller"}!`;
+
+        await carregarCategorias();
+
+        const productId = getProductId();
+        if (!productId) throw new Error("Abra esta tela com ?id=ID_DO_PRODUTO");
+        await loadProduct(productId);
+      } catch (e) {
+        console.error(e);
+        showAlert("error", e.message || "Erro ao carregar.");
+        clearSession();
+        setTimeout(() => { window.location.href = "seller_login.html"; }, 1200);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", boot);
   </script>
 
   <script src="js/layout-fit.js" defer></script>
-  <script src="./js/uploadImage.js"></script>
 </body>
 </html>

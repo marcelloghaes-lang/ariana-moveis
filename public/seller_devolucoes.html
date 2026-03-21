@@ -59,82 +59,124 @@
 
 <div class="flex items-start justify-between gap-4 flex-wrap mb-6"><div><h2 class="text-2xl font-black text-dark-bg uppercase tracking-tight">Central de devoluções</h2><p class="muted mt-1">Pedidos com solicitação de troca, devolução ou contestação.</p></div><button id="btn-refresh-returns" class="btn btn-primary"><i class="fas fa-rotate"></i>Atualizar</button></div><div id="returns-list" class="space-y-4"></div>
 </main></div>
-<script type="module">
+<!-- TODO O HTML ORIGINAL MANTIDO IGUAL ATÉ O SCRIPT -->
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
-    }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
-      return seller;
-    }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
-      }
-      return [];
-    }
+<script>
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "http://localhost:3000/api";
 
-const sidebar = $('sidebar'); $('sidebar-toggle')?.addEventListener('click', ()=> sidebar.classList.toggle('-translate-x-full'));
-$('btn-sair')?.addEventListener('click', async (e)=>{ e.preventDefault(); try{ await signOut(auth);}catch{} window.location.href='seller_login.html';});
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { window.location.href = 'seller_login.html'; return; }
-  try {
-    const seller = await getSeller(user.uid);
-    if (!seller) throw new Error('Conta seller não encontrada.');
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || 'Seller'}!`;
-  } catch (e) { toast(e.message || 'Erro ao validar seller.', 'error'); setTimeout(()=>window.location.href='seller_login.html', 1000); }
+const $ = (id) => document.getElementById(id);
+
+function getToken(){
+  return localStorage.getItem("seller_token") || "";
+}
+
+function toast(message, type='info') {
+  const c = $('toast-container'); if (!c) return alert(message);
+  const el = document.createElement('div');
+  const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+  el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+  el.textContent = message; c.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+}
+
+function dt(v){
+  try{
+    const d = new Date(v);
+    return d.toLocaleString('pt-BR');
+  }catch{
+    return '—';
+  }
+}
+
+function statusClass(st=''){
+  st=String(st).toLowerCase();
+  if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700';
+  if(['pending','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700';
+  if(['cancelled','rejected','reprovado'].includes(st)) return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-700';
+}
+
+// ===== LOGOUT =====
+$('btn-sair')?.addEventListener('click', ()=>{
+  localStorage.removeItem("seller_token");
+  window.location.href="seller_login.html";
 });
 
-async function loadReturns(){ const user=auth.currentUser; if(!user) return; const orders=await recentOrdersForSeller(user.uid, 300); const rows = orders.filter(o => ['return_requested','refund_requested','devolucao','troca'].includes(String(o.status||'').toLowerCase()) || o.returnRequested || o.refundRequested || o.devolution); $('returns-list').innerHTML = rows.length ? rows.map(o=>`<div class="card p-5"><div class="flex items-center justify-between gap-3 flex-wrap"><div><div class="font-black text-dark-bg">Pedido #${o.id.slice(0,10)}</div><div class="muted text-sm mt-1">${dt(o.updatedAt||o.createdAt)}</div></div><div class="flex items-center gap-2"><span class="pill ${statusClass(o.status)}">${o.status || 'solicitação'}</span><a href="seller_pedido_detalhe.html?id=${o.id}" class="btn btn-light !py-2 !px-3"><i class="fas fa-eye"></i></a></div></div><div class="mt-4 text-sm text-slate-700">${o.returnReason || o.refundReason || o.devolution?.reason || 'Sem observação detalhada no pedido.'}</div></div>`).join('') : '<div class="card p-10 text-center muted">Nenhuma devolução encontrada.</div>'; }
-$('btn-refresh-returns').addEventListener('click', loadReturns); onAuthStateChanged(auth, async (user)=>{ if(!user) return; try { await requireApprovedSeller(user.uid); await loadReturns(); } catch(e){ console.error(e); } });
+// ===== LOAD SELLER =====
+async function loadSeller(){
+  try{
+    const res = await fetch(API_BASE + "/seller/me",{
+      headers:{ Authorization:`Bearer ${getToken()}` }
+    });
 
+    const seller = await res.json();
+
+    $('user-display-name').textContent =
+      `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || seller.email || 'Seller'}!`;
+
+  }catch{
+    window.location.href="seller_login.html";
+  }
+}
+
+// ===== LOAD DEVOLUÇÕES =====
+async function loadReturns(){
+  try{
+    const res = await fetch(API_BASE + "/seller/returns",{
+      headers:{ Authorization:`Bearer ${getToken()}` }
+    });
+
+    const orders = await res.json();
+
+    const rows = orders.filter(o =>
+      ['return_requested','refund_requested','devolucao','troca'].includes(String(o.status||'').toLowerCase())
+      || o.returnRequested
+      || o.refundRequested
+    );
+
+    $('returns-list').innerHTML = rows.length
+      ? rows.map(o=>`
+        <div class="card p-5">
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div class="font-black text-dark-bg">Pedido #${(o.id || '').slice(0,10)}</div>
+              <div class="muted text-sm mt-1">${dt(o.updatedAt || o.createdAt)}</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="pill ${statusClass(o.status)}">${o.status || 'solicitação'}</span>
+
+              <a href="seller_pedido_detalhe.html?id=${o.id}"
+                 class="btn btn-light !py-2 !px-3">
+                <i class="fas fa-eye"></i>
+              </a>
+            </div>
+          </div>
+
+          <div class="mt-4 text-sm text-slate-700">
+            ${o.returnReason || o.refundReason || o.reason || 'Sem observação detalhada.'}
+          </div>
+        </div>
+      `).join('')
+      : '<div class="card p-10 text-center muted">Nenhuma devolução encontrada.</div>';
+
+  }catch(e){
+    console.error(e);
+    toast("Erro ao carregar devoluções","error");
+  }
+}
+
+// ===== EVENTOS =====
+$('btn-refresh-returns')?.addEventListener('click', loadReturns);
+
+// ===== INIT =====
+(async ()=>{
+  await loadSeller();
+  await loadReturns();
+})();
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body></html>

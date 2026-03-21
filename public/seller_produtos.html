@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -60,23 +59,8 @@
   </div>
 </main></div>
 
-<script type="module">
-  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-  import { getFirestore, collection, query, where, getDocs, deleteDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-    authDomain: "ariana-moveis-final.firebaseapp.com",
-    projectId: "ariana-moveis-final",
-    storageBucket: "ariana-moveis-final.firebasestorage.app",
-    messagingSenderId: "695257365498",
-    appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-  };
-
-  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+<script>
+  const API_BASE = window.API_BASE || "http://localhost:3000/api";
   const $ = (id) => document.getElementById(id);
 
   function toast(message, type = "info") {
@@ -89,26 +73,63 @@
     c.appendChild(el);
     setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3400);
   }
+
   function brl(v) { return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
   function escapeHtml(value) {
     return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
   }
-  async function getSeller(uid) {
-    const snap = await getDoc(doc(db, "sellers", uid));
-    return snap.exists() ? snap.data() : null;
+
+  async function apiFetch(url, options = {}) {
+    const token = localStorage.getItem("seller_token") || "";
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
+      },
+      ...options
+    });
+
+    let data = null;
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = text ? { message: text } : null;
+    }
+
+    if (!response.ok) {
+      throw new Error(data?.message || `Erro HTTP ${response.status}`);
+    }
+
+    return data;
   }
-  async function requireApprovedSeller(uid) {
-    const seller = await getSeller(uid);
-    if (!seller) throw new Error("Conta seller não encontrada.");
-    const status = String(seller.status || "").toLowerCase();
-    if (seller.active === false || ["rejected","reprovado","bloqueado"].includes(status)) throw new Error("Conta seller bloqueada ou reprovada.");
-    if (!seller.active || ["pending_analysis","pending_onboarding","em_analise"].includes(status)) { window.location.href = "seller_pending.html"; throw new Error("Conta em análise."); }
+
+  function getSellerProfile() {
+    try {
+      return JSON.parse(localStorage.getItem("seller_profile") || "null");
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function getMe() {
+    const data = await apiFetch(`${API_BASE}/seller/auth/me`);
+    const seller = data?.seller || data?.user || data?.profile || data;
+    if (seller) localStorage.setItem("seller_profile", JSON.stringify(seller));
     return seller;
   }
+
+  function clearSession() {
+    localStorage.removeItem("seller_token");
+    localStorage.removeItem("seller_profile");
+  }
+
   const sidebar = $("sidebar");
   $("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
-  $("btn-sair")?.addEventListener("click", async (e) => { e.preventDefault(); try { await signOut(auth); } catch {} window.location.href = "seller_login.html"; });
+  $("btn-sair")?.addEventListener("click", async (e) => { e.preventDefault(); clearSession(); window.location.href = "seller_login.html"; });
 
   function productCategoryLabel(p) { return p.categoryName || p.category || p.categoria || "Sem categoria"; }
   function productImage(p) {
@@ -122,12 +143,18 @@
   function productPrice(p) { return p.salePrice || p.price || 0; }
   function productSku(p) { return p.sku || "—"; }
 
-  async function loadProducts(uid) {
+  async function loadProducts() {
     const tbody = $("lista-produtos-corpo");
     tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-8">Carregando produtos...</td></tr>';
-    const snap = await getDocs(query(collection(db, "products"), where("sellerId", "==", uid)));
-    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    rows.sort((a, b) => ((b.updatedAt?.seconds || b.createdAt?.seconds || 0) - (a.updatedAt?.seconds || a.createdAt?.seconds || 0)));
+
+    const data = await apiFetch(`${API_BASE}/seller/products`);
+    const rows = Array.isArray(data) ? data : (data.items || data.products || []);
+
+    rows.sort((a, b) => {
+      const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
 
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-8">Nenhum produto cadastrado.</td></tr>';
@@ -141,6 +168,7 @@
       const originalPrice = num(p.price);
       const salePrice = num(p.salePrice);
       const showStrike = salePrice > 0 && salePrice < originalPrice;
+      const productId = p.id || p._id || "";
       return `<tr>
         <td class="product-cell">
           <div class="product-card">
@@ -157,7 +185,7 @@
         <td class="sku-cell"><span class="font-black">${escapeHtml(productSku(p))}</span></td>
         <td class="stock-cell"><span class="font-black">${num(p.stock)}</span></td>
         <td class="price-cell"><div class="price-main">${brl(currentPrice)}</div>${showStrike ? `<div class="muted text-xs line-through">${brl(originalPrice)}</div>` : ''}</td>
-        <td class="actions-cell"><div class="actions-wrap"><a class="action-btn edit" href="seller_produto_editar.html?id=${encodeURIComponent(p.id)}"><i class="fas fa-pen"></i><span>Editar</span></a><button class="action-btn delete" data-delete-id="${escapeHtml(p.id)}"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
+        <td class="actions-cell"><div class="actions-wrap"><a class="action-btn edit" href="seller_produto_editar.html?id=${encodeURIComponent(productId)}"><i class="fas fa-pen"></i><span>Editar</span></a><button class="action-btn delete" data-delete-id="${escapeHtml(productId)}"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
       </tr>`;
     }).join("");
 
@@ -166,9 +194,11 @@
         const id = btn.getAttribute("data-delete-id");
         if (!id || !confirm("Excluir este produto?")) return;
         try {
-          await deleteDoc(doc(db, "products", id));
+          await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(id)}`, {
+            method: "DELETE"
+          });
           toast("Produto excluído.", "success");
-          await loadProducts(uid);
+          await loadProducts();
         } catch (e) {
           console.error(e);
           toast("Erro ao excluir produto.", "error");
@@ -177,17 +207,42 @@
     });
   }
 
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.href = "seller_login.html"; return; }
+  async function boot() {
+    let seller = getSellerProfile();
+
     try {
-      const seller = await requireApprovedSeller(user.uid);
-      $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || "Seller"}!`;
-      await loadProducts(user.uid);
+      seller = await getMe();
     } catch (e) {
       console.error(e);
-      toast(e.message || "Erro ao validar seller.", "error");
+      clearSession();
+      window.location.href = "seller_login.html";
+      return;
     }
-  });
+
+    const status = String(seller?.status || "").toLowerCase();
+    if (seller?.active === false || ["rejected","reprovado","bloqueado"].includes(status)) {
+      toast("Conta seller bloqueada ou reprovada.", "error");
+      clearSession();
+      setTimeout(()=>window.location.href="seller_login.html", 900);
+      return;
+    }
+    if (!seller?.active || ["pending_analysis","pending_onboarding","em_analise"].includes(status)) {
+      window.location.href = "seller_pending.html";
+      return;
+    }
+
+    $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || seller.email || "Seller"}!`;
+
+    try {
+      await loadProducts();
+    } catch (e) {
+      console.error(e);
+      toast(e.message || "Erro ao carregar produtos.", "error");
+      $("lista-produtos-corpo").innerHTML = '<tr><td colspan="5" class="text-center text-red-600 py-8">Erro ao carregar produtos.</td></tr>';
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body>

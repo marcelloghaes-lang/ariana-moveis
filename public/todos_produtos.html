@@ -6,12 +6,9 @@
   <title>Início | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="css/tailwind.min.css">
 </head>
 
@@ -162,9 +159,6 @@
     }
   </style>
 
-  <script type="module" src="./firebase-config.js"></script>
-</head>
-<body class="bg-fundo-claro min-h-screen">
   <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2"></div>
 
   <main class="flex-grow page-container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -243,17 +237,25 @@
           "/js/marketplace-core_global_payments.js"
         ];
 
+        const cardCandidates = [
+          "./product-card.js",
+          "./js/product-card.js",
+          "/product-card.js",
+          "/js/product-card.js"
+        ];
+
         try {
-          await tryCandidates(coreCandidates);
-          await tryCandidates(paymentsCandidates);
+          await tryCandidates(coreCandidates).catch(() => null);
+          await tryCandidates(paymentsCandidates).catch(() => null);
+          await tryCandidates(cardCandidates).catch(() => null);
 
           let tries = 0;
           while (tries < 120) {
-            const hasPayments =
+            const hasHelpers =
               typeof window.decorateProductWithPayments === "function" ||
               typeof window.createProductCard === "function";
 
-            if (hasPayments) {
+            if (hasHelpers) {
               window.__MARKETPLACE_HELPERS_READY__ = true;
               window.dispatchEvent(new CustomEvent("marketplace:helpers-ready"));
               return true;
@@ -275,357 +277,273 @@
     })();
   </script>
 
-  <script type="module">
-    await window.ensureMarketplaceHelpers();
+  <script>
+    (async function () {
+      await window.ensureMarketplaceHelpers();
 
-    window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
-      try {
-        if (v === null || v === undefined) return fallback;
-        if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
-        let s = String(v).trim();
-        if (!s) return fallback;
-        s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
-        const hasComma = s.includes(',');
-        const hasDot = s.includes('.');
-        if (hasComma && hasDot) {
-          s = s.replace(/\./g, '').replace(',', '.');
-        } else if (hasComma && !hasDot) {
-          s = s.replace(',', '.');
-        }
-        const n = parseFloat(s);
-        return Number.isFinite(n) ? n : fallback;
-      } catch (_) {
-        return fallback;
-      }
-    };
+      const API_BASE = window.API_BASE || "http://localhost:3000/api";
 
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, query, orderBy, getDocs, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:ef7698ea5d33d701338243",
-      measurementId: "G-WNMWLYMW43"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
-    window.storage = storage;
-    window.db = db;
-    window.auth = auth;
-    window.collection = collection;
-    window.getDocs = getDocs;
-    window.getDoc = getDoc;
-    window.query = query;
-    window.orderBy = orderBy;
-    window.limit = limit;
-    window.doc = doc;
-
-    const PRODUCTS_COLLECTION = "products";
-    const loadingContainer = document.getElementById("loading-container");
-    const grid = document.getElementById("featured-product-grid");
-    const headerTitle = document.getElementById("search-results-header");
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const searchTermRaw = (urlParams.get("q") || urlParams.get("query") || urlParams.get("busca") || "").trim();
-
-    window.displayMessage = function(message, type = 'success', duration = 3000) {
-      const container = document.getElementById('toast-container');
-      const colors = {
-        success: 'bg-success-green',
-        error: 'bg-danger-red',
-        info: 'bg-info-blue'
-      };
-      const toast = document.createElement('div');
-      toast.className = `p-4 text-white rounded-lg shadow-xl flex items-center space-x-3 transition-all duration-300 ${colors[type] || colors.info}`;
-      toast.innerHTML = `<span class="text-sm font-medium">${message}</span>`;
-      container.appendChild(toast);
-      setTimeout(() => { toast.remove(); }, duration);
-    };
-
-    const normalizeText = (value) => {
-      return String(value || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\p{L}\p{N}\s-]/gu, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    };
-
-    const tokenize = (value) => normalizeText(value).split(" ").filter(Boolean);
-
-    const formatCurrency = (v) =>
-      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(window.__toNumberBR(v, 0));
-
-    const formatPriceParts = (v) => {
-      const formatted = formatCurrency(v);
-      const noSymbol = formatted.replace('R$', '').trim();
-      const parts = noSymbol.split(',');
-      return {
-        symbol: 'R$',
-        integer: (parts[0] || '0').trim(),
-        decimal: (parts[1] || '00').trim()
-      };
-    };
-
-    const calcPercent = (o, n) => {
-      if (!Number.isFinite(o) || !Number.isFinite(n) || o <= n || o <= 0) return 0;
-      return Math.round(((o - n) / o) * 100);
-    };
-
-    const isHttpUrl = (s) => typeof s === 'string' && /^(https?:)?\/\//i.test(s);
-    const isDataUrl = (s) => typeof s === 'string' && /^data:/i.test(s);
-
-    const pickFirstImageCandidate = (p) => {
-      if (!p) return null;
-
-      const direct = p.imageUrl || p.mainImageUrl || p.mainImage || p.imagemUrl || p.imagem || p.image || null;
-      if (typeof direct === 'string' && direct.trim()) return direct.trim();
-
-      if (Array.isArray(p.images)) {
-        const main = p.images.find(x => x && (x.isMain === true || x.main === true) && (x.url || x.path));
-        const any = main || p.images.find(x => x && (x.url || x.path));
-        const v = any?.url || any?.path;
-        if (typeof v === 'string' && v.trim()) return v.trim();
-      }
-
-      if (p.images && typeof p.images === 'object') {
-        const keys = Object.keys(p.images).sort((a, b) => parseInt(a) - parseInt(b));
-        for (const k of keys) {
-          const v = p.images[k]?.url || p.images[k]?.path;
-          if (typeof v === 'string' && v.trim()) return v.trim();
-        }
-      }
-
-      if (typeof p.mainImagePath === 'string' && p.mainImagePath.trim()) return p.mainImagePath.trim();
-
-      return null;
-    };
-
-    const resolveImageUrl = async (candidate) => {
-      if (!candidate) return null;
-      const c = String(candidate).trim();
-      if (!c) return null;
-
-      if (isHttpUrl(c) || isDataUrl(c)) {
-        return c.startsWith('http://') ? ('https://' + c.slice(7)) : c;
-      }
-
-      try {
-        const r = storageRef(storage, c);
-        return await getDownloadURL(r);
-      } catch (_) {
-        return null;
-      }
-    };
-
-    const scoreProductAgainstSearch = (product, term) => {
-      const tokens = tokenize(term);
-      if (!tokens.length) return 1;
-
-      const name = normalizeText(product.name || product.nome || "");
-      const category = normalizeText(product.categoryName || product.categoriaNome || product.category || product.categoria || "");
-      const description = normalizeText(product.description || product.descricao || product.desc || "");
-      const brand = normalizeText(product.brand || product.marca || "");
-      const sku = normalizeText(product.sku || product.codigo || product.code || "");
-
-      const haystack = [name, category, description, brand, sku].join(" ");
-
-      let score = 0;
-
-      for (const token of tokens) {
-        if (name.includes(token)) score += 10;
-        else if (category.includes(token)) score += 6;
-        else if (brand.includes(token)) score += 5;
-        else if (sku.includes(token)) score += 4;
-        else if (description.includes(token)) score += 3;
-      }
-
-      const normalizedTerm = normalizeText(term);
-      if (normalizedTerm && name.includes(normalizedTerm)) score += 30;
-      if (normalizedTerm && category.includes(normalizedTerm)) score += 15;
-      if (normalizedTerm && brand.includes(normalizedTerm)) score += 12;
-      if (normalizedTerm && haystack.includes(normalizedTerm)) score += 8;
-
-      return score;
-    };
-
-    const filterProductsBySearch = (products, term) => {
-      if (!term) return products;
-
-      return products
-        .map(product => ({
-          ...product,
-          __searchScore: scoreProductAgainstSearch(product, term)
-        }))
-        .filter(product => product.__searchScore > 0)
-        .sort((a, b) => {
-          if (b.__searchScore !== a.__searchScore) {
-            return b.__searchScore - a.__searchScore;
-          }
-          const aName = String(a.name || a.nome || '').toLowerCase();
-          const bName = String(b.name || b.nome || '').toLowerCase();
-          return aName.localeCompare(bName, 'pt-BR');
-        });
-    };
-
-    const renderProducts = (products) => {
-      grid.innerHTML = '';
-
-      if (!products || products.length === 0) {
-        grid.innerHTML = `
-          <div class="col-span-full text-center py-16 text-gray-500 bg-white rounded-xl shadow-sm">
-            Nenhum produto encontrado para <strong>${searchTermRaw ? searchTermRaw.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "a busca informada"}</strong>.
-          </div>
-        `;
-        return;
-      }
-
-      grid.innerHTML = products.map(raw => {
-        const base = {
-          id: raw.id,
-          name: raw.name || raw.nome || 'Produto',
-          price: raw.price ?? raw.preco ?? 0,
-          oldPrice: raw.oldPrice ?? raw.precoAntigo ?? raw.preco_anterior ?? null,
-          imageUrl: raw.imageUrl || raw.mainImageUrl || raw.imagem || raw.image || 'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM',
-          categoryName: raw.categoryName || raw.categoriaNome || raw.category || raw.categoria || ''
-        };
-
-        const p = (typeof window.decorateProductWithPayments === 'function')
-          ? window.decorateProductWithPayments(base)
-          : base;
-
-        const cash = p.__payments?.cash || null;
-        const card = p.__payments?.card || null;
-
-        const basePrice = window.__toNumberBR(p.price ?? 0, 0);
-        const displayPrice = (cash && cash.enabled)
-          ? window.__toNumberBR(cash.price ?? basePrice, basePrice)
-          : basePrice;
-
-        const oldP = (p.oldPrice !== null && p.oldPrice !== undefined)
-          ? window.__toNumberBR(p.oldPrice, 0)
-          : NaN;
-
-        const hasOld = Number.isFinite(oldP) && oldP > basePrice;
-
-        let badgePercent = 0;
-        let oldPriceToShow = null;
-
-        if (hasOld) {
-          badgePercent = calcPercent(oldP, basePrice);
-          oldPriceToShow = oldP;
-        } else if (cash && cash.enabled && Number(cash.discountPercent || 0) > 0) {
-          badgePercent = Number(cash.discountPercent || 0);
-          oldPriceToShow = basePrice;
-        }
-
-        const priceParts = formatPriceParts(displayPrice);
-        const oldPriceFormatted = oldPriceToShow ? formatCurrency(oldPriceToShow) : null;
-        const installmentsText = (card && card.enabled && card.text) ? card.text : 'em até 12x';
-
-        return `
-          <a href="produto.html?id=${p.id}" class="product-card">
-            <div class="product-image-container">
-              ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ''}
-              <img src="${p.imageUrl}" alt="${String(p.name || '').replace(/"/g, '&quot;')}" loading="lazy">
-            </div>
-            <div class="product-card-body">
-              <p class="product-name">${p.name}</p>
-              <div class="mt-auto">
-                ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
-                <div class="product-price">
-                  <span class="currency">${priceParts.symbol}</span>
-                  <span class="price-integer">${priceParts.integer}</span>
-                  <span class="decimal-part">,${priceParts.decimal}</span>
-                  <span class="cash-text">à vista</span>
-                </div>
-                <p class="product-installments">${installmentsText}</p>
-              </div>
-            </div>
-          </a>
-        `;
-      }).join('');
-    };
-
-    const fetchProductsFromFirestore = async () => {
-      try {
-        loadingContainer.classList.remove('hidden');
-
-        const productsRef = collection(db, PRODUCTS_COLLECTION);
-
-        let querySnapshot;
+      window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
         try {
-          querySnapshot = await getDocs(query(productsRef, orderBy("name"), limit(500)));
+          if (v === null || v === undefined) return fallback;
+          if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
+          let s = String(v).trim();
+          if (!s) return fallback;
+          s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
+          const hasComma = s.includes(",");
+          const hasDot = s.includes(".");
+          if (hasComma && hasDot) {
+            s = s.replace(/\./g, "").replace(",", ".");
+          } else if (hasComma && !hasDot) {
+            s = s.replace(",", ".");
+          }
+          const n = parseFloat(s);
+          return Number.isFinite(n) ? n : fallback;
         } catch (_) {
-          querySnapshot = await getDocs(query(productsRef, limit(500)));
+          return fallback;
+        }
+      };
+
+      const loadingContainer = document.getElementById("loading-container");
+      const grid = document.getElementById("featured-product-grid");
+      const headerTitle = document.getElementById("search-results-header");
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const searchTermRaw = (urlParams.get("q") || urlParams.get("query") || urlParams.get("busca") || "").trim();
+
+      window.displayMessage = function(message, type = "success", duration = 3000) {
+        const container = document.getElementById("toast-container");
+        const colors = {
+          success: "bg-success-green",
+          error: "bg-danger-red",
+          info: "bg-info-blue"
+        };
+        const toast = document.createElement("div");
+        toast.className = `p-4 text-white rounded-lg shadow-xl flex items-center space-x-3 transition-all duration-300 ${colors[type] || colors.info}`;
+        toast.innerHTML = `<span class="text-sm font-medium">${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => { toast.remove(); }, duration);
+      };
+
+      const normalizeText = (value) => {
+        return String(value || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      };
+
+      const tokenize = (value) => normalizeText(value).split(" ").filter(Boolean);
+
+      const formatCurrency = (v) =>
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(window.__toNumberBR(v, 0));
+
+      const formatPriceParts = (v) => {
+        const formatted = formatCurrency(v);
+        const noSymbol = formatted.replace("R$", "").trim();
+        const parts = noSymbol.split(",");
+        return {
+          symbol: "R$",
+          integer: (parts[0] || "0").trim(),
+          decimal: (parts[1] || "00").trim()
+        };
+      };
+
+      const calcPercent = (o, n) => {
+        if (!Number.isFinite(o) || !Number.isFinite(n) || o <= n || o <= 0) return 0;
+        return Math.round(((o - n) / o) * 100);
+      };
+
+      const scoreProductAgainstSearch = (product, term) => {
+        const tokens = tokenize(term);
+        if (!tokens.length) return 1;
+
+        const name = normalizeText(product.name || product.nome || "");
+        const category = normalizeText(product.categoryName || product.categoriaNome || product.category || product.categoria || "");
+        const description = normalizeText(product.description || product.descricao || product.desc || "");
+        const brand = normalizeText(product.brand || product.marca || "");
+        const sku = normalizeText(product.sku || product.codigo || product.code || "");
+
+        const haystack = [name, category, description, brand, sku].join(" ");
+
+        let score = 0;
+
+        for (const token of tokens) {
+          if (name.includes(token)) score += 10;
+          else if (category.includes(token)) score += 6;
+          else if (brand.includes(token)) score += 5;
+          else if (sku.includes(token)) score += 4;
+          else if (description.includes(token)) score += 3;
         }
 
-        const rawDocs = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const normalizedTerm = normalizeText(term);
+        if (normalizedTerm && name.includes(normalizedTerm)) score += 30;
+        if (normalizedTerm && category.includes(normalizedTerm)) score += 15;
+        if (normalizedTerm && brand.includes(normalizedTerm)) score += 12;
+        if (normalizedTerm && haystack.includes(normalizedTerm)) score += 8;
 
-        let products = await Promise.all(rawDocs.map(async (p) => {
-          const cand = pickFirstImageCandidate(p);
-          const resolved = await resolveImageUrl(cand);
-          return { ...p, imageUrlResolved: resolved || null };
-        }));
+        return score;
+      };
 
-        products = products.map(p => ({
-          ...p,
-          imageUrl:
-            p.imageUrlResolved ||
-            p.imageUrl ||
-            p.mainImageUrl ||
-            (typeof p.imagem === 'string' ? p.imagem : null) ||
-            'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM'
-        }));
+      const filterProductsBySearch = (products, term) => {
+        if (!term) return products;
 
-        return products;
-      } catch (error) {
-        console.error("Erro Firestore:", error);
-        window.displayMessage("Erro ao carregar os produtos.", "error");
-        return [];
-      } finally {
-        loadingContainer.classList.add('hidden');
-      }
-    };
+        return products
+          .map(product => ({
+            ...product,
+            __searchScore: scoreProductAgainstSearch(product, term)
+          }))
+          .filter(product => product.__searchScore > 0)
+          .sort((a, b) => {
+            if (b.__searchScore !== a.__searchScore) {
+              return b.__searchScore - a.__searchScore;
+            }
+            const aName = String(a.name || a.nome || "").toLowerCase();
+            const bName = String(b.name || b.nome || "").toLowerCase();
+            return aName.localeCompare(bName, "pt-BR");
+          });
+      };
 
-    const init = async () => {
-      try {
-        loadingContainer.classList.remove('hidden');
-        await signInAnonymously(auth);
-      } catch (_) {}
+      const renderProducts = (products) => {
+        grid.innerHTML = "";
 
-      try {
-        if (typeof window.getPaymentSettings === 'function') {
-          await window.getPaymentSettings(true);
+        if (!products || products.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-full text-center py-16 text-gray-500 bg-white rounded-xl shadow-sm">
+              Nenhum produto encontrado para <strong>${searchTermRaw ? searchTermRaw.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "a busca informada"}</strong>.
+            </div>
+          `;
+          return;
         }
-      } catch (_) {}
 
-      window.dispatchEvent(new Event('firebase:ready'));
+        if (typeof window.createProductCard === "function") {
+          grid.innerHTML = products.map(p => window.createProductCard(p)).join("");
+          return;
+        }
 
-      if (searchTermRaw) {
-        headerTitle.textContent = `Resultados para "${searchTermRaw}"`;
-        document.title = `Busca: ${searchTermRaw} | ARIANA MOVEIS`;
-      } else {
-        headerTitle.textContent = "Digite um termo para buscar produtos";
-      }
+        grid.innerHTML = products.map(raw => {
+          const base = {
+            id: raw.id || raw._id,
+            name: raw.name || raw.nome || "Produto",
+            price: raw.price ?? raw.preco ?? 0,
+            oldPrice: raw.oldPrice ?? raw.precoAntigo ?? raw.preco_anterior ?? null,
+            imageUrl: raw.imageUrl || raw.mainImageUrl || raw.imagem || raw.image || "/uploads/default.png",
+            categoryName: raw.categoryName || raw.categoriaNome || raw.category || raw.categoria || ""
+          };
 
-      const products = await fetchProductsFromFirestore();
-      const filteredProducts = filterProductsBySearch(products, searchTermRaw);
-      renderProducts(filteredProducts);
-    };
+          const p = (typeof window.decorateProductWithPayments === "function")
+            ? window.decorateProductWithPayments(base)
+            : base;
 
-    init();
+          const cash = p.__payments?.cash || null;
+          const card = p.__payments?.card || null;
+
+          const basePrice = window.__toNumberBR(p.price ?? 0, 0);
+          const displayPrice = (cash && cash.enabled)
+            ? window.__toNumberBR(cash.price ?? basePrice, basePrice)
+            : basePrice;
+
+          const oldP = (p.oldPrice !== null && p.oldPrice !== undefined)
+            ? window.__toNumberBR(p.oldPrice, 0)
+            : NaN;
+
+          const hasOld = Number.isFinite(oldP) && oldP > basePrice;
+
+          let badgePercent = 0;
+          let oldPriceToShow = null;
+
+          if (hasOld) {
+            badgePercent = calcPercent(oldP, basePrice);
+            oldPriceToShow = oldP;
+          } else if (cash && cash.enabled && Number(cash.discountPercent || 0) > 0) {
+            badgePercent = Number(cash.discountPercent || 0);
+            oldPriceToShow = basePrice;
+          }
+
+          const priceParts = formatPriceParts(displayPrice);
+          const oldPriceFormatted = oldPriceToShow ? formatCurrency(oldPriceToShow) : null;
+          const installmentsText = (card && card.enabled && card.text) ? card.text : "em até 12x";
+
+          return `
+            <a href="produto.html?id=${p.id}" class="product-card">
+              <div class="product-image-container">
+                ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ""}
+                <img src="${p.imageUrl}" alt="${String(p.name || "").replace(/"/g, "&quot;")}" loading="lazy">
+              </div>
+              <div class="product-card-body">
+                <p class="product-name">${p.name}</p>
+                <div class="mt-auto">
+                  ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
+                  <div class="product-price">
+                    <span class="currency">${priceParts.symbol}</span>
+                    <span class="price-integer">${priceParts.integer}</span>
+                    <span class="decimal-part">,${priceParts.decimal}</span>
+                    <span class="cash-text">à vista</span>
+                  </div>
+                  <p class="product-installments">${installmentsText}</p>
+                </div>
+              </div>
+            </a>
+          `;
+        }).join("");
+      };
+
+      const fetchProductsFromApi = async () => {
+        try {
+          loadingContainer.classList.remove("hidden");
+
+          const response = await fetch(`${API_BASE}/products`, {
+            headers: { "Content-Type": "application/json" }
+          });
+
+          if (!response.ok) throw new Error("Falha ao carregar produtos");
+
+          const data = await response.json();
+          const items = Array.isArray(data) ? data : (data.items || data.products || []);
+
+          return items.map(item => ({
+            ...item,
+            id: item.id || item._id,
+            imageUrl:
+              item.imageUrl ||
+              item.mainImageUrl ||
+              item.imageUrlResolved ||
+              item.imagem ||
+              item.image ||
+              "/uploads/default.png"
+          }));
+        } catch (error) {
+          console.error("Erro API:", error);
+          window.displayMessage("Erro ao carregar os produtos.", "error");
+          return [];
+        } finally {
+          loadingContainer.classList.add("hidden");
+        }
+      };
+
+      const init = async () => {
+        try {
+          if (typeof window.getPaymentSettings === "function") {
+            await window.getPaymentSettings();
+          }
+        } catch (_) {}
+
+        if (searchTermRaw) {
+          headerTitle.textContent = `Resultados para "${searchTermRaw}"`;
+          document.title = `Busca: ${searchTermRaw} | ARIANA MOVEIS`;
+        } else {
+          headerTitle.textContent = "Digite um termo para buscar produtos";
+        }
+
+        const products = await fetchProductsFromApi();
+        const filteredProducts = filterProductsBySearch(products, searchTermRaw);
+        renderProducts(filteredProducts);
+      };
+
+      init();
+    })();
   </script>
 
   <script src="js/header_auth_fix.js" defer></script>
@@ -633,27 +551,23 @@
   <script>
     (function () {
       const tryInitHeader = () => {
-        if (typeof window.carregarHeader !== 'function') {
+        if (typeof window.carregarHeader !== "function") {
           setTimeout(tryInitHeader, 60);
           return;
         }
-        if (!(window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function')) {
-          setTimeout(tryInitHeader, 60);
-          return;
-        }
-        if (document.querySelector('header[data-ariana="1"]')) return;
+        if (document.querySelector("header[data-ariana='1']")) return;
 
         try {
           window.carregarHeader();
-          const h = document.querySelector('header');
-          if (h) h.setAttribute('data-ariana', '1');
+          const h = document.querySelector("header");
+          if (h) h.setAttribute("data-ariana", "1");
         } catch (e) {
           console.error("[page] erro ao carregar header:", e);
         }
       };
 
       tryInitHeader();
-      window.addEventListener('firebase:ready', tryInitHeader);
+      window.addEventListener("marketplace:helpers-ready", tryInitHeader);
     })();
   </script>
 

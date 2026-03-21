@@ -50,101 +50,158 @@
     <button id="btn-submit" class="btn btn-dark w-full" type="submit">Finalizar e enviar para análise</button>
   </form>
 </div>
-<script type="module">
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
-    }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
-      return seller;
-    }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
+<script>
+  const API_BASE = window.API_BASE || window.API_URL || localStorage.getItem('apiBaseUrl') || 'http://localhost:3000/api';
+  const $ = (id) => document.getElementById(id);
+
+  function toast(message, type='info') {
+    const c = $('toast-container');
+    if (!c) return alert(message);
+    const el = document.createElement('div');
+    const color = type === 'success' ? 'bg-success-green' : type === 'error' ? 'bg-error-red' : 'bg-primary-blue';
+    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    el.textContent = message;
+    c.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 300);
+    }, 3400);
+  }
+
+  function getSellerToken() {
+    return localStorage.getItem('seller_token') || '';
+  }
+
+  function getStoredPartnerRequestId() {
+    return localStorage.getItem('partner_request_id') || '';
+  }
+
+  function setStoredPartnerRequestId(id) {
+    if (id) localStorage.setItem('partner_request_id', id);
+  }
+
+  async function apiFetch(path, options = {}) {
+    const token = getSellerToken();
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
       }
-      return [];
+    });
+
+    const text = await response.text();
+    let data = null;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
     }
 
-const params = new URLSearchParams(window.location.search);
-const rid = params.get('rid') || localStorage.getItem('partner_request_id') || '';
-$('cepOrigem').addEventListener('input', (e)=>{ let v=e.target.value.replace(/\D/g,'').slice(0,8); e.target.value = v.length>5 ? v.slice(0,5)+'-'+v.slice(5) : v; });
-(async ()=>{
-  if (!rid) return;
-  try {
-    const snap = await getDoc(doc(db,'partner_requests',rid));
-    if (snap.exists()) {
-      const d = snap.data() || {};
-      $('name').value = d.factoryName || d.name || '';
-      $('cnpj').value = d.cnpj || d.cpf_cnpj || '';
-      if (d.type) $('seller-type').value = d.type;
-      const bank = d.bankAccount || {};
-      $('cepOrigem').value = bank.cepOrigem || '';
-      $('bank').value = bank.bank || '';
-      $('agency').value = bank.agency || '';
-      $('account').value = bank.account || '';
-      $('pixKey').value = bank.pixKey || '';
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
     }
-  } catch (e) { console.error(e); }
-})();
-$('onboarding-form').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  if (!rid) { toast('ID da solicitação ausente.', 'error'); return; }
-  const btn=$('btn-submit'); btn.disabled=true; btn.textContent='Enviando...';
-  try {
-    const bankAccount = { bank:$('bank').value.trim(), agency:$('agency').value.trim(), account:$('account').value.trim(), pixKey:$('pixKey').value.trim(), cepOrigem:$('cepOrigem').value.replace(/\D/g,'') };
-    await setDoc(doc(db,'partner_requests',rid), { factoryName:$('name').value.trim(), cnpj:$('cnpj').value.trim(), type:$('seller-type').value, bankAccount, onboardingCompleted:true, status:'pending_analysis', updatedAt:serverTimestamp() }, {merge:true});
-    localStorage.setItem('partner_request_id', rid);
-    toast('Dados enviados para análise.', 'success');
-    setTimeout(()=> window.location.href='seller_pending.html?rid='+encodeURIComponent(rid), 700);
-  } catch (e) { console.error(e); toast('Erro ao salvar dados.', 'error'); btn.disabled=false; btn.textContent='Finalizar e enviar para análise'; }
-});
+
+    return data;
+  }
+
+  function normalizeDigits(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
+  function formatCepInput(value) {
+    const v = normalizeDigits(value).slice(0, 8);
+    return v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v;
+  }
+
+  function resolveRequestId() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('rid') || getStoredPartnerRequestId() || '';
+  }
+
+  function fillForm(data = {}) {
+    const bank = data.bankAccount || data.bank || {};
+
+    $('name').value = data.factoryName || data.name || data.nomeFantasia || '';
+    $('cnpj').value = data.cnpj || data.cpf_cnpj || data.document || '';
+    if (data.type) $('seller-type').value = data.type;
+    $('cepOrigem').value = formatCepInput(bank.cepOrigem || bank.zipOrigin || bank.cep || '');
+    $('bank').value = bank.bank || bank.banco || '';
+    $('agency').value = bank.agency || bank.agencia || '';
+    $('account').value = bank.account || bank.conta || '';
+    $('pixKey').value = bank.pixKey || bank.pix || bank.chavePix || '';
+  }
+
+  async function loadOnboardingData() {
+    const rid = resolveRequestId();
+    if (!rid) return;
+
+    try {
+      const data = await apiFetch(`/seller/partner-requests/${encodeURIComponent(rid)}`);
+      const request = data?.request || data?.partnerRequest || data?.data || data || {};
+      fillForm(request);
+      setStoredPartnerRequestId(rid);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  $('cepOrigem').addEventListener('input', (e) => {
+    e.target.value = formatCepInput(e.target.value);
+  });
+
+  $('onboarding-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const rid = resolveRequestId();
+    if (!rid) {
+      toast('ID da solicitação ausente.', 'error');
+      return;
+    }
+
+    const btn = $('btn-submit');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    try {
+      const payload = {
+        factoryName: $('name').value.trim(),
+        cnpj: $('cnpj').value.trim(),
+        type: $('seller-type').value,
+        bankAccount: {
+          bank: $('bank').value.trim(),
+          agency: $('agency').value.trim(),
+          account: $('account').value.trim(),
+          pixKey: $('pixKey').value.trim(),
+          cepOrigem: normalizeDigits($('cepOrigem').value)
+        },
+        onboardingCompleted: true,
+        status: 'pending_analysis'
+      };
+
+      await apiFetch(`/seller/partner-requests/${encodeURIComponent(rid)}/onboarding`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      setStoredPartnerRequestId(rid);
+      toast('Dados enviados para análise.', 'success');
+
+      setTimeout(() => {
+        window.location.href = `seller_pending.html?rid=${encodeURIComponent(rid)}`;
+      }, 700);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'Erro ao salvar dados.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Finalizar e enviar para análise';
+    }
+  });
+
+  loadOnboardingData();
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body></html>

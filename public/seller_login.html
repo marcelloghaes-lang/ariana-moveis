@@ -48,92 +48,141 @@
     </div>
   </form>
 </div>
-<script type="module">
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+<script>
+  const API_BASE = window.API_BASE || "http://localhost:3000/api";
+  const $ = (id) => document.getElementById(id);
+
+  function toast(message, type='info') {
+    const c = $('toast-container'); if (!c) return alert(message);
+    const el = document.createElement('div');
+    const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    el.textContent = message; c.appendChild(el);
+    setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+  }
+
+  async function apiFetch(url, options = {}) {
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
+      ...options
+    });
+
+    let data = null;
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = text ? { message: text } : null;
     }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
+
+    if (!response.ok) {
+      throw new Error(data?.message || `Erro HTTP ${response.status}`);
     }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
+
+    return data;
+  }
+
+  function setSellerSession(payload) {
+    const token = payload?.token || payload?.accessToken || payload?.jwt || "";
+    const seller = payload?.seller || payload?.user || payload?.profile || null;
+
+    if (token) localStorage.setItem("seller_token", token);
+    if (seller) localStorage.setItem("seller_profile", JSON.stringify(seller));
+  }
+
+  function getSellerStatus(seller) {
+    return String(seller?.status || "").toLowerCase();
+  }
+
+  function clearSellerSession() {
+    localStorage.removeItem("seller_token");
+    localStorage.removeItem("seller_profile");
+  }
+
+  async function loginSeller(email, password) {
+    return apiFetch(`${API_BASE}/seller/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    });
+  }
+
+  async function resolveMe() {
+    const token = localStorage.getItem("seller_token");
+    if (!token) return null;
+
+    try {
+      const data = await apiFetch(`${API_BASE}/seller/auth/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const seller = data?.seller || data?.user || data?.profile || data || null;
+      if (seller) localStorage.setItem("seller_profile", JSON.stringify(seller));
       return seller;
+    } catch (_) {
+      clearSellerSession();
+      return null;
     }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
-      }
-      return [];
-    }
+  }
 
-$('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  $('error').classList.add('hidden');
-  const email = $('email').value.trim();
-  const password = $('password').value;
-  const btn = $('btn-login'); btn.disabled = true; btn.textContent = 'Entrando...';
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    const seller = await getSeller(cred.user.uid);
-    if (!seller) throw new Error('Esta conta existe no login, mas não foi vinculada a um seller.');
-    const st = String(seller.status || '').toLowerCase();
+  async function bootExistingSession() {
+    const seller = await resolveMe();
+    if (!seller) return;
+
+    const st = getSellerStatus(seller);
     if (seller.active === false || ['pending_analysis','pending_onboarding','em_analise'].includes(st)) {
-      localStorage.setItem('seller_pending_uid', cred.user.uid);
       window.location.href = 'seller_pending.html';
       return;
     }
+
     window.location.href = 'seller_dashboard.html';
-  } catch (e) {
-    console.error(e);
-    $('error').textContent = e.message || 'E-mail ou senha inválidos.';
-    $('error').classList.remove('hidden');
-    btn.disabled = false; btn.textContent = 'Entrar no painel';
   }
-});
+
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('error').classList.add('hidden');
+
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    const btn = $('btn-login');
+
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+
+    try {
+      const data = await loginSeller(email, password);
+      setSellerSession(data);
+
+      const seller = data?.seller || data?.user || data?.profile || JSON.parse(localStorage.getItem("seller_profile") || "null");
+      if (!seller) throw new Error('Esta conta existe no login, mas não foi vinculada a um seller.');
+
+      const st = getSellerStatus(seller);
+
+      if (seller.active === false || ['pending_analysis','pending_onboarding','em_analise'].includes(st)) {
+        localStorage.setItem('seller_pending_uid', seller.id || seller._id || seller.uid || '');
+        window.location.href = 'seller_pending.html';
+        return;
+      }
+
+      toast('Login realizado com sucesso!', 'success');
+      window.location.href = 'seller_dashboard.html';
+    } catch (e) {
+      console.error(e);
+      $('error').textContent = e.message || 'E-mail ou senha inválidos.';
+      $('error').classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Entrar no painel';
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", bootExistingSession);
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body></html>

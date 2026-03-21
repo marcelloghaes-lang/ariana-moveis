@@ -260,7 +260,6 @@
     "description":"Conheça a vitrine da loja parceira no marketplace Ariana Móveis.",
     "url":""
   }</script>
-
 </head>
 
 <body id="pageApp">
@@ -341,92 +340,127 @@
     })();
   </script>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, where, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
+  <script>
+    const API_BASE = window.API_BASE || "http://localhost:3000/api";
     const $ = (id) => document.getElementById(id);
 
     let __paymentsConfig = {
       cash: { enabled: false, discountPercent: 0, label: "no PIX", price: null },
-      card: { enabled: true, installments: 12, text: "em até 12x" },
+      card: { enabled: true, installments: 12, text: "em até 12x" }
     };
 
     function __num(v, def = 0) {
       if (v === null || v === undefined) return def;
-      if (typeof v === 'number') return Number.isFinite(v) ? v : def;
+      if (typeof v === "number") return Number.isFinite(v) ? v : def;
       let s = String(v).trim();
       if (!s) return def;
-      s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
-      const hasComma = s.includes(',');
-      const hasDot = s.includes('.');
-      if (hasComma && hasDot) s = s.replace(/\./g, '').replace(',', '.');
-      else if (hasComma) s = s.replace(',', '.');
+      s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
+      const hasComma = s.includes(",");
+      const hasDot = s.includes(".");
+      if (hasComma && hasDot) s = s.replace(/\./g, "").replace(",", ".");
+      else if (hasComma) s = s.replace(",", ".");
       const n = parseFloat(s);
       return Number.isFinite(n) ? n : def;
     }
 
+    async function apiFetch(url, options = {}) {
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        },
+        ...options
+      });
+
+      let data = null;
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = text ? { message: text } : null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `Erro HTTP ${response.status}`);
+      }
+
+      return data;
+    }
+
     async function loadGlobalPaymentsConfig() {
-      const tryPaths = [
-        ["settings", "payments"],
-        ["configuracoes", "payments"],
-        ["configuracoes", "pagamentos"],
-        ["settings", "pagamentos"],
-      ];
+      try {
+        const data = await apiFetch(`${API_BASE}/settings/payments`, { method: "GET" });
 
-      for (const [col, id] of tryPaths) {
-        try {
-          const snap = await getDoc(doc(db, col, id));
-          if (!snap.exists()) continue;
+        const cashEnabled =
+          data?.cash?.enabled ??
+          data?.pix?.enabled ??
+          data?.pixEnabled ??
+          data?.cashEnabled ??
+          data?.enabled ??
+          false;
 
-          const data = snap.data() || {};
-          const cashEnabled =
-            data.cash?.enabled ?? data.pix?.enabled ?? data.pixEnabled ?? data.cashEnabled ?? data.enabled ?? false;
+        const disc = __num(
+          data?.cash?.discountPercent ??
+          data?.pix?.discountPercent ??
+          data?.pixDiscountPercent ??
+          data?.descontoPix ??
+          data?.desconto_pix,
+          0
+        );
 
-          const disc =
-            __num(data.cash?.discountPercent ?? data.pix?.discountPercent ?? data.pixDiscountPercent ?? data.descontoPix ?? data.desconto_pix, 0);
+        const cashLabel =
+          data?.cash?.label ??
+          data?.pix?.label ??
+          data?.cashLabel ??
+          "no PIX";
 
-          const cashLabel = data.cash?.label ?? data.pix?.label ?? data.cashLabel ?? "no PIX";
+        const installments = Math.max(
+          1,
+          Math.round(
+            __num(
+              data?.card?.installments ??
+              data?.installments ??
+              data?.parcelas ??
+              12,
+              12
+            )
+          )
+        );
 
-          const installments =
-            Math.max(1, Math.round(__num(data.card?.installments ?? data.installments ?? data.parcelas ?? 12, 12)));
+        const cardText =
+          data?.card?.text ??
+          data?.installmentsText ??
+          data?.textParcelamento ??
+          `em até ${installments}x`;
 
-          const cardText = data.card?.text ?? data.installmentsText ?? data.textParcelamento ?? `em até ${installments}x`;
-
-          __paymentsConfig = {
-            cash: {
-              enabled: !!cashEnabled && disc > 0,
-              discountPercent: disc,
-              label: cashLabel,
-              price: null,
-            },
-            card: {
-              enabled: true,
-              installments,
-              text: cardText,
-            },
-          };
-          break;
-        } catch (_) {}
+        __paymentsConfig = {
+          cash: {
+            enabled: !!cashEnabled && disc > 0,
+            discountPercent: disc,
+            label: cashLabel,
+            price: null
+          },
+          card: {
+            enabled: true,
+            installments,
+            text: cardText
+          }
+        };
+      } catch (_) {
+        __paymentsConfig = {
+          cash: { enabled: false, discountPercent: 0, label: "no PIX", price: null },
+          card: { enabled: true, installments: 12, text: "em até 12x" }
+        };
       }
     }
 
     window.formatCurrency = function(value) {
-      return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      }).format(Number(value || 0));
     };
 
     window.formatPriceParts = function(value) {
@@ -473,24 +507,16 @@
         p.mainImageUrl ||
         p.urlImagem ||
         p.url ||
-        (Array.isArray(p.images) && (typeof p.images[0] === "string" ? p.images[0] : (p.images[0]?.url || p.images[0]?.downloadURL))) ||
+        p.image ||
+        p.imagem ||
+        (Array.isArray(p.images) && (
+          typeof p.images[0] === "string"
+            ? p.images[0]
+            : (p.images[0]?.url || p.images[0]?.imageUrl || p.images[0]?.downloadURL)
+        )) ||
         null;
 
-      if (direct && typeof direct === "string" && /^https?:/i.test(direct)) return direct;
-
-      const path =
-        p.mainImagePath ||
-        p.imagePath ||
-        (Array.isArray(p.images) ? (p.images.find(x => x && x.isMain === true && x.path)?.path || p.images.find(x => x && x.path)?.path) : null) ||
-        null;
-
-      if (path && typeof path === "string") {
-        try {
-          return await getDownloadURL(storageRef(storage, path.trim()));
-        } catch (e) {
-          console.warn("[loja] falha ao resolver imagem:", path, e);
-        }
-      }
+      if (direct && typeof direct === "string") return direct;
 
       return "https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM";
     }
@@ -504,7 +530,11 @@
 
       const priceParts = window.formatPriceParts(cashPrice);
 
-      const hasCashDiscount = !!payments?.cash?.enabled && __num(payments.cash.discountPercent, 0) > 0 && cashPrice < basePrice;
+      const hasCashDiscount =
+        !!payments?.cash?.enabled &&
+        __num(payments.cash.discountPercent, 0) > 0 &&
+        cashPrice < basePrice;
+
       const explicitOldPrice = __num(decorated.oldPrice, 0);
       const hasOldPrice = hasCashDiscount || explicitOldPrice > cashPrice;
 
@@ -517,14 +547,17 @@
 
       let installmentsText = payments?.card?.text || "";
       const installments = Number(payments?.card?.installments || 12);
+
       if (!installmentsText && installments > 1 && basePrice > 0) {
         installmentsText = `ou em até ${installments}x de ${window.formatCurrency(basePrice / installments)} sem juros`;
       }
 
       const cashLabel = payments?.cash?.enabled ? (payments.cash.label || "no PIX") : "à vista";
 
+      const productId = decorated.id || decorated._id || "";
+
       const card = document.createElement("a");
-      card.href = `produto.html?id=${encodeURIComponent(decorated.id)}`;
+      card.href = `produto.html?id=${encodeURIComponent(productId)}`;
       card.className = "product-card";
       card.innerHTML = `
         <div class="product-image-container">
@@ -555,46 +588,6 @@
       return true;
     }
 
-    function getSellerIdCandidates(sellerId) {
-      const raw = String(sellerId || "").trim();
-      if (!raw) return [];
-      const set = new Set([raw]);
-
-      const lower = raw.toLowerCase();
-      const upper = raw.toUpperCase();
-      set.add(lower);
-      set.add(upper);
-
-      if (raw === "ArianaMoveis") {
-        set.add("arianamoveis");
-        set.add("ARIANAMOVEIS");
-      }
-      if (lower === "arianamoveis") {
-        set.add("ArianaMoveis");
-      }
-      return Array.from(set).filter(Boolean);
-    }
-
-    async function fetchProductsBySellerId(sellerId) {
-      const candidates = getSellerIdCandidates(sellerId);
-      const collected = new Map();
-
-      for (const candidate of candidates) {
-        try {
-          const q = query(collection(db, "products"), where("sellerId", "==", candidate), limit(120));
-          const snap = await getDocs(q);
-          snap.docs.forEach((d) => {
-            if (!collected.has(d.id)) collected.set(d.id, { id: d.id, ...(d.data() || {}) });
-          });
-        } catch (e) {
-          console.warn("[loja] erro ao buscar products por sellerId:", candidate, e);
-        }
-      }
-
-      return Array.from(collected.values());
-    }
-
-
     function sanitizeText(str) {
       return String(str || "").replace(/\s+/g, " ").trim();
     }
@@ -608,7 +601,11 @@
 
     function updateSeoForStore(storeName, storeDescription, logoUrl = "") {
       const name = sanitizeText(storeName || "Loja Parceira");
-      const desc = excerptText(storeDescription || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.", 320) || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.";
+      const desc = excerptText(
+        storeDescription || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.",
+        320
+      ) || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.";
+
       document.title = `${name} | Ariana Móveis Marketplace`;
 
       const setMeta = (selector, value, attr = "content") => {
@@ -619,6 +616,7 @@
       setMeta('meta[name="description"]', desc);
       setMeta('meta[property="og:title"]', `${name} | Ariana Móveis Marketplace`);
       setMeta('meta[property="og:description"]', desc);
+
       if (logoUrl && /^https?:/i.test(logoUrl)) {
         setMeta('meta[property="og:image"]', logoUrl);
       }
@@ -634,6 +632,23 @@
           "image": logoUrl || undefined
         });
       }
+    }
+
+    async function fetchSellerById(sellerId) {
+      const data = await apiFetch(`${API_BASE}/sellers/${encodeURIComponent(sellerId)}`, { method: "GET" });
+      return data?.item || data?.seller || data;
+    }
+
+    async function fetchProductsBySellerId(sellerId) {
+      const data = await apiFetch(`${API_BASE}/products?sellerId=${encodeURIComponent(sellerId)}`, { method: "GET" });
+      const items = Array.isArray(data) ? data : (data.items || data.products || []);
+      return items.map((item) => ({
+        id: item.id || item._id || "",
+        name: item.nome || item.name || "Produto",
+        price: item.preco ?? item.price ?? 0,
+        oldPrice: item.precoAntigo ?? item.oldPrice ?? item.old_price ?? null,
+        ...item
+      }));
     }
 
     async function initLoja() {
@@ -664,16 +679,20 @@
 
         let sellerPublic = null;
         try {
-          const sSnap = await getDoc(doc(db, "sellers_public", sellerId));
-          if (sSnap.exists()) sellerPublic = sSnap.data();
+          sellerPublic = await fetchSellerById(sellerId);
         } catch (e) {
-          console.warn("[loja] erro ao buscar sellers_public:", e);
+          console.warn("[loja] erro ao buscar seller:", e);
         }
 
         const storeName = pickStoreName(sellerPublic);
         $("store-name").textContent = storeName;
 
-        const desc = sellerPublic?.bio || sellerPublic?.description || sellerPublic?.descricao || "Conheça nossa vitrine exclusiva.";
+        const desc =
+          sellerPublic?.bio ||
+          sellerPublic?.description ||
+          sellerPublic?.descricao ||
+          "Conheça nossa vitrine exclusiva.";
+
         const descExcerpt = excerptText(desc, 520);
 
         if (descExcerpt) {
@@ -684,8 +703,14 @@
 
         $("store-subtitle").textContent = "Confira os produtos disponíveis desta loja.";
 
-        const logoUrl = sellerPublic?.logoUrl || sellerPublic?.logo || sellerPublic?.photoUrl || null;
-        if (logoUrl && typeof logoUrl === "string" && /^https?:/i.test(logoUrl)) {
+        const logoUrl =
+          sellerPublic?.logoUrl ||
+          sellerPublic?.logo ||
+          sellerPublic?.photoUrl ||
+          sellerPublic?.imagem ||
+          null;
+
+        if (logoUrl && typeof logoUrl === "string") {
           $("store-logo").src = logoUrl;
           $("store-logo").classList.remove("hidden");
           $("store-icon").classList.add("hidden");
@@ -693,22 +718,18 @@
 
         updateSeoForStore(storeName, desc, (logoUrl && /^https?:/i.test(logoUrl)) ? logoUrl : "");
 
-        const wa = normalizeWhatsapp(sellerPublic?.whatsapp || sellerPublic?.phone || sellerPublic?.telefone);
+        const wa = normalizeWhatsapp(
+          sellerPublic?.whatsapp ||
+          sellerPublic?.phone ||
+          sellerPublic?.telefone
+        );
+
         if (wa) {
-          const href = `https://wa.me/${wa}`;
           $("whatsapp-store-link").classList.remove("hidden");
-          $("whatsapp-store-link").href = href;
+          $("whatsapp-store-link").href = `https://wa.me/${wa}`;
         }
 
-        const rawProducts = (await fetchProductsBySellerId(sellerId))
-          .map((data) => ({
-            id: data.id,
-            name: data.nome || data.name || "Produto",
-            price: data.preco ?? data.price ?? 0,
-            oldPrice: data.precoAntigo ?? data.oldPrice ?? data.old_price ?? null,
-            ...data,
-          }))
-          .filter(isVisibleProduct);
+        const rawProducts = (await fetchProductsBySellerId(sellerId)).filter(isVisibleProduct);
 
         const products = await Promise.all(rawProducts.map(async (p) => {
           const imageUrl = await resolveMainImageUrl(p);

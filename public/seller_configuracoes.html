@@ -60,83 +60,114 @@
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6"><div><h2 class="text-4xl font-extrabold text-slate-800 tracking-tight">Ajustes da Conta</h2><p class="muted text-lg font-medium">Configure seus dados internos e o perfil público da loja.</p></div><button type="submit" form="settings-form" id="save-btn" class="btn btn-primary"><i class="fas fa-check-double"></i>Salvar alterações</button></div>
 <form id="settings-form" class="space-y-6 max-w-5xl"><div class="card p-6"><h3 class="text-xl font-black mb-5">Dados gerais</h3><div class="grid md:grid-cols-2 gap-5"><div><label class="block text-xs font-black mb-2">Nome Fantasia</label><input id="factoryName" class="input" required></div><div><label class="block text-xs font-black mb-2">CNPJ</label><input id="cnpj" class="input" readonly></div><div class="md:col-span-2"><label class="block text-xs font-black mb-2">Descrição pública</label><textarea id="bio" rows="4" class="input"></textarea></div></div></div><div class="card p-6"><h3 class="text-xl font-black mb-5">Pagamento</h3><div class="grid md:grid-cols-3 gap-5"><div><label class="block text-xs font-black mb-2">Banco</label><input id="bankName" class="input"></div><div><label class="block text-xs font-black mb-2">Agência</label><input id="bankAgency" class="input"></div><div><label class="block text-xs font-black mb-2">Conta</label><input id="bankAccount" class="input"></div></div></div><div class="card p-6"><h3 class="text-xl font-black mb-5">Frete e coleta</h3><div class="grid md:grid-cols-2 gap-5 items-center"><div><label class="block text-xs font-black mb-2">CEP base de coleta</label><input id="cepColeta" class="input" placeholder="00000-000"></div><label class="inline-flex items-center gap-3 font-bold"><input id="transpPropria" type="checkbox"> Transportadora própria / terceirizada</label></div></div></form>
 </main></div>
-<script type="module">
+<script>
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "http://localhost:3000/api";
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
-    }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
-      return seller;
-    }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
-      }
-      return [];
-    }
+const $ = (id) => document.getElementById(id);
 
-const sidebar = $('sidebar'); $('sidebar-toggle')?.addEventListener('click', ()=> sidebar.classList.toggle('-translate-x-full'));
-$('btn-sair')?.addEventListener('click', async (e)=>{ e.preventDefault(); try{ await signOut(auth);}catch{} window.location.href='seller_login.html';});
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { window.location.href = 'seller_login.html'; return; }
-  try {
-    const seller = await getSeller(user.uid);
-    if (!seller) throw new Error('Conta seller não encontrada.');
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || user.email || 'Seller'}!`;
-  } catch (e) { toast(e.message || 'Erro ao validar seller.', 'error'); setTimeout(()=>window.location.href='seller_login.html', 1000); }
+function getToken(){
+  return localStorage.getItem("seller_token") || "";
+}
+
+function toast(message, type='info') {
+  const c = $('toast-container'); if (!c) return alert(message);
+  const el = document.createElement('div');
+  const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+  el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+  el.textContent = message; c.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+}
+
+// ===== LOGOUT =====
+$('btn-sair')?.addEventListener('click', ()=>{
+  localStorage.removeItem("seller_token");
+  window.location.href="seller_login.html";
 });
 
-$('cepColeta').addEventListener('input', (e)=>{ let v=e.target.value.replace(/\D/g,'').slice(0,8); e.target.value = v.length>5 ? v.slice(0,5)+'-'+v.slice(5) : v; });
-onAuthStateChanged(auth, async (user)=>{ if(!user) return; try { const seller = await requireApprovedSeller(user.uid); $('factoryName').value = seller.factoryName || seller.storeName || seller.name || ''; $('cnpj').value = seller.cnpj || seller.cpf_cnpj || ''; $('bio').value = seller.bio || seller.description || ''; const bank = seller.bankAccount || {}; $('bankName').value = bank.bank || seller.bankName || ''; $('bankAgency').value = bank.agency || seller.bankAgency || ''; $('bankAccount').value = bank.account || seller.bankAccount || ''; $('cepColeta').value = seller.cepColeta || bank.cepOrigem || ''; $('transpPropria').checked = !!seller.transpPropria; } catch(e){ console.error(e); } });
-$('settings-form').addEventListener('submit', async (e)=>{ e.preventDefault(); const user=auth.currentUser; if(!user) return; const btn=$('save-btn'); btn.disabled=true; btn.textContent='Salvando...'; try { const privatePayload = { factoryName:$('factoryName').value.trim(), cnpj:$('cnpj').value.trim(), bio:$('bio').value.trim(), bankAccount:{ bank:$('bankName').value.trim(), agency:$('bankAgency').value.trim(), account:$('bankAccount').value.trim(), cepOrigem:$('cepColeta').value.replace(/\D/g,'') }, cepColeta:$('cepColeta').value.replace(/\D/g,''), transpPropria:$('transpPropria').checked, updatedAt:serverTimestamp() }; await setDoc(doc(db,'sellers',user.uid), privatePayload, {merge:true}); await setDoc(doc(db,'sellers_public',user.uid), { sellerId:user.uid, storeName:$('factoryName').value.trim(), description:$('bio').value.trim(), whatsapp:'', active:true, updatedAt:serverTimestamp() }, {merge:true}); toast('Configurações salvas em sellers e sellers_public.','success'); btn.disabled=false; btn.innerHTML='<i class="fas fa-check-double"></i> Salvar alterações'; } catch(e){ console.error(e); toast('Erro ao salvar configurações.','error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-check-double"></i> Salvar alterações'; } });
+// ===== MÁSCARA CEP =====
+$('cepColeta')?.addEventListener('input', (e)=>{
+  let v=e.target.value.replace(/\D/g,'').slice(0,8);
+  e.target.value = v.length>5 ? v.slice(0,5)+'-'+v.slice(5) : v;
+});
 
+// ===== LOAD SELLER =====
+async function loadSeller(){
+  try{
+    const res = await fetch(API_BASE + "/seller/me",{
+      headers:{ Authorization:`Bearer ${getToken()}` }
+    });
+
+    const seller = await res.json();
+
+    $('user-display-name').textContent =
+      `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || seller.email || 'Seller'}!`;
+
+    $('factoryName').value = seller.factoryName || seller.storeName || seller.name || '';
+    $('cnpj').value = seller.cnpj || seller.cpf_cnpj || '';
+    $('bio').value = seller.bio || seller.description || '';
+
+    const bank = seller.bankAccount || {};
+
+    $('bankName').value = bank.bank || seller.bankName || '';
+    $('bankAgency').value = bank.agency || seller.bankAgency || '';
+    $('bankAccount').value = bank.account || seller.bankAccount || '';
+
+    $('cepColeta').value = seller.cepColeta || bank.cepOrigem || '';
+    $('transpPropria').checked = !!seller.transpPropria;
+
+  }catch(e){
+    console.error(e);
+    window.location.href="seller_login.html";
+  }
+}
+
+// ===== SAVE =====
+$('settings-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+
+  const btn = $('save-btn');
+  btn.disabled=true;
+  btn.textContent='Salvando...';
+
+  try{
+    const payload = {
+      factoryName: $('factoryName').value.trim(),
+      bio: $('bio').value.trim(),
+      bankAccount:{
+        bank:$('bankName').value.trim(),
+        agency:$('bankAgency').value.trim(),
+        account:$('bankAccount').value.trim(),
+        cepOrigem:$('cepColeta').value.replace(/\D/g,'')
+      },
+      cepColeta:$('cepColeta').value.replace(/\D/g,''),
+      transpPropria:$('transpPropria').checked
+    };
+
+    await fetch(API_BASE + "/seller/update",{
+      method:"PUT",
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${getToken()}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    toast('Configurações salvas com sucesso.','success');
+
+  }catch(e){
+    console.error(e);
+    toast('Erro ao salvar configurações.','error');
+  }
+
+  btn.disabled=false;
+  btn.innerHTML='<i class="fas fa-check-double"></i> Salvar alterações';
+});
+
+// ===== INIT =====
+loadSeller();
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body></html>

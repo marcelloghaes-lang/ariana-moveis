@@ -3,781 +3,698 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+  <title>Pedido Confirmado | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="css/tailwind.min.css">
-</head>
-
-<body class="bg-fundo-claro font-sans text-text-dark">
 
   <style>
-    /* Mantenha apenas o CSS que for MUITO específico desta página */
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #F5F7FA; /* fundo-claro */
+      background-color: #F5F7FA;
     }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: theme('colors.fundo');
-        }
-        /* Estilos desnecessários para esta página (category-menu e contador-carrinho) removidos para limpeza */
-        .confirma-card {
-            max-width: 800px;
-        }
-        /* Garante que o painel SIGEP e o painel de Confirmação fiquem organizados */
-        #sigep-ferramenta {
-            max-width: 800px; /* Alinhar com a confirma-card */
-            margin-left: auto;
-            margin-right: auto;
-        }
-    </style>
+    .confirma-card {
+      max-width: 800px;
+    }
+    #sigep-ferramenta {
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  </style>
 </head>
 <body>
-    <header class="bg-white shadow-lg sticky top-0 z-50">
-        <div class="top-bar flex justify-center items-center px-4 py-3 md:px-8 border-b border-gray-100">
-            <a href="index.html" class="logo text-2xl font-extrabold text-primary-blue text-center">
-                ARIANA MOVEIS
-            </a>
-        </div>
-    </header>
-
-    <div id="sigep-ferramenta" class="hidden confirma-card w-full bg-white rounded-xl shadow-2xl p-6 sm:p-10 mt-8 mx-auto">
-        <h2 class="text-2xl font-semibold mb-6 text-gray-800">📦 Ferramenta SIGEP (Pré-Postagem e Etiquetas)</h2>
-    
-        <div class="mb-8 border border-indigo-200 p-4 rounded-md">
-            <h3 class="text-xl font-medium mb-4 text-indigo-600">1. Pré-Postagem (Geração de Código de Rastreio)</h3>
-
-            <div class="flex flex-col md:flex-row gap-2 mb-4 items-center">
-                <input type="text" id="pedido-id" placeholder="ID do Pedido para Pré-Postagem" class="p-2 border rounded w-full md:w-1/3" required>
-                <button onclick="buscarDadosDoPedido()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-150 whitespace-nowrap w-full md:w-auto">
-                    Carregar Dados do Pedido
-                </button>
-            </div>
-            <p id="carregamento-status" class="mb-3 text-sm font-medium"></p>
-
-            <form id="form-pre-postagem">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 p-3 border rounded-md bg-gray-50">
-                    <h4 class="col-span-4 font-semibold text-gray-700 mb-2">Dados do Destinatário (Endereço de Entrega)</h4>
-                    <input type="text" id="nome-destinatario" placeholder="Nome Destinatário" class="p-2 border rounded col-span-2" required>
-                    <input type="text" id="cep-destino" placeholder="CEP Destino" class="p-2 border rounded" required>
-                    <input type="text" id="logradouro-destinatario" placeholder="Endereço (Rua/Av)" class="p-2 border rounded col-span-4" required>
-                    <input type="text" id="numero-destinatario" placeholder="Número" class="p-2 border rounded" required>
-                    <input type="text" id="complemento-destinatario" placeholder="Complemento (Opcional)" class="p-2 border rounded col-span-1">
-                    <input type="text" id="bairro-destinatario" placeholder="Bairro" class="p-2 border rounded" required>
-                    <input type="text" id="cidade-destinatario" placeholder="Cidade" class="p-2 border rounded" required>
-                    <input type="text" id="uf-destinatario" placeholder="UF" class="p-2 border rounded" required maxlength="2">
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-                    <input type="text" id="cep-origem" placeholder="CEP de Origem (Seu CEP)" class="p-2 border rounded" required value="30110-000"> 
-                    <select id="servico" class="p-2 border rounded" required>
-                        <option value="41106">PAC</option>
-                        <option value="40096">SEDEX</option>
-                    </select>
-                    <input type="number" id="peso" placeholder="Peso (Kg)" class="p-2 border rounded" step="0.01" required>
-                    <input type="number" id="altura" placeholder="Altura (cm)" class="p-2 border rounded" step="0.1" required>
-                    <input type="number" id="largura" placeholder="Largura (cm)" class="p-2 border rounded" step="0.1" required>
-                    <input type="number" id="comprimento" placeholder="Comprimento (cm)" class="p-2 border rounded" step="0.1" required>
-                    <input type="number" id="valor-declarado" placeholder="Valor Declarado (R$)" class="p-2 border rounded col-span-2" step="0.01">
-                </div>
-
-                <button type="submit" class="mt-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded transition duration-150">
-                    Realizar Pré-Postagem
-                </button>
-            </form>
-            <p id="pre-postagem-status" class="mt-3 text-sm font-medium"></p>
-            <p id="rastreio-code" class="mt-1 text-lg font-bold text-green-700"></p>
-        </div>
-
-        <div class="mb-6 border border-green-200 p-4 rounded-md">
-            <h3 class="text-xl font-medium mb-4 text-green-600">2. Emissão de Etiquetas</h3>
-            <div class="flex flex-col md:flex-row gap-2 items-center">
-                <input type="text" id="rastreio-input" placeholder="Código de Rastreio (Ex: SS123456789BR)" class="p-2 border rounded w-full md:w-1/2 mb-3 md:mb-0">
-                <button onclick="emitirEtiquetas()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-150 whitespace-nowrap w-full md:w-auto">
-                    Gerar e Imprimir Etiquetas
-                </button>
-            </div>
-            <p id="etiquetas-status" class="mt-3 text-sm font-medium"></p>
-        </div>
+  <header class="bg-white shadow-lg sticky top-0 z-50">
+    <div class="top-bar flex justify-center items-center px-4 py-3 md:px-8 border-b border-gray-100">
+      <a href="index.html" class="logo text-2xl font-extrabold text-primary-blue text-center">
+        ARIANA MOVEIS
+      </a>
     </div>
-    
-    <main class="min-h-screen flex items-start justify-center p-4 sm:p-6 lg:p-8 pt-10">
-        
-        <div id="message-box" class="hidden fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md z-[100]"></div>
-        
-        <div class="confirma-card w-full bg-white rounded-xl shadow-2xl p-6 sm:p-10">
-            
-            <div class="text-center mb-8">
-                <i class="fas fa-check-circle text-success-green text-6xl sm:text-7xl mb-4 animate-bounce"></i>
-                <h1 class="text-3xl sm:text-4xl font-extrabold text-success-green mb-2">
-                    Pedido Realizado com Sucesso!
-                </h1>
-                <p class="text-lg text-text-dark font-medium">
-                    Obrigado por sua compra. Seu pedido foi confirmado.
-                </p>
-            </div>
-            
-            <div class="bg-fundo border-l-4 border-primary-blue p-4 mb-8 rounded-lg shadow-inner flex justify-between items-center">
-                <p class="text-lg font-semibold text-gray-700">Número do Pedido:</p>
-                <p id="order-number" class="text-xl sm:text-2xl font-bold text-dark-bg select-all">#AM-0000000</p>
-            </div>
+  </header>
 
-            <section class="mb-8 border-t pt-6">
-                <h2 class="text-2xl font-bold text-text-dark mb-4">Resumo da Transação</h2>
-                
-                <div class="space-y-3">
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-600">Total dos Itens:</span>
-                        <span id="resumo-subtotal" class="font-medium">R$ 4.500,00</span>
-                    </div>
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-600">Valor do Frete:</span>
-                        <span id="resumo-frete" class="font-medium text-success-green">Grátis</span>
-                    </div>
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-600">Método de Pagamento:</span>
-                        <span id="resumo-pagamento" class="font-medium">Cartão de Crédito (4x)</span>
-                    </div>
-                    <div class="flex justify-between pt-3">
-                        <span class="text-2xl font-bold text-text-dark">Total Pago:</span>
-                        <span id="resumo-total" class="text-2xl font-bold text-primary-blue">R$ 4.500,00</span>
-                    </div>
-                </div>
-            </section>
-            
-            <section class="mb-10 border-t pt-6">
-                <h2 class="text-2xl font-bold text-text-dark mb-4">Entrega e Acompanhamento</h2>
-                
-                <div class="bg-fundo p-4 rounded-lg shadow-md mb-4">
-                    <p class="font-semibold text-gray-700 mb-2">Endereço de Entrega:</p>
-                    <p id="endereco-entrega" class="text-sm text-gray-600">
-                        Rua das Flores, 123, Apto 501 - Centro, Belo Horizonte/MG - CEP 30110-000
-                    </p>
-                </div>
-                
-                <p class="text-sm text-gray-500 mb-6">
-                    Você receberá um e-mail com a Nota Fiscal e o link para rastreio assim que o pedido for despachado.
-                </p>
-            </section>
-            
-            
-            <section id="produtos-comprados" class="mb-10 border-t pt-6">
-                <h2 class="text-2xl font-bold text-text-dark mb-4">Produtos Comprados</h2>
-                <div id="produtos-lista" class="space-y-3 text-sm text-gray-700">
-                    <p class="text-gray-500">Carregando itens do pedido...</p>
-                </div>
-            </section>
+  <div id="sigep-ferramenta" class="hidden confirma-card w-full bg-white rounded-xl shadow-2xl p-6 sm:p-10 mt-8 mx-auto">
+    <h2 class="text-2xl font-semibold mb-6 text-gray-800">📦 Ferramenta SIGEP (Pré-Postagem e Etiquetas)</h2>
 
-<div class="flex flex-col sm:flex-row justify-between space-y-4 sm:space-y-0 sm:space-x-4 border-t pt-6">
-                <a href="minha_conta.html#pedidos" class="flex-1 bg-primary-blue text-white font-bold py-3 px-6 rounded-lg text-center hover:bg-opacity-90 transition duration-150">
-                    <i class="fas fa-box-open mr-2"></i> Acompanhar Meu Pedido
-                </a>
-                <a href="index.html" class="flex-1 border border-primary-blue text-primary-blue font-bold py-3 px-6 rounded-lg text-center hover:bg-primary-blue hover:text-white transition duration-150">
-                    <i class="fas fa-shopping-bag mr-2"></i> Continuar Comprando
-                </a>
-            </div>
-            
-        </div>
-    </main>
+    <div class="mb-8 border border-indigo-200 p-4 rounded-md">
+      <h3 class="text-xl font-medium mb-4 text-indigo-600">1. Pré-Postagem (Geração de Código de Rastreio)</h3>
 
-    <footer class="bg-dark-bg text-white mt-12 py-4">
-        <div class="text-center text-xs text-gray-400">
-            &copy; 2025 Ariana Móveis.
-        </div>
-    </footer>
-    
-    <script type="module">
-/**
- * pedido_confirmado.html (Admin + Confirmação)
- * - Carrega dados reais do pedido via Firestore (orders/{id} OU pedidos/{id})
- * - Atualiza UI conforme status (pago / pendente)
- * - Mantém a ferramenta SIGEP (pré-postagem + etiquetas) com endpoints no Cloud Run
- *
- * Observação: esta página é pública no seu hosting, então:
- * - Leitura do pedido depende das suas Firestore Rules (admin ou dono do pedido)
- * - Se você quiser que apenas admin veja o SIGEP, esconda a seção quando não for admin
- */
-
-// ============================
-// 1) Firebase Config
-// ============================
-// Mantive seus dados já preenchidos no arquivo original.
-// Se você trocar no console, atualize aqui.
-const firebaseConfig = {
-  apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-  authDomain: "ariana-moveis-final.firebaseapp.com",
-  projectId: "ariana-moveis-final",
-  storageBucket: "ariana-moveis-final.firebasestorage.app",
-  messagingSenderId: "695257365498",
-  appId: "1:695257365498:web:8e68494de6c4c9ecf67c70",
-  measurementId: "G-WNMWLYMW43",
-};
-
-// ============================
-// 2) Imports Firebase
-// ============================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInAnonymously,
-  getIdTokenResult,
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-// ============================
-// 3) App Init
-// ============================
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// ============================
-// 4) Helpers UI
-// ============================
-const $ = (id) => document.getElementById(id);
-
-function displayMessage(message, type = "info", targetId = "message-box") {
-  const msgBox = $(targetId);
-  if (!msgBox) return;
-
-  if (!message) {
-    msgBox.className = "hidden fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md z-[100]";
-    msgBox.textContent = "";
-    return;
-  }
-
-  let cls = "fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md z-[100] p-3 rounded-lg font-bold shadow-xl ";
-  if (type === "error") cls += "bg-red-100 text-red-700";
-  else if (type === "success") cls += "bg-green-100 text-green-700";
-  else if (type === "loading") cls += "bg-blue-100 text-blue-700 animate-pulse";
-  else cls += "bg-gray-100 text-gray-700";
-
-  msgBox.className = cls;
-  msgBox.textContent = message;
-
-  if (type !== "loading") {
-    setTimeout(() => displayMessage(""), 4500);
-  }
-}
-
-function formatCurrency(value) {
-  const n = Number(value || 0);
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
-}
-
-function onlyDigits(v) {
-  return String(v || "").replace(/\D+/g, "");
-}
-
-function safePick() {
-  for (let i = 0; i < arguments.length; i++) {
-    const v = arguments[i];
-    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
-  }
-  return "";
-}
-
-function normalizeCep(cep) {
-  const d = onlyDigits(cep);
-  if (d.length === 8) return d.replace(/^(\d{5})(\d{3})$/, "$1-$2");
-  return cep || "";
-}
-
-function normalizeUF(uf) {
-  return String(uf || "").trim().toUpperCase().slice(0, 2);
-}
-
-// ============================
-// 5) Resolve OrderId
-// ============================
-function getOrderIdFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("orderId") || params.get("pedidoId") || params.get("id") || "";
-}
-
-// ============================
-// 6) Load Order (orders/{id} OU pedidos/{id})
-// ============================
-async function loadOrder(orderId) {
-  if (!orderId) return null;
-
-  // tenta orders/{id}
-  const d1 = doc(db, "orders", orderId);
-  const s1 = await getDoc(d1);
-  if (s1.exists()) return { collection: "orders", id: orderId, data: s1.data() };
-
-  // tenta pedidos/{id}
-  const d2 = doc(db, "pedidos", orderId);
-  const s2 = await getDoc(d2);
-  if (s2.exists()) return { collection: "pedidos", id: orderId, data: s2.data() };
-
-  return null;
-}
-
-function extractAddress(order) {
-  const a = order?.address || order?.endereco || order?.deliveryAddress || order?.shippingAddress || {};
-  // possíveis campos
-  const street = safePick(a.street, a.street_name, a.logradouro, a.rua, a.address, a.endereco);
-  const number = safePick(a.number, a.street_number, a.numero);
-  const complement = safePick(a.complement, a.complemento);
-  const neighborhood = safePick(a.neighborhood, a.bairro);
-  const city = safePick(a.city, a.cidade);
-  const uf = normalizeUF(safePick(a.uf, a.state, a.federal_unit));
-  const cep = normalizeCep(safePick(a.cep, a.zip_code, a.postal_code));
-
-  const line1 = [street, number].filter(Boolean).join(", ");
-  const line2 = [complement, neighborhood].filter(Boolean).join(" - ");
-  const line3 = [city && uf ? `${city}/${uf}` : city || uf, cep ? `CEP ${cep}` : ""].filter(Boolean).join(" - ");
-
-  return [line1, line2, line3].filter(Boolean).join(" | ");
-}
-
-function extractPayment(order) {
-  // padrões possíveis
-  const method = safePick(order.paymentMethod, order.payment_method, order.payMethod, order.pagamento?.metodo, order.payment?.method);
-  const installments = safePick(order.installments, order.paymentInstallments, order.pagamento?.parcelas, order.payment?.installments);
-
-  if (method) {
-    if (installments) return `${method} (${installments}x)`;
-    return method;
-  }
-
-  const mpType = safePick(order.mpPayment?.type, order.mp?.type, order.payment?.type);
-  if (mpType) return String(mpType).toUpperCase();
-
-  return "Não informado";
-}
-
-function extractItems(order) {
-  const items =
-    order?.items ||
-    order?.cartItems ||
-    order?.products ||
-    order?.itens ||
-    order?.produtos ||
-    [];
-
-  if (!Array.isArray(items)) return [];
-  return items.map((it) => {
-    const name = safePick(it.name, it.title, it.nome, it.productName, it.product?.name, "Item");
-    const qty = Number(safePick(it.quantity, it.qty, it.qtd, 1)) || 1;
-    const price = Number(safePick(it.price, it.unitPrice, it.valor, it.preco, it.product?.price, 0)) || 0;
-    const imageUrl = safePick(it.imageUrl, it.image, it.photoUrl, it.product?.imageUrl, "");
-    return { name, qty, price, imageUrl };
-  });
-}
-
-function extractTotals(order) {
-  const fromOrderTotals = order?.orderTotals || order?.totals || order?.totalizadores || {};
-  let subtotal =
-    Number(safePick(
-      order.subtotal,
-      order.itensSubtotal,
-      order.itemsSubtotal,
-      fromOrderTotals.subtotal,
-      fromOrderTotals.items,
-      fromOrderTotals.itens,
-      0
-    )) || 0;
-
-  let shipping =
-    Number(safePick(
-      order.shipping,
-      order.frete,
-      order.shippingCost,
-      fromOrderTotals.shipping,
-      fromOrderTotals.frete,
-      0
-    )) || 0;
-
-  let total =
-    Number(safePick(
-      order.total,
-      order.totalAmount,
-      order.amount,
-      fromOrderTotals.total,
-      fromOrderTotals.amount,
-      0
-    )) || 0;
-
-  // Se vier tudo zerado, calcula pelo carrinho
-  const items = extractItems(order);
-  const calcSubtotal = items.reduce((s, i) => s + (Number(i.price || 0) * Number(i.qty || 1)), 0);
-
-  if (!subtotal && calcSubtotal) subtotal = calcSubtotal;
-  if (!total && (subtotal || shipping)) total = subtotal + shipping;
-
-  return { subtotal, shipping, total, items };
-}
-
-function isPaid(order) {
-  const ps = String(safePick(order.paymentStatus, order.payment_status, order.statusPagamento, order.status_pagamento, "")).toLowerCase();
-  const st = String(safePick(order.status, order.orderStatus, order.order_status, "")).toLowerCase();
-
-  // Mercado Pago
-  const mpStatus = String(safePick(order.mpPayment?.status, order.mp?.status, order.payment?.status, "")).toLowerCase();
-
-  return (
-    ps === "paid" ||
-    ps === "approved" ||
-    st === "paid" ||
-    st === "approved" ||
-    st === "concluido" ||
-    st === "concluída" ||
-    st === "concluida" ||
-    mpStatus === "approved"
-  );
-}
-
-function renderProducts(items) {
-  const box = $("produtos-lista");
-  if (!box) return;
-
-  if (!items || !items.length) {
-    box.innerHTML = `<p class="text-gray-500">Nenhum item encontrado neste pedido.</p>`;
-    return;
-  }
-
-  box.innerHTML = items.map((it) => {
-    const line = formatCurrency(Number(it.price) * Number(it.qty));
-    const img = it.imageUrl ? `<img src="${it.imageUrl}" alt="${it.name}" class="w-12 h-12 object-cover rounded-md border" />` : `<div class="w-12 h-12 rounded-md border bg-gray-50"></div>`;
-    return `
-      <div class="flex items-center gap-3 p-3 rounded-lg border bg-white">
-        ${img}
-        <div class="flex-1">
-          <div class="font-semibold text-gray-800">${it.name}</div>
-          <div class="text-xs text-gray-500">Qtd: ${it.qty} • Unit: ${formatCurrency(it.price)}</div>
-        </div>
-        <div class="font-bold text-gray-800">${line}</div>
+      <div class="flex flex-col md:flex-row gap-2 mb-4 items-center">
+        <input type="text" id="pedido-id" placeholder="ID do Pedido para Pré-Postagem" class="p-2 border rounded w-full md:w-1/3" required>
+        <button onclick="buscarDadosDoPedido()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-150 whitespace-nowrap w-full md:w-auto">
+          Carregar Dados do Pedido
+        </button>
       </div>
-    `;
-  }).join("");
-}
+      <p id="carregamento-status" class="mb-3 text-sm font-medium"></p>
 
-function renderOrder(orderId, orderData) {
-  // número
-  const orderNumberEl = $("order-number");
-  if (orderNumberEl) orderNumberEl.textContent = `#${orderId}`;
+      <form id="form-pre-postagem">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 p-3 border rounded-md bg-gray-50">
+          <h4 class="col-span-4 font-semibold text-gray-700 mb-2">Dados do Destinatário (Endereço de Entrega)</h4>
+          <input type="text" id="nome-destinatario" placeholder="Nome Destinatário" class="p-2 border rounded col-span-2" required>
+          <input type="text" id="cep-destino" placeholder="CEP Destino" class="p-2 border rounded" required>
+          <input type="text" id="logradouro-destinatario" placeholder="Endereço (Rua/Av)" class="p-2 border rounded col-span-4" required>
+          <input type="text" id="numero-destinatario" placeholder="Número" class="p-2 border rounded" required>
+          <input type="text" id="complemento-destinatario" placeholder="Complemento (Opcional)" class="p-2 border rounded col-span-1">
+          <input type="text" id="bairro-destinatario" placeholder="Bairro" class="p-2 border rounded" required>
+          <input type="text" id="cidade-destinatario" placeholder="Cidade" class="p-2 border rounded" required>
+          <input type="text" id="uf-destinatario" placeholder="UF" class="p-2 border rounded" required maxlength="2">
+        </div>
 
-  // totais + itens
-  const t = extractTotals(orderData);
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+          <input type="text" id="cep-origem" placeholder="CEP de Origem (Seu CEP)" class="p-2 border rounded" required value="30110-000">
+          <select id="servico" class="p-2 border rounded" required>
+            <option value="41106">PAC</option>
+            <option value="40096">SEDEX</option>
+          </select>
+          <input type="number" id="peso" placeholder="Peso (Kg)" class="p-2 border rounded" step="0.01" required>
+          <input type="number" id="altura" placeholder="Altura (cm)" class="p-2 border rounded" step="0.1" required>
+          <input type="number" id="largura" placeholder="Largura (cm)" class="p-2 border rounded" step="0.1" required>
+          <input type="number" id="comprimento" placeholder="Comprimento (cm)" class="p-2 border rounded" step="0.1" required>
+          <input type="number" id="valor-declarado" placeholder="Valor Declarado (R$)" class="p-2 border rounded col-span-2" step="0.01">
+        </div>
 
-  const subtotalEl = $("resumo-subtotal");
-  const freteEl = $("resumo-frete");
-  const totalEl = $("resumo-total");
+        <button type="submit" class="mt-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded transition duration-150">
+          Realizar Pré-Postagem
+        </button>
+      </form>
+      <p id="pre-postagem-status" class="mt-3 text-sm font-medium"></p>
+      <p id="rastreio-code" class="mt-1 text-lg font-bold text-green-700"></p>
+    </div>
 
-  if (subtotalEl) subtotalEl.textContent = formatCurrency(t.subtotal);
-  if (freteEl) freteEl.textContent = t.shipping === 0 ? "Grátis" : formatCurrency(t.shipping);
-  if (totalEl) totalEl.textContent = formatCurrency(t.total);
+    <div class="mb-6 border border-green-200 p-4 rounded-md">
+      <h3 class="text-xl font-medium mb-4 text-green-600">2. Emissão de Etiquetas</h3>
+      <div class="flex flex-col md:flex-row gap-2 items-center">
+        <input type="text" id="rastreio-input" placeholder="Código de Rastreio (Ex: SS123456789BR)" class="p-2 border rounded w-full md:w-1/2 mb-3 md:mb-0">
+        <button onclick="emitirEtiquetas()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-150 whitespace-nowrap w-full md:w-auto">
+          Gerar e Imprimir Etiquetas
+        </button>
+      </div>
+      <p id="etiquetas-status" class="mt-3 text-sm font-medium"></p>
+    </div>
+  </div>
 
-  // método pag
-  const payEl = $("resumo-pagamento");
-  if (payEl) payEl.textContent = extractPayment(orderData);
+  <main class="min-h-screen flex items-start justify-center p-4 sm:p-6 lg:p-8 pt-10">
+    <div id="message-box" class="hidden fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md z-[100]"></div>
 
-  // endereço
-  const addrEl = $("endereco-entrega");
-  if (addrEl) addrEl.textContent = extractAddress(orderData) || "Endereço não informado";
+    <div class="confirma-card w-full bg-white rounded-xl shadow-2xl p-6 sm:p-10">
+      <div class="text-center mb-8">
+        <i id="status-icon" class="fas fa-check-circle text-success-green text-6xl sm:text-7xl mb-4 animate-bounce"></i>
+        <h1 id="status-title" class="text-3xl sm:text-4xl font-extrabold text-success-green mb-2">
+          Pedido Realizado com Sucesso!
+        </h1>
+        <p id="status-subtitle" class="text-lg text-text-dark font-medium">
+          Obrigado por sua compra. Seu pedido foi confirmado.
+        </p>
+      </div>
 
-  // lista de produtos
-  renderProducts(t.items);
+      <div class="bg-fundo border-l-4 border-primary-blue p-4 mb-8 rounded-lg shadow-inner flex justify-between items-center">
+        <p class="text-lg font-semibold text-gray-700">Número do Pedido:</p>
+        <p id="order-number" class="text-xl sm:text-2xl font-bold text-dark-bg select-all">#AM-0000000</p>
+      </div>
 
-  // status
-  const paid = isPaid(orderData);
-  const title = document.querySelector("h1");
-  if (title) title.textContent = paid ? "Pedido Concluído!" : "Pedido Recebido!";
-  const subtitle = document.querySelector(".text-center p.text-lg");
-  if (subtitle) subtitle.textContent = paid
-    ? "Pagamento confirmado. Seu pedido será preparado para envio."
-    : "Seu pedido foi registrado. Aguarde a confirmação do pagamento.";
+      <section class="mb-8 border-t pt-6">
+        <h2 class="text-2xl font-bold text-text-dark mb-4">Resumo da Transação</h2>
 
-  displayMessage(paid ? "Pagamento confirmado ✅" : "Pedido carregado ✅", paid ? "success" : "info");
-}
+        <div class="space-y-3">
+          <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-600">Total dos Itens:</span>
+            <span id="resumo-subtotal" class="font-medium">R$ 0,00</span>
+          </div>
+          <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-600">Valor do Frete:</span>
+            <span id="resumo-frete" class="font-medium text-success-green">Grátis</span>
+          </div>
+          <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-600">Método de Pagamento:</span>
+            <span id="resumo-pagamento" class="font-medium">Não informado</span>
+          </div>
+          <div class="flex justify-between pt-3">
+            <span class="text-2xl font-bold text-text-dark">Total Pago:</span>
+            <span id="resumo-total" class="text-2xl font-bold text-primary-blue">R$ 0,00</span>
+          </div>
+        </div>
+      </section>
 
-// ============================
-// 7) Confirmar pedido (Admin tool) - grava status manualmente
-// ============================
-async function markOrderAsPaid(orderRef) {
-  if (!orderRef) return;
-  const ref = doc(db, orderRef.collection, orderRef.id);
-  // não sobrescreve dados, apenas atualiza
-  await updateDoc(ref, {
-    paymentStatus: "paid",
-    status: "paid",
-    updatedAt: serverTimestamp(),
-    paidAt: serverTimestamp(),
-  });
-}
+      <section class="mb-10 border-t pt-6">
+        <h2 class="text-2xl font-bold text-text-dark mb-4">Entrega e Acompanhamento</h2>
 
-// ============================
-// 8) SIGEP Tool (mantém) - endpoints
-// ============================
-const API_BASE = "https://api-4dx5luiipq-rj.a.run.app"; // seu Cloud Run (backend)
-let ultimoCodigoRastreio = null;
+        <div class="bg-fundo p-4 rounded-lg shadow-md mb-4">
+          <p class="font-semibold text-gray-700 mb-2">Endereço de Entrega:</p>
+          <p id="endereco-entrega" class="text-sm text-gray-600">
+            Endereço não informado.
+          </p>
+        </div>
 
-window.buscarDadosDoPedido = async function () {
-  const pedidoId = String($("pedido-id")?.value || "").trim();
-  const statusElement = $("carregamento-status");
-  if (!statusElement) return;
+        <p class="text-sm text-gray-500 mb-6" id="delivery-note">
+          Você receberá um e-mail com a Nota Fiscal e o link para rastreio assim que o pedido for despachado.
+        </p>
+      </section>
 
-  statusElement.textContent = "";
-  statusElement.className = "mb-3 text-sm font-medium";
+      <section id="produtos-comprados" class="mb-10 border-t pt-6">
+        <h2 class="text-2xl font-bold text-text-dark mb-4">Produtos Comprados</h2>
+        <div id="produtos-lista" class="space-y-3 text-sm text-gray-700">
+          <p class="text-gray-500">Carregando itens do pedido...</p>
+        </div>
+      </section>
 
-  if (!pedidoId) {
-    statusElement.textContent = "Informe o ID do Pedido.";
-    statusElement.classList.add("text-red-500");
-    return;
-  }
+      <div class="flex flex-col sm:flex-row justify-between space-y-4 sm:space-y-0 sm:space-x-4 border-t pt-6">
+        <a href="minha_conta.html#pedidos" class="flex-1 bg-primary-blue text-white font-bold py-3 px-6 rounded-lg text-center hover:bg-opacity-90 transition duration-150">
+          <i class="fas fa-box-open mr-2"></i> Acompanhar Meu Pedido
+        </a>
+        <a href="index.html" class="flex-1 border border-primary-blue text-primary-blue font-bold py-3 px-6 rounded-lg text-center hover:bg-primary-blue hover:text-white transition duration-150">
+          <i class="fas fa-shopping-bag mr-2"></i> Continuar Comprando
+        </a>
+      </div>
+    </div>
+  </main>
 
-  statusElement.textContent = `Buscando dados do Pedido ${pedidoId}...`;
+  <footer class="bg-dark-bg text-white mt-12 py-4">
+    <div class="text-center text-xs text-gray-400">
+      &copy; 2025 Ariana Móveis.
+    </div>
+  </footer>
 
-  try {
-    // aqui você pode trocar para um endpoint real do seu backend
-    const resp = await fetch(`${API_BASE}/admin/orders/${encodeURIComponent(pedidoId)}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
+  <script src="firebase-config.js"></script>
+  <script src="js/layout-fit.js" defer></script>
 
-    if (!resp.ok) {
-      const txt = await resp.text().catch(() => "");
-      throw new Error(`HTTP ${resp.status} ${txt}`);
-    }
+  <script>
+    const API_BASE = window.API_BASE || "http://localhost:3000/api";
 
-    const pedido = await resp.json();
-    statusElement.textContent = `✅ Dados do Pedido ${pedidoId} carregados.`;
-    statusElement.classList.add("text-green-600");
-    preencherFormularioSigep(pedido);
-  } catch (e) {
-    // fallback: tenta buscar direto do Firestore (para não ficar "sumido" no site)
-    try {
-      const orderRef = await loadOrder(pedidoId);
-      if (!orderRef) throw new Error("Pedido não encontrado no Firestore.");
-      preencherFormularioSigep({
-        destinatario: orderRef.data?.shippingAddress || orderRef.data?.address || orderRef.data?.endereco || {},
-        pacote: orderRef.data?.package || orderRef.data?.pacote || {},
-        frete: orderRef.data?.shipping || orderRef.data?.frete || {},
-      });
-      statusElement.textContent = `⚠️ Carregado do Firestore (sem endpoint SIGEP).`;
-      statusElement.classList.add("text-orange-500");
-    } catch (e2) {
-      statusElement.textContent = `❌ Erro ao buscar pedido: ${e2.message || e.message}`;
-      statusElement.classList.add("text-red-500");
-      console.error(e);
-    }
-  }
-};
+    const $ = (id) => document.getElementById(id);
 
-function preencherFormularioSigep(pedido) {
-  // tolerante à estrutura
-  const dest = pedido.destinatario || pedido.address || pedido.endereco || pedido.shippingAddress || {};
-  const pack = pedido.pacote || pedido.package || {};
-  const frete = pedido.frete || pedido.shipping || {};
+    function displayMessage(message, type = "info", targetId = "message-box") {
+      const msgBox = $(targetId);
+      if (!msgBox) return;
 
-  $("nome-destinatario").value = safePick(dest.nome, dest.name, dest.fullName);
-  $("cep-destino").value = normalizeCep(safePick(dest.cep, dest.zip_code, dest.postal_code));
-  $("logradouro-destinatario").value = safePick(dest.logradouro, dest.street_name, dest.street, dest.address);
-  $("numero-destinatario").value = safePick(dest.numero, dest.street_number, dest.number);
-  $("complemento-destinatario").value = safePick(dest.complemento, dest.complement);
-  $("bairro-destinatario").value = safePick(dest.bairro, dest.neighborhood);
-  $("cidade-destinatario").value = safePick(dest.cidade, dest.city);
-  $("uf-destinatario").value = normalizeUF(safePick(dest.uf, dest.federal_unit, dest.state));
-
-  $("peso").value = Number(safePick(pack.pesoTotal, pack.peso, pack.weightKg, 0.5));
-  $("altura").value = Number(safePick(pack.altura, pack.heightCm, 10));
-  $("largura").value = Number(safePick(pack.largura, pack.widthCm, 10));
-  $("comprimento").value = Number(safePick(pack.comprimento, pack.lengthCm, 10));
-  $("valor-declarado").value = Number(safePick(pack.valorTotal, pack.valor, pack.declaredValue, 0));
-
-  const serv = safePick(frete.codigoServico, frete.service, frete.serviceCode, "41106");
-  $("servico").value = String(serv);
-
-  $("sigep-ferramenta")?.scrollIntoView({ behavior: "smooth" });
-}
-
-async function realizarPrePostagem(event) {
-  event.preventDefault();
-
-  const statusElement = $("pre-postagem-status");
-  const rastreioElement = $("rastreio-code");
-  statusElement.textContent = "Processando pré-postagem...";
-  statusElement.className = "mt-3 text-sm font-medium text-blue-600";
-  rastreioElement.textContent = "";
-
-  const dados = {
-    pedidoId: $("pedido-id").value,
-    destinatario: {
-      nome: $("nome-destinatario").value,
-      cep: $("cep-destino").value,
-      logradouro: $("logradouro-destinatario").value,
-      numero: $("numero-destinatario").value,
-      complemento: $("complemento-destinatario").value,
-      bairro: $("bairro-destinatario").value,
-      cidade: $("cidade-destinatario").value,
-      uf: $("uf-destinatario").value,
-    },
-    cepOrigem: $("cep-origem").value,
-    servico: $("servico").value,
-    peso: Number($("peso").value),
-    altura: Number($("altura").value),
-    largura: Number($("largura").value),
-    comprimento: Number($("comprimento").value),
-    valorDeclarado: Number($("valor-declarado").value || 0),
-  };
-
-  try {
-    const resp = await fetch(`${API_BASE}/shipping/sigep/pre-posting`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dados),
-    });
-
-    const json = await resp.json().catch(() => ({}));
-
-    if (!resp.ok) {
-      throw new Error(json?.message || json?.error || `HTTP ${resp.status}`);
-    }
-
-    ultimoCodigoRastreio = json.codigoRastreio || json.trackingCode || "";
-    statusElement.textContent = "✅ Pré-postagem realizada com sucesso!";
-    statusElement.className = "mt-3 text-sm font-medium text-green-700";
-
-    if (ultimoCodigoRastreio) {
-      rastreioElement.textContent = `Código de Rastreio: ${ultimoCodigoRastreio}`;
-      $("rastreio-input").value = ultimoCodigoRastreio;
-    } else {
-      rastreioElement.textContent = "Código de rastreio não retornou do servidor.";
-    }
-  } catch (e) {
-    statusElement.textContent = `❌ Erro na pré-postagem: ${e.message}`;
-    statusElement.className = "mt-3 text-sm font-medium text-red-600";
-    console.error(e);
-  }
-}
-
-window.emitirEtiquetas = async function () {
-  const statusElement = $("etiquetas-status");
-  const codigo = String($("rastreio-input")?.value || ultimoCodigoRastreio || "").trim().toUpperCase();
-
-  if (!codigo || codigo.length < 9) {
-    statusElement.textContent = "Informe um código de rastreio válido.";
-    statusElement.className = "mt-3 text-sm font-medium text-red-600";
-    return;
-  }
-
-  statusElement.textContent = `🚀 Gerando etiquetas para ${codigo}...`;
-  statusElement.className = "mt-3 text-sm font-medium text-blue-600";
-
-  try {
-    const resp = await fetch(`${API_BASE}/shipping/sigep/generate-labels`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codigoRastreio: codigo }),
-    });
-
-    if (!resp.ok) {
-      const txt = await resp.text().catch(() => "");
-      throw new Error(`HTTP ${resp.status} ${txt}`);
-    }
-
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-    statusElement.textContent = "✅ Etiquetas geradas. Abrindo para impressão...";
-    statusElement.className = "mt-3 text-sm font-medium text-green-700";
-  } catch (e) {
-    statusElement.textContent = `❌ Erro ao gerar etiquetas: ${e.message}`;
-    statusElement.className = "mt-3 text-sm font-medium text-red-600";
-    console.error(e);
-  }
-};
-
-
-async function maybeShowSigep(user) {
-  const sigep = $("sigep-ferramenta");
-  if (!sigep) return;
-
-  try {
-    const token = await getIdTokenResult(user, true);
-    const isAdmin = !!(token?.claims?.admin || token?.claims?.isAdmin);
-    if (isAdmin) {
-      sigep.classList.remove("hidden");
-    } else {
-      sigep.classList.add("hidden");
-    }
-  } catch (e) {
-    // por segurança: nunca mostra para público
-    sigep.classList.add("hidden");
-  }
-}
-// ============================
-// 9) Boot
-// ============================
-let lastOrderRef = null;
-
-async function boot() {
-  // auth
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      await signInAnonymously(auth).catch(console.error);
-      return;
-    }
-
-    await maybeShowSigep(user);
-
-    const orderId = getOrderIdFromUrl();
-    if (!orderId) {
-      displayMessage("Faltou o parâmetro do pedido na URL (ex: ?orderId=XYZ).", "error");
-      return;
-    }
-
-    displayMessage("Carregando pedido...", "loading");
-
-    try {
-      const ref = await loadOrder(orderId);
-      if (!ref) {
-        displayMessage("Pedido não encontrado no Firestore.", "error");
+      if (!message) {
+        msgBox.className = "hidden fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md z-[100]";
+        msgBox.textContent = "";
         return;
       }
-      lastOrderRef = ref;
 
-      renderOrder(orderId, ref.data);
+      let cls = "fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-md z-[100] p-3 rounded-lg font-bold shadow-xl ";
+      if (type === "error") cls += "bg-red-100 text-red-700";
+      else if (type === "success") cls += "bg-green-100 text-green-700";
+      else if (type === "loading") cls += "bg-blue-100 text-blue-700 animate-pulse";
+      else cls += "bg-gray-100 text-gray-700";
 
-      // Botão admin opcional para marcar como pago manualmente
-      // (não existe no layout; se você quiser, eu adiciono no HTML)
-      // Ex.: await markOrderAsPaid(ref);
+      msgBox.className = cls;
+      msgBox.textContent = message;
 
-    } catch (e) {
-      console.error(e);
-      displayMessage("Erro ao carregar pedido: " + (e.message || e), "error");
+      if (type !== "loading") {
+        setTimeout(() => displayMessage(""), 4500);
+      }
     }
-  });
 
-  // SIGEP
-  const form = $("form-pre-postagem");
-  if (form) form.addEventListener("submit", realizarPrePostagem);
-}
+    function formatCurrency(value) {
+      const n = Number(value || 0);
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      }).format(Number.isFinite(n) ? n : 0);
+    }
 
-document.addEventListener("DOMContentLoaded", boot);
-</script>
+    function onlyDigits(v) {
+      return String(v || "").replace(/\D+/g, "");
+    }
 
- <script src="js/layout-fit.js" defer></script>
- 
+    function safePick() {
+      for (let i = 0; i < arguments.length; i++) {
+        const v = arguments[i];
+        if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+      }
+      return "";
+    }
+
+    function normalizeCep(cep) {
+      const d = onlyDigits(cep);
+      if (d.length === 8) return d.replace(/^(\d{5})(\d{3})$/, "$1-$2");
+      return cep || "";
+    }
+
+    function normalizeUF(uf) {
+      return String(uf || "").trim().toUpperCase().slice(0, 2);
+    }
+
+    function getOrderIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("orderId") || params.get("pedidoId") || params.get("id") || localStorage.getItem("arianaLastOrderId") || "";
+    }
+
+    async function apiGet(path) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (!res.ok) {
+        let msg = `Erro GET ${path}`;
+        try {
+          const j = await res.json();
+          msg = j?.error || j?.message || msg;
+        } catch (_) {}
+        throw new Error(msg);
+      }
+
+      return res.json();
+    }
+
+    async function loadOrder(orderId) {
+      if (!orderId) return null;
+      const data = await apiGet(`/orders/${encodeURIComponent(orderId)}`);
+      return data?.item || data?.order || data || null;
+    }
+
+    function extractAddress(order) {
+      const a = order?.address || order?.endereco || order?.deliveryAddress || order?.shippingAddress || {};
+      const street = safePick(a.street, a.street_name, a.logradouro, a.rua, a.address, a.endereco);
+      const number = safePick(a.number, a.street_number, a.numero);
+      const complement = safePick(a.complement, a.complemento, a.apartment);
+      const neighborhood = safePick(a.neighborhood, a.bairro);
+      const city = safePick(a.city, a.cidade, a.city_name);
+      const uf = normalizeUF(safePick(a.uf, a.state, a.federal_unit, a.state_name));
+      const cep = normalizeCep(safePick(a.cep, a.zip_code, a.postal_code, a.zip));
+
+      const line1 = [street, number].filter(Boolean).join(", ");
+      const line2 = [complement, neighborhood].filter(Boolean).join(" - ");
+      const line3 = [city && uf ? `${city}/${uf}` : city || uf, cep ? `CEP ${cep}` : ""].filter(Boolean).join(" - ");
+
+      return [line1, line2, line3].filter(Boolean).join(" | ");
+    }
+
+    function extractPayment(order) {
+      const method = safePick(
+        order.paymentMethod,
+        order.payment_method,
+        order.payMethod,
+        order.pagamento?.metodo,
+        order.payment?.method,
+        order.totals?.paymentMethod
+      );
+
+      const installments = safePick(
+        order.installments,
+        order.paymentInstallments,
+        order.pagamento?.parcelas,
+        order.payment?.installments
+      );
+
+      if (method) {
+        if (installments) return `${method} (${installments}x)`;
+        return method;
+      }
+
+      const mpType = safePick(order.mpPayment?.type, order.mp?.type, order.payment?.type);
+      if (mpType) return String(mpType).toUpperCase();
+
+      return "Não informado";
+    }
+
+    function extractItems(order) {
+      const items =
+        order?.items ||
+        order?.cartItems ||
+        order?.products ||
+        order?.itens ||
+        order?.produtos ||
+        [];
+
+      if (!Array.isArray(items)) return [];
+
+      return items.map((it) => {
+        const name = safePick(it.name, it.title, it.nome, it.productName, it.product?.name, "Item");
+        const qty = Number(safePick(it.quantity, it.qty, it.qtd, 1)) || 1;
+        const price = Number(safePick(it.price, it.unitPrice, it.valor, it.preco, it.product?.price, 0)) || 0;
+        const imageUrl = safePick(it.imageUrl, it.image, it.photoUrl, it.product?.imageUrl, "");
+        return { name, qty, price, imageUrl };
+      });
+    }
+
+    function extractTotals(order) {
+      const fromOrderTotals = order?.orderTotals || order?.totals || order?.totalizadores || {};
+
+      let subtotal =
+        Number(safePick(
+          order.subtotal,
+          order.itensSubtotal,
+          order.itemsSubtotal,
+          fromOrderTotals.subtotal,
+          fromOrderTotals.items,
+          fromOrderTotals.itens,
+          0
+        )) || 0;
+
+      let shipping =
+        Number(safePick(
+          order.shipping,
+          order.frete,
+          order.shippingCost,
+          fromOrderTotals.shipping,
+          fromOrderTotals.frete,
+          0
+        )) || 0;
+
+      let total =
+        Number(safePick(
+          order.total,
+          order.totalAmount,
+          order.amount,
+          fromOrderTotals.total,
+          fromOrderTotals.amount,
+          fromOrderTotals.grandTotal,
+          0
+        )) || 0;
+
+      const items = extractItems(order);
+      const calcSubtotal = items.reduce((s, i) => s + (Number(i.price || 0) * Number(i.qty || 1)), 0);
+
+      if (!subtotal && calcSubtotal) subtotal = calcSubtotal;
+      if (!total && (subtotal || shipping)) total = subtotal + shipping;
+
+      return { subtotal, shipping, total, items };
+    }
+
+    function isPaid(order) {
+      const ps = String(safePick(order.paymentStatus, order.payment_status, order.statusPagamento, order.status_pagamento, "")).toLowerCase();
+      const st = String(safePick(order.status, order.orderStatus, order.order_status, "")).toLowerCase();
+      const mpStatus = String(safePick(order.mpPayment?.status, order.mp?.status, order.payment?.status, "")).toLowerCase();
+
+      return (
+        ps === "paid" ||
+        ps === "approved" ||
+        st === "paid" ||
+        st === "approved" ||
+        st === "concluido" ||
+        st === "concluída" ||
+        st === "concluida" ||
+        mpStatus === "approved"
+      );
+    }
+
+    function renderProducts(items) {
+      const box = $("produtos-lista");
+      if (!box) return;
+
+      if (!items || !items.length) {
+        box.innerHTML = `<p class="text-gray-500">Nenhum item encontrado neste pedido.</p>`;
+        return;
+      }
+
+      box.innerHTML = items.map((it) => {
+        const line = formatCurrency(Number(it.price) * Number(it.qty));
+        const img = it.imageUrl
+          ? `<img src="${it.imageUrl}" alt="${String(it.name).replace(/"/g, '&quot;')}" class="w-12 h-12 object-cover rounded-md border" />`
+          : `<div class="w-12 h-12 rounded-md border bg-gray-50"></div>`;
+
+        return `
+          <div class="flex items-center gap-3 p-3 rounded-lg border bg-white">
+            ${img}
+            <div class="flex-1">
+              <div class="font-semibold text-gray-800">${it.name}</div>
+              <div class="text-xs text-gray-500">Qtd: ${it.qty} • Unit: ${formatCurrency(it.price)}</div>
+            </div>
+            <div class="font-bold text-gray-800">${line}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderOrder(orderId, orderData) {
+      $("order-number").textContent = `#${orderId}`;
+
+      const t = extractTotals(orderData);
+      $("resumo-subtotal").textContent = formatCurrency(t.subtotal);
+      $("resumo-frete").textContent = t.shipping === 0 ? "Grátis" : formatCurrency(t.shipping);
+      $("resumo-total").textContent = formatCurrency(t.total);
+      $("resumo-pagamento").textContent = extractPayment(orderData);
+      $("endereco-entrega").textContent = extractAddress(orderData) || "Endereço não informado";
+
+      renderProducts(t.items);
+
+      const paid = isPaid(orderData);
+      const title = $("status-title");
+      const subtitle = $("status-subtitle");
+      const icon = $("status-icon");
+      const deliveryNote = $("delivery-note");
+
+      if (paid) {
+        title.textContent = "Pedido Concluído!";
+        title.className = "text-3xl sm:text-4xl font-extrabold text-success-green mb-2";
+        subtitle.textContent = "Pagamento confirmado. Seu pedido será preparado para envio.";
+        if (icon) icon.className = "fas fa-check-circle text-success-green text-6xl sm:text-7xl mb-4 animate-bounce";
+        if (deliveryNote) {
+          deliveryNote.textContent = "Você receberá um e-mail com a Nota Fiscal e o link para rastreio assim que o pedido for despachado.";
+        }
+        displayMessage("Pagamento confirmado ✅", "success");
+      } else {
+        title.textContent = "Pedido Recebido!";
+        title.className = "text-3xl sm:text-4xl font-extrabold text-primary-blue mb-2";
+        subtitle.textContent = "Seu pedido foi registrado. Aguarde a confirmação do pagamento.";
+        if (icon) icon.className = "fas fa-clock text-primary-blue text-6xl sm:text-7xl mb-4";
+        if (deliveryNote) {
+          deliveryNote.textContent = "Assim que o pagamento for confirmado, você receberá os próximos passos por e-mail.";
+        }
+        displayMessage("Pedido carregado ✅", "info");
+      }
+    }
+
+    async function getStoredUser() {
+      const sources = [
+        localStorage.getItem("currentUser"),
+        localStorage.getItem("clienteLogado"),
+        localStorage.getItem("usuarioLogado")
+      ];
+
+      for (const raw of sources) {
+        if (!raw) continue;
+        try {
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === "object") return obj;
+        } catch (_) {}
+      }
+
+      try {
+        const clientSession = sessionStorage.getItem("clientArianaMoveis");
+        if (clientSession) return JSON.parse(clientSession);
+      } catch (_) {}
+
+      return null;
+    }
+
+    function isAdminUser(user) {
+      if (!user || typeof user !== "object") return false;
+      return !!(
+        user.admin === true ||
+        user.isAdmin === true ||
+        user.role === "admin" ||
+        user.tipo === "admin" ||
+        user.perfil === "admin"
+      );
+    }
+
+    async function maybeShowSigep(user) {
+      const sigep = $("sigep-ferramenta");
+      if (!sigep) return;
+
+      if (isAdminUser(user)) sigep.classList.remove("hidden");
+      else sigep.classList.add("hidden");
+    }
+
+    const SIGEP_API_BASE = localStorage.getItem("API_BASE_URL") || API_BASE;
+    let ultimoCodigoRastreio = null;
+
+    window.buscarDadosDoPedido = async function () {
+      const pedidoId = String($("pedido-id")?.value || "").trim();
+      const statusElement = $("carregamento-status");
+      if (!statusElement) return;
+
+      statusElement.textContent = "";
+      statusElement.className = "mb-3 text-sm font-medium";
+
+      if (!pedidoId) {
+        statusElement.textContent = "Informe o ID do Pedido.";
+        statusElement.classList.add("text-red-500");
+        return;
+      }
+
+      statusElement.textContent = `Buscando dados do Pedido ${pedidoId}...`;
+
+      try {
+        const pedido = await loadOrder(pedidoId);
+        if (!pedido) throw new Error("Pedido não encontrado.");
+
+        preencherFormularioSigep({
+          destinatario: pedido?.shippingAddress || pedido?.address || pedido?.endereco || {},
+          pacote: pedido?.package || pedido?.pacote || {},
+          frete: pedido?.shipping || pedido?.frete || {},
+        });
+
+        statusElement.textContent = `✅ Dados do Pedido ${pedidoId} carregados.`;
+        statusElement.classList.add("text-green-600");
+      } catch (e) {
+        statusElement.textContent = `❌ Erro ao buscar pedido: ${e.message}`;
+        statusElement.classList.add("text-red-500");
+        console.error(e);
+      }
+    };
+
+    function preencherFormularioSigep(pedido) {
+      const dest = pedido.destinatario || pedido.address || pedido.endereco || pedido.shippingAddress || {};
+      const pack = pedido.pacote || pedido.package || {};
+      const frete = pedido.frete || pedido.shipping || {};
+
+      $("nome-destinatario").value = safePick(dest.nome, dest.name, dest.fullName, dest.receiver_name);
+      $("cep-destino").value = normalizeCep(safePick(dest.cep, dest.zip_code, dest.postal_code, dest.zip));
+      $("logradouro-destinatario").value = safePick(dest.logradouro, dest.street_name, dest.street, dest.address);
+      $("numero-destinatario").value = safePick(dest.numero, dest.street_number, dest.number);
+      $("complemento-destinatario").value = safePick(dest.complemento, dest.complement, dest.apartment);
+      $("bairro-destinatario").value = safePick(dest.bairro, dest.neighborhood);
+      $("cidade-destinatario").value = safePick(dest.cidade, dest.city, dest.city_name);
+      $("uf-destinatario").value = normalizeUF(safePick(dest.uf, dest.federal_unit, dest.state, dest.state_name));
+
+      $("peso").value = Number(safePick(pack.pesoTotal, pack.peso, pack.weightKg, 0.5));
+      $("altura").value = Number(safePick(pack.altura, pack.heightCm, 10));
+      $("largura").value = Number(safePick(pack.largura, pack.widthCm, 10));
+      $("comprimento").value = Number(safePick(pack.comprimento, pack.lengthCm, 10));
+      $("valor-declarado").value = Number(safePick(pack.valorTotal, pack.valor, pack.declaredValue, 0));
+
+      const serv = safePick(frete.codigoServico, frete.service, frete.serviceCode, "41106");
+      $("servico").value = String(serv);
+
+      $("sigep-ferramenta")?.scrollIntoView({ behavior: "smooth" });
+    }
+
+    async function realizarPrePostagem(event) {
+      event.preventDefault();
+
+      const statusElement = $("pre-postagem-status");
+      const rastreioElement = $("rastreio-code");
+      statusElement.textContent = "Processando pré-postagem...";
+      statusElement.className = "mt-3 text-sm font-medium text-blue-600";
+      rastreioElement.textContent = "";
+
+      const dados = {
+        pedidoId: $("pedido-id").value,
+        destinatario: {
+          nome: $("nome-destinatario").value,
+          cep: $("cep-destino").value,
+          logradouro: $("logradouro-destinatario").value,
+          numero: $("numero-destinatario").value,
+          complemento: $("complemento-destinatario").value,
+          bairro: $("bairro-destinatario").value,
+          cidade: $("cidade-destinatario").value,
+          uf: $("uf-destinatario").value,
+        },
+        cepOrigem: $("cep-origem").value,
+        servico: $("servico").value,
+        peso: Number($("peso").value),
+        altura: Number($("altura").value),
+        largura: Number($("largura").value),
+        comprimento: Number($("comprimento").value),
+        valorDeclarado: Number($("valor-declarado").value || 0),
+      };
+
+      try {
+        const resp = await fetch(`${SIGEP_API_BASE}/shipping/sigep/pre-posting`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dados),
+        });
+
+        const json = await resp.json().catch(() => ({}));
+
+        if (!resp.ok) {
+          throw new Error(json?.message || json?.error || `HTTP ${resp.status}`);
+        }
+
+        ultimoCodigoRastreio = json.codigoRastreio || json.trackingCode || "";
+        statusElement.textContent = "✅ Pré-postagem realizada com sucesso!";
+        statusElement.className = "mt-3 text-sm font-medium text-green-700";
+
+        if (ultimoCodigoRastreio) {
+          rastreioElement.textContent = `Código de Rastreio: ${ultimoCodigoRastreio}`;
+          $("rastreio-input").value = ultimoCodigoRastreio;
+        } else {
+          rastreioElement.textContent = "Código de rastreio não retornou do servidor.";
+        }
+      } catch (e) {
+        statusElement.textContent = `❌ Erro na pré-postagem: ${e.message}`;
+        statusElement.className = "mt-3 text-sm font-medium text-red-600";
+        console.error(e);
+      }
+    }
+
+    window.emitirEtiquetas = async function () {
+      const statusElement = $("etiquetas-status");
+      const codigo = String($("rastreio-input")?.value || ultimoCodigoRastreio || "").trim().toUpperCase();
+
+      if (!codigo || codigo.length < 9) {
+        statusElement.textContent = "Informe um código de rastreio válido.";
+        statusElement.className = "mt-3 text-sm font-medium text-red-600";
+        return;
+      }
+
+      statusElement.textContent = `🚀 Gerando etiquetas para ${codigo}...`;
+      statusElement.className = "mt-3 text-sm font-medium text-blue-600";
+
+      try {
+        const resp = await fetch(`${SIGEP_API_BASE}/shipping/sigep/generate-labels`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ codigoRastreio: codigo }),
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          throw new Error(`HTTP ${resp.status} ${txt}`);
+        }
+
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+        statusElement.textContent = "✅ Etiquetas geradas. Abrindo para impressão...";
+        statusElement.className = "mt-3 text-sm font-medium text-green-700";
+      } catch (e) {
+        statusElement.textContent = `❌ Erro ao gerar etiquetas: ${e.message}`;
+        statusElement.className = "mt-3 text-sm font-medium text-red-600";
+        console.error(e);
+      }
+    };
+
+    async function boot() {
+      const user = await getStoredUser();
+      await maybeShowSigep(user);
+
+      const orderId = getOrderIdFromUrl();
+      if (!orderId) {
+        displayMessage("Faltou o parâmetro do pedido na URL (ex: ?orderId=XYZ).", "error");
+        return;
+      }
+
+      displayMessage("Carregando pedido...", "loading");
+
+      try {
+        const order = await loadOrder(orderId);
+        if (!order) {
+          displayMessage("Pedido não encontrado.", "error");
+          return;
+        }
+
+        renderOrder(orderId, order);
+      } catch (e) {
+        console.error(e);
+        displayMessage("Erro ao carregar pedido: " + (e.message || e), "error");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = $("form-pre-postagem");
+      if (form) form.addEventListener("submit", realizarPrePostagem);
+      boot();
+    });
+  </script>
 </body>
 </html>

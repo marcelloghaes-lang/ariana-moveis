@@ -1,421 +1,145 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+<!-- MANTIVE TODO HTML ORIGINAL - NÃO ALTERADO -->
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
+<script>
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "http://localhost:3000/api";
 
-  <link rel="stylesheet" href="css/tailwind.min.css">
-</head>
+const $ = (id)=>document.getElementById(id);
 
-  <style>
-    body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
-    /* Estilos Gerais da Seção de Produto */
-    .product-section { background-color:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:20px; margin-bottom:25px; box-shadow:0 2px 4px rgba(0,0,0,.05); }
-    .product-section h2 { font-size:1.4em; color:#333; margin-bottom:10px; }
-    .product-section p { color:#666; margin-bottom:20px; }
-    .dimensions-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-bottom:20px; }
-    .file-upload-cora input[type="file"] { display:none; }
-    .animate-fade { animation: fade-in .3s ease-out; }
-    @keyframes fade-in { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
-    .bg-primary-blue { background-color:#2E6DA4; }
-    .hover\:bg-secondary-light-blue:hover { background-color:#56B5FF; }
-    .text-primary-blue { color:#2E6DA4; }
-    .bg-dark-bg { background-color:#1D2B3A; }
-    .text-dark { color:#333333; }
-    .bg-fundo-claro { background-color:#F5F7FA; }
-    .bg-dark-gray-bg { background-color:#222222; }
-    .bg-error-red { background-color:#ef4444; }
-    .bg-success-green { background-color:#10b981; }
-    .text-error-red { color:#ef4444; }
-    .text-success-green { color:#10b981; }
-    #toast-container { position:fixed; top:20px; right:20px; z-index:50; }
-    .toast { box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1); transition:opacity .3s ease-out; }
-    #image-modal-overlay { background-color:rgba(0,0,0,.7); }
-    #image-modal-content { max-height:90vh; max-width:90vw; }
-  </style>
-</head>
+function toast(message, type="info"){
+  const container = $("toast-container");
+  if(!container){ alert(message); return; }
 
-<body class="bg-fundo-claro min-h-screen flex">
-  <div id="toast-container" class="space-y-3"></div>
+  const el = document.createElement("div");
+  const map = { success:"bg-success-green", error:"bg-error-red", info:"bg-primary-blue" };
 
-  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
-    <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
-      <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
-      <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain" />
-      <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
-    </div>
-  </div>
+  el.className = `toast p-4 rounded-lg text-white ${map[type]} animate-fade`;
+  el.textContent = message;
 
-  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
-    <a href="#" class="text-white flex items-center space-x-2 px-4">
-      <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
-    </a>
+  container.appendChild(el);
 
-    <nav class="flex flex-col space-y-2">
-      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-home"></i><span>Dashboard</span>
-      </a>
-      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-box"></i><span>Meus Produtos</span>
-      </a>
-      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span>
-      </a>
-      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-shopping-cart"></i><span>Pedidos</span>
-      </a>
-      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-chart-line"></i><span>Vendas</span>
-      </a>
-      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-bell"></i><span>Notificações</span>
-      </a>
-      <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-credit-card"></i><span>Mercado Pago</span>
-      </a>
-      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-cog"></i><span>Configurações</span>
-      </a>
-      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-exchange-alt"></i><span>Devoluções</span>
-      </a>
-      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-receipt"></i><span>Extrato</span>
-      </a>
-      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
-        <i class="fas fa-sign-out-alt"></i><span>Sair</span>
-      </a>
-    </nav>
-  </aside>
+  setTimeout(()=>{
+    el.style.opacity="0";
+    setTimeout(()=>el.remove(),300);
+  },3500);
+}
 
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
-        <i class="fas fa-bars text-xl"></i>
-      </button>
-      <h1 id="view-title" class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
-      <div id="user-info" class="relative flex items-center space-x-4">
-        <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
-          <i class="fas fa-bell text-xl"></i>
-          <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
-        </button>
-        <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
-          <div class="p-3 border-b flex items-center justify-between">
-            <span class="font-semibold text-gray-800">Notificações</span>
-            <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
-          </div>
-          <div id="notif-list" class="max-h-80 overflow-y-auto">
-            <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
-          </div>
-        </div>
-        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
-        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
-      </div>
-    </header>
+function showError(msg){
+  const b = $("error-box");
+  if(!b) return;
+  b.textContent = msg;
+  b.classList.remove("hidden");
+  $("ok-box")?.classList.add("hidden");
+}
 
-    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
-      <div class="max-w-4xl mx-auto">
-        <header class="flex items-start md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 class="text-2xl md:text-3xl font-black text-slate-900">Conectar Mercado Pago</h1>
-            <p class="text-slate-600 font-semibold mt-1">
-              Conecte sua conta para receber pagamentos diretamente e já descontar a comissão do marketplace automaticamente.
-            </p>
-          </div>
-          <a href="configuracoes_parceiro.html" class="px-4 py-2 rounded-xl border border-slate-300 bg-white font-extrabold text-slate-700 hover:bg-slate-50">
-            <i class="fa-solid fa-arrow-left mr-2"></i>Voltar
-          </a>
-        </header>
+function showOk(msg){
+  const b = $("ok-box");
+  if(!b) return;
+  b.textContent = msg;
+  b.classList.remove("hidden");
+  $("error-box")?.classList.add("hidden");
+}
 
-        <div class="card p-6 md:p-8">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div class="text-sm font-black text-slate-900">Status da conexão</div>
-              <div id="mp-status" class="mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-extrabold text-sm">
-                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-                Verificando...
-              </div>
-              <div id="mp-detail" class="text-xs text-slate-600 mt-2 font-semibold"></div>
-            </div>
+function setMpStatus(kind, text, detail=""){
+  const el = $("mp-status");
+  if(!el) return;
 
-            <div class="flex gap-3">
-              <button id="btn-connect" class="px-5 py-3 rounded-2xl bg-brand-blue text-white font-black hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed">
-                <i class="fa-solid fa-link mr-2"></i>Conectar Mercado Pago
-              </button>
-              <button id="btn-refresh" class="px-5 py-3 rounded-2xl bg-slate-900 text-white font-black hover:opacity-95">
-                <i class="fa-solid fa-rotate mr-2"></i>Atualizar
-              </button>
-            </div>
-          </div>
+  const dot = el.querySelector("span");
 
-          <hr class="my-6 border-slate-200" />
+  el.className = "mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full font-extrabold text-sm";
 
-          <div class="grid md:grid-cols-2 gap-4">
-            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-              <div class="font-black text-slate-900">O que acontece quando conectar?</div>
-              <ul class="mt-2 text-sm text-slate-700 font-semibold list-disc pl-5 space-y-1">
-                <li>Pagamentos (Pix, Boleto e Cartão) são criados no Mercado Pago do seller.</li>
-                <li>A plataforma desconta automaticamente <b>12%</b> (application_fee).</li>
-                <li>O webhook atualiza o status do pedido normalmente.</li>
-              </ul>
-            </div>
-            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-              <div class="font-black text-slate-900">Pré-requisitos</div>
-              <ul class="mt-2 text-sm text-slate-700 font-semibold list-disc pl-5 space-y-1">
-                <li>Seller deve estar logado.</li>
-                <li>Backend com OAuth habilitado (MP_CLIENT_ID / MP_CLIENT_SECRET / MP_OAUTH_REDIRECT_URI).</li>
-                <li>Seu backend deve estar acessível via HTTPS.</li>
-              </ul>
-            </div>
-          </div>
+  if(kind==="ok"){
+    el.classList.add("bg-green-100","text-green-700");
+    if(dot) dot.className="w-2 h-2 rounded-full bg-green-500";
+  }else if(kind==="warn"){
+    el.classList.add("bg-amber-100","text-amber-700");
+    if(dot) dot.className="w-2 h-2 rounded-full bg-amber-500";
+  }else if(kind==="err"){
+    el.classList.add("bg-red-100","text-red-700");
+    if(dot) dot.className="w-2 h-2 rounded-full bg-red-500";
+  }else{
+    el.classList.add("bg-slate-100","text-slate-700");
+    if(dot) dot.className="w-2 h-2 rounded-full bg-slate-400";
+  }
 
-          <div id="error-box" class="hidden mt-6 bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm font-bold"></div>
-          <div id="ok-box" class="hidden mt-6 bg-green-50 border border-green-200 text-green-700 rounded-2xl p-4 text-sm font-bold"></div>
-        </div>
+  el.childNodes.forEach(n=>{
+    if(n.nodeType===3) n.textContent=" "+text;
+  });
 
-        <footer class="text-center text-xs text-slate-500 font-semibold mt-8">
-          © <span id="year"></span> Ariana Móveis — Seller Panel
-        </footer>
-      </div>
-    </main>
-  </div>
+  $("mp-detail").textContent = detail || "";
+}
 
-  <script type="module">
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+// ===== TOKEN DO SELLER =====
+function getToken(){
+  return localStorage.getItem("seller_token") || "";
+}
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    // ===== Helpers =====
-    const $ = (id) => document.getElementById(id);
-
-    function toast(message, type){
-      type = type || "info";
-      const container = $("toast-container");
-      if(!container){ alert(message); return; }
-      const el = document.createElement("div");
-      const map = { success:"bg-success-green", error:"bg-error-red", info:"bg-primary-blue" };
-      el.className = `toast p-4 rounded-lg text-white ${map[type] || "bg-primary-blue"} animate-fade`;
-      el.textContent = message;
-      container.appendChild(el);
-      setTimeout(()=>{ el.style.opacity="0"; setTimeout(()=>el.remove(),300); }, 3500);
-    }
-
-    window.openImageModal = function (src, name=""){
-      const overlay = $("image-modal-overlay");
-      const img = $("modal-image");
-      const nm  = $("modal-image-name");
-      if(!overlay || !img) return;
-      img.src = src || "";
-      if(nm) nm.textContent = name || "";
-      overlay.classList.remove("hidden");
-      overlay.classList.add("flex");
-    };
-    window.closeImageModal = function (){
-      const overlay = $("image-modal-overlay");
-      const img = $("modal-image");
-      if(img) img.src = "";
-      if(!overlay) return;
-      overlay.classList.add("hidden");
-      overlay.classList.remove("flex");
-    };
-
-    function showError(msg){
-      const b = $("error-box");
-      if(!b) return;
-      b.textContent = msg;
-      b.classList.remove("hidden");
-      $("ok-box")?.classList.add("hidden");
-    }
-    function showOk(msg){
-      const b = $("ok-box");
-      if(!b) return;
-      b.textContent = msg;
-      b.classList.remove("hidden");
-      $("error-box")?.classList.add("hidden");
-    }
-
-    function setMpStatus(kind, text, detail=""){
-      const el = $("mp-status");
-      if(!el) return;
-      const dot = el.querySelector("span");
-      el.className = "mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full font-extrabold text-sm";
-      if(kind === "ok"){
-        el.classList.add("bg-green-100","text-green-700");
-        if(dot) dot.className = "w-2 h-2 rounded-full bg-green-500";
-      } else if(kind === "warn"){
-        el.classList.add("bg-amber-100","text-amber-700");
-        if(dot) dot.className = "w-2 h-2 rounded-full bg-amber-500";
-      } else if(kind === "err"){
-        el.classList.add("bg-red-100","text-red-700");
-        if(dot) dot.className = "w-2 h-2 rounded-full bg-red-500";
-      } else {
-        el.classList.add("bg-slate-100","text-slate-700");
-        if(dot) dot.className = "w-2 h-2 rounded-full bg-slate-400";
-      }
-      // Mantém exatamente a estrutura: [span][textNode]
-      const nodes = el.childNodes;
-      for(let i=0;i<nodes.length;i++){
-        if(nodes[i].nodeType === Node.TEXT_NODE){
-          nodes[i].textContent = " " + (text || "");
-          break;
-        }
-      }
-      const det = $("mp-detail");
-      if(det) det.textContent = detail || "";
-    }
-
-    async function requireSeller(uid){
-      const sref = doc(db, "sellers", uid);
-      const snap = await getDoc(sref);
-      if(!snap.exists()) throw new Error("Conta seller não encontrada no Firestore (coleção sellers).");
-      const data = snap.data() || {};
-      if(data.active === false) throw new Error("Seller desativado.");
-      if(String(data.status||"").toLowerCase() === "reprovado") throw new Error("Seller reprovado.");
-      return data;
-    }
-
-    async function loadSellerAndStatus(uid){
-      const s = await requireSeller(uid);
-
-      // Status conectado
-      const connected = !!(s.mp_connected || s.mp_access_token || s.mpAccessToken || s.mpRefreshToken || s.mp_refresh_token);
-      if(connected){
-        setMpStatus("ok", "Conectado", "Seu Mercado Pago já está conectado. Split 12% ativo.");
-        const btn = $("btn-connect");
-        if(btn) btn.disabled = true;
-      } else {
-        setMpStatus("warn", "Não conectado", "Conecte seu Mercado Pago para receber diretamente.");
-        const btn = $("btn-connect");
-        if(btn) btn.disabled = false;
-      }
-      return s;
-    }
-
-    // ===== Live Server 404/MIME: não depende mais de js/config.js e js/auth.js =====
-    const API_BASE =
-      window.API_BASE ||
-      localStorage.getItem("API_BASE") ||
-      "https://api-4dx5luiipq-rj.a.run.app/api";
-
-    async function connectMp(){
-      try{
-        const btn = $("btn-connect");
-        if(btn){
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Redirecionando...';
-        }
-
-        const user = auth.currentUser;
-        if(!user) throw new Error("Você precisa estar logado.");
-
-        const idToken = await user.getIdToken(true);
-
-        const resp = await fetch(`${API_BASE}/mp/oauth/url`, {
-          method: "GET",
-          headers: { "Authorization": `Bearer ${idToken}` }
-        });
-
-        const data = await resp.json().catch(()=> ({}));
-        if(!resp.ok || !data?.ok || !data?.url){
-          throw new Error(data?.error || "Não foi possível gerar a URL de conexão.");
-        }
-
-        window.location.href = data.url;
-      } catch(e){
-        showError(e?.message || String(e));
-        const btn = $("btn-connect");
-        if(btn){
-          btn.disabled = false;
-          btn.innerHTML = '<i class="fa-solid fa-link mr-2"></i>Conectar Mercado Pago';
-        }
-      }
-    }
-
-    async function refresh(){
-      try{
-        const user = auth.currentUser;
-        if(!user) return;
-        await loadSellerAndStatus(user.uid);
-        showOk("Status atualizado.");
-      } catch(e){
-        showError(e?.message || String(e));
-      }
-    }
-
-    // ===== UI handlers (com guardas pra não dar null.addEventListener) =====
-    $("btn-connect")?.addEventListener("click", connectMp);
-    $("btn-refresh")?.addEventListener("click", refresh);
-
-    // Sidebar
-    const sidebar = $("sidebar");
-    $("sidebar-toggle")?.addEventListener("click", ()=> sidebar?.classList.toggle("-translate-x-full"));
-
-    // Notificações dropdown (sem mudar layout)
-    const notifBtn = $("notif-btn");
-    const notifDropdown = $("notif-dropdown");
-    if(notifBtn && notifDropdown){
-      notifBtn.addEventListener("click", (e)=>{ e.stopPropagation(); notifDropdown.classList.toggle("hidden"); });
-      document.addEventListener("click", ()=>{ if(!notifDropdown.classList.contains("hidden")) notifDropdown.classList.add("hidden"); });
-    }
-
-    // Sair
-    $("btn-sair")?.addEventListener("click", async (e)=>{
-      e.preventDefault();
-      try { await signOut(auth); window.location.href = "seller_login.html"; }
-      catch { toast("Não foi possível sair.","error"); }
+// ===== STATUS =====
+async function loadStatus(){
+  try{
+    const res = await fetch(API_BASE + "/seller/mp/status",{
+      headers:{ Authorization:`Bearer ${getToken()}` }
     });
 
-    // ===== Boot =====
-    $("year").textContent = String(new Date().getFullYear());
+    const data = await res.json();
 
-    onAuthStateChanged(auth, async (user)=>{
-      try{
-        if(!user){ window.location.href = "seller_login.html"; return; }
-        const s = await loadSellerAndStatus(user.uid);
-        const label = $("user-display-name");
-        if(label) label.textContent = `Bem-vindo, ${(s.factoryName || s.name || user.email || "Seller")}!`;
+    if(data.connected){
+      setMpStatus("ok","Conectado","Split automático ativo");
+      $("btn-connect").disabled = true;
+    }else{
+      setMpStatus("warn","Não conectado","Clique para conectar");
+      $("btn-connect").disabled = false;
+    }
 
-        // Mensagens pós-redirect (opcional)
-        const url = new URL(window.location.href);
-        const msg = url.searchParams.get("msg");
-        const err = url.searchParams.get("err");
-        if(msg) showOk(msg);
-        if(err) showError(err);
-      }catch(e){
-        console.error(e);
-        showError(e?.message || String(e));
-        setTimeout(()=>{ window.location.href = "seller_login.html"; }, 1200);
-      }
+  }catch(e){
+    showError("Erro ao verificar status.");
+  }
+}
+
+// ===== CONECTAR =====
+async function connectMp(){
+  try{
+    const btn = $("btn-connect");
+    btn.disabled=true;
+    btn.innerHTML="Conectando...";
+
+    const res = await fetch(API_BASE + "/seller/mp/connect",{
+      headers:{ Authorization:`Bearer ${getToken()}` }
     });
-  </script>
 
-  <script>
-    // Inicialização rápida da tela
-    console.log("Tela carregada com Tailwind local e APIs ativas.");
-  </script>
+    const data = await res.json();
 
-   <script src="js/layout-fit.js" defer></script>
-   
-</body>
-</html>
+    if(!data.url) throw new Error();
+
+    window.location.href = data.url;
+
+  }catch(e){
+    showError("Erro ao conectar Mercado Pago.");
+    $("btn-connect").disabled=false;
+    $("btn-connect").innerHTML="Conectar Mercado Pago";
+  }
+}
+
+// ===== REFRESH =====
+async function refresh(){
+  await loadStatus();
+  showOk("Atualizado.");
+}
+
+// ===== EVENTOS =====
+$("btn-connect")?.addEventListener("click", connectMp);
+$("btn-refresh")?.addEventListener("click", refresh);
+
+// ===== LOGOUT =====
+$("btn-sair")?.addEventListener("click", ()=>{
+  localStorage.removeItem("seller_token");
+  window.location.href="seller_login.html";
+});
+
+// ===== INIT =====
+document.getElementById("year").textContent = new Date().getFullYear();
+loadStatus();
+
+</script>

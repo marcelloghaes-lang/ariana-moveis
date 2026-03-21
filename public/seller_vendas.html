@@ -255,29 +255,31 @@
   </div>
 </main>
   </div>
-  <script type="module">
-  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-  import { 
-    getFirestore, doc, getDoc,
-    collection, query, where, orderBy, limit, getDocs
-  } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-    authDomain: "ariana-moveis-final.firebaseapp.com",
-    projectId: "ariana-moveis-final",
-    storageBucket: "ariana-moveis-final.firebasestorage.app",
-    messagingSenderId: "695257365498",
-    appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-  };
-
-  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+  <script>
+  const API_BASE =
+    window.API_BASE ||
+    window.API_URL ||
+    localStorage.getItem("apiBaseUrl") ||
+    "http://localhost:3000/api";
 
   const COMMISSION = 0.12;
   const $ = (id) => document.getElementById(id);
+
+  function getSellerToken() {
+    return (
+      localStorage.getItem("seller_token") ||
+      localStorage.getItem("token") ||
+      ""
+    );
+  }
+
+  function getSellerProfile() {
+    try {
+      return JSON.parse(localStorage.getItem("seller_profile") || "{}");
+    } catch {
+      return {};
+    }
+  }
 
   function moneyBRL(v){
     const n = Number(v || 0);
@@ -296,7 +298,25 @@
   }
   window.toast = toast;
 
-  // Modal de imagem (evita ReferenceError se alguém usar)
+  function showAlert(message, type = "error") {
+    const el = $("alert");
+    if (!el) return;
+    el.textContent = message;
+    el.className = "mb-6 p-4 rounded-xl font-bold " + (
+      type === "success"
+        ? "bg-green-50 text-green-700 border border-green-200"
+        : "bg-red-50 text-red-700 border border-red-200"
+    );
+    el.classList.remove("hidden");
+  }
+
+  function hideAlert() {
+    const el = $("alert");
+    if (!el) return;
+    el.classList.add("hidden");
+  }
+
+  // Modal de imagem (mantido)
   window.openImageModal = function(src, name=""){
     const overlay = $("image-modal-overlay");
     const img = $("modal-image");
@@ -306,7 +326,7 @@
     if(nm) nm.textContent = name || "";
     overlay.classList.remove("hidden");
     overlay.classList.add("flex");
-  }
+  };
   window.closeImageModal = function(){
     const overlay = $("image-modal-overlay");
     const img = $("modal-image");
@@ -314,167 +334,100 @@
     if(!overlay) return;
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
-  }
-
-  async function requireSeller(uid){
-    const sref = doc(db, "sellers", uid);
-    const snap = await getDoc(sref);
-    if(!snap.exists()) throw new Error("Conta seller não encontrada no Firestore (coleção sellers).");
-    const data = snap.data() || {};
-    if(data.active === false) throw new Error("Seller desativado.");
-    if(String(data.status||"").toLowerCase() === "reprovado") throw new Error("Seller reprovado.");
-    return data;
-  }
+  };
 
   function dateFromAny(ts){
-    try{
-      if(ts && typeof ts.toDate === "function") return ts.toDate();
-      const n = Number(ts);
-      if(Number.isFinite(n) && n > 0) return new Date(n);
-    }catch{}
+    if (!ts) return null;
+    try {
+      if (typeof ts === "string" || typeof ts === "number") return new Date(ts);
+      if (typeof ts === "object") {
+        if (typeof ts.toDate === "function") return ts.toDate();
+        if (ts.seconds) return new Date(ts.seconds * 1000);
+        if (ts._seconds) return new Date(ts._seconds * 1000);
+      }
+    } catch {}
     return null;
   }
+
   function fmtDate(ts){
     const d = dateFromAny(ts);
     return d ? d.toLocaleDateString("pt-BR") : "—";
   }
 
-  function safeTotal(o){
-    const t = o?.totals?.total;
-    const n = Number(t);
+  function safeNumber(v) {
+    const n = Number(v || 0);
     return Number.isFinite(n) ? n : 0;
   }
 
+  function resolveSellerBreakdown(order) {
+    return order?.sellerBreakdown || order?.seller_breakdown || null;
+  }
+
+  function computeSellerMetrics(order) {
+    const breakdown = resolveSellerBreakdown(order);
+
+    if (breakdown && typeof breakdown === "object") {
+      const gross = safeNumber(
+        breakdown.itemsSubtotal ??
+        breakdown.grossAmount ??
+        breakdown.gross ??
+        breakdown.subtotal ??
+        order.total ??
+        order.valorTotal
+      );
+
+      const fee = safeNumber(
+        breakdown.commissionAmount ??
+        breakdown.commission ??
+        gross * COMMISSION
+      );
+
+      const label = safeNumber(
+        breakdown.shippingLabelPaidByPlatform ??
+        breakdown.labelCost ??
+        breakdown.logisticsCost ??
+        0
+      );
+
+      const net = safeNumber(
+        breakdown.sellerNetAmount ??
+        breakdown.netAmount ??
+        (gross - fee - label)
+      );
+
+      return { gross, fee, label, net };
+    }
+
+    const gross = safeNumber(order.total ?? order.valorTotal ?? order.amount ?? 0);
+    const fee = gross * COMMISSION;
+    const net = gross - fee;
+    return { gross, fee, label: 0, net };
+  }
+
   function isApproved(o){
-    const mp = String(o?.payment?.mpStatus || "").toLowerCase();
+    const mp = String(o?.payment?.mpStatus || o?.payment?.status || o?.paymentStatus || "").toLowerCase();
     return mp === "approved" || mp === "paid";
   }
 
   function inRange(o, days){
     if(days === "all") return true;
-    const d = dateFromAny(o.updatedAt) || dateFromAny(o.createdAt);
+    const d = dateFromAny(o.updatedAt) || dateFromAny(o.createdAt) || dateFromAny(o.date);
     if(!d) return true;
     const ms = Number(days) * 24 * 60 * 60 * 1000;
     return (Date.now() - d.getTime()) <= ms;
   }
 
-
-function safeNumber(v) {
-  const n = Number(v || 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function resolveSellerBreakdown(order, uid) {
-  const raw = order?.sellerBreakdown || {};
-  if (!raw || typeof raw !== "object") return null;
-  return raw[uid] || raw[String(uid)] || null;
-}
-
-function computeSellerMetrics(order, uid) {
-  const breakdown = resolveSellerBreakdown(order, uid);
-  if (breakdown) {
-    const gross = safeNumber(
-      breakdown.itemsSubtotal ??
-      breakdown.grossAmount ??
-      breakdown.gross ??
-      breakdown.subtotal
-    );
-    const fee = safeNumber(
-      breakdown.commissionAmount ??
-      breakdown.commission ??
-      gross * 0.12
-    );
-    const label = safeNumber(
-      breakdown.shippingLabelPaidByPlatform ??
-      breakdown.labelCost ??
-      breakdown.logisticsCost ??
-      0
-    );
-    const net = safeNumber(
-      breakdown.sellerNetAmount ??
-      breakdown.netAmount ??
-      (gross - fee - label)
-    );
-    return { gross, fee, label, net };
-  }
-
-  const items = Array.isArray(order?.items) ? order.items : [];
-  const useAll = String(order?.sellerId || "") === String(uid);
-  const myItems = useAll ? items : items.filter(it => String(it?.sellerId || "") === String(uid));
-  const gross = myItems.reduce((acc, it) => acc + (safeNumber(it?.price) * Math.max(1, safeNumber(it?.quantity || it?.qty || it?.qtd || 1))), 0);
-  const fee = gross * 0.12;
-  const label = 0;
-  const net = gross - fee - label;
-  return { gross, fee, label, net };
-}
-
-function isSellerInOrder(order, uid) {
-  if (!order) return false;
-  if (String(order?.sellerId || "") === String(uid)) return true;
-  if (String(order?.sellerUid || "") === String(uid)) return true;
-  if (Array.isArray(order?.sellerIds) && order.sellerIds.map(String).includes(String(uid))) return true;
-  const items = Array.isArray(order?.items) ? order.items : [];
-  return items.some(it => String(it?.sellerId || "") === String(uid));
-}
-
-async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
-  const collected = [];
-  const seen = new Set();
-
-  async function runAttempt(makeQuery) {
-    try {
-      const snap = await getDocs(makeQuery());
-      snap.forEach((d) => {
-        if (seen.has(d.id)) return;
-        seen.add(d.id);
-        collected.push({ id: d.id, ...(d.data() || {}) });
-      });
-      return !snap.empty;
-    } catch (_e) {
-      return false;
-    }
-  }
-
-  const attempts = [
-    () => query(collection(db, "orders"), where("sellerId", "==", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerId", "==", uid), orderBy("createdAt", "desc"), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerUid", "==", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerUid", "==", uid), orderBy("createdAt", "desc"), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), orderBy("updatedAt", "desc"), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), orderBy("createdAt", "desc"), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerId", "==", uid), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerUid", "==", uid), limit(maxItems)),
-    () => query(collection(db, "orders"), where("sellerIds", "array-contains", uid), limit(maxItems)),
-  ];
-
-  for (const makeQuery of attempts) {
-    const found = await runAttempt(makeQuery);
-    if (found) break;
-  }
-
-  return collected
-    .filter(order => isSellerInOrder(order, uid))
-    .sort((a, b) => {
-      const ad = (a?.updatedAt?.seconds || a?.createdAt?.seconds || 0);
-      const bd = (b?.updatedAt?.seconds || b?.createdAt?.seconds || 0);
-      return bd - ad;
-    });
-}
-
-  function isApproved(o){
-    const mp = String(o?.payment?.mpStatus || o?.payment?.status || "").toLowerCase();
-    return mp === "approved" || mp === "paid";
-  }
-
-  function row(o, uid){
-    const m = computeSellerMetrics(o, uid);
-    const pay = String(o?.payment?.mpStatus || o?.payment?.status || "—");
+  function row(o){
+    const m = computeSellerMetrics(o);
+    const pay = String(o?.payment?.mpStatus || o?.payment?.status || o?.paymentStatus || "—");
     const status = String(o?.status || "—");
-    const date = fmtDate(o.updatedAt || o.createdAt);
+    const date = fmtDate(o.updatedAt || o.createdAt || o.date);
+    const orderId = o.id || o._id || o.orderId || "";
+
     return `
       <tr class="hover:bg-gray-50">
         <td class="py-3 px-3 font-mono text-xs">
-          <a class="text-primary-blue font-bold hover:underline" href="seller_pedido_detalhes.html?orderId=${encodeURIComponent(o.id)}">${o.id}</a>
+          <a class="text-primary-blue font-bold hover:underline" href="seller_pedido_detalhe.html?id=${encodeURIComponent(orderId)}">${orderId}</a>
         </td>
         <td class="py-3 px-3">${date}</td>
         <td class="py-3 px-3"><span class="font-bold text-dark-bg">${pay}</span></td>
@@ -486,14 +439,95 @@ async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
     `;
   }
 
-  async function render(uid){
+  async function apiFetch(path, options = {}) {
+    const token = getSellerToken();
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
+      }
+    });
+
+    const text = await response.text();
+    let data = null;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
+    }
+
+    if (!response.ok) {
+      throw new Error((data && (data.message || data.error)) || `Erro HTTP ${response.status}`);
+    }
+
+    return data;
+  }
+
+  async function ensureSellerSession() {
+    const token = getSellerToken();
+    const profile = getSellerProfile();
+
+    if (!token) {
+      window.location.href = "seller_login.html";
+      throw new Error("Sessão expirada.");
+    }
+
+    let seller = null;
+    try {
+      const me = await apiFetch("/seller/me");
+      seller = me?.seller || me?.data || me;
+    } catch (e) {
+      if (profile && (profile.id || profile._id || profile.uid || profile.email)) {
+        seller = profile;
+      } else {
+        throw e;
+      }
+    }
+
+    if (!seller) throw new Error("Conta seller não encontrada.");
+    return seller;
+  }
+
+  async function fetchOrdersOnlyForSeller() {
+    const tries = [
+      "/seller/orders?limit=300",
+      "/seller/orders/list?limit=300",
+      "/seller/sales/orders?limit=300"
+    ];
+
+    let lastError = null;
+
+    for (const path of tries) {
+      try {
+        const payload = await apiFetch(path);
+        const rows =
+          Array.isArray(payload) ? payload :
+          Array.isArray(payload?.orders) ? payload.orders :
+          Array.isArray(payload?.items) ? payload.items :
+          Array.isArray(payload?.data) ? payload.data : [];
+
+        if (Array.isArray(rows)) return rows;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    throw lastError || new Error("Não foi possível carregar os pedidos.");
+  }
+
+  async function render() {
+    hideAlert();
+
     const range = $("range")?.value || "30";
-    const orders = await fetchOrdersOnlyForSeller(uid, 300);
+    const orders = await fetchOrdersOnlyForSeller();
     const filtered = orders.filter(isApproved).filter(o => inRange(o, range));
 
-    const gross = filtered.reduce((a, o) => a + computeSellerMetrics(o, uid).gross, 0);
-    const fee = filtered.reduce((a, o) => a + computeSellerMetrics(o, uid).fee, 0);
-    const net = filtered.reduce((a, o) => a + computeSellerMetrics(o, uid).net, 0);
+    const gross = filtered.reduce((a, o) => a + computeSellerMetrics(o).gross, 0);
+    const fee = filtered.reduce((a, o) => a + computeSellerMetrics(o).fee, 0);
+    const net = filtered.reduce((a, o) => a + computeSellerMetrics(o).net, 0);
 
     if($("gross")) $("gross").textContent = moneyBRL(gross);
     if($("fee")) $("fee").textContent = moneyBRL(fee);
@@ -503,7 +537,7 @@ async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
     const tb = $("tbody");
     if(tb){
       tb.innerHTML = "";
-      filtered.slice(0, 120).forEach(o => tb.insertAdjacentHTML("beforeend", row(o, uid)));
+      filtered.slice(0, 120).forEach(o => tb.insertAdjacentHTML("beforeend", row(o)));
     }
 
     if($("empty")){
@@ -512,7 +546,7 @@ async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
     }
   }
 
-  // UI: sidebar toggle (não muda layout)
+  // UI: sidebar toggle
   const sidebar = $("sidebar");
   const sidebarToggle = $("sidebar-toggle");
   if(sidebar && sidebarToggle){
@@ -530,47 +564,41 @@ async function fetchOrdersOnlyForSeller(uid, maxItems = 300) {
   // Botões
   $("btn-refresh")?.addEventListener("click", async ()=>{
     try{
-      const user = auth.currentUser;
-      if(!user) return;
       toast("Atualizando...", "info");
-      await render(user.uid);
+      await render();
       toast("Atualizado.", "success");
     }catch(e){
       console.error(e);
+      showAlert(e?.message || "Erro ao atualizar.", "error");
       toast(e?.message || "Erro ao atualizar.", "error");
     }
   });
 
   $("range")?.addEventListener("change", async ()=>{
-    const user = auth.currentUser;
-    if(!user) return;
-    try{ await render(user.uid); }catch{}
+    try { await render(); } catch(e) { console.error(e); }
   });
 
   $("btn-sair")?.addEventListener("click", async (e)=>{
     e.preventDefault();
-    try{
-      await signOut(auth);
-      window.location.href = "seller_login.html";
-    }catch{
-      toast("Não foi possível sair.", "error");
-    }
+    localStorage.removeItem("seller_token");
+    localStorage.removeItem("seller_profile");
+    window.location.href = "seller_login.html";
   });
 
-  const userLabel = $("user-display-name");
-
-  onAuthStateChanged(auth, async (user)=>{
+  (async ()=>{
     try{
-      if(!user){ window.location.href = "seller_login.html"; return; }
-      const s = await requireSeller(user.uid);
-      if(userLabel) userLabel.textContent = `Bem-vindo, ${(s.factoryName || s.name || user.email || "Seller")}!`;
-      window.__sellerAuth = { uid:user.uid, email:user.email||"", seller:s };
-      await render(user.uid);
+      const s = await ensureSellerSession();
+      if($("user-display-name")) {
+        $("user-display-name").textContent = `Bem-vindo, ${(s.factoryName || s.storeName || s.name || s.email || "Seller")}!`;
+      }
+      await render();
     }catch(e){
       console.error(e);
+      showAlert(e?.message || "Erro ao carregar.", "error");
       toast(e?.message || "Erro ao carregar.", "error");
+      setTimeout(()=>{ window.location.href = "seller_login.html"; }, 1000);
     }
-  });
+  })();
 </script>
 
 <script src="js/layout-fit.js" defer></script>

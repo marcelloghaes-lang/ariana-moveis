@@ -665,6 +665,8 @@ Adicionar ao Carrinho
 </div>
 </div>
 
+
+  <script src="firebase-config.js"></script>
 <script type="module">
 // ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
 // Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
@@ -695,9 +697,11 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         // =========================================================
         // 1. CONFIGURAÇÕES E INICIALIZAÇÃO DO FIREBASE
         // =========================================================
-        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, setDoc, where, setLogLevel } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        const {
+            initializeApp, getApps, getApp, collection, deleteDoc, doc, getDoc, getDocs, getFirestore,
+            limit, orderBy, query, serverTimestamp, setDoc, where, setLogLevel, getAuth,
+            signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence
+        } = window;
 
         const USER_PROVIDED_CONFIG = {
             apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",

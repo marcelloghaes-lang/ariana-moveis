@@ -1,149 +1,437 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Criar conta | ARIANA MÓVEIS</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="css/tailwind.min.css">
-  <style>
-    :root {
-      --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; --warning:#ea580c;
-    }
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); }
-    .bg-primary-blue{background:var(--primary)} .text-primary-blue{color:var(--primary)} .bg-dark-bg{background:var(--dark)}
-    .text-dark-bg{color:var(--dark)} .bg-fundo-claro{background:var(--bg)} .bg-success-green{background:var(--success)}
-    .bg-error-red{background:var(--danger)} .border-soft{border-color:#e5e7eb} .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}
-    .input{width:100%;border:1px solid #d1d5db;border-radius:1rem;padding:.85rem 1rem;outline:none;background:#fff}
-    .input:focus{box-shadow:0 0 0 4px rgba(46,109,164,.12);border-color:var(--primary)}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.85rem 1.2rem;font-weight:800;transition:.2s}
-    .btn-primary{background:var(--primary);color:#fff} .btn-primary:hover{opacity:.95} .btn-dark{background:var(--dark);color:#fff}
-    .btn-light{background:#fff;color:var(--dark);border:1px solid #e5e7eb} .pill{display:inline-flex;align-items:center;padding:.35rem .75rem;border-radius:9999px;font-size:.75rem;font-weight:800}
-    .toast{box-shadow:0 10px 30px rgba(0,0,0,.12)}
-    #toast-container{position:fixed;right:1rem;top:1rem;z-index:80;display:flex;flex-direction:column;gap:.75rem}
-    .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}
-    .sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
-    .stat{padding:1.25rem;border-radius:1.25rem;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.05)}
-    .muted{color:#64748b} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse} th,td{padding:1rem;border-bottom:1px solid #eef2f7;vertical-align:top} th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;text-align:left}
-    .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro | Seller</title>
+    <!-- BUILD: admin_painel_fix_v3 -->
+
+   <link rel="manifest" href="/manifest-admin.webmanifest">
+<meta name="theme-color" content="#0b1220">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/icons/icon-admin-192.png">
+
+<script>console.log('ADMIN_PAINEL_FIX_V3 carregado');</script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<style>
+
+        /* Estilos Gerais da Seção de Produto */
+.product-section {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.product-section h2 {
+    font-size: 1.4em;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.product-section p {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* Estilo para a Grid de Dimensões (Layout 4 Colunas) */
+.dimensions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px; /* Espaçamento entre as colunas */
+    margin-bottom: 20px;
+}
+
+/* Garante que o input de file do CORA/CIELO não seja visível */
+.file-upload-cora input[type="file"] {
+    display: none;
+}
+
+/* Estilos de Animação */
+.animate-fade { animation: fade-in 0.3s ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Estilos de Cores */
+.bg-primary-blue { background-color: #2E6DA4; }
+.hover\:bg-secondary-light-blue:hover { background-color: #56B5FF; }
+.text-primary-blue { color: #2E6DA4; }
+.bg-dark-bg { background-color: #1D2B3A; }
+.text-dark { color: #333333; }
+.bg-fundo-claro { background-color: #F5F7FA; }
+.bg-dark-gray-bg { background-color: #222222; }
+.bg-error-red { background-color: #ef4444; }
+.bg-success-green { background-color: #10b981; }
+.text-error-red { color: #ef4444; }
+.text-success-green { color: #10b981; }
+
+/* Estilos de Toast */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 50; /* Garante que fique acima de tudo */
+}
+.toast {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.3s ease-out;
+}
+
+/* Estilos para o Modal de Visualização de Imagens */
+#image-modal-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+#image-modal-content {
+    max-height: 90vh;
+    max-width: 90vw;
+}
+
+    </style>
 </head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3">
+        </div>
+  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
+        <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
+            <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+            <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain">
+            <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
+        </div>
+    </div>
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+        <a href="#" class="text-white flex items-center space-x-2 px-4">
+            <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
+        </a>
 
-<body class="min-h-screen p-6">
-<div id="toast-container"></div>
-<main class="max-w-5xl mx-auto min-h-screen flex items-center">
-  <div class="grid lg:grid-cols-2 gap-8 w-full items-start">
-    <section class="card p-7">
-      <h1 class="text-3xl font-black text-slate-900">Criar solicitação de Seller</h1>
-      <p class="mt-3 text-slate-600 leading-relaxed">Esta tela cria uma solicitação em <b>partner_requests</b>. O cadastro definitivo de login no Firebase Auth deve ser liberado depois da aprovação do admin.</p>
-      <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        <div class="font-black mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Fluxo recomendado</div>
-        Solicitação → onboarding → análise → aprovação do admin → criação/liberação do acesso ao painel.
-      </div>
-    </section>
-    <section class="card overflow-hidden">
-      <div class="p-7">
-        <h2 class="text-2xl font-black text-slate-900">Dados iniciais</h2>
-        <form id="signup-form" class="mt-6 space-y-4">
-          <div><label class="block text-xs font-black mb-2">Nome do responsável</label><input id="name" class="input" required></div>
-          <div><label class="block text-xs font-black mb-2">Nome da loja/fábrica</label><input id="factoryName" class="input" required></div>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div><label class="block text-xs font-black mb-2">E-mail</label><input id="email" type="email" class="input" required></div>
-            <div><label class="block text-xs font-black mb-2">WhatsApp</label><input id="phone" class="input" required></div>
+        <nav class="flex flex-col space-y-2">
+  <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-home"></i><span>Dashboard</span>
+  </a>
+  <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-box"></i><span>Meus Produtos</span>
+  </a>
+  <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span>
+  </a>
+  <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-shopping-cart"></i><span>Pedidos</span>
+  </a>
+  <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-chart-line"></i><span>Vendas</span>
+  </a>
+  <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-bell"></i><span>Notificações</span>
+  </a>
+  <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-credit-card"></i><span>Mercado Pago</span>
+  </a>
+  <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-cog"></i><span>Configurações</span>
+  </a>
+  <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-exchange-alt"></i><span>Devoluções</span>
+  </a>
+  <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
+      <i class="fas fa-receipt"></i><span>Extrato</span>
+  </a>
+  <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
+      <i class="fas fa-sign-out-alt"></i><span>Sair</span>
+  </a>
+</nav>
+    </aside>
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+            <h1 id="view-title" class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
+            <div id="user-info" class="relative flex items-center space-x-4">
+                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
+                    <i class="fas fa-bell text-xl"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
+                </button>
+                <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div class="p-3 border-b flex items-center justify-between">
+                        <span class="font-semibold text-gray-800">Notificações</span>
+                        <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
+                    </div>
+                    <div id="notif-list" class="max-h-80 overflow-y-auto">
+                        <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
+                    </div>
+                </div>
+<span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+                <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+            </div>
+        </header>
+    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+<div class="grid lg:grid-cols-2 gap-8 items-start">
+
+      <!-- Left info -->
+      <section class="order-2 lg:order-1">
+        <div class="bg-white rounded-2xl shadow-soft p-7 border border-slate-100">
+          <h1 class="text-2xl sm:text-3xl font-black text-slate-900">
+            Criar conta de Seller
+          </h1>
+          <p class="mt-3 text-slate-600 leading-relaxed">
+            Este formulário cria o usuário no <b>Firebase Authentication (Email/Senha)</b> e também cria o documento
+            em <b>Firestore → sellers/{uid}</b> com <b>active:true</b>.
+          </p>
+
+          <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div class="font-black mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Importante</div>
+            Em produção, esse cadastro deve ser restrito (admin). Se suas regras estiverem abertas, qualquer pessoa
+            poderia se cadastrar como seller.
           </div>
-          <div><label class="block text-xs font-black mb-2">CPF/CNPJ</label><input id="cpfCnpj" class="input" required></div>
-          <div><label class="block text-xs font-black mb-2">Código interno (opcional)</label><input id="password" type="password" class="input" placeholder="Opcional para referência interna"></div>
-          <div id="alert" class="hidden rounded-2xl px-4 py-3 text-sm font-semibold"></div>
-          <button id="btnSubmit" class="btn btn-primary w-full" type="submit">Enviar solicitação</button>
-        </form>
-      </div>
-      <div class="px-7 py-4 bg-slate-50 border-t border-slate-100 text-sm"><a href="seller_login.html" class="text-primary-blue font-bold">Já tenho login</a></div>
-    </section>
-  </div>
+
+          <div class="mt-6 grid sm:grid-cols-2 gap-3">
+            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-secondary-light-blue text-primary-blue flex items-center justify-center">
+                  <i class="fa-solid fa-user-check"></i>
+                </div>
+                <div>
+                  <div class="font-extrabold">Auth</div>
+                  <div class="text-xs text-slate-600">Email/Senha</div>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-secondary-light-blue text-primary-blue flex items-center justify-center">
+                  <i class="fa-solid fa-database"></i>
+                </div>
+                <div>
+                  <div class="font-extrabold">Firestore</div>
+                  <div class="text-xs text-slate-600">sellers/{uid}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 text-xs text-slate-500">
+            Dica: depois do cadastro, você já pode logar em <b>seller_login.html</b>.
+          </div>
+        </div>
+      </section>
+
+      <!-- Form -->
+      <section class="order-1 lg:order-2">
+        <div class="bg-white rounded-2xl shadow-soft border border-slate-100 overflow-hidden">
+          <div class="p-7">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="text-xl sm:text-2xl font-black text-slate-900">Dados do Seller</h2>
+                <p class="text-sm text-slate-600 mt-1">Preencha e crie sua conta.</p>
+              </div>
+              <div class="w-12 h-12 rounded-2xl bg-secondary-light-blue text-primary-blue flex items-center justify-center">
+                <i class="fa-solid fa-user-plus text-lg"></i>
+              </div>
+            </div>
+
+            <form id="signup-form" class="mt-6 space-y-4">
+              <div>
+                <label class="block text-xs font-extrabold text-slate-700">Nome do Seller</label>
+                <div class="mt-1 relative">
+                  <i class="fa-solid fa-id-card absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                  <input id="name" type="text"
+                         class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
+                         placeholder="Ex: Sirlandio Marcelo" required />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-extrabold text-slate-700">Nome da Loja / Razão</label>
+                <div class="mt-1 relative">
+                  <i class="fa-solid fa-shop absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                  <input id="factoryName" type="text"
+                         class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
+                         placeholder="Ex: ARIANA MOVEIS" required />
+                </div>
+              </div>
+
+              <div class="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-extrabold text-slate-700">E-mail</label>
+                  <div class="mt-1 relative">
+                    <i class="fa-solid fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="email" type="email" autocomplete="username"
+                           class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
+                           placeholder="seller@exemplo.com" required />
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-extrabold text-slate-700">Telefone</label>
+                  <div class="mt-1 relative">
+                    <i class="fa-solid fa-phone absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="phone" type="text"
+                           class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
+                           placeholder="Ex: 31985147119" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-extrabold text-slate-700">CPF/CNPJ</label>
+                  <div class="mt-1 relative">
+                    <i class="fa-solid fa-file-invoice absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="cpfCnpj" type="text"
+                           class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
+                           placeholder="Ex: 48.126.915/0001-74" required />
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-extrabold text-slate-700">Status inicial</label>
+                  <select id="status"
+                    class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue bg-white">
+                    <option value="aprovado">aprovado</option>
+                    <option value="pendente">pendente</option>
+                    <option value="reprovado">reprovado</option>
+                    <option value="bloqueado">bloqueado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-extrabold text-slate-700">Senha</label>
+                <div class="mt-1 relative">
+                  <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                  <input id="password" type="password" autocomplete="new-password"
+                         class="w-full rounded-xl border border-slate-200 pl-10 pr-10 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
+                         placeholder="Mínimo 6 caracteres" required />
+                  <button type="button" id="togglePass"
+                          class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          aria-label="Mostrar/ocultar senha">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <input id="active" type="checkbox" class="w-4 h-4" checked>
+                <label for="active" class="text-sm text-slate-700">
+                  Ativo (<span class="text-slate-500">active: true</span>)
+                </label>
+              </div>
+
+              <div id="alert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
+
+              <button id="btnSubmit" type="submit"
+                      class="w-full rounded-xl bg-primary-blue text-white font-extrabold py-3 hover:opacity-95 active:opacity-90 transition flex items-center justify-center gap-2">
+                <span id="btnText">Criar conta</span>
+                <span id="btnSpinner" class="hidden">
+                  <i class="fa-solid fa-circle-notch fa-spin"></i>
+                </span>
+              </button>
+
+              <div class="text-xs text-slate-500">
+                Ao criar a conta, será criado o documento em <b>sellers/{uid}</b> com <b>accountType: "seller"</b>.
+              </div>
+            </form>
+          </div>
+
+          <div class="px-7 py-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
+            <span>© Ariana Móveis</span>
+            <a href="seller_login.html" class="font-bold text-primary-blue hover:underline">Ir para login</a>
+          </div>
+        </div>
+      </section>
+    </div>
 </main>
-<script type="module">
+  </div>
+ <script>
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "http://localhost:3000/api";
 
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const $ = (id) => document.getElementById(id);
-    function toast(message, type='info') {
-      const c = $('toast-container'); if (!c) return alert(message);
-      const el = document.createElement('div');
-      const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-      el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-      el.textContent = message; c.appendChild(el);
-      setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
-    }
-    function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-    function tsToDate(v){ try { return v?.toDate ? v.toDate() : v ? new Date(v) : null; } catch { return null; } }
-    function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-    function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
-    function itemBelongsToSeller(item, uid){ return String(item?.sellerId || item?.sellerUid || '') === String(uid); }
-    function orderBelongsToSeller(order, uid){
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return true;
-      return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyItems(order, uid){
-      const items = Array.isArray(order?.items) ? order.items : [];
-      if (String(order?.sellerId || order?.sellerUid || '') === String(uid)) return items;
-      return items.filter(it => itemBelongsToSeller(it, uid));
-    }
-    function getMyOrderTotal(order, uid){ return getMyItems(order, uid).reduce((acc,it)=> acc + num(it?.price) * num(it?.quantity || 1), 0); }
-    async function getSeller(uid){ const snap = await getDoc(doc(db,'sellers',uid)); return snap.exists() ? snap.data() : null; }
-    async function requireApprovedSeller(uid){
-      const seller = await getSeller(uid);
-      if (!seller) throw new Error('Conta seller não encontrada.');
-      const status = String(seller.status || '').toLowerCase();
-      if (seller.active === false || ['rejected','reprovado','bloqueado'].includes(status)) throw new Error('Conta seller bloqueada ou reprovada.');
-      if (!seller.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) { window.location.href = 'seller_pending.html'; throw new Error('Conta em análise.'); }
-      return seller;
-    }
-    async function recentOrdersForSeller(uid, max=300){
-      const ref = collection(db,'orders');
-      const tries = [query(ref, orderBy('createdAt','desc'), limit(max)), query(ref, limit(max))];
-      for (const qx of tries) {
-        try {
-          const snap = await getDocs(qx);
-          return snap.docs.map(d=>({id:d.id,...d.data()})).filter(o=>orderBelongsToSeller(o, uid));
-        } catch (e) {}
-      }
-      return [];
-    }
+const $ = (id)=>document.getElementById(id);
 
-function showAlert(msg, type='error'){ const a=$('alert'); a.textContent=msg; a.className='rounded-2xl px-4 py-3 text-sm font-semibold ' + (type==='success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'); a.classList.remove('hidden'); }
+function toast(message, type='info'){
+  const c = $('toast-container');
+  if(!c) return alert(message);
+
+  const el = document.createElement('div');
+  const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+
+  el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+  el.textContent = message;
+  c.appendChild(el);
+
+  setTimeout(()=>{
+    el.style.opacity='0';
+    setTimeout(()=>el.remove(),300);
+  },3400);
+}
+
+function showAlert(msg, type='error'){
+  const a = $('alert');
+  a.textContent = msg;
+
+  a.className =
+    'rounded-2xl px-4 py-3 text-sm font-semibold ' +
+    (type==='success'
+      ? 'bg-green-50 text-green-700 border border-green-200'
+      : 'bg-red-50 text-red-700 border border-red-200');
+
+  a.classList.remove('hidden');
+}
+
+// ===== SUBMIT =====
 $('signup-form').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  $('btnSubmit').disabled=true; $('btnSubmit').textContent='Enviando...';
-  try {
+
+  const btn = $('btnSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try{
     const payload = {
-      name: $('name').value.trim(), factoryName: $('factoryName').value.trim(),
-      email: $('email').value.trim().toLowerCase(), phone: $('phone').value.trim(), whatsapp: $('phone').value.trim(),
-      cnpj: $('cpfCnpj').value.trim(), cpf_cnpj: $('cpfCnpj').value.trim(), requestedTempPass: $('password').value.trim(),
-      status: 'pending_onboarding', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      name: $('name').value.trim(),
+      factoryName: $('factoryName').value.trim(),
+      email: $('email').value.trim().toLowerCase(),
+      phone: $('phone').value.trim(),
+      whatsapp: $('phone').value.trim(),
+      cnpj: $('cpfCnpj').value.trim(),
+      cpf_cnpj: $('cpfCnpj').value.trim(),
+      requestedTempPass: $('password').value.trim(),
+      status: 'pending_onboarding'
     };
-    const ref = await addDoc(collection(db,'partner_requests'), payload);
-    localStorage.setItem('partner_request_id', ref.id);
+
+    const res = await fetch(API_BASE + "/seller/partner-request",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if(!data.id) throw new Error();
+
+    localStorage.setItem('partner_request_id', data.id);
+
     showAlert('Solicitação criada com sucesso. Continue no onboarding.', 'success');
     toast('Solicitação criada.', 'success');
-    setTimeout(()=> window.location.href = 'seller_onboarding.html?rid=' + encodeURIComponent(ref.id), 700);
-  } catch (e) {
-    console.error(e); showAlert('Erro ao enviar solicitação.'); toast('Erro ao enviar solicitação.', 'error'); $('btnSubmit').disabled=false; $('btnSubmit').textContent='Enviar solicitação';
+
+    setTimeout(()=>{
+      window.location.href = 'seller_onboarding.html?rid=' + encodeURIComponent(data.id);
+    },700);
+
+  }catch(e){
+    console.error(e);
+    showAlert('Erro ao enviar solicitação.');
+    toast('Erro ao enviar solicitação.', 'error');
+
+    btn.disabled = false;
+    btn.textContent = 'Enviar solicitação';
   }
 });
 </script>
-<script src="js/layout-fit.js" defer></script>
-</body></html>
+</body>
+</html>

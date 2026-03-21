@@ -1,86 +1,87 @@
 // =======================================================
-// FIREBASE CONFIG - VERSÃO SEGURA
+// API CONFIG - SUBSTITUTO DO FIREBASE
 // =======================================================
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { 
-  getFirestore, collection, getDocs, getDoc, doc, query, where, orderBy, limit 
-} from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+// 👉 URL do seu backend (ajuste depois)
+const API_BASE = "http://localhost:3000/api";
 
 // =======================================================
-// 🔒 CONFIG (PODE FICAR NO FRONT, MAS PROTEGIDO NO CONSOLE)
+// 🔒 RATE LIMIT (mantido igual ao seu)
 // =======================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-  authDomain: "ariana-moveis-final.firebaseapp.com",
-  projectId: "ariana-moveis-final",
-  storageBucket: "ariana-moveis-final.firebasestorage.app",
-  messagingSenderId: "695257365498",
-  appId: "1:695257365498:web:ef7698ea5d33d701338243"
-};
-
-// =======================================================
-// INICIALIZAÇÃO
-// =======================================================
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const storage = getStorage(app);
-
-// =======================================================
-// 🔥 PROTEÇÃO EXTRA (ANTI-SPAM / CONTROLE BÁSICO)
-// =======================================================
-
-// Limita chamadas repetidas no frontend
 let lastCall = 0;
-const MIN_INTERVAL = 1000; // 1 segundo
+const MIN_INTERVAL = 300; // mais leve que 1s
 
 function rateLimit() {
   const now = Date.now();
   if (now - lastCall < MIN_INTERVAL) {
-    throw new Error("Muitas requisições seguidas. Aguarde um instante.");
+    throw new Error("Muitas requisições seguidas. Aguarde.");
   }
   lastCall = now;
 }
 
-// Wrapper seguro para chamadas
-window.safeGetDocs = async (...args) => {
+// =======================================================
+// 🔥 FUNÇÕES PADRÃO (equivalente ao Firebase)
+// =======================================================
+
+async function safeFetch(url, options = {}) {
   rateLimit();
+
   try {
-    return await getDocs(...args);
-  } catch (error) {
-    if (
-      error?.code === "resource-exhausted" ||
-      error?.message?.includes("quota") ||
-      error?.message?.includes("429")
-    ) {
-      console.error("🚫 Limite de uso do Firebase atingido.");
-      throw new Error("Sistema temporariamente indisponível.");
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      ...options
+    });
+
+    if (!response.ok) {
+      throw new Error("Erro na API");
     }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Erro API:", error);
     throw error;
   }
+}
+
+// =======================================================
+// 📦 PRODUTOS
+// =======================================================
+
+window.getDocs = async (path) => {
+  return safeFetch(`${API_BASE}/${path}`);
+};
+
+window.getDoc = async (path, id) => {
+  return safeFetch(`${API_BASE}/${path}/${id}`);
 };
 
 // =======================================================
-// EXPORT GLOBAL (mantido para seu sistema)
+// 🔎 QUERY SIMPLES (simulando Firestore)
 // =======================================================
-window.db = db;
-window.auth = auth;
-window.storage = storage;
-window.storageRef = storageRef;
-window.getDownloadURL = getDownloadURL;
-window.collection = collection;
-window.getDocs = window.safeGetDocs; // 👈 substitui pelo seguro
-window.query = query;
-window.where = where;
-window.orderBy = orderBy;
-window.limit = limit;
-window.doc = doc;
-window.getDoc = getDoc;
 
-console.log("✅ Firebase seguro inicializado!");
+window.query = (path, params = {}) => {
+  const queryString = new URLSearchParams(params).toString();
+  return `${path}?${queryString}`;
+};
+
+window.collection = (name) => name;
+
+// =======================================================
+// 🧾 COMPATIBILIDADE COM SEU SISTEMA
+// =======================================================
+
+window.db = {};        // dummy
+window.auth = {};      // dummy
+window.storage = {};   // dummy
+
+window.storageRef = () => {};
+window.getDownloadURL = (url) => url;
+
+// =======================================================
+// EVENTO (mantido igual)
+// =======================================================
+
+console.log("✅ API (Mongo) inicializada!");
 window.dispatchEvent(new Event("firebase:ready"));
-
-export { app, db, storage, auth };

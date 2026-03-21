@@ -11,7 +11,6 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
 
-  <script type="module" src="./firebase-config.js"></script>
   <script src="./marketplace-core.js"></script>
 
   <style>
@@ -75,7 +74,6 @@
       overflow: visible;
     }
 
-    
     .product-card{background-color:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .3s,box-shadow .3s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%;text-decoration:none}
     .product-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.1)}
     .product-image-container{width:100%;height:180px;position:relative;overflow:hidden;margin-bottom:10px;display:flex;justify-content:center;align-items:center;background:#fff;padding:0}
@@ -94,7 +92,6 @@
     .tag-orange{background-color:#ff931e}
     .loading-text{grid-column:1 / -1;text-align:center;color:var(--primary-blue);font-weight:800;padding:32px 12px}
     .error-text{grid-column:1 / -1;text-align:center;color:#dc2626;font-weight:700;padding:32px 12px}
-
   </style>
 </head>
 
@@ -197,8 +194,9 @@
   <script src="js/header_auth_fix.js"></script>
   <script src="./header.js"></script>
 
-  <script type="module">
+  <script>
     const $ = (id) => document.getElementById(id);
+    const API_BASE = window.API_BASE || "http://localhost:3000/api";
 
     window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
       try {
@@ -231,43 +229,6 @@
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
     };
 
-    function waitFirebase(timeoutMs = 15000) {
-      const ok = () =>
-        !!window.db &&
-        !!window.auth &&
-        typeof window.collection === 'function' &&
-        typeof window.query === 'function' &&
-        typeof window.where === 'function' &&
-        typeof window.getDocs === 'function';
-
-      if (ok()) return Promise.resolve(true);
-
-      return new Promise((resolve, reject) => {
-        let finished = false;
-
-        const done = (result) => {
-          if (finished) return;
-          finished = true;
-          window.removeEventListener('firebase:ready', onReady);
-          result instanceof Error ? reject(result) : resolve(result);
-        };
-
-        const onReady = () => {
-          if (ok()) done(true);
-        };
-
-        window.addEventListener('firebase:ready', onReady);
-
-        const start = Date.now();
-        const tick = () => {
-          if (ok()) return done(true);
-          if (Date.now() - start >= timeoutMs) return done(new Error('Firebase não ficou pronto a tempo.'));
-          setTimeout(tick, 80);
-        };
-        tick();
-      });
-    }
-
     async function waitPaymentsHelper() {
       try { await window.ensureMarketplaceHelpers?.(); } catch (_) {}
 
@@ -288,6 +249,30 @@
         };
         tick();
       });
+    }
+
+    async function apiFetch(url) {
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      let data = null;
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = text ? { message: text } : null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `Erro HTTP ${response.status}`);
+      }
+
+      return data;
     }
 
     function isOfferProduct(data) {
@@ -366,7 +351,10 @@
       const candidates = [
         window?.GLOBAL_PAYMENT_SETTINGS?.card?.maxInstallments,
         window?.paymentSettings?.card?.maxInstallments,
-        window?.globalPaymentSettings?.card?.maxInstallments
+        window?.globalPaymentSettings?.card?.maxInstallments,
+        window?.GLOBAL_PAYMENT_SETTINGS?.card?.installments,
+        window?.paymentSettings?.card?.installments,
+        window?.globalPaymentSettings?.card?.installments
       ];
 
       for (const value of candidates) {
@@ -404,6 +392,7 @@
           card: {
             enabled: cardInstallments > 1,
             maxInstallments: cardInstallments,
+            installments: cardInstallments,
             text: cardInstallments > 1
               ? `ou em até ${cardInstallments}x de ${formatPrice(basePrice / cardInstallments)} sem juros`
               : ''
@@ -458,7 +447,7 @@
     function renderProductCard(raw) {
       const normalized = {
         ...raw,
-        id: raw.id,
+        id: raw.id || raw._id,
         name: raw.name || raw.nome || raw.title || raw.titulo || 'Produto',
         nome: raw.name || raw.nome || raw.title || raw.titulo || 'Produto',
         price: getCurrentPrice(raw),
@@ -472,7 +461,11 @@
           raw.imagemUrl ||
           raw.imagem ||
           raw.image ||
-          (Array.isArray(raw.images) ? raw.images[0] : null) ||
+          (Array.isArray(raw.images)
+            ? (typeof raw.images[0] === "string"
+                ? raw.images[0]
+                : (raw.images[0]?.url || raw.images[0]?.imageUrl))
+            : null) ||
           null,
         images: Array.isArray(raw.images) ? raw.images : [],
         category: raw.category || raw.categoria || raw.categorySlug || raw.categoryName || '',
@@ -512,29 +505,9 @@
 
       const installmentsText = getInstallmentsText(p, basePrice);
 
-      const imageUrl = p.imageUrl || `https://placehold.co/600x400/2E6DA4/ffffff?text=${encodeURIComponent(String(p.name || 'OFERTA').toUpperCase())}`;
-
-      const standardProduct = {
-        ...p,
-        id: p.id,
-        name: p.name,
-        nome: p.name,
-        imageUrl,
-        imagem: imageUrl,
-        images: p.images && p.images.length ? p.images : [imageUrl],
-        price: displayPrice,
-        preco: displayPrice,
-        oldPrice: oldToShow || basePrice || null,
-        precoAntigo: oldToShow || basePrice || null,
-        category: p.category || '',
-        __payments: p.__payments,
-        parcelamentoTexto: installmentsText,
-        installmentsText,
-        discountPercent: badgePercent,
-        descontoPercentual: badgePercent,
-        oferta: true,
-        isOffer: true
-      };
+      const imageUrl =
+        p.imageUrl ||
+        `https://placehold.co/600x400/2E6DA4/ffffff?text=${encodeURIComponent(String(p.name || 'OFERTA').toUpperCase())}`;
 
       const priceParts = (window.formatPriceParts)
         ? window.formatPriceParts(displayPrice)
@@ -575,32 +548,16 @@
       `;
     }
 
-    async function fetchOfferDocs(colRef) {
-      const tryField = async (field) => {
-        try {
-          const snap = await window.getDocs(window.query(colRef, window.where(field, '==', true)));
-          return snap.docs || [];
-        } catch (_) {
-          return [];
-        }
-      };
+    async function fetchOfferProducts() {
+      try {
+        const data = await apiFetch(`${API_BASE}/products?offers=true`);
+        const items = Array.isArray(data) ? data : (data.items || data.products || []);
+        if (items.length) return items;
+      } catch (_) {}
 
-      let docs = await tryField('isOffer');
-      if (!docs.length) docs = await tryField('is_offer');
-      if (!docs.length) docs = await tryField('offer');
-      if (!docs.length) docs = await tryField('oferta');
-
-      if (!docs.length) {
-        try {
-          const snapAll = await window.getDocs(window.query(colRef));
-          docs = snapAll.docs || [];
-        } catch (e) {
-          console.error('[ofertas] erro ao buscar produtos:', e);
-          docs = [];
-        }
-      }
-
-      return docs;
+      const data = await apiFetch(`${API_BASE}/products`);
+      const items = Array.isArray(data) ? data : (data.items || data.products || []);
+      return items.filter(isOfferProduct);
     }
 
     async function loadOffers() {
@@ -609,7 +566,6 @@
 
       productListElement.innerHTML = '<p class="loading-text">Carregando ofertas...</p>';
 
-      await waitFirebase();
       await waitPaymentsHelper();
 
       try {
@@ -622,26 +578,18 @@
         console.warn('[ofertas] configuração global de pagamento não carregou, usando fallback local.', e);
       }
 
-      const colRef = window.collection(window.db, 'products');
-      const docs = await fetchOfferDocs(colRef);
-
       let items = [];
-      for (const d of docs) {
-        const data = d.data() || {};
-        if (!isOfferProduct(data)) continue;
-        items.push({ id: d.id, ...data });
+      try {
+        items = await fetchOfferProducts();
+      } catch (e) {
+        console.error('[ofertas] erro ao buscar produtos:', e);
+        productListElement.innerHTML = '<p class="error-text">Erro ao carregar as ofertas.</p>';
+        return;
       }
 
-      if (!items.length) {
-        try {
-          const snapAll = await window.getDocs(window.query(colRef));
-          items = (snapAll.docs || [])
-            .map(d => ({ id: d.id, ...(d.data() || {}) }))
-            .filter(x => x && x.active !== false)
-            .filter(x => getCurrentPrice(x) > 0)
-            .slice(0, 20);
-        } catch (_) {}
-      }
+      items = items
+        .filter(x => x && x.active !== false)
+        .filter(x => getCurrentPrice(x) > 0);
 
       if (!items.length) {
         productListElement.innerHTML = '<p class="loading-text" style="color:#6b7280">Nenhuma oferta encontrada no momento.</p>';

@@ -14,3 +14,4 @@ functions/.env
 !firestore.indexes.json
 !firestore.rules
 !storage.rules
+node_modules

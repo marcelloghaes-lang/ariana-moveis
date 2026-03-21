@@ -6,16 +6,37 @@
   <title>Início | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="css/tailwind.min.css">
-</head>
 
-<body class="bg-fundo-claro font-sans text-text-dark">
+  <style>
+    .bg-dark-bg { background-color: #1D2B3A; }
+    .text-primary-blue { color: #2E6DA4; }
+    .status-novo { background-color: #fee2e2; color: #991b1b; }
+    .status-respondido { background-color: #dcfce7; color: #166534; }
+
+    .bg-primary-blue { background-color: #2E6DA4; }
+    .bg-dark-gray-bg { background-color: #222222; }
+    .bg-error-red { background-color: #ef4444; }
+    .bg-success-green { background-color: #10b981; }
+
+    .toast {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, .1), 0 2px 4px -2px rgba(0, 0, 0, .1);
+      transition: opacity .25s ease-out;
+    }
+
+    .animate-fade {
+      animation: fade-in .25s ease-out;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
 
 <body class="bg-gray-100">
   <div class="flex min-h-screen">
@@ -60,41 +81,78 @@
     </main>
   </div>
 
-  <!-- ✅ header_auth_fix continua igual -->
   <script src="js/header_auth_fix.js"></script>
 
-  <!-- ✅ Script principal APÓS firebase compat estar carregado -->
   <script>
-    // Firebase config (Ariana Móveis) — mesmo das outras telas
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
+    const API_BASE =
+      window.API_BASE ||
+      window.API_URL ||
+      localStorage.getItem("apiBaseUrl") ||
+      "http://localhost:3000/api";
 
-    // ✅ evita "firebase is not defined" e evita app duplicado
-    if (typeof firebase === "undefined") {
-      alert("Firebase não carregou. Verifique sua conexão ou bloqueadores de script.");
-      throw new Error("Firebase não carregou (firebase undefined).");
+    const listaChamadosEl = document.getElementById("lista-chamados");
+    const countAbertosEl = document.getElementById("count-abertos");
+    const toastContainerEl = document.getElementById("toast-container");
+
+    function getAdminToken() {
+      return (
+        localStorage.getItem("admin_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        ""
+      );
     }
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+    function getDefaultHeaders(extra = {}) {
+      const token = getAdminToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...extra
+      };
+    }
 
-    // Toast
+    async function apiFetch(path, options = {}) {
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: getDefaultHeaders(options.headers || {})
+      });
+
+      const text = await response.text();
+      let data = null;
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${response.status}`
+        );
+      }
+
+      return data;
+    }
+
     function toast(message, type = "info") {
-      const container = document.getElementById("toast-container");
-      if (!container) { alert(message); return; }
+      if (!toastContainerEl) {
+        alert(message);
+        return;
+      }
 
       const el = document.createElement("div");
-      const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
-      el.className = "toast p-4 rounded-lg text-white shadow-lg " + (map[type] || map.info) + " animate-fade";
+      const map = {
+        success: "bg-success-green",
+        error: "bg-error-red",
+        info: "bg-primary-blue"
+      };
+
+      el.className = `toast p-4 rounded-lg text-white shadow-lg ${map[type] || map.info} animate-fade`;
       el.textContent = message;
-      container.appendChild(el);
+      toastContainerEl.appendChild(el);
 
       setTimeout(() => {
         el.style.opacity = "0";
@@ -102,144 +160,159 @@
       }, 3500);
     }
 
-    // Render erro na tabela
     function showErrorRow(msg) {
-      const tbody = document.getElementById("lista-chamados");
-      tbody.innerHTML = `
+      listaChamadosEl.innerHTML = `
         <tr>
           <td class="p-4 text-red-600 font-bold" colspan="5">${msg}</td>
         </tr>
       `;
     }
 
-    // Gate de admin (coleção admins/{uid})
-    async function checkAdmin(uid) {
+    function formatDate(value) {
+      if (!value) return "---";
       try {
-        const snap = await db.collection("admins").doc(uid).get();
-        if (!snap.exists) return false;
-        const data = snap.data() || {};
-        if (data.active === false) return false;
-        const st = String(data.status || "").toLowerCase();
-        if (st === "bloqueado" || st === "reprovado") return false;
-        return true;
+        return new Date(value).toLocaleDateString("pt-BR");
+      } catch {
+        return "---";
+      }
+    }
+
+    function normalizeTicketsResponse(payload) {
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.tickets)) return payload.tickets;
+      if (Array.isArray(payload?.items)) return payload.items;
+      if (Array.isArray(payload?.data)) return payload.data;
+      return [];
+    }
+
+    async function checkAdmin() {
+      try {
+        const me = await apiFetch("/admin/me");
+        return !!(me && (me.admin || me.user || me.data || me));
       } catch (e) {
         return false;
       }
     }
 
-    // Chamados
-    let unsubscribeTickets = null;
+    async function carregarChamados() {
+      try {
+        listaChamadosEl.innerHTML = `
+          <tr>
+            <td class="p-4 text-gray-500" colspan="5">Carregando chamados...</td>
+          </tr>
+        `;
 
-    function loadTickets() {
-      if (unsubscribeTickets) unsubscribeTickets();
+        const payload = await apiFetch("/tickets?sort=createdAt_desc");
+        const tickets = normalizeTicketsResponse(payload);
 
-      unsubscribeTickets = db.collection("tickets")
-        .orderBy("createdAt", "desc")
-        .onSnapshot((snapshot) => {
-          const tbody = document.getElementById("lista-chamados");
-          let abertos = 0;
-          tbody.innerHTML = "";
+        let abertos = 0;
+        listaChamadosEl.innerHTML = "";
 
-          snapshot.forEach((docSnap) => {
-            const t = docSnap.data() || {};
-            if (t.status === "Aberto") abertos++;
+        if (!tickets.length) {
+          listaChamadosEl.innerHTML = `
+            <tr>
+              <td class="p-4 text-gray-500" colspan="5">Nenhum chamado encontrado.</td>
+            </tr>
+          `;
+          countAbertosEl.innerText = "0 Abertos";
+          return;
+        }
 
-            const dataFormat = t.createdAt && t.createdAt.toDate
-              ? t.createdAt.toDate().toLocaleDateString("pt-BR")
-              : "---";
+        tickets.forEach((ticket) => {
+          const status = ticket.status || "Aberto";
+          if (status === "Aberto") abertos++;
 
-            tbody.insertAdjacentHTML("beforeend", `
-              <tr class="hover:bg-blue-50 transition">
-                <td class="p-4 font-bold text-gray-700">${t.customerName || "Cliente"}</td>
-                <td class="p-4">
-                  <span class="block font-medium">${t.subject || "—"}</span>
-                  <span class="text-xs text-gray-500 italic">Pedido: ${t.orderId || "N/A"}</span>
-                </td>
-                <td class="p-4">
-                  <select onchange="updateStatus('${docSnap.id}', this.value)" class="bg-gray-50 border rounded p-1 text-xs font-bold">
-                    <option value="Aberto" ${t.status === "Aberto" ? "selected" : ""}>ABERTO</option>
-                    <option value="Em Análise" ${t.status === "Em Análise" ? "selected" : ""}>EM ANÁLISE</option>
-                    <option value="Concluído" ${t.status === "Concluído" ? "selected" : ""}>CONCLUÍDO</option>
-                  </select>
-                </td>
-                <td class="p-4 text-gray-500">${dataFormat}</td>
-                <td class="p-4 text-right">
-                  <button onclick="responder('${docSnap.id}')" class="bg-primary-blue text-white px-3 py-1 rounded hover:bg-blue-700">
-                    Responder
-                  </button>
-                </td>
-              </tr>
-            `);
-          });
+          const dataFormat = formatDate(
+            ticket.createdAt ||
+            ticket.data ||
+            ticket.created_at
+          );
 
-          document.getElementById("count-abertos").innerText = `${abertos} Abertos`;
-        }, (err) => {
-          console.error("[tickets] snapshot error:", err);
-          if (String(err && err.code) === "permission-denied") {
-            showErrorRow("Sem permissão para ler 'tickets'. Faça login como ADMIN (ou ajuste as rules).");
-          } else {
-            showErrorRow("Erro ao carregar chamados. Veja o console.");
-          }
+          listaChamadosEl.insertAdjacentHTML("beforeend", `
+            <tr class="hover:bg-blue-50 transition">
+              <td class="p-4 font-bold text-gray-700">${ticket.customerName || ticket.nome || "Cliente"}</td>
+              <td class="p-4">
+                <span class="block font-medium">${ticket.subject || ticket.assunto || "—"}</span>
+                <span class="text-xs text-gray-500 italic">Pedido: ${ticket.orderId || ticket.pedido || "N/A"}</span>
+              </td>
+              <td class="p-4">
+                <select onchange="updateStatus('${ticket._id || ticket.id}', this.value)" class="bg-gray-50 border rounded p-1 text-xs font-bold">
+                  <option value="Aberto" ${status === "Aberto" ? "selected" : ""}>ABERTO</option>
+                  <option value="Em Análise" ${status === "Em Análise" ? "selected" : ""}>EM ANÁLISE</option>
+                  <option value="Concluído" ${status === "Concluído" ? "selected" : ""}>CONCLUÍDO</option>
+                </select>
+              </td>
+              <td class="p-4 text-gray-500">${dataFormat}</td>
+              <td class="p-4 text-right">
+                <button onclick="responder('${ticket._id || ticket.id}')" class="bg-primary-blue text-white px-3 py-1 rounded hover:bg-blue-700">
+                  Responder
+                </button>
+              </td>
+            </tr>
+          `);
         });
+
+        countAbertosEl.innerText = `${abertos} Abertos`;
+      } catch (err) {
+        console.error("[tickets] load error:", err);
+        showErrorRow(err.message || "Erro ao carregar chamados.");
+      }
     }
 
     async function updateStatus(id, novoStatus) {
       try {
-        await db.collection("tickets").doc(id).update({ status: novoStatus });
+        await apiFetch(`/tickets/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({ status: novoStatus })
+        });
         toast("Status atualizado!", "success");
       } catch (e) {
         console.error(e);
-        toast("Erro ao atualizar status (permissão).", "error");
+        toast(e.message || "Erro ao atualizar status.", "error");
       }
     }
     window.updateStatus = updateStatus;
 
-    function responder(id) {
+    async function responder(id) {
       const resposta = prompt("Digite sua resposta para o cliente:");
       if (!resposta) return;
 
-      db.collection("tickets").doc(id).update({
-        status: "Em Análise",
-        adminReply: resposta,
-        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-      }).then(() => toast("Resposta enviada!", "success"))
-        .catch((e) => {
-          console.error(e);
-          toast("Erro ao enviar resposta (permissão).", "error");
+      try {
+        await apiFetch(`/tickets/${id}/reply`, {
+          method: "POST",
+          body: JSON.stringify({
+            adminReply: resposta,
+            status: "Em Análise"
+          })
         });
+        toast("Resposta enviada!", "success");
+        await carregarChamados();
+      } catch (e) {
+        console.error(e);
+        toast(e.message || "Erro ao enviar resposta.", "error");
+      }
     }
     window.responder = responder;
 
-    // Proteção de rota
-    auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        window.location.href = "login_admin.html";
-        return;
-      }
+    async function initPage() {
+      const ok = await checkAdmin();
 
-      const ok = await checkAdmin(user.uid);
       if (!ok) {
-        try { await auth.signOut(); } catch (_) {}
         alert("Acesso negado: conta não é ADMIN.");
         window.location.href = "login_admin.html";
         return;
       }
 
-      loadTickets();
-    });
+      await carregarChamados();
+    }
 
-    console.log("admin_chamados: Firebase compat carregado e pronto.");
+    initPage();
   </script>
-  <script type="module" src="firebase-config.js"></script>
-    <script src="marketplace-core.js"></script>
-    <script src="marketplace-core_global_payments.js"></script>
 
-     <script src="js/layout-fit.js" defer></script>
-
-    <script src="header.js" defer></script>
-  
-    <script src="js/header_auth_fix.js" defer></script>
-
+  <script src="marketplace-core.js"></script>
+  <script src="marketplace-core_global_payments.js"></script>
+  <script src="js/layout-fit.js" defer></script>
+  <script src="header.js" defer></script>
+  <script src="js/header_auth_fix.js" defer></script>
 </body>
 </html>
-
