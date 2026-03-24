@@ -3,11 +3,8 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// 1. CARREGAR VARIÁVEIS PRIMEIRO QUE TUDO
+// 1. CARREGAR VARIÁVEIS DE AMBIENTE
 dotenv.config();
-
-// Agora o log vai funcionar corretamente
-console.log("✅ Conteúdo lido do .env:", process.env.MONGODB_URI);
 
 const app = express();
 
@@ -15,15 +12,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ============================
-// CONEXÃO COM MONGODB ATLAS
-// ============================
+// ==========================================
+// CONEXÃO SEGURA COM MONGODB ATLAS
+// ==========================================
+// Lendo a senha do "cofre" do Render (MONGODB_URI)
 const mongoURI = process.env.MONGODB_URI;
 
-// TESTE DE SEGURANÇA: Se o .env falhar, ele te avisa aqui
 if (!mongoURI) {
-    console.error("❌ ERRO CRÍTICO: A variável MONGODB_URI não foi encontrada no arquivo .env");
-    console.log("Verifique se o seu arquivo se chama exatamente .env e está na pasta backend.");
+    console.error("❌ ERRO CRÍTICO: A variável MONGODB_URI não foi configurada no painel do Render.");
 } else {
     mongoose.connect(mongoURI)
         .then(() => console.log("✅ Conexão com MongoDB Atlas estabelecida!"))
@@ -84,44 +80,34 @@ app.post('/api/seller/partner-request', async (req, res) => {
     }
 });
 
-// Iniciar Servidor
-const PORT = process.env.PORT || 3001;
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Backend rodando na porta ${PORT}`);
-});
-
+// ============================
+// BOT CHATWOOT
+// ============================
 app.post('/chatwoot-bot', async (req, res) => {
     try {
         const message = (req.body?.content || "").toLowerCase();
 
-        let resposta = `👋 Olá! Bem-vindo à Ariana Móveis!
-
-Digite:
-1️⃣ Vendas
-2️⃣ Suporte
-3️⃣ Acompanhar pedido`;
+        let resposta = `👋 Olá! Bem-vindo à Ariana Móveis!\n\nDigite:\n1️⃣ Vendas\n2️⃣ Suporte\n3️⃣ Acompanhar pedido`;
 
         if (message.includes("1")) {
             resposta = "🛒 Você escolheu Vendas! Um atendente vai te chamar agora.";
-        }
-
-        if (message.includes("2")) {
+        } else if (message.includes("2")) {
             resposta = "🛠️ Suporte selecionado! Me diga seu problema.";
-        }
-
-        if (message.includes("3")) {
+        } else if (message.includes("3")) {
             resposta = "📦 Informe o número do seu pedido:";
         }
 
-        res.json({
-            content: resposta
-        });
+        res.json({ content: resposta });
 
     } catch (err) {
         console.error(err);
-        res.json({
-            content: "Erro no bot"
-        });
+        res.json({ content: "Erro no bot" });
     }
+});
+
+// Iniciar Servidor (A porta 10000 é a padrão do Render)
+const PORT = process.env.PORT || 10000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Backend rodando na porta ${PORT}`);
 });
