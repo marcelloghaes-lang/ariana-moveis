@@ -1556,21 +1556,35 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 
   </script>
 
-   <script src="header.js" defer></script>
+  <script src="js/header_auth_fix.js" defer></script>
+  <script src="./header.js"></script>
+  <script>
+    (function () {
+      const tryInitHeader = () => {
+        if (typeof window.carregarHeader !== "function") {
+          setTimeout(tryInitHeader, 60);
+          return;
+        }
+        if (document.querySelector("header[data-ariana='1']")) return;
 
-<script>
-  (function() {
-    const check = () => {
-      if (window.carregarHeader && window.db) { window.carregarHeader(); }
-      else { setTimeout(check, 100); }
-    };
-    check();
-  })();
-</script>
-<script src="./marketplace-core.js"></script>
-<script src="./footer.js"></script>
+        try {
+          window.carregarHeader();
+          const h = document.querySelector("header");
+          if (h) h.setAttribute("data-ariana", "1");
+        } catch (e) {
+          console.error("[index] erro ao carregar header:", e);
+        }
+      };
 
-<script src="js/header_auth_fix.js" defer></script>
+      tryInitHeader();
+      document.addEventListener("DOMContentLoaded", tryInitHeader);
+      window.addEventListener("load", tryInitHeader);
+      window.addEventListener("pageshow", tryInitHeader);
+      window.addEventListener("marketplace:helpers-ready", tryInitHeader);
+    })();
+  </script>
+  <script src="./marketplace-core.js"></script>
+  <script src="./footer.js"></script>
 
 <script>
 window.addEventListener('load', () => {
