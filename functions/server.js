@@ -143,6 +143,19 @@ app.post('/chatwoot-bot', async (req, res) => {
     }
 });
 
+// LISTAR TODOS OS VENDEDORES PARA O ADMIN
+app.get('/api/seller/partner-requests', async (req, res) => {
+    const sellers = await Seller.find().sort({ createdAt: -1 });
+    res.json(sellers);
+});
+
+// APROVAR OU REPROVAR VENDEDOR
+app.patch('/api/seller/partner-requests/:id/status', async (req, res) => {
+    const { status, active } = req.body;
+    await Seller.findByIdAndUpdate(req.params.id, { status, active });
+    res.json({ ok: true });
+});
+
 // Iniciar Servidor (A porta 10000 é a padrão do Render)
 const PORT = process.env.PORT || 10000;
 
