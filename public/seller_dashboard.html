@@ -1,223 +1,180 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Dashboard | ARIANA MÓVEIS</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="css/tailwind.min.css">
-  <style>
-    :root {
-      --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; --warning:#ea580c;
-    }
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); }
-    .bg-primary-blue{background:var(--primary)} .text-primary-blue{color:var(--primary)} .bg-dark-bg{background:var(--dark)}
-    .text-dark-bg{color:var(--dark)} .bg-fundo-claro{background:var(--bg)} .bg-success-green{background:var(--success)}
-    .bg-error-red{background:var(--danger)} .border-soft{border-color:#e5e7eb} .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}
-    .input{width:100%;border:1px solid #d1d5db;border-radius:1rem;padding:.85rem 1rem;outline:none;background:#fff}
-    .input:focus{box-shadow:0 0 0 4px rgba(46,109,164,.12);border-color:var(--primary)}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.85rem 1.2rem;font-weight:800;transition:.2s}
-    .btn-primary{background:var(--primary);color:#fff} .btn-primary:hover{opacity:.95} .btn-dark{background:var(--dark);color:#fff}
-    .btn-light{background:#fff;color:var(--dark);border:1px solid #e5e7eb} .pill{display:inline-flex;align-items:center;padding:.35rem .75rem;border-radius:9999px;font-size:.75rem;font-weight:800}
-    .toast{box-shadow:0 10px 30px rgba(0,0,0,.12)}
-    #toast-container{position:fixed;right:1rem;top:1rem;z-index:80;display:flex;flex-direction:column;gap:.75rem}
-    .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}
-    .sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
-    .stat{padding:1.25rem;border-radius:1.25rem;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.05)}
-    .muted{color:#64748b} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse} th,td{padding:1rem;border-bottom:1px solid #eef2f7;vertical-align:top} th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;text-align:left}
-    .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Seller - ARIANA MÓVEIS</title>
+
+    <link rel="manifest" href="./manifest-seller.webmanifest">
+    <meta name="theme-color" content="#0b1220">
+    <link rel="icon" href="./favicon.ico">
+    <link rel="apple-touch-icon" href="./icons/icon-seller-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .product-section { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
+        .product-section h2 { font-size: 1.4em; color: #333; margin-bottom: 10px; }
+        .product-section p { color: #666; margin-bottom: 20px; }
+        .dimensions-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .file-upload-cora input[type="file"] { display: none; }
+        .animate-fade { animation: fade-in 0.3s ease-out; }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .bg-primary-blue { background-color: #2E6DA4; }
+        .hover\:bg-secondary-light-blue:hover { background-color: #56B5FF; }
+        .text-primary-blue { color: #2E6DA4; }
+        .bg-dark-bg { background-color: #1D2B3A; }
+        .text-dark { color: #333333; }
+        .bg-fundo-claro { background-color: #F5F7FA; }
+        .bg-dark-gray-bg { background-color: #222222; }
+        .bg-error-red { background-color: #ef4444; }
+        .bg-success-green { background-color: #10b981; }
+        .text-error-red { color: #ef4444; }
+        .text-success-green { color: #10b981; }
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 50; }
+        .toast { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); transition: opacity 0.3s ease-out; }
+        #image-modal-overlay { background-color: rgba(0, 0, 0, 0.7); }
+        #image-modal-content { max-height: 90vh; max-width: 90vw; }
+    </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
-<div id="toast-container"></div>
-<aside id="sidebar" class="bg-dark-bg w-64 min-h-screen space-y-6 py-7 px-3 absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition z-40">
-  <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
-  <nav class="flex flex-col gap-1">
-    <a href="seller_dashboard.html" class="sidebar-link active"><i class="fas fa-home"></i><span>Dashboard</span></a>
-    <a href="seller_produtos.html" class="sidebar-link "><i class="fas fa-box"></i><span>Meus Produtos</span></a>
-    <a href="seller_produto_novo.html" class="sidebar-link "><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
-    <a href="seller_pedidos.html" class="sidebar-link "><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
-    <a href="seller_vendas.html" class="sidebar-link "><i class="fas fa-chart-line"></i><span>Vendas</span></a>
-    <a href="seller_notificacoes.html" class="sidebar-link "><i class="fas fa-bell"></i><span>Notificações</span></a>
-    <a href="seller_configuracoes.html" class="sidebar-link "><i class="fas fa-cog"></i><span>Configurações</span></a>
-    <a href="seller_devolucoes.html" class="sidebar-link "><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
-    <a href="seller_extrato.html" class="sidebar-link "><i class="fas fa-receipt"></i><span>Extrato</span></a>
-    <a href="#" id="btn-sair" class="sidebar-link text-red-300"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
-  </nav>
-</aside>
-<div class="flex-1 flex flex-col min-w-0">
-<header class="flex items-center justify-between p-4 bg-white border-b border-soft shadow-sm">
-  <button id="sidebar-toggle" class="text-gray-500 md:hidden"><i class="fas fa-bars text-xl"></i></button>
-  <h1 class="text-xl font-semibold text-dark-bg">Dashboard</h1>
-  <div class="flex items-center gap-3">
-    <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
-    <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+  <div id="toast-container" class="space-y-3"></div>
+  
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+        <a href="#" class="text-white flex items-center space-x-2 px-4">
+            <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
+        </a>
+        <nav class="flex flex-col space-y-2">
+            <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+            <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+            <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
+            <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+            <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+            <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
+            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
+            <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
+            <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+            <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+            <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+        </nav>
+  </aside>
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
+            <h1 class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
+            <div class="flex items-center space-x-4">
+                <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo!</span>
+                <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+            </div>
+    </header>
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+        <section>
+            <h2 class="text-2xl font-bold text-text-dark mb-6">Visão Geral do Seller</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
+                    <div><p class="text-sm font-medium text-gray-500">Meus Produtos</p><p id="kpi-products" class="text-3xl font-bold text-primary-blue">0</p></div>
+                    <i class="fas fa-box text-4xl text-primary-blue opacity-50"></i>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
+                    <div><p class="text-sm font-medium text-gray-500">Meus Pedidos</p><p id="kpi-orders" class="text-3xl font-bold text-success-green">0</p></div>
+                    <i class="fas fa-shopping-cart text-4xl text-success-green opacity-50"></i>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
+                    <div><p class="text-sm font-medium text-gray-500">Vendas (aprovadas)</p><p id="kpi-sales" class="text-3xl font-bold text-text-dark">R$ 0,00</p></div>
+                    <i class="fas fa-money-check-alt text-4xl text-text-dark opacity-50"></i>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
+                    <div><p class="text-sm font-medium text-gray-500">Pendências</p><p id="kpi-pending" class="text-3xl font-bold text-error-red">0</p></div>
+                    <i class="fas fa-clock text-4xl text-error-red opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-6 mt-6">
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-md animate-fade">
+                    <h3 class="text-xl font-semibold mb-4 text-primary-blue">Pedidos Recentes</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-tbody" class="bg-white divide-y divide-gray-200">
+                                <tr><td colspan="4" class="px-6 py-6 text-center text-gray-500">Sincronizando com MongoDB...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md animate-fade">
+                    <h3 class="text-xl font-semibold mb-4">Resumo Semanal</h3>
+                    <div id="resumo-semanal" class="text-sm text-gray-600">Carregando resumo...</div>
+                </div>
+            </div>
+        </section>
+    </main>
   </div>
-</header>
-<main class="page-main">
 
-<section class="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-  <div class="stat"><div class="muted text-sm font-bold uppercase">Vendas hoje</div><div id="kpi-vendas-hoje" class="text-2xl font-black mt-2">R$ 0,00</div></div>
-  <div class="stat"><div class="muted text-sm font-bold uppercase">Pedidos pendentes</div><div id="kpi-pedidos-pendentes" class="text-2xl font-black mt-2 text-amber-600">0</div></div>
-  <div class="stat"><div class="muted text-sm font-bold uppercase">Produtos ativos</div><div id="kpi-total-produtos" class="text-2xl font-black mt-2 text-primary-blue">0</div></div>
-  <div class="stat"><div class="muted text-sm font-bold uppercase">Vendas no mês</div><div id="kpi-vendas-mes" class="text-2xl font-black mt-2 text-green-600">R$ 0,00</div></div>
-</section>
-<section class="grid xl:grid-cols-3 gap-6">
-  <div class="card p-6 xl:col-span-2"><h3 class="text-lg font-black text-dark-bg mb-4">Pedidos recentes</h3><div id="recent-orders" class="space-y-3 text-sm text-slate-600">Carregando...</div></div>
-  <div class="card p-6"><h3 class="text-lg font-black text-dark-bg mb-4">Resumo rápido</h3><div id="weekly-summary" class="space-y-3 text-sm text-slate-600"></div></div>
-</section>
-</main></div>
+  <script>
+    const API_BASE = "https://ariana-moveis.onrender.com/api";
+    const $ = (id) => document.getElementById(id);
 
-<script>
-  const API_BASE = window.API_BASE || "http://localhost:3000/api";
-  const $ = (id) => document.getElementById(id);
+    async function loadDashboard() {
+        const token = localStorage.getItem("seller_token");
+        const profile = JSON.parse(localStorage.getItem("seller_profile") || "{}");
+        
+        if (!token) { window.location.href = 'seller_login.html'; return; }
+        
+        $('user-display-name').textContent = `Olá, ${profile.factoryName || profile.name || 'Seller'}!`;
 
-  function toast(message, type='info') {
-    const c = $('toast-container'); if (!c) return alert(message);
-    const el = document.createElement('div');
-    const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
-    el.textContent = message; c.appendChild(el);
-    setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
-  }
+        try {
+            const res = await fetch(`${API_BASE}/seller/dashboard`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const data = await res.json();
 
-  function brl(v){ return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
-  function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
-  function tsToDate(v){ try { return v ? new Date(v) : null; } catch { return null; } }
-  function dt(v){ const d = tsToDate(v); return d ? d.toLocaleString('pt-BR') : '—'; }
-  function statusClass(st=''){ st=String(st).toLowerCase(); if(['approved','paid','delivered','aprovado','enviado'].includes(st)) return 'bg-green-100 text-green-700'; if(['pending','pending_analysis','pending_onboarding','processing','aguardando'].includes(st)) return 'bg-amber-100 text-amber-700'; if(['cancelled','rejected','reprovado','bloqueado'].includes(st)) return 'bg-red-100 text-red-700'; return 'bg-gray-100 text-gray-700'; }
+            $('kpi-products').textContent = data.totalProdutos || 0;
+            $('kpi-orders').textContent = data.pedidosPendentes || 0;
+            $('kpi-pending').textContent = data.pedidosPendentes || 0;
+            $('kpi-sales').textContent = Number(data.vendasTotal || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  async function apiFetch(url, options = {}) {
-    const token = localStorage.getItem("seller_token") || "";
-    const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {})
-      },
-      ...options
+            const tbody = $('orders-tbody');
+            if (!data.recentOrders || data.recentOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-6 text-center text-gray-500">Nenhum pedido recente.</td></tr>';
+            } else {
+                tbody.innerHTML = data.recentOrders.map(o => `
+                    <tr>
+                        <td class="px-6 py-4 text-sm font-mono text-gray-900">#${String(o._id).slice(-6).toUpperCase()}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${o.status}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900 text-right">R$ ${Number(o.total || 0).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            $('resumo-semanal').innerHTML = `<p>Sua fábrica possui <strong>${data.totalProdutos || 0}</strong> produtos ativos. Continue gerenciando suas vendas!</p>`;
+
+        } catch (e) {
+            console.error(e);
+            $('orders-tbody').innerHTML = '<tr><td colspan="4" class="px-6 py-6 text-center text-red-500">Erro ao sincronizar dados. Verifique a conexão com o servidor.</td></tr>';
+        }
+    }
+
+    $('btn-sair')?.addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = 'seller_login.html';
     });
 
-    let data = null;
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      data = text ? { message: text } : null;
-    }
+    $('sidebar-toggle')?.addEventListener('click', () => {
+        $('sidebar').classList.toggle("-translate-x-full");
+    });
 
-    if (!response.ok) {
-      throw new Error(data?.message || `Erro HTTP ${response.status}`);
-    }
-
-    return data;
-  }
-
-  function getSellerProfile() {
-    try {
-      return JSON.parse(localStorage.getItem("seller_profile") || "null");
-    } catch (_) {
-      return null;
-    }
-  }
-
-  async function getMe() {
-    const data = await apiFetch(`${API_BASE}/seller/auth/me`);
-    const seller = data?.seller || data?.user || data?.profile || data;
-    if (seller) localStorage.setItem("seller_profile", JSON.stringify(seller));
-    return seller;
-  }
-
-  function clearSession() {
-    localStorage.removeItem("seller_token");
-    localStorage.removeItem("seller_profile");
-  }
-
-  const sidebar = $('sidebar');
-  $('sidebar-toggle')?.addEventListener('click', ()=> sidebar.classList.toggle('-translate-x-full'));
-  $('btn-sair')?.addEventListener('click', async (e)=>{
-    e.preventDefault();
-    clearSession();
-    window.location.href='seller_login.html';
-  });
-
-  async function loadDashboard() {
-    let seller = getSellerProfile();
-
-    try {
-      seller = await getMe();
-    } catch (e) {
-      console.error(e);
-      clearSession();
-      window.location.href = 'seller_login.html';
-      return;
-    }
-
-    const status = String(seller?.status || '').toLowerCase();
-    if (seller?.active === false || ['rejected','reprovado','bloqueado'].includes(status)) {
-      toast('Conta seller bloqueada ou reprovada.', 'error');
-      clearSession();
-      setTimeout(()=>window.location.href='seller_login.html', 900);
-      return;
-    }
-    if (!seller?.active || ['pending_analysis','pending_onboarding','em_analise'].includes(status)) {
-      window.location.href = 'seller_pending.html';
-      return;
-    }
-
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || seller.email || 'Seller'}!`;
-
-    try {
-      const data = await apiFetch(`${API_BASE}/seller/dashboard`);
-      const kpis = data?.kpis || data || {};
-      const orders = data?.recentOrders || data?.orders || [];
-
-      $('kpi-vendas-hoje').textContent = brl(kpis.vendasHoje || 0);
-      $('kpi-vendas-mes').textContent = brl(kpis.vendasMes || 0);
-      $('kpi-pedidos-pendentes').textContent = String(kpis.pedidosPendentes || 0);
-      $('kpi-total-produtos').textContent = String(kpis.totalProdutos || 0);
-
-      const rec = Array.isArray(orders) ? orders.slice(0, 6) : [];
-      $('recent-orders').innerHTML = rec.length
-        ? rec.map(o => `
-          <a class="block rounded-2xl border border-soft p-4 hover:bg-slate-50" href="seller_pedido_detalhe.html?id=${o.id || o._id || ''}">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="font-black text-dark-bg">Pedido #${String(o.id || o._id || '').slice(0,8)}</div>
-                <div class="muted mt-1">${dt(o.createdAt || o.updatedAt)}</div>
-              </div>
-              <div class="text-right">
-                <div class="pill ${statusClass(o.status)}">${o.status || '—'}</div>
-                <div class="font-black mt-2">${brl(o.total || 0)}</div>
-              </div>
-            </div>
-          </a>`).join('')
-        : 'Nenhum pedido encontrado.';
-
-      $('weekly-summary').innerHTML = `
-        <div class="rounded-2xl bg-slate-50 border border-soft p-4">
-          <div class="muted text-xs font-bold uppercase">Últimos pedidos lidos</div>
-          <div class="text-2xl font-black mt-2">${Array.isArray(orders) ? orders.length : 0}</div>
-        </div>
-        <div class="rounded-2xl bg-slate-50 border border-soft p-4">
-          <div class="muted text-xs font-bold uppercase">Ticket médio estimado</div>
-          <div class="text-2xl font-black mt-2">${brl(kpis.ticketMedio || 0)}</div>
-        </div>
-        <div class="rounded-2xl bg-slate-50 border border-soft p-4">
-          <div class="muted text-xs font-bold uppercase">Ação recomendada</div>
-          <div class="font-semibold mt-2">Revise pedidos pendentes e mantenha o estoque atualizado.</div>
-        </div>`;
-    } catch (e) {
-      console.error(e);
-      toast('Erro ao carregar dashboard.', 'error');
-      $('recent-orders').innerHTML = 'Erro ao carregar pedidos.';
-      $('weekly-summary').innerHTML = '<div class="muted">Não foi possível carregar o resumo.</div>';
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", loadDashboard);
-</script>
-<script src="js/layout-fit.js" defer></script>
-</body></html>
+    window.onload = loadDashboard;
+  </script>
+</body>
+</html>

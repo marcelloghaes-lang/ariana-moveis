@@ -3,162 +3,364 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+// ==========================================
 // 1. CARREGAR VARIÁVEIS DE AMBIENTE
+// ==========================================
 dotenv.config();
 
 const app = express();
 
+// ==========================================
 // 2. MIDDLEWARES
-app.use(cors());
+// ==========================================
+// CORS liberado para facilitar desenvolvimento local / Render / front separado
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // ==========================================
-// CONEXÃO SEGURA COM MONGODB ATLAS
+// 3. CONEXÃO COM MONGODB ATLAS
 // ==========================================
-// Lendo a senha do "cofre" do Render (MONGODB_URI)
 const mongoURI = process.env.MONGODB_URI;
 
 if (!mongoURI) {
-    console.error("❌ ERRO CRÍTICO: A variável MONGODB_URI não foi configurada no painel do Render.");
+  console.error('❌ ERRO CRÍTICO: MONGODB_URI não configurada.');
 } else {
-    mongoose.connect(mongoURI)
-        .then(() => console.log("✅ Conexão com MongoDB Atlas estabelecida!"))
-        .catch(err => console.error("❌ Erro ao conectar no MongoDB:", err));
+  mongoose.connect(mongoURI, {
+    serverSelectionTimeoutMS: 5000
+  })
+    .then(() => console.log('✅ Conexão com MongoDB Atlas estabelecida!'))
+    .catch(err => console.error('❌ Erro ao conectar no MongoDB:', err));
 }
 
-// ============================
-// MODELO (ESQUEMA) DO SELLER
-// ============================
+// ==========================================
+// 4. MODELOS (ESQUEMAS)
+// ==========================================
 const SellerSchema = new mongoose.Schema({
-    name: String,
-    factoryName: String,
-    email: { type: String, unique: true },
-    phone: String,
-    whatsapp: String,
-    cnpj: String,
-    password: String, 
-    status: { type: String, default: 'pending_onboarding' },
-    active: { type: Boolean, default: true },
-    createdAt: { type: Date, default: Date.now }
+  name: String,
+  factoryName: String,
+  email: { type: String, unique: true },
+  phone: String,
+  whatsapp: String,
+  cnpj: String,
+  password: String,
+  status: { type: String, default: 'pending_onboarding' },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
 });
 
-const Seller = mongoose.model('Seller', SellerSchema);
+const ProductSchema = new mongoose.Schema({
+  name: String,
+  sku: String,
+  price: Number,
+  stock: Number,
+  category: String,
+  description: String,
+  image: String,
+  pesoKg: Number,
+  comprimento: Number,
+  largura: Number,
+  altura: Number,
+  sellerId: String,
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
 
-// ============================
-// ROTA: RECEBER CADASTRO DO SELLER
-// ============================
-app.post('/api/seller/partner-request', async (req, res) => {
-    try {
-        const data = req.body;
-        
-        const novoSeller = new Seller({
-            name: data.name,
-            factoryName: data.factoryName,
-            email: data.email,
-            phone: data.phone,
-            whatsapp: data.whatsapp,
-            cnpj: data.cnpj,
-            password: data.requestedTempPass,
-            status: 'pending_onboarding'
-        });
+const Seller = mongoose.models.Seller || mongoose.model('Seller', SellerSchema);
+const Product = mongoose.models.Product || mongoose.model('Product', ProductSchema);
 
-        await novoSeller.save();
-        console.log(`🚀 Novo Seller Cadastrado: ${data.factoryName}`);
-
-        res.status(201).json({ 
-            ok: true, 
-            id: novoSeller._id, 
-            message: "Solicitação criada com sucesso!" 
-        });
-
-    } catch (error) {
-        console.error("Erro ao salvar Seller:", error);
-        res.status(400).json({ 
-            ok: false, 
-            error: "E-mail ou CNPJ já cadastrado ou erro no servidor." 
-        });
-    }
+// ==========================================
+// 5. ROTAS DE SAÚDE / TESTE
+// ==========================================
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'Ariana Móveis API',
+    mode: 'mongo',
+    message: 'Servidor rodando com sucesso'
+  });
 });
 
 // ==========================================
-// ROTA DE LOGIN (ADICIONADA PARA O MONGODB)
+// 6. ROTAS DO DASHBOARD
 // ==========================================
-app.post('/api/seller/auth/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-
-        // Procura o vendedor pelo e-mail no MongoDB Atlas
-        const seller = await Seller.findOne({ email: email.toLowerCase() });
-
-        if (!seller) {
-            return res.status(404).json({ message: "E-mail não encontrado." });
-        }
-
-        // Verifica a senha (comparação direta como você está usando)
-        if (seller.password !== password) {
-            return res.status(401).json({ message: "Senha incorreta." });
-        }
-
-        // Retorna os dados para o seu HTML salvar no localStorage
-        res.json({
-            token: "sessao_ativa_mongodb_" + seller._id, // Token temporário para manter logado
-            seller: {
-                id: seller._id,
-                name: seller.name,
-                factoryName: seller.factoryName,
-                email: seller.email,
-                status: seller.status,
-                active: seller.active
-            }
-        });
-
-    } catch (error) {
-        console.error("Erro no login:", error);
-        res.status(500).json({ message: "Erro interno no servidor." });
-    }
+app.get('/api/seller/dashboard', async (req, res) => {
+  try {
+    const totalProd = await Product.countDocuments();
+    res.json({
+      totalProdutos: totalProd,
+      vendasHoje: 0,
+      pedidosPendentes: 0,
+      vendasTotal: 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ============================
-// BOT CHATWOOT
-// ============================
-app.post('/chatwoot-bot', async (req, res) => {
-    try {
-        const message = (req.body?.content || "").toLowerCase();
+// ==========================================
+// 7. ROTA DE EXTRATO
+// ==========================================
+// Motorizada para ser rápida e evitar timeout
+app.get('/api/seller/extrato', async (req, res) => {
+  try {
+    const orders = await mongoose.connection.collection('orders').find({}).toArray();
 
-        let resposta = `👋 Olá! Bem-vindo à Ariana Móveis!\n\nDigite:\n1️⃣ Vendas\n2️⃣ Suporte\n3️⃣ Acompanhar pedido`;
+    const extrato = orders.map(o => {
+      const bruto = Number(o.total || 0);
+      const comissao = bruto * 0.12; // taxa de 12%
+      const etiqueta = 0; // ajuste aqui se quiser custo fixo
+      return {
+        id: o._id,
+        gross: bruto,
+        fee: comissao,
+        label: etiqueta,
+        net: bruto - comissao - etiqueta
+      };
+    });
 
-        if (message.includes("1")) {
-            resposta = "🛒 Você escolheu Vendas! Um atendente vai te chamar agora.";
-        } else if (message.includes("2")) {
-            resposta = "🛠️ Suporte selecionado! Me diga seu problema.";
-        } else if (message.includes("3")) {
-            resposta = "📦 Informe o número do seu pedido:";
-        }
-
-        res.json({ content: resposta });
-
-    } catch (err) {
-        console.error(err);
-        res.json({ content: "Erro no bot" });
-    }
+    res.json(extrato);
+  } catch (err) {
+    console.error('Erro no extrato:', err);
+    res.status(500).json({ error: 'Erro ao processar extrato' });
+  }
 });
 
-// LISTAR TODOS OS VENDEDORES PARA O ADMIN
+// ==========================================
+// 8. PRODUTOS
+// ==========================================
+app.get('/api/seller/products', async (req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/seller/products', async (req, res) => {
+  try {
+    const novo = new Product(req.body);
+    await novo.save();
+    res.status(201).json({ ok: true, product: novo });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/seller/products/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/seller/products/:id', async (req, res) => {
+  try {
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
+
+    res.json({ ok: true, product });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 9. PEDIDOS
+// ==========================================
+app.get('/api/seller/orders', async (req, res) => {
+  try {
+    const orders = await mongoose.connection
+      .collection('orders')
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar pedidos' });
+  }
+});
+
+app.get('/api/seller/orders/:id', async (req, res) => {
+  try {
+    const order = await mongoose.connection
+      .collection('orders')
+      .findOne({ _id: new mongoose.Types.ObjectId(req.params.id) });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
+
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/seller/orders/:id/ship', async (req, res) => {
+  try {
+    const { carrier, trackingCode } = req.body;
+
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: new mongoose.Types.ObjectId(req.params.id) },
+      {
+        $set: {
+          status: 'shipped',
+          carrier,
+          trackingCode,
+          shippedAt: new Date()
+        }
+      }
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 10. BOT DE ATENDIMENTO
+// ==========================================
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message = '' } = req.body;
+
+    let resposta = 'Desculpe, não entendi.';
+    if (message.includes('1')) {
+      resposta = 'Nossos móveis têm 1 ano de garantia.';
+    }
+
+    res.json({ content: resposta });
+  } catch (err) {
+    res.json({ content: 'Erro no bot' });
+  }
+});
+
+// ==========================================
+// 11. ADMIN / PARTNER REQUESTS
+// ==========================================
 app.get('/api/seller/partner-requests', async (req, res) => {
+  try {
     const sellers = await Seller.find().sort({ createdAt: -1 });
     res.json(sellers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// APROVAR OU REPROVAR VENDEDOR
 app.patch('/api/seller/partner-requests/:id/status', async (req, res) => {
+  try {
     const { status, active } = req.body;
-    await Seller.findByIdAndUpdate(req.params.id, { status, active });
-    res.json({ ok: true });
+
+    const updated = await Seller.findByIdAndUpdate(
+      req.params.id,
+      { status, active },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Seller não encontrado' });
+    }
+
+    res.json({ ok: true, seller: updated });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-// Iniciar Servidor (A porta 10000 é a padrão do Render)
+// ==========================================
+// 12. AUTH / LOGIN
+// ==========================================
+app.post('/api/seller/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const seller = await Seller.findOne({
+      email: String(email || '').toLowerCase(),
+      password
+    });
+
+    if (!seller) {
+      return res.status(401).json({ message: 'Credenciais inválidas' });
+    }
+
+    res.json({
+      token: 'token_' + seller._id,
+      seller
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 13. SELLER PROFILE
+// ==========================================
+app.get('/api/seller/me', async (req, res) => {
+  try {
+    const seller = await Seller.findOne().sort({ createdAt: 1 });
+    res.json(seller || { factoryName: 'Seller Ariana' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/seller/update', async (req, res) => {
+  try {
+    const seller = await Seller.findOneAndUpdate({}, req.body, {
+      new: true,
+      upsert: false
+    });
+
+    res.json({ ok: true, seller });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ROTA PARA BUSCAR ATENDIMENTOS (SAC)
+app.get('/api/seller/support', async (req, res) => {
+    try {
+        const tickets = await mongoose.connection.collection('support_tickets').find().sort({ createdAt: -1 }).toArray();
+        res.json(tickets);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// MARCAR COMO RESPONDIDO
+app.patch('/api/seller/support/:id/read', async (req, res) => {
+    try {
+        await mongoose.connection.collection('support_tickets').updateOne(
+            { _id: new mongoose.Types.ObjectId(req.params.id) },
+            { $set: { status: 'Respondido' } }
+        );
+        res.json({ ok: true });
+    } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// ==========================================
+// 14. START DO SERVIDOR
+// ==========================================
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Backend rodando na porta ${PORT}`);
+  console.log(`🚀 Ariana Móveis na porta ${PORT}`);
 });

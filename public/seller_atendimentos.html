@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Atendimentos | Admin</title>
+<title>Gestão de Atendimentos | ARIANA MÓVEIS</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -13,125 +13,115 @@
 .text-primary-blue { color: #2E6DA4; }
 .status-novo { background-color: #fee2e2; color: #991b1b; }
 .status-respondido { background-color: #dcfce7; color: #166534; }
+.sidebar-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; border-radius: 0.9rem; color: #fff; opacity: 0.95; transition: 0.2s; }
+.sidebar-link:hover, .sidebar-link.active { background: rgba(255, 255, 255, 0.08); opacity: 1; }
 </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 min-h-screen flex">
 
-<div class="flex-1 flex flex-col p-6">
+<aside id="sidebar" class="bg-dark-bg w-64 min-h-screen space-y-6 py-7 px-3 hidden md:block transition duration-200 ease-in-out">
+    <div class="px-4 mb-10">
+        <span class="text-white text-xl font-extrabold tracking-widest uppercase">Ariana Móveis</span>
+    </div>
+    <nav class="flex flex-col gap-1">
+        <a href="seller_dashboard.html" class="sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+        <a href="seller_produtos.html" class="sidebar-link"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+        <a href="seller_pedidos.html" class="sidebar-link"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+        <a href="seller_atendimentos.html" class="sidebar-link active"><i class="fas fa-headset"></i><span>Atendimentos</span></a>
+        <a href="seller_configuracoes.html" class="sidebar-link"><i class="fas fa-cog"></i><span>Configurações</span></a>
+        <a href="#" id="btn-sair" class="sidebar-link text-red-400 mt-10"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+    </nav>
+</aside>
+
+<div class="flex-1 flex flex-col p-6 overflow-y-auto">
 
 <header class="mb-8 flex justify-between items-center">
 <div>
 <h1 class="text-2xl font-bold text-dark-bg flex items-center">
 <i class="fas fa-headset mr-3 text-primary-blue"></i> SAC & Ouvidoria
 </h1>
-<p class="text-gray-600">Gerencie os contatos recebidos pelos formulários do site.</p>
+<p class="text-gray-600">Gerencie os contatos recebidos pelos formulários.</p>
 </div>
 
-<button onclick="location.reload()" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:bg-dark-bg transition-all">
-<i class="fas fa-sync-alt mr-2"></i> Atualizar
-</button>
+<div class="flex gap-4">
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 text-center min-w-[120px]">
+<p class="text-xs font-bold text-gray-400 uppercase">Total</p>
+<p id="total-contatos" class="text-xl font-bold text-dark-bg">0</p>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 text-center min-w-[120px]">
+<p class="text-xs font-bold text-gray-400 uppercase">Novos</p>
+<p id="total-novos" class="text-xl font-bold text-red-600">0</p>
+</div>
+</div>
 </header>
 
-<div class="flex gap-4 mb-6">
-<span id="total-sac" class="bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200 text-sm font-bold">SAC: 0</span>
-<span id="total-ouvidoria" class="bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200 text-sm font-bold">Ouvidoria: 0</span>
-</div>
-
-<div id="lista-atendimentos" class="space-y-4">
-<div class="text-center py-10 text-gray-500">Carregando mensagens...</div>
+<div id="atendimentos-container" class="space-y-4">
+    <div class="text-center py-10 text-gray-400">Buscando atendimentos no MongoDB...</div>
 </div>
 
 </div>
 
 <script>
-const API = "http://localhost:3000/api";
+const API_BASE = "https://ariana-move-mongo.onrender.com/api";
 
-async function carregarAtendimentos(){
-const container = document.getElementById('lista-atendimentos');
+async function carregarAtendimentos() {
+    const container = document.getElementById('atendimentos-container');
+    try {
+        const res = await fetch(`${API_BASE}/seller/support`);
+        const dados = await res.json();
 
-try{
-const res = await fetch(API + "/atendimentos");
-const data = await res.json();
+        if (!dados.length) {
+            container.innerHTML = '<div class="text-center py-10 text-gray-400 font-medium bg-white rounded-2xl border border-dashed border-gray-300">Nenhum chamado aberto no momento.</div>';
+            return;
+        }
 
-container.innerHTML = "";
+        container.innerHTML = '';
+        let novos = 0;
 
-let sacCount = 0;
-let ouvidoriaCount = 0;
+        dados.forEach(d => {
+            if(d.status === 'Novo') novos++;
+            
+            const card = `
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between gap-4 animate-fade">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs font-bold text-gray-400 italic">${new Date(d.createdAt || d.data).toLocaleString('pt-BR')}</span>
+                            <span class="text-xs font-bold px-2 py-1 rounded ${d.status === 'Novo' ? 'status-novo' : 'status-respondido'}">${d.status}</span>
+                        </div>
+                        <h3 class="font-bold text-gray-800">${d.nome} <span class="text-gray-400 font-normal text-sm">(${d.email})</span></h3>
+                        <p class="text-sm text-gray-500 mt-1"><strong>Pedido:</strong> ${d.pedido || 'Não informado'}</p>
+                        <div class="mt-3 p-3 bg-gray-50 rounded-lg text-gray-700 text-sm border-l-4 border-primary-blue italic">"${d.mensagem}"</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="mailto:${d.email}?subject=Resposta Ariana Móveis - Pedido ${d.pedido || ''}" 
+                           onclick="marcarComoLido('${d._id}')"
+                           class="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-dark-bg transition-all">
+                            <i class="fas fa-reply mr-2"></i> Responder
+                        </a>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', card);
+        });
 
-if(!data.length){
-container.innerHTML = '<div class="text-center py-10">Nenhuma mensagem recebida ainda.</div>';
-return;
+        document.getElementById('total-contatos').textContent = dados.length;
+        document.getElementById('total-novos').textContent = novos;
+
+    } catch (e) {
+        container.innerHTML = '<div class="text-center py-10 text-red-500 font-bold">Erro ao carregar atendimentos do Render.</div>';
+    }
 }
 
-data.forEach(d => {
-
-if(d.tipo === "SAC") sacCount++; else ouvidoriaCount++;
-
-const card = `
-<div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between gap-4">
-<div class="flex-1">
-
-<div class="flex items-center gap-2 mb-2">
-<span class="px-3 py-1 rounded-full text-xs font-bold ${d.tipo === 'Ouvidoria' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
-${d.tipo}
-</span>
-
-<span class="text-xs text-gray-400">
-${new Date(d.data).toLocaleString('pt-BR')}
-</span>
-
-<span class="text-xs font-bold px-2 py-1 rounded ${d.status === 'Novo' ? 'status-novo' : 'status-respondido'}">
-${d.status}
-</span>
-</div>
-
-<h3 class="font-bold text-gray-800">
-${d.nome}
-<span class="text-gray-400 font-normal text-sm">(${d.email})</span>
-</h3>
-
-<p class="text-sm text-gray-500 mt-1">
-<strong>Pedido:</strong> ${d.pedido || 'Não informado'}
-</p>
-
-<div class="mt-3 p-3 bg-gray-50 rounded-lg text-gray-700 text-sm border-l-4 border-primary-blue">
-"${d.mensagem}"
-</div>
-
-</div>
-
-<div class="flex items-center gap-2">
-<a href="mailto:${d.email}?subject=Resposta Ariana Móveis - ${d.tipo}"
-onclick="marcarComoLido('${d._id}')"
-class="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-dark-bg transition-all">
-<i class="fas fa-reply mr-2"></i> Responder
-</a>
-</div>
-</div>
-`;
-
-container.insertAdjacentHTML('beforeend', card);
-
-});
-
-document.getElementById('total-sac').textContent = `SAC: ${sacCount}`;
-document.getElementById('total-ouvidoria').textContent = `Ouvidoria: ${ouvidoriaCount}`;
-
-}catch(e){
-container.innerHTML = '<div class="text-center py-10 text-red-500">Erro ao carregar mensagens.</div>';
-}
+async function marcarComoLido(id) {
+    try {
+        await fetch(`${API_BASE}/seller/support/${id}/read`, { method: 'PATCH' });
+        carregarAtendimentos();
+    } catch (e) { console.error("Erro ao atualizar status", e); }
 }
 
-async function marcarComoLido(id){
-await fetch(API + "/atendimentos/" + id,{
-method:"PUT",
-headers:{ "Content-Type":"application/json"},
-body: JSON.stringify({status:"Respondido"})
-});
-}
-
-carregarAtendimentos();
+window.onload = carregarAtendimentos;
+document.getElementById('btn-sair').onclick = () => { localStorage.clear(); window.location.href="seller_login.html"; };
 </script>
 
 </body>

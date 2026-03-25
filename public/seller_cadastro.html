@@ -346,10 +346,8 @@
 </main>
   </div>
  <script>
-const API_BASE =
-  window.API_BASE ||
-  localStorage.getItem("API_BASE") ||
-  "http://localhost:3000/api";
+// Configuração direta para o servidor no Render
+const API_BASE = "https://ariana-moveis.onrender.com/api";
 
 const $ = (id)=>document.getElementById(id);
 
@@ -372,6 +370,7 @@ function toast(message, type='info'){
 
 function showAlert(msg, type='error'){
   const a = $('alert');
+  if(!a) return;
   a.textContent = msg;
 
   a.className =
@@ -383,7 +382,7 @@ function showAlert(msg, type='error'){
   a.classList.remove('hidden');
 }
 
-// ===== SUBMIT =====
+// ===== SUBMIT DO FORMULÁRIO =====
 $('signup-form').addEventListener('submit', async (e)=>{
   e.preventDefault();
 
@@ -404,15 +403,21 @@ $('signup-form').addEventListener('submit', async (e)=>{
       status: 'pending_onboarding'
     };
 
+    // Chamada para o servidor no Render
     const res = await fetch(API_BASE + "/seller/partner-request",{
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(payload)
     });
 
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Erro no servidor');
+    }
+
     const data = await res.json();
 
-    if(!data.id) throw new Error();
+    if(!data.id) throw new Error('ID não retornado pelo servidor');
 
     localStorage.setItem('partner_request_id', data.id);
 
@@ -423,13 +428,13 @@ $('signup-form').addEventListener('submit', async (e)=>{
       window.location.href = 'seller_onboarding.html?rid=' + encodeURIComponent(data.id);
     },700);
 
-  }catch(e){
-    console.error(e);
-    showAlert('Erro ao enviar solicitação.');
+  }catch(err){
+    console.error('Erro no cadastro:', err);
+    showAlert('Erro ao enviar solicitação: ' + err.message);
     toast('Erro ao enviar solicitação.', 'error');
 
     btn.disabled = false;
-    btn.textContent = 'Enviar solicitação';
+    btn.textContent = 'Criar conta';
   }
 });
 </script>

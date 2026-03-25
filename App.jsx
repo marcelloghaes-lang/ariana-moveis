@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Send, Loader2, LinkIcon, CheckCircle } from 'lucide-react'; // Ícones lucide-react
 
 // Use a URL da função que você acabou de implantar
-const API_URL = 'https://apiv2-zubfcbffpq-rj.a.run.app';
+const API_URL = process.env.API_BASE_URL;
 
 // Componente principal
 const App = () => {

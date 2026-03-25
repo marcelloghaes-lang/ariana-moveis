@@ -103,303 +103,86 @@
   </div>
 
 <script>
-const API_BASE = window.API_BASE || "http://localhost:3000/api";
-const $ = (id) => document.getElementById(id);
+    const API_BASE = "https://ariana-moveis.onrender.com/api";
+    const $ = (id) => document.getElementById(id);
 
-let currentUser = null;
-let allCategories = [];
-let rootCategories = [];
+    let currentProductId = new URLSearchParams(window.location.search).get("id") || "";
 
-function toast(message, type = "info") {
-  const container = $("toast-container");
-  if (!container) { alert(message); return; }
-  const el = document.createElement("div");
-  const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
-  el.className = "toast p-4 rounded-lg text-white " + (map[type] || map.info) + " animate-fade";
-  el.textContent = message;
-  container.appendChild(el);
-  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3500);
-}
+    async function loadProduct() {
+        if (!currentProductId) { alert("ID do produto não encontrado."); return; }
+        
+        try {
+            const token = localStorage.getItem("seller_token");
+            const res = await fetch(`${API_BASE}/seller/products/${currentProductId}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            const p = await res.json();
 
-async function apiFetch(url, options = {}) {
-  const token = localStorage.getItem("seller_token") || "";
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {})
-    },
-    ...options
-  });
+            // Preenche seus campos originais
+            $("name").value = p.name || "";
+            $("sku").value = p.sku || "";
+            $("price").value = p.price || 0;
+            $("stock").value = p.stock || 0;
+            $("description").value = p.description || "";
+            $("active").checked = p.active !== false;
+            $("pesoKg").value = p.pesoKg || p.weight || "";
+            $("comprimento").value = p.comprimento || p.length || "";
+            $("largura").value = p.largura || p.width || "";
+            $("altura").value = p.altura || p.height || "";
+            
+            // Exibe o ID e o Seller no topo
+            $("productIdPill").textContent = p._id;
+            $("productIdPill").classList.remove("hidden");
 
-  let data = null;
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    data = await response.json();
-  } else {
-    const text = await response.text();
-    data = text ? { message: text } : null;
-  }
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao carregar o produto do MongoDB.");
+        }
+    }
 
-  if (!response.ok) {
-    throw new Error(data?.message || `Erro HTTP ${response.status}`);
-  }
-  return data;
-}
+    $("form")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = $("btn-save");
+        btn.disabled = true;
+        btn.innerHTML = "Salvando...";
 
-function clearSession() {
-  localStorage.removeItem("seller_token");
-  localStorage.removeItem("seller_profile");
-}
+        try {
+            const payload = {
+                name: $("name").value,
+                sku: $("sku").value,
+                price: Number($("price").value),
+                stock: Number($("stock").value),
+                description: $("description").value,
+                active: $("active").checked,
+                pesoKg: Number($("pesoKg").value),
+                comprimento: Number($("comprimento").value),
+                largura: Number($("largura").value),
+                altura: Number($("altura").value)
+            };
 
-function normalizeSlug(value) {
-  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-function sanitizeSku(value) {
-  return String(value || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9_-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
-}
-function sortCategories(items) {
-  return [...items].sort((a, b) => {
-    const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999999;
-    const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999999;
-    if (ao !== bo) return ao - bo;
-    return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
-  });
-}
-function updateCategorySlugField() {
-  const selected = $("p-category")?.selectedOptions?.[0];
-  $("p-categorySlug").value = selected?.dataset?.slug || "";
-}
-function updateSubcategorySlugField() {
-  const selected = $("p-subcategory")?.selectedOptions?.[0];
-  $("p-subcategorySlug").value = selected?.dataset?.slug || "";
-}
-function productNameToken(name) {
-  const token = normalizeSlug(name).replace(/-/g, "").slice(0, 4).toUpperCase();
-  return token || "PROD";
-}
-function buildSkuBase({ sellerUid, categorySlug, productName }) {
-  const sellerPart = String(sellerUid || "SELL").replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "SELL";
-  const categoryPart = sanitizeSku((categorySlug || "GER").slice(0, 4));
-  const productPart = productNameToken(productName);
-  return `${categoryPart || "GER"}-${sellerPart}-${productPart}`;
-}
-async function skuExists(sku) {
-  const skuClean = sanitizeSku(sku);
-  if (!skuClean) return false;
-  const data = await apiFetch(`${API_BASE}/seller/products/check-sku?sku=${encodeURIComponent(skuClean)}`);
-  return !!(data?.exists);
-}
-async function ensureUniqueSku(base) {
-  const root = sanitizeSku(base) || "PROD-ITEM";
-  let candidate = `${root}-${Date.now().toString(36).toUpperCase()}`;
-  let tries = 0;
-  while (await skuExists(candidate)) {
-    tries += 1;
-    candidate = `${root}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-    if (tries > 5) throw new Error("Não foi possível gerar um SKU único.");
-  }
-  return candidate;
-}
-async function prepareSku() {
-  const manual = sanitizeSku($("p-sku").value);
-  if (manual) {
-    if (await skuExists(manual)) throw new Error("Já existe um produto com este SKU.");
-    $("p-sku").value = manual;
-    return manual;
-  }
-  const categoryOption = $("p-category")?.selectedOptions?.[0];
-  const base = buildSkuBase({
-    sellerUid: currentUser?.id || currentUser?._id || currentUser?.uid || "",
-    categorySlug: categoryOption?.dataset?.slug || "",
-    productName: $("p-name").value || ""
-  });
-  const generated = await ensureUniqueSku(base);
-  $("p-sku").value = generated;
-  return generated;
-}
-function buildOption(item, selectedId = "") {
-  const sel = String(item.id) === String(selectedId) ? " selected" : "";
-  return `<option value="${item.id}" data-name="${(item.name || "").replace(/"/g, "&quot;")}" data-slug="${(item.slug || "").replace(/"/g, "&quot;")}"${sel}>${item.name || "Sem nome"}</option>`;
-}
-function getCategoryChildren(parentId) {
-  return sortCategories(allCategories.filter(item => item.active !== false && String(item.parentId || "") === String(parentId || "")));
-}
-function preencherCategorias(selectedId = "") {
-  $("p-category").innerHTML = '<option value="">Selecione uma Categoria</option>' + rootCategories.map(item => buildOption(item, selectedId)).join("");
-  updateCategorySlugField();
-}
-function preencherSubcategorias(parentId = "", selectedId = "") {
-  const subcats = parentId ? getCategoryChildren(parentId) : [];
-  $("p-subcategory").innerHTML = '<option value="">Selecione uma Subcategoria</option>' + subcats.map(item => buildOption(item, selectedId)).join("");
-  const enabled = subcats.length > 0;
-  $("p-subcategory").disabled = !enabled;
-  $("p-subcategory").required = enabled;
-  if (!enabled) $("p-subcategory").value = "";
-  updateSubcategorySlugField();
-}
-async function carregarCategorias() {
-  const data = await apiFetch(`${API_BASE}/categories`);
-  allCategories = (Array.isArray(data) ? data : (data.items || data.categories || [])).map(item => ({
-    id: item.id || item._id,
-    name: item.name || "",
-    slug: item.slug || normalizeSlug(item.name || ""),
-    level: Number(item.level ?? 0),
-    parentId: item.parentId || "",
-    active: item.active !== false,
-    order: item.order ?? 999999
-  }));
-  rootCategories = sortCategories(allCategories.filter(item => item.active !== false && Number(item.level || 0) === 0));
-  preencherCategorias();
-  preencherSubcategorias("");
-}
-async function uploadSelectedImages(files) {
-  if (!files.length) return [];
-  const token = localStorage.getItem("seller_token") || "";
-  const form = new FormData();
-  files.forEach(file => form.append("images", file));
+            const token = localStorage.getItem("seller_token");
+            const res = await fetch(`${API_BASE}/seller/products/${currentProductId}`, {
+                method: "PUT",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
 
-  const response = await fetch(`${API_BASE}/seller/uploads/images`, {
-    method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: form
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.message || "Falha ao enviar imagens.");
-  return data?.files || data?.images || [];
-}
-
-const sidebar = $("sidebar");
-$("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
-$("btn-sair")?.addEventListener("click", async (e) => { e.preventDefault(); clearSession(); window.location.href = "seller_login.html"; });
-$("p-category")?.addEventListener("change", () => { preencherSubcategorias($("p-category").value || ""); updateCategorySlugField(); });
-$("p-subcategory")?.addEventListener("change", updateSubcategorySlugField);
-$("btn-generate-sku")?.addEventListener("click", async () => {
-  try {
-    const base = buildSkuBase({
-      sellerUid: currentUser?.id || currentUser?._id || currentUser?.uid || "",
-      categorySlug: $("p-category")?.selectedOptions?.[0]?.dataset?.slug || "",
-      productName: $("p-name").value || ""
-    });
-    $("p-sku").value = await ensureUniqueSku(base);
-    toast("SKU gerado com sucesso.", "success");
-  } catch (e) {
-    toast(e.message || "Não foi possível gerar o SKU.", "error");
-  }
-});
-$("p-sku")?.addEventListener("blur", () => { $("p-sku").value = sanitizeSku($("p-sku").value); });
-
-$("product-form")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    if (!currentUser) { window.location.href = "seller_login.html"; return; }
-
-    const files = Array.from($("file-input")?.files || []);
-    if (!files.length) throw new Error("Selecione pelo menos uma imagem.");
-
-    const categoryOption = $("p-category")?.selectedOptions?.[0];
-    const subcategoryOption = $("p-subcategory")?.selectedOptions?.[0];
-    const categoryId = $("p-category").value || "";
-    const subcategoryId = $("p-subcategory").value || "";
-
-    if (!categoryId) throw new Error("Selecione uma categoria.");
-    if (!$("p-subcategory").disabled && !subcategoryId) throw new Error("Selecione uma subcategoria.");
-
-    const pesoKg = Number($("p-weight").value || 0);
-    const comprimento = Number($("p-length").value || 0);
-    const largura = Number($("p-width").value || 0);
-    const altura = Number($("p-height").value || 0);
-    if (!(pesoKg > 0 && comprimento > 0 && largura > 0 && altura > 0)) throw new Error("Preencha peso e dimensões corretamente.");
-
-    $("btn-submit").disabled = true;
-    $("btn-submit").innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Publicando...';
-
-    const sku = await prepareSku();
-
-    toast("Enviando imagens...", "info");
-    const uploaded = await uploadSelectedImages(files);
-    const imageUrls = uploaded.map(img => typeof img === "string" ? img : (img.url || img.imageUrl)).filter(Boolean);
-    const mainImage = imageUrls[0] || "";
-
-    const categoryName = categoryOption?.dataset?.name || categoryOption?.textContent || "";
-    const categorySlug = categoryOption?.dataset?.slug || normalizeSlug(categoryName);
-    const subcategoryName = subcategoryOption?.dataset?.name || subcategoryOption?.textContent || "";
-    const subcategorySlug = subcategoryOption?.dataset?.slug || normalizeSlug(subcategoryName);
-
-    const sellerName = currentUser.factoryName || currentUser.nomeFantasia || currentUser.storeName || currentUser.name || currentUser.email || "Seller";
-
-    const payload = {
-      name: $("p-name").value || "",
-      sku: sku,
-      skuNormalized: sku,
-      stock: Number($("p-stock").value || 0),
-      price: Number($("p-price").value || 0),
-      pesoKg,
-      comprimento: Math.round(comprimento),
-      largura: Math.round(largura),
-      altura: Math.round(altura),
-      weight: pesoKg,
-      length: Math.round(comprimento),
-      width: Math.round(largura),
-      height: Math.round(altura),
-      dimensionsCm: { comprimento: Math.round(comprimento), largura: Math.round(largura), altura: Math.round(altura) },
-      categoryId,
-      category: categoryName || categorySlug,
-      categoryName: categoryName || null,
-      categorySlug: categorySlug || null,
-      subcategoryId: subcategoryId || null,
-      subcategory: subcategoryName || null,
-      subcategoryName: subcategoryName || null,
-      subcategorySlug: subcategorySlug || null,
-      description: $("p-desc").value || "",
-      images: imageUrls,
-      imageUrls,
-      mainImageUrl: mainImage,
-      imageUrl: mainImage,
-      sellerId: currentUser.id || currentUser._id || currentUser.uid,
-      sellerUid: currentUser.id || currentUser._id || currentUser.uid,
-      sellerName,
-      soldBy: sellerName,
-      deliveredBy: sellerName,
-      active: false,
-      approved: false
-    };
-
-    await apiFetch(`${API_BASE}/seller/products`, {
-      method: "POST",
-      body: JSON.stringify(payload)
+            if (res.ok) {
+                alert("Produto atualizado com sucesso!");
+                window.location.href = "seller_produtos.html";
+            }
+        } catch (err) {
+            alert("Erro ao salvar alterações.");
+            btn.disabled = false;
+            btn.innerHTML = "Salvar alterações";
+        }
     });
 
-    toast("Produto publicado com SKU salvo.", "success");
-    setTimeout(() => { window.location.href = "seller_produtos.html"; }, 700);
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Erro ao publicar produto.", "error");
-    $("btn-submit").disabled = false;
-    $("btn-submit").innerHTML = 'Publicar produto';
-  }
-});
-
-async function boot() {
-  try {
-    const me = await apiFetch(`${API_BASE}/seller/auth/me`);
-    currentUser = me?.seller || me?.user || me?.profile || me;
-    if (!currentUser) throw new Error("Sessão seller inválida.");
-
-    $("user-display-name").textContent = `Bem-vindo, ${currentUser.factoryName || currentUser.storeName || currentUser.name || currentUser.email || "Seller"}!`;
-    await carregarCategorias();
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Erro ao validar seller.", "error");
-    clearSession();
-    setTimeout(() => { window.location.href = "seller_login.html"; }, 1200);
-  }
-}
-
-document.addEventListener("DOMContentLoaded", boot);
+    window.onload = loadProduct;
+    $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
 </script>
 <script src="js/layout-fit.js" defer></script>
 </body>

@@ -4,146 +4,102 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>Conta em análise | ARIANA MÓVEIS</title>
-
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="css/tailwind.min.css">
-
   <style>
-    :root { --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; }
-    body { font-family: Inter, system-ui; background: var(--bg); }
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;padding:2rem}
-    .btn{border-radius:1rem;padding:.85rem 1.2rem;font-weight:800}
-    .btn-primary{background:#2E6DA4;color:#fff}
-    .btn-light{background:#fff;border:1px solid #e5e7eb}
+    :root { --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; }
+    body { font-family: Inter, sans-serif; background: var(--bg); }
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.5rem;box-shadow:0 10px 30px rgba(15,23,42,0.08)}
+    .btn-primary{background:var(--primary);color:#fff;font-weight:800;border-radius:1rem;padding:.85rem 1.5rem}
+    .btn-light{background:#fff;color:var(--dark);border:1px solid #e5e7eb;font-weight:800;border-radius:1rem;padding:.85rem 1.5rem}
   </style>
 </head>
-
 <body class="min-h-screen flex items-center justify-center p-6">
 
-<div id="toast-container"></div>
+  <div class="max-w-md w-full card p-10 text-center">
+    <div class="w-20 h-20 bg-blue-50 text-[#2E6DA4] rounded-3xl flex items-center justify-center mx-auto mb-6">
+      <i class="fa-solid fa-clock-rotate-left text-3xl animate-pulse"></i>
+    </div>
+    
+    <h1 class="text-2xl font-black text-slate-900 mb-3">Sua conta está em análise</h1>
+    <p class="text-slate-500 mb-8 leading-relaxed">
+      Quando a aprovação for concluída por nossa equipe, seu acesso ao painel será liberado automaticamente.
+    </p>
 
-<div class="w-full max-w-xl card">
+    <div class="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-8">
+      <span class="block text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Status Atual</span>
+      <div id="status-badge" class="text-lg font-bold text-slate-800">Verificando...</div>
+    </div>
 
-  <h1 class="text-2xl font-black text-slate-900">Sua conta está em análise</h1>
-  <p class="mt-2 text-slate-600">Quando a aprovação for concluída, seu acesso ao painel será liberado.</p>
-
-  <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-    <div class="text-xs font-extrabold text-slate-500">STATUS</div>
-    <div id="statusText" class="mt-1 text-lg font-black text-slate-900">carregando…</div>
-    <div id="hintText" class="mt-1 text-sm text-slate-600"></div>
+    <div class="flex flex-col gap-3">
+      <button onclick="refreshStatus()" id="btn-refresh" class="btn-primary w-full">Atualizar status</button>
+      <a href="seller_login.html" class="btn-light w-full">Ir para login</a>
+    </div>
   </div>
-
-  <div class="mt-6 flex flex-col sm:flex-row gap-3">
-    <button id="btnRefresh" class="btn btn-primary">Atualizar status</button>
-    <a href="seller_login.html" class="btn btn-light">Ir para login</a>
-  </div>
-
-</div>
 
 <script>
-const API_BASE =
-  window.API_BASE ||
-  localStorage.getItem("API_BASE") ||
-  "http://localhost:3000/api";
+  // CONFIGURAÇÃO DIRETA PARA O RENDER (FIM DO LOCALHOST)
+  const API_BASE = "https://ariana-moveis.onrender.com/api";
+  const $ = (id) => document.getElementById(id);
 
-const $ = (id)=>document.getElementById(id);
+  // Mapeamento de status que vêm do seu MongoDB Atlas
+  const statusMap = {
+    'pending_onboarding': 'Onboarding pendente',
+    'pending_analysis': 'Em análise técnica',
+    'em_analise': 'Em análise técnica',
+    'aprovado': 'Conta Aprovada!',
+    'reprovado': 'Solicitação Recusada',
+    'bloqueado': 'Conta Bloqueada'
+  };
 
-function getToken(){
-  return localStorage.getItem("seller_token") || "";
-}
-
-// ===== STATUS VIA REQUEST =====
-async function loadByRequestId(rid){
-  try{
-    const res = await fetch(API_BASE + "/seller/partner-request/" + rid);
-    const d = await res.json();
-
-    const st = String(d.status || "").toLowerCase();
-
-    if(st === "approved"){
-      $("statusText").textContent = "APROVADO ✅";
-      $("hintText").textContent = "Seu acesso será liberado.";
+  async function refreshStatus() {
+    const statusBadge = $('status-badge');
+    const btn = $('btn-refresh');
+    
+    // Pega o ID que salvamos no Login ou Cadastro
+    const rid = localStorage.getItem('partner_request_id') || localStorage.getItem('seller_pending_uid');
+    
+    if (!rid) {
+      statusBadge.textContent = "Erro: Login expirado";
+      statusBadge.className = "text-lg font-bold text-red-600";
       return;
     }
 
-    if(st === "rejected"){
-      $("statusText").textContent = "REPROVADO ❌";
-      $("hintText").textContent = "Entre em contato com suporte.";
-      return;
+    btn.disabled = true;
+    btn.textContent = "Consultando...";
+
+    try {
+      // Pergunta o status real ao servidor no Render
+      const response = await fetch(`${API_BASE}/seller/partner-requests/${rid}`);
+      if (!response.ok) throw new Error();
+      
+      const data = await response.json();
+      
+      // Ajusta para o formato de resposta do seu server.js
+      const requestData = data.request || data;
+      const status = requestData.status || 'pending_analysis';
+
+      statusBadge.textContent = statusMap[status] || status;
+      statusBadge.className = "text-lg font-bold text-[#2E6DA4]";
+
+      // Se você aprovar o vendedor no MongoDB Atlas, ele entra aqui automaticamente
+      if (status === 'aprovado' || requestData.active === true) {
+        window.location.href = 'seller_dashboard.html';
+      }
+
+    } catch (e) {
+      console.error("Erro na verificação:", e);
+      statusBadge.textContent = "Erro ao verificar login";
+      statusBadge.className = "text-lg font-bold text-red-600";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Atualizar status";
     }
-
-    if(st === "pending_onboarding"){
-      $("statusText").textContent = "PENDENTE: ONBOARDING";
-      $("hintText").textContent = "Finalize o cadastro.";
-      return;
-    }
-
-    $("statusText").textContent = "EM ANÁLISE ⏳";
-    $("hintText").textContent = "Aguardando aprovação.";
-
-  }catch{
-    $("statusText").textContent = "Erro ao consultar";
-  }
-}
-
-// ===== STATUS VIA LOGIN =====
-async function loadByAuth(){
-  try{
-    const res = await fetch(API_BASE + "/seller/me",{
-      headers:{ Authorization:`Bearer ${getToken()}` }
-    });
-
-    const seller = await res.json();
-
-    const st = String(seller.status || "").toLowerCase();
-
-    if(seller.active && st === "approved"){
-      $("statusText").textContent = "APROVADO ✅";
-      $("hintText").textContent = "Redirecionando...";
-      setTimeout(()=>window.location.href="seller_dashboard.html", 600);
-      return;
-    }
-
-    if(st === "rejected"){
-      $("statusText").textContent = "REPROVADO ❌";
-      $("hintText").textContent = "Entre em contato.";
-      return;
-    }
-
-    $("statusText").textContent = "EM ANÁLISE ⏳";
-    $("hintText").textContent = "Aguardando aprovação.";
-
-  }catch{
-    $("statusText").textContent = "Erro ao verificar login";
-  }
-}
-
-// ===== REFRESH =====
-async function refreshStatus(){
-  const rid =
-    new URLSearchParams(window.location.search).get("rid") ||
-    localStorage.getItem("partner_request_id");
-
-  if(getToken()){
-    return loadByAuth();
   }
 
-  if(rid){
-    return loadByRequestId(rid);
-  }
-
-  $("statusText").textContent = "Nenhuma solicitação encontrada";
-}
-
-// ===== EVENTO =====
-$("btnRefresh").addEventListener("click", refreshStatus);
-
-// ===== INIT =====
-refreshStatus();
+  // Verifica o status assim que a página abre
+  window.onload = refreshStatus;
 </script>
-
-<script src="js/layout-fit.js" defer></script>
-
 </body>
 </html>

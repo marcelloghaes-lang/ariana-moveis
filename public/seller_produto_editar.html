@@ -6,7 +6,23 @@
   <title>Editar Produto | ARIANA MÓVEIS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-  <link rel="stylesheet" href="css/tailwind.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'fundo-claro': '#F5F7FA',
+            'dark-gray-bg': '#222222',
+            'error-red': '#ef4444',
+            'success-green': '#10b981',
+          }
+        }
+      }
+    }
+  </script>
   <style>
     .animate-fade { animation: fade-in 0.3s ease-out; } @keyframes fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} }
     .bg-primary-blue { background-color: #2E6DA4; } .text-primary-blue { color:#2E6DA4; } .bg-dark-bg { background-color:#1D2B3A; }
@@ -32,6 +48,7 @@
       <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
       <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
       <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+      <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
       <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
       <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
       <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
@@ -47,7 +64,7 @@
       <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
       <h1 class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
       <div class="relative flex items-center space-x-4">
-        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+        <span id="user-display-name" class="text-sm font-medium text-gray-700">Olá, sn digital!</span>
         <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
       </div>
     </header>
@@ -57,7 +74,6 @@
         <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
           <div>
             <h2 class="text-2xl font-bold text-slate-900 flex items-center"><i class="fas fa-pen-to-square mr-3 text-primary-blue"></i> Editar Produto</h2>
-            <p class="text-gray-600 font-medium mt-2">Atualize informações do seu produto. Apenas o dono do produto pode editar.</p>
           </div>
           <a href="seller_produtos.html" class="bg-white px-4 py-2 rounded-xl font-bold text-slate-900 border border-gray-200 hover:bg-gray-50 transition-all"><i class="fas fa-arrow-left mr-2 text-primary-blue"></i> Voltar</a>
         </div>
@@ -68,7 +84,6 @@
           <div class="flex items-center justify-between gap-3 flex-wrap mb-6">
             <div class="flex items-center gap-2 flex-wrap">
               <span id="productIdPill" class="hidden text-xs font-bold bg-gray-100 text-gray-700 px-3 py-2 rounded-xl font-mono"></span>
-              <span id="sellerPill" class="hidden text-xs font-bold bg-gray-100 text-gray-700 px-3 py-2 rounded-xl"></span>
             </div>
             <button id="btn-inactivate" type="button" class="bg-red-50 text-red-700 px-4 py-2 rounded-xl font-bold border border-red-200 hover:bg-red-100 transition-all"><i class="fas fa-ban mr-2"></i> Inativar produto</button>
           </div>
@@ -77,16 +92,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label class="block font-bold mb-2 text-slate-900">Nome do produto <span class="text-red-500">*</span></label>
-                <input id="name" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Ex: Sofá Retrátil 3 Lugares" />
+                <input id="name" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" />
               </div>
 
               <div>
                 <label class="block font-bold mb-2 text-slate-900">SKU</label>
-                <div class="flex gap-2">
-                  <input id="sku" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold uppercase" placeholder="Ex: SOFA-001" />
-                  <button id="btn-generate-sku" type="button" class="bg-gray-100 px-4 rounded-xl font-bold whitespace-nowrap">Gerar SKU</button>
-                </div>
-                <p class="text-xs text-gray-500 mt-2">O sistema valida SKU duplicado antes de salvar.</p>
+                <input id="sku" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold uppercase" />
               </div>
 
               <div>
@@ -98,68 +109,26 @@
                 <label class="block font-bold mb-2 text-slate-900">Estoque <span class="text-red-500">*</span></label>
                 <input id="stock" type="number" step="1" min="0" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" />
               </div>
-
-              <div>
-                <label class="block font-bold mb-2 text-slate-900">Categoria</label>
-                <select id="category" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold"><option value="">Selecione uma categoria</option></select>
-              </div>
-
-              <div>
-                <label class="block font-bold mb-2 text-slate-900">Subcategoria</label>
-                <select id="subcategory" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold"><option value="">Selecione uma subcategoria</option></select>
-              </div>
-
-              <div>
-                <label class="block font-bold mb-2 text-slate-900">Slug da categoria</label>
-                <input id="categorySlug" readonly class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-gray-50 text-gray-600" />
-              </div>
-
-              <div>
-                <label class="block font-bold mb-2 text-slate-900">Slug da subcategoria</label>
-                <input id="subcategorySlug" readonly class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-gray-50 text-gray-600" />
-              </div>
             </div>
 
             <div>
               <label class="block font-bold mb-2 text-slate-900">Descrição</label>
-              <textarea id="description" rows="5" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Descreva o produto..."></textarea>
-            </div>
-
-            <div>
-              <label class="block font-bold mb-2 text-slate-900">Adicionar novas imagens</label>
-              <input id="newImages" type="file" multiple accept="image/*" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-white" />
-              <p class="text-xs text-gray-500 mt-2">As novas imagens serão adicionadas ao produto.</p>
+              <textarea id="description" rows="5" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold"></textarea>
             </div>
 
             <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200">
               <div class="font-bold text-slate-900 mb-3"><i class="fas fa-truck mr-2 text-primary-blue"></i> Dimensões e Peso para Frete</div>
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div><label class="block font-bold mb-2 text-slate-900">Peso (kg) <span class="text-red-500">*</span></label><input id="pesoKg" type="number" step="0.01" min="0" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
-                <div><label class="block font-bold mb-2 text-slate-900">Comprimento (cm) <span class="text-red-500">*</span></label><input id="comprimento" type="number" min="1" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
-                <div><label class="block font-bold mb-2 text-slate-900">Largura (cm) <span class="text-red-500">*</span></label><input id="largura" type="number" min="1" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
-                <div><label class="block font-bold mb-2 text-slate-900">Altura (cm) <span class="text-red-500">*</span></label><input id="altura" type="number" min="1" required class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Peso (kg)</label><input id="pesoKg" type="number" step="0.01" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Comp. (cm)</label><input id="comprimento" type="number" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Larg. (cm)</label><input id="largura" type="number" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
+                <div><label class="block font-bold mb-2 text-slate-900">Alt. (cm)</label><input id="altura" type="number" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold" /></div>
               </div>
-            </div>
-
-            <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200">
-              <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-                <div><div class="font-bold text-slate-900"><i class="fas fa-image mr-2 text-primary-blue"></i> Imagens (URLs)</div><div class="text-xs text-gray-600 font-medium mt-1">A primeira URL é a imagem principal.</div></div>
-                <button type="button" id="btn-add-image" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-900 transition-all shadow"><i class="fas fa-plus mr-2"></i> Adicionar</button>
-              </div>
-              <div id="imagesWrap" class="space-y-3"></div>
-            </div>
-
-            <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200">
-              <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-                <div><div class="font-bold text-slate-900"><i class="fas fa-list-check mr-2 text-primary-blue"></i> Especificações técnicas</div><div class="text-xs text-gray-600 font-medium mt-1">Chave/valor (ex: marca, modelo, cor...)</div></div>
-                <button type="button" id="btn-add-spec" class="bg-slate-900 text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-blue transition-all shadow"><i class="fas fa-plus mr-2"></i> Adicionar</button>
-              </div>
-              <div id="specsWrap" class="space-y-3"></div>
             </div>
 
             <div class="flex items-start justify-between gap-4 flex-wrap border-t border-gray-100 pt-6">
-              <label class="flex items-center gap-3 font-bold text-slate-900"><input id="active" type="checkbox" class="w-5 h-5" /> Produto ativo (visível para clientes)</label>
-              <button id="btn-save" type="submit" class="bg-primary-blue text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition-all shadow-lg"><i class="fas fa-save mr-2"></i> Salvar alterações</button>
+              <label class="flex items-center gap-3 font-bold text-slate-900"><input id="active" type="checkbox" class="w-5 h-5" /> Produto ativo</label>
+              <button id="btn-save" type="submit" class="bg-primary-blue text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition-all shadow-lg">Salvar alterações</button>
             </div>
           </form>
         </div>
@@ -168,456 +137,70 @@
   </div>
 
   <script>
-    const API_BASE = window.API_BASE || "http://localhost:3000/api";
+    const API_BASE = "https://ariana-moveis.onrender.com/api";
     const $ = (id) => document.getElementById(id);
+    const productId = new URLSearchParams(window.location.search).get("id");
 
-    let currentUser = null;
-    let currentProduct = null;
-    let currentProductId = "";
-    let allCategories = [];
-    let rootCategories = [];
-
-    function toast(message, type="info"){
-      const container = $("toast-container");
-      if(!container) return alert(message);
-      const el = document.createElement("div");
-      const map = { success:"bg-success-green", error:"bg-error-red", info:"bg-primary-blue" };
-      el.className = "toast p-4 rounded-lg text-white " + (map[type] || "bg-primary-blue") + " animate-fade";
-      el.textContent = message;
-      container.appendChild(el);
-      setTimeout(()=>{ el.style.opacity="0"; setTimeout(()=>el.remove(), 300); }, 3500);
+    async function loadProduct() {
+      if (!productId) return;
+      try {
+        const res = await fetch(`${API_BASE}/seller/products/${productId}`);
+        const p = await res.json();
+        
+        $('productIdPill').textContent = p._id || p.id;
+        $('productIdPill').classList.remove('hidden');
+        $('name').value = p.name || '';
+        $('sku').value = p.sku || '';
+        $('price').value = p.price || 0;
+        $('stock').value = p.stock || 0;
+        $('description').value = p.description || '';
+        $('pesoKg').value = p.pesoKg || p.weight || '';
+        $('comprimento').value = p.comprimento || p.length || '';
+        $('largura').value = p.largura || p.width || '';
+        $('altura').value = p.altura || p.height || '';
+        $('active').checked = p.active !== false;
+      } catch (e) { console.error(e); }
     }
 
-    function showAlert(type, msg) {
-      const el = $("alert");
-      if(!el) return toast(msg, type === "error" ? "error" : "success");
-      el.classList.remove("hidden");
-      el.className = "mb-6 p-4 rounded-xl font-bold " + (type === "error"
-        ? "bg-red-100 text-red-700 border border-red-200"
-        : "bg-emerald-100 text-emerald-700 border border-emerald-200");
-      el.textContent = msg;
-    }
-
-    async function apiFetch(url, options = {}) {
-      const token = localStorage.getItem("seller_token") || "";
-      const response = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(options.headers || {})
-        },
-        ...options
-      });
-
-      let data = null;
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        data = text ? { message: text } : null;
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.message || `Erro HTTP ${response.status}`);
-      }
-      return data;
-    }
-
-    function clearSession() {
-      localStorage.removeItem("seller_token");
-      localStorage.removeItem("seller_profile");
-    }
-
-    function normalizeSlug(value) {
-      return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    }
-    function sanitizeSku(value) {
-      return String(value || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9_-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
-    }
-    function sortCategories(items) {
-      return [...items].sort((a, b) => {
-        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 999999;
-        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 999999;
-        if (ao !== bo) return ao - bo;
-        return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" });
-      });
-    }
-    function updateCategorySlugField() {
-      const selected = $("category")?.selectedOptions?.[0];
-      $("categorySlug").value = selected?.dataset?.slug || "";
-    }
-    function updateSubcategorySlugField() {
-      const selected = $("subcategory")?.selectedOptions?.[0];
-      $("subcategorySlug").value = selected?.dataset?.slug || "";
-    }
-    function productNameToken(name) {
-      const token = normalizeSlug(name).replace(/-/g, "").slice(0, 4).toUpperCase();
-      return token || "PROD";
-    }
-    function buildSkuBase({ sellerUid, categorySlug, productName }) {
-      const sellerPart = String(sellerUid || "SELL").replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase() || "SELL";
-      const categoryPart = sanitizeSku((categorySlug || "GER").slice(0, 4));
-      const productPart = productNameToken(productName);
-      return `${categoryPart || "GER"}-${sellerPart}-${productPart}`;
-    }
-
-    async function skuExists(sku, excludeId = "") {
-      const skuClean = sanitizeSku(sku);
-      if (!skuClean) return false;
-      const data = await apiFetch(`${API_BASE}/seller/products/check-sku?sku=${encodeURIComponent(skuClean)}&excludeId=${encodeURIComponent(excludeId || "")}`);
-      return !!(data?.exists);
-    }
-
-    async function ensureUniqueSku(base, excludeId = "") {
-      const root = sanitizeSku(base) || "PROD-ITEM";
-      let candidate = `${root}-${Date.now().toString(36).toUpperCase()}`;
-      let tries = 0;
-      while (await skuExists(candidate, excludeId)) {
-        tries += 1;
-        candidate = `${root}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
-        if (tries > 5) throw new Error("Não foi possível gerar um SKU único.");
-      }
-      return candidate;
-    }
-
-    function getProductId() {
-      const url = new URL(window.location.href);
-      return url.searchParams.get("productId") || url.searchParams.get("id") || "";
-    }
-
-    function createImageRow(value = "") {
-      const row = document.createElement("div");
-      row.className = "flex gap-2 flex-wrap";
-      row.innerHTML = `
-        <input class="imgUrl flex-1 min-w-[220px] border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="https://..." value="${String(value || "").replace(/"/g, "&quot;")}">
-        <button type="button" class="btnRemoveImg bg-gray-100 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"><i class="fas fa-trash"></i></button>
-      `;
-      row.querySelector(".btnRemoveImg")?.addEventListener("click", () => row.remove());
-      return row;
-    }
-
-    function createSpecRow(key = "", value = "") {
-      const row = document.createElement("div");
-      row.className = "grid grid-cols-1 md:grid-cols-12 gap-2 items-center";
-      row.innerHTML = `
-        <input class="specKey md:col-span-5 border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Ex: marca" value="${String(key || "").replace(/"/g, "&quot;")}">
-        <input class="specVal md:col-span-6 border border-gray-200 rounded-xl px-4 py-3 font-semibold" placeholder="Ex: Ariana" value="${String(value || "").replace(/"/g, "&quot;")}">
-        <button type="button" class="btnRemoveSpec md:col-span-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"><i class="fas fa-trash"></i></button>
-      `;
-      row.querySelector(".btnRemoveSpec")?.addEventListener("click", () => row.remove());
-      return row;
-    }
-
-    function imagesToArray() {
-      return Array.from(document.querySelectorAll(".imgUrl")).map(i => (i.value || "").trim()).filter(Boolean);
-    }
-
-    function specsToObject() {
-      const obj = {};
-      document.querySelectorAll("#specsWrap > div").forEach((row) => {
-        const k = row.querySelector(".specKey")?.value?.trim();
-        const v = row.querySelector(".specVal")?.value?.trim();
-        if (k) obj[k] = v || "";
-      });
-      return obj;
-    }
-
-    function getCategoryChildren(parentId) {
-      return sortCategories(allCategories.filter(item => item.active !== false && String(item.parentId || "") === String(parentId || "")));
-    }
-
-    function buildOption(item, selectedId = "") {
-      const sel = String(item.id) === String(selectedId) ? " selected" : "";
-      return `<option value="${item.id}" data-name="${(item.name || "").replace(/"/g, "&quot;")}" data-slug="${(item.slug || "").replace(/"/g, "&quot;")}"${sel}>${item.name || "Sem nome"}</option>`;
-    }
-
-    function preencherCategorias(selectedId = "") {
-      $("category").innerHTML = '<option value="">Selecione uma Categoria</option>' + rootCategories.map(item => buildOption(item, selectedId)).join("");
-      updateCategorySlugField();
-    }
-
-    function preencherSubcategorias(parentId = "", selectedId = "") {
-      const subcats = parentId ? getCategoryChildren(parentId) : [];
-      $("subcategory").innerHTML = '<option value="">Selecione uma Subcategoria</option>' + subcats.map(item => buildOption(item, selectedId)).join("");
-      const enabled = subcats.length > 0;
-      $("subcategory").disabled = !enabled;
-      $("subcategory").required = enabled;
-      if (!enabled) $("subcategory").value = "";
-      updateSubcategorySlugField();
-    }
-
-    async function carregarCategorias() {
-      const data = await apiFetch(`${API_BASE}/categories`);
-      allCategories = (Array.isArray(data) ? data : (data.items || data.categories || [])).map(item => ({
-        id: item.id || item._id,
-        name: item.name || "",
-        slug: item.slug || normalizeSlug(item.name || ""),
-        level: Number(item.level ?? 0),
-        parentId: item.parentId || "",
-        active: item.active !== false,
-        order: item.order ?? 999999
-      }));
-
-      rootCategories = sortCategories(allCategories.filter(item => item.active !== false && Number(item.level || 0) === 0));
-      preencherCategorias();
-      preencherSubcategorias("");
-    }
-
-    function fillProduct(product) {
-      currentProduct = product;
-      currentProductId = product.id || product._id || "";
-
-      $("productIdPill").textContent = currentProductId;
-      $("productIdPill").classList.remove("hidden");
-      $("sellerPill").textContent = product.sellerName || product.storeName || "Seu produto";
-      $("sellerPill").classList.remove("hidden");
-
-      $("name").value = product.name || "";
-      $("sku").value = product.sku || "";
-      $("price").value = Number(product.price || 0);
-      $("stock").value = Number(product.stock || 0);
-      $("description").value = product.description || "";
-      $("active").checked = product.active !== false;
-
-      $("pesoKg").value = product.pesoKg ?? product.weight ?? "";
-      $("comprimento").value = product.comprimento ?? product.length ?? "";
-      $("largura").value = product.largura ?? product.width ?? "";
-      $("altura").value = product.altura ?? product.height ?? "";
-
-      const categoryId = product.categoryId || "";
-      const subcategoryId = product.subcategoryId || "";
-
-      preencherCategorias(categoryId);
-      preencherSubcategorias(categoryId, subcategoryId);
-
-      $("imagesWrap").innerHTML = "";
-      const imgs = Array.isArray(product.images) ? product.images : (Array.isArray(product.imageUrls) ? product.imageUrls : []);
-      (imgs.length ? imgs : [""]).forEach(url => $("imagesWrap").appendChild(createImageRow(typeof url === "string" ? url : (url?.url || ""))));
-
-      const specs = product.technicalSpecs && typeof product.technicalSpecs === "object" ? product.technicalSpecs : {};
-      $("specsWrap").innerHTML = "";
-      const keys = Object.keys(specs);
-      (keys.length ? keys : ["marca"]).forEach((k) => $("specsWrap").appendChild(createSpecRow(k, keys.length ? specs[k] : "")));
-    }
-
-    async function uploadSelectedImages(files) {
-      if (!files.length) return [];
-      const token = localStorage.getItem("seller_token") || "";
-      const form = new FormData();
-      files.forEach(file => form.append("images", file));
-
-      const response = await fetch(`${API_BASE}/seller/uploads/images`, {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: form
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.message || "Falha ao enviar imagens.");
-
-      return data?.files || data?.images || [];
-    }
-
-    async function loadProduct(productId) {
-      const data = await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
-      const product = data?.item || data?.product || data;
-      if (!product) throw new Error("Produto não encontrado.");
-      fillProduct(product);
-    }
-
-    window.openImageModal = function(src, name=""){
-      const overlay = $("image-modal-overlay");
-      const img = $("modal-image");
-      const nm = $("modal-image-name");
-      if (!overlay || !img) return;
-      img.src = src || "";
-      if (nm) nm.textContent = name || "";
-      overlay.classList.remove("hidden");
-      overlay.classList.add("flex");
-    };
-
-    window.closeImageModal = function(){
-      const overlay = $("image-modal-overlay");
-      const img = $("modal-image");
-      if (img) img.src = "";
-      if (!overlay) return;
-      overlay.classList.add("hidden");
-      overlay.classList.remove("flex");
-    };
-
-    const sidebar = $("sidebar");
-    $("sidebar-toggle")?.addEventListener("click", () => sidebar?.classList.toggle("-translate-x-full"));
-    $("btn-sair")?.addEventListener("click", async (e) => {
+    $('form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      clearSession();
-      window.location.href = "seller_login.html";
-    });
+      const btn = $('btn-save');
+      btn.disabled = true;
+      btn.textContent = "Salvando...";
 
-    $("btn-add-image")?.addEventListener("click", () => $("imagesWrap").appendChild(createImageRow("")));
-    $("btn-add-spec")?.addEventListener("click", () => $("specsWrap").appendChild(createSpecRow("", "")));
-    $("category")?.addEventListener("change", () => { preencherSubcategorias($("category").value || ""); updateCategorySlugField(); });
-    $("subcategory")?.addEventListener("change", updateSubcategorySlugField);
-    $("sku")?.addEventListener("blur", () => { $("sku").value = sanitizeSku($("sku").value); });
+      const payload = {
+        name: $('name').value,
+        sku: $('sku').value,
+        price: Number($('price').value),
+        stock: Number($('stock').value),
+        description: $('description').value,
+        pesoKg: Number($('pesoKg').value),
+        comprimento: Number($('comprimento').value),
+        largura: Number($('largura').value),
+        altura: Number($('altura').value),
+        active: $('active').checked
+      };
 
-    $("btn-generate-sku")?.addEventListener("click", async () => {
       try {
-        const base = buildSkuBase({
-          sellerUid: currentUser?.id || currentUser?._id || currentUser?.uid || "",
-          categorySlug: $("category")?.selectedOptions?.[0]?.dataset?.slug || "",
-          productName: $("name").value || ""
-        });
-        $("sku").value = await ensureUniqueSku(base, currentProductId);
-        toast("SKU gerado com sucesso.", "success");
-      } catch (e) {
-        toast(e.message || "Não foi possível gerar o SKU.", "error");
-      }
-    });
-
-    $("btn-inactivate")?.addEventListener("click", async () => {
-      try {
-        if (!currentProductId) throw new Error("Produto não carregado.");
-        if (!confirm("Deseja inativar este produto?")) return;
-
-        await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(currentProductId)}`, {
-          method: "PUT",
-          body: JSON.stringify({ active: false })
-        });
-
-        $("active").checked = false;
-        showAlert("ok", "Produto inativado.");
-      } catch (e) {
-        console.error(e);
-        showAlert("error", e.message || "Não foi possível inativar.");
-      }
-    });
-
-    $("form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        if (!currentProductId || !currentUser) throw new Error("Produto não carregado.");
-
-        const categoryId = $("category").value || "";
-        const subcategoryId = $("subcategory").value || "";
-        if (!categoryId) throw new Error("Selecione uma categoria.");
-        if (!$("subcategory").disabled && !subcategoryId) throw new Error("Selecione uma subcategoria.");
-
-        const categoryOption = $("category").selectedOptions?.[0] || null;
-        const subcategoryOption = $("subcategory").selectedOptions?.[0] || null;
-        const categoryName = categoryOption?.dataset?.name || categoryOption?.textContent || "";
-        const categorySlug = categoryOption?.dataset?.slug || normalizeSlug(categoryName);
-        const subcategoryName = subcategoryOption?.dataset?.name || subcategoryOption?.textContent || "";
-        const subcategorySlug = subcategoryOption?.dataset?.slug || normalizeSlug(subcategoryName);
-
-        const pesoKg = Number($("pesoKg").value || 0);
-        const comprimento = Number($("comprimento").value || 0);
-        const largura = Number($("largura").value || 0);
-        const altura = Number($("altura").value || 0);
-        if (!(pesoKg > 0 && comprimento > 0 && largura > 0 && altura > 0)) throw new Error("Preencha corretamente Peso e Dimensões.");
-
-        let sku = sanitizeSku($("sku").value);
-        if (!sku) {
-          const base = buildSkuBase({
-            sellerUid: currentUser?.id || currentUser?._id || currentUser?.uid || "",
-            categorySlug,
-            productName: $("name").value || ""
-          });
-          sku = await ensureUniqueSku(base, currentProductId);
-        } else if (await skuExists(sku, currentProductId)) {
-          throw new Error("Já existe outro produto com este SKU.");
-        }
-        $("sku").value = sku;
-
-        const currentUrls = imagesToArray();
-        const freshFiles = Array.from($("newImages")?.files || []);
-        let uploadedUrls = [];
-        if (freshFiles.length) {
-          toast("Enviando imagens...", "info");
-          const uploaded = await uploadSelectedImages(freshFiles);
-          uploadedUrls = uploaded.map(img => typeof img === "string" ? img : (img.url || img.imageUrl)).filter(Boolean);
-        }
-
-        const imageUrls = [...currentUrls, ...uploadedUrls].filter(Boolean);
-        const mainImageUrl = imageUrls[0] || null;
-
-        const payload = {
-          name: ($("name").value || "").trim(),
-          sku,
-          skuNormalized: sku,
-          price: Number($("price").value || 0),
-          stock: Number($("stock").value || 0),
-          pesoKg,
-          comprimento: Math.round(comprimento),
-          largura: Math.round(largura),
-          altura: Math.round(altura),
-          weight: pesoKg,
-          length: Math.round(comprimento),
-          width: Math.round(largura),
-          height: Math.round(altura),
-          categoryId,
-          category: categoryName || categorySlug,
-          categoryName: categoryName || null,
-          categorySlug: categorySlug || null,
-          subcategoryId: subcategoryId || null,
-          subcategory: subcategoryName || null,
-          subcategoryName: subcategoryName || null,
-          subcategorySlug: subcategorySlug || null,
-          description: ($("description").value || "").trim(),
-          active: $("active").checked,
-          images: imageUrls,
-          imageUrls,
-          imageUrl: mainImageUrl,
-          mainImageUrl,
-          technicalSpecs: specsToObject()
-        };
-
-        const btn = $("btn-save");
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
-
-        await apiFetch(`${API_BASE}/seller/products/${encodeURIComponent(currentProductId)}`, {
-          method: "PUT",
+        const res = await fetch(`${API_BASE}/seller/products/${productId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
-        currentProduct = { ...currentProduct, ...payload };
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar alterações';
-        showAlert("ok", "Produto atualizado com sucesso.");
-      } catch (e) {
-        console.error(e);
-        showAlert("error", e.message || "Não foi possível salvar.");
-        $("btn-save").disabled = false;
-        $("btn-save").innerHTML = '<i class="fas fa-save mr-2"></i> Salvar alterações';
+        if (res.ok) {
+          alert("Produto atualizado com sucesso!");
+          window.location.href = "seller_produtos.html";
+        }
+      } catch (e) { 
+        alert("Erro ao salvar."); 
+        btn.disabled = false; 
+        btn.textContent = "Salvar alterações"; 
       }
     });
 
-    async function boot() {
-      try {
-        const me = await apiFetch(`${API_BASE}/seller/auth/me`);
-        currentUser = me?.seller || me?.user || me?.profile || me;
-        if (!currentUser) throw new Error("Sessão seller inválida.");
-
-        $("user-display-name").textContent = `Bem-vindo, ${currentUser.factoryName || currentUser.storeName || currentUser.name || currentUser.email || "Seller"}!`;
-
-        await carregarCategorias();
-
-        const productId = getProductId();
-        if (!productId) throw new Error("Abra esta tela com ?id=ID_DO_PRODUTO");
-        await loadProduct(productId);
-      } catch (e) {
-        console.error(e);
-        showAlert("error", e.message || "Erro ao carregar.");
-        clearSession();
-        setTimeout(() => { window.location.href = "seller_login.html"; }, 1200);
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", boot);
+    window.onload = loadProduct;
+    $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
+    $('btn-sair')?.addEventListener('click', () => { localStorage.clear(); window.location.href = 'seller_login.html'; });
   </script>
-
-  <script src="js/layout-fit.js" defer></script>
 </body>
 </html>

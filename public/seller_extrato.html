@@ -7,56 +7,40 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="icon" type="image/png" href="/favicon.png" />
-  <link rel="stylesheet" href="css/tailwind.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'fundo-claro': '#F5F7FA',
+            'dark-gray-bg': '#222222',
+            'error-red': '#ef4444',
+            'success-green': '#10b981',
+          }
+        }
+      }
+    }
+  </script>
 
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
     .animate-fade { animation: fade-in 0.3s ease-out; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
     .bg-primary-blue { background-color: #2E6DA4; }
-    .text-primary-blue { color: #2E6DA4; }
     .bg-dark-bg { background-color: #1D2B3A; }
-    .bg-dark-gray-bg { background-color: #222222; }
-    .bg-fundo-claro { background-color: #F5F7FA; }
-    .bg-error-red { background-color: #ef4444; }
-    .bg-success-green { background-color: #10b981; }
-    .text-error-red { color: #ef4444; }
-    .text-success-green { color: #10b981; }
-
-    #toast-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 50;
-    }
-    .toast {
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-      transition: opacity 0.3s ease-out;
-    }
-
-    #image-modal-overlay { background-color: rgba(0,0,0,0.7); }
-    #image-modal-content { max-height: 90vh; max-width: 90vw; }
+    #toast-container { position: fixed; top: 20px; right: 20px; z-index: 50; }
   </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
   <div id="toast-container" class="space-y-3"></div>
 
-  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
-    <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
-      <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
-      <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain" />
-      <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
-    </div>
-  </div>
-
   <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
     <a href="#" class="text-white flex items-center space-x-2 px-4">
       <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
     </a>
-
     <nav class="flex flex-col space-y-2">
       <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
       <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
@@ -64,7 +48,6 @@
       <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
       <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
       <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
-      <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
       <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
       <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
       <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
@@ -74,34 +57,15 @@
 
   <div class="flex-1 flex flex-col overflow-hidden">
     <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
-        <i class="fas fa-bars text-xl"></i>
-      </button>
-
-      <h1 id="view-title" class="text-xl font-semibold text-gray-800">Painel do Seller</h1>
-
-      <div id="user-info" class="relative flex items-center space-x-4">
-        <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
-          <i class="fas fa-bell text-xl"></i>
-          <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
-        </button>
-
-        <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
-          <div class="p-3 border-b flex items-center justify-between">
-            <span class="font-semibold text-gray-800">Notificações</span>
-            <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
-          </div>
-          <div id="notif-list" class="max-h-80 overflow-y-auto">
-            <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
-          </div>
-        </div>
-
+      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
+      <h1 class="text-xl font-semibold text-gray-800">Painel do Seller</h1>
+      <div class="relative flex items-center space-x-4">
         <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
         <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
       </div>
     </header>
 
-    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
+    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
       <section class="bg-white p-6 rounded-lg shadow-md animate-fade">
         <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
           <div>
@@ -144,7 +108,7 @@
               </tr>
             </thead>
             <tbody id="tb" class="bg-white divide-y divide-gray-200">
-              <tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Carregando...</td></tr>
+              <tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Carregando dados do MongoDB...</td></tr>
             </tbody>
           </table>
         </div>
@@ -153,232 +117,58 @@
   </div>
 
   <script>
-    const API_BASE = window.API_BASE || window.API_URL || localStorage.getItem('apiBaseUrl') || 'http://localhost:3000/api';
+    const API_BASE = "https://ariana-move-mongo.onrender.com/api"; // URL do seu Render
     const byId = (id) => document.getElementById(id);
 
-    function toast(message, type = "info") {
-      const container = byId("toast-container");
-      if (!container) { alert(message); return; }
-      const el = document.createElement("div");
-      const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
-      el.className = "toast p-4 rounded-lg text-white " + (map[type] || map.info) + " animate-fade";
-      el.textContent = message;
-      container.appendChild(el);
-      setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3500);
-    }
-
     function money(v) {
-      const n = Number(v || 0);
-      return (Number.isFinite(n) ? n : 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    }
-
-    function safeNumber(v) {
-      const n = Number(v || 0);
-      return Number.isFinite(n) ? n : 0;
-    }
-
-    function getSellerToken() {
-      return localStorage.getItem('seller_token') || '';
-    }
-
-    function getSellerProfile() {
-      try {
-        return JSON.parse(localStorage.getItem('seller_profile') || '{}');
-      } catch {
-        return {};
-      }
-    }
-
-    async function apiFetch(path, options = {}) {
-      const token = getSellerToken();
-      const response = await fetch(`${API_BASE}${path}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(options.headers || {})
-        }
-      });
-
-      const text = await response.text();
-      let data = null;
-
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = text;
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
-      }
-
-      return data;
-    }
-
-    async function ensureSellerSession() {
-      const profile = getSellerProfile();
-      const token = getSellerToken();
-
-      if (!token) {
-        window.location.href = 'seller_login.html';
-        throw new Error('Sessão expirada.');
-      }
-
-      try {
-        const me = await apiFetch('/seller/me');
-        return me?.seller || me?.data || me || profile;
-      } catch (e) {
-        if (profile && (profile.id || profile._id || profile.uid)) return profile;
-        window.location.href = 'seller_login.html';
-        throw e;
-      }
-    }
-
-    function computeSellerMetrics(order) {
-      const gross = safeNumber(order?.gross ?? order?.bruto ?? order?.itemsSubtotal);
-      const fee = safeNumber(order?.fee ?? order?.commission ?? order?.comissao);
-      const label = safeNumber(order?.label ?? order?.labelCost ?? order?.shippingLabel ?? order?.etiqueta);
-      const net = safeNumber(order?.net ?? order?.liquido ?? (gross - fee - label));
-      return { gross, fee, label, net };
+      return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     }
 
     async function renderExtrato() {
       const tb = byId("tb");
-      const kpiGross = byId("kpi-gross");
-      const kpiFee = byId("kpi-fee");
-      const kpiLabel = byId("kpi-label");
-      const kpiNet = byId("kpi-net");
-
-      if (tb) tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Carregando...</td></tr>';
-
-      const data = await apiFetch('/seller/extrato');
-      const items = Array.isArray(data) ? data : (data?.items || data?.rows || data?.extrato || []);
-
-      if (!items.length) {
-        if (tb) tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Sem movimentos.</td></tr>';
-        if (kpiGross) kpiGross.textContent = money(0);
-        if (kpiFee) kpiFee.textContent = money(0);
-        if (kpiLabel) kpiLabel.textContent = money(0);
-        if (kpiNet) kpiNet.textContent = money(0);
-        return;
-      }
-
-      let grossTotal = 0;
-      let feeTotal = 0;
-      let labelTotal = 0;
-      let netTotal = 0;
-
-      if (tb) tb.innerHTML = "";
-
-      items.slice(0, 100).forEach((order) => {
-        const m = computeSellerMetrics(order);
-        grossTotal += m.gross;
-        feeTotal += m.fee;
-        labelTotal += m.label;
-        netTotal += m.net;
-
-        tb.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">${order.id || order.orderId || order._id || '—'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${money(m.gross)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-error-red text-right">-${money(m.fee)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-700 text-right">-${money(m.label)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-success-green text-right">${money(m.net)}</td>
-          </tr>
-        `);
-      });
-
-      if (kpiGross) kpiGross.textContent = money(grossTotal);
-      if (kpiFee) kpiFee.textContent = money(feeTotal);
-      if (kpiLabel) kpiLabel.textContent = money(labelTotal);
-      if (kpiNet) kpiNet.textContent = money(netTotal);
-    }
-
-    const sidebar = byId("sidebar");
-    const sidebarToggle = byId("sidebar-toggle");
-    if (sidebar && sidebarToggle) {
-      sidebarToggle.addEventListener("click", () => sidebar.classList.toggle("-translate-x-full"));
-    }
-
-    const notifBtn = byId("notif-btn");
-    const notifDropdown = byId("notif-dropdown");
-    if (notifBtn && notifDropdown) {
-      notifBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        notifDropdown.classList.toggle("hidden");
-      });
-      document.addEventListener("click", () => {
-        if (!notifDropdown.classList.contains("hidden")) notifDropdown.classList.add("hidden");
-      });
-    }
-
-    const sairBtn = byId("btn-sair");
-    if (sairBtn) {
-      sairBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        localStorage.removeItem('seller_token');
-        localStorage.removeItem('seller_profile');
-        window.location.href = "seller_login.html";
-      });
-    }
-
-    const refreshBtn = byId("btn-refresh");
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", async () => {
-        try {
-          await renderExtrato();
-          toast("Extrato atualizado.", "success");
-        } catch (err) {
-          console.error(err);
-          toast(err.message || "Erro ao atualizar extrato.", "error");
-        }
-      });
-    }
-
-    window.openImageModal = function (src, name = "") {
-      const overlay = byId("image-modal-overlay");
-      const img = byId("modal-image");
-      const nm = byId("modal-image-name");
-      if (!overlay || !img) return;
-      img.src = src || "";
-      if (nm) nm.textContent = name || "";
-      overlay.classList.remove("hidden");
-      overlay.classList.add("flex");
-    };
-
-    window.closeImageModal = function () {
-      const overlay = byId("image-modal-overlay");
-      const img = byId("modal-image");
-      if (img) img.src = "";
-      if (!overlay) return;
-      overlay.classList.add("hidden");
-      overlay.classList.remove("flex");
-    };
-
-    (async () => {
       try {
-        const seller = await ensureSellerSession();
+        const res = await fetch(`${API_BASE}/seller/extrato`);
+        const items = await res.json();
 
-        const userLabel = byId("user-display-name");
-        if (userLabel) {
-          userLabel.textContent = "Bem-vindo, " + (seller.factoryName || seller.storeName || seller.name || seller.email || "Seller") + "!";
+        if (!items.length) {
+          tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Nenhum movimento encontrado.</td></tr>';
+          return;
         }
 
-        await renderExtrato();
+        let grossTotal = 0, feeTotal = 0, labelTotal = 0, netTotal = 0;
+        tb.innerHTML = "";
+
+        items.forEach((item) => {
+          grossTotal += item.gross;
+          feeTotal += item.fee;
+          labelTotal += item.label;
+          netTotal += item.net;
+
+          tb.insertAdjacentHTML("beforeend", `
+            <tr>
+              <td class="px-6 py-4 text-sm font-mono text-gray-900">#${String(item.id).substring(0,8).toUpperCase()}</td>
+              <td class="px-6 py-4 text-sm text-gray-900 text-right">${money(item.gross)}</td>
+              <td class="px-6 py-4 text-sm text-error-red text-right">-${money(item.fee)}</td>
+              <td class="px-6 py-4 text-sm text-yellow-700 text-right">-${money(item.label)}</td>
+              <td class="px-6 py-4 text-sm text-success-green text-right font-bold">${money(item.net)}</td>
+            </tr>
+          `);
+        });
+
+        byId("kpi-gross").textContent = money(grossTotal);
+        byId("kpi-fee").textContent = money(feeTotal);
+        byId("kpi-label").textContent = money(labelTotal);
+        byId("kpi-net").textContent = money(netTotal);
+
       } catch (err) {
-        console.error(err);
-        window.location.href = "seller_login.html";
+        tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-red-500">Erro ao conectar com o servidor.</td></tr>';
       }
-    })();
-
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(() => {});
-      });
     }
-  </script>
 
-  <script src="js/layout-fit.js" defer></script>
+    window.onload = renderExtrato;
+    byId("btn-refresh").onclick = renderExtrato;
+    byId("sidebar-toggle").onclick = () => byId("sidebar").classList.toggle("-translate-x-full");
+    byId("btn-sair").onclick = () => { localStorage.clear(); window.location.href = "seller_login.html"; };
+  </script>
 </body>
 </html>

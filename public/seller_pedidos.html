@@ -7,243 +7,112 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="css/tailwind.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'fundo-claro': '#F5F7FA',
+            'dark-gray-bg': '#222222',
+            'error-red': '#ef4444',
+            'success-green': '#10b981',
+          }
+        }
+      }
+    }
+  </script>
 
   <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #F5F7FA;
-    }
-
-    .product-section {
-      background-color: #ffffff;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 25px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
-
-    .product-section h2 {
-      font-size: 1.4em;
-      color: #333;
-      margin-bottom: 10px;
-    }
-
-    .product-section p {
-      color: #666;
-      margin-bottom: 20px;
-    }
-
-    .dimensions-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 15px;
-      margin-bottom: 20px;
-    }
-
-    .file-upload-cora input[type="file"] {
-      display: none;
-    }
-
+    body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
     .animate-fade { animation: fade-in 0.3s ease-out; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
     .bg-primary-blue { background-color: #2E6DA4; }
-    .hover\:bg-secondary-light-blue:hover { background-color: #56B5FF; }
-    .text-primary-blue { color: #2E6DA4; }
     .bg-dark-bg { background-color: #1D2B3A; }
-    .text-dark { color: #333333; }
-    .bg-fundo-claro { background-color: #F5F7FA; }
-    .bg-dark-gray-bg { background-color: #222222; }
-    .bg-error-red { background-color: #ef4444; }
-    .bg-success-green { background-color: #10b981; }
-    .text-error-red { color: #ef4444; }
-    .text-success-green { color: #10b981; }
-
-    #toast-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 50;
-    }
-    .toast {
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-      transition: opacity 0.3s ease-out;
-    }
-
-    #image-modal-overlay {
-      background-color: rgba(0, 0, 0, 0.7);
-    }
-    #image-modal-content {
-      max-height: 90vh;
-      max-width: 90vw;
-    }
+    #toast-container { position: fixed; top: 20px; right: 20px; z-index: 50; }
   </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
   <div id="toast-container" class="space-y-3"></div>
 
-  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
-    <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
-      <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
-      <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain">
-      <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
-    </div>
-  </div>
-
   <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
-    <a href="#" class="text-white flex items-center space-x-2 px-4">
+    <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4">
       <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
     </a>
-
     <nav class="flex flex-col space-y-2">
-      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-home"></i><span>Dashboard</span>
-      </a>
-      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-box"></i><span>Meus Produtos</span>
-      </a>
-      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span>
-      </a>
-      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-shopping-cart"></i><span>Pedidos</span>
-      </a>
-      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-chart-line"></i><span>Vendas</span>
-      </a>
-      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-bell"></i><span>Notificações</span>
-      </a>
-      <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-credit-card"></i><span>Mercado Pago</span>
-      </a>
-      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-cog"></i><span>Configurações</span>
-      </a>
-      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-exchange-alt"></i><span>Devoluções</span>
-      </a>
-      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link">
-        <i class="fas fa-receipt"></i><span>Extrato</span>
-      </a>
-      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto">
-        <i class="fas fa-sign-out-alt"></i><span>Sair</span>
-      </a>
+      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
+      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
+      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
     </nav>
   </aside>
 
   <div class="flex-1 flex flex-col overflow-hidden">
     <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
-        <i class="fas fa-bars text-xl"></i>
-      </button>
-      <h1 id="view-title" class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
-      <div id="user-info" class="relative flex items-center space-x-4">
-        <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
-          <i class="fas fa-bell text-xl"></i>
-          <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
-        </button>
-        <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
-          <div class="p-3 border-b flex items-center justify-between">
-            <span class="font-semibold text-gray-800">Notificações</span>
-            <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
-          </div>
-          <div id="notif-list" class="max-h-80 overflow-y-auto">
-            <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
-          </div>
-        </div>
-        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+      <button id="sidebar-toggle" class="text-gray-500 md:hidden"><i class="fas fa-bars text-xl"></i></button>
+      <h1 class="text-xl font-semibold">Pedidos</h1>
+      <div class="flex items-center space-x-4">
+        <span id="user-display-name" class="text-sm font-black text-gray-700">Olá, sn digital!</span>
         <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
       </div>
     </header>
 
-    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
-      <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <div>
-            <h1 class="text-3xl font-black text-dark-bg">Pedidos</h1>
-            <p class="text-gray-500 mt-2 text-sm">Veja e gerencie os pedidos vinculados à sua loja.</p>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <div class="relative">
-              <i class="fas fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-              <input id="search-input" type="text"
-                placeholder="Buscar por ID, comprador..."
-                class="pl-11 pr-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-blue outline-none text-sm w-[260px]">
-            </div>
-
-            <select id="status-filter"
-              class="px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-blue outline-none text-sm">
-              <option value="all">Todos os status</option>
-              <option value="pending">pending</option>
-              <option value="pending_payment">pending_payment</option>
-              <option value="paid">paid</option>
-              <option value="processing">processing</option>
-              <option value="shipped">shipped</option>
-              <option value="delivered">delivered</option>
-              <option value="cancelled">cancelled</option>
-              <option value="refunded">refunded</option>
-            </select>
-
-            <button id="refresh-btn"
-              class="inline-flex items-center gap-2 rounded-2xl bg-primary-blue px-4 py-3 text-white text-sm font-black hover:opacity-95 transition">
-              <i class="fas fa-rotate"></i> Atualizar
-            </button>
-          </div>
+    <main class="flex-1 overflow-y-auto p-6 space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <p class="text-xs font-black uppercase text-gray-400">Total Pedidos</p>
+          <p id="kpi-orders" class="text-3xl font-black text-dark-bg mt-2">0</p>
         </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-          <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-            <p class="text-xs font-black uppercase tracking-widest text-gray-400">Pedidos</p>
-            <p id="kpi-orders" class="text-3xl font-black text-dark-bg mt-2">0</p>
-          </div>
-          <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-            <p class="text-xs font-black uppercase tracking-widest text-gray-400">Pendentes</p>
-            <p id="kpi-pending" class="text-3xl font-black text-dark-bg mt-2">0</p>
-          </div>
-          <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-            <p class="text-xs font-black uppercase tracking-widest text-gray-400">Em envio</p>
-            <p id="kpi-shipped" class="text-3xl font-black text-dark-bg mt-2">0</p>
-          </div>
-          <div class="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-            <p class="text-xs font-black uppercase tracking-widest text-gray-400">Receita (itens)</p>
-            <p id="kpi-revenue" class="text-3xl font-black text-green-600 mt-2">R$ 0,00</p>
-            <p class="text-[11px] text-gray-400 mt-2">Somente itens desta loja.</p>
-          </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <p class="text-xs font-black uppercase text-gray-400">Pendentes</p>
+          <p id="kpi-pending" class="text-3xl font-black text-dark-bg mt-2">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <p class="text-xs font-black uppercase text-gray-400">Em envio</p>
+          <p id="kpi-shipped" class="text-3xl font-black text-dark-bg mt-2">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <p class="text-xs font-black uppercase text-gray-400">Receita Estimada</p>
+          <p id="kpi-revenue" class="text-3xl font-black text-success-green mt-2">R$ 0,00</p>
         </div>
       </div>
 
       <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-          <h2 class="text-lg font-black text-dark-bg">Lista de pedidos</h2>
-          <span id="orders-count" class="text-xs font-black text-gray-400 uppercase tracking-widest">0 itens</span>
+        <div class="p-6 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center">
+          <h2 class="text-lg font-black text-dark-bg">Lista de Pedidos</h2>
+          <div class="flex gap-2">
+            <input id="search-input" type="text" placeholder="Buscar pedido..." autocomplete="off" class="px-4 py-2 border rounded-xl text-sm outline-none focus:border-primary-blue">
+            <select id="status-filter" class="px-4 py-2 border rounded-xl text-sm outline-none">
+                <option value="all">Todos os status</option>
+                <option value="paid">Pago</option>
+                <option value="pending">Pendente</option>
+                <option value="shipped">Enviado</option>
+            </select>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="min-w-full text-left">
-            <thead class="bg-gray-50 border-b border-gray-100">
+          <table class="min-w-full text-left text-sm">
+            <thead class="bg-gray-50 text-gray-400 font-black uppercase text-[10px] tracking-widest">
               <tr>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase">Pedido</th>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase">Comprador</th>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase">Status</th>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase">Pagamento</th>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase">Data</th>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase text-right">Total (itens)</th>
-                <th class="p-4 text-xs font-black text-gray-400 uppercase text-right">Ações</th>
+                <th class="p-4">Pedido</th>
+                <th class="p-4">Comprador</th>
+                <th class="p-4">Status</th>
+                <th class="p-4">Data</th>
+                <th class="p-4 text-right">Total</th>
+                <th class="p-4 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody id="orders-tbody" class="divide-y text-sm">
-              <tr>
-                <td colspan="7" class="p-10 text-center text-gray-400">
-                  <i class="fas fa-circle-notch fa-spin mr-2"></i>
-                  Carregando pedidos...
-                </td>
-              </tr>
+            <tbody id="orders-tbody" class="divide-y divide-gray-50">
+              <tr><td colspan="6" class="p-10 text-center text-gray-400">Sincronizando com MongoDB...</td></tr>
             </tbody>
           </table>
         </div>
@@ -251,273 +120,54 @@
     </main>
   </div>
 
-<script>
-  const API_BASE = window.API_BASE || "http://localhost:3000/api";
-  const $ = (id) => document.getElementById(id);
+  <script>
+    const API_BASE = "https://ariana-moveis.onrender.com/api";
+    const $ = (id) => document.getElementById(id);
 
-  let sellerUid = "";
-  let allRows = [];
+    async function loadOrders() {
+      const tbody = $("orders-tbody");
+      try {
+        const token = localStorage.getItem("seller_token");
+        const res = await fetch(`${API_BASE}/seller/orders`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        const orders = await res.json();
 
-  function brl(v) {
-    return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  }
+        if (!orders.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-gray-400">Nenhum pedido encontrado no banco.</td></tr>';
+          return;
+        }
 
-  function toast(message, type = "info") {
-    const container = $("toast-container");
-    if (!container) { alert(message); return; }
-    const el = document.createElement("div");
-    const map = { success: "bg-success-green", error: "bg-error-red", info: "bg-primary-blue" };
-    el.className = `toast p-4 rounded-lg text-white ${map[type] || map.info} animate-fade`;
-    el.textContent = message;
-    container.appendChild(el);
-    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3500);
-  }
+        $("kpi-orders").textContent = orders.length;
+        $("kpi-pending").textContent = orders.filter(o => o.status === 'pending').length;
+        $("kpi-shipped").textContent = orders.filter(o => o.status === 'shipped').length;
+        const totalRevenue = orders.reduce((acc, o) => acc + (o.total || 0), 0);
+        $("kpi-revenue").textContent = totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  async function apiFetch(url, options = {}) {
-    const token = localStorage.getItem("seller_token") || "";
-    const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {})
-      },
-      ...options
-    });
+        tbody.innerHTML = orders.map(o => `
+          <tr class="hover:bg-gray-50 transition">
+            <td class="p-4 font-black text-dark-bg">#${o._id.substring(0,8).toUpperCase()}</td>
+            <td class="p-4">
+                <div class="font-bold">${o.customerName || 'Cliente'}</div>
+                <div class="text-[10px] text-gray-400">${o.customerEmail || ''}</div>
+            </td>
+            <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${o.status || 'pendente'}</span></td>
+            <td class="p-4 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+            <td class="p-4 text-right font-black">R$ ${Number(o.total || 0).toFixed(2)}</td>
+            <td class="p-4 text-right">
+                <a href="seller_pedido_editar.html?id=${o._id}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
+            </td>
+          </tr>
+        `).join('');
 
-    let data = null;
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      data = text ? { message: text } : null;
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-red-500">Erro ao carregar dados do Render.</td></tr>';
+      }
     }
 
-    if (!response.ok) {
-      throw new Error(data?.message || `Erro HTTP ${response.status}`);
-    }
-
-    return data;
-  }
-
-  function clearSession() {
-    localStorage.removeItem("seller_token");
-    localStorage.removeItem("seller_profile");
-  }
-
-  function formatDate(ts) {
-    if (!ts) return "—";
-    try {
-      return new Date(ts).toLocaleString("pt-BR");
-    } catch {
-      return "—";
-    }
-  }
-
-  function paymentText(payment) {
-    if (!payment) return "—";
-    const provider = payment.provider || payment.gateway || "—";
-    const type = payment.type || payment.method || "—";
-    const st = payment.status || payment.mpStatus || "";
-    return `${provider} • ${type}${st ? ` • ${st}` : ""}`;
-  }
-
-  function statusBadge(status) {
-    const s = String(status || "pending");
-    const base = "inline-flex items-center px-3 py-1 rounded-full text-xs font-black";
-    if (["paid", "processing"].includes(s)) return `<span class="${base} bg-blue-50 text-primary-blue">${s}</span>`;
-    if (["shipped"].includes(s)) return `<span class="${base} bg-yellow-50 text-yellow-700">${s}</span>`;
-    if (["delivered"].includes(s)) return `<span class="${base} bg-green-50 text-green-700">${s}</span>`;
-    if (["cancelled", "refunded"].includes(s)) return `<span class="${base} bg-red-50 text-red-700">${s}</span>`;
-    return `<span class="${base} bg-gray-100 text-gray-700">${s}</span>`;
-  }
-
-  function computeSellerMetrics(order, uid) {
-    const breakdown = order?.sellerBreakdown?.[uid] || order?.seller_breakdown?.[uid] || null;
-    if (breakdown) {
-      const gross = Number(breakdown.itemsSubtotal ?? breakdown.grossAmount ?? breakdown.gross ?? 0);
-      return { gross };
-    }
-
-    const items = Array.isArray(order?.items) ? order.items : [];
-    const useAll = String(order?.sellerId || "") === String(uid);
-    const myItems = useAll ? items : items.filter(it => String(it?.sellerId || "") === String(uid));
-    const gross = myItems.reduce((acc, it) => acc + (Number(it?.price || 0) * Math.max(1, Number(it?.quantity || 1))), 0);
-    return { gross };
-  }
-
-  function getFilteredRows() {
-    const search = String($("search-input")?.value || "").trim().toLowerCase();
-    const status = $("status-filter")?.value || "all";
-
-    return allRows.filter((r) => {
-      const order = r.order || {};
-      const idStr = String(r.id || "").toLowerCase();
-      const buyer = String(order.buyerName || order.buyerEmail || "").toLowerCase();
-      const matchesSearch = !search || idStr.includes(search) || buyer.includes(search);
-      const matchesStatus = status === "all" || String(order.status || "pending") === status;
-      return matchesSearch && matchesStatus;
-    });
-  }
-
-  function renderKPIs(rows) {
-    $("kpi-orders").textContent = String(rows.length);
-    $("kpi-pending").textContent = String(rows.filter(r => ["pending", "pending_payment"].includes(String(r.order?.status || "pending"))).length);
-    $("kpi-shipped").textContent = String(rows.filter(r => String(r.order?.status || "") === "shipped").length);
-    $("kpi-revenue").textContent = brl(rows.reduce((acc, r) => acc + Number(r.sellerItemsTotal || 0), 0));
-  }
-
-  function renderTable() {
-    const tbody = $("orders-tbody");
-    const rows = getFilteredRows();
-    $("orders-count").textContent = `${rows.length} itens`;
-
-    if (!rows.length) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7" class="p-10 text-center text-gray-400">Nenhum pedido encontrado.</td>
-        </tr>`;
-      return;
-    }
-
-    tbody.innerHTML = "";
-    for (const r of rows) {
-      const order = r.order || {};
-      const status = String(order.status || "pending");
-      const buyer = order.buyerName || order.buyerEmail || "—";
-      const pay = paymentText(order.payment);
-
-      const tr = document.createElement("tr");
-      tr.className = "hover:bg-gray-50 transition";
-      tr.innerHTML = `
-        <td class="p-4">
-          <div class="flex flex-col">
-            <span class="font-black text-dark-bg">#${String(r.id).substring(0,8).toUpperCase()}</span>
-            <span class="text-xs text-gray-400">${(order.items?.length || 0)} item(ns) no pedido</span>
-          </div>
-        </td>
-        <td class="p-4">
-          <div class="flex flex-col">
-            <span class="font-bold text-dark-bg">${buyer}</span>
-            <span class="text-xs text-gray-400">${order.buyerEmail || ""}</span>
-          </div>
-        </td>
-        <td class="p-4">${statusBadge(status)}</td>
-        <td class="p-4"><span class="text-xs font-bold text-gray-600">${pay}</span></td>
-        <td class="p-4"><span class="text-xs text-gray-600">${formatDate(order.createdAt)}</span></td>
-        <td class="p-4 text-right font-black text-dark-bg">${brl(r.sellerItemsTotal)}</td>
-        <td class="p-4 text-right">
-          <a class="inline-flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-2 text-xs font-black hover:bg-gray-200 transition"
-             href="seller_pedido_detalhe.html?id=${encodeURIComponent(r.id)}">
-            <i class="fas fa-eye"></i> Ver
-          </a>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    }
-  }
-
-  async function loadOrdersForSeller(uid) {
-    const tbody = $("orders-tbody");
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" class="p-10 text-center text-gray-400">
-          <i class="fas fa-circle-notch fa-spin mr-2"></i> Carregando pedidos...
-        </td>
-      </tr>`;
-
-    const data = await apiFetch(`${API_BASE}/seller/orders?limit=300`);
-    const orders = Array.isArray(data) ? data : (data.items || data.orders || []);
-
-    const rows = orders.map(order => {
-      const m = computeSellerMetrics(order, uid);
-      return { id: order.id || order._id, order, sellerItemsTotal: m.gross };
-    });
-
-    allRows = rows;
-    renderKPIs(rows);
-    renderTable();
-  }
-
-  window.openImageModal = function (src, name = "") {
-    const overlay = $("image-modal-overlay");
-    const img = $("modal-image");
-    const nm = $("modal-image-name");
-    if (!overlay || !img) return;
-    img.src = src || "";
-    if (nm) nm.textContent = name || "";
-    overlay.classList.remove("hidden");
-    overlay.classList.add("flex");
-  };
-
-  window.closeImageModal = function () {
-    const overlay = $("image-modal-overlay");
-    const img = $("modal-image");
-    if (img) img.src = "";
-    if (!overlay) return;
-    overlay.classList.add("hidden");
-    overlay.classList.remove("flex");
-  };
-
-  const sidebar = $("sidebar");
-  $("sidebar-toggle")?.addEventListener("click", () => sidebar.classList.toggle("-translate-x-full"));
-
-  $("notif-btn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    $("notif-dropdown")?.classList.toggle("hidden");
-  });
-
-  document.addEventListener("click", () => {
-    if (!$("notif-dropdown")?.classList.contains("hidden")) $("notif-dropdown").classList.add("hidden");
-  });
-
-  $("notif-mark-read")?.addEventListener("click", () => {
-    $("notif-badge")?.classList.add("hidden");
-    $("notif-list").innerHTML = '<div class="p-4 text-sm text-gray-500">Sem notificações.</div>';
-  });
-
-  $("search-input")?.addEventListener("input", renderTable);
-  $("status-filter")?.addEventListener("change", renderTable);
-  $("refresh-btn")?.addEventListener("click", () => sellerUid && loadOrdersForSeller(sellerUid));
-
-  $("btn-sair")?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    clearSession();
-    window.location.href = "seller_login.html";
-  });
-
-  async function boot() {
-    try {
-      const me = await apiFetch(`${API_BASE}/seller/auth/me`);
-      const seller = me?.seller || me?.user || me?.profile || me;
-      sellerUid = seller?.id || seller?._id || seller?.uid || "";
-      if (!sellerUid) throw new Error("Sessão seller inválida.");
-
-      $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || seller.email || "Seller"}!`;
-      localStorage.setItem("seller_profile", JSON.stringify(seller));
-
-      await loadOrdersForSeller(sellerUid);
-    } catch (err) {
-      console.error(err);
-      toast(err?.message || "Erro ao validar seller.", "error");
-      clearSession();
-      setTimeout(() => { window.location.href = "seller_login.html"; }, 1200);
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", boot);
-</script>
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(()=>{});
-    });
-  }
-</script>
-
-<script src="js/layout-fit.js" defer></script>
-<script src="js/header_auth_fix.js"></script>
-
+    window.onload = loadOrders;
+    $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
+    $('btn-sair')?.addEventListener('click', () => { localStorage.clear(); window.location.href = 'seller_login.html'; });
+  </script>
 </body>
 </html>

@@ -6,11 +6,25 @@
   <title>Marcar pedido como enviado | ARIANA MÓVEIS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="css/tailwind.min.css">
-  <style>
-    :root {
-      --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; --warning:#ea580c;
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'fundo-claro': '#F5F7FA',
+            'dark-gray-bg': '#222222',
+            'success-green': '#10b981',
+            'error-red': '#ef4444',
+          }
+        }
+      }
     }
+  </script>
+  <style>
+    :root { --primary:#2E6DA4; --dark:#0f172a; --bg:#F5F7FA; --success:#16a34a; --danger:#dc2626; --warning:#ea580c; }
     body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); }
     .bg-primary-blue{background:var(--primary)} .text-primary-blue{color:var(--primary)} .bg-dark-bg{background:var(--dark)}
     .text-dark-bg{color:var(--dark)} .bg-fundo-claro{background:var(--bg)} .bg-success-green{background:var(--success)}
@@ -20,13 +34,10 @@
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.85rem 1.2rem;font-weight:800;transition:.2s}
     .btn-primary{background:var(--primary);color:#fff} .btn-primary:hover{opacity:.95} .btn-dark{background:var(--dark);color:#fff}
     .btn-light{background:#fff;color:var(--dark);border:1px solid #e5e7eb} .pill{display:inline-flex;align-items:center;padding:.35rem .75rem;border-radius:9999px;font-size:.75rem;font-weight:800}
-    .toast{box-shadow:0 10px 30px rgba(0,0,0,.12)}
     #toast-container{position:fixed;right:1rem;top:1rem;z-index:80;display:flex;flex-direction:column;gap:.75rem}
     .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}
     .sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
-    .stat{padding:1.25rem;border-radius:1.25rem;background:#fff;border:1px solid #e5e7eb;box-shadow:0 8px 24px rgba(15,23,42,.05)}
-    .muted{color:#64748b} .table-wrap{overflow:auto} table{width:100%;border-collapse:collapse} th,td{padding:1rem;border-bottom:1px solid #eef2f7;vertical-align:top} th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;text-align:left}
-    .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
+    .muted{color:#64748b} .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
   </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
@@ -34,199 +45,109 @@
 <aside id="sidebar" class="bg-dark-bg w-64 min-h-screen space-y-6 py-7 px-3 absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition z-40">
   <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
   <nav class="flex flex-col gap-1">
-    <a href="seller_dashboard.html" class="sidebar-link "><i class="fas fa-home"></i><span>Dashboard</span></a>
-    <a href="seller_produtos.html" class="sidebar-link "><i class="fas fa-box"></i><span>Meus Produtos</span></a>
-    <a href="seller_produto_novo.html" class="sidebar-link "><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+    <a href="seller_dashboard.html" class="sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+    <a href="seller_produtos.html" class="sidebar-link"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+    <a href="seller_produto_novo.html" class="sidebar-link"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
     <a href="seller_pedidos.html" class="sidebar-link active"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
-    <a href="seller_vendas.html" class="sidebar-link "><i class="fas fa-chart-line"></i><span>Vendas</span></a>
-    <a href="seller_notificacoes.html" class="sidebar-link "><i class="fas fa-bell"></i><span>Notificações</span></a>
-    <a href="seller_configuracoes.html" class="sidebar-link "><i class="fas fa-cog"></i><span>Configurações</span></a>
-    <a href="seller_devolucoes.html" class="sidebar-link "><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
-    <a href="seller_extrato.html" class="sidebar-link "><i class="fas fa-receipt"></i><span>Extrato</span></a>
+    <a href="seller_vendas.html" class="sidebar-link"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+    <a href="seller_notificacoes.html" class="sidebar-link"><i class="fas fa-bell"></i><span>Notificações</span></a>
+    <a href="seller_configuracoes.html" class="sidebar-link"><i class="fas fa-cog"></i><span>Configurações</span></a>
+    <a href="seller_devolucoes.html" class="sidebar-link"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+    <a href="seller_extrato.html" class="sidebar-link"><i class="fas fa-receipt"></i><span>Extrato</span></a>
     <a href="#" id="btn-sair" class="sidebar-link text-red-300"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
   </nav>
 </aside>
-<div class="flex-1 flex flex-col min-w-0">
-<header class="flex items-center justify-between p-4 bg-white border-b border-soft shadow-sm">
-  <button id="sidebar-toggle" class="text-gray-500 md:hidden"><i class="fas fa-bars text-xl"></i></button>
-  <h1 class="text-xl font-semibold text-dark-bg">Marcar pedido como enviado</h1>
-  <div class="flex items-center gap-3">
-    <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
-    <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
-  </div>
-</header>
-<main class="page-main">
 
-<div class="max-w-3xl mx-auto"><div class="flex items-start justify-between gap-4 flex-wrap mb-6"><div><h2 class="text-2xl font-bold text-dark-bg"><i class="fas fa-truck mr-3 text-primary-blue"></i>Marcar pedido como enviado</h2><p class="muted mt-2">Informe o código de rastreio e a transportadora.</p></div><a href="seller_pedidos.html" class="btn btn-light"><i class="fas fa-arrow-left"></i>Voltar</a></div><div class="card p-6"><div class="grid md:grid-cols-2 gap-6"><div><div class="muted text-xs font-black uppercase">Código do pedido</div><div id="orderId" class="font-mono text-sm bg-gray-100 p-3 rounded-xl break-all">—</div></div><div><div class="muted text-xs font-black uppercase">Status atual</div><div id="status" class="font-bold text-primary-blue">—</div></div><div class="md:col-span-2"><label class="block font-bold mb-2 text-dark-bg">Código de rastreio</label><input id="tracking" class="input" placeholder="Ex: BR123456789"></div><div class="md:col-span-2"><label class="block font-bold mb-2 text-dark-bg">Transportadora</label><input id="carrier" class="input" placeholder="Ex: Correios, Jadlog, Loggi"></div></div><div class="mt-6 flex gap-3 flex-col md:flex-row"><button id="btn-send" class="btn btn-primary flex-1">Marcar como enviado</button><a href="seller_pedidos.html" class="btn btn-light md:w-48">Cancelar</a></div></div></div>
-</main></div>
+<div class="flex-1 flex flex-col min-w-0">
+  <header class="flex items-center justify-between p-4 bg-white border-b border-soft shadow-sm">
+    <button id="sidebar-toggle" class="text-gray-500 md:hidden"><i class="fas fa-bars text-xl"></i></button>
+    <h1 class="text-xl font-semibold text-dark-bg">Marcar como enviado</h1>
+    <div class="flex items-center gap-3">
+      <span id="user-display-name" class="text-sm font-black text-gray-700">Olá, sn digital!</span>
+      <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="max-w-2xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-3xl font-black text-dark-bg">Informações de Envio</h2>
+        <a href="seller_pedidos.html" class="btn btn-light"><i class="fas fa-arrow-left"></i>Voltar</a>
+      </div>
+
+      <div class="card p-8 space-y-6">
+        <div>
+          <label class="block text-xs font-black uppercase text-gray-400 mb-2 tracking-widest">Transportadora</label>
+          <input id="carrier" type="text" placeholder="Ex: Braspress, Correios, Loggi" class="input" autocomplete="off">
+        </div>
+
+        <div>
+          <label class="block text-xs font-black uppercase text-gray-400 mb-2 tracking-widest">Código de Rastreio</label>
+          <input id="tracking" type="text" placeholder="Cole o código de rastreamento" class="input" autocomplete="off">
+        </div>
+
+        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
+          <i class="fas fa-info-circle text-primary-blue mt-1"></i>
+          <p class="text-sm text-slate-600 leading-relaxed">
+            Ao confirmar, o status do pedido mudará para <span class="font-black text-primary-blue">Enviado</span> e o comprador poderá acompanhar a entrega.
+          </p>
+        </div>
+
+        <button id="btn-send" class="btn btn-primary w-full py-4 text-lg">
+          <i class="fas fa-check-circle"></i> Confirmar Envio
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
 
 <script>
-  const API_BASE = window.API_BASE || window.API_URL || localStorage.getItem('apiBaseUrl') || 'http://localhost:3000/api';
+  const API_BASE = "https://ariana-moveis.onrender.com/api";
   const $ = (id) => document.getElementById(id);
-
-  const state = {
-    seller: null,
-    order: null,
-    orderId: new URLSearchParams(location.search).get('id')
-  };
+  const orderId = new URLSearchParams(location.search).get('id');
 
   function toast(message, type='info') {
     const c = $('toast-container');
-    if (!c) return alert(message);
     const el = document.createElement('div');
-    const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    const color = type==='success' ? 'bg-success-green' : 'bg-error-red';
+    el.className = `toast ${color} text-white px-6 py-4 rounded-2xl font-bold shadow-lg animate-fade`;
     el.textContent = message;
     c.appendChild(el);
-    setTimeout(() => {
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 300);
-    }, 3400);
-  }
-
-  function getSellerToken() {
-    return localStorage.getItem('seller_token') || '';
-  }
-
-  function getSellerProfile() {
-    try {
-      return JSON.parse(localStorage.getItem('seller_profile') || '{}');
-    } catch {
-      return {};
-    }
-  }
-
-  async function apiFetch(path, options = {}) {
-    const token = getSellerToken();
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {})
-      }
-    });
-
-    const text = await response.text();
-    let data = null;
-
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = text;
-    }
-
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
-    }
-
-    return data;
-  }
-
-  async function ensureSellerSession() {
-    const profile = getSellerProfile();
-    const token = getSellerToken();
-
-    if (!token) {
-      window.location.href = 'seller_login.html';
-      throw new Error('Sessão expirada.');
-    }
-
-    try {
-      const me = await apiFetch('/seller/me');
-      state.seller = me?.seller || me?.data || me || profile;
-      return state.seller;
-    } catch (e) {
-      if (profile && (profile.id || profile._id || profile.uid)) {
-        state.seller = profile;
-        return profile;
-      }
-      window.location.href = 'seller_login.html';
-      throw e;
-    }
-  }
-
-  function itemBelongsToSeller(item, seller) {
-    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
-    return String(item?.sellerId || item?.sellerUid || '') === sellerId;
-  }
-
-  function orderBelongsToSeller(order, seller) {
-    const sellerId = String(seller?.id || seller?._id || seller?.uid || '');
-    if (String(order?.sellerId || order?.sellerUid || '') === sellerId) return true;
-    return Array.isArray(order?.items) && order.items.some(it => itemBelongsToSeller(it, seller));
-  }
-
-  async function loadOrder() {
-    if (!state.orderId) {
-      toast('ID do pedido ausente.', 'error');
-      return;
-    }
-
-    try {
-      await ensureSellerSession();
-
-      const data = await apiFetch(`/seller/orders/${encodeURIComponent(state.orderId)}`);
-      const order = data?.order || data?.data || data;
-
-      if (!order) throw new Error('Pedido não encontrado.');
-      if (!orderBelongsToSeller(order, state.seller)) throw new Error('Acesso negado ao pedido.');
-
-      state.order = order;
-      $('orderId').textContent = order.id || order._id || state.orderId;
-      $('status').textContent = order.status || '—';
-      $('tracking').value = order.trackingCode || '';
-      $('carrier').value = order.carrier || '';
-    } catch (e) {
-      console.error(e);
-      toast(e.message || 'Erro ao carregar pedido.', 'error');
-    }
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
   }
 
   $('btn-send').addEventListener('click', async () => {
-    if (!state.orderId) return;
+    const carrier = $('carrier').value.trim();
+    const tracking = $('tracking').value.trim();
 
-    const tracking = ($('tracking').value || '').trim();
-    if (!tracking) {
-      toast('Informe o código de rastreio.', 'error');
-      return;
-    }
+    if (!tracking) return toast("Por favor, informe o código de rastreio.", "error");
+
+    const btn = $('btn-send');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
 
     try {
-      await apiFetch(`/seller/orders/${encodeURIComponent(state.orderId)}/ship`, {
+      const res = await fetch(`${API_BASE}/seller/orders/${orderId}/ship`, {
         method: 'POST',
-        body: JSON.stringify({
-          trackingCode: tracking,
-          tracking: tracking,
-          carrier: ($('carrier').value || '').trim()
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carrier, trackingCode: tracking })
       });
 
-      toast('Pedido marcado como enviado.', 'success');
-      setTimeout(() => {
-        window.location.href = 'seller_pedidos.html';
-      }, 700);
+      if (res.ok) {
+        toast("Pedido marcado como enviado!", "success");
+        setTimeout(() => window.location.href = "seller_pedidos.html", 1500);
+      } else {
+        throw new Error();
+      }
     } catch (e) {
-      console.error(e);
-      toast(e.message || 'Erro ao atualizar pedido.', 'error');
+      toast("Erro ao salvar informações de envio.", "error");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirmar Envio';
     }
   });
 
-  const sidebar = $('sidebar');
-  $('sidebar-toggle')?.addEventListener('click', () => sidebar.classList.toggle('-translate-x-full'));
-
-  $('btn-sair')?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    localStorage.removeItem('seller_token');
-    localStorage.removeItem('seller_profile');
-    window.location.href = 'seller_login.html';
-  });
-
-  (async () => {
-    const profile = getSellerProfile();
-    $('user-display-name').textContent = `Bem-vindo, ${profile.factoryName || profile.storeName || profile.name || profile.email || 'Seller'}!`;
-    await loadOrder();
-  })();
+  $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
+  $('btn-sair')?.addEventListener('click', () => { localStorage.clear(); window.location.href = 'seller_login.html'; });
 </script>
-<script src="js/layout-fit.js" defer></script>
-</body></html>
+</body>
+</html>

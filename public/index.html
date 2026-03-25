@@ -575,9 +575,8 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   
   <script>
     const API_BASE =
-      window.API_BASE ||
-      localStorage.getItem("API_BASE") ||
-      "http://localhost:3000/api";
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-moveis.onrender.com/api";
 
     let db = {};
     let auth = { currentUser: null };
