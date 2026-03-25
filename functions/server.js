@@ -80,6 +80,44 @@ app.post('/api/seller/partner-request', async (req, res) => {
     }
 });
 
+// ==========================================
+// ROTA DE LOGIN (ADICIONADA PARA O MONGODB)
+// ==========================================
+app.post('/api/seller/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Procura o vendedor pelo e-mail no MongoDB Atlas
+        const seller = await Seller.findOne({ email: email.toLowerCase() });
+
+        if (!seller) {
+            return res.status(404).json({ message: "E-mail não encontrado." });
+        }
+
+        // Verifica a senha (comparação direta como você está usando)
+        if (seller.password !== password) {
+            return res.status(401).json({ message: "Senha incorreta." });
+        }
+
+        // Retorna os dados para o seu HTML salvar no localStorage
+        res.json({
+            token: "sessao_ativa_mongodb_" + seller._id, // Token temporário para manter logado
+            seller: {
+                id: seller._id,
+                name: seller.name,
+                factoryName: seller.factoryName,
+                email: seller.email,
+                status: seller.status,
+                active: seller.active
+            }
+        });
+
+    } catch (error) {
+        console.error("Erro no login:", error);
+        res.status(500).json({ message: "Erro interno no servidor." });
+    }
+});
+
 // ============================
 // BOT CHATWOOT
 // ============================
