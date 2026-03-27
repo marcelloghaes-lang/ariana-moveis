@@ -210,14 +210,18 @@
     </div>
   </footer>
 
-  <script src="firebase-config.js"></script>
-  <script src="marketplace-core.js"></script>
+    <script src="marketplace-core.js"></script>
   <script src="marketplace-core_global_payments.js"></script>
   <script src="js/layout-fit.js" defer></script>
   <script src="js/header_auth_fix.js" defer></script>
 
   <script>
-    const API_BASE = window.API_BASE || "http://localhost:3000/api";
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      window.API_BASE ||
+      "https://ariana-move-mongo.onrender.com/api";
+
+    window.API_BASE = API_BASE;
 
     let cartItems = [];
     let shippingSettings = null;
@@ -361,7 +365,7 @@
         isArianaOrder: isArianaOrderFromCartItems(cartItems)
       };
 
-      const apiBase = (localStorage.getItem('API_BASE_URL') || API_BASE || '').replace(/\/+$/, '');
+      const apiBase = (localStorage.getItem('API_BASE') || window.API_BASE || API_BASE || '').replace(/\/+$/, '');
       if (!apiBase) throw new Error('API de frete não configurada.');
 
       const response = await fetch(`${apiBase}/shipping/correios/quote`, {

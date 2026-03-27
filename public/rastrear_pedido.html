@@ -324,10 +324,13 @@
 
     <script>
         const API_BASE =
+            localStorage.getItem("API_BASE") ||
+            window.API_BASE ||
             window.API_BASE_URL ||
             window.API_URL ||
-            localStorage.getItem('apiBaseUrl') ||
-            '/api';
+            "https://ariana-move-mongo.onrender.com/api";
+
+        window.API_BASE = API_BASE;
 
         const STATUS_CLASS_MAP = {
             'pendente': 'bg-warning',
@@ -467,7 +470,6 @@
     <script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>
     <script src="js/layout-fit.js" defer></script>
-    <script src="js/header_auth_fix.js"></script>
     <script src="js/header_auth_fix.js" defer></script>
 </body>
 </html>

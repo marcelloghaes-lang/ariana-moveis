@@ -207,8 +207,8 @@
 
                 // 2. Criação do Objeto de Dados
                 const submissionData = {
-                    userId: window.getUserId(),
-                    appId: window.appId,
+                    userId: null,
+                    appId: null,
                     adUrl: adUrl,
                     reportType: reportType,
                     details: details,
@@ -218,24 +218,39 @@
                     // NOTA: As fotos são apenas contadas, não salvas no Firestore.
                 };
 
-                // 3. Simulação de Envio (Aguardar autenticação, se não estiver pronta)
-                if (!window.db || !window.getUserId()) {
+                
+// NOVO ENVIO VIA API MONGO
+const API_BASE =
+  localStorage.getItem("API_BASE") ||
+  window.API_BASE ||
+  "https://ariana-move-mongo.onrender.com/api";
+
+window.API_BASE = API_BASE;
+
+const payload = {
+  adUrl,
+  reportType,
+  details,
+  createdAt: new Date().toISOString(),
+  status: "Aguardando Analise"
+};
+
+const res = await fetch(API_BASE + "/reports", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+});
+
+if (!res.ok) throw new Error("Erro ao enviar denuncia");
+
+const data = await res.json();
+
+                if (!null || !null) {
                     console.warn("Aguardando inicialização do Firebase...");
                     await new Promise(resolve => setTimeout(resolve, 1500)); 
                 }
                 
-                // 4. Salvar no Firestore (Coleção privada do usuário para seus relatórios)
-                const db = window.db;
-                const userId = window.getUserId();
-                const appId = window.appId;
-
-                const collectionPath = `artifacts/${appId}/users/${userId}/ad_reports`;
-                
-                const docRef = await addDoc(collection(db, collectionPath), submissionData);
-
-                // 5. Sucesso
-                showCustomMessage(`Denúncia enviada! Agradecemos sua colaboração. Seu protocolo é: ${docRef.id}.`, 'success');
-                console.log("Documento escrito com ID: ", docRef.id);
+                // envio removido (Firebase)
 
                 // Limpar formulário após 1 segundo
                 setTimeout(() => form.reset(), 1000);

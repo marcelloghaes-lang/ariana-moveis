@@ -16,8 +16,6 @@
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
-
-    <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     <title>Nosso Compromisso | Ariana Móveis</title>
@@ -78,9 +76,7 @@
             display: block;
         }
     </style>
-</head>
 
-<body class="bg-fundo-claro">
     <header class="shadow-xl">
         <div class="header-ajustado">
             
@@ -222,6 +218,16 @@
         &copy; 2025 Ariana Móveis. Todos os direitos reservados.
     </div>
 </footer>
+
+
+    <script>
+      const API_BASE =
+        localStorage.getItem("API_BASE") ||
+        window.API_BASE ||
+        "https://ariana-move-mongo.onrender.com/api";
+
+      window.API_BASE = API_BASE;
+    </script>
 
  <script src="js/layout-fit.js" defer></script>
  

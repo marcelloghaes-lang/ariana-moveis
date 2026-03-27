@@ -181,134 +181,133 @@
     </div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  
+<script>
+const API_BASE =
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-move-mongo.onrender.com/api";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:ef7698ea5d33d701338243",
-      measurementId: "G-WNMWLYMW43"
-    };
+const el = id => document.getElementById(id);
+const statusEl = el('status-message');
+const basePrice = 1874.25;
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
+function getToken(){
+  return localStorage.getItem("adminToken") || "";
+}
 
-    const el = id => document.getElementById(id);
-    const statusEl = el('status-message');
-    const basePrice = 1874.25;
+function headers(){
+  const token = getToken();
+  return {
+    "Content-Type":"application/json",
+    ...(token ? {Authorization:`Bearer ${token}`} : {})
+  };
+}
 
-    // --- PROTEÇÃO DE LOGIN ---
-    onAuthStateChanged(auth, (user) => {
-        if (!user) {
-            window.location.href = "login.html";
-        } else {
-            loadSettings();
-        }
+const formatBRL = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
+
+function updatePreview(data){
+  if(data.pix.enabled){
+    el('preview-pix-row').classList.remove('hidden');
+    const pixVal = basePrice*(1-(data.pix.discountPercent/100));
+    el('preview-pix-price').textContent = formatBRL(pixVal);
+    el('preview-pix-text').textContent = data.pix.label;
+  }else{
+    el('preview-pix-row').classList.add('hidden');
+  }
+
+  if(data.card.enabled){
+    el('preview-card-text').classList.remove('hidden');
+    const inst = data.card.maxInstallments;
+    const valInst = basePrice/inst;
+    el('preview-installments').textContent = `${inst}x de ${formatBRL(valInst)}`;
+    el('preview-interest').textContent = data.card.interestFree?'sem juros':'com juros';
+  }else{
+    el('preview-card-text').classList.add('hidden');
+  }
+}
+
+async function loadSettings(){
+  try{
+    const res = await fetch(API_BASE+"/admin/store-settings",{headers:headers()});
+    const data = await res.json();
+
+    const d = data?.payments || data || {};
+
+    el('pix-enabled').checked = d.pix?.enabled ?? true;
+    el('pix-discount').value = d.pix?.discountPercent ?? 10;
+    el('pix-label').value = d.pix?.label ?? "no PIX";
+
+    el('boleto-enabled').checked = d.boleto?.enabled ?? true;
+    el('boleto-discount').value = d.boleto?.discountPercent ?? 5;
+    el('boleto-label').value = d.boleto?.label ?? "no Boleto";
+
+    el('card-enabled').checked = d.card?.enabled ?? true;
+    el('card-installments').value = d.card?.maxInstallments ?? 10;
+    el('card-interestfree').checked = d.card?.interestFree ?? true;
+
+    updatePreview(d);
+
+  }catch(e){
+    console.error(e);
+  }
+}
+
+function readForm(){
+  const cfg={
+    pix:{
+      enabled:el('pix-enabled').checked,
+      discountPercent:Number(el('pix-discount').value||0),
+      label:el('pix-label').value||'no PIX'
+    },
+    boleto:{
+      enabled:el('boleto-enabled').checked,
+      discountPercent:Number(el('boleto-discount').value||0),
+      label:el('boleto-label').value||'no Boleto'
+    },
+    card:{
+      enabled:el('card-enabled').checked,
+      maxInstallments:Number(el('card-installments').value||12),
+      interestFree:el('card-interestfree').checked
+    }
+  };
+  updatePreview(cfg);
+  return cfg;
+}
+
+['pix-enabled','pix-discount','pix-label','boleto-enabled','boleto-discount','boleto-label','card-enabled','card-installments','card-interestfree']
+.forEach(id=>el(id).addEventListener('input',()=>readForm()));
+
+el('btn-reload').addEventListener('click',loadSettings);
+
+el('btn-save').addEventListener('click',async()=>{
+  try{
+    const cfg = readForm();
+    statusEl.textContent="Salvando...";
+    statusEl.className="mb-4 p-3 rounded-lg text-sm font-bold bg-blue-100 text-blue-700";
+    statusEl.classList.remove('hidden');
+
+    await fetch(API_BASE+"/admin/store-settings",{
+      method:"PUT",
+      headers:headers(),
+      body:JSON.stringify({payments:cfg})
     });
 
-    el('btn-logout').addEventListener('click', () => {
-        signOut(auth).then(() => window.location.href = "login.html");
-    });
+    statusEl.textContent="Salvo com sucesso!";
+    statusEl.className="mb-4 p-3 rounded-lg text-sm font-bold bg-emerald-100 text-emerald-700";
+  }catch(e){
+    console.error(e);
+    statusEl.textContent="Erro ao salvar";
+  }
+});
 
-    // --- MANTENDO TODAS AS SUAS FUNÇÕES ORIGINAIS INTACTAS ---
-    const formatBRL = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+el('btn-logout').addEventListener('click',()=>{
+  localStorage.removeItem("adminToken");
+  location.href="login_admin.html";
+});
 
-    function updatePreview(data) {
-      if(data.pix.enabled) {
-        el('preview-pix-row').classList.remove('hidden');
-        const pixVal = basePrice * (1 - (data.pix.discountPercent / 100));
-        el('preview-pix-price').textContent = formatBRL(pixVal);
-        el('preview-pix-text').textContent = data.pix.label;
-      } else {
-        el('preview-pix-row').classList.add('hidden');
-      }
+loadSettings();
+</script>
 
-      if(data.card.enabled) {
-        el('preview-card-text').classList.remove('hidden');
-        const inst = data.card.maxInstallments;
-        const valInst = basePrice / inst;
-        el('preview-installments').textContent = `${inst}x de ${formatBRL(valInst)}`;
-        el('preview-interest').textContent = data.card.interestFree ? 'sem juros' : 'com juros';
-      } else {
-        el('preview-card-text').classList.add('hidden');
-      }
-    }
-
-    async function loadSettings() {
-      try {
-        const snap = await getDoc(doc(db, "settings", "payments"));
-        if(snap.exists()) {
-          const d = snap.data();
-          el('pix-enabled').checked = d.pix.enabled;
-          el('pix-discount').value = d.pix.discountPercent;
-          el('pix-label').value = d.pix.label;
-          el('boleto-enabled').checked = d.boleto.enabled;
-          el('boleto-discount').value = d.boleto.discountPercent;
-          el('boleto-label').value = d.boleto.label;
-          el('card-enabled').checked = d.card.enabled;
-          el('card-installments').value = d.card.maxInstallments;
-          el('card-interestfree').checked = d.card.interestFree;
-          updatePreview(d);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    function readForm() {
-      const cfg = {
-        pix: {
-          enabled: el('pix-enabled').checked,
-          discountPercent: Number(el('pix-discount').value || 0),
-          label: el('pix-label').value || 'no PIX'
-        },
-        boleto: {
-          enabled: el('boleto-enabled').checked,
-          discountPercent: Number(el('boleto-discount').value || 0),
-          label: el('boleto-label').value || 'no Boleto'
-        },
-        card: {
-          enabled: el('card-enabled').checked,
-          maxInstallments: Number(el('card-installments').value || 12),
-          interestFree: el('card-interestfree').checked
-        }
-      };
-      updatePreview(cfg);
-      return cfg;
-    }
-
-    ['pix-enabled','pix-discount','pix-label','boleto-enabled','boleto-discount','boleto-label','card-enabled','card-installments','card-interestfree']
-      .forEach(id => el(id).addEventListener('input', () => readForm()));
-
-    el('btn-reload').addEventListener('click', () => loadSettings());
-
-    el('btn-save').addEventListener('click', async () => {
-      try {
-        const cfg = readForm();
-        statusEl.textContent = "Salvando...";
-        statusEl.className = "mb-4 p-3 rounded-lg text-sm font-bold bg-blue-100 text-blue-700";
-        statusEl.classList.remove('hidden');
-        
-        await setDoc(doc(db, "settings", "payments"), cfg, { merge: true });
-        
-        statusEl.textContent = "Configurações salvas com sucesso!";
-        statusEl.className = "mb-4 p-3 rounded-lg text-sm font-bold bg-emerald-100 text-emerald-700";
-        setTimeout(() => statusEl.classList.add('hidden'), 3000);
-      } catch (e) {
-        console.error(e);
-        statusEl.textContent = "Erro ao salvar.";
-        statusEl.className = "mb-4 p-3 rounded-lg text-sm font-bold bg-red-100 text-red-700";
-      }
-    });
-  </script>
-  <script type="module" src="firebase-config.js"></script>
     <script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>
 

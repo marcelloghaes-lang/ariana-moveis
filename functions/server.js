@@ -1073,8 +1073,8 @@ function buildApp() {
 
   const app = express();
   app.use(cors({ origin: true }));
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   const db = admin.firestore();
 
@@ -1111,9 +1111,11 @@ function buildApp() {
   }
 
   // --- TRATAMENTO DE ROTAS (mantido) ---
-  app.get(["/banners", "/api/banners"], async (req, res) => {
-  // ... sua lógica de busca no MongoDB
-});
+  app.use((req, _res, next) => {
+    if (req.url.startsWith("/api")) req.url = req.url.replace("/api", "");
+    next();
+  });
+
 
   // ================= MONGO ROUTES MERGED (server.js unificado) =================
   function snapData(snap) {
@@ -1481,17 +1483,16 @@ function buildApp() {
     }
   });
 
-  app.get(["/banners", "/api/banners"], async (_req, res) => {
+  app.get("/banners", async (_req, res) => {
     try {
       const banners = await listCollection("banners");
-      const responseData = Object.fromEntries(banners.map((b) => [b.id || b.slot, b]));
-      res.json(responseData);
+      res.json(Object.fromEntries(banners.map((b) => [b.id || b.slot, b])));
     } catch (err) {
       res.status(500).json({ error: err.message || "Erro ao buscar banners" });
     }
   });
 
-  app.post(["/banners", "/api/banners"], async (req, res) => {
+  app.post("/banners", async (req, res) => {
     try {
       const payload = req.body || {};
       const entries = Array.isArray(payload) ? payload : Object.values(payload);
@@ -1514,7 +1515,7 @@ function buildApp() {
     }
   });
 
-  app.post(["/banners/bulk", "/api/banners/bulk"], async (req, res) => {
+  app.post("/banners/bulk", async (req, res) => {
     try {
       const banners = Array.isArray(req.body?.banners) ? req.body.banners : [];
       for (const item of banners) {
@@ -1532,7 +1533,7 @@ function buildApp() {
       }
       res.json({ ok: true });
     } catch (err) {
-      res.status(400).json({ error: err.message || "Erro ao salvar banners" });
+      res.status(400).json({ error: err.message || "Erro ao salvar banners em lote" });
     }
   });
 
@@ -5003,6 +5004,997 @@ async function quoteTransportadoras(_payload) {
     } catch (error) {
       console.error("[manufacturer sla scan] erro:", error);
       return res.status(500).json({ ok: false, error: "Erro ao processar varredura de SLA" });
+    }
+  });
+
+
+  // ================= AUTH / USERS / SUPPORT / ADDRESSES / CONTACT / RETURNS =================
+  const AUTH_JWT_SECRET = __compatEnvFirst("JWT_SECRET", "AUTH_JWT_SECRET") || "ariana_moveis_secret";
+
+  function usersCollection() { return db.collection("users"); }
+  function adminsCollection() { return db.collection("admins"); }
+  function addressesCollection() { return db.collection("addresses"); }
+  function ticketsCollection() { return db.collection("tickets"); }
+  function contactsCollection() { return db.collection("contacts"); }
+  function returnsCollection() { return db.collection("returns"); }
+  function denunciasCollection() { return db.collection("denuncias"); }
+  function faqCollection() { return db.collection("faq"); }
+  function atendimentosCollection() { return db.collection("atendimentos"); }
+
+  function sha256(value) {
+    return crypto.createHash("sha256").update(String(value || "")).digest("hex");
+  }
+
+  function hashPassword(password, salt = "") {
+    const normalizedSalt = String(salt || "").trim() || crypto.randomBytes(16).toString("hex");
+    const hash = crypto.scryptSync(String(password || ""), normalizedSalt, 64).toString("hex");
+    return `${normalizedSalt}:${hash}`;
+  }
+
+  function comparePassword(password, storedHash = "") {
+    const raw = String(storedHash || "");
+    if (!raw) return false;
+    if (!raw.includes(":")) {
+      // compatibilidade com bases antigas em texto puro ou sha256
+      return raw === String(password || "") || raw === sha256(password || "");
+    }
+    const [salt, existing] = raw.split(":");
+    if (!salt || !existing) return false;
+    const current = crypto.scryptSync(String(password || ""), salt, 64).toString("hex");
+    return crypto.timingSafeEqual(Buffer.from(existing, "hex"), Buffer.from(current, "hex"));
+  }
+
+  function signJwt(payload = {}, expiresIn = "7d") {
+    return __compatJwt.sign(payload, AUTH_JWT_SECRET, { expiresIn });
+  }
+
+  function readBearerToken(req) {
+    const header = String(req.headers.authorization || req.headers.Authorization || "").trim();
+    if (header.toLowerCase().startsWith("bearer ")) return header.slice(7).trim();
+    return "";
+  }
+
+  async function authUserFromReq(req) {
+    const token = readBearerToken(req);
+    if (!token) return null;
+    let decoded = null;
+    try {
+      decoded = __compatJwt.verify(token, AUTH_JWT_SECRET);
+    } catch (_) {
+      decoded = __compatJwt.decode(token) || null;
+    }
+    if (!decoded) return null;
+
+    const uid = String(decoded.uid || decoded.id || decoded.sub || "").trim();
+    const email = String(decoded.email || "").trim().toLowerCase();
+
+    if (uid) {
+      const snap = await usersCollection().doc(uid).get();
+      const doc = snapData(snap);
+      if (doc) return { ...doc, uid: doc.id || uid };
+    }
+
+    if (email) {
+      const snap = await usersCollection().where("email", "==", email).limit(1).get();
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        return { id: doc.id, uid: doc.id, ...(doc.data() || {}) };
+      }
+    }
+
+    return decoded ? { uid, id: uid, email, role: decoded.role || "user" } : null;
+  }
+
+  async function authAdminFromReq(req) {
+    const token = readBearerToken(req);
+    if (!token) return null;
+    let decoded = null;
+    try {
+      decoded = __compatJwt.verify(token, AUTH_JWT_SECRET);
+    } catch (_) {
+      decoded = __compatJwt.decode(token) || null;
+    }
+    if (!decoded) return null;
+
+    const email = String(decoded.email || "").trim().toLowerCase();
+    const uid = String(decoded.uid || decoded.id || decoded.sub || "").trim();
+
+    if (decoded.role === "admin") {
+      return { uid, email, role: "admin" };
+    }
+
+    if (email) {
+      const adminSnap = await adminsCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
+      if (adminSnap && !adminSnap.empty) {
+        const d = adminSnap.docs[0];
+        return { uid: d.id, email, role: "admin", ...(d.data() || {}) };
+      }
+      const userSnap = await usersCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
+      if (userSnap && !userSnap.empty) {
+        const d = userSnap.docs[0];
+        const data = d.data() || {};
+        if (data.role === "admin" || data.admin === true) return { uid: d.id, email, role: "admin", ...data };
+      }
+    }
+
+    const envEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+    if (envEmail && email === envEmail) return { uid: uid || "env-admin", email, role: "admin" };
+
+    return null;
+  }
+
+  async function requireUser(req, res) {
+    const user = await authUserFromReq(req);
+    if (!user || !(user.uid || user.id)) {
+      res.status(401).json({ ok: false, error: "invalid_auth" });
+      return null;
+    }
+    return user;
+  }
+
+  async function requireAdmin(req, res) {
+    const adminUser = await authAdminFromReq(req);
+    if (!adminUser) {
+      res.status(401).json({ ok: false, error: "invalid_admin" });
+      return null;
+    }
+    return adminUser;
+  }
+
+  async function findProductById(productId) {
+    const id = String(productId || "").trim();
+    if (!id) return null;
+    const byDoc = await productCollection().doc(id).get().catch(() => null);
+    const direct = snapData(byDoc);
+    if (direct) return direct;
+
+    const candidates = [
+      ["id", "==", id],
+      ["sku", "==", id],
+    ];
+    for (const [field, op, value] of candidates) {
+      const snap = await productCollection().where(field, op, value).limit(1).get().catch(() => ({ empty: true }));
+      if (snap && !snap.empty) {
+        const d = snap.docs[0];
+        return { id: d.id, ...(d.data() || {}) };
+      }
+    }
+    return null;
+  }
+
+  function normalizeUserPayload(body = {}, existing = {}) {
+    return {
+      name: String(body.name || body.nome || existing.name || existing.nome || "").trim(),
+      email: String(body.email || existing.email || "").trim().toLowerCase(),
+      cpf: String(body.cpf || existing.cpf || "").trim(),
+      phone: String(body.phone || body.telefone || existing.phone || existing.telefone || "").trim(),
+      birthDate: String(body.birthDate || body.dataNascimento || existing.birthDate || existing.dataNascimento || "").trim(),
+      address: body.address || existing.address || null,
+      addresses: Array.isArray(body.addresses) ? body.addresses : (Array.isArray(existing.addresses) ? existing.addresses : []),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: existing.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+      role: body.role || existing.role || "user",
+    };
+  }
+
+  async function createAddressForUser(user, body = {}) {
+    const ref = addressesCollection().doc();
+    const payload = {
+      id: ref.id,
+      userId: String(user.uid || user.id),
+      label: String(body.label || body.nome || body.tipo || "").trim() || "Endereço",
+      street: String(body.street || body.rua || body.logradouro || "").trim(),
+      number: String(body.number || body.numero || "").trim(),
+      complement: String(body.complement || body.complemento || "").trim(),
+      neighborhood: String(body.neighborhood || body.bairro || "").trim(),
+      city: String(body.city || body.cidade || "").trim(),
+      state: String(body.state || body.uf || "").trim(),
+      cep: String(body.cep || "").trim(),
+      isDefault: body.isDefault === true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    await ref.set(payload, { merge: true });
+    return payload;
+  }
+
+  function normalizeReplies(raw = []) {
+    const arr = Array.isArray(raw) ? raw : [];
+    return arr.map((item) => ({
+      id: item.id || new ObjectId().toString(),
+      author: item.author || item.sender || item.who || "support",
+      senderType: item.senderType || item.authorType || item.who || "support",
+      text: String(item.text || item.message || item.body || "").trim(),
+      attachments: Array.isArray(item.attachments) ? item.attachments : (item.attach ? [item.attach] : []),
+      createdAt: item.createdAt || item.at || admin.firestore.FieldValue.serverTimestamp(),
+    }));
+  }
+
+  function normalizeTicketPayload(body = {}, user = null) {
+    const attachments = Array.isArray(body.attachments) ? body.attachments : (body.attachment ? [body.attachment] : []);
+    const message = String(body.message || "").trim();
+    const replies = Array.isArray(body.replies) ? body.replies : [];
+    return {
+      subject: String(body.subject || body.assunto || "").trim() || "Chamado",
+      message,
+      category: String(body.category || body.tipo || "").trim() || "Geral",
+      orderId: String(body.orderId || body.pedido || "").trim() || "",
+      userId: String(body.userId || user?.uid || user?.id || "").trim() || null,
+      customerName: String(body.customerName || body.nome || user?.name || "").trim() || null,
+      email: String(body.email || user?.email || "").trim().toLowerCase() || null,
+      status: String(body.status || "Aberto").trim(),
+      attachments,
+      replies: normalizeReplies(replies),
+      messages: Array.isArray(body.messages) ? body.messages : (message ? [{
+        who: "cliente",
+        text: message,
+        at: admin.firestore.FieldValue.serverTimestamp(),
+        attachments,
+      }] : []),
+      createdAt: body.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+  }
+
+  function normalizeFaqPayload(body = {}) {
+    return {
+      question: String(body.question || body.pergunta || "").trim(),
+      answer: String(body.answer || body.resposta || "").trim(),
+      category: String(body.category || body.categoria || "").trim() || "geral",
+      order: Number(body.order || 0) || 0,
+      active: body.active !== false,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: body.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+    };
+  }
+
+  app.post("/auth/register", async (req, res) => {
+    try {
+      const name = String(req.body?.name || req.body?.nome || "").trim();
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const password = String(req.body?.password || "");
+      if (!name || !email || !password) {
+        return res.status(400).json({ ok: false, error: "name_email_password_required" });
+      }
+
+      const exists = await usersCollection().where("email", "==", email).limit(1).get();
+      if (!exists.empty) {
+        return res.status(409).json({ ok: false, error: "email_already_exists" });
+      }
+
+      const ref = usersCollection().doc();
+      const payload = {
+        id: ref.id,
+        ...normalizeUserPayload({ name, email }, {}),
+        passwordHash: hashPassword(password),
+      };
+      await ref.set(payload, { merge: true });
+
+      const user = { id: ref.id, uid: ref.id, name: payload.name, email: payload.email, cpf: payload.cpf || "", phone: payload.phone || "", address: payload.address || null };
+      const token = signJwt({ uid: ref.id, email: payload.email, role: "user" });
+      return res.status(201).json({ ok: true, token, user });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "register_failed" });
+    }
+  });
+
+  app.post("/auth/login", async (req, res) => {
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const password = String(req.body?.password || "");
+      if (!email || !password) return res.status(400).json({ ok: false, error: "email_password_required" });
+
+      const snap = await usersCollection().where("email", "==", email).limit(1).get();
+      if (snap.empty) return res.status(401).json({ ok: false, error: "invalid_credentials" });
+
+      const doc = snap.docs[0];
+      const data = doc.data() || {};
+      const ok = comparePassword(password, data.passwordHash || data.password || "");
+      if (!ok) return res.status(401).json({ ok: false, error: "invalid_credentials" });
+
+      const user = {
+        id: doc.id,
+        uid: doc.id,
+        name: data.name || data.nome || "",
+        email: data.email || email,
+        cpf: data.cpf || "",
+        phone: data.phone || data.telefone || "",
+        address: data.address || null,
+      };
+      const token = signJwt({ uid: doc.id, email: user.email, role: data.role || "user" });
+      return res.json({ ok: true, token, user });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "login_failed" });
+    }
+  });
+
+  app.post("/admin/login", async (req, res) => {
+    try {
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const password = String(req.body?.password || "");
+      if (!email || !password) return res.status(400).json({ ok: false, error: "email_password_required" });
+
+      let adminDoc = null;
+      const envEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+      const envPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+
+      if (envEmail && envPassword && email === envEmail && password === envPassword) {
+        adminDoc = { id: "env-admin", email, role: "admin", name: "Admin" };
+      } else {
+        const adminSnap = await adminsCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
+        if (adminSnap && !adminSnap.empty) {
+          const doc = adminSnap.docs[0];
+          const data = doc.data() || {};
+          if (comparePassword(password, data.passwordHash || data.password || "")) {
+            adminDoc = { id: doc.id, email, role: "admin", ...(data || {}) };
+          }
+        }
+        if (!adminDoc) {
+          const userSnap = await usersCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
+          if (userSnap && !userSnap.empty) {
+            const doc = userSnap.docs[0];
+            const data = doc.data() || {};
+            if ((data.role === "admin" || data.admin === true) && comparePassword(password, data.passwordHash || data.password || "")) {
+              adminDoc = { id: doc.id, email, role: "admin", ...(data || {}) };
+            }
+          }
+        }
+      }
+
+      if (!adminDoc) return res.status(401).json({ ok: false, error: "invalid_admin_credentials" });
+      const token = signJwt({ uid: adminDoc.id, email: adminDoc.email, role: "admin" });
+      return res.json({ ok: true, token, user: { id: adminDoc.id, email: adminDoc.email, role: "admin", name: adminDoc.name || "Admin" } });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_login_failed" });
+    }
+  });
+
+  app.get("/admin/me", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      return res.json({ ok: true, admin: true, user: adminUser });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_me_failed" });
+    }
+  });
+
+  app.get("/me", async (req, res) => {
+    try {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      return res.json({ ok: true, user });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "me_failed" });
+    }
+  });
+
+  app.get("/users/me", async (req, res) => {
+    try {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      return res.json({ ok: true, data: user });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "users_me_failed" });
+    }
+  });
+
+  app.patch("/users/me", async (req, res) => {
+    try {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      const ref = usersCollection().doc(String(user.uid || user.id));
+      const snap = await ref.get();
+      const existing = snapData(snap) || { id: ref.id, email: user.email || "" };
+      const payload = normalizeUserPayload({ ...(existing || {}), ...(req.body || {}) }, existing);
+      await ref.set({ id: ref.id, ...existing, ...payload }, { merge: true });
+      const updated = await ref.get();
+      return res.json({ ok: true, user: snapData(updated) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "patch_users_me_failed" });
+    }
+  });
+
+  app.get("/addresses", async (req, res) => {
+    try {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      const snap = await addressesCollection().where("userId", "==", String(user.uid || user.id)).get();
+      const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
+      return res.json(items);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "addresses_list_failed" });
+    }
+  });
+
+  app.post("/addresses", async (req, res) => {
+    try {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      const payload = await createAddressForUser(user, req.body || {});
+      return res.status(201).json({ ok: true, address: payload });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "address_create_failed" });
+    }
+  });
+
+  app.delete("/addresses/:id", async (req, res) => {
+    try {
+      const user = await requireUser(req, res);
+      if (!user) return;
+      const snap = await addressesCollection().doc(String(req.params.id)).get();
+      const data = snapData(snap);
+      if (!data) return res.status(404).json({ ok: false, error: "address_not_found" });
+      if (String(data.userId || "") !== String(user.uid || user.id)) {
+        return res.status(403).json({ ok: false, error: "address_forbidden" });
+      }
+      await addressesCollection().doc(String(req.params.id)).delete();
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "address_delete_failed" });
+    }
+  });
+
+  app.post("/contact", async (req, res) => {
+    try {
+      const ref = contactsCollection().doc();
+      const payload = {
+        id: ref.id,
+        name: String(req.body?.name || req.body?.nome || "").trim(),
+        email: String(req.body?.email || "").trim().toLowerCase(),
+        subject: String(req.body?.subject || req.body?.assunto || "").trim(),
+        message: String(req.body?.message || req.body?.mensagem || "").trim(),
+        status: String(req.body?.status || "Novo").trim(),
+        createdAt: req.body?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await ref.set(payload, { merge: true });
+      return res.status(201).json({ ok: true, id: ref.id });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "contact_create_failed" });
+    }
+  });
+
+  app.post(["/denuncias", "/reports"], async (req, res) => {
+    try {
+      const ref = denunciasCollection().doc();
+      const payload = {
+        id: ref.id,
+        adUrl: String(req.body?.adUrl || "").trim(),
+        reportType: String(req.body?.reportType || req.body?.motivo || "").trim(),
+        details: String(req.body?.details || req.body?.descricao || "").trim(),
+        photos: Array.isArray(req.body?.photos) ? req.body.photos : (Array.isArray(req.body?.attachments) ? req.body.attachments : []),
+        status: String(req.body?.status || "Aguardando Analise").trim(),
+        createdAt: req.body?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await ref.set(payload, { merge: true });
+      return res.status(201).json({ ok: true, id: ref.id });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "denuncia_create_failed" });
+    }
+  });
+
+  app.post("/returns", async (req, res) => {
+    try {
+      const ref = returnsCollection().doc();
+      const payload = {
+        id: ref.id,
+        userId: String(req.body?.userId || "").trim() || null,
+        orderId: String(req.body?.orderId || "").trim(),
+        contactEmail: String(req.body?.contactEmail || "").trim().toLowerCase(),
+        details: String(req.body?.details || "").trim(),
+        attachments: Array.isArray(req.body?.attachments) ? req.body.attachments : [],
+        status: String(req.body?.status || "Pendente").trim(),
+        createdAt: req.body?.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await ref.set(payload, { merge: true });
+      return res.status(201).json({ ok: true, id: ref.id, protocol: ref.id });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "returns_create_failed" });
+    }
+  });
+
+  app.get("/tickets", async (req, res) => {
+    try {
+      const maybeAdmin = await authAdminFromReq(req);
+      const user = maybeAdmin ? null : await authUserFromReq(req);
+      const snap = await ticketsCollection().get();
+      let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
+      if (!maybeAdmin && user && (user.uid || user.id)) {
+        const uid = String(user.uid || user.id);
+        items = items.filter((row) => String(row.userId || row.customerId || row.buyerId || "") === uid);
+      }
+      items.sort((a, b) => {
+        const am = __compatValueToMillis(a.createdAt || 0);
+        const bm = __compatValueToMillis(b.createdAt || 0);
+        return bm - am;
+      });
+      return res.json(items);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "tickets_list_failed" });
+    }
+  });
+
+  app.post(["/tickets", "/atendimentos"], async (req, res) => {
+    try {
+      const user = await authUserFromReq(req);
+      const ref = ticketsCollection().doc();
+      const ticket = normalizeTicketPayload(req.body || {}, user);
+      const payload = {
+        id: ref.id,
+        protocolo: req.body?.protocolo || `AT-${Date.now()}`,
+        ...ticket,
+      };
+      await ref.set(payload, { merge: true });
+
+      // espelha em atendimentos para telas legadas
+      await atendimentosCollection().doc(ref.id).set({
+        id: ref.id,
+        protocolo: payload.protocolo,
+        nome: payload.customerName || null,
+        email: payload.email || null,
+        pedido: payload.orderId || null,
+        tipo: payload.category || null,
+        mensagem: payload.message || null,
+        status: payload.status || "Novo",
+        data: payload.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        replies: payload.replies || [],
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return res.status(201).json({ ok: true, id: ref.id, ticketId: ref.id, protocol: payload.protocolo, data: payload });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "ticket_create_failed" });
+    }
+  });
+
+  app.get("/tickets/:id", async (req, res) => {
+    try {
+      const snap = await ticketsCollection().doc(String(req.params.id)).get();
+      const data = snapData(snap);
+      if (!data) return res.status(404).json({ ok: false, error: "ticket_not_found" });
+      const replies = Array.isArray(data.replies) ? data.replies : [];
+      return res.json({ ok: true, ticket: { ...data, replies } });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "ticket_get_failed" });
+    }
+  });
+
+  app.post("/tickets/:id/reply", async (req, res) => {
+    try {
+      const maybeAdmin = await authAdminFromReq(req);
+      const user = maybeAdmin ? null : await authUserFromReq(req);
+      const ref = ticketsCollection().doc(String(req.params.id));
+      const snap = await ref.get();
+      const current = snapData(snap);
+      if (!current) return res.status(404).json({ ok: false, error: "ticket_not_found" });
+
+      const reply = {
+        id: new ObjectId().toString(),
+        author: maybeAdmin ? "support" : "customer",
+        senderType: maybeAdmin ? "support" : "customer",
+        text: String(req.body?.text || req.body?.message || req.body?.adminReply || "").trim(),
+        attachments: Array.isArray(req.body?.attachments) ? req.body.attachments : (req.body?.attach ? [req.body.attach] : (req.body?.attachment ? [req.body.attachment] : [])),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        email: maybeAdmin ? null : (user?.email || null),
+      };
+
+      const replies = [...(Array.isArray(current.replies) ? current.replies : []), reply];
+      const messages = [...(Array.isArray(current.messages) ? current.messages : []), {
+        who: maybeAdmin ? "suporte" : "cliente",
+        text: reply.text,
+        at: admin.firestore.FieldValue.serverTimestamp(),
+        attach: reply.attachments?.[0] || "",
+      }];
+
+      await ref.set({
+        replies,
+        messages,
+        status: String(req.body?.status || current.status || "Em Análise"),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      await atendimentosCollection().doc(String(req.params.id)).set({
+        replies,
+        status: String(req.body?.status || current.status || "Em Análise"),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      const updated = await ref.get();
+      return res.json({ ok: true, ticket: snapData(updated) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "ticket_reply_failed" });
+    }
+  });
+
+  app.put("/tickets/:id", async (req, res) => {
+    try {
+      const maybeAdmin = await authAdminFromReq(req);
+      const user = maybeAdmin ? null : await authUserFromReq(req);
+      const ref = ticketsCollection().doc(String(req.params.id));
+      const snap = await ref.get();
+      const current = snapData(snap);
+      if (!current) return res.status(404).json({ ok: false, error: "ticket_not_found" });
+
+      if (!maybeAdmin && user && String(current.userId || "") !== String(user.uid || user.id || "")) {
+        return res.status(403).json({ ok: false, error: "ticket_forbidden" });
+      }
+
+      const patch = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (req.body?.status) patch.status = String(req.body.status);
+      if (req.body?.subject) patch.subject = String(req.body.subject);
+      if (req.body?.message) patch.message = String(req.body.message);
+
+      await ref.set(patch, { merge: true });
+      await atendimentosCollection().doc(String(req.params.id)).set({
+        status: patch.status || current.status || "Aberto",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      const updated = await ref.get();
+      return res.json({ ok: true, ticket: snapData(updated) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "ticket_update_failed" });
+    }
+  });
+
+  app.get("/configuracoes/contatos", async (_req, res) => {
+    try {
+      const snap = await settingsCollection().doc("contatos").get();
+      const data = snapData(snap) || {};
+      return res.json({
+        numero0800: data.numero0800 || "0800 700 0000",
+        numero4004: data.numero4004 || "4004-0000",
+        whatsapp: data.whatsapp || "(31) 98514-7119",
+        email: data.email || "sndigital@outlook.com.br",
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "contact_settings_failed" });
+    }
+  });
+
+  app.get("/faq", async (_req, res) => {
+    try {
+      const snap = await faqCollection().get();
+      const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }))
+        .filter((x) => x.active !== false)
+        .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.question || "").localeCompare(String(b.question || "")));
+      return res.json({ ok: true, items });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "faq_list_failed" });
+    }
+  });
+
+  app.post("/faq", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const ref = faqCollection().doc();
+      const payload = { id: ref.id, ...normalizeFaqPayload(req.body || {}) };
+      await ref.set(payload, { merge: true });
+      return res.status(201).json({ ok: true, item: payload });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "faq_create_failed" });
+    }
+  });
+
+  app.put("/faq/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const ref = faqCollection().doc(String(req.params.id));
+      const snap = await ref.get();
+      const existing = snapData(snap);
+      if (!existing) return res.status(404).json({ ok: false, error: "faq_not_found" });
+      const payload = { ...existing, ...normalizeFaqPayload({ ...existing, ...(req.body || {}) }) };
+      await ref.set(payload, { merge: true });
+      const updated = await ref.get();
+      return res.json({ ok: true, item: snapData(updated) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "faq_update_failed" });
+    }
+  });
+
+  app.delete("/faq/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      await faqCollection().doc(String(req.params.id)).delete();
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "faq_delete_failed" });
+    }
+  });
+
+  app.get("/sellers/:id/public", async (req, res) => {
+    try {
+      const snap = await sellerCollection().doc(String(req.params.id)).get();
+      const seller = snapData(snap);
+      if (!seller) return res.status(404).json({ ok: false, error: "seller_not_found" });
+      return res.json({
+        ok: true,
+        seller: {
+          id: seller.id,
+          name: seller.name || seller.factoryName || "",
+          storeName: seller.storeName || seller.factoryName || seller.name || "",
+          description: seller.description || seller.bio || "",
+          bio: seller.bio || seller.description || "",
+          logoUrl: seller.logoUrl || seller.logo || seller.photoUrl || "",
+          whatsapp: seller.whatsapp || seller.phone || "",
+          phone: seller.phone || "",
+          active: seller.active !== false,
+        }
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "seller_public_failed" });
+    }
+  });
+
+  app.get("/orders", async (req, res) => {
+    try {
+      const maybeAdmin = await authAdminFromReq(req);
+      const user = maybeAdmin ? null : await authUserFromReq(req);
+      let items = await listCollection("orders");
+      if (req.query?.sellerId) {
+        const sellerId = String(req.query.sellerId).trim();
+        items = items.filter((o) => String(o.sellerId || "") === sellerId);
+      }
+      if (!maybeAdmin && user && (user.uid || user.id)) {
+        const uid = String(user.uid || user.id);
+        items = items.filter((o) => [o.userId, o.buyerId, o.customerId].map((x) => String(x || "")).includes(uid));
+      }
+      items.sort((a, b) => __compatValueToMillis(b.createdAt || 0) - __compatValueToMillis(a.createdAt || 0));
+      return res.json({ ok: true, orders: items });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "orders_list_failed" });
+    }
+  });
+
+  app.get("/orders/:id", async (req, res) => {
+    try {
+      const maybeAdmin = await authAdminFromReq(req);
+      const user = maybeAdmin ? null : await authUserFromReq(req);
+      const id = String(req.params.id).trim();
+
+      let order = null;
+      const direct = await ordersCollection().doc(id).get().catch(() => null);
+      order = snapData(direct);
+
+      if (!order) {
+        const list = await listCollection("orders");
+        order = list.find((o) => String(o.id || o._id || "").startsWith(id) || String(o.orderId || o.code || o.shortId || "") === id) || null;
+      }
+
+      if (!order) return res.status(404).json({ ok: false, error: "order_not_found" });
+
+      if (!maybeAdmin && user && (user.uid || user.id)) {
+        const uid = String(user.uid || user.id);
+        const ownerIds = [order.userId, order.buyerId, order.customerId].map((x) => String(x || ""));
+        if (!ownerIds.includes(uid)) {
+          return res.status(403).json({ ok: false, error: "order_forbidden" });
+        }
+      }
+
+      return res.json({ ok: true, order });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "order_get_failed" });
+    }
+  });
+
+  app.post("/orders", async (req, res) => {
+    try {
+      const body = req.body || {};
+      const itemsRaw = Array.isArray(body.items) ? body.items : [];
+      if (!itemsRaw.length) return res.status(400).json({ ok: false, error: "order_items_required" });
+
+      const validatedItems = [];
+      let subtotal = 0;
+      for (const rawItem of itemsRaw) {
+        const qty = Math.max(1, Number(rawItem.quantity || 1) || 1);
+        const product = await findProductById(rawItem.productId || rawItem.id || rawItem._id);
+        if (!product) {
+          return res.status(400).json({ ok: false, error: `produto_invalido:${rawItem.productId || rawItem.id || ""}` });
+        }
+        const unitPrice = Number(product.price ?? product.preco ?? 0) || 0;
+        const lineTotal = unitPrice * qty;
+        subtotal += lineTotal;
+        validatedItems.push({
+          productId: product.id || product._id || rawItem.productId || rawItem.id,
+          name: product.name || product.nome || rawItem.name || "Produto",
+          image: product.imageUrl || product.image || product.mainImageUrl || rawItem.image || "",
+          sellerId: rawItem.sellerId || product.sellerId || null,
+          quantity: qty,
+          price: unitPrice,
+          lineTotal,
+        });
+      }
+
+      const shipping = Number(body?.totals?.shipping ?? body.shipping ?? 0) || 0;
+      const discount = Number(body?.totals?.discount ?? body.discount ?? 0) || 0;
+      const total = Math.max(0, subtotal + shipping - discount);
+
+      const ref = ordersCollection().doc();
+      const orderPayload = {
+        id: ref.id,
+        userId: String(body.userId || body.buyerId || body.customerId || "").trim() || null,
+        buyerId: String(body.buyerId || body.userId || body.customerId || "").trim() || null,
+        customerId: String(body.customerId || body.userId || body.buyerId || "").trim() || null,
+        buyerEmail: String(body.buyerEmail || body.email || "").trim().toLowerCase() || null,
+        buyerName: String(body.buyerName || body.customerName || "").trim() || null,
+        sellerId: String(body.sellerId || validatedItems[0]?.sellerId || "").trim() || null,
+        items: validatedItems,
+        totals: { subtotal, shipping, discount, total },
+        subtotal,
+        shipping,
+        discount,
+        total,
+        payment: body.payment || { provider: "manual", status: "pending" },
+        shippingAddress: body.shippingAddress || null,
+        status: String(body.status || "pending").trim(),
+        trackingCode: body.trackingCode || body.track || "",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await ref.set(orderPayload, { merge: true });
+
+      const payment = orderPayload.payment || {};
+      const method = String(payment.type || payment.method || payment.provider || "").toLowerCase();
+      if (method.includes("pix")) {
+        orderPayload.payment.pix = {
+          qrCode: payment.qrCode || null,
+          emv: payment.emv || null,
+          expiresAt: payment.expiresAt || null,
+        };
+      }
+      if (method.includes("boleto")) {
+        orderPayload.payment.boleto = {
+          barcode: payment.barcode || null,
+          linhaDigitavel: payment.linhaDigitavel || null,
+          expiresAt: payment.expiresAt || null,
+        };
+      }
+
+      return res.status(201).json({ ok: true, id: ref.id, orderId: ref.id, data: orderPayload });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "order_create_failed" });
+    }
+  });
+
+  app.get("/pedidos/rastrear", async (req, res) => {
+    try {
+      const code = String(req.query?.codigo || req.query?.trackingCode || req.query?.orderId || "").trim();
+      if (!code) return res.status(400).json({ ok: false, error: "tracking_code_required" });
+
+      const orders = await listCollection("orders");
+      const order = orders.find((o) => [o.trackingCode, o.track, o.id, o.orderId].map((x) => String(x || "")).includes(code));
+      if (!order) return res.status(404).json({ ok: false, error: "tracking_not_found" });
+
+      const timeline = Array.isArray(order.timeline) ? order.timeline : [];
+      return res.json({
+        ok: true,
+        orderId: order.id,
+        trackingCode: order.trackingCode || order.track || null,
+        status: order.status || null,
+        timeline,
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "tracking_failed" });
+    }
+  });
+
+  app.post("/shipping/calculate", async (req, res) => {
+    try {
+      const cep = String(req.body?.cep || req.body?.cepDestino || "").replace(/\D/g, "");
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      let pesoKg = Number(req.body?.pesoTotal || req.body?.pesoKg || 0) || 0;
+      if (!pesoKg && items.length) {
+        pesoKg = items.reduce((sum, item) => sum + ((Number(item.pesoKg || item.weight || 0) || 0) * (Number(item.quantity || 1) || 1)), 0);
+      }
+      if (!pesoKg) pesoKg = 1;
+
+      const price = Math.max(19.9, (8.5 * pesoKg) + (cep.startsWith("39") ? 0 : 12));
+      const deadlineDays = cep.startsWith("39") ? 2 : 6;
+
+      return res.json({
+        ok: true,
+        cepDestino: cep,
+        pesoKg,
+        shipping: {
+          service: "frete_padrao",
+          price: Number(price.toFixed(2)),
+          deadlineDays,
+        },
+        value: Number(price.toFixed(2)),
+        prazo: deadlineDays,
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "shipping_calculate_failed" });
+    }
+  });
+
+  app.post("/categories", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const ref = categoryCollection().doc();
+      const body = req.body || {};
+      const payload = {
+        id: ref.id,
+        name: String(body.name || body.nome || "").trim(),
+        description: String(body.description || body.descricao || "").trim(),
+        slug: String(body.slug || normalizeSlug(body.name || body.nome || "")).trim(),
+        parentId: body.parentId ? String(body.parentId) : null,
+        level: Number(body.level ?? (body.parentId ? 1 : 0)) || 0,
+        active: body.active !== false,
+        order: Number(body.order ?? 0) || 0,
+        createdByPanel: body.createdByPanel || "categories_panel_v1",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await ref.set(payload, { merge: true });
+      return res.status(201).json({ ok: true, id: ref.id, category: payload });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "category_create_failed" });
+    }
+  });
+
+  app.put("/categories/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const ref = categoryCollection().doc(String(req.params.id));
+      const snap = await ref.get();
+      const current = snapData(snap);
+      if (!current) return res.status(404).json({ ok: false, error: "category_not_found" });
+      const body = req.body || {};
+      const payload = {
+        ...current,
+        name: String(body.name ?? current.name ?? "").trim(),
+        description: String(body.description ?? current.description ?? "").trim(),
+        slug: String(body.slug || normalizeSlug(body.name ?? current.name ?? "")).trim(),
+        parentId: body.parentId !== undefined ? (body.parentId ? String(body.parentId) : null) : (current.parentId || null),
+        level: Number(body.level ?? ((body.parentId !== undefined ? body.parentId : current.parentId) ? 1 : 0)) || 0,
+        active: body.active !== undefined ? body.active !== false : current.active !== false,
+        order: Number(body.order ?? current.order ?? 0) || 0,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await ref.set(payload, { merge: true });
+      const updated = await ref.get();
+      return res.json({ ok: true, category: snapData(updated) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "category_update_failed" });
+    }
+  });
+
+  app.delete("/categories/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      await categoryCollection().doc(String(req.params.id)).delete();
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "category_delete_failed" });
+    }
+  });
+
+  app.get("/seller/products/list", async (req, res) => {
+    try {
+      const idsRaw = String(req.query?.ids || "").trim();
+      if (!idsRaw) return res.json({ ok: true, items: [] });
+      const ids = idsRaw.split(",").map((x) => String(x || "").trim()).filter(Boolean);
+      const items = [];
+      for (const id of ids) {
+        const product = await findProductById(id);
+        if (product) items.push(product);
+      }
+      return res.json({ ok: true, items });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "products_list_failed" });
     }
   });
 

@@ -79,71 +79,6 @@
             }
         }
     </script>
-    
-    <!-- Configurações e Inicialização do Firebase (Mandatório para ambiente Canvas) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, setLogLevel, getDocs, getDoc, query, where, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-            authDomain: "ariana-moveis-final.firebaseapp.com",
-            projectId: "ariana-moveis-final",
-            storageBucket: "ariana-moveis-final.firebasestorage.app",
-            messagingSenderId: "695257365498",
-            appId: "1:695257365498:web:8e68494de6c4c99c67c70"
-        };
-        
-        // Log para debug
-        setLogLevel('Debug');
-
-        // Variáveis globais obrigatórias (Fornecidas pelo ambiente Canvas)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Inicializar Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        
-        let userId = null;
-
-        // Função de autenticação
-        async function authenticate() {
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                userId = auth.currentUser.uid;
-                console.log("Firebase Autenticado. User ID:", userId);
-            } catch (error) {
-                console.error("Erro na autenticação Firebase:", error);
-                userId = crypto.randomUUID(); // Fallback para ID anônimo
-            }
-        }
-
-        // Expor para uso global
-        window.db = db;
-        window.auth = auth;
-        
-        // 🔗 Bridge global para header.js (categorias + endereço)
-        window.collection = collection;
-        window.getDocs = getDocs;
-        window.getDoc = getDoc;
-        window.query = query;
-        window.where = where;
-        window.orderBy = orderBy;
-        window.limit = limit;
-        window.doc = doc;
-        try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
-window.getUserId = () => userId;
-        window.appId = appId;
-
-        authenticate();
-    </script>
 </head>
 <body class="bg-fundo-claro min-h-screen flex flex-col">
 
@@ -366,68 +301,93 @@ window.getUserId = () => userId;
 
         async function handleFormSubmission(event) {
             event.preventDefault();
-            
+
             const form = document.getElementById('return-form');
             const submitButton = document.getElementById('submit-button');
             const loadingText = document.getElementById('loading-text');
 
-            // Desabilitar UI
             submitButton.disabled = true;
             submitButton.classList.add('opacity-50', 'cursor-not-allowed');
             loadingText.classList.remove('hidden');
 
             try {
-                // 1. Coleta de Dados
-                const orderId = document.getElementById('order-id').value;
-                const contactEmail = document.getElementById('contact-email').value;
-                const details = document.getElementById('details').value;
-                const photos = document.getElementById('product-photos').files;
+                const orderId = document.getElementById('order-id').value.trim();
+                const contactEmail = document.getElementById('contact-email').value.trim();
+                const details = document.getElementById('details').value.trim();
+                const photos = Array.from(document.getElementById('product-photos').files || []);
 
-                // 2. Criação do Objeto de Dados
-                const submissionData = {
-                    userId: window.getUserId(),
-                    appId: window.appId,
-                    orderId: orderId,
-                    contactEmail: contactEmail,
-                    details: details,
-                    timestamp: new Date().toISOString(),
+                const attachments = [];
+                for (const file of photos.slice(0, 5)) {
+                    const base64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result || "");
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                    attachments.push(base64);
+                }
+
+                const currentUserRaw = localStorage.getItem("currentUser");
+                let currentUser = null;
+                try {
+                    currentUser = currentUserRaw ? JSON.parse(currentUserRaw) : null;
+                } catch (_) {
+                    currentUser = null;
+                }
+
+                const payload = {
+                    orderId,
+                    contactEmail,
+                    details,
+                    attachments,
+                    userId:
+                        currentUser?.uid ||
+                        currentUser?.id ||
+                        currentUser?._id ||
+                        "",
                     status: 'Pendente',
-                    photoCount: photos.length,
-                    // NOTA: As fotos (arquivos grandes) não devem ser salvas no Firestore.
-                    // Em um app real, você as enviaria para o Cloud Storage e salvaria os URLs aqui.
-                    // Estamos apenas simulando o registro no Firestore.
+                    createdAt: new Date().toISOString()
                 };
 
-                // 3. Simulação de Envio (Aguardar autenticação, se não estiver pronta)
-                if (!window.db || !window.getUserId()) {
-                    console.warn("Aguardando inicialização do Firebase...");
-                    await new Promise(resolve => setTimeout(resolve, 1500)); 
+                const response = await fetch(`${API_BASE}/returns`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const text = await response.text();
+                let data = null;
+                try {
+                    data = text ? JSON.parse(text) : null;
+                } catch (_) {
+                    data = text;
                 }
-                
-                // 4. Salvar no Firestore (Coleção privada do usuário)
-                const db = window.db;
-                const userId = window.getUserId();
-                const appId = window.appId;
 
-                const collectionPath = `artifacts/${appId}/users/${userId}/returns`;
-                
-                const docRef = await addDoc(collection(db, collectionPath), submissionData);
+                if (!response.ok) {
+                    throw new Error((data && (data.message || data.error)) || `Erro HTTP ${response.status}`);
+                }
 
-                // 5. Sucesso
-                showCustomMessage(`Solicitação enviada com sucesso! Seu código de protocolo é: ${docRef.id}.`, 'success');
-                console.log("Documento escrito com ID: ", docRef.id);
+                const protocol =
+                    data?.id ||
+                    data?._id ||
+                    data?.protocol ||
+                    data?.ticketId ||
+                    data?.data?.id ||
+                    data?.data?._id ||
+                    'SOLICITACAO';
 
-                // Limpar formulário após 1 segundo
+                showCustomMessage(`Solicitação enviada com sucesso! Seu código de protocolo é: ${protocol}.`, 'success');
+
                 setTimeout(() => form.reset(), 1000);
                 document.getElementById('file-count').textContent = 'Nenhum arquivo selecionado.';
                 document.getElementById('preview-container').innerHTML = '';
-
 
             } catch (error) {
                 console.error("Erro ao enviar solicitação:", error);
                 showCustomMessage(`Falha ao enviar solicitação. Tente novamente ou entre em contato. Erro: ${error.message}`, 'error');
             } finally {
-                // Habilitar UI novamente
                 loadingText.classList.add('hidden');
                 submitButton.disabled = false;
                 submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -441,10 +401,6 @@ window.getUserId = () => userId;
   (function () {
     const tryInitHeader = () => {
       if (typeof window.carregarHeader !== 'function') { setTimeout(tryInitHeader, 60); return; }
-      if (!(window.db && window.auth && typeof window.getDocs === 'function' && typeof window.orderBy === 'function')) {
-        setTimeout(tryInitHeader, 60);
-        return;
-      }
       try { window.carregarHeader(); } catch (e) { console.error("[page] erro ao carregar header:", e); }
     };
     tryInitHeader();
@@ -454,6 +410,5 @@ window.getUserId = () => userId;
     
     <script src="js/layout-fit.js" defer></script>
 
-    <script src="footer.js"></script>
 </body>
 </html>

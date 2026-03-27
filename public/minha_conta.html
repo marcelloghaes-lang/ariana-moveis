@@ -275,13 +275,17 @@
   </div>
 </div>
 
-<script src="firebase-config.js"></script>
 <script defer src="./header.js"></script>
 <script defer src="./footer.js"></script>
 <script src="js/layout-fit.js" defer></script>
 
 <script>
-const API_BASE = window.API_BASE || "http://localhost:3000/api";
+const API_BASE =
+  localStorage.getItem("API_BASE") ||
+  window.API_BASE ||
+  "https://ariana-move-mongo.onrender.com/api";
+
+window.API_BASE = API_BASE;
 
 let currentUser = null;
 let currentProfile = null;
@@ -392,7 +396,8 @@ function getStoredUser() {
   const sources = [
     localStorage.getItem('currentUser'),
     localStorage.getItem('clienteLogado'),
-    localStorage.getItem('usuarioLogado')
+    localStorage.getItem('usuarioLogado'),
+    localStorage.getItem('user')
   ];
 
   for (const raw of sources) {
@@ -407,6 +412,20 @@ function getStoredUser() {
     const clientSession = sessionStorage.getItem('clientArianaMoveis');
     if (clientSession) return JSON.parse(clientSession);
   } catch (_) {}
+
+  const token =
+    localStorage.getItem('userToken') ||
+    localStorage.getItem('authToken') ||
+    localStorage.getItem('token') ||
+    localStorage.getItem('customerToken') ||
+    '';
+
+  const email = localStorage.getItem('userEmail') || '';
+  const uid = localStorage.getItem('userId') || '';
+
+  if (token || email || uid) {
+    return { token, accessToken: token, email, uid, id: uid };
+  }
 
   return null;
 }
@@ -1071,7 +1090,6 @@ async function init() {
     if (typeof window.carregarHeader !== 'function') return;
     try { window.carregarHeader(); done = true; } catch(e) { console.error("[minha_conta] header:", e); }
   }
-  window.addEventListener('firebase:ready', run);
   document.addEventListener('DOMContentLoaded', () => setTimeout(run, 0));
   setTimeout(run, 250);
 })();

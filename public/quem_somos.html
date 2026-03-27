@@ -14,15 +14,36 @@
         :root {
             --primary-blue: #2E6DA4;
             --dark-bg: #1D2B3A;
+            --site-bg: #F9FAFB;
         }
-        body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; }
-        
-        /* Ajuste para a imagem de fundo no Mobile */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--site-bg);
+            color: var(--dark-bg);
+        }
+
         .mobile-hero {
-            background: linear-gradient(rgba(29, 43, 58, 0.9), rgba(46, 109, 164, 0.8)), 
-                        url('https://images.unsplash.com/photo-1524758631624-e2822e304c36?q=80&w=1000&auto=format&fit=crop');
+            background:
+                linear-gradient(rgba(29, 43, 58, 0.9), rgba(46, 109, 164, 0.8)),
+                url('https://images.unsplash.com/photo-1524758631624-e2822e304c36?q=80&w=1000&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
+        }
+
+        .glass-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 2rem;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, .08);
+        }
+
+        .text-gradient {
+            color: #2E6DA4;
+        }
+
+        #main-footer, #main-footer * {
+            opacity: 1 !important;
+            filter: none !important;
         }
     </style>
 </head>
@@ -85,8 +106,7 @@
         </main>
     </div>
 
-
-    <div class="hidden md:block">
+    <div class="hidden md:block flex-1">
         <section class="bg-[#1D2B3A] text-white py-24 px-6 text-center">
             <h1 class="text-7xl font-black italic tracking-tighter mb-4">ARIANA MÓVEIS</h1>
             <p class="text-2xl font-light opacity-70">O site completo para o seu lar.</p>
@@ -109,31 +129,33 @@
             </div>
 
             <div class="glass-card p-8 md:p-20 mb-20">
-            <div class="max-w-3xl mx-auto text-gray-600 text-lg leading-relaxed">
-                <h2 class="text-3xl md:text-4xl font-black mb-10 text-gradient italic">O que é a Ariana Móveis?</h2>
-                
-                <p class="mb-6">
-                    A <strong>Ariana Móveis</strong> nasceu da vontade de oferecer uma experiência de compra completa e segura. Evoluímos de uma loja especializada para um <strong>Marketplace robusto</strong>, onde a curadoria técnica é o nosso maior diferencial.
-                </p>
+                <div class="max-w-3xl mx-auto text-gray-600 text-lg leading-relaxed">
+                    <h2 class="text-3xl md:text-4xl font-black mb-10 text-gradient italic">O que é a Ariana Móveis?</h2>
 
-                <p class="mb-6">
-                    Hoje, nossa plataforma reúne o que há de melhor em <strong>Eletrodomésticos, Eletroeletrônicos, Informática e Celulares</strong>, além da nossa tradicional linha de mobiliário. Nosso objetivo é que você encontre tudo para o seu dia a dia — do lazer ao trabalho — em um ambiente digital intuitivo e extremamente confiável.
-                </p>
-                
-                <div class="bg-blue-50 border-l-8 border-primary-blue p-8 my-12 rounded-r-2xl italic text-primary-blue font-semibold text-xl">
-                    "Não entregamos apenas produtos. Entregamos tecnologia, conforto e a facilidade que a sua vida moderna exige."
+                    <p class="mb-6">
+                        A <strong>Ariana Móveis</strong> nasceu da vontade de oferecer uma experiência de compra completa e segura. Evoluímos de uma loja especializada para um <strong>Marketplace robusto</strong>, onde a curadoria técnica é o nosso maior diferencial.
+                    </p>
+
+                    <p class="mb-6">
+                        Hoje, nossa plataforma reúne o que há de melhor em <strong>Eletrodomésticos, Eletroeletrônicos, Informática e Celulares</strong>, além da nossa tradicional linha de mobiliário. Nosso objetivo é que você encontre tudo para o seu dia a dia — do lazer ao trabalho — em um ambiente digital intuitivo e extremamente confiável.
+                    </p>
+
+                    <div class="bg-blue-50 border-l-8 border-[#2E6DA4] p-8 my-12 rounded-r-2xl italic text-[#2E6DA4] font-semibold text-xl">
+                        "Não entregamos apenas produtos. Entregamos tecnologia, conforto e a facilidade que a sua vida moderna exige."
+                    </div>
+
+                    <h2 class="text-3xl font-black pt-8 mb-8 text-gradient italic">Variedade com Responsabilidade</h2>
+                    <p>
+                        Ao comprar conosco, você tem a certeza de estar adquirindo itens de parceiros homologados. Seja um smartphone de última geração ou um conjunto de jantar, cada produto passa por um filtro de qualidade para garantir que sua única preocupação seja aproveitar a nova aquisição.
+                    </p>
                 </div>
-
-                <h2 class="text-3xl font-black pt-8 mb-8 text-gradient italic">Variedade com Responsabilidade</h2>
-                <p>
-                    Ao comprar conosco, você tem a certeza de estar adquirindo itens de parceiros homologados. Seja um smartphone de última geração ou um conjunto de jantar, cada produto passa por um filtro de qualidade para garantir que sua única preocupação seja aproveitar a nova aquisição.
-                </p>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
 
     <footer id="main-footer"></footer>
 
-     <script src="js/layout-fit.js" defer></script>
-
-    <script src="footer.js"></script>
+    <script src="footer.js" defer></script>
+    <script src="js/layout-fit.js" defer></script>
+</body>
+</html>

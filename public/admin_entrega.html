@@ -6,18 +6,22 @@
   <title>Início | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="css/tailwind.min.css">
+
+  <style>
+    .bg-dark-bg { background-color: #1D2B3A; }
+    .text-primary-blue { color: #2E6DA4; }
+    .bg-primary-blue { background-color: #2E6DA4; }
+    .ring-primary-blue { --tw-ring-color: #2E6DA4; }
+    .bg-fundo-claro { background-color: #f6f7fb; }
+    .text-text-dark { color: #1f2937; }
+  </style>
 </head>
 
-<body class="bg-fundo-claro font-sans text-text-dark">
-
-<body class="min-h-screen">
+<body class="bg-fundo-claro font-sans text-text-dark min-h-screen">
   <div class="flex min-h-screen">
 
     <!-- SIDEBAR -->
@@ -74,7 +78,7 @@
                 Mercado Pago (PIX, Cartão e Boleto)
               </h2>
               <p class="text-gray-600 text-sm mt-1">
-                Dica: <b>NUNCA</b> deixe <b>Access Token</b> no front-end. Guarde no backend (Cloud Run/Functions).
+                Dica: <b>NUNCA</b> deixe <b>Access Token</b> no front-end. Guarde no backend.
                 Aqui no painel, salve apenas chaves públicas e flags.
               </p>
             </div>
@@ -122,7 +126,7 @@
           </h2>
           <p class="text-gray-600 text-sm mt-1">
             Você já usa Correios com limite de <b>30kg</b> e dimensão máx. <b>100cm</b>.
-            Aqui você pode definir quando o sistema deve <b>bloquear</b> Correios e mandar para frete pesado/ manual.
+            Aqui você pode definir quando o sistema deve <b>bloquear</b> Correios e mandar para frete pesado/manual.
           </p>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
@@ -229,68 +233,101 @@
     </main>
   </div>
 
-  <!-- Firebase -->
-  <script type="module">
-    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:8e68494de6c4c9ecf67c70"
-    };
-
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    const APP_ID = "ariana-moveis-final";
-
-    // refs: tenta salvar em 2 lugares:
-    // 1) por admin (quase sempre permitido nas rules privadas)
-    // 2) global (se suas rules permitirem)
-    const adminSettingsRef = (uid) => doc(db, "artifacts", APP_ID, "users", uid, "store_settings", "global_config");
-    const globalSettingsRef = () => doc(db, "artifacts", APP_ID, "store_settings", "global_config");
+  <script>
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-move-mongo.onrender.com/api";
 
     const el = (id) => document.getElementById(id);
     const msgBox = el("msgBox");
 
-    function msg(text, type="info") {
+    function getAdminToken() {
+      return (
+        localStorage.getItem("adminToken") ||
+        localStorage.getItem("admin_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        ""
+      );
+    }
+
+    function getAuthHeaders(extra = {}) {
+      const token = getAdminToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...extra
+      };
+    }
+
+    async function apiFetch(path, options = {}) {
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: getAuthHeaders(options.headers || {})
+      });
+
+      const text = await response.text();
+      let data = null;
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${response.status}`
+        );
+      }
+
+      return data;
+    }
+
+    function msg(text, type = "info") {
       msgBox.className = "mb-6 px-4 py-3 rounded-xl border";
       msgBox.classList.remove("hidden");
+      msgBox.classList.remove(
+        "bg-red-50","border-red-200","text-red-700",
+        "bg-green-50","border-green-200","text-green-700",
+        "bg-blue-50","border-blue-200","text-blue-700"
+      );
+
       if (type === "error") msgBox.classList.add("bg-red-50","border-red-200","text-red-700");
       else if (type === "success") msgBox.classList.add("bg-green-50","border-green-200","text-green-700");
       else msgBox.classList.add("bg-blue-50","border-blue-200","text-blue-700");
+
       msgBox.textContent = text;
-      setTimeout(()=> msgBox.classList.add("hidden"), 4500);
+      setTimeout(() => msgBox.classList.add("hidden"), 4500);
     }
 
-    // UI state
     let carriers = [];
     let rules = [];
-    let currentUid = null;
 
-    function carrierRow(c, idx){
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[m]));
+    }
+
+    function carrierRow(c, idx) {
       return `
         <tr class="border-b">
           <td class="p-3">
-            <input type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" data-carrier-idx="${idx}" data-k="enabled" ${c.enabled ? "checked":""}>
+            <input type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" data-carrier-idx="${idx}" data-k="enabled" ${c.enabled ? "checked" : ""}>
           </td>
           <td class="p-3">
-            <input class="w-full border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="name" value="${escapeHtml(c.name||"")}">
+            <input class="w-full border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="name" value="${escapeHtml(c.name || "")}">
           </td>
           <td class="p-3">
-            <input class="w-full border rounded-lg px-3 py-2" placeholder="SP,RJ,MG" data-carrier-idx="${idx}" data-k="ufs" value="${escapeHtml((c.ufs||"").toUpperCase())}">
+            <input class="w-full border rounded-lg px-3 py-2" placeholder="SP,RJ,MG" data-carrier-idx="${idx}" data-k="ufs" value="${escapeHtml((c.ufs || "").toUpperCase())}">
           </td>
           <td class="p-3">
-            <input type="number" min="0" step="1" class="w-28 border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="baseDays" value="${Number(c.baseDays||0)}">
+            <input type="number" min="0" step="1" class="w-28 border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="baseDays" value="${Number(c.baseDays || 0)}">
           </td>
           <td class="p-3">
-            <input class="w-full border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="note" value="${escapeHtml(c.note||"")}">
+            <input class="w-full border rounded-lg px-3 py-2" data-carrier-idx="${idx}" data-k="note" value="${escapeHtml(c.note || "")}">
           </td>
           <td class="p-3 text-right">
             <button class="px-3 py-2 rounded-lg bg-red-50 text-red-600 font-black hover:bg-red-100" data-remove-carrier="${idx}">
@@ -301,20 +338,20 @@
       `;
     }
 
-    function ruleRow(r, idx){
+    function ruleRow(r, idx) {
       const regionOptions = [
-        ["all","Capital + Interior"],
-        ["capital","Apenas Capital"],
-        ["interior","Apenas Interior"],
-      ].map(([v,l]) => `<option value="${v}" ${r.region===v?"selected":""}>${l}</option>`).join("");
+        ["all", "Capital + Interior"],
+        ["capital", "Apenas Capital"],
+        ["interior", "Apenas Interior"],
+      ].map(([v, l]) => `<option value="${v}" ${r.region === v ? "selected" : ""}>${l}</option>`).join("");
 
       return `
         <tr class="border-b">
           <td class="p-3">
-            <input type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" data-rule-idx="${idx}" data-k="enabled" ${r.enabled ? "checked":""}>
+            <input type="checkbox" class="w-5 h-5 accent-[#2E6DA4]" data-rule-idx="${idx}" data-k="enabled" ${r.enabled ? "checked" : ""}>
           </td>
           <td class="p-3">
-            <input maxlength="2" class="w-16 uppercase border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="uf" value="${escapeHtml((r.uf||"").toUpperCase())}" placeholder="UF">
+            <input maxlength="2" class="w-16 uppercase border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="uf" value="${escapeHtml((r.uf || "").toUpperCase())}" placeholder="UF">
           </td>
           <td class="p-3">
             <select class="border rounded-lg px-3 py-2" data-rule-idx="${idx}" data-k="region">
@@ -335,27 +372,23 @@
       `;
     }
 
-    function escapeHtml(s){
-      return String(s ?? "").replace(/[&<>"']/g, m => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-      }[m]));
-    }
-
-    function renderTables(){
+    function renderTables() {
       el("carriersTbody").innerHTML = carriers.map(carrierRow).join("");
       el("rulesTbody").innerHTML = rules.map(ruleRow).join("");
     }
 
-    function bindTableEvents(){
+    function bindTableEvents() {
       document.addEventListener("input", (e) => {
         const t = e.target;
-        if (t?.dataset?.carrierIdx !== undefined){
+
+        if (t?.dataset?.carrierIdx !== undefined) {
           const idx = Number(t.dataset.carrierIdx);
           const k = t.dataset.k;
           if (!carriers[idx]) return;
           carriers[idx][k] = (t.type === "checkbox") ? t.checked : t.value;
         }
-        if (t?.dataset?.ruleIdx !== undefined){
+
+        if (t?.dataset?.ruleIdx !== undefined) {
           const idx = Number(t.dataset.ruleIdx);
           const k = t.dataset.k;
           if (!rules[idx]) return;
@@ -369,32 +402,30 @@
         const t = e.target;
         const rc = t?.dataset?.removeCarrier;
         const rr = t?.dataset?.removeRule;
-        if (rc !== undefined){
-          carriers.splice(Number(rc),1);
+
+        if (rc !== undefined) {
+          carriers.splice(Number(rc), 1);
           renderTables();
         }
-        if (rr !== undefined){
-          rules.splice(Number(rr),1);
+
+        if (rr !== undefined) {
+          rules.splice(Number(rr), 1);
           renderTables();
         }
       });
     }
 
-    // Load + Save
-    async function loadAll(uid){
-      // tenta primeiro global, depois admin
-      let data = null;
-      try {
-        const g = await getDoc(globalSettingsRef());
-        if (g.exists()) data = g.data();
-      } catch(_) {}
-      if (!data){
-        const a = await getDoc(adminSettingsRef(uid));
-        if (a.exists()) data = a.data();
-      }
+    function normalizeSettingsPayload(data) {
+      return data?.settings || data?.data || data || {};
+    }
+
+    async function loadAll() {
+      const data = normalizeSettingsPayload(
+        await apiFetch("/admin/store-settings")
+      );
 
       const payments = data?.payments || {};
-      const shipping  = data?.shipping  || {};
+      const shipping = data?.shipping || {};
 
       el("mpPublicKey").value = payments.mercadopago?.publicKey || "";
       el("mpMode").value = payments.mercadopago?.mode || "prod";
@@ -407,17 +438,22 @@
       el("correiosMaxDimCm").value = shipping.correios?.maxDimCm ?? 100;
 
       carriers = Array.isArray(shipping.heavyCarriers) ? shipping.heavyCarriers : [];
-      rules    = Array.isArray(shipping.manualRules)  ? shipping.manualRules  : [];
+      rules = Array.isArray(shipping.manualRules) ? shipping.manualRules : [];
 
-      if (!carriers.length) carriers = [{ enabled:true, name:"", ufs:"", baseDays:7, note:"" }];
-      if (!rules.length) rules = [{ enabled:true, uf:"SP", region:"all", minKg:0, maxKg:9999, maxDimCm:9999, price:0, days:7 }];
+      if (!carriers.length) {
+        carriers = [{ enabled: true, name: "", ufs: "", baseDays: 7, note: "" }];
+      }
+
+      if (!rules.length) {
+        rules = [{ enabled: true, uf: "SP", region: "all", minKg: 0, maxKg: 9999, maxDimCm: 9999, price: 0, days: 7 }];
+      }
 
       renderTables();
     }
 
-    async function saveAll(uid){
+    async function saveAll() {
       const payload = {
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         payments: {
           mercadopago: {
             publicKey: el("mpPublicKey").value.trim(),
@@ -435,15 +471,15 @@
           },
           heavyCarriers: carriers.map(c => ({
             enabled: !!c.enabled,
-            name: String(c.name||"").trim(),
-            ufs: String(c.ufs||"").toUpperCase().replace(/\s+/g,""),
+            name: String(c.name || "").trim(),
+            ufs: String(c.ufs || "").toUpperCase().replace(/\s+/g, ""),
             baseDays: Number(c.baseDays || 0),
-            note: String(c.note||"").trim()
+            note: String(c.note || "").trim()
           })).filter(c => c.name || c.ufs || c.note),
           manualRules: rules.map(r => ({
             enabled: !!r.enabled,
-            uf: String(r.uf||"").toUpperCase().slice(0,2),
-            region: (r.region==="capital"||r.region==="interior"||r.region==="all") ? r.region : "all",
+            uf: String(r.uf || "").toUpperCase().slice(0, 2),
+            region: (r.region === "capital" || r.region === "interior" || r.region === "all") ? r.region : "all",
             minKg: Number(r.minKg ?? 0),
             maxKg: Number(r.maxKg ?? 9999),
             maxDimCm: Number(r.maxDimCm ?? 9999),
@@ -453,95 +489,78 @@
         }
       };
 
-      // tenta escrever nos dois locais
-      let okAdmin = false, okGlobal = false;
+      await apiFetch("/admin/store-settings", {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
 
-      try {
-        await setDoc(adminSettingsRef(uid), payload, { merge:true });
-        okAdmin = true;
-      } catch (e) {
-        console.error("[save] admin ref:", e);
-      }
-
-      try {
-        await setDoc(globalSettingsRef(), payload, { merge:true });
-        okGlobal = true;
-      } catch (e) {
-        console.warn("[save] global ref negado (rules):", e);
-      }
-
-      if (okAdmin && okGlobal) msg("Configurações salvas (admin + global).", "success");
-      else if (okAdmin) msg("Salvo no painel admin. (Global bloqueado pelas rules — tudo bem.)", "success");
-      else msg("Não foi possível salvar. Verifique permissões do Firestore (admin).", "error");
+      msg("Configurações salvas com sucesso.", "success");
     }
 
-    // Admin gate
-    async function isAdmin(uid){
+    async function checkAdmin() {
       try {
-        const snap = await getDoc(doc(db,"admins",uid));
-        if (!snap.exists()) return false;
-        const a = snap.data() || {};
-        if (a.active === false) return false;
-        const st = String(a.status||"").toLowerCase();
-        if (st === "bloqueado" || st === "reprovado") return false;
-        return true;
-      } catch(e){
+        const me = await apiFetch("/admin/me");
+        return !!(me && (me.admin || me.user || me.data || me));
+      } catch (_) {
         return false;
       }
     }
 
-    // Buttons
     el("btnAddCarrier").addEventListener("click", () => {
-      carriers.push({ enabled:true, name:"", ufs:"", baseDays:7, note:"" });
+      carriers.push({ enabled: true, name: "", ufs: "", baseDays: 7, note: "" });
       renderTables();
     });
 
     el("btnAddRule").addEventListener("click", () => {
-      rules.push({ enabled:true, uf:"", region:"all", minKg:0, maxKg:9999, maxDimCm:9999, price:0, days:7 });
+      rules.push({ enabled: true, uf: "", region: "all", minKg: 0, maxKg: 9999, maxDimCm: 9999, price: 0, days: 7 });
       renderTables();
     });
 
     el("btnSalvarTudo").addEventListener("click", async () => {
-      if (!currentUid) { msg("Sessão inválida. Faça login novamente.", "error"); return; }
-      await saveAll(currentUid);
+      try {
+        await saveAll();
+      } catch (e) {
+        console.error("[save settings]", e);
+        msg(e.message || "Não foi possível salvar.", "error");
+      }
     });
 
     el("btnLogout").addEventListener("click", async () => {
-      try { await signOut(auth); } catch(_) {}
+      localStorage.removeItem("adminToken");
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("authToken");
       location.href = "login_admin.html";
     });
 
-    // init
     bindTableEvents();
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user){
-        location.href = "login_admin.html";
-        return;
-      }
-      currentUid = user.uid;
-
-      const ok = await isAdmin(user.uid);
-      if (!ok){
+    async function initPage() {
+      const ok = await checkAdmin();
+      if (!ok) {
         msg("Acesso negado: conta não é ADMIN.", "error");
-        try { await signOut(auth); } catch(_) {}
-        location.href = "login_admin.html";
+        setTimeout(() => {
+          location.href = "login_admin.html";
+        }, 700);
         return;
       }
 
-      await loadAll(user.uid);
-      msg("Configurações carregadas.", "success");
-    });
+      try {
+        await loadAll();
+        msg("Configurações carregadas.", "success");
+      } catch (e) {
+        console.error("[load settings]", e);
+        msg(e.message || "Erro ao carregar configurações.", "error");
+      }
+    }
+
+    initPage();
   </script>
-  <script type="module" src="firebase-config.js"></script>
-    <script src="marketplace-core.js"></script>
-    <script src="marketplace-core_global_payments.js"></script>
 
-     <script src="js/layout-fit.js" defer></script>
-
-    <script src="header.js" defer></script>
-  
-    <script src="js/header_auth_fix.js" defer></script>
-
+  <script src="marketplace-core.js"></script>
+  <script src="marketplace-core_global_payments.js"></script>
+  <script src="js/layout-fit.js" defer></script>
+  <script src="header.js" defer></script>
+  <script src="js/header_auth_fix.js" defer></script>
 </body>
 </html>

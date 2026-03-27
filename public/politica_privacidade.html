@@ -168,34 +168,12 @@
                 <p>Utilizamos protocolos de segurança modernos (SSL) e criptografia de ponta para garantir que seus dados nunca sejam interceptados. Nosso banco de dados é gerido sob rigorosos padrões de proteção.</p>
 
                 <h2>4. Direitos do Titular (LGPD)</h2>
-                <p>Respeitamos a Lei Geral de Proteção de Dados. Você pode solicitar a qualquer momento a correção, acesso ou exclusão de seus dados entrando em contato pelo nosso **<a href="fale_conosco.html" class="text-primary-blue underline font-bold">Portal de Atendimento</a>**.</p>
+                <p>Respeitamos a Lei Geral de Proteção de Dados. Você pode solicitar a qualquer momento a correção, acesso ou exclusão de seus dados entrando em contato pelo nosso **<a href="contato.html" class="text-primary-blue underline font-bold">Portal de Atendimento</a>**.</p>
             </div>
         </div>
     </main>
 
-    <script type="module">
-        const firebaseConfig = {
-            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-            authDomain: "ariana-moveis-final.firebaseapp.com",
-            projectId: "ariana-moveis-final",
-            storageBucket: "ariana-moveis-final.firebasestorage.app",
-            messagingSenderId: "695257365498",
-            appId: "1:695257365498:web:8e68494de6c4c9ecf67c70",
-            measurementId: "G-WNMWLYMW43"
-        };
-        
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        onAuthStateChanged(auth, (user) => {
-            if (!user) signInAnonymously(auth);
-        });
-    </script>
+    
 
      <script src="js/layout-fit.js" defer></script>
 

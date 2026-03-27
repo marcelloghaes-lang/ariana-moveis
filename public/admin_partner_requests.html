@@ -70,75 +70,172 @@
     </main>
   </div>
 
+  
   <script>
-    const API_BASE = "https://ariana-moveis.onrender.com/api";
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-move-mongo.onrender.com/api";
 
-    function toast(msg, type='info') {
+    function getAdminToken() {
+      return (
+        localStorage.getItem("adminToken") ||
+        localStorage.getItem("admin_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        ""
+      );
+    }
+
+    function getHeaders(extra = {}) {
+      const token = getAdminToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...extra
+      };
+    }
+
+    function toast(msg, type = 'info') {
       const el = document.createElement('div');
-      el.className = `toast ${type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`;
+      el.className = `toast ${type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-rose-500' : 'bg-primary-blue'}`;
       el.textContent = msg;
       document.getElementById('toast-container').appendChild(el);
       setTimeout(() => el.remove(), 4000);
     }
 
+    function normalizeRequests(payload) {
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.requests)) return payload.requests;
+      if (Array.isArray(payload?.items)) return payload.items;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.partnerRequests)) return payload.partnerRequests;
+      if (Array.isArray(payload?.sellers)) return payload.sellers;
+      return [];
+    }
+
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: getHeaders(options.headers || {})
+      });
+
+      const text = await res.text();
+      let data = null;
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {
+        data = text;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${res.status}`
+        );
+      }
+
+      return data;
+    }
+
+    async function checkAdmin() {
+      try {
+        const me = await apiFetch("/admin/me");
+        return !!(me && (me.admin || me.user || me.data || me));
+      } catch (_) {
+        return false;
+      }
+    }
+
     async function loadRequests() {
       const tbody = document.getElementById('tb-requests');
       try {
-        const res = await fetch(`${API_BASE}/seller/partner-requests`);
-        const sellers = await res.json();
+        tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-gray-400">Carregando dados do Render...</td></tr>';
+
+        const payload = await apiFetch('/seller/partner-requests');
+        const sellers = normalizeRequests(payload);
 
         if (!sellers || sellers.length === 0) {
           tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-gray-400">Nenhuma solicitação encontrada no MongoDB.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = sellers.map(s => `
-          <tr class="hover:bg-gray-50 transition">
-            <td class="px-6 py-4">
-              <div class="font-bold text-gray-900">${s.factoryName || s.name}</div>
-              <div class="text-xs text-gray-500">${s.cnpj || 'Sem CNPJ'}</div>
-            </td>
-            <td class="px-6 py-4 text-sm">
-              <div class="font-medium">${s.name}</div>
-              <div class="text-gray-500">${s.email}</div>
-            </td>
-            <td class="px-6 py-4">
-              <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                s.status === 'aprovado' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-              }">${s.status || 'Pendente'}</span>
-            </td>
-            <td class="px-6 py-4 text-right space-x-2">
-              <button onclick="updateStatus('${s._id}', 'aprovado')" class="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90">Aprovar</button>
-              <button onclick="updateStatus('${s._id}', 'reprovado')" class="bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90">Recusar</button>
-            </td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = sellers.map(s => {
+          const id = s._id || s.id || '';
+          const status = (s.status || 'pendente').toLowerCase();
+          const loja = s.factoryName || s.storeName || s.shopName || s.name || 'Sem nome';
+          const responsavel = s.ownerName || s.responsavel || s.name || '—';
+          const email = s.email || s.contactEmail || '—';
+          const cnpj = s.cnpj || s.document || 'Sem CNPJ';
+          const statusClass =
+            status === 'aprovado'
+              ? 'bg-green-100 text-green-700'
+              : status === 'reprovado'
+              ? 'bg-rose-100 text-rose-700'
+              : 'bg-amber-100 text-amber-700';
+
+          return `
+            <tr class="hover:bg-gray-50 transition">
+              <td class="px-6 py-4">
+                <div class="font-bold text-gray-900">${loja}</div>
+                <div class="text-xs text-gray-500">${cnpj}</div>
+              </td>
+              <td class="px-6 py-4 text-sm">
+                <div class="font-medium">${responsavel}</div>
+                <div class="text-gray-500">${email}</div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${statusClass}">${status}</span>
+              </td>
+              <td class="px-6 py-4 text-right space-x-2">
+                <button onclick="updateStatus('${id}', 'aprovado')" class="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90">Aprovar</button>
+                <button onclick="updateStatus('${id}', 'reprovado')" class="bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90">Recusar</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
       } catch (e) {
+        console.error(e);
         tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-rose-500 font-bold">Erro ao conectar com o Render.</td></tr>';
       }
     }
 
     async function updateStatus(id, newStatus) {
-      if(!confirm(`Deseja alterar o status para ${newStatus}?`)) return;
+      if (!confirm(`Deseja alterar o status para ${newStatus}?`)) return;
+
       try {
-        const res = await fetch(`${API_BASE}/seller/partner-requests/${id}/status`, {
+        await apiFetch(`/seller/partner-requests/${id}/status`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus, active: newStatus === 'aprovado' })
+          body: JSON.stringify({
+            status: newStatus,
+            active: newStatus === 'aprovado'
+          })
         });
 
-        if (res.ok) {
-          toast(`Vendedor ${newStatus} com sucesso!`, 'success');
-          loadRequests();
-        } else {
-          throw new Error();
-        }
+        toast(`Vendedor ${newStatus} com sucesso!`, 'success');
+        loadRequests();
       } catch (e) {
+        console.error(e);
         toast('Erro ao atualizar status.', 'error');
       }
     }
 
-    window.onload = loadRequests;
+    window.updateStatus = updateStatus;
+    window.loadRequests = loadRequests;
+
+    window.addEventListener('load', async () => {
+      const ok = await checkAdmin();
+      if (!ok) {
+        toast('Acesso negado. Faça login como administrador.', 'error');
+        setTimeout(() => {
+          window.location.href = 'login_admin.html';
+        }, 900);
+        return;
+      }
+
+      loadRequests();
+    });
   </script>
+
 </body>
 </html>

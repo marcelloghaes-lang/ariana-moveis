@@ -144,15 +144,176 @@
 
     document.getElementById('btnNovo').onclick = () => window.location.href = 'novo_chamado.html';
   </script>
-  
+
+
+  <script>
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      window.API_BASE ||
+      "https://ariana-move-mongo.onrender.com/api";
+
+    window.API_BASE = API_BASE;
+
+    const tbody = document.getElementById('tbody');
+    const empty = document.getElementById('empty');
+    const loading = document.getElementById('loading');
+    const qInput = document.getElementById('q');
+    const filterStatus = document.getElementById('filterStatus');
+
+    let allTickets = [];
+
+    function getUserToken() {
+      return (
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("customerToken") ||
+        ""
+      );
+    }
+
+    function getHeaders(extra = {}) {
+      const token = getUserToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...extra
+      };
+    }
+
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: getHeaders(options.headers || {})
+      });
+
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {
+        data = text;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${res.status}`
+        );
+      }
+
+      return data;
+    }
+
+    function normalizeUser(payload) {
+      const u = payload?.user || payload?.data || payload || null;
+      if (!u) return null;
+      return {
+        uid: u.uid || u.id || u._id || "",
+        email: u.email || ""
+      };
+    }
+
+    function normalizeTickets(payload) {
+      let list = Array.isArray(payload) ? payload : (payload?.tickets || payload?.items || payload?.data || []);
+      if (!Array.isArray(list)) list = [];
+      return list.map(t => ({
+        id: t._id || t.id || "",
+        subject: t.subject || t.assunto || "Chamado",
+        orderId: t.orderId || t.pedido || "N/A",
+        status: t.status || "Aberto",
+        userId: t.userId || t.buyerId || t.customerId || "",
+        createdAt: t.createdAt || t.data || t.created_at || ""
+      }));
+    }
+
+    function statusClass(status) {
+      return String(status).toLowerCase().includes('concl')
+        ? 'bg-green-600'
+        : 'bg-primary-blue';
+    }
+
+    function renderTickets() {
+      const q = (qInput.value || '').toLowerCase().trim();
+      const fStatus = filterStatus.value;
+
+      const filtered = allTickets.filter(t => {
+        if (fStatus && t.status !== fStatus) return false;
+        if (q && !String(t.subject || '').toLowerCase().includes(q)) return false;
+        return true;
+      });
+
+      tbody.innerHTML = '';
+
+      if (!filtered.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+
+      filtered.forEach(t => {
+        tbody.innerHTML += `
+          <tr class="border-b border-gray-100 hover:bg-blue-50 transition">
+            <td class="p-5 font-mono font-bold text-gray-400">#${String(t.id).substring(0,6).toUpperCase()}</td>
+            <td class="p-5">
+              <div class="font-black text-lg text-dark-bg uppercase">${t.subject}</div>
+              <div class="text-xs font-bold text-gray-500">Pedido: ${t.orderId || 'N/A'}</div>
+            </td>
+            <td class="p-5 text-center">
+              <span class="${statusClass(t.status)} text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">${t.status}</span>
+            </td>
+            <td class="p-5 text-right">
+              <a href="chamado_detalhe.html?id=${encodeURIComponent(t.id)}" class="inline-block border-2 border-primary-blue text-primary-blue hover:bg-primary-blue hover:text-white px-6 py-2 rounded-lg font-black text-xs transition uppercase">Ver</a>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function loadTickets() {
+      try {
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+        tbody.innerHTML = '';
+
+        const me = normalizeUser(await apiFetch('/me'));
+        if (!me || !me.uid) {
+          window.location.href = 'login_cadastro.html';
+          return;
+        }
+
+        const payload = await apiFetch('/tickets');
+        const tickets = normalizeTickets(payload);
+
+        allTickets = tickets
+          .filter(t => !t.userId || t.userId === me.uid)
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+        loading.classList.add('hidden');
+        renderTickets();
+      } catch (e) {
+        console.error(e);
+        loading.classList.add('hidden');
+        empty.classList.remove('hidden');
+        empty.innerHTML = '<p class="text-2xl font-black text-red-400">ERRO AO CARREGAR CHAMADOS</p><p class="mt-2 text-gray-500">'+ (e.message || 'Falha ao conectar com o servidor.') +'</p>';
+      }
+    }
+
+    qInput.addEventListener('input', renderTickets);
+    filterStatus.addEventListener('change', renderTickets);
+
+    document.getElementById('btnNovo').onclick = () => window.location.href = 'novo_chamado.html';
+
+    window.addEventListener('DOMContentLoaded', loadTickets);
+  </script>
+
     <script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>
 
      <script src="js/layout-fit.js" defer></script>
 
     <script src="footer.js" defer></script>
-
-   <script src="js/header_auth_fix.js"></script>
 
    <script src="js/header_auth_fix.js" defer></script>
 

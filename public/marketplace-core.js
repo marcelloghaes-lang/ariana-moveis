@@ -121,6 +121,32 @@ function getProductImageUrl(p) {
     }
   };
 
+  // ============================================================
+// Lógica para Salvar Chamados de Suporte no MongoDB
+// ============================================================
+window.saveTicket = async function(ticketData) {
+    const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
+    
+    try {
+        const response = await fetch(`${API_BASE}/tickets`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // Se você já tiver o token de login do cliente:
+                'Authorization': `Bearer ${localStorage.getItem('userToken')}`
+            },
+            body: JSON.stringify(ticketData)
+        });
+
+        if (!response.ok) throw new Error('Falha ao salvar chamado');
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Erro ao enviar chamado:', error);
+        throw error;
+    }
+};
+
   try { window.getPaymentSettings(false); } catch (_) {}
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));

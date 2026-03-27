@@ -13,11 +13,20 @@
   <link rel="icon" type="image/png" href="/favicon.png">
 
   <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <style>
+      .accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height .3s ease, padding .3s ease;
+        padding-top: 0;
+        padding-bottom: 0;
+      }
+    </style>
+
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
-
-<body>
 
     <!-- MAIN CONTENT - FAQ -->
     <main class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 mt-6">
@@ -122,147 +131,53 @@
         </div>
     </main>
     
-    <!-- FIREBASE AND CLIENT-SIDE LOGIC -->
-    <script type="module">
-        // Variáveis globais obrigatórias do ambiente Canvas
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-            authDomain: "ariana-moveis-final.firebaseapp.com",
-            projectId: "ariana-moveis-final",
-            storageBucket: "ariana-moveis-final.firebasestorage.app",
-            messagingSenderId: "695257365498",
-            appId: "1:695257365498:web:8e68494de6c4c99c67c70"
-        };
-        
-        // Imports do Firebase (necessários para auth do header)
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            onAuthStateChanged, 
-            signInWithCustomToken, 
-            signInAnonymously
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setLogLevel, collection, getDocs, getDoc, query, where, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        setLogLevel('Debug');
-        
-        let db = null;
-        let auth = null;
-        
-        // --- UTILITIES ---
+    <script>
+      const API_BASE =
+        localStorage.getItem("API_BASE") ||
+        window.API_BASE ||
+        "https://ariana-move-mongo.onrender.com/api";
 
-        /**
-         * Atualiza o cabeçalho com o nome do usuário logado.
-         */
-        window.updateClientHeader = function(userName = 'Minha Conta', isAnonymous = true) {
-            const accountLink = document.getElementById('client-account-link');
-            if (accountLink) {
-                if (isAnonymous) {
-                    accountLink.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i> Minha Conta`;
-                    accountLink.href = 'login_cadastro.html';
-                } else {
-                    const firstName = userName.split(' ')[0];
-                    accountLink.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i> Olá, ${firstName}`;
-                    accountLink.href = 'minha_conta.html';
-                }
-            }
-        };
+      window.API_BASE = API_BASE;
 
-        /**
-         * Redireciona a busca do cabeçalho.
-         */
-        window.realizarBusca = function() {
-            const query = document.getElementById('campo-busca').value;
-            if (query.trim()) {
-                window.location.href = `busca.html?q=${encodeURIComponent(query)}`;
-            }
-        };
+      window.toggleAccordion = function(header) {
+        const item = header.closest('.accordion-item');
+        const content = item.querySelector('.accordion-content');
+        const icon = header.querySelector('i');
 
-        /**
-         * Lógica para abrir/fechar os itens do acordeão.
-         */
-        window.toggleAccordion = function(header) {
-            const item = header.closest('.accordion-item');
-            const content = item.querySelector('.accordion-content');
-            const icon = header.querySelector('i');
-
-            // Fecha todos os outros (opcional, mas melhora a usabilidade)
-            document.querySelectorAll('.accordion-content.active').forEach(activeContent => {
-                if (activeContent !== content) {
-                    activeContent.classList.remove('active');
-                    activeContent.previousElementSibling.querySelector('i').classList.remove('rotate-180');
-                }
-            });
-
-            // Alterna o item clicado
-            content.classList.toggle('active');
-            icon.classList.toggle('rotate-180');
-        };
-
-
-        // --- FIREBASE INITIALIZATION ---
-        
-        const checkAuthAndInit = async () => {
-            if (firebaseConfig === null) { 
-                console.error('ERRO: Configuração do Firebase não encontrada.');
-                return;
-            }
-
-            try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
-                // 🔗 Bridge global para header.js (categorias + endereço)
-                window.db = db;
-                window.auth = auth;
-                window.collection = collection;
-                window.getDocs = getDocs;
-                window.getDoc = getDoc;
-                window.query = query;
-                window.where = where;
-                window.orderBy = orderBy;
-                window.limit = limit;
-                window.doc = doc;
-                try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
-if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken).catch(e => {
-                        console.warn("Token inicial inválido ou expirado. Entrando anonimamente.", e);
-                        return signInAnonymously(auth);
-                    });
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        window.updateClientHeader(user.displayName || user.email, user.isAnonymous);
-                    } else {
-                        signInAnonymously(auth); 
-                    }
-                });
-
-            } catch (error) {
-                console.error("Erro fatal na inicialização do Firebase/Auth:", error);
-            }
-        };
-
-        // --- PAGE LOAD ---
-        document.addEventListener('DOMContentLoaded', () => {
-            checkAuthAndInit();
+        document.querySelectorAll('.accordion-content.active').forEach(activeContent => {
+          if (activeContent !== content) {
+            activeContent.classList.remove('active');
+            activeContent.style.maxHeight = null;
+            const prevIcon = activeContent.previousElementSibling?.querySelector('i');
+            if (prevIcon) prevIcon.classList.remove('rotate-180');
+          }
         });
-  </script>
+
+        content.classList.toggle('active');
+        icon.classList.toggle('rotate-180');
+
+        if (content.classList.contains('active')) {
+          content.style.maxHeight = content.scrollHeight + 'px';
+          content.style.paddingTop = '1rem';
+          content.style.paddingBottom = '1rem';
+        } else {
+          content.style.maxHeight = null;
+          content.style.paddingTop = '0';
+          content.style.paddingBottom = '0';
+        }
+      };
+
+      document.addEventListener('DOMContentLoaded', () => {
+        if (typeof window.carregarHeader === 'function') {
+          try { window.carregarHeader(); } catch (e) { console.error('Erro ao carregar header:', e); }
+        }
+      });
+    </script>
+
+    <script src="js/header_auth_fix.js" defer></script>
+    
     <script src="./header.js"></script>
-    <script src="js/header_auth_fix.js"></script>
-
-   <script src="js/header_auth_fix.js" defer></script>
-
-<script>
-  window.carregarHeader();
-</script>
 
     <script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>

@@ -56,33 +56,17 @@
     </div>
 
 
-    <script type="module">
-        // =========================================================
-        // 1. CONFIGURAÇÃO E IMPORTS DO FIREBASE
-        // =========================================================
+    
 
-        // CONFIGURAÇÃO REAL DO FIREBASE (COPIE E COLE DE MINHA_CONTA.HTML)
-        const firebaseConfig = {
-             apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-             authDomain: "ariana-moveis-final.firebaseapp.com",
-             projectId: "ariana-moveis-final",
-             storageBucket: "ariana-moveis-final.firebasestorage.app",
-             messagingSenderId: "695257365498",
-             appId: "1:695257365498:web:8e68494de6c4c9ecf67c70",
-             measurementId: "G-WNMWLYMW43"
-        };
-        
-        // Imports do Firebase/Firestore
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script>
+        const API_BASE =
+          localStorage.getItem("API_BASE") ||
+          window.API_BASE ||
+          "https://ariana-move-mongo.onrender.com/api";
 
-        // Variáveis globais de estado
-        let app, auth, db;
-        
-        // =========================================================
-        // 2. FUNÇÕES DE SUPORTE
-        // =========================================================
+        window.API_BASE = API_BASE;
+
+        let currentUser = null;
 
         window.displayMessage = (message, type, duration = 5000) => {
             const container = document.getElementById('message-box');
@@ -109,52 +93,125 @@
             }
         };
 
-        // =========================================================
-        // 3. LÓGICA DE DADOS PENDENTES
-        // =========================================================
+        function getUserToken() {
+            return (
+                localStorage.getItem('userToken') ||
+                localStorage.getItem('authToken') ||
+                localStorage.getItem('token') ||
+                localStorage.getItem('customerToken') ||
+                ''
+            );
+        }
 
-        /**
-         * Lida com o estado de autenticação (logado ou deslogado).
-         * Verifica se o usuário precisa completar o cadastro.
-         */
-        const handleAuthChange = async (user) => {
+        function getHeaders(extra = {}) {
+            const token = getUserToken();
+            return {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                ...extra
+            };
+        }
+
+        async function apiFetch(path, options = {}) {
+            const response = await fetch(`${API_BASE}${path}`, {
+                ...options,
+                headers: getHeaders(options.headers || {})
+            });
+
+            const text = await response.text();
+            let data = null;
+
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch (_) {
+                data = text;
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    (data && (data.message || data.error)) ||
+                    `Erro HTTP ${response.status}`
+                );
+            }
+
+            return data;
+        }
+
+        function normalizeUser(payload) {
+            const u = payload?.user || payload?.data || payload || null;
+            if (!u) return null;
+            return {
+                uid: u.uid || u.id || u._id || '',
+                email: u.email || '',
+                cpf: u.cpf || '',
+                phone: u.phone || u.telefone || '',
+                birthDate: u.birthDate || u.dataNascimento || '',
+            };
+        }
+
+        function isPending(value) {
+            if (value === null || value === undefined) return true;
+            const s = String(value).trim().toUpperCase();
+            return !s || s === 'PENDING';
+        }
+
+        async function loadCurrentUser() {
+            const payload = await apiFetch('/me');
+            currentUser = normalizeUser(payload);
+            return currentUser;
+        }
+
+        async function loadUserProfile(uid) {
+            try {
+                return await apiFetch(`/users/${uid}`);
+            } catch (_) {
+                return {};
+            }
+        }
+
+        async function handleAuthChange() {
             const container = document.getElementById('data-pending-container');
 
-            if (!user) {
-                // Não logado: Redireciona para o login
-                window.location.href = 'login_cadastro.html'; // Supondo uma tela de login/cadastro
-                return;
+            try {
+                const me = await loadCurrentUser();
+
+                if (!me || !me.uid) {
+                    window.location.href = 'login_cadastro.html';
+                    return;
+                }
+
+                const profile = await loadUserProfile(me.uid);
+                const merged = {
+                    ...profile,
+                    uid: me.uid,
+                    email: me.email || profile.email || '',
+                    cpf: me.cpf || profile.cpf || '',
+                    phone: me.phone || profile.phone || profile.telefone || '',
+                    birthDate: me.birthDate || profile.birthDate || profile.dataNascimento || ''
+                };
+
+                currentUser = merged;
+
+                const isDataComplete =
+                    !isPending(merged.cpf) &&
+                    !isPending(merged.phone) &&
+                    !isPending(merged.birthDate);
+
+                if (isDataComplete) {
+                    window.location.href = 'minha_conta.html';
+                } else {
+                    container.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Erro ao validar usuário:', error);
+                window.location.href = 'login_cadastro.html';
             }
-            
-            // Logado: Verifica se os dados já estão completos
-            const clientRef = doc(db, 'clients', user.uid);
-            const docSnap = await getDoc(clientRef);
-            let isDataComplete = false;
-            
-            if (docSnap.exists()) {
-                const firestoreData = docSnap.data();
-                isDataComplete = firestoreData.cpf !== 'PENDING' && 
-                                 firestoreData.phone !== 'PENDING' && 
-                                 firestoreData.birthDate !== 'PENDING';
-            }
-            
-            if (isDataComplete) {
-                // Se o usuário acessar esta página mas já completou os dados, redireciona para o dashboard
-                window.location.href = 'minha_conta.html';
-            } else {
-                 // Caso contrário, exibe o formulário
-                 container.classList.remove('hidden');
-            }
-        };
-        
-        /**
-         * Lida com o evento de submit do formulário de Dados Pendentes (CPF, Telefone, Data de Nasc.).
-         */
-        const handlePendingDataSubmit = async (e) => {
+        }
+
+        async function handlePendingDataSubmit(e) {
             e.preventDefault();
-            
-            const user = auth.currentUser;
-            if (!user) {
+
+            if (!currentUser || !currentUser.uid) {
                 window.displayMessage('Usuário não autenticado. Tente fazer login novamente.', 'error');
                 return;
             }
@@ -171,74 +228,50 @@
             window.displayMessage('Salvando dados pessoais e finalizando cadastro...', 'loading');
 
             try {
-                // 1. Criar objeto de dados para o Firestore
                 const dataToSave = {
                     cpf: newCpf,
                     phone: newPhone,
                     birthDate: newBirthdate
                 };
 
-                // 2. Atualizar o documento no Firestore
-                const clientRef = doc(db, 'clients', user.uid);
-                await setDoc(clientRef, dataToSave, { merge: true });
+                await apiFetch(`/users/${currentUser.uid}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(dataToSave)
+                });
 
-                // 3. Sucesso: Redireciona para o dashboard final
                 window.displayMessage('Cadastro concluído! Redirecionando para o Dashboard.', 'success');
                 setTimeout(() => {
                     window.location.href = 'minha_conta.html?cadastro=completo';
                 }, 1000);
-
-
             } catch (error) {
-                console.error("Erro ao salvar dados pendentes:", error);
+                console.error('Erro ao salvar dados pendentes:', error);
                 window.displayMessage('Erro ao finalizar o cadastro: ' + error.message, 'error');
             }
-        };
-        
-        /**
-         * Lida com o logout a partir desta tela.
-         */
-        const handleLogout = async () => {
-             try {
-                 window.displayMessage('Fazendo logout...', 'loading');
-                 await signOut(auth);
-                 // Redireciona para o login
-                 window.location.href = 'login_cadastro.html?logout=success'; 
-            } catch (error) {
-                 console.error("Erro ao fazer logout:", error);
-                 window.displayMessage('Erro ao fazer logout. Tente novamente.', 'error');
-            }
-        };
+        }
 
-        // =========================================================
-        // 4. INICIALIZAÇÃO E EVENTOS
-        // =========================================================
-
-        /**
-         * Inicializa o Firebase e configura os listeners de Auth.
-         */
-        const initFirebase = () => {
+        function handleLogout() {
             try {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
-                onAuthStateChanged(auth, handleAuthChange);
-                
-            } catch (e) {
-                console.error("Erro de inicialização do Firebase:", e);
-                window.displayMessage('Erro de inicialização do Firebase. Verifique sua configuração no console.', 'error');
+                window.displayMessage('Saindo...', 'loading');
+                localStorage.removeItem('userToken');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('token');
+                localStorage.removeItem('customerToken');
+                setTimeout(() => {
+                    window.location.href = 'login_cadastro.html?logout=success';
+                }, 300);
+            } catch (error) {
+                console.error('Erro ao fazer logout:', error);
+                window.displayMessage('Erro ao fazer logout. Tente novamente.', 'error');
             }
         }
-        
+
         document.addEventListener('DOMContentLoaded', () => {
-            initFirebase();
-            
+            handleAuthChange();
             document.getElementById('form-pending-data').addEventListener('submit', handlePendingDataSubmit);
             document.getElementById('logout-pending-btn').addEventListener('click', handleLogout);
         });
     </script>
-<script type="module" src="firebase-config.js"></script>
+
     <script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>
 

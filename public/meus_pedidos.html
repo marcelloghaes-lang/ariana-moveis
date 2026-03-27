@@ -128,10 +128,16 @@
         let userId = null;
 
         const API_BASE =
+            localStorage.getItem("API_BASE") ||
+            window.API_BASE ||
             window.API_BASE_URL ||
             window.API_URL ||
-            localStorage.getItem('apiBaseUrl') ||
-            '/api';
+            "https://ariana-move-mongo.onrender.com/api";
+
+        window.API_BASE = API_BASE;
+
+        // Servidor idealmente deve salvar as datas em UTC.
+        // Aqui a tela converte e exibe sempre no horário local do cliente (pt-BR).
 
         const loadingArea = document.getElementById('loading-area');
         const pedidosLista = document.getElementById('pedidos-lista');
@@ -160,7 +166,11 @@
 
         function getStoredUser() {
             try {
-                return JSON.parse(localStorage.getItem('user') || '{}');
+                return (
+                    JSON.parse(localStorage.getItem('currentUser') || 'null') ||
+                    JSON.parse(localStorage.getItem('user') || 'null') ||
+                    {}
+                );
             } catch {
                 return {};
             }
@@ -311,6 +321,11 @@
                                 <h3 class="font-semibold text-primary-blue mb-2">Itens (${itens.length})</h3>
                                 <p class="text-sm">${itens.length > 0 ? (itens[0].nome || itens[0].name || 'Item sem nome') : 'Nenhum item'}</p>
                             </div>
+                        </div>
+                        <div class="mt-4">
+                            <a href="detalhes_pedido.html?id=${encodeURIComponent(rawOrderId)}" class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary-blue text-white font-bold hover:opacity-90 transition">
+                                Ver detalhes
+                            </a>
                         </div>
                     </div>
                 </div>`;

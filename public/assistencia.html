@@ -9,16 +9,17 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="./css/tailwind.min.css">
 
   <style>
-    /* Mantenha apenas o CSS que for MUITO específico desta página */
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #F5F7FA; /* fundo-claro */
+      background-color: #F5F7FA;
     }
-    body { font-family: 'Inter', sans-serif; background-color: #fcfcfc; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #fcfcfc;
+    }
     .card-header { border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 8px; }
     .brand-name { color: #2E6DA4; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; }
     .info-label { color: #9ca3af; font-size: 0.65rem; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
@@ -26,114 +27,54 @@
     .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 15px; }
     @media (max-width: 768px) { .grid-container { grid-template-columns: repeat(1, 1fr); } }
   </style>
-  <div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold">
-</div>
 </head>
 
 <body>
+  <div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold"></div>
+
   <div class="grid-container">
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ABYSS</span></div><div class="info-label">Telefone</div><div class="info-value">(43) 3255-8100</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ACER</span></div><div class="info-label">Site/Suporte</div><div class="info-value">suportebrasil@acer.com</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ALCATEL</span></div><div class="info-label">Telefone</div><div class="info-value">0800 941 9050</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ARNO</span></div><div class="info-label">Telefone</div><div class="info-value">(11) 2060-9777</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ATLAS</span></div><div class="info-label">Telefone</div><div class="info-value">0800 707 1696</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">BRASTEMP</span></div><div class="info-label">WhatsApp</div><div class="info-value">(11) 99933-4036</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">BLACK+DECKER</span></div><div class="info-label">Telefone</div><div class="info-value">0800 703 4644</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">CANON</span></div><div class="info-label">Telefone</div><div class="info-value">0800 20 22666</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ELECTROLUX</span></div><div class="info-label">Telefone</div><div class="info-value">3004-8778 / 0800 728 8778</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ESMALTEC</span></div><div class="info-label">Telefone</div><div class="info-value">0800 275 1414</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">HENN</span></div><div class="info-label">Telefone</div><div class="info-value">(49) 3674-3500</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">LG</span></div><div class="info-label">Telefone</div><div class="info-value">4004-5400 / 0800 707 5444</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">MONDIAL</span></div><div class="info-label">Telefone</div><div class="info-value">0800 55 0393</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">MUELLER</span></div><div class="info-label">Telefone</div><div class="info-value">0800 47 1692 / 0800 747 1692</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">PHILCO</span></div><div class="info-label">Telefone</div><div class="info-value">0800 645 8300</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">POSITIVO</span></div><div class="info-label">Telefone</div><div class="info-value">4002 6440 / 0800 644 7500</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">SAMSUNG</span></div><div class="info-label">Telefone</div><div class="info-value">4004-0000 / 0800 124 421</div></div>
-        <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">SUGGAR</span></div><div class="info-label">Telefone</div><div class="info-value">0800 200 5050</div></div>
-    </div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ABYSS</span></div><div class="info-label">Telefone</div><div class="info-value">(43) 3255-8100</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ACER</span></div><div class="info-label">Site/Suporte</div><div class="info-value">suportebrasil@acer.com</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ALCATEL</span></div><div class="info-label">Telefone</div><div class="info-value">0800 941 9050</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ARNO</span></div><div class="info-label">Telefone</div><div class="info-value">(11) 2060-9777</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ATLAS</span></div><div class="info-label">Telefone</div><div class="info-value">0800 707 1696</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">BRASTEMP</span></div><div class="info-label">WhatsApp</div><div class="info-value">(11) 99933-4036</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">BLACK+DECKER</span></div><div class="info-label">Telefone</div><div class="info-value">0800 703 4644</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">CANON</span></div><div class="info-label">Telefone</div><div class="info-value">0800 20 22666</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ELECTROLUX</span></div><div class="info-label">Telefone</div><div class="info-value">3004-8778 / 0800 728 8778</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">ESMALTEC</span></div><div class="info-label">Telefone</div><div class="info-value">0800 275 1414</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">HENN</span></div><div class="info-label">Telefone</div><div class="info-value">(49) 3674-3500</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">LG</span></div><div class="info-label">Telefone</div><div class="info-value">4004-5400 / 0800 707 5444</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">MONDIAL</span></div><div class="info-label">Telefone</div><div class="info-value">0800 55 0393</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">MUELLER</span></div><div class="info-label">Telefone</div><div class="info-value">0800 47 1692 / 0800 747 1692</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">PHILCO</span></div><div class="info-label">Telefone</div><div class="info-value">0800 645 8300</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">POSITIVO</span></div><div class="info-label">Telefone</div><div class="info-value">4002 6440 / 0800 644 7500</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">SAMSUNG</span></div><div class="info-label">Telefone</div><div class="info-value">4004-0000 / 0800 124 421</div></div>
+    <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">SUGGAR</span></div><div class="info-label">Telefone</div><div class="info-value">0800 200 5050</div></div>
+  </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
-    import { getFirestore, collection, getDocs, getDoc, query, where, orderBy, limit, doc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-            authDomain: "ariana-moveis-final.firebaseapp.com",
-            projectId: "ariana-moveis-final",
-            storageBucket: "ariana-moveis-final.firebasestorage.app",
-            messagingSenderId: "695257365498",
-            appId: "1:695257365498:web:8e68494dec6c4c9ecf67c70",
-            measurementId: "G-WNMWLYMW43"
-        };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    // 🔗 Bridge global para o header.js (categorias + endereço)
-    window.db = db;
-    window.auth = auth;
-    window.collection = collection;
-    window.getDocs = getDocs;
-    window.getDoc = getDoc;
-    window.query = query;
-    window.where = where;
-    window.orderBy = orderBy;
-    window.limit = limit;
-    window.doc = doc;
-
-    try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
-
-    setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-        onAuthStateChanged(auth, (user) => {
-          const statusDisplay = document.getElementById('client-status-display');
-          const profileLink = document.getElementById('user-profile-link');
-
-          if (statusDisplay && profileLink) {
-            if (user && !user.isAnonymous) {
-              statusDisplay.innerHTML = `
-                <span class="text-sm font-semibold">Olá, ${user.displayName || 'Cliente'}</span>
-                <span class="text-sm text-gray-300">Minha Conta</span>
-              `;
-              profileLink.href = "minha_conta.html";
-            } else {
-              statusDisplay.innerHTML = `
-                <span class="text-sm font-semibold">Entre ou Cadastre-se</span>
-                <span class="text-sm text-gray-300">para ver seus produtos</span>
-              `;
-              profileLink.href = "login_cadastro.html";
-            }
-          }
-        });
-      })
-      .catch((error) => {
-        console.error("Erro ao configurar persistência:", error);
-      });
-  </script>
-
-  <script src="./header.js"></script>
   <script>
-    (function(){
-      function tryInitHeader(){
-        if (typeof window.carregarHeader !== 'function') return;
-        if (!(window.db && typeof window.getDocs === 'function' && typeof window.orderBy === 'function')) {
-          setTimeout(tryInitHeader, 80);
-          return;
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-move-mongo.onrender.com/api";
+
+    window.API_BASE = API_BASE;
+
+    document.addEventListener("DOMContentLoaded", function () {
+      if (typeof window.carregarHeader === "function") {
+        try {
+          window.carregarHeader();
+        } catch (e) {
+          console.error("Erro ao carregar header:", e);
         }
-        window.carregarHeader();
       }
-      tryInitHeader();
-    })();
+    });
   </script>
-</script>
-<script src="js/header_auth_fix.js"></script>
 
-    <script src="marketplace-core.js"></script>
-
-     <script src="js/layout-fit.js" defer></script>
-     
-    <script src="footer.js"></script>
+  <script src="./header.js" defer></script>
+  <script src="js/header_auth_fix.js" defer></script>
+  <script src="marketplace-core.js"></script>
+  <script src="js/layout-fit.js" defer></script>
+  <script src="footer.js" defer></script>
 </body>
 </html>

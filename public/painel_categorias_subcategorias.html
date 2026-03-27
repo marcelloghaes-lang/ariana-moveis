@@ -6,27 +6,15 @@
   <title>Início | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
-
   <link rel="stylesheet" href="css/tailwind.min.css">
-</head>
-
-<body class="bg-fundo-claro font-sans text-text-dark">
 
   <style>
-    /* Mantenha apenas o CSS que for MUITO específico desta página */
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #F5F7FA; /* fundo-claro */
-    }
-    /* Mantenha apenas o CSS que for MUITO específico desta página */
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #F5F7FA; /* fundo-claro */
+      background-color: #F5F7FA;
     }
     .toast { transition: opacity .25s ease, transform .25s ease; }
     .toast.hide { opacity: 0; transform: translateY(6px); }
@@ -34,14 +22,13 @@
 </head>
 
 <body class="bg-slate-50 text-slate-900">
-  <!-- Topbar -->
   <header class="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
     <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="h-10 w-10 rounded-2xl bg-slate-900 text-white grid place-items-center font-bold">AM</div>
         <div>
           <div class="font-semibold leading-tight">Painel de Categorias</div>
-          <div class="text-xs text-slate-500 leading-tight">Crie/edite categorias e subcategorias (salva no Firestore)</div>
+          <div class="text-xs text-slate-500 leading-tight">Crie/edite categorias e subcategorias (salva no MongoDB)</div>
         </div>
       </div>
 
@@ -54,14 +41,11 @@
     </div>
   </header>
 
-  <!-- Main -->
   <main class="mx-auto max-w-6xl px-4 py-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
-    <!-- Left column: Auth + Create/Edit -->
     <section class="lg:col-span-2 space-y-6">
-      <!-- Auth card -->
       <div class="bg-white rounded-2xl shadow-sm border p-5">
         <h2 class="font-semibold">Login do Admin</h2>
-        <p class="text-sm text-slate-600 mt-1">Use um usuário/admin válido do Firebase Auth (Email e Senha).</p>
+        <p class="text-sm text-slate-600 mt-1">Use um administrador válido do seu backend Mongo/Render (Email e Senha).</p>
 
         <form id="login-form" class="mt-4 space-y-3">
           <div>
@@ -79,11 +63,10 @@
 
         <div class="mt-3 text-xs text-slate-500">
           <div><span class="font-semibold">Coleção usada:</span> <code class="bg-slate-100 px-2 py-0.5 rounded">categories</code></div>
-          <div class="mt-1">Seu painel admin geral já “enxerga” essas categorias se ele também lê da coleção <code class="bg-slate-100 px-2 py-0.5 rounded">categories</code>.</div>
+          <div class="mt-1">O painel agora usa somente API Mongo/Render. Firebase foi removido completamente.</div>
         </div>
       </div>
 
-      <!-- Category editor -->
       <div class="bg-white rounded-2xl shadow-sm border p-5">
         <div class="flex items-center justify-between gap-3">
           <h2 id="form-title" class="font-semibold">Criar Categoria</h2>
@@ -119,7 +102,7 @@
             <select id="cat-parent" class="mt-1 w-full rounded-xl border px-3 py-2 bg-white">
               <option value="">(Sem pai) — Categoria principal</option>
             </select>
-            <p class="text-xs text-slate-500 mt-1">Se você escolher uma categoria pai, esta vira subcategoria (parentId + level=1).</p>
+            <p class="text-xs text-slate-500 mt-1">Se você escolher uma categoria pai, esta vira subcategoria.</p>
           </div>
 
           <div class="flex gap-2">
@@ -133,7 +116,7 @@
         </form>
 
         <div class="mt-4 rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
-          <div class="font-semibold mb-1">Estrutura salva (compatível com seu admin atual)</div>
+          <div class="font-semibold mb-1">Estrutura salva</div>
           <pre class="whitespace-pre-wrap leading-relaxed">categories/{docId}:
 {
   name, description, slug,
@@ -146,7 +129,6 @@
         </div>
       </div>
 
-      <!-- Quick actions -->
       <div class="bg-white rounded-2xl shadow-sm border p-5">
         <h2 class="font-semibold">Ações rápidas</h2>
         <div class="mt-3 grid grid-cols-1 gap-2">
@@ -156,7 +138,6 @@
       </div>
     </section>
 
-    <!-- Right column: list -->
     <section class="lg:col-span-3">
       <div class="bg-white rounded-2xl shadow-sm border p-5">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -187,15 +168,14 @@
         </div>
 
         <div class="mt-3 text-xs text-slate-500">
-          Dica: se seu admin geral estiver lendo outra coleção, ajuste aqui em <code class="bg-slate-100 px-1 rounded">COLLECTION_NAME</code>.
+          Painel migrado completamente para Mongo/Render.
         </div>
       </div>
 
-      <!-- Config card -->
       <div class="mt-6 bg-white rounded-2xl shadow-sm border p-5">
-        <h2 class="font-semibold">Configuração do Firebase</h2>
+        <h2 class="font-semibold">Configuração da API</h2>
         <p class="text-sm text-slate-600 mt-1">
-          Este arquivo já vem com o <b>ariana-moveis-final</b> preenchido. Se você quiser trocar, edite o objeto <code class="bg-slate-100 px-1 rounded">firebaseConfig</code> no script.
+          Esta tela usa o backend Mongo/Render configurado abaixo.
         </p>
         <details class="mt-3">
           <summary class="cursor-pointer text-sm text-slate-700">Ver config atual</summary>
@@ -205,54 +185,19 @@
     </section>
   </main>
 
-  <!-- Toasts -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
-  <!-- App -->
-  <script type="module">
-    // ============================
-    // Firebase (SDK modular v9)
-    // ============================
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import {
-      getAuth,
-      onAuthStateChanged,
-      signInWithEmailAndPassword,
-      signOut,
-      getIdTokenResult
-    } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-    import {
-      getFirestore,
-      collection,
-      getDocs,
-      addDoc,
-      updateDoc,
-      deleteDoc,
-      doc,
-      serverTimestamp,
-      query,
-      orderBy
-    } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+  <script>
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      window.API_BASE ||
+      "https://ariana-move-mongo.onrender.com/api";
 
-    // ============================
-    // CONFIG (ariana-moveis-final)
-    // ============================
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:ef7698ea5d33d701338243"
-    };
+    window.API_BASE = API_BASE;
 
     const COLLECTION_NAME = "categories";
-    // Identificador para o Admin Geral conseguir filtrar somente o que foi criado aqui
     const CREATED_BY_PANEL = "categories_panel_v1";
 
-    // ============================
-    // UI helpers
-    // ============================
     const $ = (id) => document.getElementById(id);
 
     const toast = (message, type = "info") => {
@@ -290,29 +235,74 @@
       btn.classList.toggle("cursor-not-allowed", !!busy);
     };
 
-    // ============================
-    // Firebase init
-    // ============================
-    let app, auth, db;
-    try {
-      app = initializeApp(firebaseConfig);
-      auth = getAuth(app);
-      db = getFirestore(app);
-      $("cfg-preview").textContent = JSON.stringify(firebaseConfig, null, 2);
-    } catch (e) {
-      console.error(e);
-      toast("Falha ao inicializar Firebase. Verifique firebaseConfig.", "error");
+    function getAdminToken() {
+      return (
+        localStorage.getItem("adminToken") ||
+        localStorage.getItem("admin_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        ""
+      );
     }
 
-    // ============================
-    // State
-    // ============================
-    let categoriesCache = []; // flat list
+    function getHeaders(extra = {}) {
+      const token = getAdminToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...extra
+      };
+    }
+
+    async function apiFetch(path, options = {}) {
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: getHeaders(options.headers || {})
+      });
+
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {
+        data = text;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${response.status}`
+        );
+      }
+
+      return data;
+    }
+
+    function normalizeCategory(raw) {
+      return {
+        id: raw.id || raw._id || "",
+        name: raw.name || raw.nome || "",
+        description: raw.description || raw.descricao || "",
+        slug: raw.slug || normalizeSlug(raw.name || raw.nome || ""),
+        parentId: raw.parentId || raw.parent_id || null,
+        level: Number(raw.level ?? (raw.parentId || raw.parent_id ? 1 : 0)) || 0,
+        active: raw.active !== false,
+        order: Number(raw.order ?? 0) || 0,
+        createdAt: raw.createdAt || null,
+        updatedAt: raw.updatedAt || null
+      };
+    }
+
+    function normalizeCategoriesPayload(payload) {
+      const list = Array.isArray(payload)
+        ? payload
+        : (payload?.categories || payload?.items || payload?.data || []);
+      return Array.isArray(list) ? list.map(normalizeCategory) : [];
+    }
+
+    let categoriesCache = [];
     let currentUser = null;
 
-    // ============================
-    // Render / Load
-    // ============================
     const buildTree = (items) => {
       const map = new Map(items.map(i => [i.id, { ...i, children: [] }]));
       const roots = [];
@@ -323,7 +313,6 @@
           roots.push(item);
         }
       }
-      // sort
       const sortFn = (a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.name || "").localeCompare(b.name || "");
       const sortRec = (nodeList) => {
         nodeList.sort(sortFn);
@@ -335,12 +324,12 @@
 
     const renderParentSelect = () => {
       const sel = $("cat-parent");
-      if (!sel) return;
       const currentId = $("cat-id").value;
       const roots = categoriesCache.filter(c => !c.parentId);
+
       sel.innerHTML = `<option value="">(Sem pai) — Categoria principal</option>` +
         roots
-          .filter(c => c.id !== currentId) // evita selecionar ela mesma como pai
+          .filter(c => c.id !== currentId)
           .sort((a,b) => (a.order ?? 0) - (b.order ?? 0) || (a.name||"").localeCompare(b.name||""))
           .map(c => `<option value="${c.id}">${c.name}</option>`)
           .join("");
@@ -354,14 +343,13 @@
       const addRow = (cat, depth = 0) => {
         if (qtxt) {
           const hit = (cat.name || "").toLowerCase().includes(qtxt);
-          // se não for hit, ainda mostra se algum filho for hit
           const childHit = (cat.children || []).some(ch => (ch.name || "").toLowerCase().includes(qtxt));
           if (!hit && !childHit) return;
         }
 
         const type = cat.parentId ? "Subcategoria" : "Categoria";
         const status = cat.active === false ? "Inativa" : "Ativa";
-        const indent = depth === 0 ? "" : "— ".repeat(depth);
+        const indent = depth === 0 ? "" : "&mdash; ".repeat(depth);
 
         rows.push(`
           <tr class="hover:bg-slate-50 cursor-pointer" data-id="${cat.id}">
@@ -388,10 +376,9 @@
     };
 
     const loadCategories = async () => {
-      if (!db) return;
       try {
-        const snap = await getDocs(query(collection(db, COLLECTION_NAME), orderBy("order", "asc")));
-        categoriesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const data = await apiFetch("/categories", { method: "GET" });
+        categoriesCache = normalizeCategoriesPayload(data);
         renderParentSelect();
         renderTable();
       } catch (e) {
@@ -401,9 +388,6 @@
       }
     };
 
-    // ============================
-    // Form actions
-    // ============================
     const resetForm = () => {
       $("cat-id").value = "";
       $("cat-name").value = "";
@@ -423,13 +407,12 @@
       $("cat-order").value = String(Number(cat.order ?? 0));
       $("cat-active").checked = cat.active === false ? false : true;
       $("cat-parent").value = cat.parentId || "";
-      $("form-title").textContent = cat.parentId ? `Editar Subcategoria` : `Editar Categoria`;
+      $("form-title").textContent = cat.parentId ? "Editar Subcategoria" : "Editar Categoria";
       $("btn-delete").classList.remove("hidden");
       renderParentSelect();
     };
 
     const saveCategory = async () => {
-      if (!db) return;
       const id = $("cat-id").value;
       const name = $("cat-name").value.trim();
       if (!name) return toast("Informe o nome.", "error");
@@ -443,8 +426,7 @@
         level: parentId ? 1 : 0,
         active: $("cat-active").checked,
         order: Number($("cat-order").value ?? 0) || 0,
-        createdByPanel: CREATED_BY_PANEL,
-        updatedAt: serverTimestamp()
+        createdByPanel: CREATED_BY_PANEL
       };
 
       const btn = $("btn-save");
@@ -452,11 +434,16 @@
 
       try {
         if (id) {
-          await updateDoc(doc(db, COLLECTION_NAME, id), payload);
+          await apiFetch(`/categories/${encodeURIComponent(id)}`, {
+            method: "PUT",
+            body: JSON.stringify(payload)
+          });
           toast("Atualizado com sucesso!", "success");
         } else {
-          payload.createdAt = serverTimestamp();
-          await addDoc(collection(db, COLLECTION_NAME), payload);
+          await apiFetch("/categories", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
           toast("Categoria criada com sucesso!", "success");
         }
         await loadCategories();
@@ -470,7 +457,6 @@
     };
 
     const removeCategory = async () => {
-      if (!db) return;
       const id = $("cat-id").value;
       const name = $("cat-name").value.trim() || "esta categoria";
       if (!id) return;
@@ -480,7 +466,9 @@
       setBusy(btn, true, "Excluindo...");
 
       try {
-        await deleteDoc(doc(db, COLLECTION_NAME, id));
+        await apiFetch(`/categories/${encodeURIComponent(id)}`, {
+          method: "DELETE"
+        });
         toast("Excluída com sucesso!", "success");
         await loadCategories();
         resetForm();
@@ -492,11 +480,7 @@
       }
     };
 
-    // ============================
-    // Seed (mesma ideia do seu admin)
-    // ============================
     const seedMarketplace = async () => {
-      if (!db) return;
       if (!confirm("Isso vai criar categorias e subcategorias padrão se não existirem. Continuar?")) return;
 
       const btn = $("btn-seed");
@@ -520,32 +504,39 @@
       ];
 
       try {
-        // mapa slug -> id
-        const snap = await getDocs(collection(db, COLLECTION_NAME));
-        const existing = {};
-        snap.docs.forEach(d => {
-          const data = d.data() || {};
-          const slug = data.slug || normalizeSlug(data.name || "");
-          if (slug) existing[slug] = d.id;
+        await loadCategories();
+        const existingBySlug = {};
+        categoriesCache.forEach(item => {
+          const slug = item.slug || normalizeSlug(item.name || "");
+          if (slug) existingBySlug[slug] = item.id;
         });
 
         const ensure = async (name, parentId, order) => {
           const slug = normalizeSlug(name);
-          if (existing[slug]) return existing[slug];
+          if (existingBySlug[slug]) return existingBySlug[slug];
 
-          const data = {
-            name, slug,
-            description: "",
-            parentId: parentId || null,
-            level: parentId ? 1 : 0,
-            active: true,
-            order: Number(order || 0),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          };
-          const ref = await addDoc(collection(db, COLLECTION_NAME), data);
-          existing[slug] = ref.id;
-          return ref.id;
+          const created = await apiFetch("/categories", {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              slug,
+              description: "",
+              parentId: parentId || null,
+              level: parentId ? 1 : 0,
+              active: true,
+              order: Number(order || 0),
+              createdByPanel: CREATED_BY_PANEL
+            })
+          });
+
+          const id =
+            created?.id ||
+            created?._id ||
+            created?.data?.id ||
+            created?.data?._id ||
+            "";
+          if (id) existingBySlug[slug] = id;
+          return id;
         };
 
         let pOrder = 0;
@@ -569,9 +560,20 @@
       }
     };
 
-    // ============================
-    // Auth
-    // ============================
+    async function loginAdmin(email, password) {
+      return await apiFetch("/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+    }
+
+    async function getAdminMe() {
+      return await apiFetch("/admin/me", {
+        method: "GET"
+      });
+    }
+
     const updateAuthUI = async (user) => {
       const pill = $("auth-pill");
       const btnOut = $("btn-signout");
@@ -585,35 +587,46 @@
         return;
       }
 
-      pill.textContent = `Logado: ${user.email || user.uid}`;
+      const email = user.email || user.user?.email || "Admin";
+      pill.textContent = `Logado: ${email}`;
       pill.className = "text-xs px-3 py-1 rounded-full bg-emerald-50 text-emerald-700";
       btnOut.classList.remove("hidden");
       form.classList.add("hidden");
-
-      // opcional: mostrar claims
-      try {
-        const token = await getIdTokenResult(user, true);
-        if (token?.claims?.admin) {
-          toast("Admin confirmado (custom claim).", "success");
-        }
-      } catch {}
     };
 
-    if (auth) {
-      onAuthStateChanged(auth, async (user) => {
-        currentUser = user || null;
-        await updateAuthUI(currentUser);
-        // Carrega categorias mesmo sem login (se suas rules permitirem).
+    async function bootstrapAuth() {
+      const cfg = {
+        API_BASE,
+        COLLECTION_NAME,
+        mode: "Mongo/Render"
+      };
+      $("cfg-preview").textContent = JSON.stringify(cfg, null, 2);
+
+      const token = getAdminToken();
+      if (!token) {
+        currentUser = null;
+        await updateAuthUI(null);
         await loadCategories();
-      });
+        return;
+      }
+
+      try {
+        const me = await getAdminMe();
+        currentUser = me;
+        await updateAuthUI(me);
+      } catch (e) {
+        console.warn("[categorias] token inválido:", e);
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("admin_token");
+        currentUser = null;
+        await updateAuthUI(null);
+      }
+
+      await loadCategories();
     }
 
-    // ============================
-    // Events
-    // ============================
     $("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (!auth) return;
 
       const email = $("login-email").value.trim();
       const password = $("login-password").value;
@@ -621,8 +634,14 @@
       if (!email || !password) return toast("Preencha e-mail e senha.", "error");
 
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        const data = await loginAdmin(email, password);
+        const token = data?.token || data?.accessToken || data?.data?.token || "";
+        if (!token) throw new Error("Token não recebido no login.");
+        localStorage.setItem("adminToken", token);
+        currentUser = await getAdminMe();
+        await updateAuthUI(currentUser);
         toast("Login efetuado!", "success");
+        await loadCategories();
       } catch (err) {
         console.error(err);
         toast("Erro no login: " + (err?.message || err), "error");
@@ -630,14 +649,11 @@
     });
 
     $("btn-signout").addEventListener("click", async () => {
-      if (!auth) return;
-      try {
-        await signOut(auth);
-        toast("Saiu da conta.", "info");
-      } catch (e) {
-        console.error(e);
-        toast("Erro ao sair: " + (e.message || e), "error");
-      }
+      localStorage.removeItem("adminToken");
+      localStorage.removeItem("admin_token");
+      currentUser = null;
+      await updateAuthUI(null);
+      toast("Saiu da conta.", "info");
     });
 
     $("category-form").addEventListener("submit", async (e) => {
@@ -652,10 +668,8 @@
     $("btn-reset").addEventListener("click", () => resetForm());
     $("btn-refresh").addEventListener("click", () => loadCategories());
     $("btn-seed").addEventListener("click", () => seedMarketplace());
-
     $("search").addEventListener("input", () => renderTable());
 
-    // click row -> edit
     $("table-body").addEventListener("click", (e) => {
       const tr = e.target.closest("tr[data-id]");
       if (!tr) return;
@@ -667,13 +681,9 @@
       }
     });
 
-    // Init
     resetForm();
-    if (!auth) {
-      // still attempt to load (in case no auth required)
-      loadCategories();
-    }
+    bootstrapAuth();
   </script>
-   <script src="js/layout-fit.js" defer></script>
+  <script src="js/layout-fit.js" defer></script>
 </body>
 </html>

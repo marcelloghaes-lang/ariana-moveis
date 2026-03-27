@@ -176,11 +176,15 @@
     </div>
   </footer>
 
-  <script src="firebase-config.js"></script>
-  <script src="js/layout-fit.js" defer></script>
+    <script src="js/layout-fit.js" defer></script>
 
   <script>
-    const API_BASE = window.API_BASE || "http://localhost:3000/api";
+    const API_BASE =
+      localStorage.getItem("API_BASE") ||
+      window.API_BASE ||
+      "https://ariana-move-mongo.onrender.com/api";
+
+    window.API_BASE = API_BASE;
 
     const $ = (id) => document.getElementById(id);
 
@@ -501,7 +505,7 @@
       else sigep.classList.add("hidden");
     }
 
-    const SIGEP_API_BASE = localStorage.getItem("API_BASE_URL") || API_BASE;
+    const SIGEP_API_BASE = localStorage.getItem("API_BASE") || localStorage.getItem("API_BASE_URL") || API_BASE;
     let ultimoCodigoRastreio = null;
 
     window.buscarDadosDoPedido = async function () {

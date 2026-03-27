@@ -85,10 +85,8 @@
 
   <script>
     const API_BASE =
-      window.API_BASE ||
-      window.API_URL ||
-      localStorage.getItem("apiBaseUrl") ||
-      "http://localhost:3000/api";
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-move-mongo.onrender.com/api";
 
     const listaChamadosEl = document.getElementById("lista-chamados");
     const countAbertosEl = document.getElementById("count-abertos");
@@ -96,6 +94,7 @@
 
     function getAdminToken() {
       return (
+        localStorage.getItem("adminToken") ||
         localStorage.getItem("admin_token") ||
         localStorage.getItem("token") ||
         localStorage.getItem("authToken") ||

@@ -14,10 +14,6 @@
 
 <body class="bg-fundo-claro font-sans text-text-dark">
 
-<div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold">
-⭐ GARANTIA DE QUALIDADE E SATISFAÇÃO
-</div>
-
 <div id="header-container"></div>
 
 <main class="max-w-7xl mx-auto px-4 py-10 min-h-[60vh]">
@@ -46,7 +42,12 @@ Ver ofertas hoje
 <div id="footer-container"></div>
 
 <script>
-const API = "http://localhost:3000/api";
+const API =
+  localStorage.getItem("API_BASE") ||
+  window.API_BASE ||
+  "https://ariana-move-mongo.onrender.com/api";
+
+window.API_BASE = API;
 
 const favoritesListEl = document.getElementById('favorites-list');
 const emptyStateEl = document.getElementById('empty-state');
@@ -150,8 +151,11 @@ console.error(e);
 
 document.addEventListener("DOMContentLoaded", loadFavorites);
 </script>
-
 <script src="./header.js"></script>
+<script>
+  window.carregarHeader();
+</script>
+
 <script src="footer.js"></script>
 
 </body>
