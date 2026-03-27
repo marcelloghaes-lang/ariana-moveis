@@ -1072,7 +1072,19 @@ function buildApp() {
   if (admin.apps.length === 0) admin.initializeApp();
 
   const app = express();
-  app.use(cors({ origin: true }));
+  const corsOptions = {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  };
+  app.use(cors(corsOptions));
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -1180,6 +1192,37 @@ function buildApp() {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: existing.createdAt || admin.firestore.FieldValue.serverTimestamp(),
     };
+  }
+
+  function normalizeBannerPayload(item = {}) {
+    const id = String(item.id || item.slot || "").trim();
+    return {
+      id,
+      slot: id,
+      active: item.active !== false,
+      imageUrl: String(item.imageUrl || item.url || item.image || "").trim(),
+      linkUrl: String(item.linkUrl || item.link || "").trim(),
+      alt: String(item.alt || item.title || "").trim(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+  }
+
+  function toDataUrlFromBody(body = {}) {
+    const direct =
+      body.imageBase64 ||
+      body.base64 ||
+      body.image ||
+      body.fileBase64 ||
+      body.dataUrl ||
+      "";
+
+    if (!direct) return "";
+    const raw = String(direct).trim();
+
+    if (raw.startsWith("data:")) return raw;
+
+    const mime = String(body.mimeType || body.contentType || "image/png").trim() || "image/png";
+    return `data:${mime};base64,${raw}`;
   }
 
   app.get("/", async (_req, res) => {
@@ -1474,7 +1517,7 @@ function buildApp() {
     }
   });
 
-  app.get("/categories", async (_req, res) => {
+  app.get(["/categories", "/api/categories"], async (_req, res) => {
     try {
       const cats = await listCollection("categories", "name", "asc");
       res.json(cats);
@@ -1483,57 +1526,84 @@ function buildApp() {
     }
   });
 
-  app.get("/banners", async (_req, res) => {
+  app.get(["/banners", "/api/banners"], async (req, res) => {
     try {
       const banners = await listCollection("banners");
-      res.json(Object.fromEntries(banners.map((b) => [b.id || b.slot, b])));
+      const slot = String(req.query?.slot || "").trim();
+
+      if (slot) {
+        const found = banners.find((b) => String(b.slot || b.id || "").trim() === slot);
+        return res.json(found || null);
+      }
+
+      const responseData = Object.fromEntries(
+        banners.map((b) => [String(b.id || b.slot || "").trim(), b])
+      );
+      res.json(responseData);
     } catch (err) {
+      console.error("[banners:get]", err);
       res.status(500).json({ error: err.message || "Erro ao buscar banners" });
     }
   });
 
-  app.post("/banners", async (req, res) => {
+  app.post(["/banners", "/api/banners"], async (req, res) => {
     try {
       const payload = req.body || {};
-      const entries = Array.isArray(payload) ? payload : Object.values(payload);
+      const entries = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.banners)
+          ? payload.banners
+          : Object.values(payload);
+
       for (const item of entries) {
-        const id = String(item.id || item.slot || "").trim();
-        if (!id) continue;
-        await bannerCollection().doc(id).set({
-          id,
-          slot: id,
-          active: item.active === true,
-          imageUrl: item.imageUrl || "",
-          linkUrl: item.linkUrl || "",
-          alt: item.alt || "",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        const normalized = normalizeBannerPayload(item);
+        if (!normalized.id) continue;
+        await bannerCollection().doc(normalized.id).set(normalized, { merge: true });
       }
+
       res.json({ ok: true });
     } catch (err) {
+      console.error("[banners:post]", err);
       res.status(400).json({ error: err.message || "Erro ao salvar banners" });
     }
   });
 
-  app.post("/banners/bulk", async (req, res) => {
+  app.post(["/banners/bulk", "/api/banners/bulk"], async (req, res) => {
     try {
-      const banners = Array.isArray(req.body?.banners) ? req.body.banners : [];
+      const banners = Array.isArray(req.body?.banners)
+        ? req.body.banners
+        : Array.isArray(req.body)
+          ? req.body
+          : [];
+
       for (const item of banners) {
-        const id = String(item.id || item.slot || "").trim();
-        if (!id) continue;
-        await bannerCollection().doc(id).set({
-          id,
-          slot: id,
-          active: item.active === true,
-          imageUrl: item.imageUrl || "",
-          linkUrl: item.linkUrl || "",
-          alt: item.alt || "",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        const normalized = normalizeBannerPayload(item);
+        if (!normalized.id) continue;
+        await bannerCollection().doc(normalized.id).set(normalized, { merge: true });
       }
+
       res.json({ ok: true });
     } catch (err) {
+      console.error("[banners:bulk]", err);
       res.status(400).json({ error: err.message || "Erro ao salvar banners em lote" });
+    }
+  });
+
+  app.post(["/upload", "/api/upload", "/banners/upload", "/api/banners/upload"], async (req, res) => {
+    try {
+      const dataUrl = toDataUrlFromBody(req.body || {});
+      if (!dataUrl) {
+        return res.status(400).json({ error: "imageBase64 obrigatório" });
+      }
+
+      return res.json({
+        ok: true,
+        url: dataUrl,
+        imageUrl: dataUrl,
+      });
+    } catch (err) {
+      console.error("[banners:upload]", err);
+      res.status(400).json({ error: err.message || "Erro no upload do banner" });
     }
   });
 
