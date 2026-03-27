@@ -666,8 +666,9 @@ Adicionar ao Carrinho
 </div>
 
 
-  <script src="firebase-config.js"></script>
+  
 <script type="module">
+const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
 // ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
 // Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
 window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
@@ -695,42 +696,10 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 };
 
         // =========================================================
-        // 1. CONFIGURAÇÕES E INICIALIZAÇÃO DO FIREBASE
+        // 1. CONFIGURAÇÕES E INICIALIZAÇÃO MONGO/RENDER
         // =========================================================
-        const {
-            initializeApp, getApps, getApp, collection, deleteDoc, doc, getDoc, getDocs, getFirestore,
-            limit, orderBy, query, serverTimestamp, setDoc, where, setLogLevel, getAuth,
-            signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence
-        } = window;
-
-        const USER_PROVIDED_CONFIG = {
-            apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-            authDomain: "ariana-moveis-final.firebaseapp.com",
-            projectId: "ariana-moveis-final",
-            storageBucket: "ariana-moveis-final.firebasestorage.app",
-            messagingSenderId: "695257365498",
-            appId: "1:695257365498:web:8e68494de6c4c99c67c70",
-            measurementId: "G-G8NH3XKQX"
-        };
-
-        const app = !getApps().length ? initializeApp(USER_PROVIDED_CONFIG) : getApp();
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        // Expor Firebase (modular) para scripts fora do module (ex: header.js)
-        window.db = db;
-        window.auth = auth;
-        window.collection = collection;
-        window.getDocs = getDocs;
-        window.getDoc = getDoc;
-        window.query = query;
-        window.where = where;
-
-        window.orderBy = orderBy;
-window.limit = limit;
-        window.doc = doc;
-        // (Opcional) sinaliza que o Firebase está pronto
-        try { window.dispatchEvent(new Event('firebase:ready')); } catch (_) {}
+        window.auth = null;
+        try { window.dispatchEvent(new Event('marketplace:ready')); } catch (_) {}
 
         let productData = null;
 
@@ -769,9 +738,9 @@ async function loadPaymentsSettingsForProduct() {
   if (__paymentsSettings) return __paymentsSettings;
 
   try {
-    const paySnap = await getDoc(doc(db, "settings", "payments"));
-    if (paySnap.exists()) {
-      __paymentsSettings = paySnap.data() || {};
+    const res = await fetch(`${API_BASE}/settings/payments`);
+    if (res.ok) {
+      __paymentsSettings = await res.json();
       const pix = (__paymentsSettings.pix || {});
       const enabled = !!pix.enabled;
       let d = enabled ? __num(pix.discountPercent ?? pix.descontoPercent ?? pix.descontoPix, 0) : 0;
@@ -784,7 +753,6 @@ async function loadPaymentsSettingsForProduct() {
     console.warn("[produto] Erro ao buscar settings/payments:", e);
   }
 
-  // fallback de segurança: mantém app funcionando mesmo se a config falhar
   __paymentsSettings = {};
   __pixDiscountPercent = 10;
   return __paymentsSettings;
@@ -797,21 +765,130 @@ async function loadPaymentsSettingsForProduct() {
         let isFavorite = false;
 
         async function loadProductDetails() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const productId = urlParams.get('id');
+            const params = new URLSearchParams(window.location.search);
+            const productId = params.get('id');
 
             if (!productId) {
-                console.error("Nenhum ID de produto na URL.");
-                document.getElementById('loading-message').innerHTML = "<p>Produto não identificado.</p>";
+                console.error('ID do produto não encontrado na URL');
                 return;
             }
 
             try {
-                const docRef = doc(db, "products", productId);
-                const snap = await getDoc(docRef);
+                const API_BASE_MONGO = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
+                const res = await fetch(`${API_BASE_MONGO}/seller/products/${encodeURIComponent(productId)}`);
 
-                if (snap.exists()) {
-                    productData = { id: snap.id, ...snap.data() };
+                if (!res.ok) throw new Error(`Produto não encontrado no servidor (${res.status})`);
+
+                const p = await res.json();
+                productData = p;
+                window.currentProductData = p;
+
+                const nome = p.name || p.nome || "Produto";
+                document.title = `${nome} | ARIANA MÓVEIS`;
+
+                const byId = (id) => document.getElementById(id);
+
+                const nameEl = byId('product-name') || byId('product-name-display');
+                if (nameEl) nameEl.textContent = nome;
+
+                const breadcrumbName = byId('breadcrumb-product-name');
+                if (breadcrumbName) breadcrumbName.textContent = nome;
+
+                const productIdEl = byId('product-id') || byId('product-id-display');
+                if (productIdEl) productIdEl.textContent = p._id || p.id || productId;
+
+                const price = Number(p.price ?? p.preco ?? 0) || 0;
+                const priceFormatted = price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                const priceEl = byId('product-price') || byId('product-price-display') || byId('product-price-full');
+                if (priceEl) {
+                    if (/R\$/i.test(priceEl.textContent || '')) priceEl.textContent = `R$ ${priceFormatted}`;
+                    else priceEl.textContent = priceFormatted;
+                }
+
+                const oldPriceEl = byId('product-old-price');
+                const oldPrice = Number(p.oldPrice ?? p.precoAntigo ?? 0) || 0;
+                if (oldPriceEl) {
+                    if (oldPrice > price) {
+                        oldPriceEl.textContent = `R$ ${oldPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        oldPriceEl.style.display = 'inline';
+                    } else {
+                        oldPriceEl.style.display = 'none';
+                    }
+                }
+
+                const installmentEl = byId('product-installments') || byId('product-installments-display');
+                if (installmentEl && price > 0) {
+                    const installment = (price / 10).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    installmentEl.textContent = `Em até 10x de ${installment} sem juros`;
+                }
+
+                const descriptionEl = byId('product-description') || byId('product-description-content');
+                if (descriptionEl) {
+                    descriptionEl.innerHTML = p.description || p.descricao || 'Este produto não possui descrição detalhada.';
+                }
+
+                const category = p.category || p.categoria || p.categoryName || '';
+                const breadcrumbCategory = byId('breadcrumb-category');
+                const categorySeparator = byId('category-separator');
+                if (breadcrumbCategory && category) {
+                    const categoryLink = document.createElement('a');
+                    categoryLink.href = `categoria.html?category=${encodeURIComponent(category)}`;
+                    categoryLink.className = 'text-primary-blue hover:text-secondary-light-blue';
+                    categoryLink.textContent = category;
+                    breadcrumbCategory.innerHTML = '';
+                    breadcrumbCategory.appendChild(categoryLink);
+                    if (categorySeparator) categorySeparator.classList.remove('hidden');
+                }
+
+                let images = p.images || p.imagens || [];
+                if (!Array.isArray(images) && images && typeof images === 'object') {
+                    images = Object.values(images);
+                }
+                images = images.map((img) => {
+                    if (!img) return '';
+                    if (typeof img === 'string') return img;
+                    return img.url || img.imageUrl || img.downloadURL || img.src || '';
+                }).filter(Boolean);
+
+                const fallbackImage = p.imageUrl || p.mainImageUrl || p.image || 'https://placehold.co/600';
+                if (!images.length) images = [fallbackImage];
+
+                const mainImg = byId('main-product-image');
+                if (mainImg) mainImg.src = images[0];
+
+                if (typeof renderGallery === 'function') {
+                    try { renderGallery(images); } catch (_) {}
+                }
+                if (typeof renderImageGallery === 'function') {
+                    try { renderImageGallery(images); } catch (_) {}
+                }
+
+                const loadingMessage = byId('loading-message');
+                const productGrid = byId('product-details-container') || byId('product-content-grid');
+                const accordionContainer = byId('product-description-accordion-container');
+
+                if (loadingMessage) loadingMessage.style.display = 'none';
+                if (productGrid) {
+                    if (productGrid.tagName === 'DIV') productGrid.style.display = 'grid';
+                    else productGrid.style.display = 'block';
+                }
+                if (accordionContainer) accordionContainer.style.display = 'block';
+
+            } catch (err) {
+                console.error('Erro ao carregar detalhes do produto:', err);
+                const loadingMessage = document.getElementById('loading-message');
+                if (loadingMessage) loadingMessage.textContent = 'Erro ao carregar detalhes do produto.';
+            }
+        }
+
+            try {
+                const res = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
+                if (!res.ok) throw new Error(`Produto não encontrado (${res.status})`);
+                const data = await res.json();
+
+                if (data) {
+                    productData = { id: data._id || data.id || productId, ...data };
                     await loadPaymentsSettingsForProduct();
 
                     document.getElementById('product-name').textContent = productData.name || 'Sem nome';
@@ -908,25 +985,11 @@ async function loadPaymentsSettingsForProduct() {
                     let sellerDocData = null;
                     if (productData.sellerId) {
                         const sid = String(productData.sellerId);
-
-                        // tenta /sellers_public (público)
                         try {
-                            const sRefPub = doc(db, "sellers_public", sid);
-                            const sSnapPub = await getDoc(sRefPub);
-                            if (sSnapPub.exists()) sellerDocData = (sSnapPub.data() || {});
+                            const sRes = await fetch(`${API_BASE}/seller/${encodeURIComponent(sid)}`);
+                            if (sRes.ok) sellerDocData = await sRes.json();
                         } catch (e) {
-                            console.warn("[produto] Falha ao buscar seller em /sellers_public:", e);
-                        }
-
-                        // fallback: /sellers (privado) — só funciona se regra permitir (seller logado/admin)
-                        if (!sellerDocData) {
-                            try {
-                                const sRef = doc(db, "sellers", sid);
-                                const sSnap = await getDoc(sRef);
-                                if (sSnap.exists()) sellerDocData = (sSnap.data() || {});
-                            } catch (e) {
-                                console.warn("[produto] Falha ao buscar seller em /sellers:", e);
-                            }
+                            console.warn("[produto] Falha ao buscar seller via API:", e);
                         }
                     }
 
@@ -1006,19 +1069,13 @@ async function loadPaymentsSettingsForProduct() {
                 console.error("Erro ao carregar produto:", error);
                 document.getElementById('loading-message').innerHTML = "<p>Erro ao carregar dados do produto.</p>";
             }
-        }
 
+        
         // --- FAVORITOS (CORREÇÃO DE CAMINHO E ESTILO) ---
         async function checkIfIsFavorite(productId) {
-            const currentUser = auth.currentUser;
-            if (!currentUser || currentUser.isAnonymous) return;
-
-            userId = currentUser.uid;
             try {
-                // Caminho padrão: users/UID/favorites/PRODUCTID
-                const favRef = doc(db, "users", userId, "favorites", productId);
-                const favDoc = await getDoc(favRef);
-                isFavorite = favDoc.exists();
+                const favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+                isFavorite = Array.isArray(favs) && favs.includes(String(productId));
                 updateFavoriteUI();
             } catch (e) {
                 console.error("Erro ao verificar favorito:", e);
@@ -1038,32 +1095,24 @@ async function loadPaymentsSettingsForProduct() {
         }
 
         async function toggleFavorite() {
-            const currentUser = auth.currentUser;
-            if (!currentUser || currentUser.isAnonymous) {
-                showToastMessage('Faça login para salvar favoritos!', 'info');
-                return;
-            }
-
-            userId = currentUser.uid;
-            const productId = productData.id;
-            const favRef = doc(db, "users", userId, "favorites", productId);
+            const productId = String(productData?.id || '');
+            if (!productId) return;
 
             try {
-                if (isFavorite) {
-                    await deleteDoc(favRef);
+                let favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+                if (!Array.isArray(favs)) favs = [];
+
+                if (favs.includes(productId)) {
+                    favs = favs.filter(id => String(id) !== productId);
                     isFavorite = false;
                     showToastMessage('Removido dos favoritos', 'info');
                 } else {
-                    await setDoc(favRef, {
-                        productId: productId,
-                        name: productData.name,
-                        price: productData.price,
-                        imageUrl: productImages[0] || "",
-                        savedAt: serverTimestamp()
-                    });
+                    favs.push(productId);
                     isFavorite = true;
                     showToastMessage('Adicionado aos favoritos!', 'success');
                 }
+
+                localStorage.setItem('favorites', JSON.stringify(favs));
                 updateFavoriteUI();
             } catch (e) {
                 console.error("Erro ao processar favorito:", e);
@@ -1466,26 +1515,29 @@ function addToCart(action = 'add') {
             const currentSlug = normalizeSlug(currentProduct.categorySlug || '');
 
             // Busca um lote maior e distribui por categorias (evita repetir os mesmos produtos em todas as sessões)
-            const productsCollectionRef = collection(db, "products");
-            const q = query(productsCollectionRef, limit(120));
-            const snap = await getDocs(q);
-
+            const resProducts = await fetch(`${API_BASE}/products`);
+            const rawList = await resProducts.json();
+            const items = Array.isArray(rawList) ? rawList : (rawList.items || rawList.products || []);
             const all = [];
-            snap.forEach((docSnap) => {
-                const data = docSnap.data() || {};
-                if (data.active === false || data.isActive === false) return;
+            items.forEach((data) => {
+                if (!data || data.active === false || data.isActive === false) return;
 
                 let mainImg = 'https://placehold.co/400x400/eeeeee/333333?text=Sem+Imagem';
                 if (Array.isArray(data.images) && data.images[0]) {
-                    mainImg = typeof data.images[0] === 'string' ? data.images[0] : data.images[0].url;
+                    mainImg = typeof data.images[0] === 'string' ? data.images[0] : (data.images[0].url || data.images[0].imageUrl || data.images[0].src || mainImg);
                 } else if (data.images && typeof data.images === 'object') {
                     const firstKey = Object.keys(data.images)[0];
-                    if (firstKey) mainImg = typeof data.images[firstKey] === 'string' ? data.images[firstKey] : data.images[firstKey].url;
+                    if (firstKey) {
+                        const img = data.images[firstKey];
+                        mainImg = typeof img === 'string' ? img : (img.url || img.imageUrl || img.src || mainImg);
+                    }
+                } else if (data.imageUrl || data.mainImageUrl || data.image) {
+                    mainImg = data.imageUrl || data.mainImageUrl || data.image;
                 }
 
                 const slug = normalizeSlug(data.categorySlug || data.category_slug || data.category || data.categoryName || '');
                 all.push({
-                    id: docSnap.id,
+                    id: data._id || data.id,
                     name: data.name,
                     price: data.price,
                     oldPrice: data.oldPrice,
@@ -1628,35 +1680,22 @@ window.loadProductDetailBanners = async function () {
     const slot2 = document.getElementById('product-detail-banner-2');
     if (!section || !slot1 || !slot2) return;
 
-    const pickImage = (data) => {
-        if (!data) return '';
-        return data.imageUrl || data.url || data.image || data.desktopUrl || data.src || '';
-    };
-
-    const pickLink = (data) => {
-        if (!data) return '';
-        return data.link || data.href || data.linkUrl || data.targetUrl || data.to || '';
-    };
+    const pickImage = (data) => data?.imageUrl || data?.url || data?.image || data?.desktopUrl || data?.src || '';
+    const pickLink = (data) => data?.link || data?.href || data?.linkUrl || data?.targetUrl || data?.to || '';
 
     const renderSlot = (el, data) => {
         const imgUrl = pickImage(data);
         if (!imgUrl) return false;
-
         const isActive = (data.active !== false) && (data.isActive !== false) && (data.enabled !== false);
         if (!isActive) return false;
 
         const link = pickLink(data);
-        if (link) {
-            el.href = link;
-            el.target = "_self";
-            try {
-                const u = new URL(link, window.location.href);
-                if (u.origin !== window.location.origin) el.target = "_blank";
-            } catch (_) {}
-        } else {
-            el.href = "#";
-            el.target = "_self";
-        }
+        el.href = link || '#';
+        el.target = '_self';
+        try {
+            const u = new URL(el.href, window.location.href);
+            if (u.origin !== window.location.origin) el.target = '_blank';
+        } catch (_) {}
 
         el.innerHTML = `<img src="${imgUrl}" alt="${(data.title || data.nome || 'Banner promocional').toString().replace(/"/g,'&quot;')}" loading="lazy">`;
         el.classList.remove('hidden');
@@ -1664,31 +1703,16 @@ window.loadProductDetailBanners = async function () {
     };
 
     try {
-        // aguarda firebase pronto (caso carregue depois)
-        const waitFirebase = () => new Promise((resolve) => {
-            if (window.db && window.getDoc && window.doc) return resolve(true);
-            const t0 = Date.now();
-            const tick = () => {
-                if (window.db && window.getDoc && window.doc) return resolve(true);
-                if (Date.now() - t0 > 4000) return resolve(false);
-                setTimeout(tick, 80);
-            };
-            tick();
-        });
+        const [r1, r2] = await Promise.all([
+            fetch(`${API_BASE}/banners/produto_detail_horizontal_1`),
+            fetch(`${API_BASE}/banners/produto_detail_horizontal_2`)
+        ]);
 
-        const okFirebase = await waitFirebase();
-        if (!okFirebase) return;
-
-        const ref1 = window.doc(window.db, 'banners', 'produto_detail_horizontal_1');
-        const ref2 = window.doc(window.db, 'banners', 'produto_detail_horizontal_2');
-
-        const [s1, s2] = await Promise.all([window.getDoc(ref1), window.getDoc(ref2)]);
-        const d1 = s1.exists() ? (s1.data() || {}) : null;
-        const d2 = s2.exists() ? (s2.data() || {}) : null;
+        const d1 = r1.ok ? await r1.json() : null;
+        const d2 = r2.ok ? await r2.json() : null;
 
         const ok1 = renderSlot(slot1, d1);
         const ok2 = renderSlot(slot2, d2);
-
         section.style.display = (ok1 || ok2) ? 'block' : 'none';
     } catch (e) {
         console.error('[produto] erro ao carregar banners do detalhe:', e);
@@ -2019,67 +2043,21 @@ function renderShippingQuotes(result, cep) {
             } catch (_) {}
         }
 
-        let __productInitDone = false;
-        let __productAnonTimer = null;
-
-        function setupAuthAndInit() {
-            const bindAuthListener = () => {
-                onAuthStateChanged(auth, async (user) => {
-                    try {
-                        updateClientHeaderUI(user);
-                        loadClientAddress(user);
-                    } catch (_) {}
-
-                    if (user) {
-                        if (__productAnonTimer) {
-                            clearTimeout(__productAnonTimer);
-                            __productAnonTimer = null;
-                        }
-
-                        if (__productInitDone) return;
-                        __productInitDone = true;
-
-                        try {
-                            await loadProductDetails();
-                        } catch (e) {
-                            console.error('[produto] erro ao carregar detalhes:', e);
-                        }
-                        return;
-                    }
-
-                    if (!__productAnonTimer) {
-                        __productAnonTimer = setTimeout(async () => {
-                            try {
-                                if (!auth.currentUser) await signInAnonymously(auth);
-                            } catch (e) {
-                                console.error('[produto] falha no login anônimo:', e);
-                            }
-                        }, 700);
-                    }
-                });
-            };
-
-            setPersistence(auth, browserLocalPersistence)
-                .then(bindAuthListener)
-                .catch((err) => {
-                    console.error('[auth] persistence error:', err);
-                    bindAuthListener();
-                });
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
+                document.addEventListener('DOMContentLoaded', async () => {
             const favBtn = document.getElementById('btn-toggle-favorite');
-            favBtn.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                toggleFavorite();
-            });
+            if (favBtn) {
+                favBtn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    toggleFavorite();
+                });
+            }
             setupQuantityControl();
             setupButtonListeners();
             setupShippingCalculator();
             loadCartAndCounter();
             if (COST_SAFE_FLAGS.enableProductRecommendations) { window.loadProductDetailBanners(); }
-            setupAuthAndInit();
+            try { await loadProductDetails(); } catch (e) { console.error('[produto] erro ao carregar detalhes:', e); }
         });
     </script>
     <script src="js/header_auth_fix.js" defer></script>
@@ -2087,7 +2065,7 @@ function renderShippingQuotes(result, cep) {
 <script>
         (function() {
             const check = () => {
-                if (window.carregarHeader && window.db) { window.carregarHeader(); }
+                if (window.carregarHeader) { window.carregarHeader(); }
                 else { setTimeout(check, 100); }
             };
             check();

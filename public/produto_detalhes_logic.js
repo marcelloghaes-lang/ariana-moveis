@@ -3,7 +3,7 @@
 let allImages = [];
 let productData = null;
 
-const API_BASE = window.API_BASE || "http://localhost:3000/api";
+const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
 
 // fallback imagem
 const getSafeImage = (img) => {
@@ -22,7 +22,7 @@ async function loadProductDetails() {
   if (!productId) return;
 
   try {
-    const res = await fetch(`${API_BASE}/products/${productId}`);
+    const res = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
 
     if (!res.ok) throw new Error("Erro ao buscar produto");
 

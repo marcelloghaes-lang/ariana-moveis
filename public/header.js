@@ -3,6 +3,9 @@
 // - Mega menu de categorias estilo marketplace
 // - Compatível com uso global (window.carregarHeader)
 
+const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
+
+
 function escapeHtml(str) {
   return String(str ?? '')
     .replaceAll('&', '&amp;')
@@ -125,35 +128,10 @@ function __headerFallbackParents() {
 async function __resolveHeaderBannerImageUrl(rawUrl) {
   const raw = String(rawUrl || '').trim();
   if (!raw) return '';
-
   try {
     if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
     if (raw.startsWith('/')) return raw;
-
-    if (raw.startsWith('gs://')) {
-      try {
-        if (
-          typeof window.getStorage === 'function' &&
-          typeof window.ref === 'function' &&
-          typeof window.getDownloadURL === 'function'
-        ) {
-          const storage = window.getStorage();
-          const storageRef = window.ref(storage, raw);
-          return await window.getDownloadURL(storageRef);
-        }
-      } catch (_) {}
-
-      try {
-        if (window.firebase && typeof window.firebase.storage === 'function') {
-          const ref = window.firebase.storage().refFromURL(raw);
-          return await ref.getDownloadURL();
-        }
-      } catch (_) {}
-
-      return '';
-    }
-
-    return new URL(raw, window.location.href).href;
+    return new URL(raw, window.location.origin).href;
   } catch (_) {
     return raw;
   }
@@ -162,7 +140,7 @@ async function __resolveHeaderBannerImageUrl(rawUrl) {
 async function __loadHeaderCategoryBanner() {
   const fallback = {
     active: true,
-    imageUrl: 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27720%27%20height%3D%27960%27%20viewBox%3D%270%200%20720%20960%27%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20x2%3D%270%27%20y1%3D%270%27%20y2%3D%271%27%3E%3Cstop%20stop-color%3D%27%231d4ed8%27/%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%230b4aa2%27/%3E%3C/linearGradient%3E%3C/defs%3E%0A%3Crect%20width%3D%27720%27%20height%3D%27960%27%20fill%3D%27url%28%23g%29%27/%3E%0A%3Ccircle%20cx%3D%27560%27%20cy%3D%27140%27%20r%3D%2754%27%20fill%3D%27%2322d3ee%27%20opacity%3D%27.35%27/%3E%0A%3Ccircle%20cx%3D%27280%27%20cy%3D%27260%27%20r%3D%27120%27%20fill%3D%27%2360a5fa%27%20opacity%3D%27.20%27/%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27145%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EOFERTAS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27210%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EESPECIAIS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27330%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EBanner%20carregando%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27390%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3Epelo%20Firestore%3C/text%3E%0A%3Crect%20x%3D%2760%27%20y%3D%27780%27%20rx%3D%2720%27%20ry%3D%2720%27%20width%3D%27320%27%20height%3D%2782%27%20fill%3D%27%2322c55e%27/%3E%0A%3Ctext%20x%3D%27105%27%20y%3D%27835%27%20fill%3D%27white%27%20font-size%3D%2738%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EVER%20OFERTAS%3C/text%3E%0A%3C/svg%3E',
+    imageUrl: 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27720%27%20height%3D%27960%27%20viewBox%3D%270%200%20720%20960%27%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20x2%3D%270%27%20y1%3D%270%27%20y2%3D%271%27%3E%3Cstop%20stop-color%3D%27%231d4ed8%27/%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%230b4aa2%27/%3E%3C/linearGradient%3E%3C/defs%3E%0A%3Crect%20width%3D%27720%27%20height%3D%27960%27%20fill%3D%27url%28%23g%29%27/%3E%0A%3Ccircle%20cx%3D%27560%27%20cy%3D%27140%27%20r%3D%2754%27%20fill%3D%27%2322d3ee%27%20opacity%3D%27.35%27/%3E%0A%3Ccircle%20cx%3D%27280%27%20cy%3D%27260%27%20r%3D%27120%27%20fill%3D%27%2360a5fa%27%20opacity%3D%27.20%27/%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27145%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EOFERTAS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27210%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EESPECIAIS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27330%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EOfertas%20Ariana%3C/text%3E%0A%3Crect%20x%3D%2760%27%20y%3D%27780%27%20rx%3D%2720%27%20ry%3D%2720%27%20width%3D%27320%27%20height%3D%2782%27%20fill%3D%27%2322c55e%27/%3E%0A%3Ctext%20x%3D%27105%27%20y%3D%27835%27%20fill%3D%27white%27%20font-size%3D%2738%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EVER%20OFERTAS%3C/text%3E%0A%3C/svg%3E',
     linkUrl: 'ofertas.html',
     alt: 'Ofertas especiais Ariana Móveis',
     eyebrow: 'Ariana Móveis',
@@ -177,40 +155,32 @@ async function __loadHeaderCategoryBanner() {
       return { ...fallback, ...cached };
     }
 
-    const hasFirestore =
-      !!window.db &&
-      typeof window.doc === 'function' &&
-      typeof window.getDoc === 'function';
+    let merged = { ...fallback };
 
-    if (!hasFirestore) {
-      const fallbackUrl = await __resolveHeaderBannerImageUrl(fallback.imageUrl);
-      return { ...fallback, imageUrl: fallbackUrl || fallback.imageUrl, __resolved: true };
+    try {
+      const res = await fetch(`${API_BASE}/banners/header_category_banner`, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          merged = { ...merged, ...data };
+        }
+      }
+    } catch (e) {
+      console.warn('[header] banner Mongo indisponível, usando fallback:', e);
     }
-
-    const snap = await window.getDoc(window.doc(window.db, 'banners', 'header_category_banner'));
-
-    if (!snap || typeof snap.exists !== 'function' || !snap.exists()) {
-      const fallbackUrl = await __resolveHeaderBannerImageUrl(fallback.imageUrl);
-      const mergedFallback = { ...fallback, imageUrl: fallbackUrl || fallback.imageUrl, __resolved: true };
-      window.__HEADER_CATEGORY_BANNER__ = mergedFallback;
-      return mergedFallback;
-    }
-
-    const data = snap.data() || {};
-    const merged = { ...fallback, ...data };
 
     const rawUrl = String(merged.imageUrl || merged.image || merged.url || fallback.imageUrl || '').trim();
     const resolvedUrl = await __resolveHeaderBannerImageUrl(rawUrl);
-
-    merged.imageUrl = resolvedUrl || (await __resolveHeaderBannerImageUrl(fallback.imageUrl)) || fallback.imageUrl;
+    merged.imageUrl = resolvedUrl || fallback.imageUrl;
     merged.__resolved = true;
-
     window.__HEADER_CATEGORY_BANNER__ = merged;
     return merged;
   } catch (e) {
     console.warn('[header] falha ao carregar banner da categoria:', e);
-    const fallbackUrl = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27720%27%20height%3D%27960%27%20viewBox%3D%270%200%20720%20960%27%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20x2%3D%270%27%20y1%3D%270%27%20y2%3D%271%27%3E%3Cstop%20stop-color%3D%27%231d4ed8%27/%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%230b4aa2%27/%3E%3C/linearGradient%3E%3C/defs%3E%0A%3Crect%20width%3D%27720%27%20height%3D%27960%27%20fill%3D%27url%28%23g%29%27/%3E%0A%3Ccircle%20cx%3D%27560%27%20cy%3D%27140%27%20r%3D%2754%27%20fill%3D%27%2322d3ee%27%20opacity%3D%27.35%27/%3E%0A%3Ccircle%20cx%3D%27280%27%20cy%3D%27260%27%20r%3D%27120%27%20fill%3D%27%2360a5fa%27%20opacity%3D%27.20%27/%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27145%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EOFERTAS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27210%27%20fill%3D%27white%27%20font-size%3D%2756%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EESPECIAIS%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27330%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EBanner%20carregando%3C/text%3E%0A%3Ctext%20x%3D%2760%27%20y%3D%27390%27%20fill%3D%27%23fde047%27%20font-size%3D%2740%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3Epelo%20Firestore%3C/text%3E%0A%3Crect%20x%3D%2760%27%20y%3D%27780%27%20rx%3D%2720%27%20ry%3D%2720%27%20width%3D%27320%27%20height%3D%2782%27%20fill%3D%27%2322c55e%27/%3E%0A%3Ctext%20x%3D%27105%27%20y%3D%27835%27%20fill%3D%27white%27%20font-size%3D%2738%27%20font-family%3D%27Arial%27%20font-weight%3D%27700%27%3EVER%20OFERTAS%3C/text%3E%0A%3C/svg%3E';
-    return { active: true, imageUrl: fallbackUrl || 'banner_header_categoria_teste.png', linkUrl: 'ofertas.html', alt: 'Ofertas especiais Ariana Móveis', __resolved: true };
+    return { ...fallback, __resolved: true };
   }
 }
 
@@ -295,64 +265,26 @@ async function carregarCategoriasHeader() {
   if (categories) updateQuickCategoryLinks(categories);
 
   if (!categories) {
-    const hasFirestore =
-      !!window.db &&
-      typeof window.collection === 'function' &&
-      typeof window.getDocs === 'function' &&
-      typeof window.query === 'function' &&
-      typeof window.orderBy === 'function' &&
-      typeof window.limit === 'function';
-
-    if (hasFirestore) {
-      try {
-        const { collection, getDocs, query, where, orderBy, limit } = window;
-        const collectionsToTry = ['categories', 'categorias'];
-
-        let snap = null;
-        let lastErr = null;
-
-        for (const cname of collectionsToTry) {
-          try {
-            const colRef = collection(window.db, cname);
-
-            try {
-              snap = await getDocs(
-                query(
-                  colRef,
-                  where('active', '==', true),
-                  orderBy('order'),
-                  orderBy('name'),
-                  limit(500)
-                )
-              );
-            } catch (_) {
-              try {
-                snap = await getDocs(query(colRef, orderBy('order'), orderBy('name'), limit(500)));
-              } catch (_) {
-                snap = await getDocs(query(colRef, orderBy('name'), limit(500)));
-              }
-            }
-
-            if (snap) break;
-          } catch (e2) {
-            lastErr = e2;
-          }
-        }
-
-        if (!snap) throw lastErr || new Error('Não foi possível carregar categorias.');
-        categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        window.__CATEGORIES_CACHE__ = categories;
-        updateQuickCategoryLinks(categories);
-      } catch (err) {
-        console.error('[header] erro ao carregar categorias:', err);
-      }
+    try {
+      const res = await fetch(`${API_BASE}/categories`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      categories = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+      window.__CATEGORIES_CACHE__ = categories;
+      updateQuickCategoryLinks(categories);
+    } catch (err) {
+      console.error('[header] erro ao carregar categorias (Mongo):', err);
+      categories = null;
     }
   }
 
   const bannerData = await __loadHeaderCategoryBanner();
 
   const sourceList = (Array.isArray(categories) && categories.length ? categories : __headerFallbackParents())
-    .filter(c => c && (c.id || c.name || c.nome))
+    .filter(c => c && (c.id || c._id || c.name || c.nome))
+    .map(c => ({ ...c, id: c.id || c._id || c.slug || c.key || c.code || c.name || c.nome }))
     .filter(c => c.active !== false);
 
   const byId = new Map();
@@ -424,39 +356,11 @@ async function carregarCategoriasHeader() {
 }
 
 function getFirebaseAuthUserFromStorage() {
-  const stores = [localStorage, sessionStorage];
-  for (const store of stores) {
-    try {
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i);
-        if (!k || !k.startsWith('firebase:authUser:')) continue;
-        const raw = store.getItem(k);
-        if (!raw) continue;
-        try {
-          const obj = JSON.parse(raw);
-          if (obj && typeof obj === 'object') return obj;
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
   return null;
 }
 
 function clearFirebaseAuthStorage() {
-  const stores = [localStorage, sessionStorage];
-  for (const store of stores) {
-    try {
-      const keysToRemove = [];
-      for (let i = 0; i < store.length; i++) {
-        const k = store.key(i);
-        if (!k) continue;
-        if (k.startsWith('firebase:authUser:')) keysToRemove.push(k);
-      }
-      keysToRemove.forEach(k => {
-        try { store.removeItem(k); } catch (_) {}
-      });
-    } catch (_) {}
-  }
+  return true;
 }
 
 function getLoggedUserName() {
@@ -487,7 +391,6 @@ function getLoggedUserName() {
   };
 
   const looksLikeJson = (t) => (t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'));
-
   const commonKeys = [
     'clienteLogado',
     'usuarioLogado',
@@ -500,32 +403,20 @@ function getLoggedUserName() {
     'perfilUsuario',
   ];
 
-  const readFromStore = (store) => {
+  for (const store of stores) {
     for (const key of commonKeys) {
-      const raw = store.getItem(key);
-      if (!raw) continue;
-      const t = String(raw).trim();
-      if (t && t.length <= 120 && !looksLikeJson(t)) return t;
-      if (looksLikeJson(t)) {
-        try {
+      try {
+        const raw = store.getItem(key);
+        if (!raw) continue;
+        const t = String(raw).trim();
+        if (t && t.length <= 120 && !looksLikeJson(t)) return t;
+        if (looksLikeJson(t)) {
           const obj = JSON.parse(t);
           const nm = extractNameFromObject(obj);
           if (nm) return nm;
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
-    return null;
-  };
-
-  for (const s of stores) {
-    const nm = readFromStore(s);
-    if (nm) return nm;
-  }
-
-  const fb = getFirebaseAuthUserFromStorage();
-  if (fb) {
-    const nm = (fb.displayName || fb.email || '').toString().trim();
-    if (nm) return nm.includes('@') ? nm.split('@')[0] : nm;
   }
 
   return null;
@@ -536,22 +427,10 @@ function isUserLoggedIn() {
     const nm = (typeof getLoggedUserName === 'function') ? getLoggedUserName() : null;
     const nmStr = String(nm ?? '').trim();
     const isPlaceholderName = /^(minha conta|cliente|ol[aá],?\s*cliente)$/i.test(nmStr);
-    if (nmStr && !isPlaceholderName) return true;
-
-    const fb = (typeof getFirebaseAuthUserFromStorage === 'function') ? getFirebaseAuthUserFromStorage() : null;
-    if (fb) {
-      if (fb.isAnonymous === true) return false;
-      if (fb.email || fb.phoneNumber) return true;
-
-      if (Array.isArray(fb.providerData) && fb.providerData.some(p => p && p.providerId && p.providerId !== 'anonymous')) {
-        return true;
-      }
-    }
-
-    if (window.auth && window.auth.currentUser && !window.auth.currentUser.isAnonymous) return true;
-  } catch (_) {}
-
-  return false;
+    return !!(nmStr && !isPlaceholderName);
+  } catch (_) {
+    return false;
+  }
 }
 
 function getLoggedUserCity() {
@@ -734,17 +613,13 @@ function updateHeaderCityDisplay() {
 
 function atualizarUsuarioHeader() {
   const name = getLoggedUserName();
-  const firebaseUser = window.auth?.currentUser || getFirebaseAuthUserFromStorage() || null;
-
-  const logged =
-    !!String(name || '').trim() ||
-    !!(firebaseUser && firebaseUser.isAnonymous !== true && (firebaseUser.email || firebaseUser.phoneNumber || firebaseUser.uid));
+  const logged = !!String(name || '').trim();
 
   const elTop = document.getElementById('header-user-name') || document.getElementById('client-status-display-top');
   const elLegacy = document.getElementById('client-status-display');
   const legacyLink = document.getElementById('client-account-link');
 
-  const displayName = String(name || firebaseUser?.displayName || firebaseUser?.email || '').trim();
+  const displayName = String(name || '').trim();
   const firstName = displayName ? (displayName.includes('@') ? displayName.split('@')[0] : displayName.split(/\s+/)[0]) : '';
 
   const apply = (el) => {
@@ -1118,12 +993,6 @@ function carregarHeader() {
   configurarEventosHeader();
   setupSearchListeners();
 
-  if (typeof window.bindHeaderAuthListener === "function") {
-    window.bindHeaderAuthListener(window.auth || null);
-  } else {
-    console.warn("[header] bindHeaderAuthListener não carregou (header_auth_fix.js ausente/404).");
-  }
-
   atualizarUsuarioHeader();
   updateHeaderCityDisplay();
   loadCartCounter();
@@ -1143,32 +1012,13 @@ function carregarHeader() {
       loadCartCounter();
     });
 
-    window.addEventListener('firebase:ready', () => {
+    window.addEventListener('marketplace:ready', () => {
       try { delete window.__HEADER_CATEGORY_BANNER__; } catch (_) {}
       atualizarUsuarioHeader();
       updateHeaderCityDisplay();
       setTimeout(() => {
         try { carregarCategoriasHeader(); } catch (_) {}
       }, 250);
-    });
-  }
-
-  if (window.auth && typeof window.auth.onAuthStateChanged === 'function' && !window.__HEADER_AUTH_OBSERVER__) {
-    window.__HEADER_AUTH_OBSERVER__ = true;
-
-    window.auth.onAuthStateChanged((user) => {
-      try {
-        if (user && !user.isAnonymous) {
-          localStorage.setItem('clienteLogado', JSON.stringify({
-            nome: user.displayName || (user.email ? user.email.split('@')[0] : 'Cliente'),
-            email: user.email || null,
-            uid: user.uid || null
-          }));
-        }
-      } catch (_) {}
-
-      atualizarUsuarioHeader();
-      updateHeaderCityDisplay();
     });
   }
 }
@@ -1182,19 +1032,8 @@ function configurarEventosHeader() {
   const cartLink = document.getElementById('cart-link');
 
   cartLink?.addEventListener('click', (e) => {
-    const fb = getFirebaseAuthUserFromStorage();
     const nm = getLoggedUserName();
-    const isLogged = !!nm || !!fb;
-    if (fb && typeof window.setLoggedUserName === 'function') {
-      const name = (fb.displayName || fb.email || 'Cliente').toString();
-      const payload = {
-        nome: name.includes('@') ? name.split('@')[0] : name,
-        email: fb.email || null,
-        uid: fb.uid || null,
-        loggedAt: Date.now()
-      };
-      try { window.setLoggedUserName(payload); } catch (_) {}
-    }
+    const isLogged = !!nm;
     if (!isLogged) {
       e.preventDefault();
       window.location.href = `login_cadastro.html?redirect=${encodeURIComponent(getLocalRedirectTarget())}`;
@@ -1378,7 +1217,7 @@ function renderAccountPopover() {
       try {
         const keys = [
           'clienteLogado', 'usuarioLogado', 'currentUser', 'loggedUser',
-          'authUser', 'userData', 'userProfile', 'userInfo'
+          'authUser', 'userData', 'userProfile', 'userInfo', 'headerCityUF'
         ];
 
         for (const k of keys) {
@@ -1386,23 +1225,11 @@ function renderAccountPopover() {
           try { sessionStorage.removeItem(k); } catch (_) {}
         }
 
-        try { clearFirebaseAuthStorage(); } catch (_) {}
-
-        try {
-          if (window.auth && typeof window.signOut === 'function') {
-            await window.signOut(window.auth);
-          } else if (window.auth && typeof window.auth.signOut === 'function') {
-            await window.auth.signOut();
-          } else if (window.firebase && typeof window.firebase.auth === 'function') {
-            const a = window.firebase.auth();
-            if (a && typeof a.signOut === 'function') await a.signOut();
-          }
-        } catch (e) {
-          console.warn('[header] erro ao deslogar do Firebase:', e);
-        }
+        window.__HEADER_CITY_UF__ = '';
 
         try { window.dispatchEvent(new Event('user:updated')); } catch (_) {}
         atualizarUsuarioHeader();
+        updateHeaderCityDisplay();
         window.location.href = 'index.html';
       } catch (e) {
         console.error(e);
@@ -1454,150 +1281,23 @@ function __persistSelectedAddressForHeader(addr) {
   } catch (_) {}
 }
 
-async function __loadHeaderAddressFromFirestoreByUid(uid) {
-  try {
-    if (!uid || !window.db || typeof window.doc !== 'function' || typeof window.getDoc !== 'function') return '';
-    const candidates = [
-      ['users', uid],
-      ['clientes', uid],
-      ['customers', uid],
-      ['users_public', uid]
-    ];
-
-    for (const [col, id] of candidates) {
-      try {
-        const ref = window.doc(window.db, col, id);
-        const snap = await window.getDoc(ref);
-        if (!snap || typeof snap.exists !== 'function' || !snap.exists()) continue;
-
-        const data = snap.data() || {};
-        const addr = __extractFirstAddress(data) || data.selectedAddress || data.endereco || data.address || null;
-        const city = (addr?.city || addr?.cidade || data.city || data.cidade || '').toString().trim();
-        const uf = (addr?.state || addr?.uf || data.state || data.uf || '').toString().trim();
-        const cityUF = city && uf ? `${city} - ${uf}` : (city || '');
-
-        if (addr) __persistSelectedAddressForHeader(addr);
-        if (cityUF) return cityUF;
-      } catch (_) {}
-    }
-  } catch (_) {}
+async function __loadHeaderAddressFromFirestoreByUid() {
   return '';
 }
 
 
-async function __syncHeaderAddressFromAuth(user) {
+async function __syncHeaderAddressFromAuth() {
   try {
-    const logged = !!(user && !user.isAnonymous);
-    const sub = document.getElementById('auth-subtitle');
-    const legacyEl = document.getElementById('client-city-display');
-
-    if (!logged) {
-      window.__HEADER_CITY_UF__ = '';
-      if (sub) sub.textContent = 'Defina seu endereço';
-      if (legacyEl) legacyEl.textContent = 'Defina seu endereço';
-      if (typeof window.renderAccountPopover === 'function') {
-        window.renderAccountPopover();
-      }
-      return;
-    }
-
-    let cityUF = '';
-    try { cityUF = getLoggedUserCityUF(); } catch (_) {}
-    if (!cityUF && user?.uid) {
-      cityUF = await __loadHeaderAddressFromFirestoreByUid(user.uid);
-    }
-
-    if (cityUF) {
-      window.__HEADER_CITY_UF__ = cityUF;
-      try { localStorage.setItem('headerCityUF', cityUF); } catch (_) {}
-      try { sessionStorage.setItem('headerCityUF', cityUF); } catch (_) {}
-    } else {
-      try {
-        cityUF = String(
-          window.__HEADER_CITY_UF__ ||
-          localStorage.getItem('headerCityUF') ||
-          sessionStorage.getItem('headerCityUF') ||
-          ''
-        ).trim();
-      } catch (_) {
-        cityUF = String(window.__HEADER_CITY_UF__ || '').trim();
-      }
-    }
-
-    const text = cityUF || 'Defina seu endereço';
-    if (sub) sub.textContent = text;
-    if (legacyEl) legacyEl.textContent = text;
-
-    try { updateHeaderCityDisplay(); } catch (_) {}
-
-    if (typeof window.renderAccountPopover === 'function') {
-      window.renderAccountPopover();
-    }
+    const cityUF = String(getLoggedUserCityUF() || '').trim();
+    window.__HEADER_CITY_UF__ = cityUF;
+    updateHeaderCityDisplay();
+    if (typeof window.renderAccountPopover === 'function') window.renderAccountPopover();
   } catch (_) {}
 }
 
-window.bindHeaderAuthListener = window.bindHeaderAuthListener || function(authInstance) {
-  try {
-    const auth = authInstance || window.auth || null;
-    if (!auth || typeof auth.onAuthStateChanged !== 'function') return;
-    if (window.__HEADER_AUTH_LISTENER_BOUND__) return;
-    window.__HEADER_AUTH_LISTENER_BOUND__ = true;
-
-    auth.onAuthStateChanged(async function(user) {
-      try {
-        if (typeof window.updateClientHeaderUI === 'function') window.updateClientHeaderUI(user);
-      } catch (_) {}
-
-      try {
-        if (typeof window.loadClientAddress === 'function') await window.loadClientAddress(user);
-      } catch (_) {}
-
-      try {
-        if (user && !user.isAnonymous) {
-          let existing = {};
-          try {
-            existing = JSON.parse(localStorage.getItem('clienteLogado') || '{}') || {};
-          } catch (_) {
-            existing = {};
-          }
-
-          const payload = {
-            ...existing,
-            nome: (user.displayName || existing.nome || existing.name || (user.email ? String(user.email).split('@')[0] : '') || 'Cliente'),
-            email: user.email || existing.email || null,
-            uid: user.uid || existing.uid || null,
-            loggedAt: Date.now()
-          };
-
-          localStorage.setItem('clienteLogado', JSON.stringify(payload));
-        }
-      } catch (_) {}
-
-      try { atualizarUsuarioHeader(); } catch (_) {}
-      await __syncHeaderAddressFromAuth(user);
-    });
-  } catch (e) {
-    console.error('[header] erro ao vincular auth:', e);
-  }
-};
+window.bindHeaderAuthListener = window.bindHeaderAuthListener || function() { return true; };
 
 async function carregarEnderecoHeaderFirestore() {
-  try {
-    const has = !!window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function' && window.auth;
-    if (!has) return;
-
-    const u = window.auth.currentUser;
-    if (!u || u.isAnonymous) return;
-
-    await __syncHeaderAddressFromAuth(u);
-  } catch (_) {}
+  try { await __syncHeaderAddressFromAuth(); } catch (_) {}
 }
 
-window.addEventListener('firebase:ready', () => {
-  setTimeout(() => {
-    try { delete window.__HEADER_CATEGORY_BANNER__; } catch (_) {}
-    try { window.bindHeaderAuthListener(window.auth || null); } catch (_) {}
-    carregarEnderecoHeaderFirestore();
-    try { carregarCategoriasHeader(); } catch (_) {}
-  }, 400);
-});

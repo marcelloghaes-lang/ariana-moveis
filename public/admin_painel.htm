@@ -33,7 +33,7 @@
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;
   img-src 'self' data: blob: https:;
   font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:;
-  connect-src 'self' http://127.0.0.1:5500 http://localhost:5500 https://*.googleapis.com https://www.gstatic.com https://sdk.mercadopago.com https://api.mercadopago.com http://127.0.0.1:3000 http://localhost:3000 https://api.arianamoveis.com.br;
+  connect-src 'self' http://127.0.0.1:5500 http://localhost:5500 http://127.0.0.1:3000 http://localhost:3000 https://api.arianamoveis.com.br https://ariana-move-mongo.onrender.com https://ariana-move-mongo.onrender.com/api https://api-4dx5luiipq-rj.a.run.app https://sdk.mercadopago.com https://api.mercadopago.com;
   frame-src 'self' https://www.mercadopago.com https://*.mercadopago.com https://*.google.com;
 ">
 
@@ -44,7 +44,7 @@
 
 <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
     <a href="#" class="text-white flex items-center space-x-2 px-4">
-        <span class="text-2xl font-extrabold tracking-widest">ADMIN</span>
+        <span class="text-2xl font-extrabold tracking-widest">ADMIN-FIRE</span>
     </a>
 
     <nav class="flex flex-col space-y-2">
@@ -134,7 +134,7 @@
                     <button type="submit" id="login-btn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-blue hover:bg-secondary-light-blue focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-blue transition duration-150 ease-in-out">
                         Entrar
                     </button>
-                    <p class="text-sm text-center text-gray-500 mt-4">Use: admin@exemplo.com / 123456</p>
+                    <p class="text-sm text-center text-gray-500 mt-4">Use as credenciais do seu painel</p>
                 </form>
             </div>
 
@@ -272,7 +272,7 @@
             window.API_BASE ||
             localStorage.getItem('API_BASE') ||
             localStorage.getItem('API_BASE_URL') ||
-            'http://localhost:3000/api';
+            'https://ariana-move-mongo.onrender.com/api';
 
         let app;
         let auth = {};
@@ -322,6 +322,9 @@
         };
 
         const getAdminToken = () => localStorage.getItem('admin_token') || '';
+        if (!localStorage.getItem('API_BASE_URL')) {
+            try { localStorage.setItem('API_BASE_URL', API_BASE); } catch (e) {}
+        }
 
         const buildHeadersAuth = () => {
             const token = getAdminToken();
@@ -557,11 +560,11 @@
                 db = getFirestore(app);
                 storage = getStorage(app);
                 firebaseReady = true;
-                console.log('Camada API/Mongo inicializada com sucesso.');
+                console.log('Camada Mongo/Render inicializada com sucesso.');
             } catch (error) {
                 console.error('Erro ao inicializar camada API/Mongo:', error);
                 firebaseReady = false;
-                try { displayMessage('Erro ao inicializar camada da API.', 'error'); } catch (e) {}
+                try { displayMessage('Erro ao inicializar camada API/Mongo.', 'error'); } catch (e) {}
             }
         };
         // Variáveis de cache e listeners
@@ -1281,11 +1284,18 @@ async function carregarConfigTelefones() {
                         </div>
                         <i class="fas fa-box text-4xl text-primary-blue opacity-50"></i>
                     </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.03s;">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Clientes Ativos</p>
+                            <p id="total-clientes-ativos" class="text-3xl font-bold text-primary-blue">0</p>
+                        </div>
+                        <i class="fas fa-users text-4xl text-primary-blue opacity-50"></i>
+                    </div>
                     
                     <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.05s;">
                         <div>
                             <p class="text-sm font-medium text-gray-500">Pedidos Totais</p>
-                            <p class="text-3xl font-bold text-success-green">${totalOrders}</p>
+                            <p id="admin-pedidos-totais" class="text-3xl font-bold text-success-green">${totalOrders}</p>
                         </div>
                         <i class="fas fa-shopping-cart text-4xl text-success-green opacity-50"></i>
                     </div>
@@ -1293,7 +1303,7 @@ async function carregarConfigTelefones() {
                     <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.1s;">
                         <div>
                             <p class="text-sm font-medium text-gray-500">Faturamento (Não Filtrado)</p>
-                            <p class="text-3xl font-bold text-text-dark">${formatCurrency(totalSales)}</p>
+                            <p id="total-faturamento" class="text-3xl font-bold text-text-dark">${formatCurrency(totalSales)}</p>
                         </div>
                         <i class="fas fa-money-check-alt text-4xl text-text-dark opacity-50"></i>
                     </div>
@@ -1301,7 +1311,7 @@ async function carregarConfigTelefones() {
                     <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade" style="animation-delay: 0.15s;">
                         <div>
                             <p class="text-sm font-medium text-gray-500">Pedidos Pendentes</p>
-                            <p class="text-3xl font-bold text-error-red">${ordersPending}</p>
+                            <p id="contagem-pedidos-pendentes" class="text-3xl font-bold text-error-red">${ordersPending}</p>
                         </div>
                         <i class="fas fa-clock text-4xl text-error-red opacity-50"></i>
                     </div>
@@ -2506,7 +2516,7 @@ try {
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody ${isDashboard ? 'id="tabela-pedidos-corpo"' : ''} class="bg-white divide-y divide-gray-200">
                             ${orders.map(order => {
                                 const statusClass = {
                                     'Aguardando Pagamento': 'bg-yellow-100 text-yellow-800',
@@ -2814,8 +2824,8 @@ try {
                 <h2 class="text-2xl font-bold text-text-dark mb-6">Gerenciamento de Usuários</h2>
                 
                 <div class="bg-white p-6 rounded-lg shadow-md animate-fade">
-                    <h3 class="text-xl font-semibold mb-4">Lista de Usuários (Dados Simulados/Cache)</h3>
-                    <p class="text-sm text-gray-500 mb-4">Atenção: A manipulação real de usuários do Firebase Auth exige o Admin SDK, geralmente executado em um ambiente de servidor (Cloud Functions).</p>
+                    <h3 class="text-xl font-semibold mb-4">Lista de Usuários (Dados da API/Cache)</h3>
+                    <p class="text-sm text-gray-500 mb-4">Atenção: A manipulação real de usuários do painel exige rotas administrativas no backend.</p>
                     
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -2878,7 +2888,7 @@ try {
             // Se estiver rodando via Hosting Emulator, chama o Functions Emulator no mesmo host
             if (host === '127.0.0.1' || host === 'localhost') {
                 // ajuste o projectId/região se necessário
-                return 'http://127.0.0.1:5001/ariana-moveis-8fba4/southamerica-east1/api';
+                return localStorage.getItem('API_BASE_URL') || 'https://ariana-move-mongo.onrender.com/api';
             }
             // produção: você pode trocar depois de publicar (domain + /api)
             return '';
@@ -2930,7 +2940,7 @@ try {
         };
 
         const writeSettingsDoc = async (docId, data) => {
-            if (!firebaseReady || !db) throw new Error('Firebase não inicializado.');
+            if (!firebaseReady || !db) throw new Error('API/Mongo não inicializado.');
             const refDoc = doc(db, getPublicCollectionPath(SETTINGS_COL), docId);
             await setDoc(refDoc, { ...(data || {}), updatedAt: serverTimestamp() }, { merge: true });
         };
@@ -2980,7 +2990,7 @@ try {
                 <div class="bg-white p-5 rounded-lg shadow-md mb-6">
     <h3 class="text-lg font-semibold text-primary-blue mb-2">API do Backend</h3>
     <p class="text-sm text-gray-600 mb-3">
-        Aqui você define a URL base da sua API (Firebase Functions). Isso é usado pelos botões do Admin (Pix, Boleto, Etiqueta, Consulta).
+        Aqui você define a URL base da sua API do backend. Isso é usado pelos botões do Admin (Pix, Boleto, Etiqueta, Consulta).
     </p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
         <div class="md:col-span-2">
@@ -3725,7 +3735,117 @@ try {
   <script>
   // Service worker (PWA)
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
+    
+    async function carregarProdutosAdmin() {
+        try {
+            const token =
+              localStorage.getItem('adminToken') ||
+              localStorage.getItem('admin_token') ||
+              '';
+
+            const res = await fetch(`${API_BASE_MONGO}/seller/products`, {
+                headers: {
+                    'Accept': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const payload = await res.json();
+            const produtos = Array.isArray(payload) ? payload : (payload?.items || payload?.products || []);
+            const corpoTabela = document.getElementById('tabela-produtos-corpo');
+
+            if (!corpoTabela) return;
+
+            if (!produtos.length) {
+                corpoTabela.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-400 font-medium text-sm">Nenhum móvel cadastrado no MongoDB.</td></tr>';
+                return;
+            }
+
+            const toMoney = (n) => `R$ ${Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            corpoTabela.innerHTML = produtos.map(p => {
+                const id = String(p._id || p.id || '');
+                const price = Number(p.price || p.preco || 0) || 0;
+                const stock = Number(p.stock || p.estoque || 0) || 0;
+                const imageUrl = p.imageUrl || p.mainImageUrl || p.image || 'https://placehold.co/120x120?text=SEM+IMG';
+                const name = p.name || p.nome || 'Produto';
+                return `
+                    <tr class="border-b border-gray-100 hover:bg-blue-50/30 transition-all duration-200 group">
+                        <td class="p-4">
+                            <div class="relative w-16 h-16 rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition">
+                                <img src="${imageUrl}" class="w-full h-full object-cover" alt="${String(name).replace(/"/g, '&quot;')}">
+                            </div>
+                        </td>
+                        <td class="p-4 text-sm">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-gray-800 text-base leading-tight">${name}</span>
+                                <span class="text-[10px] text-primary-blue font-black uppercase tracking-wider mt-1">ID: ${id ? id.slice(-6) : '---'}</span>
+                            </div>
+                        </td>
+                        <td class="p-4">
+                            <div class="flex flex-col">
+                                <span class="text-xs text-gray-400 line-through">${toMoney(price * 1.2)}</span>
+                                <span class="text-sm font-black text-gray-900">${toMoney(price)}</span>
+                            </div>
+                        </td>
+                        <td class="p-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${stock > 0 ? 'bg-success-green/10 text-success-green' : 'bg-red-100 text-red-600'}">
+                               <i class="fas ${stock > 0 ? 'fa-check-circle' : 'fa-times-circle'} mr-1"></i>
+                               ${stock > 0 ? stock + ' Disponíveis' : 'Esgotado'}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button onclick="window.abrirModalEdicao && window.abrirModalEdicao('${id}')" class="p-2 text-gray-400 hover:text-primary-blue hover:bg-blue-50 rounded-lg transition">
+                                    <i class="fas fa-edit text-xs"></i>
+                                </button>
+                                <button onclick="window.excluirProduto('${id}')" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                                    <i class="fas fa-trash-alt text-xs"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (window.toast) window.toast('ok', 'Estoque sincronizado!');
+        } catch (e) {
+            console.error('[admin] erro ao carregar produtos:', e);
+            if (window.toast) window.toast('error', 'Falha ao conectar com o banco de dados.');
+        }
+    }
+
+    window.excluirProduto = async (id) => {
+        if (!confirm('Marcelo, confirma a exclusão definitiva deste móvel?')) return;
+
+        const token =
+          localStorage.getItem('adminToken') ||
+          localStorage.getItem('admin_token') ||
+          '';
+
+        try {
+            const res = await fetch(`${API_BASE_MONGO}/seller/products/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            if (window.toast) window.toast('ok', 'Produto removido!');
+            carregarProdutosAdmin();
+        } catch (e) {
+            console.error('[admin] erro ao excluir produto:', e);
+            if (window.toast) window.toast('error', 'Erro ao remover do banco.');
+        }
+    };
+
+
+window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
         .then(reg => console.log("🚀 PWA Admin: Ativo", reg.scope))
         .catch(err => console.log("❌ Erro no SW Admin:", err));
@@ -3735,14 +3855,143 @@ try {
   // Removido o trecho legado `firebase.auth()` (causava: firebase is not defined).
 </script>
   </div>
-
-<script type="module" src="firebase-config.js"></script>
-    <script src="marketplace-core.js"></script>
+<script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>
 
      <script src="js/layout-fit.js" defer></script>
 
     <script src="js/header_auth_fix.js" defer></script>
+
+
+<script>
+    const API_BASE_MONGO =
+      window.API_BASE ||
+      localStorage.getItem('API_BASE') ||
+      localStorage.getItem('API_BASE_URL') ||
+      'https://ariana-move-mongo.onrender.com/api';
+
+    async function fetchAdminJson(path, options = {}) {
+        const token =
+          localStorage.getItem('adminToken') ||
+          localStorage.getItem('admin_token') ||
+          '';
+
+        const res = await fetch(`${API_BASE_MONGO}${path}`, {
+            ...options,
+            headers: {
+                'Accept': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                ...(options.headers || {})
+            }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    }
+
+    async function carregarEstatisticasDashboard() {
+        try {
+            const stats = await fetchAdminJson('/admin/stats');
+
+            const faturamentoEl = document.getElementById('total-faturamento');
+            const pendentesEl = document.getElementById('contagem-pedidos-pendentes');
+            const clientesEl = document.getElementById('total-clientes-ativos');
+            const pedidosTotaisEl = document.getElementById('admin-pedidos-totais');
+
+            const faturamentoTotal = Number(stats?.faturamentoTotal || stats?.totalSales || 0) || 0;
+            const pedidosPendentes = Number(stats?.pedidosPendentes || stats?.pendingOrders || 0) || 0;
+            const totalClientes = Number(stats?.totalClientes || stats?.activeCustomers || 0) || 0;
+            const totalPedidos = Number(stats?.totalPedidos || stats?.ordersCount || 0) || 0;
+
+            if (faturamentoEl) faturamentoEl.textContent = `R$ ${faturamentoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            if (pendentesEl) pendentesEl.textContent = pedidosPendentes;
+            if (clientesEl) clientesEl.textContent = totalClientes;
+            if (pedidosTotaisEl && totalPedidos > 0) pedidosTotaisEl.textContent = totalPedidos;
+        } catch (e) {
+            console.error('[admin] erro nas estatísticas:', e);
+        }
+    }
+
+    async function carregarUltimosPedidos() {
+        try {
+            const payload = await fetchAdminJson('/admin/orders?limit=10');
+            const pedidos = Array.isArray(payload) ? payload : (payload?.items || payload?.orders || []);
+            const tabela = document.getElementById('tabela-pedidos-corpo');
+            if (!tabela || !Array.isArray(pedidos)) return;
+
+            const formatMoney = (n) => `R$ ${Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const formatDate = (v) => {
+                try { return new Date(v).toLocaleDateString('pt-BR'); } catch (_) { return '-'; }
+            };
+            const statusClass = (statusRaw) => {
+                const s = String(statusRaw || '').toLowerCase();
+                if (s.includes('pago')) return 'bg-success-green text-white';
+                if (s.includes('pend')) return 'bg-yellow-400 text-black';
+                if (s.includes('cancel')) return 'bg-error-red text-white';
+                return 'bg-gray-100 text-gray-800';
+            };
+
+            tabela.innerHTML = pedidos.map(p => {
+                const oid = String(p.orderId || p.id || p._id || '');
+                const status = String(p.status || 'pendente');
+                const total = Number(p.total || p.totalPrice || 0) || 0;
+                const clientName = p.clientName || p.customerName || 'Cliente';
+                const createdAt = p.createdAt || p.date || p.updatedAt || Date.now();
+                return `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #${oid.slice(-6)}<br>
+                            <span class="text-xs text-gray-500">${formatDate(createdAt)}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${clientName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatMoney(total)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass(status)}">${status.toUpperCase()}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="window.openOrderDetailModal && window.openOrderDetailModal('${p._id || p.id || oid}')" class="text-primary-blue hover:text-secondary-light-blue">
+                                <i class="fas fa-search"></i> Ver
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('[admin] erro ao carregar pedidos:', e);
+        }
+    }
+
+    async function refreshNotifMongo() {
+        try {
+            const payload = await fetchAdminJson('/admin/notifications');
+            const notifs = Array.isArray(payload) ? payload : (payload?.items || payload?.notifications || []);
+            const badge = document.getElementById('notif-badge') || document.getElementById('notif-count');
+            if (badge) {
+                badge.textContent = String(notifs.length);
+                badge.classList.toggle('hidden', notifs.length <= 0);
+            }
+        } catch (_) {}
+    }
+
+    window.logoutAdmin = function() {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('banner_admin_email');
+        window.location.href = 'login.html';
+    };
+
+    window.addEventListener('load', () => {
+        try {
+            carregarEstatisticasDashboard();
+            carregarUltimosPedidos();
+            carregarProdutosAdmin();
+            refreshNotifMongo();
+            setInterval(refreshNotifMongo, 30000);
+            setInterval(carregarEstatisticasDashboard, 120000);
+        } catch (e) {
+            console.error('[admin] falha na inicialização Mongo:', e);
+        }
+    });
+</script>
 
 </body>
 </html>

@@ -252,6 +252,16 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 </script>
 
 </head>
+<script src="./header.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof window.carregarHeader === "function") {
+      window.carregarHeader();
+    } else {
+      console.error("❌ carregarHeader não encontrado");
+    }
+  });
+</script>
 <body>
 
   <!-- Mensagens (suporte ao displayMessage) -->
@@ -1554,36 +1564,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   document.addEventListener('DOMContentLoaded', applyBannerSmartFit);
 
   </script>
-
-  <script src="js/header_auth_fix.js" defer></script>
-  <script src="./header.js"></script>
-  <script>
-    (function () {
-      const tryInitHeader = () => {
-        if (typeof window.carregarHeader !== "function") {
-          setTimeout(tryInitHeader, 60);
-          return;
-        }
-        if (document.querySelector("header[data-ariana='1']")) return;
-
-        try {
-          window.carregarHeader();
-          const h = document.querySelector("header");
-          if (h) h.setAttribute("data-ariana", "1");
-        } catch (e) {
-          console.error("[index] erro ao carregar header:", e);
-        }
-      };
-
-      tryInitHeader();
-      document.addEventListener("DOMContentLoaded", tryInitHeader);
-      window.addEventListener("load", tryInitHeader);
-      window.addEventListener("pageshow", tryInitHeader);
-      window.addEventListener("marketplace:helpers-ready", tryInitHeader);
-    })();
   </script>
-  <script src="./marketplace-core.js"></script>
-  <script src="./footer.js"></script>
 
 <script>
 window.addEventListener('load', () => {
@@ -1595,10 +1576,52 @@ window.addEventListener('load', () => {
   }
 });
 </script>
-<script src="marketplace-core.js"></script>
-<script src="marketplace-core_global_payments.js"></script>
+<script src="js/header_auth_fix.js" defer></script>
+<script src="./product-card_mongo_corrigido.js"></script>
+  <script src="./marketplace-core.js"></script>
+  <script src="./marketplace-core_global_payments.js"></script>
+  <script src="./footer.js"></script>
+  <script src="js/layout-fit.js" defer></script>
 
- <script src="js/layout-fit.js" defer></script>
+  <script>
+    const API_BASE_MONGO = "https://ariana-move-mongo.onrender.com/api";
 
-</body>
-</html>
+    // Função para carregar produtos do MongoDB
+    async function carregarProdutosDestaque() {
+      try {
+        const res = await fetch(`${API_BASE_MONGO}/seller/products`);
+        const produtos = await res.json();
+        const grid = document.getElementById('featured-product-grid');
+
+        if (grid && window.createProductCard && Array.isArray(produtos) && produtos.length > 0) {
+          // AQUI ESTAVA O ERRO: Limpei a crase sobrando e o HTML duplicado
+          grid.innerHTML = produtos.map(p => window.createProductCard(p)).join('');
+        }
+      } catch (e) {
+        console.error("Erro ao carregar produtos:", e);
+      }
+    }
+
+    // Função que garante o carregamento do Header
+    const iniciarHeaderAriana = () => {
+      if (typeof window.carregarHeader === "function") {
+        if (!document.querySelector("header[data-ariana='1']")) {
+          window.carregarHeader();
+          const h = document.querySelector("header");
+          if (h) h.setAttribute("data-ariana", "1");
+        }
+      } else {
+        setTimeout(iniciarHeaderAriana, 50); // Tenta de novo se o script ainda não carregou
+      }
+    };
+
+    // DISPARO ÚNICO AO CARREGAR A PÁGINA
+    window.addEventListener('load', () => {
+      iniciarHeaderAriana();
+      carregarProdutosDestaque();
+      
+      // Inicializa seus banners originais de 1600 linhas
+      if (typeof syncHeroBannerLayout === "function") syncHeroBannerLayout();
+      if (typeof initMiniBannersCarousel === "function") initMiniBannersCarousel();
+    });
+  </script>

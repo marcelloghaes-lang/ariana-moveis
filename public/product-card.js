@@ -1,3 +1,5 @@
+
+const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
 (function () {
 
   const toNumber = (v) => {
@@ -43,8 +45,9 @@
 
   window.getPaymentSettings = async function () {
     try {
-      const data = await window.getDoc({ collection: "settings", id: "payments" });
-      window.__PAYMENT_SETTINGS = normalizePaymentSettings(data?.data?.() || null);
+      const res = await fetch(API_BASE + "/settings/payments");
+      const data = await res.json();
+      window.__PAYMENT_SETTINGS = normalizePaymentSettings(data || null);
     } catch (e) {
       console.warn("Erro ao carregar pagamentos, usando padrão");
       window.__PAYMENT_SETTINGS = normalizePaymentSettings(null);
@@ -171,7 +174,7 @@
       : "";
 
     return `
-      <div class="product-card" onclick="window.location.href='produto.html?id=${p.id}'">
+      <div class="product-card" onclick="window.location.href='produto.html?id=${p._id || p.id}'">
 
         ${badgeHtml}
 

@@ -1,18 +1,17 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Admin • Banners (Ariana Móveis)</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
-  <link rel="stylesheet" href="css/all.min.css">
-  
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="manifest" href="./manifest-banners.webmanifest">
+  <meta name="theme-color" content="#0b1220">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icons/icon-banners-192.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
-  <link rel="stylesheet" href="css/tailwind.min.css">
   <style>
     :root{--primary-blue:#0B4AA2;--secondary-light-blue:#77D0FF;--text-dark:#0f172a}
     .chip{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .6rem;border-radius:999px;font-weight:800;font-size:.72rem}
@@ -23,6 +22,8 @@
     .btn-primary:hover{filter:brightness(.95)}
     .btn-ghost{background:#fff;border:1px solid #e5e7eb;color:#0f172a}
     .btn-ghost:hover{background:#f8fafc}
+    .btn-secondary{background:#eff6ff;border:1px solid #bfdbfe;color:var(--primary-blue)}
+    .btn-secondary:hover{background:#dbeafe}
     .field{width:100%;border:1px solid #e5e7eb;border-radius:.8rem;padding:.65rem .8rem;outline:none}
     .field:focus{border-color:rgba(119,208,255,.9);box-shadow:0 0 0 4px rgba(119,208,255,.25)}
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.15rem;overflow:hidden}
@@ -36,35 +37,35 @@
 </head>
 
 <body class="bg-slate-50 min-h-screen">
-  <header class="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
-  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-    <div class="flex items-center gap-3">
-      <div class="w-14 h-14 overflow-hidden rounded-xl bg-slate-50 border border-slate-100 shadow-sm flex items-center justify-center">
-        <img src="banner-ariana.jpg" alt="Banner Ariana" class="w-full h-full object-contain">
-      </div>
-      <div>
-        <h1 class="text-lg font-black tracking-tight text-slate-900">Painel de Banners</h1>
-        <p class="text-xs text-slate-500 font-semibold">Configuração de banners do index e produto (detalhes)</p>
-      </div>
-    </div>
-
-    <div class="flex items-center gap-2">
-      <div id="auth-pill" class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-        <i class="fa-solid fa-user-shield text-blue-600"></i>
-        <div class="leading-tight">
-          <p class="text-[10px] font-black uppercase text-slate-500">Sessão</p>
-          <p id="auth-email" class="text-xs font-extrabold text-slate-800">Desconectado</p>
+  <header class="sticky top-0 z-40 bg-white border-b border-slate-200 relative z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-[color:var(--primary-blue)] text-white flex items-center justify-center shadow">
+          <i class="fa-solid fa-images text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-black tracking-tight text-[color:var(--text-dark)]">Painel de Banners</h1>
+          <p class="text-xs text-slate-500 font-semibold">Configuração de banners do index e produto (detalhes)</p>
         </div>
       </div>
-      <button id="btn-login" class="btn btn-ghost"><i class="fa-solid fa-right-to-bracket text-blue-600"></i> Login</button>
-      <button id="btn-logout" class="btn btn-ghost hidden text-red-500"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
-      <button id="btn-reload" class="btn btn-ghost"><i class="fa-solid fa-rotate"></i> Recarregar</button>
-      <button id="btn-save-all" class="btn btn-primary bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition">
-        <i class="fa-solid fa-floppy-disk mr-2"></i>Salvar tudo
-      </button>
+
+      
+      <div class="flex items-center gap-2">
+        <div id="auth-pill" class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+          <i class="fa-solid fa-user-shield text-[color:var(--primary-blue)]"></i>
+          <div class="leading-tight">
+            <p class="text-[10px] font-black uppercase text-slate-500">Sessão</p>
+            <p id="auth-email" class="text-xs font-extrabold text-slate-800">Desconectado</p>
+          </div>
+        </div>
+        <button id="btn-login" class="btn btn-ghost"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+        <button id="btn-logout" class="btn btn-ghost hidden"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        <button id="btn-reload" class="btn btn-ghost"><i class="fa-solid fa-rotate"></i> Recarregar</button>
+        <button id="btn-save-all" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar tudo</button>
+      </div>
+
     </div>
-  </div>
-</header>
+  </header>
 
   <main class="max-w-6xl mx-auto px-4 py-6 space-y-8">
     <div id="msg" class="hidden p-3 rounded-xl font-extrabold"></div>
@@ -74,7 +75,7 @@
         <div>
           <h2 class="font-black text-slate-900">Como funciona</h2>
           <p class="helper mt-1">
-            Este painel salva os banners na coleção <span class="mono">banners</span> do Firestore.
+            Este painel salva os banners na coleção <span class="mono">banners</span> do MongoDB.
             Cada banner tem um <span class="mono">id</span> fixo por posição. No site, basta ler esses docs e renderizar quando <span class="mono">active=true</span>.
           </p>
         </div>
@@ -102,31 +103,10 @@
         <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
           <p class="text-xs font-black text-slate-500 uppercase">IDs deste painel</p>
           <p class="text-sm font-semibold text-slate-700 mt-2">
-            Header categorias: <span class="mono">header_category_banner</span><br>
             Index: <span class="mono">index_main</span>, <span class="mono">index_mini_1..5</span>, <span class="mono">index_duo_1</span>, <span class="mono">index_duo_2</span>, <span class="mono">index_secondary_1</span>, <span class="mono">index_secondary_2</span>, <span class="mono">index_sidebar_vertical</span><br>
             Rodapé: <span class="mono">footer_banner</span><br>
             Produto (detalhe): <span class="mono">produto_detail_horizontal_1</span>, <span class="mono">produto_detail_horizontal_2</span>
           </p>
-        </div>
-      </div>
-    </section>
-
-    <section class="space-y-4">
-      <div>
-        <h2 class="text-lg font-black text-slate-900">Banner da categoria do Header</h2>
-        <p class="helper">Banner lateral direita do mega menu de categorias do header.</p>
-      </div>
-
-      <div class="card">
-        <div class="card-h border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h3 class="font-black text-slate-900">Banner categoria (Header)</h3>
-            <p class="helper">ID: <span class="mono">header_category_banner</span> • Sugestão: 720×560</p>
-          </div>
-          <span id="chip-header_category_banner" class="chip chip-off"><i class="fa-solid fa-circle"></i> Inativo</span>
-        </div>
-        <div class="card-b">
-          <div id="header-category-banner-wrap"></div>
         </div>
       </div>
     </section>
@@ -306,7 +286,7 @@
             <i class="fa-solid fa-lock text-lg"></i>
             <div>
               <p class="font-black text-lg leading-tight">Login do Admin</p>
-              <p class="text-xs opacity-80 font-semibold">Use seu e-mail e senha do Firebase Auth</p>
+              <p class="text-xs opacity-80 font-semibold">Use seu e-mail e senha do painel</p>
             </div>
           </div>
           <button id="login-close" class="w-10 h-10 rounded-xl hover:bg-white/10"><i class="fa-solid fa-xmark"></i></button>
@@ -320,7 +300,7 @@
             <label class="text-xs font-black text-slate-500 uppercase">Senha</label>
             <input id="login-pass" class="field mt-1" type="password" placeholder="••••••••" autocomplete="current-password"/>
           </div>
-          <p class="helper">Se der “permissão insuficiente”, seu usuário precisa ter claim <span class="mono">admin=true</span>.</p>
+          <p class="helper">Este painel envia os dados para o seu servidor Render. O acesso do painel é controlado localmente nesta tela.</p>
           <button id="login-submit" class="btn btn-primary w-full"><i class="fa-solid fa-right-to-bracket"></i> Entrar</button>
         </div>
       </div>
@@ -336,293 +316,19 @@
           <i class="fa-solid fa-user-lock text-2xl text-[color:var(--primary-blue)]"></i>
         </div>
         <p class="mt-3 text-lg font-black text-slate-900">Faça login para editar os banners</p>
-        <p class="helper mt-1">Para carregar/salvar no Firestore é necessário estar autenticado.</p>
+        <p class="helper mt-1">Para carregar, enviar imagens e salvar no Mongo é necessário entrar no painel.</p>
         <button id="locked-login" class="btn btn-primary mt-4"><i class="fa-solid fa-right-to-bracket"></i> Fazer login</button>
       </div>
     </div>
   </div>
 
 
-  <script type="module">
-  // Firebase config embutido (evita depender de ./firebase-config.js e garante que window.db/auth existam)
-  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
-  import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    signOut,
-    setPersistence,
-    browserLocalPersistence
-  } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-    authDomain: "ariana-moveis-final.firebaseapp.com",
-    projectId: "ariana-moveis-final",
-    storageBucket: "ariana-moveis-final.firebasestorage.app",
-    messagingSenderId: "695257365498",
-    appId: "1:695257365498:web:ef7698ea5d33d701338243",
-    measurementId: "G-WNMWLYMW43"
-  };
-
-  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-
-  // Persistência: mantém login entre recarregamentos (quando permitido pelo navegador)
-  try { await setPersistence(auth, browserLocalPersistence); } catch (_) {}
-
-  // Exporta para o código "normal" (não-module) que já existe nesta página
-  window.db = db;
-  window.auth = auth;
-
-  window.doc = doc;
-  window.getDoc = getDoc;
-  window.setDoc = setDoc;
-
-  window.onAuthStateChanged = onAuthStateChanged;
-  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
-  window.signOut = signOut;
-
-  // sinaliza pronto para as funções waitFirebaseReady()/waitAuthReady()
-  window.dispatchEvent(new Event('firebase:ready'));
-</script>
-
-  
-<script>
-(function(){
-  if (typeof window.optimizeBannerImageFile !== 'function') {
-    const MAX_WIDTH = 1600;
-    const MAX_HEIGHT = 1600;
-    const QUALITY = 0.7;
-
-    function loadBannerImage(file){
-      return new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve(img);
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error('Não foi possível processar a imagem selecionada.'));
-        };
-        img.src = objectUrl;
-      });
-    }
-
-    window.optimizeBannerImageFile = async function(file){
-      if (!file || !String(file.type || '').startsWith('image/')) return file;
-      const img = await loadBannerImage(file);
-      const originalWidth = img.naturalWidth || img.width || 0;
-      const originalHeight = img.naturalHeight || img.height || 0;
-      if (!originalWidth || !originalHeight) return file;
-
-      const ratio = Math.min(1, MAX_WIDTH / originalWidth, MAX_HEIGHT / originalHeight);
-      const targetWidth = Math.max(1, Math.round(originalWidth * ratio));
-      const targetHeight = Math.max(1, Math.round(originalHeight * ratio));
-
-      const canvas = document.createElement('canvas');
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return file;
-      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-
-      const webpBlob = await new Promise((resolve, reject) => {
-        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Falha ao compactar o banner.')), 'image/webp', QUALITY);
-      });
-
-      const cleanName = String(file.name || 'banner')
-        .replace(/\.[^.]+$/, '')
-        .replace(/[^a-zA-Z0-9_-]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-+|-+$/g, '') || `banner-${Date.now()}`;
-
-      return new File([webpBlob], `${cleanName}.webp`, {
-        type: 'image/webp',
-        lastModified: Date.now()
-      });
-    };
-  }
-})();
-</script>
-
-<script>
-/**
- * Fallback robusto: garante window.uploadBannerImage / window.resolveBannerUrl
- * mesmo se o <script type="module"> não executar por qualquer motivo.
- * Usa dynamic import (suportado em navegadores modernos).
- */
-(function(){
-  const cfg = {
-    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-    authDomain: "ariana-moveis-final.firebaseapp.com",
-    projectId: "ariana-moveis-final",
-    storageBucket: "ariana-moveis-final.firebasestorage.app",
-    messagingSenderId: "695257365498",
-    appId: "1:695257365498:web:ef7698ea5d33d701338243",
-    measurementId: "G-WNMWLYMW43"
-  };
-
-  async function ensureStorage(){
-    // Importa módulos sob demanda
-    const appMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-    const stMod  = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js");
-    const { initializeApp, getApps } = appMod;
-    const { getStorage, ref, uploadBytes, getDownloadURL } = stMod;
-
-    const app = getApps().length ? getApps()[0] : initializeApp(cfg);
-    const storage = getStorage(app);
-    return { storage, ref, uploadBytes, getDownloadURL };
-  }
-
-  if (typeof window.resolveBannerUrl !== 'function') {
-    window.resolveBannerUrl = async function(v){
-      if(!v) return null;
-      const s = String(v).trim();
-      if(/^https?:\/\//i.test(s) || /^data:/i.test(s)) return s;
-      try{
-        const { storage, ref, getDownloadURL } = await ensureStorage();
-        return await getDownloadURL(ref(storage, s));
-      }catch(e){
-        console.error('[resolveBannerUrl] erro:', e);
-        return null;
-      }
-    };
-  }
-
-  if (typeof window.uploadBannerImage !== 'function') {
-    window.uploadBannerImage = async function(file, bannerId){
-      if(!file) throw new Error('Selecione um arquivo.');
-      const optimizedFile = await (window.optimizeBannerImageFile ? window.optimizeBannerImageFile(file) : file);
-      const safe = String(optimizedFile.name || 'banner').replace(/[^a-zA-Z0-9._-]/g,'_');
-      const path = `banners/${bannerId}/${Date.now()}_${safe}`;
-      const { storage, ref, uploadBytes, getDownloadURL } = await ensureStorage();
-      const r = ref(storage, path);
-      await uploadBytes(r, optimizedFile, { contentType: optimizedFile.type || 'application/octet-stream' });
-      return await getDownloadURL(r);
-    };
-  }
-})();
-</script>
-<script>
-/**
- * Fallback robusto: garante window.uploadBannerImage / window.resolveBannerUrl
- * e também window.db/doc/getDoc/setDoc + window.auth/login
- * mesmo se o <script type="module"> não executar por qualquer motivo.
- * Usa dynamic import (suportado em navegadores modernos).
- */
-(function(){
-  const cfg = {
-    apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-    authDomain: "ariana-moveis-final.firebaseapp.com",
-    projectId: "ariana-moveis-final",
-    storageBucket: "ariana-moveis-final.firebasestorage.app",
-    messagingSenderId: "695257365498",
-    appId: "1:695257365498:web:ef7698ea5d33d701338243",
-    measurementId: "G-WNMWLYMW43"
-  };
-
-  async function ensureApp(){
-    const appMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-    const { initializeApp, getApps } = appMod;
-    const app = getApps().length ? getApps()[0] : initializeApp(cfg);
-    return app;
-  }
-
-  async function ensureStorage(){
-    const app = await ensureApp();
-    const stMod  = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js");
-    const { getStorage, ref, uploadBytes, getDownloadURL } = stMod;
-    const storage = getStorage(app);
-    return { storage, ref, uploadBytes, getDownloadURL };
-  }
-
-  async function ensureFirestore(){
-    const app = await ensureApp();
-    const fsMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-    const { getFirestore, doc, getDoc, setDoc } = fsMod;
-    const db = getFirestore(app);
-    return { db, doc, getDoc, setDoc };
-  }
-
-  async function ensureAuth(){
-    const app = await ensureApp();
-    const aMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-    const {
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-      setPersistence, browserLocalPersistence
-    } = aMod;
-    const auth = getAuth(app);
-    try { await setPersistence(auth, browserLocalPersistence); } catch(_) {}
-    return { auth, onAuthStateChanged, signInWithEmailAndPassword, signOut };
-  }
-
-  // Firestore globals (para salvar)
-  (async ()=>{
-    try{
-      if(!window.db || !window.doc || !window.getDoc || !window.setDoc){
-        const { db, doc, getDoc, setDoc } = await ensureFirestore();
-        window.db = window.db || db;
-        window.doc = window.doc || doc;
-        window.getDoc = window.getDoc || getDoc;
-        window.setDoc = window.setDoc || setDoc;
-        window.dispatchEvent(new Event('firebase:ready'));
-      }
-    }catch(e){ console.error('[fallback firestore] erro:', e); }
-  })();
-
-  // Auth globals (para login)
-  (async ()=>{
-    try{
-      if(!window.auth || !window.onAuthStateChanged || !window.signInWithEmailAndPassword || !window.signOut){
-        const { auth, onAuthStateChanged, signInWithEmailAndPassword, signOut } = await ensureAuth();
-        window.auth = window.auth || auth;
-        window.onAuthStateChanged = window.onAuthStateChanged || onAuthStateChanged;
-        window.signInWithEmailAndPassword = window.signInWithEmailAndPassword || signInWithEmailAndPassword;
-        window.signOut = window.signOut || signOut;
-      }
-    }catch(e){ console.error('[fallback auth] erro:', e); }
-  })();
-
-  // Storage helpers (upload/preview)
-  if (typeof window.resolveBannerUrl !== 'function') {
-    window.resolveBannerUrl = async function(v){
-      if(!v) return null;
-      const s = String(v).trim();
-      if(/^https?:\/\//i.test(s) || /^data:/i.test(s)) return s;
-      try{
-        const { storage, ref, getDownloadURL } = await ensureStorage();
-        return await getDownloadURL(ref(storage, s));
-      }catch(e){
-        console.error('[resolveBannerUrl] erro:', e);
-        return null;
-      }
-    };
-  }
-
-  if (typeof window.uploadBannerImage !== 'function') {
-    window.uploadBannerImage = async function(file, bannerId){
-      if(!file) throw new Error('Selecione um arquivo.');
-      const optimizedFile = await (window.optimizeBannerImageFile ? window.optimizeBannerImageFile(file) : file);
-      const safe = String(optimizedFile.name || 'banner').replace(/[^a-zA-Z0-9._-]/g,'_');
-      const path = `banners/${bannerId}/${Date.now()}_${safe}`;
-      const { storage, ref, uploadBytes, getDownloadURL } = await ensureStorage();
-      const r = ref(storage, path);
-      await uploadBytes(r, optimizedFile, { contentType: optimizedFile.type || 'application/octet-stream' });
-      return await getDownloadURL(r);
-    };
-  }
-})();
-</script>
 <script>
     const $ = (q) => document.querySelector(q);
     const msg = document.getElementById('msg');
+    const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
+    const ADMIN_EMAILS = ['marcelloghaes@gmail.com'];
 
     function toast(type, text){
       msg.classList.remove('hidden');
@@ -630,10 +336,11 @@
       msg.className = 'p-3 rounded-xl font-extrabold ' + (
         type === 'ok' ? 'bg-green-100 text-green-800' :
         type === 'warn' ? 'bg-yellow-100 text-yellow-800' :
+        type === 'info' ? 'bg-blue-100 text-blue-800' :
         'bg-red-100 text-red-800'
       );
       clearTimeout(window.__msgT);
-      window.__msgT = setTimeout(()=> msg.classList.add('hidden'), 2400);
+      window.__msgT = setTimeout(()=> msg.classList.add('hidden'), 2600);
     }
 
     function setChip(bannerId, active){
@@ -650,11 +357,15 @@
       const prev = document.getElementById(`prev-${bannerId}`);
       if(!prev) return;
       prev.innerHTML = '';
-      if(imageUrl && String(imageUrl).trim()){
+      const url = String(imageUrl || '').trim();
+      if(url){
         const img = document.createElement('img');
-        img.src = imageUrl;
+        img.src = url;
         img.alt = bannerId;
         img.loading = 'lazy';
+        img.onerror = () => {
+          prev.innerHTML = '<div class="text-slate-400 font-black text-sm text-center p-6"><i class="fa-regular fa-image text-2xl mb-2"></i><br/>Imagem indisponível</div>';
+        };
         prev.appendChild(img);
       } else {
         prev.innerHTML = '<div class="text-slate-400 font-black text-sm text-center p-6"><i class="fa-regular fa-image text-2xl mb-2"></i><br/>Sem imagem</div>';
@@ -682,13 +393,13 @@
 
             <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
             <input class="field" data-field="imageUrl" data-banner="${id}" placeholder="https://..." />
-<div class="mt-2 flex items-center gap-2">
-  <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="${id}" />
-  <button type="button" class="btn btn-secondary btn-upload" data-banner="${id}">
-    <i class="fa-solid fa-upload mr-2"></i>Carregar
-  </button>
-</div>
-<p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+            <div class="mt-2 flex items-center gap-2">
+              <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="${id}" />
+              <button type="button" class="btn btn-secondary btn-upload" data-banner="${id}">
+                <i class="fa-solid fa-upload mr-2"></i>Carregar
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
 
             <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
             <input class="field" data-field="linkUrl" data-banner="${id}" placeholder="categoria.html?name=..." />
@@ -700,63 +411,7 @@
       `;
     }
 
-    function wireUploadButtons(){
-  document.querySelectorAll('.btn-upload').forEach(btn=>{
-    btn.addEventListener('click', async (e)=>{
-      e.preventDefault();
-      const bannerId = btn.getAttribute('data-banner');
-      const fileInput = document.querySelector(`.banner-file[data-banner="${bannerId}"]`);
-      const file = fileInput?.files?.[0];
-      if(!file){ toast('warn','Selecione uma imagem primeiro.'); return; }
-
-      const ready = await waitFirebaseReady();
-      if(!ready){ toast('err','Firebase não iniciou.'); return; }
-
-      if(window.auth && !window.auth.currentUser){
-        toast('warn','Faça login para carregar.');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.classList.add('opacity-60');
-      try{
-        toast('info','Compactando e enviando imagem...');
-        if(typeof window.uploadBannerImage!=='function'){ throw new Error('uploadBannerImage não carregou.'); }
-            const url = await window.uploadBannerImage(file, bannerId);
-
-        const urlField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
-        if(urlField) urlField.value = url;
-
-        setPreview(bannerId, url);
-        toast('ok','Imagem enviada! Agora clique em Salvar tudo.');
-        fileInput.value = '';
-      }catch(err){
-        console.error(err);
-        toast('err', err?.message || 'Falha ao carregar imagem.');
-      }finally{
-        btn.disabled = false;
-        btn.classList.remove('opacity-60');
-      }
-    });
-  });
-}
-
-function wireUrlPreview(){
-  document.querySelectorAll('.field[data-field="imageUrl"]').forEach(inp=>{
-    inp.addEventListener('input', async ()=>{
-      const id = inp.getAttribute('data-banner');
-      const resolved = await (window.resolveBannerUrl ? window.resolveBannerUrl(inp.value) : inp.value);
-      setPreview(id, resolved || inp.value);
-    });
-  });
-}
-
-function ensureGridCards(){
-      const headerWrap = document.getElementById('header-category-banner-wrap');
-      if(headerWrap && !headerWrap.dataset.built){
-        headerWrap.dataset.built = '1';
-        headerWrap.insertAdjacentHTML('beforeend', bannerCard('header_category_banner','Banner categoria (Header)'));
-      }
+    function ensureGridCards(){
       const miniWrap = document.getElementById('mini-banners-wrap');
       if(miniWrap && !miniWrap.dataset.built){
         miniWrap.dataset.built = '1';
@@ -782,55 +437,25 @@ function ensureGridCards(){
       }
     }
 
-    async function waitFirebaseReady(timeoutMs = 8000){
-  const hasCore = () => !!(window.db && window.doc && window.getDoc && window.setDoc);
+    function normalizeIncomingBanners(incoming){
+      if (Array.isArray(incoming)) {
+        return Object.fromEntries(incoming.map(item => [item.id || item._id || item.slot, item]));
+      }
+      if (incoming && Array.isArray(incoming.banners)) {
+        return Object.fromEntries(incoming.banners.map(item => [item.id || item._id || item.slot, item]));
+      }
+      return incoming && typeof incoming === 'object' ? incoming : {};
+    }
 
-  // Se já está pronto, retorna rápido
-  if (hasCore()) return true;
+    async function waitFirebaseReady(){
+      return true;
+    }
 
-  // Tenta garantir via fallback (dynamic import) imediatamente
-  try{
-    const appMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-    const fsMod  = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-    const { initializeApp, getApps } = appMod;
-    const { getFirestore, doc, getDoc, setDoc } = fsMod;
-
-    const cfg = {
-      apiKey: "AIzaSyDhwqDaCVUNLQ0cg863fw251ZAjBWZ8WCo",
-      authDomain: "ariana-moveis-final.firebaseapp.com",
-      projectId: "ariana-moveis-final",
-      storageBucket: "ariana-moveis-final.firebasestorage.app",
-      messagingSenderId: "695257365498",
-      appId: "1:695257365498:web:ef7698ea5d33d701338243",
-      measurementId: "G-WNMWLYMW43"
-    };
-
-    const app = getApps().length ? getApps()[0] : initializeApp(cfg);
-    window.db = window.db || getFirestore(app);
-    window.doc = window.doc || doc;
-    window.getDoc = window.getDoc || getDoc;
-    window.setDoc = window.setDoc || setDoc;
-    if (hasCore()) return true;
-  }catch(e){
-    // segue para aguardar evento
-    console.warn('[waitFirebaseReady] dynamic import falhou:', e);
-  }
-
-  // Aguarda o evento firebase:ready
-  return await new Promise((resolve) => {
-    const start = Date.now();
-    const tick = () => {
-      if (hasCore()) return resolve(true);
-      if (Date.now() - start > timeoutMs) return resolve(false);
-      setTimeout(tick, 120);
-    };
-    window.addEventListener('firebase:ready', () => resolve(true), { once:true });
-    tick();
-  });
-}
+    async function waitAuthReady(){
+      return true;
+    }
 
     const BANNER_IDS = [
-      'header_category_banner',
       'index_main',
       'index_mini_1','index_mini_2','index_mini_3','index_mini_4','index_mini_5',
       'index_duo_1','index_duo_2',
@@ -844,6 +469,8 @@ function ensureGridCards(){
       const out = {};
       for(const id of BANNER_IDS){
         out[id] = {
+          id,
+          slot: id,
           active: ($(`[data-banner="${id}"][data-field="active"]`)?.value || 'false') === 'true',
           imageUrl: ($(`[data-banner="${id}"][data-field="imageUrl"]`)?.value || '').trim(),
           linkUrl: ($(`[data-banner="${id}"][data-field="linkUrl"]`)?.value || '').trim(),
@@ -854,18 +481,91 @@ function ensureGridCards(){
       return out;
     }
 
+    async function parseJsonSafe(res){
+      try { return await res.json(); } catch (_) { return {}; }
+    }
+
+    async function uploadBannerImage(file, bannerId){
+      if(!file) throw new Error('Selecione um arquivo.');
+      if(!localStorage.getItem('banner_admin_session')) throw new Error('Faça login para carregar imagem.');
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bannerId', bannerId);
+
+      const routes = ['/upload', '/banners/upload'];
+      let lastError = null;
+
+      for(const route of routes){
+        try{
+          const res = await fetch(`${API_BASE}${route}`, { method:'POST', body: formData });
+          if(!res.ok) throw new Error(`Falha no upload (${res.status})`);
+          const data = await parseJsonSafe(res);
+          const url = data.url || data.imageUrl || data.secure_url || data.location || data.fileUrl || '';
+          if(url) return url;
+        }catch(err){
+          lastError = err;
+        }
+      }
+
+      throw lastError || new Error('Rota de upload não encontrada no backend.');
+    }
+
+    function wireUploadButtons(){
+      document.querySelectorAll('.btn-upload').forEach(btn=>{
+        if (btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+
+        btn.addEventListener('click', async (e)=>{
+          e.preventDefault();
+          const bannerId = btn.getAttribute('data-banner');
+          const fileInput = document.querySelector(`.banner-file[data-banner="${bannerId}"]`);
+          const file = fileInput?.files?.[0];
+          if(!file){ toast('warn','Selecione uma imagem primeiro.'); return; }
+
+          btn.disabled = true;
+          btn.classList.add('opacity-60');
+          try{
+            toast('info','Enviando imagem...');
+            const url = await uploadBannerImage(file, bannerId);
+            const urlField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
+            if(urlField) urlField.value = url;
+            setPreview(bannerId, url);
+            toast('ok','Imagem enviada! Agora clique em Salvar tudo.');
+            fileInput.value = '';
+          }catch(err){
+            console.error(err);
+            toast('err', err?.message || 'Falha ao carregar imagem.');
+          }finally{
+            btn.disabled = false;
+            btn.classList.remove('opacity-60');
+          }
+        });
+      });
+    }
+
+    function wireUrlPreview(){
+      document.querySelectorAll('.field[data-field="imageUrl"]').forEach(inp=>{
+        if (inp.dataset.bound === '1') return;
+        inp.dataset.bound = '1';
+        inp.addEventListener('input', ()=> {
+          const id = inp.getAttribute('data-banner');
+          setPreview(id, inp.value);
+        });
+      });
+    }
+
     async function loadAll(){
       ensureGridCards();
-    wireUploadButtons();
-    wireUrlPreview();
-      const ready = await waitFirebaseReady();
-      if(!ready){ toast('err','Firebase não iniciou (tente Ctrl+F5 / verifique console).'); return; }
+      wireUploadButtons();
+      wireUrlPreview();
 
       for(const id of BANNER_IDS){
         try{
-          const ref = window.doc(window.db, 'banners', id);
-          const snap = await window.getDoc(ref);
-          const data = snap.exists() ? snap.data() : {};
+          const res = await fetch(`${API_BASE}/banners`, { cache:'no-store' });
+          if(!res.ok) throw new Error(`Erro ao carregar banners (${res.status})`);
+          const dataMap = normalizeIncomingBanners(await parseJsonSafe(res));
+          const data = dataMap[id] || {};
           const active = !!data.active;
 
           const sel = $(`[data-banner="${id}"][data-field="active"]`);
@@ -882,27 +582,63 @@ function ensureGridCards(){
 
           setChip(id, active);
           setPreview(id, data.imageUrl || '');
-        }catch(e){ console.error('[admin-banners] erro ao carregar', id, e); }
+        }catch(e){
+          console.error('[admin-banners] erro ao carregar', id, e);
+        }
       }
       toast('ok','Banners carregados.');
     }
 
     async function saveAll(){
-      if(window.auth && !window.auth.currentUser){ toast('warn','Faça login para salvar.'); return; }
-
-      const ready = await waitFirebaseReady();
-      if(!ready){ toast('err','Firebase não iniciou (tente Ctrl+F5 / verifique console).'); return; }
-      const payload = readForm();
-      try{
-        for(const id of BANNER_IDS){
-          const ref = window.doc(window.db, 'banners', id);
-          await window.setDoc(ref, payload[id], { merge:true });
-        }
-        toast('ok','Salvo com sucesso!');
-      }catch(e){
-        console.error('[admin-banners] erro ao salvar', e);
-        toast('err','Erro ao salvar. Verifique permissões do Firestore (admin).');
+      if(!localStorage.getItem('banner_admin_session')){
+        toast('warn','Faça login para salvar.');
+        return;
       }
+
+      const payload = readForm();
+      const banners = Object.values(payload);
+
+      const attempts = [
+        {
+          url: `${API_BASE}/banners/bulk`,
+          init: {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json' },
+            body: JSON.stringify({ banners })
+          }
+        },
+        {
+          url: `${API_BASE}/banners`,
+          init: {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json' },
+            body: JSON.stringify(payload)
+          }
+        }
+      ];
+
+      let lastError = null;
+
+      for (const attempt of attempts) {
+        try {
+          const res = await fetch(attempt.url, attempt.init);
+          if(!res.ok){
+            let errorMessage = `Erro ao salvar (${res.status})`;
+            try{
+              const errData = await parseJsonSafe(res);
+              errorMessage = errData.error || errData.message || errorMessage;
+            }catch(_){}
+            throw new Error(errorMessage);
+          }
+          toast('ok','Salvo com sucesso!');
+          return;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+
+      console.error('[admin-banners] erro ao salvar', lastError);
+      toast('err', (lastError && lastError.message) ? lastError.message : 'Erro ao salvar no servidor.');
     }
 
     document.addEventListener('input', (e)=>{
@@ -912,6 +648,7 @@ function ensureGridCards(){
       if(!id || !field) return;
       if(field === 'imageUrl') setPreview(id, el.value);
     });
+
     document.addEventListener('change', (e)=>{
       const el = e.target;
       const id = el?.getAttribute?.('data-banner');
@@ -923,10 +660,6 @@ function ensureGridCards(){
     document.getElementById('btn-reload').addEventListener('click', (e)=>{ e.preventDefault(); loadAll(); });
     document.getElementById('btn-save-all').addEventListener('click', (e)=>{ e.preventDefault(); saveAll(); });
 
-
-    // =============================
-    // Auth (Login)
-    // =============================
     const authPill = document.getElementById('auth-pill');
     const authEmail = document.getElementById('auth-email');
     const btnLogin = document.getElementById('btn-login');
@@ -934,58 +667,12 @@ function ensureGridCards(){
     const loginModal = document.getElementById('login-modal');
     const lockedOverlay = document.getElementById('locked-overlay');
 
-    // Lista opcional de e-mails autorizados (deixe vazio para permitir qualquer usuário autenticado)
-    const ADMIN_EMAILS = ['marcelloghaes@gmail.com'];
-
-
     const openLogin = ()=> loginModal?.classList.remove('hidden');
     const closeLogin = ()=> loginModal?.classList.add('hidden');
 
     document.getElementById('login-close')?.addEventListener('click', closeLogin);
     document.getElementById('locked-login')?.addEventListener('click', openLogin);
     btnLogin?.addEventListener('click', openLogin);
-    // Login submit
-    document.getElementById('login-submit')?.addEventListener('click', async (e)=>{
-      e.preventDefault();
-      const email = document.getElementById('login-email')?.value?.trim();
-      const pass  = document.getElementById('login-pass')?.value;
-      if(!email || !pass){ toast('warn','Informe e-mail e senha.'); return; }
-
-      const authOk = await waitAuthReady();
-      if(!authOk || !window.auth || typeof window.signInWithEmailAndPassword !== 'function'){
-        toast('err','Auth não carregou. Recarregue a página (Ctrl+F5).');
-        return;
-      }
-
-      const btn = document.getElementById('login-submit');
-      btn?.setAttribute('disabled','disabled');
-      btn?.classList.add('opacity-60');
-      try{
-        await window.signInWithEmailAndPassword(window.auth, email, pass);
-        closeLogin();
-        toast('ok','Logado com sucesso.');
-      }catch(err){
-        console.error('[login] erro:', err);
-        // Mensagens comuns do Firebase
-        const code = err?.code || '';
-        if(code.includes('auth/invalid-credential') || code.includes('auth/wrong-password') || code.includes('auth/user-not-found')){
-          toast('err','E-mail ou senha inválidos.');
-        }else if(code.includes('auth/too-many-requests')){
-          toast('err','Muitas tentativas. Tente novamente em alguns minutos.');
-        }else{
-          toast('err', err?.message || 'Falha no login.');
-        }
-      }finally{
-        btn?.removeAttribute('disabled');
-        btn?.classList.remove('opacity-60');
-      }
-    });
-
-    // Enter para logar
-    document.getElementById('login-pass')?.addEventListener('keydown', (ev)=>{
-      if(ev.key === 'Enter') document.getElementById('login-submit')?.click();
-    });
-
 
     function setLocked(locked){
       if(locked){
@@ -999,73 +686,65 @@ function ensureGridCards(){
       }
     }
 
-    async function waitAuthReady(){
-      const ok = () => window.auth && typeof window.onAuthStateChanged === 'function';
-      if(ok()) return true;
-      return await new Promise((resolve)=>{
-        const t0 = Date.now();
-        const tick = ()=> {
-          if(ok()) return resolve(true);
-          if(Date.now()-t0 > 2500) return resolve(ok());
-          setTimeout(tick, 120);
-        };
-        tick();
-      });
-    }
-
-    async function bindAuth() {
-  // 1. Aguarda o Firebase e as funções globais estarem disponíveis
-  const firebasePronto = await waitFirebaseReady();
-  const authPronto = await waitAuthReady();
-
-  if (!firebasePronto || !authPronto) {
-    console.error("❌ Erro: Firebase ou Auth não carregaram a tempo.");
-    return;
-  }
-
-  authPill?.classList.remove('hidden');
-
-  // 2. Agora é seguro usar window.onAuthStateChanged
-  window.onAuthStateChanged(window.auth, async (user) => {
-    if (user) {
-      // Trava opcional por e-mail (se ADMIN_EMAILS estiver preenchido)
-      if (Array.isArray(ADMIN_EMAILS) && ADMIN_EMAILS.length > 0) {
-        const emailOk = (user.email || '').toLowerCase();
-        const allowed = ADMIN_EMAILS.map(e => String(e).toLowerCase());
-        if (!allowed.includes(emailOk)) {
-          toast('err', 'Acesso negado!');
-          await window.signOut(window.auth);
-          return;
-        }
+    function bindAuth() {
+      authPill?.classList.remove('hidden');
+      const session = localStorage.getItem('banner_admin_session');
+      if (session) {
+        const data = JSON.parse(session);
+        authEmail.textContent = data.email || 'Conectado';
+        setLocked(false);
+      } else {
+        authEmail.textContent = 'Desconectado';
+        setLocked(true);
       }
-authEmail.textContent = user.email;
-      setLocked(false);
-      loadAll(); // Carrega os banners após confirmar o admin
-    } else {
-      authEmail.textContent = 'Desconectado';
-      setLocked(true);
-    }
-  });
 
       btnLogout?.addEventListener('click', async ()=>{
-        try{
-          if(typeof window.signOut === 'function'){
-            await window.signOut(window.auth);
-          }else if(window.firebase?.auth){
-            await window.firebase.auth().signOut();
-          }
-          toast('ok','Você saiu da conta.');
-        }catch(e){
-          console.error('[admin-banners] logout erro', e);
-          toast('err','Erro ao sair.');
-        }
+        localStorage.removeItem('banner_admin_session');
+        authEmail.textContent = 'Desconectado';
+        setLocked(true);
+        toast('ok','Você saiu da conta.');
       });
     }
 
-   ensureGridCards();
+    document.getElementById('login-submit')?.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const email = document.getElementById('login-email')?.value?.trim();
+      const pass  = document.getElementById('login-pass')?.value;
+      if(!email || !pass){ toast('warn','Informe e-mail e senha.'); return; }
+
+      const allowed = ADMIN_EMAILS.map(e => String(e).toLowerCase());
+      if (allowed.length && !allowed.includes(String(email).toLowerCase())) {
+        toast('err','Acesso negado!');
+        return;
+      }
+
+      const btn = document.getElementById('login-submit');
+      btn?.setAttribute('disabled','disabled');
+      btn?.classList.add('opacity-60');
+      try{
+        localStorage.setItem('banner_admin_session', JSON.stringify({ email, loggedAt: Date.now() }));
+        closeLogin();
+        authEmail.textContent = email;
+        setLocked(false);
+        toast('ok','Logado com sucesso.');
+      }catch(err){
+        console.error('[login] erro:', err);
+        toast('err', err?.message || 'Falha no login.');
+      }finally{
+        btn?.removeAttribute('disabled');
+        btn?.classList.remove('opacity-60');
+      }
+    });
+
+    document.getElementById('login-pass')?.addEventListener('keydown', (ev)=>{
+      if(ev.key === 'Enter') document.getElementById('login-submit')?.click();
+    });
+
+    ensureGridCards();
     bindAuth();
     loadAll();
   </script>
+
 
   <script>
     if ('serviceWorker' in navigator) {

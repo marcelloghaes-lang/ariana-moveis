@@ -3,7 +3,7 @@
  * Este ficheiro gere a lógica de Sellers sem mexer no seu HTML/CSS.
  *
  * ✅ Inclui agora um "bridge" para o Header carregar categorias do Firestore:
- *    - MarketplaceCore.bindFirestore({...})  -> expõe refs no window (db, getDocs, collection, etc.)
+ *    - MarketplaceCore.bindMongoRemoved({...})  -> expõe refs no window (db, getDocs, collection, etc.)
  *    - MarketplaceCore.cacheCategories(cats) -> opcional, cache para o header
  */
 
@@ -34,9 +34,9 @@
      * 🔌 Bridge do Firestore para scripts não-module (ex: header.js)
      *
      * Como usar (no seu init Firebase module):
-     * MarketplaceCore.bindFirestore({ db, collection, getDocs, query, where, orderBy, limit });
+     * MarketplaceCore.bindMongoRemoved({ db, collection, getDocs, query, where, orderBy, limit });
      */
-    bindFirestore: function (refs) {
+    bindMongoRemoved: function (refs) {
       try {
         if (!refs || !refs.db) return false;
 
@@ -51,7 +51,7 @@
 
         return true;
       } catch (e) {
-        console.warn('[MarketplaceCore] bindFirestore falhou:', e);
+        console.warn('[MarketplaceCore] bindMongoRemoved falhou:', e);
         return false;
       }
     },
@@ -135,7 +135,7 @@
     },
 
     // 3. Envia pedidos separados para o Firebase
-    finalizarPedidoMarketplace: async function (db, dadosCliente, { addDoc, collection, serverTimestamp }) {
+    finalizarPedidoMarketplace_MONGO_ADAPTAR: async function (db, dadosCliente, { addDoc, collection, serverTimestamp }) {
       const pedidosAgrupados = this.agruparPorVendedor();
       const promessas = [];
 

@@ -1,37 +1,34 @@
 // ============================================================
-// Resolve imagem principal do produto (compatível com Firestore)
+// Resolve imagem principal do produto (compatível com Mongo/Render)
 // Suporta: imageUrl, mainImageUrl, imagens[], images[] (com {url,isMain})
 // ============================================================
 function getProductImageUrl(p) {
   if (!p) return null;
 
-  // campos diretos
   const direct = p.imageUrl || p.mainImageUrl || p.imagemUrl || p.imagem || p.foto || p.thumbnailUrl;
   if (direct) return direct;
 
-  // arrays comuns
   const arr = (Array.isArray(p.images) && p.images.length) ? p.images
     : ((Array.isArray(p.imagens) && p.imagens.length) ? p.imagens
     : ((Array.isArray(p.gallery) && p.gallery.length) ? p.gallery : null));
 
   if (arr) {
-    // array de objetos
     const mainObj = arr.find(x => x && typeof x === 'object' && (x.isMain === true || x.main === true || x.principal === true));
     if (mainObj && (mainObj.url || mainObj.src)) return mainObj.url || mainObj.src;
 
     const firstObj = arr.find(x => x && typeof x === 'object' && (x.url || x.src));
     if (firstObj) return firstObj.url || firstObj.src;
 
-    // array de strings
     const firstStr = arr.find(x => typeof x === 'string' && x.startsWith('http'));
     if (firstStr) return firstStr;
   }
 
-  // alguns salvam como {url:"..."} no topo
   if (p.url && String(p.url).startsWith('http')) return p.url;
 
   return null;
-}/**
+}
+
+/**
  * Componente de Card de Produto Ariana Móveis
  * Mantém o padrão visual do index.html em todo o site.
  *
@@ -40,16 +37,18 @@ function getProductImageUrl(p) {
  * - Desconto no PIX (pixDiscountPercent / descontoPixPercent) -> exibe preço no PIX
  * - Parcelamento no cartão (installments / installmentsCount / parcelas) -> exibe texto de parcelas
  */
-
 (function () {
+  const API_BASE =
+    localStorage.getItem("API_BASE") ||
+    "https://ariana-move-mongo.onrender.com/api";
+
   const toNumber = (v) => {
     const n = window.__toNumberBR ? window.__toNumberBR(v, NaN) : Number(v);
     return Number.isFinite(n) ? n : null;
   };
 
-
   // ============================
-  // Configuração GLOBAL de Pagamentos (Firestore: settings/payments)
+  // Configuração GLOBAL de Pagamentos
   // ============================
   const DEFAULT_PAYMENT_SETTINGS = {
     pix: { enabled: true, discountPercent: 0, label: 'PIX' },
@@ -90,25 +89,22 @@ function getProductImageUrl(p) {
       if (window.__PAYMENT_SETTINGS_LOADING && !force) return window.__PAYMENT_SETTINGS_LOADING;
 
       const loader = (async () => {
-        const wait = (ms) => new Promise(r => setTimeout(r, ms));
-        let tries = 0;
-        while (tries < 60) {
-          if (window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function') break;
-          await wait(80);
-          tries++;
-        }
-        if (!(window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function')) {
-          window.__PAYMENT_SETTINGS = normalizePaymentSettings(null);
-          return window.__PAYMENT_SETTINGS;
-        }
         try {
-          const ref = window.doc(window.db, 'settings', 'payments');
-          const snap = await window.getDoc(ref);
-          const data = (snap && typeof snap.exists === 'function' && snap.exists()) ? snap.data() : null;
+          const res = await fetch(`${API_BASE}/settings/payments`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (!res.ok) {
+            window.__PAYMENT_SETTINGS = normalizePaymentSettings(null);
+            return window.__PAYMENT_SETTINGS;
+          }
+
+          const data = await res.json();
           window.__PAYMENT_SETTINGS = normalizePaymentSettings(data);
           return window.__PAYMENT_SETTINGS;
         } catch (e) {
-          console.warn('[payments] falha ao carregar settings/payments. Usando padrão.', e);
+          console.warn('[payments] falha ao carregar settings/payments no Mongo. Usando padrão.', e);
           window.__PAYMENT_SETTINGS = normalizePaymentSettings(null);
           return window.__PAYMENT_SETTINGS;
         } finally {
@@ -125,32 +121,33 @@ function getProductImageUrl(p) {
     }
   };
 
-  // Carrega em background (não bloqueia)
   try { window.getPaymentSettings(false); } catch (_) {}
+
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
-  window.addEventListener("firebase:ready", () => window.getPaymentSettings(true));
+  window.addEventListener('DOMContentLoaded', () => {
+    try { window.getPaymentSettings(true); } catch (_) {}
+  });
 
   const formatCurrency = (v) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
   const pick = (obj, keys) => {
     for (const k of keys) {
       const v = obj?.[k];
-      if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
     }
     return null;
   };
 
   const getOldPrice = (p, price) => {
     const v = toNumber(p.oldPrice ?? p.precoAntigo ?? p.preco_anterior ?? p.precoDe ?? p.priceOld ?? null);
-    // só considera se for maior que o preço atual
     if (v && price && v > price) return v;
     return null;
   };
 
   const getPixPercent = (p) => {
-    const raw = pick(p, ["pixDiscountPercent", "descontoPixPercent", "pix_percent", "pixDescontoPercent", "pixDiscount"]);
+    const raw = pick(p, ['pixDiscountPercent', 'descontoPixPercent', 'pix_percent', 'pixDescontoPercent', 'pixDiscount']);
     const v = toNumber(raw);
     if (v && v > 0) return clamp(v, 0, 90);
 
@@ -163,7 +160,7 @@ function getProductImageUrl(p) {
   };
 
   const getBoletoPercent = (p) => {
-    const raw = pick(p, ["boletoDiscountPercent", "descontoBoletoPercent", "boleto_percent", "boletoDiscount"]);
+    const raw = pick(p, ['boletoDiscountPercent', 'descontoBoletoPercent', 'boleto_percent', 'boletoDiscount']);
     const v = toNumber(raw);
     if (v && v > 0) return clamp(v, 0, 90);
 
@@ -181,7 +178,7 @@ function getProductImageUrl(p) {
   };
 
   const getInstallments = (p, price) => {
-    const obj = (p.installments && typeof p.installments === "object") ? p.installments : null;
+    const obj = (p.installments && typeof p.installments === 'object') ? p.installments : null;
 
     const count =
       toNumber(obj?.count) ??
@@ -203,12 +200,11 @@ function getProductImageUrl(p) {
   };
 
   const buildInstallmentsText = (inst) => {
-    if (!inst?.count || !inst?.value) return "em até 10x";
-    const interestText = inst.interestFree ? "sem juros" : "c/ juros";
+    if (!inst?.count || !inst?.value) return 'em até 10x';
+    const interestText = inst.interestFree ? 'sem juros' : 'c/ juros';
     return `${inst.count}x de ${formatCurrency(inst.value)} ${interestText}`;
   };
 
-  
   // ==========================================
   // Decorator: injeta pagamentos no produto (uso site inteiro)
   // ==========================================
@@ -225,7 +221,6 @@ function getProductImageUrl(p) {
     const boletoPrice = boletoPercent > 0 ? (price * (1 - boletoPercent / 100)) : null;
 
     const installments = getInstallments(product || {}, price);
-    const installmentsText = buildInstallmentsText(installments);
 
     const cash = {
       enabled: true,
@@ -252,7 +247,7 @@ function getProductImageUrl(p) {
   };
 
   const buildBoletoHtml = (boletoPrice, boletoPercent) => {
-    if (!boletoPrice || boletoPrice <= 0 || !boletoPercent || boletoPercent <= 0) return "";
+    if (!boletoPrice || boletoPrice <= 0 || !boletoPercent || boletoPercent <= 0) return '';
     return `<p class="text-[11px] text-emerald-600 font-bold mt-1">
               <i class="fas fa-barcode mr-1"></i> no Boleto: ${formatCurrency(boletoPrice)} <span class="font-black">(${boletoPercent}% OFF)</span>
             </p>`;
@@ -260,6 +255,7 @@ function getProductImageUrl(p) {
 
   window.createProductCard = function (p) {
     const price = toNumber(p.price ?? p.preco ?? p.valor ?? 0) || 0;
+    const productId = p._id || p.id || '';
 
     const oldPrice = getOldPrice(p, price);
     const descontoPercent = calcDiscountPercent(oldPrice, price);
@@ -275,37 +271,34 @@ function getProductImageUrl(p) {
     const installments = getInstallments(p, price);
     const installmentsText = buildInstallmentsText(installments);
 
-    const rating = (p.rating ?? p.avaliacao ?? "4.9");
-    const imageUrl = p.mainImageUrl || p.imageUrl || p.mainImage || p.imagem || "https://placehold.co/400";
+    const rating = (p.rating ?? p.avaliacao ?? '4.9');
+    const imageUrl = getProductImageUrl(p) || 'https://placehold.co/400';
 
-    // Mostra preço antigo somente se existir de verdade
-    const oldPriceHtml = oldPrice ? `<span class="block text-xs text-gray-400 line-through">${formatCurrency(oldPrice)}</span>` : "";
+    const oldPriceHtml = oldPrice ? `<span class="block text-xs text-gray-400 line-through">${formatCurrency(oldPrice)}</span>` : '';
 
-    // Linha do PIX: só aparece se houver desconto real
     const pixHtml = (pixPrice && pixPrice > 0)
       ? `<p class="text-[11px] text-emerald-600 font-bold mt-1">
             <i class="fas fa-bolt mr-1"></i> no PIX: ${formatCurrency(pixPrice)} <span class="font-black">(${pixPercent}% OFF)</span>
          </p>`
-      : "";
+      : '';
 
-    // Badge de %OFF: baseado em preço antigo x atual
     const badgeHtml = descontoPercent > 0 ? `
       <div class="absolute top-3 left-3 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full z-10">
         -${descontoPercent}% OFF
-      </div>` : "";
+      </div>` : '';
 
     return `
       <div class="product-card bg-white rounded-xl overflow-hidden flex flex-col cursor-pointer relative border border-gray-100 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-primary-blue"
-           onclick="window.location.href='produto.html?id=${p.id}'">
+           onclick="window.location.href='produto.html?id=${productId}'">
 
         ${badgeHtml}
 
         <div class="p-4 bg-white flex items-center justify-center h-56 relative group">
           <img src="${imageUrl}"
-               alt="${(p.name || p.nome || "Produto").toString().replace(/"/g, "&quot;")}"
+               alt="${(p.name || p.nome || 'Produto').toString().replace(/"/g, '&quot;')}"
                class="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-110">
 
-          <button onclick="event.stopPropagation(); if(window.addToWishlist) window.addToWishlist('${p.id}')"
+          <button onclick="event.stopPropagation(); if(window.addToWishlist) window.addToWishlist('${productId}')"
                   class="absolute top-2 right-2 text-gray-300 hover:text-red-500 transition-colors">
             <i class="fas fa-heart"></i>
           </button>
@@ -319,7 +312,7 @@ function getProductImageUrl(p) {
             <span class="text-[10px] text-gray-400 ml-2">(${rating})</span>
           </div>
 
-          <h3 class="text-sm font-medium text-gray-800 line-clamp-2 mb-3 h-10 leading-tight">${p.name || p.nome || "Produto sem nome"}</h3>
+          <h3 class="text-sm font-medium text-gray-800 line-clamp-2 mb-3 h-10 leading-tight">${p.name || p.nome || 'Produto sem nome'}</h3>
 
           <div class="mb-4">
             ${oldPriceHtml}
@@ -340,7 +333,7 @@ function getProductImageUrl(p) {
               <i class="fas fa-truck text-primary-blue mr-2"></i>
               <span>Frete Grátis <span class="font-bold text-dark-bg">Sul e Sudeste</span></span>
             </div>
-            <button onclick="event.stopPropagation(); window.addToCart('${p.id}')"
+            <button onclick="event.stopPropagation(); if(window.addToCart) window.addToCart('${productId}')"
                     class="w-full bg-primary-blue hover:bg-dark-bg text-white font-bold py-2.5 rounded-lg text-[11px] transition-colors flex items-center justify-center gap-2">
               <i class="fas fa-shopping-bag"></i> ADICIONAR AO CARRINHO
             </button>

@@ -11,7 +11,7 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="./css/tailwind.min.css">
 
-  <script src="./firebase-config.js"></script>
+  
 
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
@@ -131,7 +131,7 @@
         }
       };
 
-      const API_BASE = window.API_BASE || "http://localhost:3000/api";
+      const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
       const $ = id => document.getElementById(id);
       let allProducts = [];
       let allCategories = [];
@@ -590,7 +590,7 @@
 
           $('loading')?.classList.add('hidden');
           applyFilters();
-          window.dispatchEvent(new Event('firebase:ready'));
+          window.dispatchEvent(new Event('marketplace:helpers-ready'));
         } catch (err) {
           console.error('[categoria] erro:', err);
           $('loading')?.classList.add('hidden');
@@ -605,15 +605,12 @@
     })();
   </script>
 
+  <script src="js/header_auth_fix.js" defer></script>
   <script src="header.js" defer></script>
   <script>
     (function () {
       const tryInitHeader = () => {
         if (typeof window.carregarHeader !== 'function') {
-          setTimeout(tryInitHeader, 60);
-          return;
-        }
-        if (!(window.db && typeof window.doc === 'function' && typeof window.getDoc === 'function')) {
           setTimeout(tryInitHeader, 60);
           return;
         }
@@ -627,8 +624,12 @@
           console.error("[page] erro ao carregar header:", e);
         }
       };
+
       tryInitHeader();
-      window.addEventListener('firebase:ready', tryInitHeader);
+      document.addEventListener('DOMContentLoaded', tryInitHeader);
+      window.addEventListener('load', tryInitHeader);
+      window.addEventListener('pageshow', tryInitHeader);
+      window.addEventListener('marketplace:helpers-ready', tryInitHeader);
     })();
   </script>
 

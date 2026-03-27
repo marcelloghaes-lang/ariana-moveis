@@ -24,7 +24,7 @@
     }
   </script>
   <style>
-    .animate-fade { animation: fade-in 0.3s ease-out; } @keyframes fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} }
+    .animate-fade { animation: fade-in 0.3s ease-out; } @keyframes fade-in { from { opacity: 0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} to { opacity:1; transform: translateY(0);} }
     .bg-primary-blue { background-color: #2E6DA4; } .text-primary-blue { color:#2E6DA4; } .bg-dark-bg { background-color:#1D2B3A; }
     .bg-fundo-claro { background-color:#F5F7FA; } .bg-dark-gray-bg { background-color:#222222; } .bg-error-red { background-color:#ef4444; } .bg-success-green { background-color:#10b981; }
     #toast-container { position: fixed; top:20px; right:20px; z-index:50; } .toast { box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); transition: opacity .3s ease-out; }
@@ -111,6 +111,32 @@
               </div>
             </div>
 
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Categoria</label>
+                <select id="category" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold">
+                  <option value="">Selecione uma Categoria</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Subcategoria</label>
+                <select id="subcategory" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold">
+                  <option value="">Selecione uma Subcategoria</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Slug da categoria</label>
+                <input id="categorySlug" readonly class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-gray-50 text-gray-600" />
+              </div>
+
+              <div>
+                <label class="block font-bold mb-2 text-slate-900">Slug da subcategoria</label>
+                <input id="subcategorySlug" readonly class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold bg-gray-50 text-gray-600" />
+              </div>
+            </div>
+
             <div>
               <label class="block font-bold mb-2 text-slate-900">Descrição</label>
               <textarea id="description" rows="5" class="w-full border border-gray-200 rounded-xl px-4 py-3 font-semibold"></textarea>
@@ -141,66 +167,238 @@
     const $ = (id) => document.getElementById(id);
     const productId = new URLSearchParams(window.location.search).get("id");
 
+    const HEADER_CATEGORIES = [
+      { name: "Eletro Domésticos", slug: "eletrodomesticos", subcategories: [] },
+      { name: "Smartphones", slug: "smartphones", subcategories: [] },
+      { name: "Climatização", slug: "climatizacao", subcategories: [] },
+      { name: "Utilidades Domésticas", slug: "utilidades-domesticas", subcategories: [] },
+      { name: "Antenas e Receptores de TV", slug: "antenas-tv", subcategories: [] },
+      { name: "Caixa de Som", slug: "caixa-som", subcategories: [] },
+      { name: "Eletro Portáteis", slug: "eletroportateis", subcategories: [] },
+      { name: "Geladeiras & Refrigeradores", slug: "geladeiras", subcategories: [] },
+      { name: "Móveis", slug: "moveis", subcategories: [] },
+      { name: "Informática", slug: "informatica", subcategories: [] },
+      { name: "Smart TV", slug: "tv", subcategories: [] },
+      { name: "Supermercado", slug: "supermercado", subcategories: [] }
+    ];
+
+    function slugify(text) {
+      return String(text || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/&/g, " e ")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    function populateCategories() {
+      const categorySelect = $("category");
+      const subcategorySelect = $("subcategory");
+
+      if (!categorySelect || !subcategorySelect) return;
+
+      categorySelect.innerHTML = '<option value="">Selecione uma Categoria</option>';
+      HEADER_CATEGORIES.forEach(cat => {
+        const option = document.createElement("option");
+        option.value = cat.name;
+        option.textContent = cat.name;
+        option.dataset.slug = cat.slug;
+        categorySelect.appendChild(option);
+      });
+
+      subcategorySelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>';
+      subcategorySelect.disabled = true;
+    }
+
+    function updateCategoryFields(selectedCategoryName = "") {
+      const categoryName = selectedCategoryName || $("category").value;
+      const category = HEADER_CATEGORIES.find(cat => cat.name === categoryName);
+
+      $("categorySlug").value = category ? category.slug : "";
+      $("subcategory").innerHTML = '<option value="">Selecione uma Subcategoria</option>';
+      $("subcategorySlug").value = "";
+
+      if (category && Array.isArray(category.subcategories) && category.subcategories.length) {
+        $("subcategory").disabled = false;
+
+        category.subcategories.forEach(sub => {
+          const option = document.createElement("option");
+          if (typeof sub === "string") {
+            option.value = sub;
+            option.textContent = sub;
+            option.dataset.slug = slugify(sub);
+          } else {
+            option.value = sub.name;
+            option.textContent = sub.name;
+            option.dataset.slug = sub.slug || slugify(sub.name);
+          }
+          $("subcategory").appendChild(option);
+        });
+      } else {
+        $("subcategory").disabled = true;
+      }
+    }
+
+    function updateSubcategoryFields(selectedSubcategoryName = "") {
+      const subcategorySelect = $("subcategory");
+
+      if (selectedSubcategoryName) {
+        const optionExists = [...subcategorySelect.options].find(opt => opt.value === selectedSubcategoryName);
+        if (!optionExists) {
+          const option = document.createElement("option");
+          option.value = selectedSubcategoryName;
+          option.textContent = selectedSubcategoryName;
+          option.dataset.slug = slugify(selectedSubcategoryName);
+          subcategorySelect.appendChild(option);
+        }
+        subcategorySelect.value = selectedSubcategoryName;
+      }
+
+      const selectedOption = subcategorySelect.options[subcategorySelect.selectedIndex];
+      $("subcategorySlug").value = selectedOption?.dataset?.slug || "";
+    }
+
     async function loadProduct() {
       if (!productId) return;
+
       try {
         const res = await fetch(`${API_BASE}/seller/products/${productId}`);
         const p = await res.json();
-        
-        $('productIdPill').textContent = p._id || p.id;
-        $('productIdPill').classList.remove('hidden');
-        $('name').value = p.name || '';
-        $('sku').value = p.sku || '';
-        $('price').value = p.price || 0;
-        $('stock').value = p.stock || 0;
-        $('description').value = p.description || '';
-        $('pesoKg').value = p.pesoKg || p.weight || '';
-        $('comprimento').value = p.comprimento || p.length || '';
-        $('largura').value = p.largura || p.width || '';
-        $('altura').value = p.altura || p.height || '';
-        $('active').checked = p.active !== false;
-      } catch (e) { console.error(e); }
+
+        $("productIdPill").textContent = p._id || p.id;
+        $("productIdPill").classList.remove("hidden");
+        $("name").value = p.name || "";
+        $("sku").value = p.sku || "";
+        $("price").value = p.price || 0;
+        $("stock").value = p.stock || 0;
+        $("description").value = p.description || "";
+        $("pesoKg").value = p.pesoKg || p.weight || "";
+        $("comprimento").value = p.comprimento || p.length || "";
+        $("largura").value = p.largura || p.width || "";
+        $("altura").value = p.altura || p.height || "";
+        $("active").checked = p.active !== false;
+
+        const categoryValue = p.category || "";
+        const subcategoryValue = p.subcategory || "";
+
+        $("category").value = categoryValue;
+        updateCategoryFields(categoryValue);
+
+        if (categoryValue && !HEADER_CATEGORIES.some(cat => cat.name === categoryValue)) {
+          const optionExists = [...$("category").options].find(opt => opt.value === categoryValue);
+          if (!optionExists) {
+            const option = document.createElement("option");
+            option.value = categoryValue;
+            option.textContent = categoryValue;
+            option.dataset.slug = p.categorySlug || slugify(categoryValue);
+            $("category").appendChild(option);
+          }
+          $("category").value = categoryValue;
+          $("categorySlug").value = p.categorySlug || slugify(categoryValue);
+        }
+
+        if (subcategoryValue) {
+          updateSubcategoryFields(subcategoryValue);
+          $("subcategorySlug").value = p.subcategorySlug || $("subcategorySlug").value || slugify(subcategoryValue);
+        } else {
+          $("subcategorySlug").value = p.subcategorySlug || "";
+        }
+
+        if (!categoryValue && p.categorySlug) $("categorySlug").value = p.categorySlug;
+      } catch (e) {
+        console.error(e);
+      }
     }
 
-    $('form').addEventListener('submit', async (e) => {
+    $("category")?.addEventListener("change", () => {
+      updateCategoryFields();
+    });
+
+    $("subcategory")?.addEventListener("change", () => {
+      updateSubcategoryFields();
+    });
+
+    $("form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const btn = $('btn-save');
+      const btn = $("btn-save");
       btn.disabled = true;
       btn.textContent = "Salvando...";
 
       const payload = {
-        name: $('name').value,
-        sku: $('sku').value,
-        price: Number($('price').value),
-        stock: Number($('stock').value),
-        description: $('description').value,
-        pesoKg: Number($('pesoKg').value),
-        comprimento: Number($('comprimento').value),
-        largura: Number($('largura').value),
-        altura: Number($('altura').value),
-        active: $('active').checked
+        name: $("name").value,
+        sku: $("sku").value,
+        price: Number($("price").value),
+        stock: Number($("stock").value),
+        category: $("category").value,
+        subcategory: $("subcategory").value,
+        categorySlug: $("categorySlug").value,
+        subcategorySlug: $("subcategorySlug").value,
+        description: $("description").value,
+        pesoKg: Number($("pesoKg").value),
+        comprimento: Number($("comprimento").value),
+        largura: Number($("largura").value),
+        altura: Number($("altura").value),
+        active: $("active").checked
       };
 
       try {
         const res = await fetch(`${API_BASE}/seller/products/${productId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
+
         if (res.ok) {
           alert("Produto atualizado com sucesso!");
           window.location.href = "seller_produtos.html";
+          return;
         }
-      } catch (e) { 
-        alert("Erro ao salvar."); 
-        btn.disabled = false; 
-        btn.textContent = "Salvar alterações"; 
+
+        throw new Error("Falha ao atualizar produto");
+      } catch (e) {
+        alert("Erro ao salvar.");
+        btn.disabled = false;
+        btn.textContent = "Salvar alterações";
       }
     });
 
-    window.onload = loadProduct;
-    $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
-    $('btn-sair')?.addEventListener('click', () => { localStorage.clear(); window.location.href = 'seller_login.html'; });
+    $("btn-inactivate")?.addEventListener("click", async () => {
+      if (!productId) return;
+      const confirmar = confirm("Deseja realmente inativar este produto?");
+      if (!confirmar) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/seller/products/${productId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: false })
+        });
+
+        if (res.ok) {
+          alert("Produto inativado com sucesso!");
+          window.location.href = "seller_produtos.html";
+          return;
+        }
+
+        throw new Error("Falha ao inativar produto");
+      } catch (e) {
+        alert("Erro ao inativar produto.");
+      }
+    });
+
+    window.onload = () => {
+      const profile = JSON.parse(localStorage.getItem("seller_profile") || "{}");
+      $("user-display-name").textContent = "Olá, " + (profile.factoryName || "sn digital") + "!";
+      populateCategories();
+      loadProduct();
+    };
+
+    $("sidebar-toggle")?.addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
+    $("btn-sair")?.addEventListener("click", () => {
+      localStorage.clear();
+      window.location.href = "seller_login.html";
+    });
   </script>
 </body>
 </html>

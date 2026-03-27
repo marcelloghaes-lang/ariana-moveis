@@ -4,7 +4,7 @@
  * e renderizar na página, preservando a estrutura original do arquivo.
  */
 
-const API_BASE = window.API_BASE || "http://localhost:3000/api";
+const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
 
 let currentProduct = null;
 let currentImageIndex = 0;
@@ -68,7 +68,7 @@ function normalizeProductData(data) {
     const categoria = data.categoria || data.category || data.categoryName || "";
     const preco = toNumber(data.preco ?? data.price ?? data.valor ?? 0, 0);
     const descricao = data.descricao || data.description || "";
-    const id = data.id || data._id || "";
+    const id = data._id || data.id || "";
 
     let imagens = imagensBrutas;
 
