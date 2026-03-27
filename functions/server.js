@@ -1111,11 +1111,9 @@ function buildApp() {
   }
 
   // --- TRATAMENTO DE ROTAS (mantido) ---
-  app.use((req, _res, next) => {
-    if (req.url.startsWith("/api")) req.url = req.url.replace("/api", "");
-    next();
-  });
-
+  app.get(["/banners", "/api/banners"], async (req, res) => {
+  // ... sua lógica de busca no MongoDB
+});
 
   // ================= MONGO ROUTES MERGED (server.js unificado) =================
   function snapData(snap) {
