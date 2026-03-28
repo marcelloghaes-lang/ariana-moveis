@@ -38,15 +38,19 @@ function getProductImageUrl(p) {
  * - Parcelamento no cartão (installments / installmentsCount / parcelas) -> exibe texto de parcelas
  */
 (function () {
-  const API_BASE =
-    localStorage.getItem("API_BASE") ||
-    "https://ariana-move-mongo.onrender.com/api";
+  // --- LÓGICA DE DETECÇÃO AUTOMÁTICA (LOCAL vs NUVEM) ---
+  const API_BASE = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+      ? 'http://localhost:3000/api'                // Se estiver no seu PC
+      : 'https://ariana-move-mongo.onrender.com/api'; // Se estiver no Render
+
+  console.log("[Core] Conectado à API em:", API_BASE);
+  // -----------------------------------------------------
 
   const toNumber = (v) => {
     const n = window.__toNumberBR ? window.__toNumberBR(v, NaN) : Number(v);
     return Number.isFinite(n) ? n : null;
   };
-
+  
   // ============================
   // Configuração GLOBAL de Pagamentos
   // ============================

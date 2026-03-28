@@ -266,13 +266,13 @@
     
     <script type="module">
         
-
         // Camada de compatibilidade para migração Firebase -> API/Mongo
-        const API_BASE =
-            window.API_BASE ||
-            localStorage.getItem('API_BASE') ||
-            localStorage.getItem('API_BASE_URL') ||
-            'https://ariana-move-mongo.onrender.com/api';
+        // LÓGICA DE DETECÇÃO AUTOMÁTICA: Identifica se você está no PC ou no Render
+        const API_BASE = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+            ? 'http://localhost:3000/api'                // Se estiver no seu PC
+            : 'https://ariana-move-mongo.onrender.com/api'; // Se estiver no Render (Nuvem)
+
+        console.log("Painel conectado à API em:", API_BASE);
 
         let app;
         let auth = {};
@@ -3864,11 +3864,13 @@ window.addEventListener('load', () => {
 
 
 <script>
-    const API_BASE_MONGO =
-      window.API_BASE ||
-      localStorage.getItem('API_BASE') ||
-      localStorage.getItem('API_BASE_URL') ||
-      'https://ariana-move-mongo.onrender.com/api';
+    // --- LÓGICA DE DETECÇÃO AUTOMÁTICA (LOCAL vs NUVEM) ---
+    const API_BASE_MONGO = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+      ? 'http://localhost:3000/api'                // Endereço do seu PC (Terminal Node)
+      : 'https://ariana-move-mongo.onrender.com/api'; // Endereço oficial no Render
+
+    console.log("[Dashboard] Conectado à API em:", API_BASE_MONGO);
+    // -----------------------------------------------------
 
     async function fetchAdminJson(path, options = {}) {
         const token =

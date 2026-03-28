@@ -1,10 +1,13 @@
 
+require('dotenv').config(); // Carrega as variáveis do arquivo .env
+
 /* MIGRAÇÃO AUTOMÁTICA DE COMPATIBILIDADE: FIREBASE -> NODE/MONGO
  * Objetivo: preservar o arquivo original completo e trocar a infraestrutura base
  * de Firebase Functions/Admin/Firestore por uma camada compatível em MongoDB.
  * Atenção: triggers Firestore viram handlers compatíveis e precisam ser acionados
  * pelo servidor/processos do backend quando aplicável.
  */
+
 const __compatModule = require("module");
 const __compatOriginalRequire = __compatModule.prototype.require;
 const __compatJwt = require("jsonwebtoken");
@@ -1068,15 +1071,18 @@ function buildApp() {
   const cors = require("cors");
   const axios = require("axios");
   const crypto = require("crypto");
+  const multer = require("multer");
 
   if (admin.apps.length === 0) admin.initializeApp();
 
   const app = express();
+
   const corsOptions = {
     origin: "*",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   };
+
   app.use(cors(corsOptions));
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
@@ -1085,10 +1091,47 @@ function buildApp() {
     if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
   });
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 }
+  });
+
   const db = admin.firestore();
+
+  app.get("/api/admin/stats", async (_req, res) => {
+    try {
+      const orders = await db.collection("orders").get();
+      const users = await db.collection("users").get();
+
+      let faturamentoTotal = 0;
+      let pedidosPendentes = 0;
+
+      orders.forEach((doc) => {
+        const row = doc.data() || {};
+        const total = Number(row.total || row.totalPrice || row.amount || 0) || 0;
+        faturamentoTotal += total;
+
+        const status = String(row.status || "").toLowerCase();
+        if (["pending", "pendente", "aguardando pagamento", "pending_payment"].includes(status)) {
+          pedidosPendentes += 1;
+        }
+      });
+
+      res.json({
+        faturamentoTotal,
+        pedidosPendentes,
+        totalClientes: users.size || 0,
+        totalPedidos: orders.size || 0
+      });
+    } catch (err) {
+      console.error("[admin/stats]", err);
+      res.status(500).json({ error: "Erro ao carregar estatísticas" });
+    }
+  });
 
   // --- SendGrid / Reset de senha (Seller) ---
   const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
@@ -1589,17 +1632,27 @@ function buildApp() {
     }
   });
 
-  app.post(["/upload", "/api/upload", "/banners/upload", "/api/banners/upload"], async (req, res) => {
+  app.post(["/upload", "/api/upload", "/banners/upload", "/api/banners/upload"], upload.single("file"), async (req, res) => {
     try {
-      const dataUrl = toDataUrlFromBody(req.body || {});
+      let dataUrl = "";
+
+      if (req.file && req.file.buffer) {
+        const mime = String(req.file.mimetype || "image/png").trim() || "image/png";
+        const base64 = req.file.buffer.toString("base64");
+        dataUrl = `data:${mime};base64,${base64}`;
+      } else {
+        dataUrl = toDataUrlFromBody(req.body || {});
+      }
+
       if (!dataUrl) {
-        return res.status(400).json({ error: "imageBase64 obrigatório" });
+        return res.status(400).json({ error: "Arquivo ou imageBase64 obrigatório" });
       }
 
       return res.json({
         ok: true,
         url: dataUrl,
         imageUrl: dataUrl,
+        filename: (req.file && req.file.originalname) ? req.file.originalname : null
       });
     } catch (err) {
       console.error("[banners:upload]", err);
@@ -5211,6 +5264,66 @@ async function quoteTransportadoras(_payload) {
     return adminUser;
   }
 
+  function mapAdminCollectionName(name) {
+    const raw = String(name || "").trim().toLowerCase();
+    const map = {
+      products: "products",
+      orders: "orders",
+      categories: "categories",
+      users: "users",
+      atendimentos: "atendimentos",
+      configuracoes: "settings",
+      settings: "settings",
+      banners: "banners",
+    };
+    return map[raw] || null;
+  }
+
+  function adminWrapList(items) {
+    return { items: Array.isArray(items) ? items : [] };
+  }
+
+  async function adminReadCollectionItems(collectionKey) {
+    const mapped = mapAdminCollectionName(collectionKey);
+    if (!mapped) throw new Error("unsupported_collection");
+    let snap = null;
+    try {
+      snap = await db.collection(mapped).orderBy("createdAt", "desc").get();
+    } catch (_) {
+      snap = await db.collection(mapped).get();
+    }
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
+  }
+
+  async function adminReadDoc(collectionKey, id) {
+    const mapped = mapAdminCollectionName(collectionKey);
+    if (!mapped) throw new Error("unsupported_collection");
+    const snap = await db.collection(mapped).doc(String(id)).get();
+    if (!snap.exists) return null;
+    return { id: snap.id, ...(snap.data() || {}) };
+  }
+
+  async function adminWriteDoc(collectionKey, id, data, merge = true) {
+    const mapped = mapAdminCollectionName(collectionKey);
+    if (!mapped) throw new Error("unsupported_collection");
+    const payload = {
+      ...(data || {}),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (!merge) payload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+    await db.collection(mapped).doc(String(id)).set(payload, { merge });
+    const snap = await db.collection(mapped).doc(String(id)).get();
+    return { id: snap.id, ...(snap.data() || {}) };
+  }
+
+  async function adminDeleteDoc(collectionKey, id) {
+    const mapped = mapAdminCollectionName(collectionKey);
+    if (!mapped) throw new Error("unsupported_collection");
+    await db.collection(mapped).doc(String(id)).delete();
+    return true;
+  }
+
+
   async function findProductById(productId) {
     const id = String(productId || "").trim();
     if (!id) return null;
@@ -5418,6 +5531,135 @@ async function quoteTransportadoras(_payload) {
       return res.status(500).json({ ok: false, error: error?.message || "admin_login_failed" });
     }
   });
+
+
+  // ================= ADMIN API COMPATÍVEL COM O PAINEL =================
+  app.get("/admin/:collection", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
+      const collectionKey = String(req.params.collection || "").trim().toLowerCase();
+
+      if (collectionKey === "stats") {
+        const orders = await adminReadCollectionItems("orders");
+        const users = await adminReadCollectionItems("users");
+        const faturamentoTotal = orders.reduce((sum, row) => sum + (Number(row.total || row.totalPrice || row.amount || 0) || 0), 0);
+        const pedidosPendentes = orders.filter((row) => ["pending", "pendente", "aguardando pagamento", "pending_payment"].includes(String(row.status || "").toLowerCase())).length;
+        return res.json({
+          faturamentoTotal,
+          pedidosPendentes,
+          totalClientes: users.length,
+          totalPedidos: orders.length
+        });
+      }
+
+      const items = await adminReadCollectionItems(collectionKey);
+      return res.json(adminWrapList(items));
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_collection_list_failed" });
+    }
+  });
+
+  app.post("/admin/:collection", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const collectionKey = String(req.params.collection || "").trim().toLowerCase();
+      if (collectionKey === "stats") return res.status(405).json({ ok: false, error: "method_not_allowed" });
+
+      const ref = db.collection(mapAdminCollectionName(collectionKey)).doc();
+      const created = await adminWriteDoc(collectionKey, ref.id, { id: ref.id, ...(req.body || {}) }, false);
+      return res.status(201).json(created);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_collection_create_failed" });
+    }
+  });
+
+  app.get("/admin/:collection/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const item = await adminReadDoc(req.params.collection, req.params.id);
+      if (!item) return res.status(404).json({ ok: false, error: "not_found" });
+      return res.json(item);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_collection_get_failed" });
+    }
+  });
+
+  app.patch("/admin/:collection/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const updated = await adminWriteDoc(req.params.collection, req.params.id, req.body || {}, true);
+      return res.json(updated);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_collection_patch_failed" });
+    }
+  });
+
+  app.put("/admin/:collection/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const updated = await adminWriteDoc(req.params.collection, req.params.id, req.body || {}, true);
+      return res.json(updated);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_collection_put_failed" });
+    }
+  });
+
+  app.delete("/admin/:collection/:id", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      await adminDeleteDoc(req.params.collection, req.params.id);
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_collection_delete_failed" });
+    }
+  });
+
+  app.post("/admin/uploads", upload.single("file"), async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
+      let dataUrl = "";
+      if (req.file && req.file.buffer) {
+        const mime = String(req.file.mimetype || "image/png").trim() || "image/png";
+        const base64 = req.file.buffer.toString("base64");
+        dataUrl = `data:${mime};base64,${base64}`;
+      } else {
+        dataUrl = toDataUrlFromBody(req.body || {});
+      }
+
+      if (!dataUrl) return res.status(400).json({ ok: false, error: "file_required" });
+
+      const pathValue = String(req.body?.path || req.file?.originalname || `upload_${Date.now()}`).trim();
+      return res.json({
+        ok: true,
+        url: dataUrl,
+        path: pathValue,
+        downloadURL: dataUrl,
+        filePath: pathValue
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_upload_failed" });
+    }
+  });
+
+  app.delete("/admin/uploads", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      return res.json({ ok: true, deleted: true, path: String(req.query?.path || "") });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_upload_delete_failed" });
+    }
+  });
+
 
   app.get("/admin/me", async (req, res) => {
     try {

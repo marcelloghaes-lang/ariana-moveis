@@ -8,7 +8,7 @@
   <link rel="manifest" href="./manifest-banners.webmanifest">
   <meta name="theme-color" content="#0b1220">
   <link rel="icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" href="/icons/icon-banners-192.png">
+  <!-- ícone opcional removido para evitar 404 local -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
@@ -327,9 +327,34 @@
 <script>
     const $ = (q) => document.querySelector(q);
     const msg = document.getElementById('msg');
-    const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
-    const ADMIN_EMAILS = ['marcelloghaes@gmail.com'];
 
+    // --- ADICIONE ESTA LÓGICA AQUI ---
+    const IS_LOCAL_HOST = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost');
+    const API_BASE_LOCAL = 'http://localhost:3000/api';
+    const API_BASE_RENDER = 'https://ariana-move-mongo.onrender.com/api';
+    let API_BASE = IS_LOCAL_HOST ? API_BASE_LOCAL : API_BASE_RENDER;
+
+    console.log("Painel de Banners conectado inicialmente em:", API_BASE);
+
+    async function fetchWithApiFallback(path, init = {}) {
+      const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
+      let lastError = null;
+
+      for (const base of bases) {
+        try {
+          const url = `${base}${path}`;
+          const res = await fetch(url, init);
+          API_BASE = base;
+          return res;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      throw lastError || new Error('Nenhuma API disponível no momento.');
+    }
+
+    const ADMIN_EMAILS = ['marcelloghaes@gmail.com'];
     function toast(type, text){
       msg.classList.remove('hidden');
       msg.textContent = text;
@@ -498,7 +523,7 @@
 
       for(const route of routes){
         try{
-          const res = await fetch(`${API_BASE}${route}`, { method:'POST', body: formData });
+          const res = await fetchWithApiFallback(route, { method:'POST', body: formData });
           if(!res.ok) throw new Error(`Falha no upload (${res.status})`);
           const data = await parseJsonSafe(res);
           const url = data.url || data.imageUrl || data.secure_url || data.location || data.fileUrl || '';
@@ -562,7 +587,7 @@
 
       for(const id of BANNER_IDS){
         try{
-          const res = await fetch(`${API_BASE}/banners`, { cache:'no-store' });
+          const res = await fetchWithApiFallback('/banners', { cache:'no-store' });
           if(!res.ok) throw new Error(`Erro ao carregar banners (${res.status})`);
           const dataMap = normalizeIncomingBanners(await parseJsonSafe(res));
           const data = dataMap[id] || {};
@@ -621,7 +646,8 @@
 
       for (const attempt of attempts) {
         try {
-          const res = await fetch(attempt.url, attempt.init);
+          const relativePath = attempt.url.replace(API_BASE_LOCAL, '').replace(API_BASE_RENDER, '');
+          const res = await fetchWithApiFallback(relativePath, attempt.init);
           if(!res.ok){
             let errorMessage = `Erro ao salvar (${res.status})`;
             try{
