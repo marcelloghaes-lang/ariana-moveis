@@ -668,9 +668,35 @@ Adicionar ao Carrinho
 
   
 <script type="module">
-const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
+window.REMOTE_API_BASE = 'https://ariana-moveis.onrender.com/api';
+window.LOCAL_API_BASE = 'http://localhost:3000/api';
+window.API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || window.REMOTE_API_BASE;
+localStorage.setItem('API_BASE', window.API_BASE);
+const API_BASE = window.API_BASE;
+window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+window.COST_SAFE_FLAGS = window.COST_SAFE_FLAGS || { enableProductRecommendations: true };
+(function() {
+  const __origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (!__origFetch) return;
+  window.fetch = function(input, init) {
+    let url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+    if (url) {
+      url = url
+        .replace('https://ariana-move-mongo.onrender.com/api', window.REMOTE_API_BASE)
+        .replace('http://localhost:3000/api', window.API_BASE)
+        .replace('https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api', window.REMOTE_API_BASE);
+      if (typeof input === 'string') {
+        input = url;
+      } else if (input instanceof Request) {
+        input = new Request(url, input);
+      }
+    }
+    return __origFetch(input, init);
+  };
+})();
+console.log("[Produto] Conectado à API em:", API_BASE);
 // ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
-// Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
+// Se os preços vierem como string formatada, Number("1.299,90") vira NaN e some desconto/12x.
 window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   try{
     if (v === null || v === undefined) return fallback;
@@ -704,8 +730,8 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         let productData = null;
 
 // =========================================================
-// DESCONTO GLOBAL (PIX/BOLETO) - DINÂMICO VIA FIREBASE
-// Mantém o mesmo desconto configurado no Admin/Index.
+// DESCONTO GLOBAL (PIX/BOLETO) - DINÂMICO VIA API
+// Mantém o mesmo desconto configurado no Admin/Index via API.
 // =========================================================
 let __paymentsSettings = null;
 let __pixDiscountPercent = 0; // ex: 10, 12, 15 (0 = sem desconto)
@@ -770,65 +796,40 @@ async function loadPaymentsSettingsForProduct() {
 
             if (!productId) {
                 console.error('ID do produto não encontrado na URL');
+                const loadingMessage = document.getElementById('loading-message');
+                if (loadingMessage) loadingMessage.innerHTML = '<p>ID do produto não informado.</p>';
                 return;
             }
 
             try {
-                const API_BASE_MONGO = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
-                const res = await fetch(`${API_BASE_MONGO}/seller/products/${encodeURIComponent(productId)}`);
+                let response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
+                if (!response.ok) {
+                    response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
+                }
+                if (!response.ok) {
+                    throw new Error(`Produto não encontrado (${response.status})`);
+                }
 
-                if (!res.ok) throw new Error(`Produto não encontrado no servidor (${res.status})`);
-
-                const p = await res.json();
-                productData = p;
-                window.currentProductData = p;
-
-                const nome = p.name || p.nome || "Produto";
-                document.title = `${nome} | ARIANA MÓVEIS`;
+                const data = await response.json();
+                productData = { id: data._id || data.id || productId, ...data };
+                window.currentProductData = productData;
+                await loadPaymentsSettingsForProduct();
 
                 const byId = (id) => document.getElementById(id);
+                const nome = productData.name || productData.nome || 'Sem nome';
+                const sku = productData.sku || productId;
 
-                const nameEl = byId('product-name') || byId('product-name-display');
-                if (nameEl) nameEl.textContent = nome;
+                document.title = `${nome} | ARIANA MÓVEIS`;
+                if (byId('product-name')) byId('product-name').textContent = nome;
+                if (byId('product-sku')) byId('product-sku').textContent = `SKU: ${sku}`;
+                if (byId('product-description')) {
+                    byId('product-description').innerHTML = productData.description || productData.descricao || 'Sem descrição disponível.';
+                }
 
                 const breadcrumbName = byId('breadcrumb-product-name');
                 if (breadcrumbName) breadcrumbName.textContent = nome;
 
-                const productIdEl = byId('product-id') || byId('product-id-display');
-                if (productIdEl) productIdEl.textContent = p._id || p.id || productId;
-
-                const price = Number(p.price ?? p.preco ?? 0) || 0;
-                const priceFormatted = price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-                const priceEl = byId('product-price') || byId('product-price-display') || byId('product-price-full');
-                if (priceEl) {
-                    if (/R\$/i.test(priceEl.textContent || '')) priceEl.textContent = `R$ ${priceFormatted}`;
-                    else priceEl.textContent = priceFormatted;
-                }
-
-                const oldPriceEl = byId('product-old-price');
-                const oldPrice = Number(p.oldPrice ?? p.precoAntigo ?? 0) || 0;
-                if (oldPriceEl) {
-                    if (oldPrice > price) {
-                        oldPriceEl.textContent = `R$ ${oldPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                        oldPriceEl.style.display = 'inline';
-                    } else {
-                        oldPriceEl.style.display = 'none';
-                    }
-                }
-
-                const installmentEl = byId('product-installments') || byId('product-installments-display');
-                if (installmentEl && price > 0) {
-                    const installment = (price / 10).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                    installmentEl.textContent = `Em até 10x de ${installment} sem juros`;
-                }
-
-                const descriptionEl = byId('product-description') || byId('product-description-content');
-                if (descriptionEl) {
-                    descriptionEl.innerHTML = p.description || p.descricao || 'Este produto não possui descrição detalhada.';
-                }
-
-                const category = p.category || p.categoria || p.categoryName || '';
+                const category = productData.category || productData.categoria || productData.categoryName || '';
                 const breadcrumbCategory = byId('breadcrumb-category');
                 const categorySeparator = byId('category-separator');
                 if (breadcrumbCategory && category) {
@@ -841,236 +842,122 @@ async function loadPaymentsSettingsForProduct() {
                     if (categorySeparator) categorySeparator.classList.remove('hidden');
                 }
 
-                let images = p.images || p.imagens || [];
-                if (!Array.isArray(images) && images && typeof images === 'object') {
-                    images = Object.values(images);
-                }
-                images = images.map((img) => {
-                    if (!img) return '';
-                    if (typeof img === 'string') return img;
-                    return img.url || img.imageUrl || img.downloadURL || img.src || '';
-                }).filter(Boolean);
+                const pricing = computeDetailPricing(productData);
+                window.__detailPricing = pricing;
+                applyDetailPricingToUI(pricing);
 
-                const fallbackImage = p.imageUrl || p.mainImageUrl || p.image || 'https://placehold.co/600';
-                if (!images.length) images = [fallbackImage];
+                const badgeNameEl = byId('seller-badge-name');
+                const badgeEl = byId('seller-badge');
+                const badgeLinkEl = byId('seller-badge-link');
+                const mainNameEl = byId('seller-main-name');
+                const mainLinkEl = byId('seller-main-link');
+
+                const pickSellerDisplayName = (s) => s?.factoryName || s?.storeName || s?.tradingName || s?.companyName || s?.nomeFantasia || s?.name || null;
+                const pickSellerSlug = (s) => s?.slug || s?.storeSlug || s?.lojaSlug || s?.handle || null;
+                const pickSellerWhatsapp = (s) => s?.whatsapp || s?.whatsApp || s?.whatsappNumber || s?.phone || s?.telefone || null;
+                const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
+                const setSellerUI = (name, href) => {
+                    const safeName = (name || 'Vendedor Parceiro').toString();
+                    if (badgeNameEl) badgeNameEl.textContent = safeName;
+                    if (mainNameEl) mainNameEl.textContent = safeName;
+                    if (badgeEl) badgeEl.style.display = 'inline-flex';
+                    if (badgeLinkEl) badgeLinkEl.href = href || '#';
+                    if (mainLinkEl) mainLinkEl.href = href || '#';
+                };
+                const buildSellerHref = (sellerId, sellerSlug) => {
+                    if (sellerSlug) return `loja.html?slug=${encodeURIComponent(sellerSlug)}`;
+                    if (sellerId) return `loja.html?sellerId=${encodeURIComponent(sellerId)}`;
+                    return 'loja.html';
+                };
+
+                const baseName = productData.sellerName || productData.seller_store_name || productData.sellerStoreName || productData.seller_display_name || null;
+                let sellerDocData = null;
+                if (productData.sellerId) {
+                    try {
+                        const sellerRes = await fetch(`${API_BASE}/seller/${encodeURIComponent(String(productData.sellerId))}`);
+                        if (sellerRes.ok) sellerDocData = await sellerRes.json();
+                    } catch (e) {
+                        console.warn('[produto] Falha ao buscar seller via API:', e);
+                    }
+                }
+
+                const sellerRealName = pickSellerDisplayName(sellerDocData) || baseName || 'Vendedor Parceiro';
+                const sellerSlug = pickSellerSlug(sellerDocData) || null;
+                const sellerHref = buildSellerHref(productData.sellerId || null, sellerSlug);
+                const isPlatformProduct = !productData.sellerId;
+                if (isPlatformProduct) {
+                    if (badgeEl) badgeEl.style.display = 'none';
+                    setSellerUI('Ariana Móveis', 'nossas_lojas.html');
+                } else {
+                    setSellerUI(sellerRealName, sellerHref);
+                }
+
+                const wa = pickSellerWhatsapp(sellerDocData);
+                const waDigits = normalizeDigits(wa);
+                const waLink = byId('whatsapp-product-link');
+                if (waLink && waDigits.length >= 10) {
+                    const msg = `Olá, gostaria de saber mais sobre o produto: ${nome}`;
+                    waLink.href = `https://wa.me/55${waDigits}?text=${encodeURIComponent(msg)}`;
+                }
+
+                const attributesList = byId('product-attributes');
+                if (attributesList) {
+                    attributesList.innerHTML = '';
+                    const attrs = productData.attributes || productData.atributos || {};
+                    Object.entries(attrs).forEach(([key, value]) => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<strong>${key}:</strong> ${value}`;
+                        attributesList.appendChild(li);
+                    });
+                }
+
+                productImages = [];
+                if (Array.isArray(productData.images)) {
+                    productImages = productData.images.map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || '')).filter(Boolean);
+                } else if (productData.images && typeof productData.images === 'object') {
+                    productImages = Object.values(productData.images).map(img => typeof img === 'string' ? img : (img?.url || img?.imageUrl || img?.src || '')).filter(Boolean);
+                }
+                if (!productImages.length) {
+                    const fallbackImage = productData.imageUrl || productData.mainImageUrl || productData.image || 'https://placehold.co/600';
+                    productImages = [fallbackImage];
+                }
 
                 const mainImg = byId('main-product-image');
-                if (mainImg) mainImg.src = images[0];
-
-                if (typeof renderGallery === 'function') {
-                    try { renderGallery(images); } catch (_) {}
-                }
-                if (typeof renderImageGallery === 'function') {
-                    try { renderImageGallery(images); } catch (_) {}
+                if (mainImg) mainImg.src = productImages[0];
+                const gallery = byId('thumbnail-gallery');
+                if (gallery) {
+                    gallery.innerHTML = '';
+                    productImages.forEach((url, idx) => {
+                        const imgThumb = document.createElement('img');
+                        imgThumb.src = url;
+                        imgThumb.className = 'thumbnail-image' + (idx === 0 ? ' active' : '');
+                        imgThumb.onclick = () => {
+                            if (mainImg) mainImg.src = url;
+                            document.querySelectorAll('.thumbnail-image').forEach(t => t.classList.remove('active'));
+                            imgThumb.classList.add('active');
+                        };
+                        gallery.appendChild(imgThumb);
+                    });
                 }
 
                 const loadingMessage = byId('loading-message');
                 const productGrid = byId('product-details-container') || byId('product-content-grid');
                 const accordionContainer = byId('product-description-accordion-container');
-
                 if (loadingMessage) loadingMessage.style.display = 'none';
-                if (productGrid) {
-                    if (productGrid.tagName === 'DIV') productGrid.style.display = 'grid';
-                    else productGrid.style.display = 'block';
-                }
+                if (productGrid) productGrid.style.display = productGrid.tagName === 'DIV' ? 'grid' : 'block';
                 if (accordionContainer) accordionContainer.style.display = 'block';
 
-            } catch (err) {
-                console.error('Erro ao carregar detalhes do produto:', err);
+                checkIfIsFavorite(productId);
+                if (COST_SAFE_FLAGS.enableProductRecommendations) {
+                    loadRecommendationSections({ id: productId, categorySlug: (productData.categorySlug || productData.category_slug || productData.category || '') });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar produto:', error);
                 const loadingMessage = document.getElementById('loading-message');
-                if (loadingMessage) loadingMessage.textContent = 'Erro ao carregar detalhes do produto.';
+                if (loadingMessage) loadingMessage.innerHTML = '<p>Erro ao carregar dados do produto.</p>';
             }
         }
 
-            try {
-                const res = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
-                if (!res.ok) throw new Error(`Produto não encontrado (${res.status})`);
-                const data = await res.json();
-
-                if (data) {
-                    productData = { id: data._id || data.id || productId, ...data };
-                    await loadPaymentsSettingsForProduct();
-
-                    document.getElementById('product-name').textContent = productData.name || 'Sem nome';
-                    document.getElementById('product-sku').textContent = `SKU: ${productData.sku || productId}`;
-                    const __pricing = computeDetailPricing(productData);
-                    window.__detailPricing = __pricing;
-                    applyDetailPricingToUI(__pricing);
-                    document.getElementById('product-description').innerHTML = productData.description || 'Sem descrição disponível.';
-
-                                        // --- CORREÇÃO: SELLER VERDADEIRO (NOME + LINK) ---
-                    // Motivo do bug anterior:
-                    // - IDs duplicados no HTML (seller-link / seller-badge-1 / seller-info-1)
-                    // - fallback forçado para "Ariana Móveis" quando sellerName não vinha no produto
-                    //
-                    // Agora:
-                    // - Busca o seller real em /sellers/{sellerId} quando existir sellerId
-                    // - Atualiza os 2 lugares: badge e "Vendido e entregue por"
-                    // - Link vai para loja.html?sellerId=... (loja do seller verdadeiro)
-
-                    const badgeNameEl = document.getElementById('seller-badge-name');
-                    const badgeEl = document.getElementById('seller-badge');
-                    const badgeLinkEl = document.getElementById('seller-badge-link');
-
-                    const mainNameEl = document.getElementById('seller-main-name');
-                    const mainLinkEl = document.getElementById('seller-main-link');
-
-                    // Helpers: tenta pegar nome/slug/whatsapp do doc do seller
-                    const pickSellerDisplayName = (s) => {
-                        if (!s) return null;
-                        return (
-                            s.factoryName ||
-                            s.storeName ||
-                            s.tradingName ||
-                            s.companyName ||
-                            s.nomeFantasia ||
-                            s.name ||
-                            null
-                        );
-                    };
-
-                    const pickSellerSlug = (s) => {
-                        if (!s) return null;
-                        return (
-                            s.slug ||
-                            s.storeSlug ||
-                            s.lojaSlug ||
-                            s.handle ||
-                            null
-                        );
-                    };
-
-                    const pickSellerWhatsapp = (s) => {
-                        if (!s) return null;
-                        return (
-                            s.whatsapp ||
-                            s.whatsApp ||
-                            s.whatsappNumber ||
-                            s.phone ||
-                            s.telefone ||
-                            null
-                        );
-                    };
-
-                    const normalizeDigits = (v) => String(v || "").replace(/\D/g, "");
-                    const setSellerUI = (name, href) => {
-                        const safeName = (name || "Vendedor Parceiro").toString();
-
-                        if (badgeNameEl) badgeNameEl.textContent = safeName;
-                        if (mainNameEl) mainNameEl.textContent = safeName;
-
-                        if (badgeEl) badgeEl.style.display = 'inline-flex';
-
-                        if (badgeLinkEl) badgeLinkEl.href = href || "#";
-                        if (mainLinkEl) mainLinkEl.href = href || "#";
-                    };
-
-                    // Define link preferencial (página da loja)
-                    const buildSellerHref = (sellerId, sellerSlug) => {
-                        // Você pode trocar para: `todos_produtos.html?sellerId=...` se preferir lista.
-                        if (sellerSlug) return `loja.html?slug=${encodeURIComponent(sellerSlug)}`;
-                        if (sellerId) return `loja.html?sellerId=${encodeURIComponent(sellerId)}`;
-                        return "loja.html";
-                    };
-
-                    // 1) Base: se o produto já trouxe sellerName, usa de imediato (sem Ariana forçado)
-                    const baseName =
-                        productData.sellerName ||
-                        productData.seller_store_name ||
-                        productData.sellerStoreName ||
-                        productData.seller_display_name ||
-                        null;
-
-                    // 2) Busca o seller REAL quando tiver sellerId (usa coleção pública para não depender de login)
-                    let sellerDocData = null;
-                    if (productData.sellerId) {
-                        const sid = String(productData.sellerId);
-                        try {
-                            const sRes = await fetch(`${API_BASE}/seller/${encodeURIComponent(sid)}`);
-                            if (sRes.ok) sellerDocData = await sRes.json();
-                        } catch (e) {
-                            console.warn("[produto] Falha ao buscar seller via API:", e);
-                        }
-                    }
-
-                    const sellerRealName = pickSellerDisplayName(sellerDocData) || baseName || "Vendedor Parceiro";
-                    const sellerSlug = pickSellerSlug(sellerDocData) || null;
-                    const sellerHref = buildSellerHref(productData.sellerId || null, sellerSlug);
-
-                    // ✅ Se o produto NÃO tem sellerId, ele é vendido pela plataforma (Ariana Móveis)
-                    // Nesse caso: não mostrar badge de parceiro e usar Ariana Móveis como vendedor.
-                    const isPlatformProduct = !productData.sellerId;
-                    if (isPlatformProduct) {
-                        if (badgeEl) badgeEl.style.display = 'none';
-                        setSellerUI('Ariana Móveis', 'nossas_lojas.html');
-                    } else {
-                        setSellerUI(sellerRealName, sellerHref);
-                    }
-
-                    // (Opcional) Atualiza o botão WhatsApp para falar com o SELLER (se houver número no doc)
-                    const wa = pickSellerWhatsapp(sellerDocData);
-                    const waDigits = normalizeDigits(wa);
-                    const waLink = document.getElementById('whatsapp-product-link');
-                    if (waLink && waDigits.length >= 10) {
-                        const msg = `Olá, gostaria de saber mais sobre o produto: ${productData.name || ''}`;
-                        waLink.href = `https://wa.me/55${waDigits}?text=${encodeURIComponent(msg)}`;
-                    }
-
-                    // Preencher atributos/especificações
-                    const attributesList = document.getElementById('product-attributes');
-                    if (attributesList && productData.attributes) {
-                        attributesList.innerHTML = '';
-                        Object.entries(productData.attributes).forEach(([key, value]) => {
-                            const li = document.createElement('li');
-                            li.innerHTML = `<strong>${key}:</strong> ${value}`;
-                            attributesList.appendChild(li);
-                        });
-                    }
-
-                    productImages = [];
-                    if (Array.isArray(productData.images)) {
-                        productImages = productData.images.map(img => typeof img === 'string' ? img : img.url);
-                    } else if (productData.images && typeof productData.images === 'object') {
-                        productImages = Object.values(productData.images).map(img => typeof img === 'string' ? img : img.url);
-                    }
-
-                    if (productImages.length > 0) {
-                        const mainImg = document.getElementById('main-product-image');
-                        mainImg.src = productImages[0];
-
-                        const gallery = document.getElementById('thumbnail-gallery');
-                        gallery.innerHTML = '';
-
-                        productImages.forEach((url, idx) => {
-                            const imgThumb = document.createElement('img');
-                            imgThumb.src = url;
-                            imgThumb.className = 'thumbnail-image' + (idx === 0 ? ' active' : '');
-                            imgThumb.onclick = () => {
-                                mainImg.src = url;
-                                document.querySelectorAll('.thumbnail-image').forEach(t => t.classList.remove('active'));
-                                imgThumb.classList.add('active');
-                            };
-                            gallery.appendChild(imgThumb);
-                        });
-                    }
-
-                    document.getElementById('loading-message').style.display = 'none';
-                    document.getElementById('product-details-container').style.display = 'grid';
-
-                    // Chamar a verificação de favorito
-                    checkIfIsFavorite(productId);
-
-                    if (COST_SAFE_FLAGS.enableProductRecommendations) { loadRecommendationSections({ id: productId, categorySlug: (productData.categorySlug || productData.category_slug || productData.category || '') }); }
-
-                } else {
-                    document.getElementById('loading-message').innerHTML = "<p>Produto não encontrado.</p>";
-                }
-            } catch (error) {
-                console.error("Erro ao carregar produto:", error);
-                document.getElementById('loading-message').innerHTML = "<p>Erro ao carregar dados do produto.</p>";
-            }
-
-        
         // --- FAVORITOS (CORREÇÃO DE CAMINHO E ESTILO) ---
         async function checkIfIsFavorite(productId) {
             try {
@@ -1765,12 +1652,7 @@ function updateClientHeaderUI(user) {
         // 5. FRETE (CORREIOS) - INTEGRADO COM API REAL
         // =========================================================
         function getApiBaseUrl() {
-            // Permite sobrescrever via <script> antes (opcional)
-            if (window.API_BASE_URL && typeof window.API_BASE_URL === "string") {
-                return window.API_BASE_URL.replace(/\/+$/, "");
-            }
-            // Produção (Cloud Run / Functions URL)
-            return "https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api";
+            return API_BASE;
         }
 
         function sanitizeCep(v) {
@@ -1789,7 +1671,7 @@ function updateClientHeaderUI(user) {
         }
 
         function pickProductShippingData() {
-            // tenta achar campos comuns no seu Firestore, sem quebrar se não existir
+            // tenta achar campos comuns do produto, sem quebrar se não existir
             const p = productData || {};
             const dims =
                 p.dimensions ||
@@ -2060,8 +1942,7 @@ function renderShippingQuotes(result, cep) {
             try { await loadProductDetails(); } catch (e) { console.error('[produto] erro ao carregar detalhes:', e); }
         });
     </script>
-    <script src="js/header_auth_fix.js" defer></script>
-<script src="./header.js"></script>
+    <script src="./header.js"></script>
 <script>
         (function() {
             const check = () => {

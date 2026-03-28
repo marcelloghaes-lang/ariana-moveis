@@ -250,17 +250,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
     return t.content.firstElementChild || document.createElement("span");
   };
 </script>
-
-</head>
 <script src="./header.js"></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    if (typeof window.carregarHeader === "function") {
-      window.carregarHeader();
-    } else {
-      console.error("❌ carregarHeader não encontrado");
-    }
-  });
 </script>
 <body>
 
