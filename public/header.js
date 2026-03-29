@@ -3,7 +3,7 @@
 // - Mega menu de categorias estilo marketplace
 // - Compatível com uso global (window.carregarHeader)
 
-const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
+const API_BASE = window.API_BASE || localStorage.getItem("API_BASE") || "https://ariana-moveis.onrender.com/api";
 
 
 function escapeHtml(str) {
@@ -158,14 +158,20 @@ async function __loadHeaderCategoryBanner() {
     let merged = { ...fallback };
 
     try {
-      const res = await fetch(`${API_BASE}/banners/header_category_banner`, {
+      let res = await fetch(`${API_BASE}/banners/header_category_banner`, {
         headers: { 'Accept': 'application/json' }
       });
+
+      if (!res.ok) {
+        res = await fetch(`${API_BASE}/banners?slot=header_category_banner`, {
+          headers: { 'Accept': 'application/json' }
+        });
+      }
 
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object') {
-          merged = { ...merged, ...data };
+          merged = { ...merged, ...(data.data || data.banner || data) };
         }
       }
     } catch (e) {
@@ -271,7 +277,9 @@ async function carregarCategoriasHeader() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      categories = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+      categories = Array.isArray(data)
+        ? data
+        : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.categories) ? data.categories : []));
       window.__CATEGORIES_CACHE__ = categories;
       updateQuickCategoryLinks(categories);
     } catch (err) {
@@ -669,7 +677,7 @@ function getLocalRedirectTarget() {
   }
 }
 
-function loadCartCounter() {
+window.loadCartCounter = window.loadCartCounter || function loadCartCounter() {
   const el = document.getElementById('cart-counter-nav');
   if (!el) return;
 
@@ -995,7 +1003,7 @@ function carregarHeader() {
 
   atualizarUsuarioHeader();
   updateHeaderCityDisplay();
-  loadCartCounter();
+  window.loadCartCounter();
   setTimeout(carregarCategoriasHeader, 150);
 
   if (!window.__HEADER_EVENTS_BOUND__) {
@@ -1009,7 +1017,7 @@ function carregarHeader() {
     window.addEventListener('storage', () => {
       atualizarUsuarioHeader();
       updateHeaderCityDisplay();
-      loadCartCounter();
+      window.loadCartCounter();
     });
 
     window.addEventListener('marketplace:ready', () => {
@@ -1240,12 +1248,12 @@ function renderAccountPopover() {
 
 window.renderAccountPopover = renderAccountPopover;
 window.carregarHeader = carregarHeader;
-window.loadCartCounter = loadCartCounter;
+window.loadCartCounter = window.loadCartCounter;
 
 window.addEventListener('user:updated', atualizarUsuarioHeader);
-window.addEventListener('storage', () => { atualizarUsuarioHeader(); loadCartCounter(); });
-window.addEventListener('pageshow', () => { atualizarUsuarioHeader(); loadCartCounter(); });
-window.addEventListener('focus', () => { atualizarUsuarioHeader(); loadCartCounter(); });
+window.addEventListener('storage', () => { atualizarUsuarioHeader(); window.loadCartCounter(); });
+window.addEventListener('pageshow', () => { atualizarUsuarioHeader(); window.loadCartCounter(); });
+window.addEventListener('focus', () => { atualizarUsuarioHeader(); window.loadCartCounter(); });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     atualizarUsuarioHeader();

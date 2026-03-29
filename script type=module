@@ -115,7 +115,7 @@
 
 
         // Funções para carregar o contador do carrinho (Mock/Placeholder)
-        const loadCartCounter = () => {
+        window.loadCartCounter = window.loadCartCounter || function () {
             // Esta função deve ser implementada para ler o Firestore/LocalStorage e atualizar o counter
             const cartItems = 2; // Exemplo: Simula 2 itens no carrinho
             const counterElements = document.querySelectorAll('[id^="cart-counter"]');

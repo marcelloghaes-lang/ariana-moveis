@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/png" href="./favicon.png">
 
   <link rel="stylesheet" href="css/tailwind.min.css">
 </head>
@@ -251,8 +251,9 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   };
 </script>
 <script src="./header.js"></script>
+<script>
+  window.carregarHeader();
 </script>
-<body>
 
   <!-- Mensagens (suporte ao displayMessage) -->
   <div id="message-container"></div>
@@ -574,7 +575,8 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   
   
   <script>
-    const API_BASE =
+    window.API_BASE =
+  window.API_BASE ||
   localStorage.getItem("API_BASE") ||
   "https://ariana-moveis.onrender.com/api";
 
@@ -598,11 +600,13 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       bannerItem: (slotId) => [
         `/banners/${encodeURIComponent(slotId)}`,
         `/banner-slots/${encodeURIComponent(slotId)}`,
+        `/banners?slot=${encodeURIComponent(slotId)}`,
         `/index/banners/${encodeURIComponent(slotId)}`,
         `/home/banners/${encodeURIComponent(slotId)}`
       ],
       products: [
         '/products',
+        '/seller/products',
         '/catalog/products',
         '/home/products',
         '/store/products'
@@ -626,7 +630,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 
     function buildCandidateUrls(path) {
       const direct = String(path || '').trim();
-      const base = String(API_BASE || '').replace(/\/+$/, '');
+      const base = String(window.API_BASE || '').replace(/\/+$/, '');
       const raw = [];
       if (direct.startsWith('http://') || direct.startsWith('https://')) raw.push(direct);
       else {
@@ -671,6 +675,8 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         payload.banners, payload.results, payload.rows, payload.docs
       ];
       for (const c of candidates) if (Array.isArray(c)) return c;
+      const values = Object.values(payload).filter((item) => item && typeof item === 'object');
+      if (values.length) return values;
       return [];
     }
 
@@ -689,7 +695,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       const v = String(value || '').trim();
       if (!v) return '';
       if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:')) return v;
-      const base = String(API_BASE || '').replace(/\/api$/, '').replace(/\/+$/, '');
+      const base = String(window.API_BASE || '').replace(/\/api$/, '').replace(/\/+$/, '');
       if (v.startsWith('/')) return base + v;
       return `${base}/${v}`;
     }
@@ -770,7 +776,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       return { symbol: 'R$', integer: integerPart, decimal: decimalPart };
     };
 
-    const loadCartCounter = () => {
+    window.loadCartCounter = window.loadCartCounter || (() => {
       const keys = ['ariana_moveis_cart', 'arianaMoveisCart', 'cart', 'carrinho', 'cartItems', 'shoppingCart'];
       let raw = null;
       for (const k of keys) {
@@ -813,7 +819,8 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           el.classList.add('hidden');
         }
       });
-    };
+    });
+
 
     window.updateBranding = (name) => {
       const footerBrand = document.querySelector('#footer-brand');
@@ -889,7 +896,10 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 
     async function getIndexDataApi() {
       const result = await fetchFirstJson(API_CANDIDATES.indexData);
-      return result.ok ? unwrapObject(result.data) : null;
+      if (!result.ok) return null;
+      const payload = unwrapObject(result.data);
+      if (payload && (payload.products || payload.categories || payload.banners || payload.bannerSlots)) return payload;
+      return null;
     }
 
     async function getProductsApi() {
@@ -912,9 +922,12 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 
     async function getBannerBySlot(slotId) {
       const direct = await fetchFirstJson(API_CANDIDATES.bannerItem(slotId));
-      if (direct.ok) return unwrapObject(direct.data);
+      if (direct.ok) {
+        const directData = unwrapObject(direct.data);
+        if (directData) return directData;
+      }
       const banners = await getBannersApi();
-      return banners.find(b => String(b.slot || b.slotId || b.key || b.id) === String(slotId)) || null;
+      return banners.find(b => String(b.slot || b.slotId || b.key || b.id).trim() === String(slotId).trim()) || null;
     }
 
     async function getUserById(id) {
@@ -1390,7 +1403,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       __homeProductsBooted = true;
       await waitPaymentsHelpersReady();
       await loadProducts();
-      loadCartCounter();
+      window.loadCartCounter();
     }
 
     window.loadData = async () => {
@@ -1485,7 +1498,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       window.addEventListener('storage', () => {
         syncPseudoAuthFromStorage();
         updateClientStatusUI();
-        loadCartCounter();
+        window.loadCartCounter();
       });
 
       window.checkAuthAndInit();
@@ -1554,64 +1567,27 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   document.addEventListener('DOMContentLoaded', applyBannerSmartFit);
 
   </script>
-  </script>
 
 <script>
 window.addEventListener('load', () => {
   try {
-    syncHeroBannerLayout();
-    initMiniBannersCarousel();
+    if (typeof syncHeroBannerLayout === 'function') syncHeroBannerLayout();
+    if (typeof initMiniBannersCarousel === 'function') initMiniBannersCarousel();
   } catch (e) {
     console.error('Erro ao iniciar carrossel/layout dos banners:', e);
   }
 });
 </script>
 <script src="js/header_auth_fix.js" defer></script>
-<script src="./product-card_mongo_corrigido.js"></script>
-  <script src="./marketplace-core.js"></script>
-  <script src="./marketplace-core_global_payments.js"></script>
-  <script src="./footer.js"></script>
-  <script src="js/layout-fit.js" defer></script>
+<script src="./marketplace-core.js"></script>
+<script src="./marketplace-core_global_payments.js"></script>
+<script src="./footer.js"></script>
+<script src="js/layout-fit.js" defer></script>
 
-  <script>
-    const API_BASE_MONGO = "https://ariana-move-mongo.onrender.com/api";
-
-    // Função para carregar produtos do MongoDB
-    async function carregarProdutosDestaque() {
-      try {
-        const res = await fetch(`${API_BASE_MONGO}/seller/products`);
-        const produtos = await res.json();
-        const grid = document.getElementById('featured-product-grid');
-
-        if (grid && window.createProductCard && Array.isArray(produtos) && produtos.length > 0) {
-          // AQUI ESTAVA O ERRO: Limpei a crase sobrando e o HTML duplicado
-          grid.innerHTML = produtos.map(p => window.createProductCard(p)).join('');
-        }
-      } catch (e) {
-        console.error("Erro ao carregar produtos:", e);
-      }
-    }
-
-    // Função que garante o carregamento do Header
-    const iniciarHeaderAriana = () => {
-      if (typeof window.carregarHeader === "function") {
-        if (!document.querySelector("header[data-ariana='1']")) {
-          window.carregarHeader();
-          const h = document.querySelector("header");
-          if (h) h.setAttribute("data-ariana", "1");
-        }
-      } else {
-        setTimeout(iniciarHeaderAriana, 50); // Tenta de novo se o script ainda não carregou
-      }
-    };
-
-    // DISPARO ÚNICO AO CARREGAR A PÁGINA
-    window.addEventListener('load', () => {
-      iniciarHeaderAriana();
-      carregarProdutosDestaque();
-      
-      // Inicializa seus banners originais de 1600 linhas
-      if (typeof syncHeroBannerLayout === "function") syncHeroBannerLayout();
-      if (typeof initMiniBannersCarousel === "function") initMiniBannersCarousel();
-    });
-  </script>
+<script>
+  window.createProductCard = window.createProductCard || function(product) {
+    return (typeof renderProductCard === 'function') ? renderProductCard(product) : '';
+  };
+</script>
+</body>
+</html>
