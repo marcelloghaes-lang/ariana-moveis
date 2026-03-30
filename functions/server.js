@@ -1,9 +1,7 @@
-
 require('dotenv').config(); // 1º: Carrega a senha do .env primeiro!
 const connectDB = require('./config/database'); // 2º: Importa a lógica do banco
 
 connectDB(); // 3º: Agora sim, conecta usando a senha carregada
-require('dotenv').config(); // Carrega as variáveis do arquivo .env
 
 /* MIGRAÇÃO AUTOMÁTICA DE COMPATIBILIDADE: FIREBASE -> NODE/MONGO
  * Objetivo: preservar o arquivo original completo e trocar a infraestrutura base
@@ -1210,100 +1208,7 @@ function buildApp() {
   function supportCollection() { return db.collection("support_tickets"); }
   function ordersCollection() { return db.collection("orders"); }
 
-  
-  function normalizeImageEntry(img, index = 0) {
-    if (!img) return null;
-
-    if (typeof img === "string") {
-      const url = String(img).trim();
-      if (!url) return null;
-      return {
-        url,
-        name: `imagem-${index + 1}.jpg`,
-        path: "",
-        isMain: index === 0,
-      };
-    }
-
-    const url = String(img.url || img.imageUrl || img.downloadURL || img.src || "").trim();
-    if (!url) return null;
-
-    return {
-      url,
-      name: String(img.name || `imagem-${index + 1}.jpg`).trim(),
-      path: String(img.path || img.fullPath || "").trim(),
-      isMain: Boolean(img.isMain),
-      contentType: String(img.contentType || "").trim() || undefined,
-    };
-  }
-
-  function normalizeProductImages(body = {}) {
-    const rawImages = Array.isArray(body.images)
-      ? body.images
-      : (body.images && typeof body.images === "object" ? Object.values(body.images) : []);
-
-    let images = rawImages
-      .map((img, index) => normalizeImageEntry(img, index))
-      .filter(Boolean);
-
-    if (!images.length) {
-      const fallback = String(
-        body.mainImageUrl ||
-        body.imageUrl ||
-        body.image ||
-        ""
-      ).trim();
-
-      if (fallback) {
-        images = [{
-          url: fallback,
-          name: "imagem-principal.jpg",
-          path: String(body.mainImagePath || "").trim(),
-          isMain: true,
-        }];
-      }
-    }
-
-    if (images.length && !images.some((img) => img.isMain)) {
-      images[0].isMain = true;
-    }
-
-    const mainImage = images.find((img) => img.isMain) || images[0] || null;
-
-    return {
-      images,
-      imageUrls: images.map((img) => img.url).filter(Boolean),
-      imagePaths: images.map((img) => img.path).filter(Boolean),
-      mainImageUrl: mainImage ? mainImage.url : "",
-      mainImagePath: mainImage ? String(mainImage.path || "").trim() : "",
-      imageUrl: mainImage ? mainImage.url : "",
-      image: mainImage ? mainImage.url : "",
-    };
-  }
-
-  function normalizeBannerSlotKey(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function resolveHeaderCategoryBanner(banners = []) {
-    const candidates = [
-      "header_category",
-      "header-category",
-      "headerCategory",
-      "categoria_header",
-      "header_categoria",
-      "header-category-banner",
-    ].map(normalizeBannerSlotKey);
-
-    return banners.find((b) => {
-      const keys = [b?.id, b?.slot, b?.slotId, b?.key].map(normalizeBannerSlotKey);
-      return keys.some((k) => candidates.includes(k));
-    }) || null;
-  }
-
-
   function normalizeProductPayload(body = {}) {
-    const normalizedImages = normalizeProductImages(body);
     const payload = {
       name: body.name || body.nome || "",
       sku: body.sku || body.codigo || "",
@@ -1311,7 +1216,10 @@ function buildApp() {
       stock: Number(body.stock ?? body.estoque ?? 0) || 0,
       category: body.category || body.categoria || "",
       description: body.description || body.descricao || "",
-      ...normalizedImages,
+      image: body.image || body.imageUrl || body.mainImageUrl || "",
+      imageUrl: body.imageUrl || body.image || body.mainImageUrl || "",
+      mainImageUrl: body.mainImageUrl || body.imageUrl || body.image || "",
+      images: Array.isArray(body.images) ? body.images : (body.images && typeof body.images === "object" ? Object.values(body.images) : []),
       pesoKg: Number(body.pesoKg ?? body.weight ?? 0) || 0,
       comprimento: Number(body.comprimento ?? body.length ?? 0) || 0,
       largura: Number(body.largura ?? body.width ?? 0) || 0,
@@ -1700,12 +1608,7 @@ function buildApp() {
           .filter(([k]) => !!k)
       );
 
-      res.json({
-        items: banners,
-        banners,
-        keyed,
-        bySlot: keyed
-      });
+      res.json(keyed);
     } catch (err) {
       console.error("[banners:get]", err);
       res.status(500).json({ error: err.message || "Erro ao buscar banners" });
@@ -1844,22 +1747,6 @@ function buildApp() {
     }
   });
 
-
-  app.get([
-    "/header_category_banner",
-    "/api/header_category_banner",
-    "/home/header_category_banner",
-    "/api/home/header_category_banner"
-  ], async (_req, res) => {
-    try {
-      const banners = await listCollection("banners");
-      return res.json(resolveHeaderCategoryBanner(banners));
-    } catch (err) {
-      console.error("[header_category_banner:get]", err);
-      return res.status(500).json({ error: err.message || "Erro ao buscar banner de header de categoria" });
-    }
-  });
-
   app.get([
     "/products",
     "/api/products",
@@ -1915,7 +1802,6 @@ function buildApp() {
         categories,
         banners,
         bannerSlots: banners,
-        headerCategoryBanner: resolveHeaderCategoryBanner(banners),
       });
     } catch (err) {
       console.error("[index-data:get]", err);
@@ -5485,8 +5371,16 @@ async function quoteTransportadoras(_payload) {
     const email = String(decoded.email || "").trim().toLowerCase();
     const uid = String(decoded.uid || decoded.id || decoded.sub || "").trim();
 
-    if (decoded.role === "admin") {
-      return { uid, email, role: "admin" };
+    if (decoded.role === "admin" || decoded.admin === true) {
+      return {
+        uid: uid || "admin",
+        id: uid || "admin",
+        email,
+        role: "admin",
+        admin: true,
+        active: decoded.active !== false,
+        name: decoded.name || "Admin"
+      };
     }
 
     if (email) {
@@ -5504,7 +5398,17 @@ async function quoteTransportadoras(_payload) {
     }
 
     const envEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-    if (envEmail && email === envEmail) return { uid: uid || "env-admin", email, role: "admin" };
+    if (envEmail && email === envEmail) {
+      return {
+        uid: uid || "env-admin",
+        id: uid || "env-admin",
+        email,
+        role: "admin",
+        admin: true,
+        active: true,
+        name: "Admin"
+      };
+    }
 
     return null;
   }
@@ -5763,23 +5667,15 @@ async function quoteTransportadoras(_payload) {
       let adminDoc = null;
       const envEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
       const envPassword = String(process.env.ADMIN_PASSWORD || "").trim();
-      const defaultAdminEmail = "admin@exemplo.com";
-      const defaultAdminPassword = "123456";
 
       if (envEmail && envPassword && email === envEmail && password === envPassword) {
         adminDoc = { id: "env-admin", email, role: "admin", name: "Admin" };
-      } else if (email === defaultAdminEmail && password === defaultAdminPassword) {
-        adminDoc = { id: "default-admin", email, role: "admin", name: "Admin" };
       } else {
         const adminSnap = await adminsCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
         if (adminSnap && !adminSnap.empty) {
           const doc = adminSnap.docs[0];
           const data = doc.data() || {};
-          if (
-            comparePassword(password, data.passwordHash || data.password || "") ||
-            String(data.password || "") === password ||
-            String(data.senha || "") === password
-          ) {
+          if (comparePassword(password, data.passwordHash || data.password || "")) {
             adminDoc = { id: doc.id, email, role: "admin", ...(data || {}) };
           }
         }
@@ -5788,39 +5684,33 @@ async function quoteTransportadoras(_payload) {
           if (userSnap && !userSnap.empty) {
             const doc = userSnap.docs[0];
             const data = doc.data() || {};
-            if (
-              (data.role === "admin" || data.admin === true) &&
-              (
-                comparePassword(password, data.passwordHash || data.password || "") ||
-                String(data.password || "") === password ||
-                String(data.senha || "") === password
-              )
-            ) {
+            if ((data.role === "admin" || data.admin === true) && comparePassword(password, data.passwordHash || data.password || "")) {
               adminDoc = { id: doc.id, email, role: "admin", ...(data || {}) };
             }
           }
         }
       }
 
-      if (!adminDoc) {
-        adminDoc = {
-          id: "bootstrap-admin",
-          email,
-          role: "admin",
-          name: "Admin"
-        };
-      }
-
-      const token = signJwt({ uid: adminDoc.id, email: adminDoc.email || email, role: "admin" });
-      const user = {
+      if (!adminDoc) return res.status(401).json({ ok: false, error: "invalid_admin_credentials" });
+      const token = signJwt({
+        uid: adminDoc.id,
+        id: adminDoc.id,
+        email: adminDoc.email,
+        role: "admin",
+        admin: true,
+        active: adminDoc.active !== false,
+        name: adminDoc.name || "Admin"
+      });
+      const safeUser = {
         id: adminDoc.id,
         uid: adminDoc.id,
-        email: adminDoc.email || email,
+        email: adminDoc.email,
         role: "admin",
-        name: adminDoc.name || adminDoc.nome || "Admin",
-        active: adminDoc.active !== false
+        admin: true,
+        active: adminDoc.active !== false,
+        name: adminDoc.name || "Admin"
       };
-      return res.json({ ok: true, token, id: user.id, email: user.email, name: user.name, role: user.role, active: user.active, user });
+      return res.json({ ok: true, token, ...safeUser, user: safeUser });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error?.message || "admin_login_failed" });
     }
@@ -5828,7 +5718,9 @@ async function quoteTransportadoras(_payload) {
 
 
   // ================= ADMIN API COMPATÍVEL COM O PAINEL =================
-  app.get("/admin/:collection", async (req, res) => {
+  app.get("/admin/:collection", async (req, res, next) => {
+    const reservedAdminCollections = new Set(["me", "login", "notifications", "uploads"]);
+    if (reservedAdminCollections.has(String(req.params.collection || "").trim().toLowerCase())) return next();
     try {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
@@ -5870,7 +5762,9 @@ async function quoteTransportadoras(_payload) {
     }
   });
 
-  app.get("/admin/:collection/:id", async (req, res) => {
+  app.get("/admin/:collection/:id", async (req, res, next) => {
+    const reservedAdminCollections = new Set(["me", "login", "notifications", "uploads"]);
+    if (reservedAdminCollections.has(String(req.params.collection || "").trim().toLowerCase())) return next();
     try {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
@@ -5955,19 +5849,75 @@ async function quoteTransportadoras(_payload) {
   });
 
 
+
+  app.get("/admin/notifications", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      return res.json({ ok: true, items: [], notifications: [] });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "admin_notifications_failed" });
+    }
+  });
+
+
+  app.get("/admin/configuracoes/contatos", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const snap = await db.collection("settings").doc("contatos").get();
+      const data = snap.exists ? (snap.data() || {}) : {};
+      return res.json({ id: "contatos", ...data });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "contatos_get_failed" });
+    }
+  });
+
+  app.put("/admin/configuracoes/contatos", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const payload = {
+        ...(req.body || {}),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      await db.collection("settings").doc("contatos").set(payload, { merge: true });
+      const snap = await db.collection("settings").doc("contatos").get();
+      return res.json({ ok: true, id: "contatos", ...(snap.data() || {}) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "contatos_put_failed" });
+    }
+  });
+
+  app.patch("/admin/configuracoes/contatos", async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+      const payload = {
+        ...(req.body || {}),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      await db.collection("settings").doc("contatos").set(payload, { merge: true });
+      const snap = await db.collection("settings").doc("contatos").get();
+      return res.json({ ok: true, id: "contatos", ...(snap.data() || {}) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "contatos_patch_failed" });
+    }
+  });
+
   app.get("/admin/me", async (req, res) => {
     try {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
-      const user = {
+      const safeUser = {
         id: adminUser.id || adminUser.uid || "admin",
         uid: adminUser.uid || adminUser.id || "admin",
         email: adminUser.email || "",
-        role: "admin",
-        name: adminUser.name || adminUser.nome || "Admin",
+        role: adminUser.role || "admin",
+        name: adminUser.name || "Admin",
         active: adminUser.active !== false
       };
-      return res.json({ ok: true, admin: true, id: user.id, uid: user.uid, email: user.email, name: user.name, role: user.role, active: user.active, user });
+      return res.json({ ok: true, admin: true, ...safeUser, user: safeUser });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error?.message || "admin_me_failed" });
     }
@@ -6609,6 +6559,74 @@ async function quoteTransportadoras(_payload) {
       return res.json({ ok: true, items });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error?.message || "products_list_failed" });
+    }
+  });
+
+
+  // HOME / INDEX COMPAT
+  app.get("/home", async (_req, res) => {
+    try {
+      const banners = await listCollection("banners");
+      const products = await listCollection("products");
+      const categories = await listCollection("categories");
+      return res.json({ ok: true, banners, products, categories });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "home_failed" });
+    }
+  });
+
+  app.get("/index-data", async (_req, res) => {
+    try {
+      const banners = await listCollection("banners");
+      const products = await listCollection("products");
+      const categories = await listCollection("categories");
+      return res.json({
+        ok: true,
+        products,
+        categories,
+        banners,
+        bannerSlots: banners,
+        headerCategoryBanner: banners.find((b) => {
+          const slot = String(b?.slot || b?.id || b?.key || "").trim().toLowerCase();
+          return ["header_category", "header-category", "header_categoria", "categoria_header"].includes(slot);
+        }) || null
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "index_data_failed" });
+    }
+  });
+
+  app.get("/home/index-data", async (_req, res) => {
+    try {
+      const banners = await listCollection("banners");
+      const products = await listCollection("products");
+      const categories = await listCollection("categories");
+      return res.json({
+        ok: true,
+        products,
+        categories,
+        banners,
+        bannerSlots: banners,
+        headerCategoryBanner: banners.find((b) => {
+          const slot = String(b?.slot || b?.id || b?.key || "").trim().toLowerCase();
+          return ["header_category", "header-category", "header_categoria", "categoria_header"].includes(slot);
+        }) || null
+      });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "home_index_data_failed" });
+    }
+  });
+
+  app.get("/header_category_banner", async (_req, res) => {
+    try {
+      const banners = await listCollection("banners");
+      const item = banners.find((b) => {
+        const slot = String(b?.slot || b?.id || b?.key || "").trim().toLowerCase();
+        return ["header_category", "header-category", "header_categoria", "categoria_header"].includes(slot);
+      }) || null;
+      return res.json(item);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "header_category_banner_failed" });
     }
   });
 
