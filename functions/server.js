@@ -1,3 +1,22 @@
+const express = require('express');
+const cors = require('cors'); // 1. Importa o segurança
+const app = express();
+
+// 2. CONFIGURAÇÃO DO SEGURANÇA (CORS)
+// Isso aqui libera para o seu site carregar imagens e banners sem erro
+app.use(cors({
+    origin: '*', // Permite qualquer site (resolve o erro de localhost e render)
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json()); // Para o servidor entender o que você envia
+
+// LIBERA O ACESSO PARA O SEU SITE (Essencial para parar o erro de "Blocked by CORS")
+app.use(cors()); 
+
+// ... resto do seu código (app.use(express.json()), rotas, etc.)
+
 require('dotenv').config(); // 1º: Carrega a senha do .env primeiro!
 const connectDB = require('./config/database'); // 2º: Importa a lógica do banco
 
@@ -1083,6 +1102,8 @@ function buildApp() {
   const axios = require("axios");
   const crypto = require("crypto");
   const multer = require("multer");
+  const fs = require("fs");
+  const path = require("path");
 
   if (admin.apps.length === 0) admin.initializeApp();
 
@@ -1112,6 +1133,79 @@ function buildApp() {
   });
 
   const db = admin.firestore();
+  const PUBLIC_DIR = path.join(process.cwd(), "public");
+  const UPLOADS_DIR = path.join(PUBLIC_DIR, "uploads");
+  try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (_) {}
+
+  app.use("/uploads", express.static(UPLOADS_DIR, {
+    maxAge: "7d",
+    etag: true,
+    setHeaders: (res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    }
+  }));
+
+  function uploadsBaseUrl(req) {
+    const proto = (req.get("x-forwarded-proto") || req.protocol || "http").split(",")[0].trim();
+    const host = (req.get("x-forwarded-host") || req.get("host") || "localhost:3000").split(",")[0].trim();
+    return `${proto}://${host}`;
+  }
+
+  function sanitizeFileName(name = "") {
+    const raw = String(name || "arquivo")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return raw || `arquivo_${Date.now()}`;
+  }
+
+  async function saveUploadFile(req, file, folder = "geral") {
+    if (!file || !file.buffer) return null;
+    const extFromMime = String(file.mimetype || "image/png").includes("png") ? ".png"
+      : String(file.mimetype || "").includes("jpeg") || String(file.mimetype || "").includes("jpg") ? ".jpg"
+      : String(file.mimetype || "").includes("webp") ? ".webp"
+      : String(file.mimetype || "").includes("gif") ? ".gif"
+      : ".bin";
+    const original = sanitizeFileName((file.originalname || "").replace(/\.[^.]+$/, "")) || `upload_${Date.now()}`;
+    const folderName = sanitizeFileName(folder || "geral");
+    const fileName = `${Date.now()}_${original}${extFromMime}`;
+    const targetDir = path.join(UPLOADS_DIR, folderName);
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    const fullPath = path.join(targetDir, fileName);
+    await fs.promises.writeFile(fullPath, file.buffer);
+    const relPath = `/uploads/${folderName}/${fileName}`;
+    const absoluteUrl = `${uploadsBaseUrl(req)}${relPath}`;
+    return {
+      path: relPath,
+      url: absoluteUrl,
+      imageUrl: absoluteUrl,
+      downloadURL: absoluteUrl,
+      filePath: relPath,
+      filename: fileName
+    };
+  }
+
+  function normalizeImageArray(items = [], req = null) {
+    const base = req ? uploadsBaseUrl(req) : "";
+    return (Array.isArray(items) ? items : []).map((item, idx) => {
+      if (typeof item === "string") {
+        const raw = String(item || "").trim();
+        const finalUrl = raw.startsWith("/uploads/") && base ? `${base}${raw}` : raw;
+        return { name: `imagem_${idx+1}`, url: finalUrl, path: raw.startsWith("/uploads/") ? raw : undefined, isMain: idx === 0 };
+      }
+      const rawUrl = String(item?.url || item?.imageUrl || item?.src || "").trim();
+      const finalUrl = rawUrl.startsWith("/uploads/") && base ? `${base}${rawUrl}` : rawUrl;
+      return {
+        ...item,
+        url: finalUrl,
+        imageUrl: finalUrl,
+        path: item?.path || (rawUrl.startsWith("/uploads/") ? rawUrl : undefined),
+        isMain: item?.isMain === true || idx === 0
+      };
+    }).filter(Boolean);
+  }
 
   app.get("/api/admin/stats", async (_req, res) => {
     try {
@@ -1208,7 +1302,17 @@ function buildApp() {
   function supportCollection() { return db.collection("support_tickets"); }
   function ordersCollection() { return db.collection("orders"); }
 
-  function normalizeProductPayload(body = {}) {
+  function normalizeProductPayload(body = {}, req = null) {
+    const rawImages = Array.isArray(body.images)
+      ? body.images
+      : (body.images && typeof body.images === "object" ? Object.values(body.images) : []);
+
+    const normalizedImages = normalizeImageArray(rawImages, req);
+    const pickMain = normalizedImages.find((img) => img && img.isMain) || normalizedImages[0] || null;
+
+    const imageValue = String(body.imageUrl || body.image || body.mainImageUrl || pickMain?.url || "").trim();
+    const mainValue = String(body.mainImageUrl || body.imageUrl || body.image || pickMain?.url || "").trim();
+
     const payload = {
       name: body.name || body.nome || "",
       sku: body.sku || body.codigo || "",
@@ -1216,15 +1320,16 @@ function buildApp() {
       stock: Number(body.stock ?? body.estoque ?? 0) || 0,
       category: body.category || body.categoria || "",
       description: body.description || body.descricao || "",
-      image: body.image || body.imageUrl || body.mainImageUrl || "",
-      imageUrl: body.imageUrl || body.image || body.mainImageUrl || "",
-      mainImageUrl: body.mainImageUrl || body.imageUrl || body.image || "",
-      images: Array.isArray(body.images) ? body.images : (body.images && typeof body.images === "object" ? Object.values(body.images) : []),
+      image: imageValue,
+      imageUrl: imageValue,
+      mainImageUrl: mainValue,
+      images: normalizedImages,
       pesoKg: Number(body.pesoKg ?? body.weight ?? 0) || 0,
       comprimento: Number(body.comprimento ?? body.length ?? 0) || 0,
       largura: Number(body.largura ?? body.width ?? 0) || 0,
       altura: Number(body.altura ?? body.height ?? 0) || 0,
       sellerId: String(body.sellerId || body.seller_id || body.partner_request_id || "").trim() || null,
+      sellerName: String(body.sellerName || body.seller_name || "").trim() || null,
       active: body.active !== false,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -1349,7 +1454,7 @@ function buildApp() {
   app.post("/seller/products", async (req, res) => {
     try {
       const ref = productCollection().doc();
-      const payload = normalizeProductPayload(req.body || {});
+      const payload = normalizeProductPayload(req.body || {}, req);
       payload.createdAt = admin.firestore.FieldValue.serverTimestamp();
       await ref.set({ id: ref.id, ...payload }, { merge: true });
       const snap = await ref.get();
@@ -1376,7 +1481,7 @@ function buildApp() {
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ error: "Produto não encontrado" });
       const existing = snap.data() || {};
-      const payload = { ...existing, ...normalizeProductPayload({ ...existing, ...(req.body || {}) }) };
+      const payload = { ...existing, ...normalizeProductPayload({ ...existing, ...(req.body || {}) }, req) };
       await ref.set({ ...payload, id: ref.id }, { merge: true });
       const updated = await ref.get();
       res.json({ ok: true, product: snapData(updated) });
@@ -1550,7 +1655,19 @@ function buildApp() {
 
   app.get("/seller/:id", async (req, res) => {
     try {
-      const snap = await sellerCollection().doc(String(req.params.id)).get();
+      const sellerId = String(req.params.id || "").trim();
+      if (/^(ArianaMoveis|admin)$/i.test(sellerId)) {
+        return res.json({
+          id: "ArianaMoveis",
+          name: "Ariana Móveis",
+          factoryName: "Ariana Móveis",
+          storeName: "Ariana Móveis",
+          slug: "ariana-moveis",
+          active: true,
+          verified: true
+        });
+      }
+      const snap = await sellerCollection().doc(sellerId).get();
       const seller = snapData(snap);
       if (!seller) return res.status(404).json({ error: "Seller não encontrado" });
       res.json(seller);
@@ -1602,18 +1719,42 @@ function buildApp() {
         return res.json(found || null);
       }
 
-      const keyed = Object.fromEntries(
-        banners
-          .map((b) => [String(b?.id || b?.slot || b?.slotId || b?.key || "").trim(), b])
-          .filter(([k]) => !!k)
-      );
-
-      res.json(keyed);
+      res.json(banners);
     } catch (err) {
       console.error("[banners:get]", err);
       res.status(500).json({ error: err.message || "Erro ao buscar banners" });
     }
   });
+
+  app.get(["/banners/:slot", "/api/banners/:slot"], async (req, res) => {
+    try {
+      const slot = String(req.params.slot || "").trim();
+      const banners = await listCollection("banners");
+      const found = banners.find((b) => {
+        const keys = [b?.id, b?.slot, b?.slotId, b?.key, b?.slug, b?.tipo];
+        return keys.some((value) => String(value || "").trim() === slot);
+      });
+      if (!found) return res.status(404).json({ error: "Banner não encontrado" });
+      return res.json(found);
+    } catch (err) {
+      console.error("[banners:slot]", err);
+      return res.status(500).json({ error: err.message || "Erro ao buscar banner" });
+    }
+  });
+
+  app.get(["/header_category_banner", "/api/header_category_banner", "/banners/header_category_banner", "/api/banners/header_category_banner"], async (_req, res) => {
+    try {
+      const banners = await listCollection("banners");
+      const item = banners.find((b) => {
+        const slot = String(b?.slot || b?.slotId || b?.id || b?.key || b?.slug || "").trim().toLowerCase();
+        return ["header_category_banner","header_category","header-category","header_categoria","categoria_header"].includes(slot);
+      }) || null;
+      return res.json(item);
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || "header_category_banner_failed" });
+    }
+  });
+
 
   app.post(["/banners", "/api/banners"], async (req, res) => {
     try {
@@ -1660,16 +1801,12 @@ function buildApp() {
 
   app.post(["/upload", "/api/upload", "/banners/upload", "/api/banners/upload"], upload.single("file"), async (req, res) => {
     try {
-      let dataUrl = "";
-
       if (req.file && req.file.buffer) {
-        const mime = String(req.file.mimetype || "image/png").trim() || "image/png";
-        const base64 = req.file.buffer.toString("base64");
-        dataUrl = `data:${mime};base64,${base64}`;
-      } else {
-        dataUrl = toDataUrlFromBody(req.body || {});
+        const saved = await saveUploadFile(req, req.file, "public");
+        return res.json({ ok: true, ...saved });
       }
 
+      const dataUrl = toDataUrlFromBody(req.body || {});
       if (!dataUrl) {
         return res.status(400).json({ error: "Arquivo ou imageBase64 obrigatório" });
       }
@@ -1678,7 +1815,7 @@ function buildApp() {
         ok: true,
         url: dataUrl,
         imageUrl: dataUrl,
-        filename: (req.file && req.file.originalname) ? req.file.originalname : null
+        filename: null
       });
     } catch (err) {
       console.error("[banners:upload]", err);
@@ -1686,7 +1823,34 @@ function buildApp() {
     }
   });
 
+  // --- ROTA PARA BUSCAR CONFIGURAÇÕES (IMPEDE O RESET) ---
+app.get('/api/admin/configuracoes/:id', async (req, res) => {
+    try {
+        const db = await __compatGetMongoDb();
+        const config = await db.collection('settings').findOne({ id: req.params.id });
+        // Se não achar nada, retorna um objeto vazio para não dar erro no painel
+        res.json(config || { id: req.params.id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
+// --- ROTA PARA SALVAR CONFIGURAÇÕES ---
+app.post('/api/admin/configuracoes/:id', async (req, res) => {
+    try {
+        const db = await __compatGetMongoDb();
+        const data = req.body;
+        // Salva ou atualiza os dados usando o ID (ex: 'contatos')
+        await db.collection('settings').updateOne(
+            { id: req.params.id },
+            { $set: { ...data, updatedAt: new Date() } },
+            { upsert: true }
+        );
+        res.json({ success: true, message: "Configuração salva com sucesso!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
   app.get([
     "/banners/:id",
@@ -5665,53 +5829,70 @@ async function quoteTransportadoras(_payload) {
       if (!email || !password) return res.status(400).json({ ok: false, error: "email_password_required" });
 
       let adminDoc = null;
-      const envEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-      const envPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+      const envEmail = String(process.env.ADMIN_EMAIL || process.env.ADMIN_LOGIN || "").trim().toLowerCase();
+      const envPassword = String(process.env.ADMIN_PASSWORD || process.env.ADMIN_PASS || "").trim();
+      const envName = String(process.env.ADMIN_NAME || "Marcelo").trim() || "Marcelo";
 
       if (envEmail && envPassword && email === envEmail && password === envPassword) {
-        adminDoc = { id: "env-admin", email, role: "admin", name: "Admin" };
+        adminDoc = { id: "env-admin", email, role: "admin", name: envName, active: true, admin: true };
       } else {
         const adminSnap = await adminsCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
         if (adminSnap && !adminSnap.empty) {
           const doc = adminSnap.docs[0];
           const data = doc.data() || {};
-          if (comparePassword(password, data.passwordHash || data.password || "")) {
-            adminDoc = { id: doc.id, email, role: "admin", ...(data || {}) };
+          const savedPassword = data.passwordHash || data.password || data.senhaHash || data.senha || "";
+          if (comparePassword(password, savedPassword)) {
+            adminDoc = { ...(data || {}), id: doc.id, email: data.email || email, role: "admin", name: data.name || data.nome || envName };
           }
         }
+
         if (!adminDoc) {
           const userSnap = await usersCollection().where("email", "==", email).limit(1).get().catch(() => ({ empty: true }));
           if (userSnap && !userSnap.empty) {
             const doc = userSnap.docs[0];
             const data = doc.data() || {};
-            if ((data.role === "admin" || data.admin === true) && comparePassword(password, data.passwordHash || data.password || "")) {
-              adminDoc = { id: doc.id, email, role: "admin", ...(data || {}) };
+            const savedPassword = data.passwordHash || data.password || data.senhaHash || data.senha || "";
+            const isAdminRole = String(data.role || "").toLowerCase() === "admin" || data.admin === true;
+            if (isAdminRole && comparePassword(password, savedPassword)) {
+              adminDoc = { ...(data || {}), id: doc.id, email: data.email || email, role: "admin", name: data.name || data.nome || envName };
             }
           }
         }
       }
 
-      if (!adminDoc) return res.status(401).json({ ok: false, error: "invalid_admin_credentials" });
-      const token = signJwt({
-        uid: adminDoc.id,
-        id: adminDoc.id,
-        email: adminDoc.email,
-        role: "admin",
-        admin: true,
-        active: adminDoc.active !== false,
-        name: adminDoc.name || "Admin"
-      });
+      if (!adminDoc) {
+        return res.status(401).json({
+          ok: false,
+          error: "invalid_admin_credentials",
+          message: "E-mail ou senha de administrador inválidos. Confira o .env (ADMIN_EMAIL e ADMIN_PASSWORD) ou o usuário admin salvo no banco."
+        });
+      }
+
       const safeUser = {
-        id: adminDoc.id,
-        uid: adminDoc.id,
-        email: adminDoc.email,
+        id: String(adminDoc.id || adminDoc._id || "env-admin"),
+        uid: String(adminDoc.id || adminDoc._id || "env-admin"),
+        userId: String(adminDoc.id || adminDoc._id || "env-admin"),
+        email: String(adminDoc.email || email),
         role: "admin",
         admin: true,
         active: adminDoc.active !== false,
-        name: adminDoc.name || "Admin"
+        name: String(adminDoc.name || adminDoc.nome || envName || "Marcelo")
       };
+
+      const token = signJwt({
+        uid: safeUser.uid,
+        id: safeUser.id,
+        userId: safeUser.userId,
+        email: safeUser.email,
+        role: "admin",
+        admin: true,
+        active: safeUser.active,
+        name: safeUser.name
+      });
+
       return res.json({ ok: true, token, ...safeUser, user: safeUser });
     } catch (error) {
+      console.error("[admin/login]", error);
       return res.status(500).json({ ok: false, error: error?.message || "admin_login_failed" });
     }
   });
@@ -5814,18 +5995,16 @@ async function quoteTransportadoras(_payload) {
       const adminUser = await requireAdmin(req, res);
       if (!adminUser) return;
 
-      let dataUrl = "";
       if (req.file && req.file.buffer) {
-        const mime = String(req.file.mimetype || "image/png").trim() || "image/png";
-        const base64 = req.file.buffer.toString("base64");
-        dataUrl = `data:${mime};base64,${base64}`;
-      } else {
-        dataUrl = toDataUrlFromBody(req.body || {});
+        const folder = String(req.body?.path || "admin").split("/").filter(Boolean)[0] || "admin";
+        const saved = await saveUploadFile(req, req.file, folder);
+        return res.json({ ok: true, ...saved });
       }
 
+      const dataUrl = toDataUrlFromBody(req.body || {});
       if (!dataUrl) return res.status(400).json({ ok: false, error: "file_required" });
 
-      const pathValue = String(req.body?.path || req.file?.originalname || `upload_${Date.now()}`).trim();
+      const pathValue = String(req.body?.path || `upload_${Date.now()}`).trim();
       return res.json({
         ok: true,
         url: dataUrl,
