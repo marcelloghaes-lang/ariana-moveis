@@ -10,6 +10,28 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
+<script>
+window.API_BASE =
+  (location.hostname === "127.0.0.1" || location.hostname === "localhost")
+    ? "" + window.API_BASE + ""
+    : "https://ariana-move-mongo.onrender.com/api";
+window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+try {
+  localStorage.setItem("API_BASE", window.API_BASE);
+  localStorage.setItem("API_BASE_URL", window.API_BASE);
+} catch(_e) {}
+
+window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+  const raw = String(value || '').trim();
+  if (!raw || raw.includes('${')) return '';
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+  if (raw.startsWith('/')) return window.API_ORIGIN + raw;
+  return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
+};
+</script>
+
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
@@ -42,11 +64,7 @@ Ver ofertas hoje
 <div id="footer-container"></div>
 
 <script>
-const API =
-  localStorage.getItem("API_BASE") ||
-  window.API_BASE ||
-  "https://ariana-move-mongo.onrender.com/api";
-
+const API = window.API_BASE;
 window.API_BASE = API;
 
 const favoritesListEl = document.getElementById('favorites-list');
@@ -75,7 +93,7 @@ localStorage.setItem("favorites", JSON.stringify(list));
 // ========================
 window.removeFavorite = function(id){
 let favs = getFavorites();
-favs = favs.filter(f => f !== id);
+favs = favs.filter(f => String(f) !== String(id));
 saveFavorites(favs);
 loadFavorites();
 };

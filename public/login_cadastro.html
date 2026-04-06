@@ -6,157 +6,743 @@
   <title>Login / Cadastro | ARIANA MOVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="icon" href="https://placehold.co/16x16/2E6DA4/ffffff?text=AM" type="image/png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <link rel="icon" type="image/png" href="./favicon.png">
+
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'secondary-light-blue': '#56B5FF',
+            'text-dark': '#333333',
+            'fundo': '#f8f8f8',
+            'error-red': '#D63B3B',
+          },
+          animation: {
+              'fade-in': 'fadeIn 0.5s ease-out',
+          },
+          keyframes: {
+              fadeIn: {
+                  '0%': { opacity: '0', transform: 'translateY(-10px)' },
+                  '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
+          },
+          maxWidth: { 
+            '8xl': '1440px',
+            '9xl': '1600px', 
+          }, 
+        }
+      }
+    }
+  </script>
 
   <style>
-    body { font-family: 'Inter', sans-serif; background:#f8f8f8; }
-
-    .tab-content { display:none; }
-    .tab-content.active { display:block; }
-
-    .tab-button.active {
-      border-bottom:3px solid #2E6DA4;
-      color:#2E6DA4;
-      font-weight:700;
+    /* Estilo para o contador do carrinho no header (igual ao template) */
+    .contador-carrinho {
+        position: absolute;
+        top: -5px;
+        right: -10px;
+        background-color: theme('colors.primary-blue');
+        color: white;
+        border-radius: 9999px;  
+        padding: 0 6px;
+        font-size: 0.7em;
+        line-height: 1.5;  
+        font-weight: bold;
+        display: flex; 
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        display: none; /* Inicialmente oculto por CSS */
     }
+    
+    .tab-content {
+        display: none;
+    }
+    .tab-content.active {
+        display: block;
+        animation: fade-in 0.5s ease-out;
+    }
+    .tab-button.active {
+        border-bottom: 3px solid theme('colors.primary-blue');
+        color: theme('colors.primary-blue');
+        font-weight: 600;
+    }
+
+    /* ... Seu CSS original (contador-carrinho, tab-button) ... */
+        .contador-carrinho {
+            position: absolute;
+            top: -5px;
+            right: -10px;
+            background-color: theme('colors.primary-blue');
+            color: white;
+            border-radius: 9999px;  
+            padding: 0 6px;
+            font-size: 0.7em;
+            line-height: 1.5;  
+            font-weight: bold;
+            display: flex; 
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            display: none; 
+        }
+        .tab-button {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+            color: theme('colors.text-dark');
+            transition: all 0.2s;
+        }
+
+        .tab-button.active {
+            border-left-color: theme('colors.primary-blue');
+            background-color: theme('colors.fundo');
+            font-weight: 700;
+            color: theme('colors.primary-blue');
+        }
+        .tab-button:hover:not(.active) {
+             background-color: theme('colors.fundo');
+        }
+
+        /* ESTILO: AMBIENTE SEGURO (Ajustado) */
+        .ambiente-seguro-final {
+            background-color: transparent; 
+            display: flex;
+            align-items: center; 
+            padding: 0; 
+            width: fit-content; 
+            font-family: Arial, sans-serif; 
+        }
+        
+        .icone-escudo-final {
+            /* AUMENTO DE TAMANHO (Icone do Ambiente Seguro) */
+            width: 55px; /* Aumentado de 45px */
+            height: 55px; /* Aumentado de 45px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px; /* Aumentado o espaço */
+            flex-shrink: 0; 
+        }
+        
+        .icone-escudo-final svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .texto-seguro-final {
+            /* AUMENTO DE TAMANHO (Texto Ambiente Seguro) */
+            color: #ffffff; 
+            font-size: 16px; /* Aumentado de 14px */
+            line-height: 1.1; 
+            text-transform: uppercase;
+            text-align: left;
+            white-space: nowrap; 
+        }
+        
+        .texto-seguro-final strong {
+            /* AUMENTO DE TAMANHO (Texto SEGURO) */
+            font-size: 20px; /* Aumentado de 16px */
+            font-weight: 700;
+            color: #ffffff; 
+            display: block; 
+        }
+        
+        /* ESTILO: VOLTAR PARA A LOJA (Ajustado e Maior) */
+        .voltar-loja-ajustado {
+            display: inline-flex;
+            align-items: center;
+            
+            color: #ffffff; 
+            font-family: 'Inter', sans-serif; 
+            /* AUMENTO DE TAMANHO (Texto VOLTAR PARA A LOJA) */
+            font-size: 16px; /* Aumentado de 12px */
+            font-weight: 500;
+            text-transform: uppercase;
+            text-decoration: none;
+            
+            cursor: pointer; 
+            padding: 5px;
+            width: fit-content;
+        }
+
+        .icone-seta-ajustado {
+            /* AUMENTO DE TAMANHO (Seta) */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px; /* Aumentado de 10px */
+            height: 14px; /* Aumentado de 10px */
+            margin-right: 8px; /* Aumentado o espaço */
+            overflow: visible; 
+        }
+
+        .icone-seta-ajustado svg {
+            width: 100%;
+            height: 100%;
+            stroke: #ffffff; 
+            stroke-width: 3; /* Ajustado para manter a espessura ideal */
+        }
+
+        .voltar-loja-ajustado:hover {
+            color: #d1d5db; 
+        }
+        .voltar-loja-ajustado:hover .icone-seta-ajustado svg {
+            stroke: #d1d5db;
+        }
+        /* Fim das alterações de estilo */
   </style>
-</head>
 
-<body>
-
-<div class="flex justify-center items-center min-h-screen px-4">
-  <div class="w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden">
-
-    <div id="message" class="p-3 text-center text-sm font-bold hidden"></div>
-
-    <!-- TABS -->
-    <div class="flex border-b">
-      <button class="tab-button active flex-1 p-4" data-tab="login">Entrar</button>
-      <button class="tab-button flex-1 p-4" data-tab="register">Cadastrar</button>
+  <header class="bg-[#2E6DA4] py-10 shadow-lg mb-8">
+    <div class="max-w-md mx-auto text-center">
+        <h1 class="text-4xl font-black tracking-tighter text-white">
+            ARIANA<span class="text-blue-100 font-light">MÓVEIS</span>
+        </h1>
+        <div class="flex items-center justify-center gap-2 mt-2">
+            <span class="h-px w-8 bg-yellow-400"></span>
+            <p class="text-[10px] uppercase tracking-[0.4em] text-blue-50 font-bold">Qualidade em cada detalhe</p>
+            <span class="h-px w-8 bg-yellow-400"></span>
+        </div>
     </div>
+</header>
 
-    <!-- LOGIN -->
-    <div id="tab-login" class="tab-content active p-6">
-      <h2 class="text-xl font-bold mb-4 text-center">Entrar</h2>
+<div class="w-full h-2 bg-gradient-to-r from-[#2E6DA4] via-[#F1C40F] to-[#2E6DA4]"></div>
 
-      <form id="login-form" class="space-y-4">
-        <input type="email" id="login-email" placeholder="E-mail" class="w-full border p-3 rounded" required>
-        <input type="password" id="login-password" placeholder="Senha" class="w-full border p-3 rounded" required>
+<main class="flex justify-center items-start py-12 px-4">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
+        
+        <div id="message-container" class="fixed top-20 right-5 z-50 w-72">
+            </div>
 
-        <button class="w-full bg-blue-600 text-white p-3 rounded font-bold">
-          Entrar
-        </button>
-      </form>
+        <div class="flex border-b border-gray-200">
+            <button id="tab-login-btn" class="tab-button active flex-1 py-4 text-center text-lg transition-colors" data-tab="login">
+                Entrar
+            </button>
+            <button id="tab-register-btn" class="tab-button flex-1 py-4 text-center text-lg transition-colors" data-tab="register">
+                Cadastrar
+            </button>
+        </div>
+
+        <div id="tab-login" class="tab-content active p-8">
+            <h2 class="text-3xl font-bold text-center text-primary-blue mb-6">Acesso Cliente</h2>
+            
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="login-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                    <input type="email" id="login-email" name="email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required>
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="login-password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required minlength="6">
+                </div>
+                
+                <a href="#" id="forgot-password-link" class="text-sm text-primary-blue hover:text-secondary-light-blue transition-colors block text-right">Esqueceu a senha?</a>
+                
+                <button type="submit" id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-primary-blue hover:bg-dark-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-blue transition-colors">
+                    Entrar
+                </button>
+            </form>
+
+            <div class="mt-6 text-center">
+                <p class="text-sm text-gray-500 mb-3">ou entre com</p>
+                <button id="google-login-btn" type="button" class="w-full py-3 px-4 border border-gray-300 rounded-md shadow-sm text-base font-medium text-text-dark bg-white hover:bg-gray-50 transition-colors flex items-center justify-center">
+                    <i class="fab fa-google mr-3"></i> Entrar com Google
+                </button>
+            </div>
+        </div>
+
+        <div id="tab-register" class="tab-content p-8">
+            <h2 class="text-3xl font-bold text-center text-primary-blue mb-6">Novo Cadastro</h2>
+            
+            <form id="register-form" class="space-y-6">
+                <div>
+                    <label for="register-name" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                    <input type="text" id="register-name" name="name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required>
+                </div>
+                <div>
+                    <label for="register-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                    <input type="email" id="register-email" name="email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required>
+                </div>
+                <div>
+                    <label for="register-password" class="block text-sm font-medium text-gray-700">Criar Senha</label>
+                    <input type="password" id="register-password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" required minlength="6">
+                    <p class="mt-1 text-xs text-gray-500">Mínimo de 6 caracteres.</p>
+                </div>
+                
+                <button type="submit" id="register-btn" class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-primary-blue hover:bg-dark-bg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-blue transition-colors">
+                    Cadastrar
+                </button>
+            </form>
+        </div>
+        
     </div>
+</main>
 
-    <!-- REGISTER -->
-    <div id="tab-register" class="tab-content p-6">
-      <h2 class="text-xl font-bold mb-4 text-center">Cadastrar</h2>
+<footer class="bg-dark-bg text-white mt-12 pt-10">
+     <div class="max-w-8xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 pb-8">
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-xl font-bold text-primary-blue mb-4">Ariana Móveis</h3>
+            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
+            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
+            <p class="text-sm">CEP: 39740-000</p>
+            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
+            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
+            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
+            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
+        </div>
+        
+        <div class="footer-column space-y-2 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
+            <ul class="space-y-2 text-sm">
+                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
+                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
+                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
+                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+            </ul>
+        </div>
+        
+        <div class="footer-column space-y-4 text-gray-300">
+            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
+            <div class="social-icons flex space-x-4 text-2xl">
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-400 hover:text-white transition duration-150" aria-label="whatsapp"><i class="fab fa-whatsapp"></i></a>
+            </div>
 
-      <form id="register-form" class="space-y-4">
-        <input type="text" id="register-name" placeholder="Nome" class="w-full border p-3 rounded" required>
-        <input type="email" id="register-email" placeholder="E-mail" class="w-full border p-3 rounded" required>
-        <input type="password" id="register-password" placeholder="Senha" class="w-full border p-3 rounded" required>
-
-        <button class="w-full bg-blue-600 text-white p-3 rounded font-bold">
-          Criar Conta
-        </button>
-      </form>
+            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
+            <div class="flex flex-wrap gap-2 text-2xl text-gray-400">
+                <i class="fab fa-cc-visa"></i>
+                <i class="fab fa-cc-mastercard"></i>
+                <i class="fab fa-cc-paypal"></i>
+                <i class="fab fa-cc-amex"></i>
+                <i class="fas fa-money-bill-wave"></i>
+                <i class="fas fa-qrcode"></i> </div>
+        </div>
     </div>
+    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
+        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+    </div>
+</footer>
 
-  </div>
-</div>
 
 <script>
-const API_BASE =
-  localStorage.getItem("API_BASE") ||
-  window.API_BASE ||
-  "https://ariana-move-mongo.onrender.com/api";
+(function () {
+  const isLocal =
+    location.hostname === "127.0.0.1" ||
+    location.hostname === "localhost";
 
-window.API_BASE = API_BASE;
+  const LOCAL_API = "http://localhost:3000/api";
+  const CLOUD_API = "https://ariana-move-mongo.onrender.com/api";
 
-function showMsg(text, type="ok"){
-  const el = document.getElementById("message");
-  el.classList.remove("hidden");
-  el.className = "p-3 text-center text-sm font-bold " + (type==="ok"?"text-green-600":"text-red-600");
-  el.innerText = text;
+  window.API_BASE =
+    localStorage.getItem("API_BASE") ||
+    window.API_BASE ||
+    (isLocal ? LOCAL_API : CLOUD_API);
+
+  try { localStorage.setItem("API_BASE", window.API_BASE); } catch (_) {}
+})();
+
+function readJsonSafe(res){
+  return res.json().catch(() => ({}));
 }
 
-function getRedirect(){
+function showMessage(message, type = 'info') {
+  const container = document.getElementById('message-container');
+  if (!container) return;
+
+  const colors = {
+    success: 'bg-green-500 border-green-700',
+    error: 'bg-error-red border-red-700',
+    info: 'bg-blue-500 border-blue-700',
+    loading: 'bg-yellow-500 border-yellow-700'
+  };
+
+  const icons = {
+    success: 'fas fa-check-circle',
+    error: 'fas fa-exclamation-triangle',
+    info: 'fas fa-info-circle',
+    loading: 'fas fa-spinner fa-spin'
+  };
+
+  container.innerHTML = '';
+  const toast = document.createElement('div');
+  toast.className = `p-4 mb-2 rounded-lg shadow-xl text-white font-semibold flex items-center border-l-4 ${colors[type] || colors.info} animate-fade-in`;
+  toast.innerHTML = `<i class="${icons[type] || icons.info} mr-3"></i> ${message}`;
+  container.appendChild(toast);
+
+  if (type !== 'loading') {
+    setTimeout(() => {
+      toast.classList.remove('animate-fade-in');
+      toast.classList.add('opacity-0', 'transition-opacity');
+      toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    }, 4000);
+  }
+}
+window.displayMessage = showMessage;
+
+const switchTab = (tabId) => {
+  document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+  const btn = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+  const content = document.getElementById(`tab-${tabId}`);
+  if (btn) btn.classList.add('active');
+  if (content) content.classList.add('active');
+};
+
+window.loadCartCounter = () => {
+  const cartDataString = localStorage.getItem('ariana_moveis_cart');
+  let totalItems = 0;
+  if (cartDataString) {
+    try {
+      const cartItems = JSON.parse(cartDataString);
+      if (typeof cartItems === 'object' && cartItems !== null) {
+        totalItems = Object.values(cartItems).reduce((sum, item) => {
+          if (!item || typeof item !== 'object') return sum;
+          const q = Number(item.quantity);
+          return sum + (Number.isFinite(q) ? q : 0);
+        }, 0);
+      }
+    } catch (e) {
+      console.error("Erro ao parsear dados do carrinho:", e);
+    }
+  }
+
+  const counterElement = document.getElementById('cart-counter-nav');
+  if (counterElement) {
+    counterElement.textContent = totalItems;
+    counterElement.style.display = totalItems > 0 ? 'inline-flex' : 'none';
+  }
+};
+
+function getRedirectUrl(onlyIfPresent = false) {
   const url = new URL(window.location.href);
-  return url.searchParams.get("redirect") || "index.html";
+  const paramNames = ['redirect', 'next', 'return', 'returnTo', 'back', 'from'];
+  let redirectParam = null;
+
+  for (const p of paramNames) {
+    const v = url.searchParams.get(p);
+    if (v) { redirectParam = v; break; }
+  }
+
+  if (redirectParam) {
+    sessionStorage.setItem('post_login_redirect', redirectParam);
+  }
+
+  let raw = redirectParam || sessionStorage.getItem('post_login_redirect');
+
+  if (!raw) {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (!k) continue;
+      if (!/redirect|return|next|back/i.test(k)) continue;
+      const v = sessionStorage.getItem(k);
+      if (v && typeof v === 'string') { raw = v; break; }
+    }
+  }
+
+  if (!raw) return onlyIfPresent ? null : 'minha_conta.html';
+
+  let redirect = raw;
+  try { redirect = decodeURIComponent(raw); } catch (_) {}
+  redirect = String(redirect || '').trim();
+
+  const lower = redirect.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('//') || lower.startsWith('javascript:')) {
+    return onlyIfPresent ? null : 'minha_conta.html';
+  }
+
+  if (redirect.startsWith('./')) redirect = redirect.slice(2);
+  if (redirect.startsWith('../')) redirect = redirect.replace(/^(\.\.\/)+/, '');
+  if (redirect.startsWith('?')) return onlyIfPresent ? null : 'minha_conta.html';
+  if (!/^\/?[a-zA-Z0-9_\-./]+(\?.*)?$/.test(redirect)) return onlyIfPresent ? null : 'minha_conta.html';
+
+  return redirect;
 }
 
-// TAB SWITCH
-document.querySelectorAll(".tab-button").forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll(".tab-button").forEach(b=>b.classList.remove("active"));
-    document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+function persistLocalUser(user, token = '') {
+  try {
+    const name =
+      user?.name ||
+      user?.displayName ||
+      (user?.email ? user.email.split('@')[0] : 'Cliente');
 
-    btn.classList.add("active");
-    document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
+    const payload = {
+      ...user,
+      nome: user?.nome || name,
+      name,
+      email: user?.email || null,
+      uid: user?.uid || user?.id || user?._id || null,
+      id: user?.id || user?._id || user?.uid || null,
+      token: token || user?.token || localStorage.getItem('token') || '',
+      accessToken: token || user?.accessToken || user?.token || localStorage.getItem('token') || '',
+      loggedAt: Date.now()
+    };
+
+    localStorage.setItem('currentUser', JSON.stringify(payload));
+    localStorage.setItem('clienteLogado', JSON.stringify(payload));
+    localStorage.setItem('usuarioLogado', JSON.stringify(payload));
+    if (payload.email) localStorage.setItem('userEmail', payload.email);
+    if (payload.uid || payload.id) localStorage.setItem('userId', payload.uid || payload.id);
+    if (payload.token || payload.accessToken) localStorage.setItem('token', payload.token || payload.accessToken);
+
+    if (typeof window.setLoggedUserName === 'function') {
+      window.setLoggedUserName(payload);
+    }
+    return payload;
+  } catch (e) {
+    console.warn('Falha ao persistir usuário no storage:', e);
+    return user;
   }
-});
+}
 
-// LOGIN
-document.getElementById("login-form").addEventListener("submit", async (e)=>{
+function clearLocalUser() {
+  try { localStorage.removeItem('currentUser'); } catch (_) {}
+  try { localStorage.removeItem('clienteLogado'); } catch (_) {}
+  try { localStorage.removeItem('usuarioLogado'); } catch (_) {}
+  try { localStorage.removeItem('token'); } catch (_) {}
+  try { sessionStorage.removeItem('clientArianaMoveis'); } catch (_) {}
+}
+
+function getStoredUser() {
+  const sources = [
+    localStorage.getItem('currentUser'),
+    localStorage.getItem('clienteLogado'),
+    localStorage.getItem('usuarioLogado'),
+    localStorage.getItem('user')
+  ];
+
+  for (const raw of sources) {
+    if (!raw) continue;
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        const token =
+          obj.token ||
+          obj.accessToken ||
+          localStorage.getItem('token') ||
+          localStorage.getItem('authToken') ||
+          localStorage.getItem('customerToken') ||
+          '';
+        if (token) {
+          obj.token = token;
+          obj.accessToken = token;
+        }
+        return obj;
+      }
+    } catch (_) {}
+  }
+
+  const token =
+    localStorage.getItem('token') ||
+    localStorage.getItem('authToken') ||
+    localStorage.getItem('customerToken') ||
+    localStorage.getItem('userToken') ||
+    '';
+
+  const email = localStorage.getItem('userEmail') || '';
+  const uid = localStorage.getItem('userId') || '';
+
+  if (token || email || uid) {
+    return { token, accessToken: token, email, uid, id: uid };
+  }
+
+  return null;
+}
+
+window.updateClientHeaderUI = (user) => {
+  const clientStatusDisplay = document.getElementById('client-status-display');
+  const clientAccountLink = document.getElementById('client-account-link');
+
+  if (!clientStatusDisplay || !clientAccountLink) return;
+
+  if (user) {
+    const displayName =
+      user.name ||
+      user.nome ||
+      user.displayName ||
+      user.email?.split('@')[0] ||
+      'Cliente';
+
+    clientStatusDisplay.innerHTML = `
+      <span class="text-sm font-semibold">Olá, ${displayName}</span>
+      <span class="text-sm text-gray-300">Minha Conta</span>
+    `;
+    clientAccountLink.href = 'minha_conta.html';
+  } else {
+    clientStatusDisplay.innerHTML = `
+      <span class="text-sm font-semibold">Entre ou Cadastre-se</span>
+      <span class="text-sm text-gray-300">para ver seus produtos</span>
+    `;
+    clientAccountLink.href = 'login_cadastro.html';
+  }
+};
+
+const realizarBusca = () => {
+  const input = document.getElementById('search-input-desktop');
+  const query = input ? input.value : '';
+  window.displayMessage(`Busca Simulado: "${query}" (Resultado viria em outra página)`, 'info');
+};
+window.realizarBusca = realizarBusca;
+
+async function apiPost(path, body) {
+  const res = await fetch(window.API_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  const data = await readJsonSafe(res);
+  if (!res.ok) throw new Error(data.error || data.message || `Erro ${res.status}`);
+  return data;
+}
+
+async function handleLogin(e) {
   e.preventDefault();
 
-  try{
-    const res = await fetch(API_BASE + "/auth/login", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        email: document.getElementById("login-email").value,
-        password: document.getElementById("login-password").value
-      })
-    });
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const redirectUrl = getRedirectUrl();
 
-    const data = await res.json();
+  showMessage('Acessando sua conta...', 'loading');
 
-    if(!res.ok) throw new Error(data.error || "Erro login");
+  try {
+    const data = await apiPost('/auth/login', { email, password });
+    const token = data.token || '';
+    const user = persistLocalUser(data.user || { email }, token);
 
-    localStorage.setItem("currentUser", JSON.stringify(data.user));
+    showMessage(`Bem-vindo, ${user.name || user.nome || user.email || 'Cliente'}!`, 'success');
 
-    showMsg("Login realizado com sucesso");
-
-    setTimeout(()=>{
-      window.location.href = getRedirect();
-    },1000);
-
-  }catch(err){
-    showMsg(err.message,"error");
+    setTimeout(() => {
+      sessionStorage.removeItem('login_redirect_done');
+      sessionStorage.removeItem('post_login_redirect');
+      window.location.href = redirectUrl;
+    }, 1000);
+  } catch (error) {
+    showMessage(error.message || 'Erro na autenticação. Tente novamente.', 'error');
   }
-});
+}
 
-// REGISTER
-document.getElementById("register-form").addEventListener("submit", async (e)=>{
+async function handleRegister(e) {
   e.preventDefault();
 
-  try{
-    const res = await fetch(API_BASE + "/auth/register", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        name: document.getElementById("register-name").value,
-        email: document.getElementById("register-email").value,
-        password: document.getElementById("register-password").value
-      })
-    });
+  const name = document.getElementById('register-name').value.trim();
+  const email = document.getElementById('register-email').value.trim().toLowerCase();
+  const password = document.getElementById('register-password').value;
+  const redirectUrl = getRedirectUrl();
 
-    const data = await res.json();
+  if (password.length < 6) {
+    showMessage('A senha deve ter no mínimo 6 caracteres.', 'error');
+    return;
+  }
 
-    if(!res.ok) throw new Error(data.error || "Erro cadastro");
+  showMessage('Criando sua conta...', 'loading');
 
-    showMsg("Conta criada com sucesso");
+  try {
+    const data = await apiPost('/auth/register', { name, email, password });
+    const token = data.token || '';
+    const user = persistLocalUser(data.user || { name, email }, token);
 
-    setTimeout(()=>{
-      window.location.href = getRedirect();
-    },1000);
+    showMessage(`Cadastro realizado! Bem-vindo(a), ${user.name || user.nome || name}!`, 'success');
 
-  }catch(err){
-    showMsg(err.message,"error");
+    setTimeout(() => {
+      sessionStorage.removeItem('login_redirect_done');
+      sessionStorage.removeItem('post_login_redirect');
+      window.location.href = redirectUrl;
+    }, 1000);
+  } catch (error) {
+    showMessage(error.message || 'Erro na autenticação. Tente novamente.', 'error');
+  }
+}
+
+async function handleForgotPassword(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+
+  if (!email) {
+    showMessage('Por favor, digite seu e-mail de login primeiro.', 'info');
+    return;
+  }
+
+  showMessage(`Enviando e-mail de recuperação para ${email}...`, 'loading');
+
+  try {
+    await apiPost('/auth/forgot-password', { email });
+    showMessage('E-mail de recuperação enviado! Verifique sua caixa de entrada.', 'success');
+  } catch (error) {
+    showMessage(error.message || 'Não foi possível enviar o e-mail de recuperação.', 'error');
+  }
+}
+
+function handleGoogleLogin() {
+  showMessage('Login com Google não está configurado neste backend.', 'info');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  function storeRedirectParamOnce() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirectParam = urlParams.get('redirect');
+    if (redirectParam) {
+      sessionStorage.setItem('post_login_redirect', redirectParam);
+    }
+  }
+  storeRedirectParamOnce();
+
+  window.loadCartCounter();
+
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', (e) => switchTab(e.currentTarget.dataset.tab));
+  });
+
+  document.getElementById('login-form').addEventListener('submit', handleLogin);
+  document.getElementById('register-form').addEventListener('submit', handleRegister);
+  document.getElementById('google-login-btn').addEventListener('click', handleGoogleLogin);
+  document.getElementById('forgot-password-link').addEventListener('click', handleForgotPassword);
+
+  const storedUser = getStoredUser();
+  if (storedUser) {
+    persistLocalUser(storedUser, storedUser.token || storedUser.accessToken || localStorage.getItem('token') || '');
+    window.updateClientHeaderUI(storedUser);
+
+    const redirectUrl = getRedirectUrl(true);
+    if (redirectUrl) {
+      const already = sessionStorage.getItem('login_redirect_done');
+      if (!already) {
+        sessionStorage.setItem('login_redirect_done', '1');
+        window.location.href = redirectUrl;
+        return;
+      }
+    }
+  } else {
+    window.updateClientHeaderUI(null);
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('logout') === 'success') {
+    clearLocalUser();
+    showMessage('Logout bem-sucedido. Faça login novamente.', 'success');
+    history.replaceState({}, document.title, window.location.pathname);
+  }
+  if (urlParams.get('redirect')) {
+    showMessage('Você precisa fazer login para acessar a página solicitada.', 'info');
   }
 });
 </script>

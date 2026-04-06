@@ -13,6 +13,46 @@
   <link rel="icon" type="image/png" href="/favicon.png">
 
   <link rel="stylesheet" href="css/tailwind.min.css">
+
+<script>
+window.API_BASE =
+  (location.hostname === "127.0.0.1" || location.hostname === "localhost")
+    ? "http://localhost:3000/api"
+    : "https://ariana-move-mongo.onrender.com/api";
+window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+try {
+  localStorage.setItem("API_BASE", window.API_BASE);
+  localStorage.setItem("API_BASE_URL", window.API_BASE);
+} catch(_e) {}
+window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+  const raw = String(value || "").trim();
+  if (!raw || raw.includes("${")) return "";
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+  if (raw.startsWith("/")) return window.API_ORIGIN + raw;
+  return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
+};
+(function(){
+  const origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (!origFetch || window.__ARIANA_FETCH_PATCH__) return;
+  window.__ARIANA_FETCH_PATCH__ = true;
+  window.fetch = function(input, init){
+    let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+    if (url) {
+      url = url
+        .replace(/\/undefined\/payments\b/g, "/settings/payments")
+        .replace("" + window.API_BASE + "", window.API_BASE)
+        .replace("https://ariana-move-mongo.onrender.com/api", window.API_BASE)
+        .replace("https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api", window.API_BASE);
+      if (typeof input === "string") input = url;
+      else if (input instanceof Request) input = new Request(url, input);
+    }
+    return origFetch(input, init);
+  };
+})();
+</script>
+
 </head>
 
 <style>
@@ -668,10 +708,11 @@ Adicionar ao Carrinho
 
   
 <script type="module">
-window.REMOTE_API_BASE = 'https://ariana-moveis.onrender.com/api';
+window.REMOTE_API_BASE = 'https://ariana-move-mongo.onrender.com/api';
 window.LOCAL_API_BASE = 'http://localhost:3000/api';
-window.API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || window.REMOTE_API_BASE;
-localStorage.setItem('API_BASE', window.API_BASE);
+const __storedApiBase = localStorage.getItem('API_BASE') || localStorage.getItem('API_BASE_URL') || '';
+window.API_BASE = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? window.LOCAL_API_BASE : window.REMOTE_API_BASE;
+try { localStorage.setItem('API_BASE', window.API_BASE); } catch(_) {}
 const API_BASE = window.API_BASE;
 window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
 window.COST_SAFE_FLAGS = window.COST_SAFE_FLAGS || { enableProductRecommendations: true };
@@ -802,9 +843,9 @@ async function loadPaymentsSettingsForProduct() {
             }
 
             try {
-                let response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
+                let response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
                 if (!response.ok) {
-                    response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
+                    response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
                 }
                 if (!response.ok) {
                     throw new Error(`Produto não encontrado (${response.status})`);
@@ -873,11 +914,15 @@ async function loadPaymentsSettingsForProduct() {
                 const baseName = productData.sellerName || productData.seller_store_name || productData.sellerStoreName || productData.seller_display_name || null;
                 let sellerDocData = null;
                 if (productData.sellerId) {
-                    try {
-                        const sellerRes = await fetch(`${API_BASE}/seller/${encodeURIComponent(String(productData.sellerId))}`);
-                        if (sellerRes.ok) sellerDocData = await sellerRes.json();
-                    } catch (e) {
-                        console.warn('[produto] Falha ao buscar seller via API:', e);
+                    const __sellerId = String(productData.sellerId || '').trim();
+                    const __isOwnStore = /^(ArianaMoveis|admin)$/i.test(__sellerId) || /ariana/i.test(String(productData.sellerName || productData.soldBy || ''));
+                    if (!__isOwnStore) {
+                        try {
+                            const sellerRes = await fetch(`${API_BASE}/seller/${encodeURIComponent(__sellerId)}`);
+                            if (sellerRes.ok) sellerDocData = await sellerRes.json();
+                        } catch (e) {
+                            console.warn('[produto] Falha ao buscar seller via API:', e);
+                        }
                     }
                 }
 
@@ -1590,16 +1635,14 @@ window.loadProductDetailBanners = async function () {
     };
 
     try {
-        const [r1, r2] = await Promise.all([
-            fetch(`${API_BASE}/banners/produto_detail_horizontal_1`),
-            fetch(`${API_BASE}/banners/produto_detail_horizontal_2`)
-        ]);
-
-        const d1 = r1.ok ? await r1.json() : null;
-        const d2 = r2.ok ? await r2.json() : null;
-
-        const ok1 = renderSlot(slot1, d1);
-        const ok2 = renderSlot(slot2, d2);
+        const res = await fetch(`${API_BASE}/banners`);
+        const rows = res.ok ? await res.json() : [];
+        const banners = Array.isArray(rows) ? rows : (rows.items || rows.banners || []);
+        const pick = (aliases) => banners.find((b) => aliases.includes(String(b.slotId || b.tipo || b.id || b.slug || '').trim()));
+        const d1 = pick(['produto_detail_horizontal_1','product_detail_horizontal_1','produto-horizontal-1']);
+        const d2 = pick(['produto_detail_horizontal_2','product_detail_horizontal_2','produto-horizontal-2']);
+        const ok1 = d1 ? renderSlot(slot1, d1) : false;
+        const ok2 = d2 ? renderSlot(slot2, d2) : false;
         section.style.display = (ok1 || ok2) ? 'block' : 'none';
     } catch (e) {
         console.error('[produto] erro ao carregar banners do detalhe:', e);
@@ -1955,6 +1998,7 @@ function renderShippingQuotes(result, cep) {
 <script src="./marketplace-core.js"></script>
 <script src="./marketplace-core_global_payments.js"></script>
 <script src="footer.js"></script>
+<script src="./product-card.js"></script>
 
 <script>
 (function(){

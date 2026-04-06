@@ -1,10 +1,17 @@
+window.API_BASE = window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
+window.API_ORIGIN = window.API_ORIGIN || String(window.API_BASE).replace(/\/api\/?$/i, "");
+try {
+  localStorage.setItem("API_BASE", window.API_BASE);
+  localStorage.setItem("API_BASE_URL", window.API_BASE);
+} catch(_e) {}
+
 // header.js (Marketplace Ariana Móveis)
 // - Layout profissional e espaçado (desktop + mobile)
 // - Mega menu de categorias estilo marketplace
 // - Compatível com uso global (window.carregarHeader)
 
-const API_BASE = window.API_BASE || localStorage.getItem("API_BASE") || "https://ariana-moveis.onrender.com/api";
-
+const HEADER_API_BASE = window.API_BASE;
+const HEADER_API_ORIGIN = window.API_ORIGIN;
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -125,6 +132,42 @@ function __headerFallbackParents() {
   ];
 }
 
+
+function __headerBannerMatchesSlot(item, slotName) {
+  const target = String(slotName || '').trim().toLowerCase();
+  const candidates = [
+    item?.slot,
+    item?.slotId,
+    item?.tipo,
+    item?.id,
+    item?.key,
+    item?._id,
+    item?.name
+  ].map(v => String(v || '').trim().toLowerCase()).filter(Boolean);
+  return candidates.includes(target);
+}
+
+async function __headerFetchBannerCandidates() {
+  const urls = [
+    `${HEADER_API_BASE}/banners?slot=header_category_banner`,
+    `${HEADER_API_BASE}/banners`,
+    `${HEADER_API_BASE}/header_category_banner`
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.items)) return data.items;
+      if (Array.isArray(data?.banners)) return data.banners;
+      if (data && typeof data === 'object') return [data.data || data.banner || data];
+    } catch (_) {}
+  }
+  return [];
+}
+
 async function __resolveHeaderBannerImageUrl(rawUrl) {
   const raw = String(rawUrl || '').trim();
   if (!raw) return '';
@@ -156,26 +199,17 @@ async function __loadHeaderCategoryBanner() {
     }
 
     let merged = { ...fallback };
+    const candidates = await __headerFetchBannerCandidates();
 
-    try {
-      let res = await fetch(`${API_BASE}/banners/header_category_banner`, {
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!res.ok) {
-        res = await fetch(`${API_BASE}/banners?slot=header_category_banner`, {
-          headers: { 'Accept': 'application/json' }
-        });
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data === 'object') {
-          merged = { ...merged, ...(data.data || data.banner || data) };
-        }
-      }
-    } catch (e) {
-      console.warn('[header] banner Mongo indisponível, usando fallback:', e);
+    const found = candidates.find((item) => __headerBannerMatchesSlot(item, 'header_category_banner'));
+    if (found && typeof found === 'object') {
+      merged = {
+        ...merged,
+        ...found,
+        linkUrl: String(found.linkUrl || found.href || merged.linkUrl || '').trim(),
+        imageUrl: String(found.imageUrl || found.image || found.url || merged.imageUrl || '').trim(),
+        alt: String(found.alt || merged.alt || '').trim()
+      };
     }
 
     const rawUrl = String(merged.imageUrl || merged.image || merged.url || fallback.imageUrl || '').trim();
@@ -272,7 +306,7 @@ async function carregarCategoriasHeader() {
 
   if (!categories) {
     try {
-      const res = await fetch(`${API_BASE}/categories`, {
+      const res = await fetch(`${HEADER_API_BASE}/categories`, {
         headers: { 'Accept': 'application/json' }
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -776,7 +810,7 @@ function setupSearchListeners() {
 
 function carregarHeader() {
   const headerHTML = `
-  <header class="w-full z-50 bg-white shadow-xl font-sans">
+  <header data-ariana="1" class="w-full z-50 bg-white shadow-xl font-sans">
 
     <style>
       @keyframes arianaFloat {
@@ -1205,7 +1239,7 @@ function renderAccountPopover() {
          class="flex items-center gap-3 p-4 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-800">
         <i class="fas fa-box text-primary-blue w-6"></i> Meus Pedidos
       </a>
-      <a href="favoritos.html"
+      <a href="meus_favoritos.html"
          class="flex items-center gap-3 p-4 rounded-xl hover:bg-gray-50 transition-all font-bold text-gray-800">
         <i class="fas fa-heart text-red-500 w-6"></i> Favoritos
       </a>

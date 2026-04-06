@@ -8,10 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="./css/tailwind.min.css">
-
-  
 
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
@@ -36,6 +34,77 @@
     .tag-orange{background-color:#ff931e}
     .product-card-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
   </style>
+
+  <script>
+    const IS_LOCAL_CATEGORIA = /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
+    const API_BASE_CANDIDATES = IS_LOCAL_CATEGORIA
+      ? ['http://localhost:3000/api', 'https://ariana-move-mongo.onrender.com/api']
+      : [
+          `${window.location.origin}/api`,
+          localStorage.getItem('API_BASE') || '',
+          'https://ariana-move-mongo.onrender.com/api',
+          'http://localhost:3000/api'
+        ].filter(Boolean);
+
+    window.API_BASE = API_BASE_CANDIDATES[0];
+    window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+
+    try {
+      localStorage.setItem("API_BASE", window.API_BASE);
+      localStorage.setItem("API_BASE_URL", window.API_BASE);
+    } catch (_e) {}
+
+    window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+    window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+    window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+      const raw = String(value || "").trim();
+      if (!raw || raw.includes("${")) return "img/placeholder.jpg";
+      if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+      if (raw.startsWith("/")) return window.API_ORIGIN + raw;
+      return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
+    };
+
+    window.apiRequestWithFallback = async function(path, opts = {}) {
+      const normalizedPath = `${String(path).startsWith('/') ? '' : '/'}${path}`;
+      let lastError = null;
+
+      for (const base of API_BASE_CANDIDATES) {
+        const headers = { ...(opts.headers || {}) };
+        if (!(opts.body instanceof FormData) && !headers['Content-Type']) {
+          headers['Content-Type'] = 'application/json';
+        }
+
+        try {
+          const url = `${String(base).replace(/\/+$/, '')}${normalizedPath}`;
+          const res = await fetch(url, { ...opts, headers });
+          const ct = res.headers.get('content-type') || '';
+          const data = ct.includes('application/json')
+            ? await res.json().catch(() => null)
+            : await res.text().catch(() => null);
+
+          if (!res.ok) {
+            const msg = (data && typeof data === 'object' && (data.message || data.error))
+              ? (data.message || data.error)
+              : `HTTP ${res.status}`;
+            throw new Error(msg);
+          }
+
+          window.API_BASE = base;
+          window.API_ORIGIN = String(base).replace(/\/api\/?$/i, '');
+          try {
+            localStorage.setItem('API_BASE', base);
+            localStorage.setItem('API_BASE_URL', base);
+          } catch(_) {}
+
+          return data;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      throw lastError || new Error('Nenhuma API disponível no momento.');
+    };
+  </script>
 </head>
 
 <body class="bg-fundo text-text-dark font-sans">
@@ -131,7 +200,8 @@
         }
       };
 
-      const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
+      let API_BASE = window.API_BASE;
+      try { localStorage.setItem("API_BASE", API_BASE); } catch(_) {}
       const $ = id => document.getElementById(id);
       let allProducts = [];
       let allCategories = [];
@@ -287,6 +357,22 @@
         ).trim();
       }
 
+      function getNormalizedProductImage(product) {
+        return window.resolveApiImageUrl(
+          product?.imageUrl ||
+          product?.mainImageUrl ||
+          product?.image ||
+          product?.imagem ||
+          (Array.isArray(product?.images)
+            ? (typeof product.images[0] === 'string'
+                ? product.images[0]
+                : product.images[0]?.url)
+            : '') ||
+          (Array.isArray(product?.imagePaths) ? product.imagePaths[0] : '') ||
+          (Array.isArray(product?.imageUrls) ? product.imageUrls[0] : '')
+        );
+      }
+
       function applyFilters() {
         const term = ($('search')?.value || '').toLowerCase().trim();
         const sort = $('sort')?.value || 'default';
@@ -318,18 +404,24 @@
         empty?.classList.add('hidden');
 
         if (typeof window.createProductCard === "function") {
-          grid.innerHTML = products.map(p => window.createProductCard({
-            ...p,
-            id: p.id || p._id,
-            imageUrl: p.imageUrl || p.mainImageUrl || p.imagem || p.image || 'https://placehold.co/400x400?text=SEM+IMAGEM',
-            mainImageUrl: p.mainImageUrl || p.imageUrl || p.imagem || p.image || 'https://placehold.co/400x400?text=SEM+IMAGEM'
-          })).join('');
+          grid.innerHTML = products.map(p => {
+            const normalizedImage = getNormalizedProductImage(p);
+            return window.createProductCard({
+              ...p,
+              id: p.id || p._id,
+              imageUrl: normalizedImage,
+              mainImageUrl: normalizedImage,
+              image: normalizedImage,
+              imagem: normalizedImage
+            });
+          }).join('');
           return;
         }
 
         grid.innerHTML = products.map(raw => {
           const currentPrice = getCurrentPrice(raw);
           const oldPriceRaw = getOldPrice(raw);
+          const normalizedImage = getNormalizedProductImage(raw);
           const normalized = {
             ...raw,
             id: raw.id || raw._id,
@@ -344,8 +436,10 @@
             compareAtPrice: oldPriceRaw,
             categoryName: raw.categoryName || raw.category || raw.categoria || '',
             subcategoryName: raw.subcategoryName || raw.subcategory || raw.subcategoria || '',
-            imageUrl: raw.imageUrl || raw.mainImageUrl || raw.imagemUrl || raw.imagem || raw.image || 'https://placehold.co/400x400?text=SEM+IMAGEM',
-            mainImageUrl: raw.mainImageUrl || raw.imageUrl || raw.imagemUrl || raw.imagem || raw.image || 'https://placehold.co/400x400?text=SEM+IMAGEM'
+            imageUrl: normalizedImage,
+            mainImageUrl: normalizedImage,
+            image: normalizedImage,
+            imagem: normalizedImage
           };
 
           let p = normalized;
@@ -382,12 +476,13 @@
 
           const priceParts = formatPriceParts(displayPrice);
           const installmentsText = getInstallmentsText(p, displayPrice) || 'em até 12x';
+          const safeImage = getNormalizedProductImage(p);
 
           return `
             <a href="produto.html?id=${encodeURIComponent(p.id)}" class="product-card">
               <div class="product-image-container">
                 ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ``}
-                <img src="${p.imageUrl || p.mainImageUrl || 'https://placehold.co/400x400?text=SEM+IMAGEM'}" alt="${String(p.name||'').replace(/"/g,'&quot;')}" loading="lazy">
+                <img src="${safeImage}" alt="${String(p.name||'').replace(/"/g,'&quot;')}" loading="lazy">
               </div>
               <div class="product-card-body">
                 <p class="product-name">${p.name || ''}</p>
@@ -406,24 +501,39 @@
         }).join('');
       }
 
+      function isRootCategory(cat) {
+        const parentRaw = cat?.parentId ?? cat?.parent ?? cat?.parent_id ?? cat?.parentID ?? null;
+        const parent = String(parentRaw == null ? '' : parentRaw).trim().toLowerCase();
+        return !parent || parent === 'null' || parent === 'undefined' || parent === '0' || parent === 'root';
+      }
+
       function buildSidebar(parentCategories, currentParent, currentSub, childrenByParent) {
         const sidebar = $('categories-sidebar');
         if (!sidebar) return;
-        sidebar.innerHTML = parentCategories.map(cat => {
+
+        const parents = [...(Array.isArray(parentCategories) ? parentCategories : [])].sort((a,b) =>
+          Number(a.order ?? a.ordem ?? 9999) - Number(b.order ?? b.ordem ?? 9999) ||
+          String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR')
+        );
+
+        sidebar.innerHTML = parents.map(cat => {
           const nm = cat.name || cat.nome || '';
-          const sl = cat.slug || normalizeSlug(nm);
-          const isParentActive = currentParent && cat.id === currentParent.id;
-          const children = childrenByParent.get(cat.id) || [];
+          const isParentActive = !!(currentParent && cat.id === currentParent.id && !currentSub);
+          const children = [...(childrenByParent.get(cat.id) || [])].sort((a,b) =>
+            Number(a.order ?? a.ordem ?? 9999) - Number(b.order ?? b.ordem ?? 9999) ||
+            String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR')
+          );
           return `
             <li class="space-y-2">
-              <a href="categoria.html?slug=${encodeURIComponent(sl)}" class="text-sm ${isParentActive && !currentSub ? 'font-bold text-primary-blue' : 'text-gray-500 hover:text-primary-blue'} transition-colors">
+              <a href="categoria.html?id=${encodeURIComponent(cat.id)}" class="text-sm ${isParentActive ? 'font-bold text-primary-blue' : 'text-gray-700 hover:text-primary-blue'} transition-colors">
                 ${nm}
               </a>
-              ${isParentActive && children.length ? `
+              ${children.length ? `
                 <ul class="pl-3 border-l border-gray-200 space-y-2">
                   ${children.map(sub => {
                     const subName = sub.name || sub.nome || '';
-                    return `<li><a href="categoria.html?id=${encodeURIComponent(sub.id)}" class="text-xs ${currentSub && sub.id === currentSub.id ? 'font-bold text-primary-blue' : 'text-gray-500 hover:text-primary-blue'} transition-colors">${subName}</a></li>`;
+                    const isSubActive = !!(currentSub && sub.id === currentSub.id);
+                    return `<li><a href="categoria.html?id=${encodeURIComponent(sub.id)}" class="text-xs ${isSubActive ? 'font-bold text-primary-blue' : 'text-gray-500 hover:text-primary-blue'} transition-colors">${subName}</a></li>`;
                   }).join('')}
                 </ul>` : ''}
             </li>`;
@@ -441,12 +551,11 @@
       }
 
       async function fetchCategories() {
-        const res = await fetch(`${API_BASE}/categories`, {
+        const data = await window.apiRequestWithFallback('/categories', {
           headers: { "Content-Type": "application/json" }
         });
-        if (!res.ok) throw new Error("Erro ao carregar categorias");
-        const data = await res.json();
-        const items = Array.isArray(data) ? data : (data.items || data.categories || []);
+        const items = Array.isArray(data) ? data : (data?.items || data?.categories || []);
+        API_BASE = window.API_BASE;
         return items
           .map(item => ({ ...item, id: item.id || item._id }))
           .filter(c => c.active !== false);
@@ -474,23 +583,43 @@
       }
 
       async function fetchProducts() {
-        const res = await fetch(`${API_BASE}/products`, {
-          headers: { "Content-Type": "application/json" }
-        });
-        if (!res.ok) throw new Error("Erro ao carregar produtos");
-        const data = await res.json();
-        const items = Array.isArray(data) ? data : (data.items || data.products || []);
-        return items.map(item => ({
-          ...item,
-          id: item.id || item._id,
-          imageUrl:
-            item.imageUrl ||
-            item.mainImageUrl ||
-            item.imagemUrl ||
-            item.imagem ||
-            item.image ||
-            'https://placehold.co/400x400?text=SEM+IMAGEM'
-        }));
+        const attempts = [
+          '/seller/products',
+          '/products',
+          '/home/index-data'
+        ];
+
+        for (const path of attempts) {
+          try {
+            const data = await window.apiRequestWithFallback(path, {
+              headers: { "Content-Type": "application/json" }
+            });
+
+            const rawItems = Array.isArray(data)
+              ? data
+              : (data?.items || data?.products || data?.data || (Array.isArray(data?.homeProducts) ? data.homeProducts : []));
+
+            if (!Array.isArray(rawItems) || rawItems.length === 0) continue;
+
+            API_BASE = window.API_BASE;
+
+            return rawItems.map(item => {
+              const normalizedImage = getNormalizedProductImage(item);
+              return {
+                ...item,
+                id: item.id || item._id,
+                imageUrl: normalizedImage,
+                mainImageUrl: normalizedImage,
+                image: normalizedImage,
+                imagem: normalizedImage
+              };
+            });
+          } catch (err) {
+            console.warn('[categoria] falhou em', path, err?.message || err);
+          }
+        }
+
+        throw new Error("Erro ao carregar produtos");
       }
 
       async function collectProductsForContext(currentParent, currentSub) {
@@ -558,10 +687,10 @@
           }
 
           const currentNode = findCurrentCategory(allCategories, params) || allCategories.find(c => !c.parentId) || allCategories[0];
-          const parentCategories = allCategories.filter(c => !c.parentId);
+          const parentCategories = allCategories.filter(c => isRootCategory(c));
           const childrenByParent = new Map();
 
-          allCategories.filter(c => c.parentId).forEach(c => {
+          allCategories.filter(c => !isRootCategory(c)).forEach(c => {
             const arr = childrenByParent.get(c.parentId) || [];
             arr.push(c);
             childrenByParent.set(c.parentId, arr);

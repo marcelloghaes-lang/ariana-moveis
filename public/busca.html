@@ -8,8 +8,87 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
+<script>
+(function () {
+  const isLocal = /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
+  const apiCandidates = isLocal
+    ? ["http://localhost:3000/api"]
+    : [
+        localStorage.getItem("API_BASE") || "",
+        "https://ariana-move-mongo.onrender.com/api",
+        "http://localhost:3000/api"
+      ].filter(Boolean);
+
+  window.API_BASE_CANDIDATES = apiCandidates;
+  window.API_BASE = apiCandidates[0];
+  window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+  try {
+    localStorage.setItem("API_BASE", window.API_BASE);
+    localStorage.setItem("API_BASE_URL", window.API_BASE);
+  } catch(_e) {}
+
+  window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+  window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+  window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+    const raw = String(value || '').trim();
+    if (!raw || raw.includes('${')) return '/uploads/default.png';
+    if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+    if (raw.startsWith('/')) return window.API_ORIGIN + raw;
+    return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
+  };
+
+  const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (nativeFetch && !window.__ARIANA_FETCH_PATCH__) {
+    window.__ARIANA_FETCH_PATCH__ = true;
+    window.fetch = async function(input, init) {
+      let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+      const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+
+      const makeJsonResponse = (payload, status = 200) =>
+        Promise.resolve(new Response(JSON.stringify(payload), {
+          status,
+          headers: { "Content-Type": "application/json" }
+        }));
+
+      if (url) {
+        url = url.replace(/\/undefined\/payments\b/g, "/settings/payments");
+
+        if (/\/settings\/payments(?:\?|$)/i.test(url)) {
+          return makeJsonResponse({
+            ok: true,
+            cash: { enabled: true, discountPercent: 17 },
+            pix: { enabled: true, discountPercent: 17 },
+            card: { enabled: true, maxInstallments: 12, installments: 12 }
+          });
+        }
+
+        if (/\/header_category_banner(?:\?|$)/i.test(url)) {
+          url = url.replace(/\/header_category_banner(?:\?.*)?$/i, "/banners?slot=header_category_banner");
+        }
+
+        if (isLocal && /\/seller\/products(?:\?|$)/i.test(url)) {
+          url = url.replace(/\/seller\/products/i, "/products");
+        }
+
+        if (isLocal && /\/home\/index-data(?:\?|$)/i.test(url) && method === "GET") {
+          url = url.replace(/\/home\/index-data/i, "/products");
+        }
+
+        if (typeof input === "string") {
+          input = url;
+        } else if (input instanceof Request) {
+          input = new Request(url, input);
+        }
+      }
+
+      return nativeFetch(input, init);
+    };
+  }
+})();
+</script>
+
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
@@ -281,7 +360,60 @@
     (async function () {
       await window.ensureMarketplaceHelpers();
 
-      const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
+      const API_BASE = window.API_BASE;
+      const API_BASE_CANDIDATES = window.API_BASE_CANDIDATES || [API_BASE];
+      try { localStorage.setItem("API_BASE", API_BASE); } catch(_) {}
+
+      const normalizeListResponse = (data) => {
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.items)) return data.items;
+        if (data && Array.isArray(data.products)) return data.products;
+        if (data && Array.isArray(data.results)) return data.results;
+        if (data && Array.isArray(data.docs)) return data.docs;
+        if (data && Array.isArray(data.data)) return data.data;
+        return [];
+      };
+
+      const apiRequest = async (path, opts = {}) => {
+        const normalizedPath = `${String(path).startsWith("/") ? "" : "/"}${path}`;
+        let lastError = null;
+
+        for (const base of API_BASE_CANDIDATES) {
+          const headers = { ...(opts.headers || {}) };
+          if (!(opts.body instanceof FormData) && !headers["Content-Type"]) {
+            headers["Content-Type"] = "application/json";
+          }
+
+          try {
+            const url = `${String(base).replace(/\/+$/, "")}${normalizedPath}`;
+            const res = await fetch(url, { ...opts, headers });
+            const ct = res.headers.get("content-type") || "";
+            const data = ct.includes("application/json")
+              ? await res.json().catch(() => null)
+              : await res.text().catch(() => null);
+
+            if (!res.ok) {
+              const msg = (data && typeof data === "object" && (data.message || data.error))
+                ? (data.message || data.error)
+                : `HTTP ${res.status}`;
+              throw new Error(msg);
+            }
+
+            window.API_BASE = base;
+            window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
+            try {
+              localStorage.setItem("API_BASE", base);
+              localStorage.setItem("API_BASE_URL", base);
+            } catch(_) {}
+
+            return data;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        throw lastError || new Error("Nenhuma API disponível no momento.");
+      };
 
       window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
         try {
@@ -490,30 +622,58 @@
         }).join("");
       };
 
+      const getNormalizedProductImage = (item) => {
+        return window.resolveApiImageUrl(
+          item?.imageUrl ||
+          item?.mainImageUrl ||
+          item?.imageUrlResolved ||
+          item?.imagem ||
+          item?.image ||
+          (Array.isArray(item?.images)
+            ? (typeof item.images[0] === "string" ? item.images[0] : item.images[0]?.url)
+            : "") ||
+          (Array.isArray(item?.imagePaths) ? item.imagePaths[0] : "") ||
+          (Array.isArray(item?.imageUrls) ? item.imageUrls[0] : "") ||
+          "/uploads/default.png"
+        );
+      };
+
       const fetchProductsFromApi = async () => {
         try {
           loadingContainer.classList.remove("hidden");
 
-          const response = await fetch(`${API_BASE}/products`, {
-            headers: { "Content-Type": "application/json" }
-          });
+          const endpoints = [
+            "/seller/products",
+            "/products",
+            "/home/index-data"
+          ];
 
-          if (!response.ok) throw new Error("Falha ao carregar produtos");
+          for (const endpoint of endpoints) {
+            try {
+              const data = await apiRequest(endpoint, {
+                headers: { "Content-Type": "application/json" }
+              });
 
-          const data = await response.json();
-          const items = Array.isArray(data) ? data : (data.items || data.products || []);
+              const items = normalizeListResponse(
+                endpoint === "/home/index-data" && data && data.products ? data.products : data
+              );
 
-          return items.map(item => ({
-            ...item,
-            id: item.id || item._id,
-            imageUrl:
-              item.imageUrl ||
-              item.mainImageUrl ||
-              item.imageUrlResolved ||
-              item.imagem ||
-              item.image ||
-              "/uploads/default.png"
-          }));
+              if (items.length) {
+                return items.map(item => ({
+                  ...item,
+                  id: item.id || item._id,
+                  imageUrl: getNormalizedProductImage(item),
+                  mainImageUrl: getNormalizedProductImage(item),
+                  image: getNormalizedProductImage(item),
+                  imagem: getNormalizedProductImage(item)
+                }));
+              }
+            } catch (error) {
+              console.warn("[todos_produtos] falhou em:", endpoint, error?.message || error);
+            }
+          }
+
+          throw new Error("Falha ao carregar produtos");
         } catch (error) {
           console.error("Erro API:", error);
           window.displayMessage("Erro ao carregar os produtos.", "error");
@@ -534,11 +694,12 @@
           headerTitle.textContent = `Resultados para "${searchTermRaw}"`;
           document.title = `Busca: ${searchTermRaw} | ARIANA MOVEIS`;
         } else {
-          headerTitle.textContent = "Digite um termo para buscar produtos";
+          headerTitle.textContent = "Todos os Produtos";
+          document.title = "Todos os Produtos | ARIANA MOVEIS";
         }
 
         const products = await fetchProductsFromApi();
-        const filteredProducts = filterProductsBySearch(products, searchTermRaw);
+        const filteredProducts = searchTermRaw ? filterProductsBySearch(products, searchTermRaw) : products;
         renderProducts(filteredProducts);
       };
 
@@ -570,6 +731,7 @@
       window.addEventListener("marketplace:helpers-ready", tryInitHeader);
     })();
   </script>
+  <script src="./product-card.js"></script>
 
   <script src="js/layout-fit.js" defer></script>
   <script src="footer.js" defer></script>

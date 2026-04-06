@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="icon" type="image/png" href="./favicon.png">
 
   <style>
     body { background-color:#fcfcfc; overflow-x:hidden; margin:0; }
@@ -260,6 +261,45 @@
     "description":"Conheça a vitrine da loja parceira no marketplace Ariana Móveis.",
     "url":""
   }</script>
+
+<script>
+window.API_BASE =
+  (location.hostname === "127.0.0.1" || location.hostname === "localhost")
+    ? "http://localhost:3000/api"
+    : "https://ariana-move-mongo.onrender.com/api";
+window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+try {
+  localStorage.setItem("API_BASE", window.API_BASE);
+  localStorage.setItem("API_BASE_URL", window.API_BASE);
+} catch(_e) {}
+window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+  const raw = String(value || "").trim();
+  if (!raw || raw.includes("${")) return "https://placehold.co/400x400?text=SEM+IMAGEM";
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+  if (raw.startsWith("/")) return window.API_ORIGIN + raw;
+  return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
+};
+(function(){
+  const origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (!origFetch || window.__ARIANA_FETCH_PATCH__) return;
+  window.__ARIANA_FETCH_PATCH__ = true;
+  window.fetch = function(input, init){
+    let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+    if (url) {
+      url = url
+        .replace(/\/undefined\/payments\b/g, "/settings/payments")
+        .replace("https://ariana-move-mongo.onrender.com/api", window.API_BASE)
+        .replace("https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api", window.API_BASE);
+      if (typeof input === "string") input = url;
+      else if (input instanceof Request) input = new Request(url, input);
+    }
+    return origFetch(input, init);
+  };
+})();
+</script>
+
 </head>
 
 <body id="pageApp">
@@ -336,21 +376,16 @@
         if (h === 'localhost' || h === '127.0.0.1') {
           navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(()=>{});
         }
-      }catch(_){}
+      }catch(_){ }
     })();
   </script>
 
   <script>
-    const API_BASE =
-  localStorage.getItem("API_BASE") ||
-  window.API_BASE ||
-  "https://ariana-move-mongo.onrender.com/api";
-
-window.API_BASE = API_BASE;
+    const API_BASE = window.API_BASE;
     const $ = (id) => document.getElementById(id);
 
     let __paymentsConfig = {
-      cash: { enabled: false, discountPercent: 0, label: "no PIX", price: null },
+      cash: { enabled: false, discountPercent: 0, label: "à vista", price: null },
       card: { enabled: true, installments: 12, text: "em até 12x" }
     };
 
@@ -394,6 +429,18 @@ window.API_BASE = API_BASE;
       return data;
     }
 
+    async function apiFetchWithFallback(urls, options = {}) {
+      let lastError = null;
+      for (const url of urls) {
+        try {
+          return await apiFetch(url, options);
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error("Falha ao carregar dados");
+    }
+
     async function loadGlobalPaymentsConfig() {
       try {
         const data = await apiFetch(`${API_BASE}/settings/payments`, { method: "GET" });
@@ -419,7 +466,7 @@ window.API_BASE = API_BASE;
           data?.cash?.label ??
           data?.pix?.label ??
           data?.cashLabel ??
-          "no PIX";
+          "à vista";
 
         const installments = Math.max(
           1,
@@ -455,7 +502,7 @@ window.API_BASE = API_BASE;
         };
       } catch (_) {
         __paymentsConfig = {
-          cash: { enabled: false, discountPercent: 0, label: "no PIX", price: null },
+          cash: { enabled: false, discountPercent: 0, label: "à vista", price: null },
           card: { enabled: true, installments: 12, text: "em até 12x" }
         };
       }
@@ -504,26 +551,21 @@ window.API_BASE = API_BASE;
       return raw.startsWith("55") ? raw : ("55" + raw);
     }
 
-    async function resolveMainImageUrl(productData) {
+    function resolveMainImageUrl(productData) {
       const p = productData || {};
-
-      const direct =
+      const imageValue =
         p.imageUrl ||
         p.mainImageUrl ||
-        p.urlImagem ||
-        p.url ||
         p.image ||
         p.imagem ||
-        (Array.isArray(p.images) && (
-          typeof p.images[0] === "string"
-            ? p.images[0]
-            : (p.images[0]?.url || p.images[0]?.imageUrl || p.images[0]?.downloadURL)
-        )) ||
-        null;
+        (Array.isArray(p.images) ? (typeof p.images[0] === "string" ? p.images[0] : (p.images[0]?.url || p.images[0]?.imageUrl || p.images[0]?.downloadURL)) : "") ||
+        (Array.isArray(p.imagePaths) ? p.imagePaths[0] : "") ||
+        (Array.isArray(p.imageUrls) ? p.imageUrls[0] : "") ||
+        p.urlImagem ||
+        p.url ||
+        "";
 
-      if (direct && typeof direct === "string") return direct;
-
-      return "https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM";
+      return window.resolveApiImageUrl(imageValue);
     }
 
     function createIndexStyleCard(product) {
@@ -557,8 +599,7 @@ window.API_BASE = API_BASE;
         installmentsText = `ou em até ${installments}x de ${window.formatCurrency(basePrice / installments)} sem juros`;
       }
 
-      const cashLabel = payments?.cash?.enabled ? (payments.cash.label || "no PIX") : "à vista";
-
+      const cashLabel = payments?.cash?.enabled ? (payments.cash.label || "à vista") : "à vista";
       const productId = decorated.id || decorated._id || "";
 
       const card = document.createElement("a");
@@ -567,7 +608,7 @@ window.API_BASE = API_BASE;
       card.innerHTML = `
         <div class="product-image-container">
           ${discountValue ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${discountValue}% OFF</span></div>` : ""}
-          <img src="${decorated.imageUrl}" alt="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}" loading="lazy">
+          <img src="${decorated.imageUrl}" alt="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x400?text=SEM+IMAGEM';">
         </div>
         <div class="product-card-body">
           <p class="product-name" title="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}">${decorated.name || "Produto"}</p>
@@ -639,26 +680,154 @@ window.API_BASE = API_BASE;
       }
     }
 
-    async function fetchSellerById(sellerId) {
-      const data = await apiFetch(`${API_BASE}/sellers/${encodeURIComponent(sellerId)}`, { method: "GET" });
-      return data?.item || data?.seller || data;
+    
+    function normalizeSlugLike(value) {
+      return String(value || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .trim();
     }
 
-    async function fetchProductsBySellerId(sellerId) {
-      const data = await apiFetch(`${API_BASE}/products?sellerId=${encodeURIComponent(sellerId)}`, { method: "GET" });
-      const items = Array.isArray(data) ? data : (data.items || data.products || []);
+    function normalizeSellerRecord(item) {
+      return item?.item || item?.seller || item || null;
+    }
+
+    function pickSellerMatchValue(seller) {
+      return [
+        seller?._id,
+        seller?.id,
+        seller?.slug,
+        seller?.storeSlug,
+        seller?.storeName,
+        seller?.store_name,
+        seller?.name,
+        seller?.username,
+        seller?.sellerId
+      ].filter(Boolean);
+    }
+
+    function sellerMatchesQuery(seller, queryValue) {
+      const wanted = normalizeSlugLike(queryValue);
+      if (!wanted) return false;
+      return pickSellerMatchValue(seller).some((value) => normalizeSlugLike(value) === wanted);
+    }
+
+    async function fetchSellersCollection() {
+      const data = await apiFetchWithFallback([
+        `${API_BASE}/sellers`,
+        `${API_BASE}/seller`,
+        `${API_BASE}/admin/sellers`
+      ], { method: "GET" });
+
+      return (Array.isArray(data) ? data : (data?.items || data?.sellers || data?.results || []))
+        .map(normalizeSellerRecord)
+        .filter(Boolean);
+    }
+
+    async function fetchSellerById(sellerId) {
+      const directData = await apiFetchWithFallback([
+        `${API_BASE}/sellers/${encodeURIComponent(sellerId)}`,
+        `${API_BASE}/seller/${encodeURIComponent(sellerId)}`,
+        `${API_BASE}/sellers/slug/${encodeURIComponent(sellerId)}`,
+        `${API_BASE}/seller/slug/${encodeURIComponent(sellerId)}`
+      ], { method: "GET" }).catch(() => null);
+
+      const directSeller = normalizeSellerRecord(directData);
+      if (directSeller) return directSeller;
+
+      const sellers = await fetchSellersCollection();
+      return sellers.find((seller) => sellerMatchesQuery(seller, sellerId)) || null;
+    }
+
+    function productBelongsToSeller(product, sellerRef, sellerQuery) {
+      const values = [
+        product?.sellerId,
+        product?.seller_id,
+        product?.seller,
+        product?.sellerSlug,
+        product?.seller_slug,
+        product?.storeSlug,
+        product?.store_slug,
+        product?.storeName,
+        product?.store_name,
+        product?.sellerName,
+        product?.seller_name,
+        product?.nameSeller,
+        product?.loja,
+        product?.store
+      ].filter(Boolean).map(normalizeSlugLike);
+
+      const sellerCandidates = [
+        sellerRef?._id,
+        sellerRef?.id,
+        sellerRef?.slug,
+        sellerRef?.storeSlug,
+        sellerRef?.storeName,
+        sellerRef?.store_name,
+        sellerRef?.name,
+        sellerRef?.username,
+        sellerQuery
+      ].filter(Boolean).map(normalizeSlugLike);
+
+      return sellerCandidates.some((wanted) => values.includes(wanted));
+    }
+
+    async function fetchAllProductsCollection() {
+      const data = await apiFetchWithFallback([
+        `${API_BASE}/seller/products`,
+        `${API_BASE}/products`
+      ], { method: "GET" });
+
+      return (Array.isArray(data) ? data : (data?.items || data?.products || data?.results || []));
+    }
+
+    async function fetchProductsBySellerId(sellerId, sellerPublic = null) {
+      const candidateValues = [
+        sellerPublic?._id,
+        sellerPublic?.id,
+        sellerPublic?.slug,
+        sellerPublic?.storeSlug,
+        sellerPublic?.storeName,
+        sellerPublic?.store_name,
+        sellerPublic?.name,
+        sellerPublic?.username,
+        sellerId
+      ].filter(Boolean);
+
+      const urls = [];
+      for (const value of candidateValues) {
+        const encoded = encodeURIComponent(value);
+        urls.push(`${API_BASE}/products?sellerId=${encoded}`);
+        urls.push(`${API_BASE}/seller/products?sellerId=${encoded}`);
+        urls.push(`${API_BASE}/seller/products?seller=${encoded}`);
+        urls.push(`${API_BASE}/products?slug=${encoded}`);
+        urls.push(`${API_BASE}/seller/products?slug=${encoded}`);
+      }
+
+      const data = await apiFetchWithFallback(urls, { method: "GET" }).catch(() => null);
+      let items = data ? (Array.isArray(data) ? data : (data.items || data.products || [])) : [];
+
+      if (!items.length) {
+        const allItems = await fetchAllProductsCollection().catch(() => []);
+        items = allItems.filter((item) => productBelongsToSeller(item, sellerPublic, sellerId));
+      }
+
       return items.map((item) => ({
         id: item.id || item._id || "",
         name: item.nome || item.name || "Produto",
-        price: item.preco ?? item.price ?? 0,
-        oldPrice: item.precoAntigo ?? item.oldPrice ?? item.old_price ?? null,
+        price: item.preco ?? item.price ?? item.valor ?? 0,
+        oldPrice: item.precoAntigo ?? item.oldPrice ?? item.old_price ?? item.compareAtPrice ?? null,
         ...item
       }));
     }
 
     async function initLoja() {
+
       const params = new URLSearchParams(window.location.search);
-      const sellerId = params.get("sellerId") || params.get("id");
+      const sellerId = params.get("sellerId") || params.get("id") || params.get("slug");
 
       const grid = $("products-grid");
       const spinner = $("loading-spinner");
@@ -708,20 +877,22 @@ window.API_BASE = API_BASE;
 
         $("store-subtitle").textContent = "Confira os produtos disponíveis desta loja.";
 
-        const logoUrl =
+        const logoUrlRaw =
           sellerPublic?.logoUrl ||
           sellerPublic?.logo ||
           sellerPublic?.photoUrl ||
           sellerPublic?.imagem ||
-          null;
+          "";
 
-        if (logoUrl && typeof logoUrl === "string") {
+        const logoUrl = logoUrlRaw ? window.resolveApiImageUrl(logoUrlRaw) : "";
+
+        if (logoUrl) {
           $("store-logo").src = logoUrl;
           $("store-logo").classList.remove("hidden");
           $("store-icon").classList.add("hidden");
         }
 
-        updateSeoForStore(storeName, desc, (logoUrl && /^https?:/i.test(logoUrl)) ? logoUrl : "");
+        updateSeoForStore(storeName, desc, (/^https?:/i.test(logoUrl)) ? logoUrl : "");
 
         const wa = normalizeWhatsapp(
           sellerPublic?.whatsapp ||
@@ -734,11 +905,11 @@ window.API_BASE = API_BASE;
           $("whatsapp-store-link").href = `https://wa.me/${wa}`;
         }
 
-        const rawProducts = (await fetchProductsBySellerId(sellerId)).filter(isVisibleProduct);
+        const rawProducts = (await fetchProductsBySellerId(sellerId, sellerPublic)).filter(isVisibleProduct);
 
-        const products = await Promise.all(rawProducts.map(async (p) => {
-          const imageUrl = await resolveMainImageUrl(p);
-          return { ...p, imageUrl };
+        const products = rawProducts.map((p) => ({
+          ...p,
+          imageUrl: resolveMainImageUrl(p)
         }));
 
         spinner.classList.add("hidden");

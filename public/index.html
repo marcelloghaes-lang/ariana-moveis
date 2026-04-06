@@ -13,6 +13,41 @@
   <link rel="icon" type="image/png" href="./favicon.png">
 
   <link rel="stylesheet" href="css/tailwind.min.css">
+
+<script>
+window.API_BASE = "https://ariana-move-mongo.onrender.com/api";
+window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+try {
+  localStorage.setItem("API_BASE", window.API_BASE);
+  localStorage.setItem("API_BASE_URL", window.API_BASE);
+} catch(_e) {}
+window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+  const raw = String(value || "").trim();
+  if (!raw || raw.includes("${")) return "https://placehold.co/400x400?text=SEM+IMAGEM";
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+  if (raw.startsWith("/")) return window.API_ORIGIN + raw;
+  return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
+};
+(function(){
+  const origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (!origFetch || window.__ARIANA_FETCH_PATCH__) return;
+  window.__ARIANA_FETCH_PATCH__ = true;
+  window.fetch = function(input, init){
+    let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+    if (url) {
+      url = url
+        .replace(/\/undefined\/payments/g, "/settings/payments")
+        .replace("https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api", window.API_BASE);
+      if (typeof input === "string") input = url;
+      else if (input instanceof Request) input = new Request(url, input);
+    }
+    return origFetch(input, init);
+  };
+})();
+</script>
+
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
@@ -218,7 +253,7 @@ footer, .site-footer, .footer, .footer-wrap {
 
 <script>
 // ====== FIX GLOBAL: converte preço BR ("1.299,90") para número (1299.90) ======
-// Se os preços vierem do Firestore como string formatada, Number("1.299,90") vira NaN e SOME desconto/12x.
+// Se os preços vierem formatados como string, Number("1.299,90") vira NaN e some desconto/12x.
 window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   try{
     if (v === null || v === undefined) return fallback;
@@ -250,10 +285,10 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
     return t.content.firstElementChild || document.createElement("span");
   };
 </script>
-<script src="./header.js"></script>
-<script>
-  window.carregarHeader();
-</script>
+
+</head>
+
+<body>
 
   <!-- Mensagens (suporte ao displayMessage) -->
   <div id="message-container"></div>
@@ -573,171 +608,73 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   </main>
 
   
-  
-  <script>
-    window.API_BASE =
-  window.API_BASE ||
-  localStorage.getItem("API_BASE") ||
-  "https://ariana-moveis.onrender.com/api";
+    <script>
+const IS_LOCAL_INDEX = /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
+const API_BASE_CANDIDATES = IS_LOCAL_INDEX
+  ? ['http://localhost:3000/api', 'https://ariana-move-mongo.onrender.com/api']
+  : [
+      `${window.location.origin}/api`,
+      localStorage.getItem('API_BASE') || '',
+      'https://ariana-move-mongo.onrender.com/api',
+      'http://localhost:3000/api'
+    ].filter(Boolean);
 
-    let db = {};
-    let auth = { currentUser: null };
-    let storage = {};
-    let userId = null;
-    let allProducts = [];
-    let __homeDataBooted = false;
-    let __homeProductsBooted = false;
-    let miniCarouselBooted = false;
+let API_BASE = API_BASE_CANDIDATES[0];
+window.API_BASE = API_BASE;
+window.API_ORIGIN = String(API_BASE).replace(/\/api\/?$/i, '');
+try { localStorage.setItem('API_BASE', API_BASE); } catch(_) {}
+
+let auth = { currentUser: null };
+let userId = null;
+let allProducts = [];
+
+const apiRequest = async (path, opts = {}) => {
+  const normalizedPath = `${String(path).startsWith('/') ? '' : '/'}${path}`;
+  let lastError = null;
+
+  for (const base of API_BASE_CANDIDATES) {
+    const headers = { ...(opts.headers || {}) };
+    if (!(opts.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+
+    try {
+      const url = `${String(base).replace(/\/+$/, '')}${normalizedPath}`;
+      const res = await fetch(url, { ...opts, headers });
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json().catch(() => null) : await res.text().catch(() => null);
+
+      if (!res.ok) {
+        const msg = (data && typeof data === 'object' && (data.message || data.error)) ? (data.message || data.error) : `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+
+      API_BASE = base;
+      window.API_BASE = base;
+      window.API_ORIGIN = String(base).replace(/\/api\/?$/i, '');
+      try {
+        localStorage.setItem('API_BASE', base);
+        localStorage.setItem('API_BASE_URL', base);
+      } catch(_) {}
+      return data;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Nenhuma API disponível no momento.');
+};
+
+const normalizeListResponse = (data) => {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.items)) return data.items;
+  if (data && Array.isArray(data.docs)) return data.docs;
+  if (data && Array.isArray(data.results)) return data.results;
+  if (data && Array.isArray(data.products)) return data.products;
+  if (data && Array.isArray(data.banners)) return data.banners;
+  if (data && Array.isArray(data.categories)) return data.categories;
+  return [];
+};
+
     window.BRAND_NAME = 'ARIANA MOVEIS';
-
-    const API_CANDIDATES = {
-      banners: [
-        '/banners',
-        '/banner-slots',
-        '/index/banners',
-        '/home/banners'
-      ],
-      bannerItem: (slotId) => [
-        `/banners/${encodeURIComponent(slotId)}`,
-        `/banner-slots/${encodeURIComponent(slotId)}`,
-        `/banners?slot=${encodeURIComponent(slotId)}`,
-        `/index/banners/${encodeURIComponent(slotId)}`,
-        `/home/banners/${encodeURIComponent(slotId)}`
-      ],
-      products: [
-        '/products',
-        '/seller/products',
-        '/catalog/products',
-        '/home/products',
-        '/store/products'
-      ],
-      categories: [
-        '/categories',
-        '/catalog/categories',
-        '/home/categories'
-      ],
-      userById: (id) => [
-        `/users/${encodeURIComponent(id)}`,
-        `/customers/${encodeURIComponent(id)}`,
-        `/me`
-      ],
-      indexData: [
-        '/index-data',
-        '/home',
-        '/home/index-data'
-      ]
-    };
-
-    function buildCandidateUrls(path) {
-      const direct = String(path || '').trim();
-      const base = String(window.API_BASE || '').replace(/\/+$/, '');
-      const raw = [];
-      if (direct.startsWith('http://') || direct.startsWith('https://')) raw.push(direct);
-      else {
-        raw.push(base + direct);
-        if (!base.endsWith('/api') && !direct.startsWith('/api/')) raw.push(base + '/api' + direct);
-      }
-      return [...new Set(raw)];
-    }
-
-    async function fetchFirstJson(paths, options = {}) {
-      const errors = [];
-      for (const p of paths) {
-        const urls = buildCandidateUrls(p);
-        for (const url of urls) {
-          try {
-            const res = await fetch(url, {
-              ...options,
-              headers: {
-                'Accept': 'application/json',
-                ...(options.headers || {})
-              }
-            });
-            if (!res.ok) {
-              errors.push(`${url} -> ${res.status}`);
-              continue;
-            }
-            const data = await res.json();
-            return { ok: true, url, data };
-          } catch (e) {
-            errors.push(`${url} -> ${e.message}`);
-          }
-        }
-      }
-      return { ok: false, errors };
-    }
-
-    function unwrapArray(payload) {
-      if (Array.isArray(payload)) return payload;
-      if (!payload || typeof payload !== 'object') return [];
-      const candidates = [
-        payload.items, payload.data, payload.products, payload.categories,
-        payload.banners, payload.results, payload.rows, payload.docs
-      ];
-      for (const c of candidates) if (Array.isArray(c)) return c;
-      const values = Object.values(payload).filter((item) => item && typeof item === 'object');
-      if (values.length) return values;
-      return [];
-    }
-
-    function unwrapObject(payload) {
-      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-        const candidates = [payload.data, payload.item, payload.banner, payload.user, payload.product];
-        for (const c of candidates) {
-          if (c && typeof c === 'object' && !Array.isArray(c)) return c;
-        }
-        return payload;
-      }
-      return null;
-    }
-
-    function toImageUrl(value) {
-      const v = String(value || '').trim();
-      if (!v) return '';
-      if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:')) return v;
-      const base = String(window.API_BASE || '').replace(/\/api$/, '').replace(/\/+$/, '');
-      if (v.startsWith('/')) return base + v;
-      return `${base}/${v}`;
-    }
-
-    function getLocalLoggedUser() {
-      const candidates = [
-        "usuarioLogado", "usuario_logado",
-        "clienteLogado", "cliente_logado",
-        "ariana_user", "arianaUser"
-      ];
-      const read = (store) => {
-        for (const k of candidates) {
-          const raw = store.getItem(k);
-          if (!raw) continue;
-          try {
-            const obj = JSON.parse(raw);
-            if (obj && typeof obj === "object") return obj;
-          } catch {}
-        }
-        return null;
-      };
-      const u = read(localStorage) || read(sessionStorage);
-      if (!u) return null;
-      const nome =
-        u.nome || u.name || u.displayName || u.fullName ||
-        (u.email ? String(u.email).split("@")[0] : null) ||
-        (u.usuario ? String(u.usuario) : null);
-      const email = u.email || u.userEmail || u.mail || null;
-      const uid = u.uid || u.id || u._id || u.userId || u.clienteId || null;
-      return { ...u, uid, _nomeExibicao: nome || "Cliente", _emailExibicao: email };
-    }
-
-    function syncPseudoAuthFromStorage() {
-      const localUser = getLocalLoggedUser();
-      auth.currentUser = localUser ? {
-        uid: localUser.uid || null,
-        email: localUser._emailExibicao || localUser.email || null,
-        displayName: localUser._nomeExibicao || null,
-        isAnonymous: false
-      } : null;
-      userId = auth.currentUser?.uid || null;
-    }
 
     window.displayMessage = (message, type = 'info') => {
       const container = document.getElementById('message-container');
@@ -776,51 +713,74 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       return { symbol: 'R$', integer: integerPart, decimal: decimalPart };
     };
 
-    window.loadCartCounter = window.loadCartCounter || (() => {
-      const keys = ['ariana_moveis_cart', 'arianaMoveisCart', 'cart', 'carrinho', 'cartItems', 'shoppingCart'];
-      let raw = null;
-      for (const k of keys) {
-        raw = localStorage.getItem(k);
-        if (raw && String(raw).trim() && raw !== 'null') break;
-        raw = null;
-      }
-      let total = 0;
-      if (raw) {
-        try {
-          const data = JSON.parse(raw);
-          const pickArray = (obj) => {
-            if (!obj) return null;
-            if (Array.isArray(obj)) return obj;
-            if (Array.isArray(obj.items)) return obj.items;
-            if (Array.isArray(obj.cart)) return obj.cart;
-            if (Array.isArray(obj.carrinho)) return obj.carrinho;
-            return null;
-          };
-          const arr = pickArray(data);
-          if (arr) {
-            total = arr.reduce((sum, it) => {
-              const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? it?.quantidade ?? 0);
-              return sum + (Number.isFinite(q) ? q : 0);
-            }, 0);
-          } else if (data && typeof data === 'object') {
-            total = Object.values(data).reduce((sum, it) => {
-              const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? it?.quantidade ?? 0);
-              return sum + (Number.isFinite(q) ? q : 0);
-            }, 0);
-          }
-        } catch (_) { total = 0; }
-      }
-      document.querySelectorAll('[id^="cart-counter"]').forEach(el => {
-        if (total > 0) {
-          el.textContent = String(total);
-          el.classList.remove('hidden');
-        } else {
-          el.textContent = '0';
-          el.classList.add('hidden');
-        }
-      });
-    });
+    const formatInstallments = (installments) => {
+      const { count, value, interestFree } = installments || {};
+      if (!count || !value) return '';
+      const formattedValue = window.formatCurrency(value);
+      const interestText = interestFree ? 'sem juros' : 's/ juros';
+      return `ou em até ${count}x de ${formattedValue} ${interestText}`;
+    };
 
+    window.loadCartCounterIndex = () => {
+  // Atualiza todos os badges do carrinho na tela (header e mobile).
+  // Lê do localStorage (várias chaves possíveis) e soma quantity/qty/qtd.
+  const keys = ['ariana_moveis_cart', 'arianaMoveisCart', 'cart', 'carrinho', 'cartItems', 'shoppingCart'];
+  let raw = null;
+
+  for (const k of keys) {
+    raw = localStorage.getItem(k);
+    if (raw && String(raw).trim() && raw !== 'null') break;
+    raw = null;
+  }
+
+  let total = 0;
+
+  if (raw) {
+    try {
+      const data = JSON.parse(raw);
+
+      // Formatos aceitos:
+      // - array de itens [{quantity|qty|qtd}, ...]
+      // - objeto {items:[...]} ou {cart:[...]} etc.
+      // - objeto mapa {id:{quantity...}, ...}
+      const pickArray = (obj) => {
+        if (!obj) return null;
+        if (Array.isArray(obj)) return obj;
+        if (Array.isArray(obj.items)) return obj.items;
+        if (Array.isArray(obj.cart)) return obj.cart;
+        if (Array.isArray(obj.carrinho)) return obj.carrinho;
+        return null;
+      };
+
+      const arr = pickArray(data);
+
+      if (arr) {
+        total = arr.reduce((sum, it) => {
+          const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? it?.quantidade ?? 0);
+          return sum + (Number.isFinite(q) ? q : 0);
+        }, 0);
+      } else if (data && typeof data === 'object') {
+        // mapa
+        total = Object.values(data).reduce((sum, it) => {
+          const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? it?.quantidade ?? 0);
+          return sum + (Number.isFinite(q) ? q : 0);
+        }, 0);
+      }
+    } catch (_) {
+      total = 0;
+    }
+  }
+
+  document.querySelectorAll('[id^="cart-counter"]').forEach(el => {
+    if (total > 0) {
+      el.textContent = String(total);
+      el.classList.remove('hidden');
+    } else {
+      el.textContent = '0';
+      el.classList.add('hidden');
+    }
+  });
+};
 
     window.updateBranding = (name) => {
       const footerBrand = document.querySelector('#footer-brand');
@@ -829,9 +789,45 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       if (title) title.textContent = 'Início | ' + name;
     };
 
-    const updateClientStatusUI = () => {
+    
+    const getLocalLoggedUser = () => {
+      const candidates = [
+        "usuarioLogado", "usuario_logado",
+        "clienteLogado", "cliente_logado",
+        "ariana_user", "arianaUser"
+      ];
+
+      const read = (store) => {
+        for (const k of candidates) {
+          const raw = store.getItem(k);
+          if (!raw) continue;
+          try {
+            const obj = JSON.parse(raw);
+            if (obj && typeof obj === "object") return obj;
+          } catch {
+            // Se não for JSON válido, ignoramos (evita capturar valores que não são usuário, ex.: "SEDEX").
+          }
+        }
+        return null;
+      };
+
+      const u = read(localStorage) || read(sessionStorage);
+      if (!u) return null;
+
+      const nome =
+        u.nome || u.name || u.displayName || u.fullName ||
+        (u.email ? String(u.email).split("@")[0] : null) ||
+        (u.usuario ? String(u.usuario) : null);
+
+      const email = u.email || u.userEmail || u.mail || null;
+      return { ...u, _nomeExibicao: nome || "Cliente", _emailExibicao: email };
+    };
+
+const updateClientStatusUI = (user) => {
       const clientStatusDisplay = document.getElementById('client-status-display');
       if (!clientStatusDisplay) return;
+
+      // 1) Prioriza o login do site (localStorage/sessionStorage)
       const localUser = getLocalLoggedUser();
       if (localUser && localUser._nomeExibicao) {
         clientStatusDisplay.innerHTML =
@@ -839,195 +835,203 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           `<span class="text-sm text-gray-300">Acesse sua conta</span>`;
         return;
       }
+
+      // 2) Fallback: usuário autenticado (não anônimo)
+      if (user && user.email && !user.isAnonymous) {
+        const displayName = user.displayName || user.email?.split('@')[0] || 'Cliente';
+        clientStatusDisplay.innerHTML =
+          `<span class="text-sm font-semibold">Olá, ${displayName}!</span>` +
+          `<span class="text-sm text-gray-300">Acesse sua conta</span>`;
+        return;
+      }
+
+      // 3) Anônimo / deslogado
+      if (user && user.isAnonymous) {
+        clientStatusDisplay.innerHTML =
+          `<span class="text-sm font-semibold">Olá!</span>` +
+          `<span class="text-sm text-gray-300">Entre para acompanhar pedidos</span>`;
+        return;
+      }
+
       clientStatusDisplay.innerHTML =
         `<span class="text-sm font-semibold">Entre ou Cadastre-se</span>` +
         `<span class="text-sm text-gray-300">para ver seus pedidos</span>`;
     };
 
-    function exposeCompatApiHelpers() {
-      window.db = db;
-      window.auth = auth;
-      window.storage = storage;
-      window.__INDEX_DB__ = db;
+    
+window.checkAuthAndInit = async () => {
+  try {
+    const localUser = getLocalLoggedUser();
+    if (localUser) {
+      auth.currentUser = { email: localUser._emailExibicao || '', isAnonymous: false, displayName: localUser._nomeExibicao || 'Cliente' };
+      userId = localUser.id || localUser.uid || localUser._emailExibicao || 'guest';
+    }
+    updateClientStatusUI(auth.currentUser);
+    try {
+      window.refreshHeaderUser && window.dispatchEvent(new Event('user:updated'));
+    } catch (_) {}
+    await window.loadData();
+  } catch (error) {
+    console.error('Erro na inicialização API/Mongo:', error);
+    window.displayMessage(`Erro na inicialização API/Mongo: ${error.message}`, 'error');
+  }
+};
 
-      window.collection = (_db, name) => ({ __type: 'collection', name });
-      window.doc = (_db, collectionName, id) => ({ __type: 'doc', collectionName, id });
-      window.where = (field, op, value) => ({ type: 'where', field, op, value });
-      window.orderBy = (field, dir = 'asc') => ({ type: 'orderBy', field, dir });
-      window.limit = (n) => ({ type: 'limit', n });
-      window.query = (ref, ...clauses) => ({ ...ref, clauses });
+let __homeDataBooted = false;
+    let __homeProductsBooted = false;
 
-      window.getDocs = async (ref) => {
-        let rows = [];
-        if (ref?.name === 'categories') rows = await getCategoriesApi();
-        else if (ref?.name === 'products') rows = await getProductsApi();
-        const n = ref?.clauses?.find?.(c => c.type === 'limit')?.n;
-        if (n) rows = rows.slice(0, n);
-        return {
-          docs: rows.map(item => ({
-            id: String(item.id || item._id || ''),
-            data: () => item
-          }))
+    async function waitPaymentsHelpersReady(timeoutMs = 12000) {
+      const ready = () => typeof window.decorateProductWithPayments === 'function' || typeof window.createProductCard === 'function';
+      if (ready()) return true;
+
+      const startedAt = Date.now();
+      return new Promise((resolve) => {
+        const tick = () => {
+          if (ready()) return resolve(true);
+          if ((Date.now() - startedAt) >= timeoutMs) return resolve(false);
+          setTimeout(tick, 80);
         };
-      };
-
-      window.getDoc = async (ref) => {
-        let data = null;
-        if (ref?.collectionName === 'banners') data = await getBannerBySlot(ref.id);
-        else if (ref?.collectionName === 'users') data = await getUserById(ref.id);
-        return {
-          exists: () => !!data,
-          data: () => data
-        };
-      };
-
-      window.onSnapshot = async (ref, callback) => {
-        try {
-          const snap = await window.getDoc(ref);
-          callback(snap);
-        } catch (e) {
-          console.error('[compat onSnapshot]', e);
-        }
-        return () => {};
-      };
-
-      window.dispatchEvent(new Event("firebase:ready"));
+        tick();
+      });
     }
 
-    async function getIndexDataApi() {
-      const result = await fetchFirstJson(API_CANDIDATES.indexData);
-      if (!result.ok) return null;
-      const payload = unwrapObject(result.data);
-      if (payload && (payload.products || payload.categories || payload.banners || payload.bannerSlots)) return payload;
-      return null;
-    }
+    
+async function loadHomeProductsWhenAuthReady() {
+  if (__homeProductsBooted) return;
+  __homeProductsBooted = true;
+  try {
+    await waitPaymentsHelpersReady();
+    await loadProducts();
+  } catch (e) {
+    console.error('[index] erro ao carregar produtos da home:', e);
+  }
+  try { window.loadCartCounterIndex(); } catch (e) { console.error('[index] erro no contador do carrinho:', e); }
+}
 
-    async function getProductsApi() {
-      const result = await fetchFirstJson(API_CANDIDATES.products);
-      if (!result.ok) return [];
-      return unwrapArray(result.data);
-    }
 
-    async function getCategoriesApi() {
-      const result = await fetchFirstJson(API_CANDIDATES.categories);
-      if (!result.ok) return [];
-      return unwrapArray(result.data);
-    }
+window.loadData = async () => {
+  if (!__homeDataBooted) {
+    __homeDataBooted = true;
+    window.updateBranding(window.BRAND_NAME);
+    loadClientAddress();
+    await loadAllBanners();
+    if (typeof window.syncHeroBannerLayout === 'function') window.syncHeroBannerLayout();
+    if (typeof window.initMiniBannersCarousel === 'function') window.initMiniBannersCarousel();
+    await loadCategories();
+  }
+  await loadHomeProductsWhenAuthReady();
+};
 
-    async function getBannersApi() {
-      const result = await fetchFirstJson(API_CANDIDATES.banners);
-      if (!result.ok) return [];
-      return unwrapArray(result.data);
-    }
 
-    async function getBannerBySlot(slotId) {
-      const direct = await fetchFirstJson(API_CANDIDATES.bannerItem(slotId));
-      if (direct.ok) {
-        const directData = unwrapObject(direct.data);
-        if (directData) return directData;
-      }
-      const banners = await getBannersApi();
-      return banners.find(b => String(b.slot || b.slotId || b.key || b.id).trim() === String(slotId).trim()) || null;
-    }
+const loadClientAddress = () => {
+  const addressElement = document.getElementById('client-address-display');
+  if (!addressElement) return;
+  const addressSpan = addressElement.querySelector('span');
+  if (!addressSpan) return;
+  const cached = localStorage.getItem('header_cityuf_cache') || localStorage.getItem('cityUF') || 'Guanhães - MG';
+  addressSpan.textContent = cached;
+};
 
-    async function getUserById(id) {
-      if (!id) return null;
-      const result = await fetchFirstJson(API_CANDIDATES.userById(id));
-      return result.ok ? unwrapObject(result.data) : null;
-    }
-
-    function normalizeCategory(item = {}) {
-      return {
-        id: item.id || item._id || item.slug || item.nome || item.name,
-        nome: item.nome || item.name || item.title || '',
-        name: item.name || item.nome || item.title || ''
-      };
-    }
-
-    function normalizeBannerData(slotId, data = {}) {
-      return {
-        active: data.active === true || data.enabled === true || data.status === 'active',
-        imageUrl: toImageUrl(
-          data.imageUrl || data.image || data.url || data.image_path || data.imagePath || data.bannerUrl || ''
-        ),
-        linkUrl:
-          data.linkUrl || data.href || data.link ||
-          (data.categorySlug ? `categoria.html?slug=${encodeURIComponent(data.categorySlug)}` : null) ||
-          (data.slug ? `categoria.html?slug=${encodeURIComponent(data.slug)}` : null) ||
-          (data.categoryId ? `categoria.html?id=${encodeURIComponent(data.categoryId)}` : null) ||
-          (data.category ? `categoria.html?id=${encodeURIComponent(data.category)}` : null) ||
-          null,
-        raw: data
-      };
-    }
-
-    function normalizeProduct(item = {}) {
-      const images = Array.isArray(item.images) ? item.images : [];
-      const mainImageObj = images.find(img => img && (img.isMain === true || img.main === true)) || images[0] || null;
-      const imageUrl = toImageUrl(
-        item.mainImageUrl || item.imageUrl || item.image || item.thumbnail || item.foto ||
-        item.mainImagePath || item.imagePath || mainImageObj?.url || mainImageObj?.path || ''
-      ) || 'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM';
-
-      const tsRaw = item.updatedAt || item.createdAt || item.created_at || item.timestamp || item.date || null;
-      let ts = 0;
-      if (typeof tsRaw === 'number') ts = tsRaw;
-      else if (typeof tsRaw === 'string') {
-        const ms = Date.parse(tsRaw);
-        ts = Number.isFinite(ms) ? ms : 0;
-      }
-
-      const oldPrice = window.__toNumberBR(item.precoAntigo ?? item.oldPrice ?? item.compareAtPrice ?? null, 0);
-      return {
-        id: item.id || item._id || item.slug || item.sku || cryptoRandomId(),
-        name: item.nome || item.name || item.titulo || 'Produto Sem Nome',
-        price: window.__toNumberBR(item.preco ?? item.price ?? item.valor ?? 0, 0),
-        oldPrice: oldPrice > 0 ? oldPrice : null,
-        category: item.category || item.categoria || 'Geral',
-        description: item.description || item.descricao || '',
-        imageUrl,
-        _ts: ts,
-        isOffer: item.isOffer === true || item.offer === true || item.promocao === true,
-        isBestSeller: item.isBestSeller === true || item.bestSeller === true || item.maisVendido === true,
-        isNew: item.isNew === true || item.new === true || item.lancamento === true,
-        isRecommended: item.isRecommended === true || item.recommended === true,
-        isFeatured: item.isFeatured === true || item.featured === true || item.destaque === true,
-        homeSections: Array.isArray(item.homeSections) ? item.homeSections : [],
-        installments: item.installments || null
-      };
-    }
-
-    function cryptoRandomId() {
-      return 'id_' + Math.random().toString(36).slice(2, 11);
-    }
-
+// ===== BANNERS (slots do admin) =====
     const bannerSlots = {
-      index_main: { sectionId:'hero-banners-section', containerId:'banner-link', linkId:'banner-link', imgId:'main-banner-image', statusId:'main-banner-status', defaultHref:'todos_produtos.html?section=offers', placeholderText:'Banner Principal' },
-      index_sidebar_vertical: { sectionId:'hero-banners-section', containerId:'index-vertical-banner-link', linkId:'index-vertical-banner-link', imgId:'index-vertical-banner-image', statusId:'index-vertical-banner-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Vertical' },
-      index_duo_1: { sectionId:'index-duo-banners-section', containerId:'index-duo-1-link', linkId:'index-duo-1-link', imgId:'index-duo-1-image', statusId:'index-duo-1-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Duo 1' },
-      index_duo_2: { sectionId:'index-duo-banners-section', containerId:'index-duo-2-link', linkId:'index-duo-2-link', imgId:'index-duo-2-image', statusId:'index-duo-2-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Duo 2' },
-      index_mini_1: { sectionId:'mini-banners-section', linkId:'mini_banner_1_link', imgId:'mini_banner_1_image', statusId:'mini_banner_1_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 1' },
-      index_mini_2: { sectionId:'mini-banners-section', linkId:'mini_banner_2_link', imgId:'mini_banner_2_image', statusId:'mini_banner_2_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 2' },
-      index_mini_3: { sectionId:'mini-banners-section', linkId:'mini_banner_3_link', imgId:'mini_banner_3_image', statusId:'mini_banner_3_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 3' },
-      index_mini_4: { sectionId:'mini-banners-section', linkId:'mini_banner_4_link', imgId:'mini_banner_4_image', statusId:'mini_banner_4_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 4' },
-      index_mini_5: { sectionId:'mini-banners-section', linkId:'mini_banner_5_link', imgId:'mini_banner_5_image', statusId:'mini_banner_5_status', defaultHref:'todos_produtos.html', placeholderText:'Mini Banner 5' },
-      index_secondary_1: { sectionId:'secondary-banner-1-section', linkId:'secondary-banner-1-link', imgId:'secondary-banner-1-image', statusId:'secondary-banner-1-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Secundário 1' },
-      index_secondary_2: { sectionId:'secondary-banner-2-section', linkId:'secondary-banner-2-link', imgId:'secondary-banner-2-image', statusId:'secondary-banner-2-status', defaultHref:'todos_produtos.html?section=featured', placeholderText:'Banner Secundário 2' },
-      footer_banner: { sectionId:'footer-banner-section', linkId:'footer-banner-link', imgId:'footer-banner-image', statusId:'footer-banner-status', defaultHref:'todos_produtos.html', placeholderText:'Banner Rodapé' },
-      home_card_1: { sectionId:'home-cards-section', linkId:'home_card_1_link', imgId:'home_card_1_image', statusId:'home_card_1_status', defaultHref:'todos_produtos.html', placeholderText:'Card 1' },
-      home_card_2: { sectionId:'home-cards-section', linkId:'home_card_2_link', imgId:'home_card_2_image', statusId:'home_card_2_status', defaultHref:'todos_produtos.html', placeholderText:'Card 2' },
-      home_card_3: { sectionId:'home-cards-section', linkId:'home_card_3_link', imgId:'home_card_3_image', statusId:'home_card_3_status', defaultHref:'todos_produtos.html', placeholderText:'Card 3' }
+      // HERO (banner principal + vertical lateral)
+      index_main: {
+        sectionId: 'hero-banners-section',
+        containerId: 'banner-link',
+        linkId: 'banner-link',
+        imgId: 'main-banner-image',
+        statusId: 'main-banner-status',
+        defaultHref: 'todos_produtos.html?section=offers',
+        placeholderText: 'Banner Principal',
+      },
+      index_sidebar_vertical: {
+        sectionId: 'hero-banners-section',
+        containerId: 'index-vertical-banner-link',
+        linkId: 'index-vertical-banner-link',
+        imgId: 'index-vertical-banner-image',
+        statusId: 'index-vertical-banner-status',
+        defaultHref: 'todos_produtos.html',
+        placeholderText: 'Banner Vertical',
+      },
+
+      // DUO (2 banners abaixo do hero)
+      index_duo_1: {
+        sectionId: 'index-duo-banners-section',
+        containerId: 'index-duo-1-link',
+        linkId: 'index-duo-1-link',
+        imgId: 'index-duo-1-image',
+        statusId: 'index-duo-1-status',
+        defaultHref: 'todos_produtos.html',
+        placeholderText: 'Banner Duo 1',
+      },
+      index_duo_2: {
+        sectionId: 'index-duo-banners-section',
+        containerId: 'index-duo-2-link',
+        linkId: 'index-duo-2-link',
+        imgId: 'index-duo-2-image',
+        statusId: 'index-duo-2-status',
+        defaultHref: 'todos_produtos.html',
+        placeholderText: 'Banner Duo 2',
+      },
+
+      // MINI BANNERS (5)
+      index_mini_1: { sectionId: 'mini-banners-section', linkId: 'mini_banner_1_link', imgId: 'mini_banner_1_image', statusId: 'mini_banner_1_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 1' },
+      index_mini_2: { sectionId: 'mini-banners-section', linkId: 'mini_banner_2_link', imgId: 'mini_banner_2_image', statusId: 'mini_banner_2_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 2' },
+      index_mini_3: { sectionId: 'mini-banners-section', linkId: 'mini_banner_3_link', imgId: 'mini_banner_3_image', statusId: 'mini_banner_3_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 3' },
+      index_mini_4: { sectionId: 'mini-banners-section', linkId: 'mini_banner_4_link', imgId: 'mini_banner_4_image', statusId: 'mini_banner_4_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 4' },
+      index_mini_5: { sectionId: 'mini-banners-section', linkId: 'mini_banner_5_link', imgId: 'mini_banner_5_image', statusId: 'mini_banner_5_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 5' },
+
+      // SECUNDÁRIOS + FOOTER (mantidos)
+      index_secondary_1: {
+        sectionId: 'secondary-banner-1-section',
+        linkId: 'secondary-banner-1-link',
+        imgId: 'secondary-banner-1-image',
+        statusId: 'secondary-banner-1-status',
+        defaultHref: 'todos_produtos.html',
+        placeholderText: 'Banner Secundário 1',
+      },
+      index_secondary_2: {
+        sectionId: 'secondary-banner-2-section',
+        linkId: 'secondary-banner-2-link',
+        imgId: 'secondary-banner-2-image',
+        statusId: 'secondary-banner-2-status',
+        defaultHref: 'todos_produtos.html?section=featured',
+        placeholderText: 'Banner Secundário 2',
+      },
+      footer_banner: {
+        sectionId: 'footer-banner-section',
+        linkId: 'footer-banner-link',
+        imgId: 'footer-banner-image',
+        statusId: 'footer-banner-status',
+        defaultHref: 'todos_produtos.html',
+        placeholderText: 'Banner Rodapé',
+      },
     };
 
+    const refreshSharedSectionVisibility = (sectionId) => {
+      const ids = sharedSectionSlots[sectionId];
+      if (!ids || !ids.length) return;
+      const anyActive = ids.some((k) => bannerSlotState[k] === true);
+      const sectionEl = document.getElementById(sectionId);
+      if (sectionEl) sectionEl.classList.toggle('hidden', !anyActive);
+    };
+
+    const bannerSlotState = {};
+
+    // Seções compartilhadas: mantém a seção visível se QUALQUER slot do grupo estiver ativo
     const sharedSectionSlots = {
       'home-cards-section': ['home_card_1','home_card_2','home_card_3'],
       'mini-banners-section': ['index_mini_1','index_mini_2','index_mini_3','index_mini_4','index_mini_5'],
       'hero-banners-section': ['index_main','index_sidebar_vertical'],
       'index-duo-banners-section': ['index_duo_1','index_duo_2'],
     };
+
     const slotActive = {};
 
-    const isSharedSection = (sectionId) => !!sharedSectionSlots[sectionId];
+    const isSharedSection = (sectionId) => {
+      if (!sectionId) return false;
+      return Object.prototype.hasOwnProperty.call(sharedSectionSlots, sectionId);
+    };
 
     const setHiddenById = (id, hidden) => {
       if (!id) return;
@@ -1045,125 +1049,159 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       });
     };
 
-    async function bindBannerSlot(slotId, cachedMap = null) {
-      const slot = bannerSlots[slotId];
-      if (!slot) return;
-      const sectionEl = slot.sectionId ? document.getElementById(slot.sectionId) : null;
-      const linkEl = document.getElementById(slot.linkId);
-      const imgEl = document.getElementById(slot.imgId);
-      const statusEl = slot.statusId ? document.getElementById(slot.statusId) : null;
-      const containerId = slot.containerId || slot.linkId;
 
-      const applyInactive = () => {
-        slotActive[slotId] = false;
-        setHiddenById(containerId, true);
-        if (!isSharedSection(slot.sectionId) && sectionEl) sectionEl.classList.add('hidden');
-        if (imgEl) imgEl.src = `https://placehold.co/1200x350?text=${encodeURIComponent(slot.placeholderText || 'Banner')}`;
-        if (linkEl) linkEl.href = slot.defaultHref || '#';
-        if (statusEl) statusEl.classList.remove('hidden');
-        updateSharedSectionsVisibility();
-      };
+    
+const loadAllBanners = async () => {
+  const slotAliases = {
+    index_main: ['index_main','main','hero','banner_principal','index-principal'],
+    index_sidebar_vertical: ['index_sidebar_vertical','sidebar_vertical','vertical','index_vertical_banner','index-vertical-banner'],
+    index_duo_1: ['index_duo_1','duo_1','index-duo-1'],
+    index_duo_2: ['index_duo_2','duo_2','index-duo-2'],
+    index_mini_1: ['index_mini_1','mini_1','mini1'],
+    index_mini_2: ['index_mini_2','mini_2','mini2'],
+    index_mini_3: ['index_mini_3','mini_3','mini3'],
+    index_mini_4: ['index_mini_4','mini_4','mini4'],
+    index_mini_5: ['index_mini_5','mini_5','mini5'],
+    index_secondary_1: ['index_secondary_1','secondary_1','secundario_1'],
+    index_secondary_2: ['index_secondary_2','secondary_2','secundario_2'],
+    footer_banner: ['footer_banner','footer']
+  };
 
-      try {
-        let raw = cachedMap?.[slotId] || null;
-        if (!raw) raw = await getBannerBySlot(slotId);
-        if (!raw) return applyInactive();
+  const applyBanner = (slotKey, banner) => {
+    const slot = bannerSlots[slotKey];
+    if (!slot) return;
+    const containerEl = document.getElementById(slot.containerId || slot.linkId || '');
+    const sectionEl = document.getElementById(slot.sectionId || '');
+    const linkEl = document.getElementById(slot.linkId || '');
+    const imgEl = document.getElementById(slot.imgId || '');
+    const statusEl = document.getElementById(slot.statusId || '');
+    const active = banner && banner.active !== false;
 
-        const data = normalizeBannerData(slotId, raw);
-        if (!data.active) return applyInactive();
+    bannerSlotState[slotKey] = active;
 
-        slotActive[slotId] = true;
-        setHiddenById(containerId, false);
-        if (sectionEl) sectionEl.classList.remove('hidden');
-        if (statusEl) statusEl.classList.add('hidden');
-        if (linkEl) linkEl.href = data.linkUrl || slot.defaultHref || '#';
-        if (imgEl && data.imageUrl) imgEl.src = data.imageUrl;
-        updateSharedSectionsVisibility();
-      } catch (err) {
-        console.error('[index] erro ao carregar banner', slotId, err);
-        applyInactive();
-      }
-    }
+    if (containerEl) containerEl.classList.toggle('hidden', !active);
+    if (statusEl) statusEl.classList.toggle('hidden', active);
 
-    async function loadAllBanners() {
-      const indexData = await getIndexDataApi();
-      let cachedMap = null;
-      if (indexData) {
-        const list = unwrapArray(indexData.banners || indexData.bannerSlots || []);
-        if (list.length) {
-          cachedMap = {};
-          list.forEach(item => {
-            const key = String(item.slot || item.slotId || item.key || item.id || '').trim();
-            if (key) cachedMap[key] = item;
-          });
-        }
-      }
-      if (!cachedMap) {
-        const banners = await getBannersApi();
-        cachedMap = {};
-        banners.forEach(item => {
-          const key = String(item.slot || item.slotId || item.key || item.id || '').trim();
-          if (key) cachedMap[key] = item;
-        });
-      }
-      await Promise.all(Object.keys(bannerSlots).map(slotId => bindBannerSlot(slotId, cachedMap)));
-    }
+    if (!active) return;
 
-    const syncHeroBannerLayout = () => {
+    if (sectionEl) sectionEl.classList.remove('hidden');
+    const href = banner.linkUrl || banner.href || banner.link || slot.defaultHref || '#';
+    const image = banner.imageUrl || banner.image || banner.url || banner.src || '';
+    if (linkEl) linkEl.href = href;
+    if (imgEl && image) imgEl.src = image;
+  };
+
+  try {
+    const merged = [];
+    try {
+      const direct = await apiRequest('/banners');
+      merged.push(...normalizeListResponse(direct));
+    } catch (_) {}
+    try {
+      const home = await apiRequest('/home/index-data');
+      merged.push(...normalizeListResponse(home && home.banners ? home.banners : []));
+    } catch (_) {}
+
+    Object.keys(bannerSlots).forEach((slotKey) => {
+      const aliases = slotAliases[slotKey] || [slotKey];
+      const banner = merged.find((b) => aliases.includes(String(b.slotId || b.tipo || b.slot || b.key || b.id || '').trim()));
+      applyBanner(slotKey, banner ? {
+        ...banner,
+        imageUrl: banner.imageUrl || banner.image || banner.url || banner.src || '',
+        linkUrl: banner.linkUrl || banner.href || banner.link || '',
+        active: banner.active !== false
+      } : null);
+    });
+
+    Object.keys(sharedSectionSlots).forEach(refreshSharedSectionVisibility);
+  } catch (err) {
+    console.error('Erro ao carregar banners do MongoDB:', err);
+  }
+};
+
+function syncHeroBannerLayout() {
       const main = document.getElementById('banner-link');
       const side = document.getElementById('index-vertical-banner-link');
       if (!main || !side) return;
+
       const sideHidden = side.classList.contains('hidden');
       main.classList.toggle('lg:col-span-3', !sideHidden);
       main.classList.toggle('lg:col-span-4', sideHidden);
       main.classList.toggle('hero-main-expanded', sideHidden);
       side.classList.toggle('hero-side-hidden', sideHidden);
-    };
+    }
 
-    const initMiniBannersCarousel = () => {
+    
+let miniCarouselBooted = false;
+    function initMiniBannersCarousel() {
       const wrap = document.getElementById('mini-banners-carousel');
-      if (!wrap || miniCarouselBooted) return;
-      const originals = Array.from(wrap.querySelectorAll(':scope > a')).filter((el) => !el.classList.contains('hidden'));
-      if (originals.length <= 1) return;
+      if (!wrap) return;
 
-      miniCarouselBooted = true;
+      const baseCards = Array.from(wrap.querySelectorAll(':scope > a')).filter((el) => !el.classList.contains('hidden'));
+      if (baseCards.length <= 1) return;
+
+      // Recria o carrossel sempre a partir dos cartões originais visíveis,
+      // removendo clones antigos para não acumular cards vazios/repetidos.
+      Array.from(wrap.querySelectorAll(':scope > a[data-clone="true"]')).forEach((node) => node.remove());
+
       wrap.classList.remove('grid', 'grid-cols-2', 'sm:grid-cols-3', 'lg:grid-cols-5');
       wrap.classList.add('is-carousel');
 
-      originals.forEach((card) => {
-        const clone = card.cloneNode(true);
+      const clonesNeeded = baseCards.length * 2; // sobra suficiente para desktop sem mostrar "vazio" no fim
+      for (let i = 0; i < clonesNeeded; i += 1) {
+        const source = baseCards[i % baseCards.length];
+        const clone = source.cloneNode(true);
         clone.dataset.clone = 'true';
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
         wrap.appendChild(clone);
-      });
+      }
 
       const cards = Array.from(wrap.querySelectorAll(':scope > a'));
+      if (!cards.length) return;
+
+      miniCarouselBooted = true;
       let currentIndex = 0;
       let timer = null;
+      let resumeTimeout = null;
+
+      const visibleStep = () => 1;
+
       const scrollToCard = (index, behavior = 'smooth') => {
-        const card = cards[index];
+        const safeIndex = Math.max(0, Math.min(index, cards.length - 1));
+        const card = cards[safeIndex];
         if (!card) return;
         wrap.scrollTo({ left: card.offsetLeft, behavior });
       };
+
+      const stop = () => {
+        if (timer) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+      };
+
       const start = () => {
-        if (timer) clearInterval(timer);
+        stop();
         timer = window.setInterval(() => {
           if (document.hidden) return;
-          currentIndex += 1;
+
+          currentIndex += visibleStep();
           scrollToCard(currentIndex);
-          if (currentIndex >= originals.length) {
+
+          if (currentIndex >= baseCards.length) {
             window.setTimeout(() => {
               currentIndex = 0;
-              scrollToCard(currentIndex, 'auto');
-            }, 450);
+              scrollToCard(0, 'auto');
+            }, 420);
           }
         }, window.innerWidth <= 767 ? 3200 : 2800);
       };
-      const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-      let resumeTimeout = null;
+
       const pauseTemporarily = () => {
         stop();
-        if (resumeTimeout) clearTimeout(resumeTimeout);
-        resumeTimeout = setTimeout(start, 5000);
+        if (resumeTimeout) window.clearTimeout(resumeTimeout);
+        resumeTimeout = window.setTimeout(start, 5000);
       };
 
       wrap.addEventListener('mouseenter', stop);
@@ -1171,254 +1209,273 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       wrap.addEventListener('touchstart', pauseTemporarily, { passive: true });
       wrap.addEventListener('touchmove', pauseTemporarily, { passive: true });
       wrap.addEventListener('wheel', pauseTemporarily, { passive: true });
+      wrap.addEventListener('scroll', () => {
+        if (wrap.scrollLeft <= 4) currentIndex = 0;
+      }, { passive: true });
+
       window.addEventListener('resize', () => {
         currentIndex = 0;
         scrollToCard(0, 'auto');
         start();
       });
+
+      scrollToCard(0, 'auto');
       start();
     };
 
-    const loadCategories = async () => {
-      try {
-        const categories = (await getCategoriesApi()).map(normalizeCategory).filter(c => c.name || c.nome);
-        const allCategoriesDropdown = document.getElementById('all-categories-list');
-        if (!allCategoriesDropdown) return;
-        allCategoriesDropdown.innerHTML = '';
-        allCategoriesDropdown.innerHTML += `<a href="todos_produtos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">Todos os Produtos</a>`;
-        allCategoriesDropdown.innerHTML += `<a href="meus_pedidos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">Meus Pedidos</a>`;
-        allCategoriesDropdown.innerHTML += `<div class="border-t border-gray-200 my-1"></div>`;
-        categories.forEach(category => {
-          const categoryName = category.nome || category.name;
-          if (categoryName) {
-            allCategoriesDropdown.innerHTML += `
-              <a href="categoria.html?name=${encodeURIComponent(categoryName)}" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">
-                ${categoryName}
-              </a>`;
-          }
-        });
-      } catch (error) {
-        console.error("Erro ao carregar categorias:", error);
-      }
-    };
 
-    const loadClientAddress = async () => {
-      const addressElement = document.getElementById('client-address-display');
-      if (!addressElement) return;
-      const setText = (txt) => {
-        const addressSpan = addressElement.querySelector('span');
-        if (addressSpan) addressSpan.textContent = txt;
-      };
-      const localUser = getLocalLoggedUser();
-      const fallback = 'Selecione um endereço';
-      if (!localUser?.uid) {
-        const cached = String(localStorage.getItem('header_cityuf_cache') || '').trim();
-        setText(cached || fallback);
-        return;
-      }
-      try {
-        const userData = await getUserById(localUser.uid);
-        const addresses = userData?.addresses || userData?.addressesList || userData?.enderecos || userData?.address || null;
-        let addr = null;
-        if (Array.isArray(addresses)) {
-          addr = addresses.find(a => a?.isDefault || a?.default) || addresses[0] || null;
-        } else if (addresses && typeof addresses === 'object') {
-          addr = addresses;
-        } else if (userData && (userData.street || userData.rua || userData.city || userData.cidade)) {
-          addr = userData;
-        }
-        if (!addr) {
-          const cached = String(localStorage.getItem('header_cityuf_cache') || '').trim();
-          setText(cached || fallback);
-          return;
-        }
-        const street = addr.street || addr.rua || addr.logradouro || '';
-        const number = addr.number || addr.numero || '';
-        const neighborhood = addr.neighborhood || addr.bairro || '';
-        const city = addr.city || addr.cidade || '';
-        const state = addr.state || addr.uf || '';
-        const parts = [];
-        const line1 = [street, number].filter(Boolean).join(', ');
-        if (line1) parts.push(line1);
-        const line2 = [neighborhood, city].filter(Boolean).join(' - ');
-        if (line2) parts.push(line2);
-        if (state) parts.push(state);
-        const formatted = parts.filter(Boolean).join(' • ') || fallback;
-        setText(formatted);
-        localStorage.setItem('header_cityuf_cache', formatted);
-      } catch (error) {
-        console.error('Erro ao carregar endereço:', error);
-        setText(String(localStorage.getItem('header_cityuf_cache') || '').trim() || fallback);
-      }
-    };
+// ===== Categorias =====
+const loadCategories = async () => {
+  try {
+    const allCategoriesDropdown = document.getElementById('all-categories-list');
+    if (!allCategoriesDropdown) return;
 
-    const renderProductCard = (product) => {
-      const p = (typeof window.decorateProductWithPayments === 'function')
-        ? window.decorateProductWithPayments(product)
-        : product;
-      const basePrice = window.__toNumberBR(p.price ?? 0, 0);
-      const cash = p.__payments?.cash || null;
-      const card = p.__payments?.card || null;
-      const displayPrice = (cash && cash.enabled) ? window.__toNumberBR(cash.price ?? basePrice, basePrice) : basePrice;
-      const hasOldPrice = p.oldPrice && window.__toNumberBR(p.oldPrice, 0) > basePrice;
-      const oldPriceValue = hasOldPrice ? window.__toNumberBR(p.oldPrice, 0) : ((cash && cash.enabled && Number(cash.discountPercent || 0) > 0) ? basePrice : null);
-      const discountValue = hasOldPrice
-        ? Math.round(((window.__toNumberBR(p.oldPrice, 0) - basePrice) / window.__toNumberBR(p.oldPrice, 0)) * 100)
-        : (cash && cash.enabled ? Number(cash.discountPercent || 0) : 0);
-      const priceParts = window.formatPriceParts(displayPrice);
-      const oldPriceFormatted = oldPriceValue ? window.formatCurrency(oldPriceValue) : null;
-      const installmentsText = (card && card.enabled && card.text) ? card.text : 'em até 12x';
+    allCategoriesDropdown.innerHTML = '';
+    allCategoriesDropdown.innerHTML += `<a href="todos_produtos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">Todos os Produtos</a>`;
+    allCategoriesDropdown.innerHTML += `<a href="meus_pedidos.html" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">Meus Pedidos</a>`;
+    allCategoriesDropdown.innerHTML += `<div class="border-t border-gray-200 my-1"></div>`;
 
-      return `
-        <a href="produto.html?id=${p.id}" class="product-card">
-          <div class="product-image-container">
-            ${discountValue ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${discountValue}% OFF</span></div>` : ''}
-            <img src="${p.imageUrl}" alt="${p.name}" loading="lazy">
-          </div>
-          <div class="product-card-body">
-            <p class="product-name">${p.name}</p>
-            <div class="mt-auto">
-              ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
-              <div class="product-price">
-                <span class="currency">${priceParts.symbol}</span>
-                <span class="price-integer">${priceParts.integer}</span>
-                <span class="decimal-part">,${priceParts.decimal}</span>
-                <span class="cash-text">à vista</span>
-              </div>
-              <p class="product-installments">${installmentsText}</p>
-            </div>
-          </div>
+    let categories = [];
+    try {
+      categories = normalizeListResponse(await apiRequest('/categories'));
+    } catch (_) {
+      const home = await apiRequest('/home/index-data');
+      categories = normalizeListResponse(home && home.categories ? home.categories : []);
+    }
+
+    categories.forEach((category) => {
+      const categoryName = category.nome || category.name || category.title || '';
+      const slug = category.slug || category.categorySlug || '';
+      if (!categoryName) return;
+      const href = slug
+        ? `categoria.html?slug=${encodeURIComponent(slug)}`
+        : `categoria.html?name=${encodeURIComponent(categoryName)}`;
+      allCategoriesDropdown.innerHTML += `
+        <a href="${href}" class="block px-4 py-2 text-sm text-text-dark hover:bg-gray-100 transition-colors">
+          ${categoryName}
         </a>`;
-    };
+    });
+  } catch (error) {
+    console.error('Erro ao carregar categorias:', error);
+  }
+};
 
-    const renderProductCards = (products, gridId) => {
-      const gridContainer = document.getElementById(gridId);
-      if (!gridContainer) return;
-      gridContainer.innerHTML = '';
-      if (!products.length) {
-        gridContainer.innerHTML = '<p class="col-span-full text-center text-lg text-gray-500 py-10">Nenhum produto encontrado neste segmento.</p>';
-        return;
+// ===== Produtos =====
+    
+const loadProducts = async () => {
+  const loadingContainer = document.getElementById('loading-container');
+  const productGrid = document.getElementById('featured-product-grid');
+
+  try {
+    if (loadingContainer) loadingContainer.classList.remove('hidden');
+    if (productGrid) productGrid.innerHTML = '';
+
+    let products = [];
+    try {
+      products = normalizeListResponse(await apiRequest('/seller/products'));
+    } catch (_) {
+      try {
+        products = normalizeListResponse(await apiRequest('/products'));
+      } catch (_) {
+        const home = await apiRequest('/home/index-data');
+        products = normalizeListResponse(home && home.products ? home.products : []);
       }
-      products.forEach(p => { gridContainer.innerHTML += renderProductCard(p); });
-    };
+    }
 
-    const loadFeaturedProducts = () => {
-      const header = document.getElementById('search-results-header');
-      const flagged = allProducts.filter(p => p.isFeatured === true || (Array.isArray(p.homeSections) && p.homeSections.includes('featured')));
-      const pick = flagged.length ? flagged.slice(0, 20) : [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0)).slice(0, 20);
-      if (header) header.textContent = 'Produtos em Destaque';
-      renderProductCards(pick, 'featured-product-grid');
-    };
+    allProducts = products.map((productData) => {
+      const resolvedImage = window.resolveApiImageUrl(
+        productData.imageUrl ||
+        productData.mainImageUrl ||
+        productData.image ||
+        productData.imagem ||
+        (Array.isArray(productData.images)
+          ? (typeof productData.images[0] === 'string'
+              ? productData.images[0]
+              : (productData.images[0]?.url || productData.images[0]?.imageUrl || productData.images[0]?.downloadURL))
+          : '') ||
+        (Array.isArray(productData.imagePaths) ? productData.imagePaths[0] : '') ||
+        (Array.isArray(productData.imageUrls) ? productData.imageUrls[0] : '')
+      );
 
-    const loadOffers = () => {
-      const section = document.getElementById('offers-section');
-      if (!section) return;
-      const products = allProducts.filter(p => p.isOffer);
-      if (products.length) { renderProductCards(products, 'offers-product-grid'); section.classList.remove('hidden'); }
-      else section.classList.add('hidden');
+      const price = window.__toNumberBR(productData.preco ?? productData.price ?? productData.valor ?? 0, 0);
+      const oldPrice = window.__toNumberBR(
+        productData.oldPrice ??
+        productData.precoAntigo ??
+        productData.precoDe ??
+        productData.valorDe ??
+        productData.compareAtPrice ??
+        0,
+        0
+      );
+
+      return {
+        ...productData,
+        id: productData._id || productData.id || productData.slug || '',
+        _id: productData._id || productData.id || productData.slug || '',
+        name: productData.name || productData.nome || 'Produto',
+        imageUrl: resolvedImage,
+        mainImageUrl: resolvedImage,
+        image: resolvedImage,
+        price,
+        oldPrice: oldPrice || 0,
+        isOffer: productData.isOffer === true || productData.oferta === true || (Array.isArray(productData.homeSections) && productData.homeSections.includes('offers')),
+        isNew: productData.isNew === true || productData.isNewArrival === true || productData.lancamento === true,
+        isRecommended: productData.isRecommended === true || productData.recommended === true
+      };
+    });
+
+    if (productGrid) {
+      if (typeof window.createProductCard === 'function') {
+        productGrid.innerHTML = allProducts.slice(0, 10).map((p) => window.createProductCard(p)).join('');
+      } else {
+        productGrid.innerHTML = allProducts.slice(0, 10).map((p) => `
+          <a href="produto.html?id=${encodeURIComponent(p._id || p.id || '')}" class="product-card">
+            <div class="product-image-container">
+              <img src="${p.imageUrl}" alt="${String(p.name || 'Produto').replace(/"/g,'&quot;')}" loading="lazy">
+            </div>
+            <div class="product-card-body">
+              <p class="product-name">${p.name || 'Produto'}</p>
+              <div class="mt-auto">
+                <div class="product-price">${window.formatCurrency(p.price || 0)}</div>
+              </div>
+            </div>
+          </a>
+        `).join('');
+      }
+    }
+
+    loadOffers();
+    loadNewArrivals();
+    loadRecommended();
+    loadMoreProducts();
+  } catch (error) {
+    console.error('Erro ao carregar produtos do MongoDB:', error);
+    if (productGrid) {
+      productGrid.innerHTML = `<div class="col-span-full text-center py-10 text-red-600 font-semibold">Erro ao carregar produtos.</div>`;
+    }
+  } finally {
+    if (loadingContainer) loadingContainer.classList.add('hidden');
+  }
+};
+
+const loadOffers = () => {
+      const offersSection = document.getElementById('offers-section');
+      if (!offersSection) return;
+      const offersProducts = allProducts.filter(p => p.isOffer);
+      if (offersProducts.length > 0) { renderProductCards(offersProducts, 'offers-product-grid'); offersSection.classList.remove('hidden'); }
+      else offersSection.classList.add('hidden');
     };
 
     const loadBestSellers = () => {
-      const section = document.getElementById('best-sellers-section');
-      if (!section) return;
-      const products = allProducts.filter(p => p.isBestSeller);
-      if (products.length) { renderProductCards(products, 'best-sellers-grid'); section.classList.remove('hidden'); }
-      else section.classList.add('hidden');
+      const bestSellersSection = document.getElementById('best-sellers-section');
+      if (!bestSellersSection) return;
+      const bestSellers = allProducts.filter(p => p.isBestSeller);
+      if (bestSellers.length > 0) { renderProductCards(bestSellers, 'best-sellers-grid'); bestSellersSection.classList.remove('hidden'); }
+      else bestSellersSection.classList.add('hidden');
     };
 
+    
     const loadRecommended = () => {
       const section = document.getElementById('recommended-section');
       if (!section) return;
+
+      // Recomendados: prioriza flag do cadastro, senão faz fallback inteligente
       const flagged = allProducts.filter(p => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')));
-      const pick = flagged.length ? flagged.slice(0, 20) : [...allProducts].filter(p => !p.isOffer && !p.isBestSeller).sort((a, b) => (b._ts || 0) - (a._ts || 0)).slice(0, 20);
-      if (pick.length) { renderProductCards(pick, 'recommended-grid'); section.classList.remove('hidden'); }
-      else section.classList.add('hidden');
+
+      let pick = [];
+      if (flagged.length > 0) {
+        pick = flagged.slice(0, 20);
+      } else {
+        const base = allProducts.filter(p => !p.isOffer && !p.isBestSeller);
+        const sorted = [...base].sort((a, b) => (b._ts || 0) - (a._ts || 0));
+        pick = sorted.slice(0, 20);
+      }
+
+      if (pick.length > 0) {
+        renderProductCards(pick, 'recommended-grid');
+        section.classList.remove('hidden');
+      } else {
+        section.classList.add('hidden');
+      }
     };
 
     const loadNewArrivals = () => {
       const section = document.getElementById('new-arrivals-section');
       if (!section) return;
+
+      // Lançamentos: tenta usar campo isNew, senão usa os mais recentes pelo timestamp
       const flagged = allProducts.filter(p => p.isNew === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')));
-      const pick = flagged.length ? flagged.slice(0, 20) : [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0)).slice(0, 20);
-      if (pick.length) { renderProductCards(pick, 'new-arrivals-grid'); section.classList.remove('hidden'); }
-      else section.classList.add('hidden');
+      let pick = [];
+
+      if (flagged.length > 0) {
+        pick = flagged.slice(0, 20);
+      } else {
+        const sorted = [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0));
+        pick = sorted.slice(0, 20);
+      }
+
+      if (pick.length > 0) {
+        renderProductCards(pick, 'new-arrivals-grid');
+        section.classList.remove('hidden');
+      } else {
+        section.classList.add('hidden');
+      }
     };
+
 
     const loadMoreProducts = () => {
       const section = document.getElementById('more-products-section');
       if (!section) return;
+
       const usedIds = new Set();
+
       const markUsed = (list) => list.forEach(p => usedIds.add(p.id));
-      markUsed(allProducts.filter(p => p.isOffer));
-      markUsed(allProducts.filter(p => p.isBestSeller));
-      markUsed(allProducts.filter(p => p.isNew));
-      markUsed(allProducts.filter(p => p.isRecommended));
-      markUsed(allProducts.filter(p => p.isFeatured));
-      const pick = [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0)).filter(p => !usedIds.has(p.id)).slice(0, 20);
-      if (pick.length) { renderProductCards(pick, 'more-products-grid'); section.classList.remove('hidden'); }
-      else section.classList.add('hidden');
-    };
 
-    const loadProducts = async () => {
-      const loadingContainer = document.getElementById('loading-container');
-      const productGrid = document.getElementById('featured-product-grid');
-      try {
-        if (loadingContainer) loadingContainer.classList.remove('hidden');
-        if (productGrid) productGrid.innerHTML = '';
-        const indexData = await getIndexDataApi();
-        let rawProducts = unwrapArray(indexData?.products || []);
-        if (!rawProducts.length) rawProducts = await getProductsApi();
-        allProducts = rawProducts.map(normalizeProduct);
-        loadFeaturedProducts();
-        loadOffers();
-        loadBestSellers();
-        loadRecommended();
-        loadNewArrivals();
-        loadMoreProducts();
-      } catch (error) {
-        console.error("Erro ao carregar produtos:", error);
-        if (productGrid) productGrid.innerHTML = `<p class="col-span-full text-center text-lg text-red-500 py-10">❌ Erro ao carregar produtos: ${error.message}</p>`;
-        window.displayMessage(`Erro ao carregar produtos: ${error.message}`, 'error');
-      } finally {
-        if (loadingContainer) loadingContainer.classList.add('hidden');
+      const offers = allProducts.filter(p => p.isOffer === true || (Array.isArray(p.homeSections) && p.homeSections.includes('offers')));
+      const best = allProducts.filter(p => p.isBestSeller === true || (Array.isArray(p.homeSections) && p.homeSections.includes('best_sellers')));
+      const news = allProducts.filter(p => p.isNew === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')));
+      const recs = allProducts.filter(p => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')));
+      const feat = allProducts.filter(p => p.isFeatured === true || (Array.isArray(p.homeSections) && p.homeSections.includes('featured')));
+
+      markUsed(offers); markUsed(best); markUsed(news); markUsed(recs); markUsed(feat);
+
+      const sorted = [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0));
+      const pick = sorted.filter(p => !usedIds.has(p.id)).slice(0, 20);
+
+      if (pick.length > 0) {
+        renderProductCards(pick, 'more-products-grid');
+        section.classList.remove('hidden');
+      } else {
+        section.classList.add('hidden');
       }
     };
+const renderProductCards = (products, gridId) => {
+  const gridContainer = document.getElementById(gridId);
+  if (!gridContainer) return;
+  if (!Array.isArray(products) || products.length === 0) {
+    gridContainer.innerHTML = '<p class="col-span-full text-center text-lg text-gray-500 py-10">Nenhum produto encontrado neste segmento.</p>';
+    return;
+  }
 
-    async function waitPaymentsHelpersReady(timeoutMs = 12000) {
-      const ready = () => typeof window.decorateProductWithPayments === 'function' || typeof window.createProductCard === 'function';
-      if (ready()) return true;
-      const startedAt = Date.now();
-      return new Promise((resolve) => {
-        const tick = () => {
-          if (ready()) return resolve(true);
-          if ((Date.now() - startedAt) >= timeoutMs) return resolve(false);
-          setTimeout(tick, 80);
-        };
-        tick();
-      });
-    }
+  if (typeof window.createProductCard === 'function') {
+    gridContainer.innerHTML = products.map((p) => window.createProductCard(p)).join('');
+    return;
+  }
 
-    async function loadHomeProductsWhenReady() {
-      if (__homeProductsBooted) return;
-      __homeProductsBooted = true;
-      await waitPaymentsHelpersReady();
-      await loadProducts();
-      window.loadCartCounter();
-    }
-
-    window.loadData = async () => {
-      if (!__homeDataBooted) {
-        __homeDataBooted = true;
-        window.updateBranding(window.BRAND_NAME);
-        updateClientStatusUI();
-        await loadClientAddress();
-        await loadAllBanners();
-        syncHeroBannerLayout();
-        initMiniBannersCarousel();
-        await loadCategories();
-      }
-      await loadHomeProductsWhenReady();
-    };
+  gridContainer.innerHTML = products.map((p) => `
+    <a href="produto.html?id=${encodeURIComponent(p._id || p.id || '')}" class="product-card">
+      <div class="product-image-container">
+        <img src="${window.resolveApiImageUrl(p.imageUrl || p.mainImageUrl || p.image || p.imagem || '')}" alt="${String(p.name || 'Produto').replace(/"/g,'&quot;')}" loading="lazy">
+      </div>
+      <div class="product-card-body">
+        <p class="product-name">${p.name || 'Produto'}</p>
+        <div class="mt-auto">
+          <div class="product-price">${window.formatCurrency(p.price || 0)}</div>
+        </div>
+      </div>
+    </a>
+  `).join('');
+};
 
     window.toggleCategoryDropdown = () => {
       const categoriesDropdown = document.getElementById('category-dropdown');
@@ -1446,15 +1503,21 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
     };
 
     window.applySearchFilter = (eventOrQuery) => {
+      // Aceita Event (submit/click) OU string
       if (eventOrQuery && typeof eventOrQuery.preventDefault === 'function') eventOrQuery.preventDefault();
+
       const desktopInput = document.getElementById('search-input-desktop');
       const mobileInput = document.getElementById('search-input-mobile');
+
+      // Se for string direta
       if (typeof eventOrQuery === 'string') {
         const q = eventOrQuery.trim();
         if (q) window.location.href = `todos_produtos.html?q=${encodeURIComponent(q)}`;
         else window.displayMessage('Por favor, digite um termo para buscar.', 'info');
         return;
       }
+
+      // Se veio de submit do form
       let q = '';
       const target = eventOrQuery && eventOrQuery.target ? eventOrQuery.target : null;
       if (target && target.tagName === 'FORM') {
@@ -1464,24 +1527,15 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         q = (desktopInput?.value || mobileInput?.value || '');
       }
       q = (q || '').trim();
+
       if (q) window.location.href = `todos_produtos.html?q=${encodeURIComponent(q)}`;
       else window.displayMessage('Por favor, digite um termo para buscar.', 'info');
-    };
-
-    window.checkAuthAndInit = async () => {
-      try {
-        syncPseudoAuthFromStorage();
-        exposeCompatApiHelpers();
-        await window.loadData();
-      } catch (error) {
-        console.error("Erro na inicialização da página:", error);
-        window.displayMessage(`Erro na inicialização: ${error.message}`, 'error');
-      }
     };
 
     document.addEventListener('DOMContentLoaded', () => {
       const categoriesButton = document.getElementById('category-dropdown-btn');
       const categoriesDropdown = document.getElementById('category-dropdown');
+
       document.addEventListener('click', (event) => {
         if (!categoriesDropdown || !categoriesButton) return;
         const isVisible = !categoriesDropdown.classList.contains('hidden');
@@ -1495,16 +1549,25 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         }
       });
 
-      window.addEventListener('storage', () => {
-        syncPseudoAuthFromStorage();
-        updateClientStatusUI();
-        window.loadCartCounter();
-      });
-
+      window.syncHeroBannerLayout = syncHeroBannerLayout;
+      window.initMiniBannersCarousel = initMiniBannersCarousel;
+      window.loadAllBanners = loadAllBanners;
+      window.loadProducts = loadProducts;
+      window.loadCategories = loadCategories;
+      
+      window.checkAuthAndInit = async function () {
+        try {
+          userId = 'guest';
+          await window.loadData();
+        } catch (error) {
+          console.error('Erro ao inicializar a home:', error);
+          try { window.displayMessage(`Erro ao inicializar a home: ${error.message}`, 'error'); } catch(_) {}
+        }
+      };
       window.checkAuthAndInit();
+
     });
   </script>
-
   
   <script>
     // Garante que qualquer link para login/cadastro a partir do INDEX volte para o INDEX
@@ -1567,27 +1630,55 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
   document.addEventListener('DOMContentLoaded', applyBannerSmartFit);
 
   </script>
+   <script src="./header.js"></script>
+  <script>
+    (function () {
+      const tryInitHeader = () => {
+        if (typeof window.carregarHeader !== 'function') {
+          setTimeout(tryInitHeader, 80);
+          return;
+        }
+
+        if (document.querySelector('header[data-ariana="1"]')) return;
+
+        try {
+          window.carregarHeader();
+          const h = document.querySelector('header');
+          if (h) h.setAttribute('data-ariana', '1');
+        } catch (e) {
+          console.error("[page] erro ao carregar header:", e);
+        }
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryInitHeader);
+      } else {
+        tryInitHeader();
+      }
+
+      window.addEventListener('marketplace:helpers-ready', tryInitHeader);
+    })();
+  </script>
+<script src="./marketplace-core.js"></script>
+<script src="./footer.js"></script>
+
+<script src="js/header_auth_fix.js" defer></script>
 
 <script>
 window.addEventListener('load', () => {
   try {
-    if (typeof syncHeroBannerLayout === 'function') syncHeroBannerLayout();
-    if (typeof initMiniBannersCarousel === 'function') initMiniBannersCarousel();
+    syncHeroBannerLayout();
+    initMiniBannersCarousel();
   } catch (e) {
     console.error('Erro ao iniciar carrossel/layout dos banners:', e);
   }
 });
 </script>
-<script src="js/header_auth_fix.js" defer></script>
-<script src="./marketplace-core.js"></script>
-<script src="./marketplace-core_global_payments.js"></script>
-<script src="./footer.js"></script>
-<script src="js/layout-fit.js" defer></script>
+<script src="./product-card.js"></script>
 
-<script>
-  window.createProductCard = window.createProductCard || function(product) {
-    return (typeof renderProductCard === 'function') ? renderProductCard(product) : '';
-  };
-</script>
+<script src="marketplace-core_global_payments.js"></script>
+
+ <script src="js/layout-fit.js" defer></script>
+
 </body>
 </html>

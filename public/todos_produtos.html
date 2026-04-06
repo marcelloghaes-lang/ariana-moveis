@@ -1,602 +1,530 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Completo | ARIANA MOVEIS</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="css/tailwind.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="icon" href="https://placehold.co/16x16/2E6DA4/ffffff?text=AM" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
-  <style>
-    .page-container {
-      max-width: 1300px;
-    }
+    <link rel="icon" type="image/png" href="./favicon.png">
 
-    .product-card {
-      background-color: white;
-      border-radius: 4px;
-      border: 1px solid #e7e7e7;
-      box-shadow: none;
-      transition: transform 0.3s, box-shadow 0.3s;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      cursor: pointer;
-      padding: 10px;
-      height: 100%;
-    }
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-blue': '#2E6DA4', 
+                        'dark-bg': '#1D2B3A', 
+                        'secondary-light-blue': '#56B5FF', 
+                        'text-dark': '#333333',
+                        'fundo-claro': '#F5F7FA',
+                        'dark-gray-bg': '#222222', 
+                        'error-red': '#D32F2F',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                },
+            },
+        }
+    </script>
 
-    .product-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
+    <style>
+        .page-container { max-width: 1300px; }
+        .product-card {
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid #e7e7e7;
+            box-shadow: none;
+            transition: transform 0.3s, box-shadow 0.3s;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 10px;
+            height: 100%;
+        }
+        .product-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+        .product-image-container {
+            width: 100%;
+            height: 180px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .product-image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            transition: none;
+        }
+        .product-card-body {
+            padding: 0;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        .product-name {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: #444;
+            height: 3em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            margin-bottom: 10px;
+        }
+        .product-old-price {
+            font-size: 0.8rem;
+            color: #999;
+            text-decoration: line-through;
+            font-weight: 400;
+            line-height: 1.2;
+        }
+        .product-price {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #333;
+            margin-top: 2px;
+            display: flex;
+            align-items: flex-end;
+            line-height: 1;
+        }
+        .product-price .currency { font-size: 0.7em; font-weight: 400; align-self: flex-start; }
+        .product-price .price-integer { font-size: 1.0em; font-weight: 700; margin-left: 2px; }
+        .product-price .decimal-part { font-size: 0.7em; font-weight: 400; }
+        .product-price .cash-text { font-size: 0.75rem; font-weight: 400; color: #555; margin-left: 5px; padding-bottom: 1px; }
+        .product-installments { font-size: 0.75rem; color: #777; margin-top: 5px; line-height: 1.4; }
+        .product-tag-container { position: absolute; top: 5px; left: 5px; z-index: 10; display: flex; flex-direction: column; gap: 5px; }
+        .product-tag { color: white; font-size: 0.75rem; font-weight: 600; padding: 2px 5px; border-radius: 2px; display: block; width: fit-content; line-height: 1; }
+        .tag-orange { background-color: #ff931e; }
+        .product-card-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    </style>
 
-    .product-image-container {
-      width: 100%;
-      height: 180px;
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 10px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+<script>
+(function () {
+  const isLocal = /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
+  const candidates = isLocal
+    ? ["http://localhost:3000/api"]
+    : [
+        localStorage.getItem("API_BASE") || "",
+        "https://ariana-move-mongo.onrender.com/api",
+        "http://localhost:3000/api"
+      ].filter(Boolean);
 
-    .product-image-container img {
-      max-width: 100%;
-      max-height: 100%;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      transition: none;
-    }
+  window.API_BASE_CANDIDATES = candidates;
+  window.API_BASE = candidates[0];
+  window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+  try {
+    localStorage.setItem("API_BASE", window.API_BASE);
+    localStorage.setItem("API_BASE_URL", window.API_BASE);
+  } catch(_e) {}
 
-    .product-card-body {
-      padding: 0;
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-    }
+  window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+    const raw = String(value || '').trim();
+    if (!raw || raw.includes('${')) return 'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM';
+    if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+    if (raw.startsWith('/')) return window.API_ORIGIN + raw;
+    return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
+  };
 
-    .product-name {
-      font-size: 0.85rem;
-      font-weight: 400;
-      color: #444;
-      height: 3em;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      margin-bottom: 10px;
-    }
+  const origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (origFetch && !window.__ARIANA_FETCH_PATCH__) {
+    window.__ARIANA_FETCH_PATCH__ = true;
+    window.fetch = function(input, init){
+      let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+      if (url) {
+        const localBase = "http://localhost:3000/api";
+        const cloudBase = "https://ariana-move-mongo.onrender.com/api";
 
-    .product-old-price {
-      font-size: 0.8rem;
-      color: #999;
-      text-decoration: line-through;
-      font-weight: 400;
-      line-height: 1.2;
-    }
+        if (isLocal) {
+          url = url.replace(cloudBase, localBase);
+        }
 
-    .product-price {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #333;
-      margin-top: 2px;
-      display: flex;
-      align-items: flex-end;
-      line-height: 1;
-    }
+        url = url
+          .replace(/\/api\/banners\/banners(\?|$)/i, "/api/banners$1")
+          .replace(/\/api\/header_category_banner(\?|$)/i, "/api/banners?slot=header_category_banner")
+          .replace(/\/api\/settings\/payments(\?|$)/i, "/api/payments/mp/public-key")
+          .replace(/\/api\/home\/index-data(\?|$)/i, "/api/products")
+          .replace(/\/api\/seller\/products(\?|$)/i, "/api/products$1");
 
-    .product-price .currency {
-      font-size: 0.7em;
-      font-weight: 400;
-      align-self: flex-start;
-    }
-
-    .product-price .price-integer {
-      font-size: 1em;
-      font-weight: 700;
-      margin-left: 2px;
-    }
-
-    .product-price .decimal-part {
-      font-size: 0.7em;
-      font-weight: 400;
-    }
-
-    .product-price .cash-text {
-      font-size: 0.75rem;
-      font-weight: 400;
-      color: #555;
-      margin-left: 5px;
-      padding-bottom: 1px;
-    }
-
-    .product-installments {
-      font-size: 0.75rem;
-      color: #777;
-      margin-top: 5px;
-      line-height: 1.4;
-    }
-
-    .product-tag-container {
-      position: absolute;
-      top: 5px;
-      left: 5px;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .product-tag {
-      color: white;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 2px 5px;
-      border-radius: 2px;
-      display: block;
-      width: fit-content;
-      line-height: 1;
-    }
-
-    .tag-orange {
-      background-color: #ff931e;
-    }
-
-    .product-card-grid {
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    }
-  </style>
+        if (typeof input === "string") input = url;
+        else if (input instanceof Request) input = new Request(url, input);
+      }
+      return origFetch(input, init);
+    };
+  }
+})();
+</script>
 </head>
-
 <body class="bg-fundo-claro min-h-screen">
-  <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-2"></div>
 
-  <main class="flex-grow page-container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h2 id="search-results-header" class="text-3xl font-extrabold text-text-dark mb-6 mt-4 border-b pb-2 border-gray-300">
-      Resultados da busca
-    </h2>
+    <main class="flex-grow page-container mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-    <div id="loading-container" class="text-center p-10 bg-white rounded-xl shadow-lg mb-8 hidden">
-      <i class="fas fa-spinner fa-spin text-primary-blue text-4xl mb-4"></i>
-      <p class="text-lg text-gray-600">Carregando resultados, aguarde...</p>
-    </div>
+        <h2 id="search-results-header" class="text-3xl font-extrabold text-text-dark mb-6 mt-4 border-b pb-2 border-gray-300">
+            Catálogo Completo de Produtos
+        </h2>
 
-    <div id="featured-product-grid" class="grid gap-6 product-card-grid"></div>
-  </main>
+        <div id="loading-container" class="text-center p-10 bg-white rounded-xl shadow-lg mb-8 hidden">
+            <i class="fas fa-spinner fa-spin text-primary-blue text-4xl mb-4"></i>
+            <p class="text-lg text-gray-600">Carregando nosso catálogo completo, aguarde...</p>
+        </div>
 
-  <script>
-    (function () {
-      const loaded = new Set();
+        <div id="featured-product-grid" class="grid gap-6 product-card-grid"></div>
 
-      function loadScriptSequential(src) {
-        return new Promise((resolve, reject) => {
-          if (loaded.has(src)) return resolve(true);
+    </main>
 
-          const existing =
-            document.querySelector(`script[data-src="${src}"]`) ||
-            document.querySelector(`script[src="${src}"]`);
+<script src="./marketplace-core.js"></script>
+<script src="./marketplace-core_global_payments.js"></script>
+<script src="./product-card.js"></script>
 
-          if (existing) {
-            if (existing.dataset.loaded === "1") {
-              loaded.add(src);
-              return resolve(true);
-            }
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const API_BASE_CANDIDATES = window.API_BASE_CANDIDATES || [window.API_BASE];
 
-            existing.addEventListener("load", () => {
-              existing.dataset.loaded = "1";
-              loaded.add(src);
-              resolve(true);
-            }, { once: true });
+  window.formatCurrency = window.formatCurrency || function(value) {
+    if (value === null || value === undefined) return 'R$ 0,00';
+    const num = parseFloat(value);
+    if (isNaN(num)) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+  };
 
-            existing.addEventListener("error", () => {
-              reject(new Error("Falha ao carregar " + src));
-            }, { once: true });
-
-            return;
-          }
-
-          const s = document.createElement("script");
-          s.src = src;
-          s.async = false;
-          s.defer = false;
-          s.dataset.src = src;
-
-          s.onload = () => {
-            s.dataset.loaded = "1";
-            loaded.add(src);
-            resolve(true);
-          };
-
-          s.onerror = () => reject(new Error("Falha ao carregar " + src));
-          document.head.appendChild(s);
-        });
+  window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
+    try{
+      if (v === null || v === undefined) return fallback;
+      if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+      let s = String(v).trim();
+      if (!s) return fallback;
+      s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g,'');
+      const hasComma = s.includes(',');
+      const hasDot = s.includes('.');
+      if (hasComma && hasDot){
+        s = s.replace(/\./g,'').replace(',', '.');
+      } else if (hasComma && !hasDot){
+        s = s.replace(',', '.');
       }
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : fallback;
+    }catch(_e){
+      return fallback;
+    }
+  };
 
-      async function tryCandidates(candidates) {
-        for (const src of candidates) {
-          try {
-            await loadScriptSequential(src);
-            return src;
-          } catch (_) {}
+  window.formatPriceParts = window.formatPriceParts || function(value) {
+    if (value === null || value === undefined || isNaN(parseFloat(value))) {
+      return { symbol: 'R$', integer: '0', decimal: '00' };
+    }
+    const formatted = window.formatCurrency(value);
+    const numericString = formatted.replace('R$', '').replace(/\./g, '').trim();
+    const idx = numericString.lastIndexOf(',');
+    let integerPart = numericString;
+    let decimalPart = '00';
+    if (idx !== -1) {
+      integerPart = numericString.substring(0, idx);
+      decimalPart = numericString.substring(idx + 1).padEnd(2, '0').substring(0, 2);
+    }
+    if (integerPart === '') integerPart = '0';
+    return { symbol: 'R$', integer: integerPart, decimal: decimalPart };
+  };
+
+  const normalizeListResponse = (data) => {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    if (data && Array.isArray(data.products)) return data.products;
+    if (data && Array.isArray(data.results)) return data.results;
+    if (data && Array.isArray(data.docs)) return data.docs;
+    if (data && Array.isArray(data.data)) return data.data;
+    return [];
+  };
+
+  async function apiRequest(path, opts = {}) {
+    const normalizedPath = `${String(path).startsWith('/') ? '' : '/'}${path}`;
+    let lastError = null;
+
+    for (const base of API_BASE_CANDIDATES) {
+      try {
+        const headers = { ...(opts.headers || {}) };
+        if (!(opts.body instanceof FormData) && !headers['Content-Type']) {
+          headers['Content-Type'] = 'application/json';
         }
-        throw new Error("Nenhum caminho carregou: " + candidates.join(", "));
-      }
 
-      async function ensureMarketplaceHelpers() {
-        const coreCandidates = [
-          "./marketplace-core.js",
-          "./js/marketplace-core.js",
-          "/marketplace-core.js",
-          "/js/marketplace-core.js"
-        ];
+        const url = `${String(base).replace(/\/+$/, '')}${normalizedPath}`;
+        const res = await fetch(url, { ...opts, headers });
+        const ct = res.headers.get('content-type') || '';
+        const data = ct.includes('application/json')
+          ? await res.json().catch(() => null)
+          : await res.text().catch(() => null);
 
-        const paymentsCandidates = [
-          "./marketplace-core_global_payments.js",
-          "./js/marketplace-core_global_payments.js",
-          "/marketplace-core_global_payments.js",
-          "/js/marketplace-core_global_payments.js"
-        ];
+        if (!res.ok) {
+          const msg = (data && typeof data === 'object' && (data.message || data.error))
+            ? (data.message || data.error)
+            : `HTTP ${res.status}`;
+          throw new Error(msg);
+        }
 
-        const cardCandidates = [
-          "./product-card.js",
-          "./js/product-card.js",
-          "/product-card.js",
-          "/js/product-card.js"
-        ];
-
+        window.API_BASE = base;
+        window.API_ORIGIN = String(base).replace(/\/api\/?$/i, '');
         try {
-          await tryCandidates(coreCandidates).catch(() => null);
-          await tryCandidates(paymentsCandidates).catch(() => null);
-          await tryCandidates(cardCandidates).catch(() => null);
+          localStorage.setItem('API_BASE', base);
+          localStorage.setItem('API_BASE_URL', base);
+        } catch(_) {}
 
-          let tries = 0;
-          while (tries < 120) {
-            const hasHelpers =
-              typeof window.decorateProductWithPayments === "function" ||
-              typeof window.createProductCard === "function";
-
-            if (hasHelpers) {
-              window.__MARKETPLACE_HELPERS_READY__ = true;
-              window.dispatchEvent(new CustomEvent("marketplace:helpers-ready"));
-              return true;
-            }
-
-            await new Promise(r => setTimeout(r, 50));
-            tries++;
-          }
-
-          console.warn("Helpers do marketplace não ficaram prontos a tempo.");
-          return false;
-        } catch (e) {
-          console.error("Erro ao carregar helpers do marketplace:", e);
-          return false;
-        }
+        return data;
+      } catch (error) {
+        lastError = error;
       }
+    }
 
-      window.ensureMarketplaceHelpers = ensureMarketplaceHelpers;
-    })();
-  </script>
+    throw lastError || new Error('Nenhuma API disponível no momento.');
+  }
 
-  <script>
-    (async function () {
-      await window.ensureMarketplaceHelpers();
+  const getSectionConfigFromUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const section = (urlParams.get('section') || '').toLowerCase().trim();
+    const map = {
+      offers: { title: '🔥 Ofertas Imperdíveis', predicate: (p) => p.isOffer === true || (Array.isArray(p.homeSections) && p.homeSections.includes('offers')) },
+      best_sellers: { title: '⭐ Queridinhos / Mais Vendidos', predicate: (p) => p.isBestSeller === true || (Array.isArray(p.homeSections) && p.homeSections.includes('best_sellers')) },
+      new_arrivals: { title: '⚡ Lançamentos', predicate: (p) => p.isNew === true || p.isNewArrival === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')) },
+      recommended: { title: '👍 Recomendados para Você', predicate: (p) => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')) },
+      featured: { title: '🏆 Destaques', predicate: (p) => p.isFeatured === true || p.isHighlight === true || (Array.isArray(p.homeSections) && p.homeSections.includes('featured')) },
+    };
+    return map[section] ? { key: section, ...map[section] } : null;
+  };
 
-      window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
-        try {
-          if (v === null || v === undefined) return fallback;
-          if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
+  const getNormalizedProductImage = (product) => {
+    return window.resolveApiImageUrl(
+      product?.imageUrl ||
+      product?.mainImageUrl ||
+      product?.image ||
+      product?.imagem ||
+      (Array.isArray(product?.images)
+        ? (typeof product.images[0] === 'string'
+            ? product.images[0]
+            : product.images[0]?.url)
+        : '') ||
+      (Array.isArray(product?.imagePaths) ? product.imagePaths[0] : '') ||
+      (Array.isArray(product?.imageUrls) ? product.imageUrls[0] : '')
+    );
+  };
 
-          let s = String(v).trim();
-          if (!s) return fallback;
+  const loadCartCounterSafe = () => {
+    if (typeof window.loadCartCounter === 'function') {
+      try { window.loadCartCounter(); return; } catch (_) {}
+    }
+  };
 
-          s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
+  const renderProductCards = (products, gridId) => {
+    const gridContainer = $(gridId);
+    if (!gridContainer) return;
+    gridContainer.innerHTML = '';
+    if (!products || products.length === 0) {
+      gridContainer.innerHTML = '<p class="col-span-full text-center text-lg text-gray-500 py-10">Nenhum produto encontrado no catálogo.</p>';
+      return;
+    }
 
-          const hasComma = s.includes(',');
-          const hasDot = s.includes('.');
+    if (typeof window.createProductCard === 'function') {
+      gridContainer.innerHTML = products.map(p => window.createProductCard(p)).join('');
+      return;
+    }
 
-          if (hasComma && hasDot) {
-            s = s.replace(/\./g, '').replace(',', '.');
-          } else if (hasComma && !hasDot) {
-            s = s.replace(',', '.');
-          }
-
-          const n = parseFloat(s);
-          return Number.isFinite(n) ? n : fallback;
-        } catch (_) {
-          return fallback;
-        }
-      };
-
-      const PRODUCTS_COLLECTION = "products";
-      const loadingContainer = document.getElementById("loading-container");
-      const grid = document.getElementById("featured-product-grid");
-      const headerTitle = document.getElementById("search-results-header");
-
-      const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const searchTermRaw = (urlParams.get("q") || urlParams.get("query") || urlParams.get("busca") || "").trim();
-
-      window.displayMessage = function(message, type = 'success', duration = 3000) {
-        const container = document.getElementById('toast-container');
-        const colors = {
-          success: 'bg-success-green',
-          error: 'bg-danger-red',
-          info: 'bg-info-blue'
-        };
-
-        const toast = document.createElement('div');
-        toast.className = `p-4 text-white rounded-lg shadow-xl flex items-center space-x-3 transition-all duration-300 ${colors[type] || colors.info}`;
-        toast.innerHTML = `<span class="text-sm font-medium">${message}</span>`;
-        container.appendChild(toast);
-
-        setTimeout(() => { toast.remove(); }, duration);
-      };
-
-      const normalizeText = (value) => {
-        return String(value || "")
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^\p{L}\p{N}\s-]/gu, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      };
-
-      const tokenize = (value) => normalizeText(value).split(" ").filter(Boolean);
-
-      const formatCurrency = (v) =>
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(window.__toNumberBR(v, 0));
-
-      const formatPriceParts = (v) => {
-        const formatted = formatCurrency(v);
-        const noSymbol = formatted.replace('R$', '').trim();
-        const parts = noSymbol.split(',');
-
-        return {
-          symbol: 'R$',
-          integer: (parts[0] || '0').trim(),
-          decimal: (parts[1] || '00').trim()
-        };
-      };
-
-      const calcPercent = (o, n) => {
-        if (!Number.isFinite(o) || !Number.isFinite(n) || o <= n || o <= 0) return 0;
-        return Math.round(((o - n) / o) * 100);
-      };
-
-      const scoreProductAgainstSearch = (product, term) => {
-        const tokens = tokenize(term);
-        if (!tokens.length) return 1;
-
-        const name = normalizeText(product.name || product.nome || "");
-        const category = normalizeText(product.categoryName || product.categoriaNome || product.category || product.categoria || "");
-        const description = normalizeText(product.description || product.descricao || product.desc || "");
-        const brand = normalizeText(product.brand || product.marca || "");
-        const sku = normalizeText(product.sku || product.codigo || product.code || "");
-
-        const haystack = [name, category, description, brand, sku].join(" ");
-
-        let score = 0;
-
-        for (const token of tokens) {
-          if (name.includes(token)) score += 10;
-          else if (category.includes(token)) score += 6;
-          else if (brand.includes(token)) score += 5;
-          else if (sku.includes(token)) score += 4;
-          else if (description.includes(token)) score += 3;
-        }
-
-        const normalizedTerm = normalizeText(term);
-        if (normalizedTerm && name.includes(normalizedTerm)) score += 30;
-        if (normalizedTerm && category.includes(normalizedTerm)) score += 15;
-        if (normalizedTerm && brand.includes(normalizedTerm)) score += 12;
-        if (normalizedTerm && haystack.includes(normalizedTerm)) score += 8;
-
-        return score;
-      };
-
-      const filterProductsBySearch = (products, term) => {
-        if (!term) return products;
-
-        return products
-          .map(product => ({
-            ...product,
-            __searchScore: scoreProductAgainstSearch(product, term)
-          }))
-          .filter(product => product.__searchScore > 0)
-          .sort((a, b) => {
-            if (b.__searchScore !== a.__searchScore) {
-              return b.__searchScore - a.__searchScore;
-            }
-
-            const aName = String(a.name || a.nome || '').toLowerCase();
-            const bName = String(b.name || b.nome || '').toLowerCase();
-            return aName.localeCompare(bName, 'pt-BR');
-          });
-      };
-
-      const renderProducts = (products) => {
-        grid.innerHTML = '';
-
-        if (!products || products.length === 0) {
-          grid.innerHTML = `
-            <div class="col-span-full text-center py-16 text-gray-500 bg-white rounded-xl shadow-sm">
-              Nenhum produto encontrado para <strong>${searchTermRaw ? searchTermRaw.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "a busca informada"}</strong>.
+    gridContainer.innerHTML = products.map((p) => {
+      const priceParts = window.formatPriceParts(p.price || 0);
+      return `
+        <a href="produto.html?id=${encodeURIComponent(p.id)}" class="product-card">
+          <div class="product-image-container">
+            <img src="${p.imageUrl || 'https://placehold.co/400x400/CCCCCC/333333?text=SEM+IMAGEM'}" alt="${String(p.name || '').replace(/"/g,'&quot;')}" loading="lazy" decoding="async">
+          </div>
+          <div class="product-card-body">
+            <p class="product-name">${p.name || 'Produto'}</p>
+            <div class="mt-auto">
+              <p class="product-old-price opacity-0 text-transparent">.</p>
+              <div class="product-price">
+                <span class="currency">${priceParts.symbol}</span>
+                <span class="price-integer">${priceParts.integer}</span>
+                <span class="decimal-part">,${priceParts.decimal}</span>
+                <span class="cash-text">à vista</span>
+              </div>
+              <p class="product-installments">em até 12x</p>
             </div>
-          `;
-          return;
-        }
+          </div>
+        </a>`;
+    }).join('');
+  };
 
-        if (typeof window.createProductCard === "function") {
-          grid.innerHTML = products.map(p => window.createProductCard(p)).join('');
-          return;
-        }
+  window.applySearchFilter = (eventOrQuery = null) => {
+    if (eventOrQuery && typeof eventOrQuery.preventDefault === 'function') eventOrQuery.preventDefault();
+    const externalQuery = (typeof eventOrQuery === 'string') ? eventOrQuery : null;
+    let queryText;
 
-        grid.innerHTML = products.map(raw => {
-          const base = {
-            id: raw.id || raw._id,
-            name: raw.name || raw.nome || 'Produto',
-            price: raw.price ?? raw.preco ?? 0,
-            oldPrice: raw.oldPrice ?? raw.precoAntigo ?? raw.preco_anterior ?? null,
-            imageUrl: raw.imageUrl || raw.mainImageUrl || raw.imagem || raw.image || '/uploads/default.png',
-            categoryName: raw.categoryName || raw.categoriaNome || raw.category || raw.categoria || ''
-          };
+    if (externalQuery !== null) queryText = externalQuery.toLowerCase().trim();
+    else {
+      const searchInputDesktop = document.getElementById('search-input-desktop');
+      const searchInputMobile = document.getElementById('search-input-mobile');
+      queryText = (searchInputDesktop?.value || searchInputMobile?.value || '').toLowerCase().trim();
+    }
 
-          const p = (typeof window.decorateProductWithPayments === 'function')
-            ? window.decorateProductWithPayments(base)
-            : base;
+    const headerEl = $('search-results-header');
+    const sectionCfg2 = getSectionConfigFromUrl();
 
-          const cash = p.__payments?.cash || null;
-          const card = p.__payments?.card || null;
+    if (queryText === "") {
+      renderProductCards(window.__BASE_PRODUCTS__ || window.__ALL_PRODUCTS__ || [], 'featured-product-grid');
+      if (headerEl) headerEl.textContent = sectionCfg2 ? sectionCfg2.title : 'Catálogo Completo de Produtos';
+      const params = new URLSearchParams(window.location.search);
+      const section = params.get('section');
+      history.pushState(null, '', section ? `todos_produtos.html?section=${encodeURIComponent(section)}` : `todos_produtos.html`);
+      return;
+    }
 
-          const basePrice = window.__toNumberBR(p.price ?? 0, 0);
-          const displayPrice = (cash && cash.enabled)
-            ? window.__toNumberBR(cash.price ?? basePrice, basePrice)
-            : basePrice;
+    const sourceList = (window.__BASE_PRODUCTS__ && window.__BASE_PRODUCTS__.length) ? window.__BASE_PRODUCTS__ : (window.__ALL_PRODUCTS__ || []);
+    const filteredProducts = sourceList.filter(product =>
+      (product.name || '').toLowerCase().includes(queryText) ||
+      (product.category || '').toLowerCase().includes(queryText) ||
+      (product.description || '').toLowerCase().includes(queryText)
+    );
 
-          const oldP = (p.oldPrice !== null && p.oldPrice !== undefined)
-            ? window.__toNumberBR(p.oldPrice, 0)
-            : NaN;
+    renderProductCards(filteredProducts, 'featured-product-grid');
+    if (headerEl) headerEl.textContent = sectionCfg2 ? `${sectionCfg2.title} — Busca: "${queryText}"` : `Resultados da Busca por "${queryText}"`;
 
-          const hasOld = Number.isFinite(oldP) && oldP > basePrice;
+    const params2 = new URLSearchParams(window.location.search);
+    const section2 = params2.get('section');
+    history.pushState(null, '', section2 ? `todos_produtos.html?section=${encodeURIComponent(section2)}&q=${encodeURIComponent(queryText)}` : `todos_produtos.html?q=${encodeURIComponent(queryText)}`);
+  };
 
-          let badgePercent = 0;
-          let oldPriceToShow = null;
+  const setupSearchListeners = () => {
+    const searchInputDesktop = document.getElementById('search-input-desktop');
+    const searchInputMobile = document.getElementById('search-input-mobile');
+    let throttleTimer;
+    const handleInput = () => {
+      clearTimeout(throttleTimer);
+      throttleTimer = setTimeout(() => window.applySearchFilter(null), 300);
+    };
+    searchInputDesktop?.addEventListener('input', handleInput);
+    searchInputMobile?.addEventListener('input', handleInput);
+  };
 
-          if (hasOld) {
-            badgePercent = calcPercent(oldP, basePrice);
-            oldPriceToShow = oldP;
-          } else if (cash && cash.enabled && Number(cash.discountPercent || 0) > 0) {
-            badgePercent = Number(cash.discountPercent || 0);
-            oldPriceToShow = basePrice;
-          }
+  const loadProducts = async () => {
+    const loadingContainer = $('loading-container');
+    const productGrid = $('featured-product-grid');
 
-          const priceParts = formatPriceParts(displayPrice);
-          const oldPriceFormatted = oldPriceToShow ? formatCurrency(oldPriceToShow) : null;
-          const installmentsText = (card && card.enabled && card.text) ? card.text : 'em até 12x';
+    try {
+      if (loadingContainer) loadingContainer.classList.remove('hidden');
 
-          return `
-            <a href="produto.html?id=${p.id}" class="product-card">
-              <div class="product-image-container">
-                ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ''}
-                <img src="${p.imageUrl}" alt="${String(p.name || '').replace(/"/g, '&quot;')}" loading="lazy">
-              </div>
-              <div class="product-card-body">
-                <p class="product-name">${p.name}</p>
-                <div class="mt-auto">
-                  ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : '<p class="product-old-price opacity-0 text-transparent">.</p>'}
-                  <div class="product-price">
-                    <span class="currency">${priceParts.symbol}</span>
-                    <span class="price-integer">${priceParts.integer}</span>
-                    <span class="decimal-part">,${priceParts.decimal}</span>
-                    <span class="cash-text">à vista</span>
-                  </div>
-                  <p class="product-installments">${installmentsText}</p>
-                </div>
-              </div>
-            </a>
-          `;
-        }).join('');
-      };
+      try {
+        if (typeof window.getPaymentSettings === 'function') await window.getPaymentSettings();
+      } catch (_) {}
 
-      const fetchProductsFromApi = async () => {
+      const endpoints = ['/products', '/seller/products', '/home/index-data'];
+      let allProducts = [];
+
+      for (const endpoint of endpoints) {
         try {
-          loadingContainer.classList.remove('hidden');
-
-          const response = await fetch(`${API_BASE}/${PRODUCTS_COLLECTION}`, {
-            headers: { "Content-Type": "application/json" }
-          });
-
-          if (!response.ok) throw new Error("Falha ao carregar produtos");
-
-          const data = await response.json();
-          const items = Array.isArray(data) ? data : (data.items || data.products || []);
-
-          return items.map(item => ({
-            ...item,
-            id: item.id || item._id,
-            imageUrl:
-              item.imageUrl ||
-              item.mainImageUrl ||
-              item.imageUrlResolved ||
-              item.imagem ||
-              item.image ||
-              '/uploads/default.png'
-          }));
-        } catch (error) {
-          console.error("Erro API:", error);
-          window.displayMessage("Erro ao carregar os produtos.", "error");
-          return [];
-        } finally {
-          loadingContainer.classList.add('hidden');
-        }
-      };
-
-      const init = async () => {
-        try {
-          if (typeof window.getPaymentSettings === 'function') {
-            await window.getPaymentSettings();
+          const data = await apiRequest(endpoint);
+          const items = normalizeListResponse(endpoint === '/home/index-data' && data && data.products ? data.products : data);
+          if (items.length) {
+            allProducts = items.map(item => {
+              const price = item.preco ?? item.price ?? item.valor ?? 0;
+              const baseProduct = {
+                ...item,
+                id: item.id || item._id,
+                name: item.nome || item.name || 'Produto Sem Nome',
+                price,
+                oldPrice: item.precoAntigo || item.oldPrice || null,
+                category: item.category || item.categoria || item.categoryName || 'Geral',
+                description: item.description || item.descricao || '',
+                imageUrl: getNormalizedProductImage(item),
+                isOffer: item.isOffer === true,
+                isBestSeller: item.isBestSeller === true,
+                isNew: item.isNew === true,
+                isNewArrival: item.isNewArrival === true,
+                isRecommended: item.isRecommended === true,
+                isFeatured: item.isFeatured === true,
+                isHighlight: item.isHighlight === true,
+                homeSections: item.homeSections || []
+              };
+              return (typeof window.decorateProductWithPayments === 'function')
+                ? (window.decorateProductWithPayments(baseProduct) || baseProduct)
+                : baseProduct;
+            });
+            break;
           }
         } catch (_) {}
-
-        if (searchTermRaw) {
-          headerTitle.textContent = `Resultados para "${searchTermRaw}"`;
-          document.title = `Busca: ${searchTermRaw} | ARIANA MOVEIS`;
-        } else {
-          headerTitle.textContent = "Digite um termo para buscar produtos";
-        }
-
-        const products = await fetchProductsFromApi();
-        const filteredProducts = filterProductsBySearch(products, searchTermRaw);
-        renderProducts(filteredProducts);
-      };
-
-      init();
-    })();
-  </script>
-
-  <script src="js/header_auth_fix.js" defer></script>
-  <script src="./header.js"></script>
-  <script>
-    (function () {
-      const tryInitHeader = () => {
-        if (typeof window.carregarHeader !== 'function') {
-          setTimeout(tryInitHeader, 80);
-          return;
-        }
-
-        if (document.querySelector('header[data-ariana="1"]')) return;
-
-        try {
-          window.carregarHeader();
-          const h = document.querySelector('header');
-          if (h) h.setAttribute('data-ariana', '1');
-        } catch (e) {
-          console.error("[page] erro ao carregar header:", e);
-        }
-      };
-
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', tryInitHeader);
-      } else {
-        tryInitHeader();
       }
 
-      window.addEventListener('marketplace:helpers-ready', tryInitHeader);
-    })();
-  </script>
+      if (!allProducts.length) throw new Error('Nenhum produto retornado pela API.');
 
-  <script src="js/layout-fit.js" defer></script>
-  <script src="footer.js" defer></script>
+      window.__ALL_PRODUCTS__ = allProducts;
+
+      const sectionCfg = getSectionConfigFromUrl();
+      const baseProducts = sectionCfg ? allProducts.filter(sectionCfg.predicate) : [...allProducts];
+      window.__BASE_PRODUCTS__ = baseProducts;
+
+      const header = $('search-results-header');
+      if (header) header.textContent = sectionCfg ? sectionCfg.title : 'Catálogo Completo de Produtos';
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryFromUrl = urlParams.get('q');
+      if (queryFromUrl) {
+        const decodedQuery = decodeURIComponent(queryFromUrl).trim();
+        const d = document.getElementById('search-input-desktop');
+        const m = document.getElementById('search-input-mobile');
+        if (d) d.value = decodedQuery;
+        if (m) m.value = decodedQuery;
+        window.applySearchFilter(decodedQuery);
+      } else {
+        renderProductCards(baseProducts, 'featured-product-grid');
+      }
+    } catch (error) {
+      console.error("Erro ao carregar produtos:", error);
+      if (productGrid) productGrid.innerHTML = `<p class="col-span-full text-center text-lg text-red-600 py-10">❌ Erro ao carregar produtos: ${error.message}</p>`;
+    } finally {
+      if (loadingContainer) loadingContainer.classList.add('hidden');
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    loadCartCounterSafe();
+    setupSearchListeners();
+    await loadProducts();
+  });
+})();
+</script>
+
+<script src="./header.js"></script>
+<script>
+(function () {
+  const tryInit = () => {
+    if (typeof window.carregarHeader !== 'function') return setTimeout(tryInit, 60);
+    if (!document.querySelector('header[data-ariana="1"]')) {
+      try { window.carregarHeader(); } catch(e){ console.error('[todos_produtos] header erro:', e); }
+      const h = document.querySelector('header');
+      if (h) h.setAttribute('data-ariana','1');
+    }
+  };
+  tryInit();
+})();
+</script>
+<script src="footer.js"></script>
 </body>
 </html>

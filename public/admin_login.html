@@ -84,32 +84,52 @@
     </div>
   </main>
 
-  <script>
+    <script>
     const API_BASE =
-      localStorage.getItem("API_BASE") ||
-      "https://ariana-move-mongo.onrender.com/api";
+      (location.hostname === "127.0.0.1" || location.hostname === "localhost")
+        ? "http://localhost:3000/api"
+        : (localStorage.getItem("API_BASE") || localStorage.getItem("API_BASE_URL") || "https://ariana-move-mongo.onrender.com/api");
 
     document.getElementById("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+      const email = String(document.getElementById("email").value || "").trim();
+      const password = String(document.getElementById("password").value || "");
 
-      const res = await fetch(API_BASE + "/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert("Erro login");
+      if (!email || !password) {
+        alert("Informe e-mail e senha.");
         return;
       }
 
-      localStorage.setItem("adminToken", data.token);
-      window.location.href = "admin_painel.html";
+      try {
+        const res = await fetch(API_BASE + "/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+
+        const contentType = res.headers.get("content-type") || "";
+        const data = contentType.includes("application/json")
+          ? await res.json().catch(() => ({}))
+          : { error: await res.text().catch(() => "") };
+
+        if (!res.ok) {
+          alert(data?.error || data?.message || `Erro no login (HTTP ${res.status})`);
+          return;
+        }
+
+        localStorage.setItem("adminToken", data.token || "");
+        localStorage.setItem("admin_token", data.token || "");
+        localStorage.setItem("API_BASE", API_BASE);
+        localStorage.setItem("API_BASE_URL", API_BASE);
+        localStorage.setItem("admin_name", data?.name || data?.user?.name || data?.user?.nome || "Marcelo");
+        localStorage.setItem("admin_email", data?.email || data?.user?.email || email);
+        localStorage.setItem("admin_id", String(data?.id || data?._id || data?.userId || data?.uid || data?.user?.id || "env-admin"));
+        window.location.href = "admin_painel.htm";
+      } catch (err) {
+        console.error("[admin-login]", err);
+        alert("Não foi possível conectar ao servidor local em http://localhost:3000. Verifique se o backend está rodando.");
+      }
     });
   </script>
 

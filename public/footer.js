@@ -24,7 +24,7 @@ const renderGlobalFooter = () => {
                 <li><a href="quem_somos_seller.html" class="hover:text-secondary-light-blue transition-colors font-bold text-blue-400">Seja um Vendedor</a></li>
                 <li><a href="sac.html" class="hover:text-secondary-light-blue transition-colors font-bold">SAC / Ouvidoria</a></li>
                 <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
-                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
+                <li><a href="contato.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
                 <li><a href="politica_privacidade.html" class="hover:text-secondary-light-blue transition-colors">Privacidade</a></li>
             </ul>
         </div>

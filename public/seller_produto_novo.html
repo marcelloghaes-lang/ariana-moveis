@@ -71,24 +71,10 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <select id="p-category" required class="w-full p-4 border rounded-xl">
             <option value="">Selecione uma Categoria</option>
-            <option value="Eletro Domésticos">Eletro Domésticos</option>
-            <option value="Smartphones">Smartphones</option>
-            <option value="Climatização">Climatização</option>
-            <option value="Utilidades Domésticas">Utilidades Domésticas</option>
-            <option value="Antenas e Receptores de TV">Antenas e Receptores de TV</option>
-            <option value="Caixa de Som">Caixa de Som</option>
-            <option value="Eletro Portáteis">Eletro Portáteis</option>
-            <option value="Geladeiras & Refrigeradores">Geladeiras & Refrigeradores</option>
-            <option value="Móveis">Móveis</option>
-            <option value="Informática">Informática</option>
-            <option value="Smart TV">Smart TV</option>
-            <option value="Supermercado">Supermercado</option>
           </select>
-
           <select id="p-subcategory" class="w-full p-4 border rounded-xl">
             <option value="">Selecione uma Subcategoria</option>
           </select>
-
           <input id="p-categorySlug" type="text" placeholder="Slug da categoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
           <input id="p-subcategorySlug" type="text" placeholder="Slug da subcategoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
         </div>
@@ -117,113 +103,87 @@
   </div>
 
 <script>
-const API_BASE = "https://ariana-moveis.onrender.com/api";
+const API_BASE =
+  (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+    ? 'http://localhost:3000/api'
+    : 'https://ariana-move-mongo.onrender.com/api';
+window.API_BASE = API_BASE;
+try {
+  localStorage.setItem('API_BASE', API_BASE);
+  localStorage.setItem('API_BASE_URL', API_BASE);
+} catch(_e) {}
+
 const $ = (id) => document.getElementById(id);
+const FALLBACK_IMAGE = "img/placeholder.jpg";
 
-const HEADER_CATEGORIES = [
-  { name: "Eletro Domésticos", slug: "eletrodomesticos", subcategories: [] },
-  { name: "Smartphones", slug: "smartphones", subcategories: [] },
-  { name: "Climatização", slug: "climatizacao", subcategories: [] },
-  { name: "Utilidades Domésticas", slug: "utilidades-domesticas", subcategories: [] },
-  { name: "Antenas e Receptores de TV", slug: "antenas-tv", subcategories: [] },
-  { name: "Caixa de Som", slug: "caixa-som", subcategories: [] },
-  { name: "Eletro Portáteis", slug: "eletroportateis", subcategories: [] },
-  { name: "Geladeiras & Refrigeradores", slug: "geladeiras", subcategories: [] },
-  { name: "Móveis", slug: "moveis", subcategories: [] },
-  { name: "Informática", slug: "informatica", subcategories: [] },
-  { name: "Smart TV", slug: "tv", subcategories: [] },
-  { name: "Supermercado", slug: "supermercado", subcategories: [] }
-];
-
-// Função para converter imagem em texto (Base64) - Economia de 100% em storage
-function toBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-  });
-}
-
-function slugify(text) {
-  return String(text || "")
+function slugify(value) {
+  return String(value || "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/&/g, " e ")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
 
-function populateCategories() {
-  const categorySelect = $("p-category");
-  const subcategorySelect = $("p-subcategory");
-
-  if (!categorySelect || !subcategorySelect) return;
-
-  categorySelect.innerHTML = '<option value="">Selecione uma Categoria</option>';
-  HEADER_CATEGORIES.forEach(cat => {
-    const option = document.createElement("option");
-    option.value = cat.name;
-    option.textContent = cat.name;
-    option.dataset.slug = cat.slug;
-    categorySelect.appendChild(option);
-  });
-
-  subcategorySelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>';
-  subcategorySelect.disabled = true;
+function showToast(message, type = "info") {
+  const box = $("toast-container");
+  if (!box) return alert(message);
+  const el = document.createElement("div");
+  el.className = `toast px-4 py-3 rounded-xl text-white font-bold ${type === "error" ? "bg-error-red" : type === "success" ? "bg-success-green" : "bg-primary-blue"}`;
+  el.textContent = message;
+  box.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = "0";
+    setTimeout(() => el.remove(), 250);
+  }, 3000);
 }
 
-function updateCategoryFields() {
-  const categoryName = $("p-category").value;
-  const category = HEADER_CATEGORIES.find(cat => cat.name === categoryName);
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+  });
+}
 
-  $("p-categorySlug").value = category ? category.slug : "";
-  $("p-subcategory").innerHTML = '<option value="">Selecione uma Subcategoria</option>';
-  $("p-subcategorySlug").value = "";
-
-  if (category && Array.isArray(category.subcategories) && category.subcategories.length) {
-    $("p-subcategory").disabled = false;
-
-    category.subcategories.forEach(sub => {
-      const option = document.createElement("option");
-      if (typeof sub === "string") {
-        option.value = sub;
-        option.textContent = sub;
-        option.dataset.slug = slugify(sub);
-      } else {
-        option.value = sub.name;
-        option.textContent = sub.name;
-        option.dataset.slug = sub.slug || slugify(sub.name);
-      }
-      $("p-subcategory").appendChild(option);
-    });
-  } else {
-    $("p-subcategory").disabled = true;
+async function loadCategories() {
+  const select = $("p-category");
+  if (!select) return;
+  try {
+    const res = await fetch(`${API_BASE}/categories`);
+    const raw = await res.json();
+    const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || []);
+    const categories = rows.filter(Boolean);
+    if (!categories.length) return;
+    select.innerHTML = '<option value="">Selecione uma Categoria</option>' + categories.map((c) => {
+      const name = c.name || c.nome || c.category || "Sem nome";
+      const slug = c.slug || slugify(name);
+      return `<option value="${String(name).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`;
+    }).join("");
+  } catch (error) {
+    console.warn("Falha ao carregar categorias:", error);
   }
 }
 
-function updateSubcategoryFields() {
+function syncCategoryFields() {
+  const categorySelect = $("p-category");
   const subcategorySelect = $("p-subcategory");
-  const selectedOption = subcategorySelect.options[subcategorySelect.selectedIndex];
-  $("p-subcategorySlug").value = selectedOption?.dataset?.slug || "";
+  const selectedCategory = categorySelect?.selectedOptions?.[0];
+  const selectedSubcategory = subcategorySelect?.selectedOptions?.[0];
+  if ($("p-categorySlug")) $("p-categorySlug").value = selectedCategory?.dataset?.slug || slugify(categorySelect?.value || "");
+  if ($("p-subcategorySlug")) $("p-subcategorySlug").value = selectedSubcategory?.dataset?.slug || slugify(subcategorySelect?.value || "");
 }
 
 function generateSku() {
-  const categoryName = $("p-category").value || "produto";
-  const base = slugify(categoryName).replace(/-/g, "").slice(0, 5).toUpperCase() || "PROD";
-  const suffix = Date.now().toString().slice(-6);
-  $("p-sku").value = `${base}-${suffix}`;
+  const base = slugify($("p-name")?.value || "produto").replace(/-/g, "").slice(0, 8).toUpperCase() || "PRODUTO";
+  $("p-sku").value = `${base}-${Date.now().toString().slice(-6)}`;
 }
 
 $("btn-generate-sku")?.addEventListener("click", generateSku);
-$("p-category")?.addEventListener("change", () => {
-  updateCategoryFields();
-  if (!$("p-sku").value.trim()) {
-    generateSku();
-  }
-});
-$("p-subcategory")?.addEventListener("change", updateSubcategoryFields);
+$("p-name")?.addEventListener("blur", () => { if (!$("p-sku").value.trim()) generateSku(); });
+$("p-category")?.addEventListener("change", syncCategoryFields);
+$("p-subcategory")?.addEventListener("change", syncCategoryFields);
 
 $("product-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -232,57 +192,76 @@ $("product-form")?.addEventListener("submit", async (e) => {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publicando...';
 
   try {
-    const file = $("file-input").files[0];
-    let imageText = "";
-    if (file) imageText = await toBase64(file);
-
+    const files = Array.from($("file-input")?.files || []);
     const profile = JSON.parse(localStorage.getItem("seller_profile") || "{}");
+    const imageList = [];
 
-    const payload = {
-      name: $("p-name").value,
-      sku: $("p-sku").value || "SKU-" + Date.now(),
-      stock: Number($("p-stock").value),
-      price: Number($("p-price").value),
+    for (const file of files) {
+      const dataUrl = await toBase64(file);
+      imageList.push({
+        name: file.name,
+        url: dataUrl,
+        isMain: imageList.length === 0,
+      });
+    }
+
+    const mainImageUrl = imageList.find((item) => item.isMain)?.url || imageList[0]?.url || "";
+    const dadosParaSalvar = {
+      name: $("p-name").value.trim(),
+      nome: $("p-name").value.trim(),
+      sku: $("p-sku").value.trim() || `SKU-${Date.now()}`,
+      price: parseFloat($("p-price").value || "0"),
+      preco: parseFloat($("p-price").value || "0"),
+      stock: parseInt($("p-stock").value || "0", 10),
       category: $("p-category").value,
+      categoria: $("p-category").value,
+      categorySlug: $("p-categorySlug").value || slugify($("p-category").value),
       subcategory: $("p-subcategory").value,
-      categorySlug: $("p-categorySlug").value,
-      subcategorySlug: $("p-subcategorySlug").value,
-      description: $("p-desc").value,
-      image: imageText,
-      pesoKg: Number($("p-weight").value),
-      comprimento: Number($("p-length").value),
-      largura: Number($("p-width").value),
-      altura: Number($("p-height").value),
-      sellerId: profile.id
+      subcategorySlug: $("p-subcategorySlug").value || slugify($("p-subcategory").value),
+      description: $("p-desc").value.trim(),
+      descricao: $("p-desc").value.trim(),
+      imageUrl: mainImageUrl,
+      mainImageUrl: mainImageUrl,
+      image: mainImageUrl,
+      imagem: mainImageUrl,
+      images: imageList,
+      weight: parseFloat($("p-weight").value || "0"),
+      length: parseInt($("p-length").value || "0", 10),
+      width: parseInt($("p-width").value || "0", 10),
+      height: parseInt($("p-height").value || "0", 10),
+      sellerId: profile.id || profile._id || null,
+      sellerName: profile.factoryName || profile.name || "Seller",
+      active: true,
     };
 
     const res = await fetch(`${API_BASE}/seller/products`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(dadosParaSalvar)
     });
 
-    if (res.ok) {
-      alert("Produto cadastrado com sucesso!");
-      window.location.href = "seller_produtos.html";
-    } else {
-      throw new Error();
-    }
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.error || result.message || "Erro ao publicar produto.");
+
+    showToast("Produto cadastrado com sucesso!", "success");
+    window.location.href = "seller_produtos.html";
   } catch (err) {
-    alert("Erro ao publicar. Verifique a conexão.");
+    console.error(err);
+    showToast(err.message || "Erro ao publicar. Verifique a conexão.", "error");
     btn.disabled = false;
     btn.innerHTML = "Publicar produto";
   }
 });
 
-// Mantém o nome no topo
-window.onload = () => {
+window.onload = async () => {
   const profile = JSON.parse(localStorage.getItem("seller_profile") || "{}");
   $("user-display-name").textContent = "Bem-vindo, " + (profile.factoryName || "Seller") + "!";
-  populateCategories();
-  updateCategoryFields();
+  await loadCategories();
+  syncCategoryFields();
 };
 </script>
+<script src="js/product-card.js" defer></script>
+<script src="./product-card.js"></script>
 <script src="js/layout-fit.js" defer></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
 
   <script src="./marketplace-core.js"></script>
@@ -93,6 +93,51 @@
     .loading-text{grid-column:1 / -1;text-align:center;color:var(--primary-blue);font-weight:800;padding:32px 12px}
     .error-text{grid-column:1 / -1;text-align:center;color:#dc2626;font-weight:700;padding:32px 12px}
   </style>
+<script>
+(function () {
+  const isLocal = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname);
+  const saved = (function () {
+    try { return localStorage.getItem("API_BASE") || ""; } catch(_) { return ""; }
+  })();
+
+  const candidates = [];
+  const push = (value) => {
+    const v = String(value || "").trim().replace(/\/+$/, "");
+    if (!v) return;
+    if (!candidates.includes(v)) candidates.push(v);
+  };
+
+  if (isLocal) {
+    push("http://localhost:3000/api");
+    push(saved);
+    push("https://ariana-move-mongo.onrender.com/api");
+  } else {
+    push(saved);
+    push("https://ariana-move-mongo.onrender.com/api");
+    push("http://localhost:3000/api");
+  }
+
+  window.API_BASE_CANDIDATES = candidates;
+  window.API_BASE = candidates[0] || "https://ariana-move-mongo.onrender.com/api";
+  window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+
+  try {
+    localStorage.setItem("API_BASE", window.API_BASE);
+    localStorage.setItem("API_BASE_URL", window.API_BASE);
+  } catch(_e) {}
+
+  window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+  window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+  window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+    const raw = String(value || '').trim();
+    if (!raw || raw.includes('${')) return '';
+    if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+    if (raw.startsWith('/')) return window.API_ORIGIN + raw;
+    return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
+  };
+})();
+</script>
+
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
@@ -196,12 +241,18 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const API_BASE =
-      localStorage.getItem("API_BASE") ||
+    let API_BASE =
       window.API_BASE ||
+      (Array.isArray(window.API_BASE_CANDIDATES) && window.API_BASE_CANDIDATES[0]) ||
       "https://ariana-move-mongo.onrender.com/api";
 
+    const API_BASE_CANDIDATES =
+      Array.isArray(window.API_BASE_CANDIDATES) && window.API_BASE_CANDIDATES.length
+        ? window.API_BASE_CANDIDATES
+        : [API_BASE];
+
     window.API_BASE = API_BASE;
+    window.API_ORIGIN = String(API_BASE).replace(/\/api\/?$/i, "");
 
     window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
       try {
@@ -256,28 +307,54 @@
       });
     }
 
-    async function apiFetch(url) {
-      const response = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json"
+    async function apiFetch(url, options = {}) {
+      const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+      const bases = Array.isArray(API_BASE_CANDIDATES) && API_BASE_CANDIDATES.length ? API_BASE_CANDIDATES : [API_BASE];
+      const isAbsolute = /^https?:\/\//i.test(String(url || ''));
+      let lastError = null;
+
+      for (const base of bases) {
+        try {
+          const finalUrl = isAbsolute
+            ? String(url || '')
+            : `${String(base).replace(/\/+$/, '')}/${String(url || '').replace(/^\/+/, '')}`;
+
+          const response = await fetch(finalUrl, {
+            ...options,
+            headers
+          });
+
+          let data = null;
+          const contentType = response.headers.get("content-type") || "";
+
+          if (contentType.includes("application/json")) {
+            data = await response.json().catch(() => null);
+          } else {
+            const text = await response.text().catch(() => "");
+            data = text ? { message: text } : null;
+          }
+
+          if (!response.ok) {
+            throw new Error(data?.message || data?.error || `Erro HTTP ${response.status}`);
+          }
+
+          if (!isAbsolute && base !== API_BASE) {
+            API_BASE = base;
+            window.API_BASE = base;
+            window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
+            try {
+              localStorage.setItem("API_BASE", base);
+              localStorage.setItem("API_BASE_URL", base);
+            } catch(_) {}
+          }
+
+          return data;
+        } catch (error) {
+          lastError = error;
         }
-      });
-
-      let data = null;
-      const contentType = response.headers.get("content-type") || "";
-
-      if (contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        data = text ? { message: text } : null;
       }
 
-      if (!response.ok) {
-        throw new Error(data?.message || `Erro HTTP ${response.status}`);
-      }
-
-      return data;
+      throw lastError || new Error("Nenhuma API disponível no momento.");
     }
 
     function isOfferProduct(data) {
@@ -511,7 +588,19 @@
       const installmentsText = getInstallmentsText(p, basePrice);
 
       const imageUrl =
-        p.imageUrl ||
+        window.resolveApiImageUrl(
+          p.imageUrl ||
+          p.mainImageUrl ||
+          p.image ||
+          p.imagem ||
+          (Array.isArray(p.images)
+            ? (typeof p.images[0] === "string"
+                ? p.images[0]
+                : (p.images[0]?.url || p.images[0]?.imageUrl))
+            : "") ||
+          (Array.isArray(p.imagePaths) ? p.imagePaths[0] : "") ||
+          (Array.isArray(p.imageUrls) ? p.imageUrls[0] : "")
+        ) ||
         `https://placehold.co/600x400/2E6DA4/ffffff?text=${encodeURIComponent(String(p.name || 'OFERTA').toUpperCase())}`;
 
       const priceParts = (window.formatPriceParts)
@@ -554,15 +643,41 @@
     }
 
     async function fetchOfferProducts() {
-      try {
-        const data = await apiFetch(`${API_BASE}/products?offers=true`);
-        const items = Array.isArray(data) ? data : (data.items || data.products || []);
-        if (items.length) return items;
-      } catch (_) {}
+      const extractItems = (data) => {
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data?.items)) return data.items;
+        if (Array.isArray(data?.products)) return data.products;
+        if (Array.isArray(data?.data)) return data.data;
+        if (Array.isArray(data?.results)) return data.results;
+        if (Array.isArray(data?.docs)) return data.docs;
+        if (Array.isArray(data?.homeSections?.offers)) return data.homeSections.offers;
+        if (Array.isArray(data?.offers)) return data.offers;
+        return [];
+      };
 
-      const data = await apiFetch(`${API_BASE}/products`);
-      const items = Array.isArray(data) ? data : (data.items || data.products || []);
-      return items.filter(isOfferProduct);
+      const attempts = [
+        { path: "products?offers=true", filterOffers: false },
+        { path: "seller/products", filterOffers: true },
+        { path: "products", filterOffers: true },
+        { path: "home/index-data", filterOffers: true }
+      ];
+
+      for (const attempt of attempts) {
+        try {
+          const data = await apiFetch(attempt.path);
+          let items = extractItems(data);
+
+          if (attempt.filterOffers) {
+            items = items.filter(isOfferProduct);
+          }
+
+          items = items.filter(x => x && x.active !== false);
+
+          if (items.length) return items;
+        } catch (_) {}
+      }
+
+      return [];
     }
 
     async function loadOffers() {
@@ -632,7 +747,8 @@
       }
     });
   </script>
-
+  
+  <script src="./product-card.js"></script>
   <script src="js/layout-fit.js" defer></script>
   <script src="footer.js" defer></script>
 </body>
