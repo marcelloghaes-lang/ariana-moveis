@@ -1,5 +1,16 @@
-window.API_BASE = window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
-window.API_ORIGIN = window.API_ORIGIN || String(window.API_BASE).replace(/\/api\/?$/i, "");
+// 1. Definição do novo endereço oficial
+const NOVO_BACKEND = "https://ariana-backend.onrender.com/api";
+
+// 2. Lógica para garantir que o site use o endereço novo e ignore o antigo
+const API_BASE = 
+  window.API_BASE || 
+  (localStorage.getItem("API_BASE") && localStorage.getItem("API_BASE").includes("ariana-move-mongo") ? NOVO_BACKEND : localStorage.getItem("API_BASE")) || 
+  NOVO_BACKEND;
+
+window.API_BASE = API_BASE;
+window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+
+// 3. Salva o endereço correto no navegador para consultas futuras
 try {
   localStorage.setItem("API_BASE", window.API_BASE);
   localStorage.setItem("API_BASE_URL", window.API_BASE);
