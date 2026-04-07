@@ -1,16 +1,23 @@
+// --- CONFIGURAÇÃO GLOBAL DE API ARIANA MÓVEIS ---
 // 1. Definição do novo endereço oficial
 const NOVO_BACKEND = "https://ariana-backend.onrender.com/api";
 
-// 2. Lógica para garantir que o site use o endereço novo e ignore o antigo
+// 2. Limpeza de segurança: Se o navegador tiver o link antigo, nós forçamos a troca
+if (localStorage.getItem("API_BASE") && localStorage.getItem("API_BASE").includes("ariana-move-mongo")) {
+    localStorage.removeItem("API_BASE");
+    localStorage.removeItem("API_BASE_URL");
+}
+
+// 3. Lógica para definir a URL ativa
 const API_BASE = 
   window.API_BASE || 
-  (localStorage.getItem("API_BASE") && localStorage.getItem("API_BASE").includes("ariana-move-mongo") ? NOVO_BACKEND : localStorage.getItem("API_BASE")) || 
+  localStorage.getItem("API_BASE") || 
   NOVO_BACKEND;
 
 window.API_BASE = API_BASE;
 window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
 
-// 3. Salva o endereço correto no navegador para consultas futuras
+// 4. Salva o endereço correto para evitar erros de carregamento
 try {
   localStorage.setItem("API_BASE", window.API_BASE);
   localStorage.setItem("API_BASE_URL", window.API_BASE);
@@ -23,7 +30,6 @@ try {
 
 const HEADER_API_BASE = window.API_BASE;
 const HEADER_API_ORIGIN = window.API_ORIGIN;
-
 function escapeHtml(str) {
   return String(str ?? '')
     .replaceAll('&', '&amp;')
