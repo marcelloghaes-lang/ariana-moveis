@@ -158,11 +158,13 @@
 
 <script>
 const API_BASE =
-  localStorage.getItem("API_BASE") ||
   window.API_BASE ||
-  "https://ariana-move-mongo.onrender.com/api";
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
 
-window.API_BASE = API_BASE;
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
 
 const $ = (id) => document.getElementById(id);
 
@@ -522,6 +524,8 @@ async function initPage() {
 
 window.addEventListener("DOMContentLoaded", initPage);
 </script>
+
+    <script src="js/api-config.js"></script>
 
     <script src="marketplace-core.js"></script>
     <script src="marketplace-core_global_payments.js"></script>

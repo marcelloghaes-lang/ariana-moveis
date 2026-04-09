@@ -277,7 +277,7 @@
           <div class="mt-auto space-y-2">
             <div class="flex items-center text-[10px] text-gray-500 bg-gray-50 p-1.5 rounded">
               <i class="fas fa-truck text-primary-blue mr-2"></i>
-              <span>Frete Grátis <span class="font-bold text-dark-bg">Sul e Sudeste</span></span>
+              <span> <span class="font-bold text-dark-bg">Sul e Sudeste</span></span>
             </div>
             <button onclick="event.stopPropagation(); window.addToCart('${p.id}')"
                     class="w-full bg-primary-blue hover:bg-dark-bg text-white font-bold py-2.5 rounded-lg text-[11px] transition-colors flex items-center justify-center gap-2">

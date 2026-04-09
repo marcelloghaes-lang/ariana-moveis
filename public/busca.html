@@ -10,85 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
-<script>
-(function () {
-  const isLocal = /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
-  const apiCandidates = isLocal
-    ? ["http://localhost:3000/api"]
-    : [
-        localStorage.getItem("API_BASE") || "",
-        "https://ariana-move-mongo.onrender.com/api",
-        "http://localhost:3000/api"
-      ].filter(Boolean);
-
-  window.API_BASE_CANDIDATES = apiCandidates;
-  window.API_BASE = apiCandidates[0];
-  window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
-  try {
-    localStorage.setItem("API_BASE", window.API_BASE);
-    localStorage.setItem("API_BASE_URL", window.API_BASE);
-  } catch(_e) {}
-
-  window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
-  window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
-  window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
-    const raw = String(value || '').trim();
-    if (!raw || raw.includes('${')) return '/uploads/default.png';
-    if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
-    if (raw.startsWith('/')) return window.API_ORIGIN + raw;
-    return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
-  };
-
-  const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
-  if (nativeFetch && !window.__ARIANA_FETCH_PATCH__) {
-    window.__ARIANA_FETCH_PATCH__ = true;
-    window.fetch = async function(input, init) {
-      let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
-      const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
-
-      const makeJsonResponse = (payload, status = 200) =>
-        Promise.resolve(new Response(JSON.stringify(payload), {
-          status,
-          headers: { "Content-Type": "application/json" }
-        }));
-
-      if (url) {
-        url = url.replace(/\/undefined\/payments\b/g, "/settings/payments");
-
-        if (/\/settings\/payments(?:\?|$)/i.test(url)) {
-          return makeJsonResponse({
-            ok: true,
-            cash: { enabled: true, discountPercent: 17 },
-            pix: { enabled: true, discountPercent: 17 },
-            card: { enabled: true, maxInstallments: 12, installments: 12 }
-          });
-        }
-
-        if (/\/header_category_banner(?:\?|$)/i.test(url)) {
-          url = url.replace(/\/header_category_banner(?:\?.*)?$/i, "/banners?slot=header_category_banner");
-        }
-
-        if (isLocal && /\/seller\/products(?:\?|$)/i.test(url)) {
-          url = url.replace(/\/seller\/products/i, "/products");
-        }
-
-        if (isLocal && /\/home\/index-data(?:\?|$)/i.test(url) && method === "GET") {
-          url = url.replace(/\/home\/index-data/i, "/products");
-        }
-
-        if (typeof input === "string") {
-          input = url;
-        } else if (input instanceof Request) {
-          input = new Request(url, input);
-        }
-      }
-
-      return nativeFetch(input, init);
-    };
-  }
-})();
-</script>
-
+<script src="js/api-config.js"></script>
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
@@ -360,9 +282,20 @@
     (async function () {
       await window.ensureMarketplaceHelpers();
 
-      const API_BASE = window.API_BASE;
-      const API_BASE_CANDIDATES = window.API_BASE_CANDIDATES || [API_BASE];
-      try { localStorage.setItem("API_BASE", API_BASE); } catch(_) {}
+      const API_BASE =
+        window.API_BASE ||
+        localStorage.getItem("API_BASE") ||
+        "https://ariana-backend.onrender.com/api";
+
+      const API_ORIGIN =
+        window.API_ORIGIN ||
+        String(API_BASE).replace(/\/api\/?$/i, "");
+
+      const API_BASE_CANDIDATES = [API_BASE];
+      try {
+        localStorage.setItem("API_BASE", API_BASE);
+        localStorage.setItem("API_BASE_URL", API_BASE);
+      } catch(_) {}
 
       const normalizeListResponse = (data) => {
         if (Array.isArray(data)) return data;
@@ -447,7 +380,7 @@
         const container = document.getElementById("toast-container");
         const colors = {
           success: "bg-success-green",
-          error: "bg-danger-red",
+          error: "bg-error-red",
           info: "bg-info-blue"
         };
         const toast = document.createElement("div");

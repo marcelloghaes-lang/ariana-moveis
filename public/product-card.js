@@ -1,66 +1,174 @@
 (function () {
-  const toNumber = (v) => {
-    const n = parseFloat(String(v || "").replace(/[^\d.-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-
   const formatCurrency = (v) =>
     new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(v || 0);
+    }).format(Number(v || 0));
 
-  const escapeHtml = (v) => String(v || "").replace(/"/g, "&quot;");
+  const escapeHtml = (v) => String(v || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
- window.createProductCard = function (p) {
-    // 1. Definição de Preços (Garante que sejam números)
-    const price = Number(p.price || p.preco || 0);
-    const oldPrice = Number(p.oldPrice || p.precoDe || 0);
+  function ensureCardStyles() {
+    if (document.getElementById("ariana-pro-market-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "ariana-pro-market-styles";
+    style.textContent = `
+      .am-pro-card {
+        font-family: 'Inter', -apple-system, sans-serif;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        display: flex;
+        flex-direction: column;
+        padding: 16px;
+        cursor: pointer;
+        border: 1px solid #f0f0f0;
+        position: relative;
+        height: 100%;
+      }
+
+      .am-pro-card:hover {
+        box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+        border-color: #0056b3; /* Azul Ariana */
+        transform: translateY(-4px);
+      }
+
+      .am-pro-card__image-container {
+        width: 100%;
+        height: 200px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .am-pro-card__image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        transition: transform 0.5s ease;
+      }
+
+      .am-pro-card:hover .am-pro-card__image {
+        transform: scale(1.08);
+      }
+
+      .am-pro-card__title {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+        line-height: 1.4;
+        margin-bottom: 12px;
+        height: 40px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .am-pro-card__price-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+
+      .am-pro-card__old-price {
+        font-size: 12px;
+        color: #999;
+        text-decoration: line-through;
+        margin-bottom: 2px;
+      }
+
+      .am-pro-card__main-price {
+        font-size: 26px;
+        font-weight: 700;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        letter-spacing: -0.5px;
+      }
+
+      .am-pro-card__discount-tag {
+        font-size: 13px;
+        color: #00a650; /* Verde de Conversão */
+        font-weight: 600;
+      }
+
+      .am-pro-card__pix-info {
+        font-size: 12px;
+        color: #666;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .am-pro-card__installments {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+      }
+
+      .am-pro-card__total-prazo {
+        font-size: 11px;
+        color: #888;
+        margin-top: 2px;
+      }
+
+      .am-pro-card__shipping {
+        font-size: 12px;
+        color: #00a650;
+        font-weight: 700;
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #e6f7ee;
+        width: fit-content;
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  window.createProductCard = function (p) {
+    ensureCardStyles();
     
-    // 2. Cálculo do PIX (17% fixo sobre o preço de venda)
-    const pixDiscount = 0.17; 
-    const pixPrice = price * (1 - pixDiscount);
-
-    // 3. Cálculo de Parcelas (Sobre o preço cheio)
-    const installmentsCount = 12;
-    const installmentsValue = price / installmentsCount;
-
-    const format = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-    const name = p.name || p.nome || "Produto Ariana Móveis";
-    const imageUrl = p.imageUrl || p.mainImageUrl || p.image || "img/placeholder.jpg";
-
-    // Badge de Desconto (Só aparece se o preço antigo for maior)
-    let badgeHtml = "";
-    if (oldPrice > price) {
-      const offPercent = Math.round(((oldPrice - price) / oldPrice) * 100);
-      badgeHtml = `<div style="position: absolute; top: 10px; left: 10px; background: #cc0000; color: white; font-size: 10px; font-weight: bold; padding: 4px 8px; border-radius: 20px; z-index: 10;">-${offPercent}% OFF</div>`;
-    }
+    // Pegando o preço cheio do produto
+    const fullPrice = Number(p?.price || p?.preco || 0);
+    
+    // Calculando o Pix com 17% de desconto
+    const pixPrice = fullPrice * 0.83; 
+    
+    // Parcelamento em 12x
+    const installmentValue = fullPrice / 12;
 
     return `
-      <div class="product-card" style="position: relative; cursor: pointer;" onclick="window.location.href='produto.html?id=${p._id || p.id}'">
-        ${badgeHtml}
-        <div class="product-image-container">
-          <img src="${imageUrl}" alt="${name.replace(/"/g, '&quot;')}" onerror="this.src='img/placeholder.jpg'">
+      <div class="am-pro-card" onclick="location.href='produto.html?id=${escapeHtml(p.id)}'">
+        <div class="am-pro-card__image-container">
+          <img class="am-pro-card__image" src="${escapeHtml(p.imageUrl)}" alt="${escapeHtml(p.name)}">
         </div>
-        <div class="product-card-body">
-          <h3 class="product-name" style="font-size: 14px; margin-bottom: 10px; height: 40px; overflow: hidden;">${name}</h3>
-          <div class="price-container">
-            ${oldPrice > price ? `<span style="text-decoration: line-through; color: #9ca3af; font-size: 12px; display: block;">${format(oldPrice)}</span>` : ""}
-            <div style="margin-top: 2px;">
-              <span style="font-size: 20px; font-weight: 800; color: #1e3a8a;">${format(price)}</span>
-            </div>
-            <p style="color: #059669; font-weight: bold; font-size: 12px; margin-top: 5px;">
-              <i class="fas fa-bolt"></i> ${format(pixPrice)} à vista no PIX <span style="background: #d1fae5; padding: 0 4px; border-radius: 4px;">(17% OFF)</span>
-            </p>
-            <p style="color: #4b5563; font-size: 11px; margin-top: 3px;">
-              ou ${installmentsCount}x de <strong>${format(installmentsValue)}</strong> sem juros
-            </p>
+        <div class="am-pro-card__title">${escapeHtml(p.name)}</div>
+        <div class="am-pro-card__price-container">
+          <span class="am-pro-card__old-price">${formatCurrency(fullPrice * 1.15)}</span>
+          <div class="am-pro-card__main-price">
+            ${formatCurrency(pixPrice)}
+            <span class="am-pro-card__discount-tag">17% OFF</span>
+          </div>
+          <div class="am-pro-card__pix-info">no PIX à vista</div>
+          
+          <div class="am-pro-card__installments">
+            ou 12x de ${formatCurrency(installmentValue)} s/ juros
+          </div>
+          
+          <div class="am-pro-card__total-prazo">
+            Total parcelado: ${formatCurrency(fullPrice)}
           </div>
         </div>
+        <div class="am-pro-card__shipping"></div>
       </div>
     `;
-};
-
-// ESSA LINHA É O SEGREDO: Faz com que quem procurar a função antiga, use a nova!
-window.createProductCardHTML = window.createProductCard;
+  };
 })();

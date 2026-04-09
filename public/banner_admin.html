@@ -34,6 +34,7 @@
     .helper{font-size:.78rem;color:#64748b}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
+<script src="js/api-config.js"></script>
 </head>
 
 <body class="bg-slate-50 min-h-screen">
@@ -385,16 +386,21 @@
 
 
 <script>
-    const $ = (q) => document.querySelector(q);
+    
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
+
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
+
+const $ = (q) => document.querySelector(q);
     const msg = document.getElementById('msg');
 
     // --- ADICIONE ESTA LÓGICA AQUI ---
-    const IS_LOCAL_HOST = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost');
-    const API_BASE_LOCAL = 'http://localhost:3000/api';
-    const API_BASE_RENDER = 'https://ariana-move-mongo.onrender.com/api';
-    let API_BASE = IS_LOCAL_HOST ? API_BASE_LOCAL : API_BASE_RENDER;
-
-    console.log("Painel de Banners conectado inicialmente em:", API_BASE);
+    
 
     function getBannerSession(){
       try { return JSON.parse(localStorage.getItem('banner_admin_session') || 'null') || null; } catch(_e){ return null; }

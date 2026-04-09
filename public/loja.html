@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="css/tailwind.min.css">
   <link rel="icon" type="image/png" href="./favicon.png">
 
+  <script src="js/api-config.js"></script>
+
   <style>
     body { background-color:#fcfcfc; overflow-x:hidden; margin:0; }
     #pageApp { font-family:'Inter',sans-serif; }
@@ -264,20 +266,25 @@
 
 <script>
 window.API_BASE =
-  (location.hostname === "127.0.0.1" || location.hostname === "localhost")
-    ? "http://localhost:3000/api"
-    : "https://ariana-move-mongo.onrender.com/api";
-window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
+
+window.API_ORIGIN =
+  window.API_ORIGIN ||
+  String(window.API_BASE).replace(/\/api\/?$/i, "");
+
 try {
   localStorage.setItem("API_BASE", window.API_BASE);
   localStorage.setItem("API_BASE_URL", window.API_BASE);
 } catch(_e) {}
+
 window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
 window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
 window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
   const raw = String(value || "").trim();
   if (!raw || raw.includes("${")) return "https://placehold.co/400x400?text=SEM+IMAGEM";
-  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) return raw;
   if (raw.startsWith("/")) return window.API_ORIGIN + raw;
   return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
 };
@@ -289,7 +296,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
     let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
     if (url) {
       url = url
-        .replace(/\/undefined\/payments\b/g, "/settings/payments")
+        .replace(/\/undefined\/payments/g, "/settings/payments")
         .replace("https://ariana-move-mongo.onrender.com/api", window.API_BASE)
         .replace("https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api", window.API_BASE);
       if (typeof input === "string") input = url;
@@ -381,7 +388,14 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
   </script>
 
   <script>
-    const API_BASE = window.API_BASE;
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-backend.onrender.com/api";
+
+    const API_ORIGIN =
+      window.API_ORIGIN ||
+      String(API_BASE).replace(/\/api\/?$/i, "");
     const $ = (id) => document.getElementById(id);
 
     let __paymentsConfig = {

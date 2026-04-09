@@ -344,21 +344,23 @@
 </footer>
 
 
+<script src="js/api-config.js"></script>
+
 <script>
 (function () {
-  const isLocal =
-    location.hostname === "127.0.0.1" ||
-    location.hostname === "localhost";
-
-  const LOCAL_API = "http://localhost:3000/api";
-  const CLOUD_API = "https://ariana-move-mongo.onrender.com/api";
-
-  window.API_BASE =
-    localStorage.getItem("API_BASE") ||
+  const API_BASE =
     window.API_BASE ||
-    (isLocal ? LOCAL_API : CLOUD_API);
+    localStorage.getItem("API_BASE") ||
+    "https://ariana-backend.onrender.com/api";
 
-  try { localStorage.setItem("API_BASE", window.API_BASE); } catch (_) {}
+  const API_ORIGIN =
+    window.API_ORIGIN ||
+    String(API_BASE).replace(/\/api\/?$/i, "");
+
+  try {
+    localStorage.setItem("API_BASE", API_BASE);
+    localStorage.setItem("API_BASE_URL", API_BASE);
+  } catch (_) {}
 })();
 
 function readJsonSafe(res){

@@ -134,11 +134,14 @@
 
     <script>
       const API_BASE =
-        localStorage.getItem("API_BASE") ||
         window.API_BASE ||
-        "https://ariana-move-mongo.onrender.com/api";
+        localStorage.getItem("API_BASE") ||
+        "https://ariana-backend.onrender.com/api";
 
-      window.API_BASE = API_BASE;
+      const API_ORIGIN =
+        window.API_ORIGIN ||
+        String(API_BASE).replace(/\/api\/?$/i, "");
+
 
       window.toggleAccordion = function(header) {
         const item = header.closest('.accordion-item');
@@ -175,6 +178,7 @@
       });
     </script>
 
+    <script src="js/api-config.js"></script>
     <script src="js/header_auth_fix.js" defer></script>
     
     <script src="./header.js"></script>

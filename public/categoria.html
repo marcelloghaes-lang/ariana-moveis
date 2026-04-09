@@ -10,6 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="./css/tailwind.min.css">
+  <script src="js/api-config.js"></script>
 
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
@@ -35,74 +36,36 @@
     .product-card-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
   </style>
 
+  
   <script>
-    const IS_LOCAL_CATEGORIA = /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
-    const API_BASE_CANDIDATES = IS_LOCAL_CATEGORIA
-      ? ['http://localhost:3000/api', 'https://ariana-move-mongo.onrender.com/api']
-      : [
-          `${window.location.origin}/api`,
-          localStorage.getItem('API_BASE') || '',
-          'https://ariana-move-mongo.onrender.com/api',
-          'http://localhost:3000/api'
-        ].filter(Boolean);
-
-    window.API_BASE = API_BASE_CANDIDATES[0];
-    window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
-
-    try {
-      localStorage.setItem("API_BASE", window.API_BASE);
-      localStorage.setItem("API_BASE_URL", window.API_BASE);
-    } catch (_e) {}
-
-    window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
-    window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
-    window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
-      const raw = String(value || "").trim();
-      if (!raw || raw.includes("${")) return "img/placeholder.jpg";
-      if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
-      if (raw.startsWith("/")) return window.API_ORIGIN + raw;
-      return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
-    };
-
     window.apiRequestWithFallback = async function(path, opts = {}) {
+      const API_BASE =
+        window.API_BASE ||
+        localStorage.getItem("API_BASE") ||
+        "https://ariana-backend.onrender.com/api";
+
       const normalizedPath = `${String(path).startsWith('/') ? '' : '/'}${path}`;
-      let lastError = null;
+      const headers = { ...(opts.headers || {}) };
 
-      for (const base of API_BASE_CANDIDATES) {
-        const headers = { ...(opts.headers || {}) };
-        if (!(opts.body instanceof FormData) && !headers['Content-Type']) {
-          headers['Content-Type'] = 'application/json';
-        }
-
-        try {
-          const url = `${String(base).replace(/\/+$/, '')}${normalizedPath}`;
-          const res = await fetch(url, { ...opts, headers });
-          const ct = res.headers.get('content-type') || '';
-          const data = ct.includes('application/json')
-            ? await res.json().catch(() => null)
-            : await res.text().catch(() => null);
-
-          if (!res.ok) {
-            const msg = (data && typeof data === 'object' && (data.message || data.error))
-              ? (data.message || data.error)
-              : `HTTP ${res.status}`;
-            throw new Error(msg);
-          }
-
-          window.API_BASE = base;
-          window.API_ORIGIN = String(base).replace(/\/api\/?$/i, '');
-          try {
-            localStorage.setItem('API_BASE', base);
-            localStorage.setItem('API_BASE_URL', base);
-          } catch(_) {}
-
-          return data;
-        } catch (error) {
-          lastError = error;
-        }
+      if (!(opts.body instanceof FormData) && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
       }
 
-      throw lastError || new Error('Nenhuma API disponível no momento.');
+      const url = `${String(API_BASE).replace(/\/+$/, '')}${normalizedPath}`;
+      const res = await fetch(url, { ...opts, headers });
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json')
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => null);
+
+      if (!res.ok) {
+        const msg = (data && typeof data === 'object' && (data.message || data.error))
+          ? (data.message || data.error)
+          : `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+
+      return data;
     };
   </script>
 </head>
@@ -200,8 +163,19 @@
         }
       };
 
-      let API_BASE = window.API_BASE;
-      try { localStorage.setItem("API_BASE", API_BASE); } catch(_) {}
+      const API_BASE =
+        window.API_BASE ||
+        localStorage.getItem("API_BASE") ||
+        "https://ariana-backend.onrender.com/api";
+
+      const API_ORIGIN =
+        window.API_ORIGIN ||
+        String(API_BASE).replace(/\/api\/?$/i, "");
+
+      try {
+        localStorage.setItem("API_BASE", API_BASE);
+        localStorage.setItem("API_BASE_URL", API_BASE);
+      } catch(_) {}
       const $ = id => document.getElementById(id);
       let allProducts = [];
       let allCategories = [];

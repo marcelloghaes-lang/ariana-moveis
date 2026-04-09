@@ -14,10 +14,6 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #F5F7FA;
-    }
-    body {
-      font-family: 'Inter', sans-serif;
       background-color: #fcfcfc;
     }
     .card-header { border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 8px; }
@@ -53,13 +49,9 @@
     <div class="bg-white border rounded p-3 shadow-sm"><div class="card-header"><span class="brand-name">SUGGAR</span></div><div class="info-label">Telefone</div><div class="info-value">0800 200 5050</div></div>
   </div>
 
+  <script src="js/api-config.js"></script>
+
   <script>
-    const API_BASE =
-      localStorage.getItem("API_BASE") ||
-      "https://ariana-move-mongo.onrender.com/api";
-
-    window.API_BASE = API_BASE;
-
     document.addEventListener("DOMContentLoaded", function () {
       if (typeof window.carregarHeader === "function") {
         try {

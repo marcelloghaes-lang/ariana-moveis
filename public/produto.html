@@ -14,12 +14,16 @@
 
   <link rel="stylesheet" href="css/tailwind.min.css">
 
+<script src="js/api-config.js"></script>
+
 <script>
 window.API_BASE =
-  (location.hostname === "127.0.0.1" || location.hostname === "localhost")
-    ? "http://localhost:3000/api"
-    : "https://ariana-move-mongo.onrender.com/api";
-window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
+window.API_ORIGIN =
+  window.API_ORIGIN ||
+  String(window.API_BASE).replace(/\/api\/?$/i, "");
 try {
   localStorage.setItem("API_BASE", window.API_BASE);
   localStorage.setItem("API_BASE_URL", window.API_BASE);
@@ -29,7 +33,7 @@ window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
 window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
   const raw = String(value || "").trim();
   if (!raw || raw.includes("${")) return "";
-  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) return raw;
   if (raw.startsWith("/")) return window.API_ORIGIN + raw;
   return window.API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
 };
@@ -41,8 +45,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
     let url = typeof input === "string" ? input : (input && input.url ? input.url : "");
     if (url) {
       url = url
-        .replace(/\/undefined\/payments\b/g, "/settings/payments")
-        .replace("" + window.API_BASE + "", window.API_BASE)
+        .replace(/\/undefined\/payments/g, "/settings/payments")
         .replace("https://ariana-move-mongo.onrender.com/api", window.API_BASE)
         .replace("https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api", window.API_BASE);
       if (typeof input === "string") input = url;
@@ -708,24 +711,31 @@ Adicionar ao Carrinho
 
   
 <script type="module">
-window.REMOTE_API_BASE = 'https://ariana-move-mongo.onrender.com/api';
-window.LOCAL_API_BASE = 'http://localhost:3000/api';
-const __storedApiBase = localStorage.getItem('API_BASE') || localStorage.getItem('API_BASE_URL') || '';
-window.API_BASE = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? window.LOCAL_API_BASE : window.REMOTE_API_BASE;
-try { localStorage.setItem('API_BASE', window.API_BASE); } catch(_) {}
+window.API_BASE =
+  window.API_BASE ||
+  localStorage.getItem('API_BASE') ||
+  'https://ariana-backend.onrender.com/api';
+window.API_ORIGIN =
+  window.API_ORIGIN ||
+  String(window.API_BASE).replace(/\/api\/?$/i, '');
+try {
+  localStorage.setItem('API_BASE', window.API_BASE);
+  localStorage.setItem('API_BASE_URL', window.API_BASE);
+} catch(_) {}
 const API_BASE = window.API_BASE;
 window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
 window.COST_SAFE_FLAGS = window.COST_SAFE_FLAGS || { enableProductRecommendations: true };
 (function() {
   const __origFetch = window.fetch ? window.fetch.bind(window) : null;
-  if (!__origFetch) return;
+  if (!__origFetch || window.__ARIANA_FETCH_PATCH_PRODUCT__) return;
+  window.__ARIANA_FETCH_PATCH_PRODUCT__ = true;
   window.fetch = function(input, init) {
     let url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
     if (url) {
       url = url
-        .replace('https://ariana-move-mongo.onrender.com/api', window.REMOTE_API_BASE)
+        .replace('https://ariana-move-mongo.onrender.com/api', window.API_BASE)
         .replace('http://localhost:3000/api', window.API_BASE)
-        .replace('https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api', window.REMOTE_API_BASE);
+        .replace('https://southamerica-east1-ariana-moveis-final.cloudfunctions.net/api', window.API_BASE);
       if (typeof input === 'string') {
         input = url;
       } else if (input instanceof Request) {

@@ -13,10 +13,10 @@
   <link rel="icon" type="image/png" href="/favicon.png">
 
   <link rel="stylesheet" href="css/tailwind.min.css">
+  <script src="js/api-config.js"></script>
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
-<body class="bg-gray-50">
   <div class="max-w-5xl mx-auto px-4 py-8">
     <div class="flex items-start justify-between gap-4 mb-6">
       <div>
@@ -181,11 +181,15 @@
     </div>
   </div>
 
-  
 <script>
 const API_BASE =
+  window.API_BASE ||
   localStorage.getItem("API_BASE") ||
-  "https://ariana-move-mongo.onrender.com/api";
+  "https://ariana-backend.onrender.com/api";
+
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
 
 const el = id => document.getElementById(id);
 const statusEl = el('status-message');

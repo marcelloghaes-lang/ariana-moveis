@@ -57,17 +57,29 @@ const tmpUploadsDir = path.join(uploadsDir, '_tmp');
 if (!fs.existsSync(tmpUploadsDir)) fs.mkdirSync(tmpUploadsDir, { recursive: true });
 console.log(`📁 Uploads em: ${uploadsDir}`);
 
-
 const allowedOrigins = [
   'http://127.0.0.1:5500',
   'http://localhost:5500',
-  'https://ariana-moveis-site.onrender.com'
+  'https://ariana-moveis-oficial.onrender.com',
+  'https://ariana-moveis.onrender.com'
 ];
+
+const envFrontendOrigins = String(process.env.FRONTEND_URLS || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const dynamicAllowedOrigins = Array.from(new Set([...allowedOrigins, ...envFrontendOrigins]));
+
+function isAllowedOrigin(origin = '') {
+  if (!origin) return true;
+  if (dynamicAllowedOrigins.includes(origin)) return true;
+  return /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
+}
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback(new Error(`CORS bloqueado: ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -80,7 +92,6 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
 app.use('/uploads', express.static(uploadsDir, {
   setHeaders: (res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -546,8 +557,6 @@ app.get('/api/settings/payments', async (_req, res) => {
   }
 });
 
-
-
 const BUILD_ID = 'enterprise-mongo-2026-04-02';
 async function writeAuditLog(entry = {}) { return IntegrationAuditLog.create({ scope: entry.scope || 'integration', eventType: entry.eventType || 'unspecified', orderId: entry.orderId ? String(entry.orderId) : null, manufacturer: entry.manufacturer ? String(entry.manufacturer) : null, integrationId: entry.integrationId ? String(entry.integrationId) : null, queueId: entry.queueId ? String(entry.queueId) : null, status: entry.status || null, statusCode: Number.isFinite(Number(entry.statusCode)) ? Number(entry.statusCode) : null, message: entry.message || null, changedKeys: Array.isArray(entry.changedKeys) ? entry.changedKeys.slice(0, 200) : [], request: redact(entry.request || null), response: redact(entry.response || null), metadata: redact(entry.metadata || null), buildId: BUILD_ID }); }
 async function upsertOperationalAlert(data = {}) { const manufacturer = data.manufacturer ? String(data.manufacturer) : 'global'; const type = data.type ? String(data.type) : 'generic'; const entityKey = data.entityKey ? String(data.entityKey) : `${manufacturer}_${type}`; const alertId = `${sanitizeIdPart(type)}__${sanitizeIdPart(entityKey)}`; const existing = await OperationalAlert.findOne({ alertId }); if (!existing) return OperationalAlert.create({ alertId, type, severity: data.severity || 'medium', status: data.status || 'open', title: data.title || 'Alerta operacional', message: data.message || null, manufacturer: data.manufacturer || null, orderId: data.orderId || null, queueId: data.queueId || null, entityKey, count: 1, metadata: redact(data.metadata || null), buildId: BUILD_ID, firstSeenAt: now(), lastSeenAt: now(), resolvedAt: data.status === 'resolved' ? now() : null }); existing.count = Number(existing.count || 1) + 1; existing.severity = data.severity || existing.severity; existing.status = data.status || 'open'; existing.title = data.title || existing.title; existing.message = data.message || existing.message; existing.manufacturer = data.manufacturer || existing.manufacturer; existing.orderId = data.orderId || existing.orderId; existing.queueId = data.queueId || existing.queueId; existing.metadata = redact(data.metadata || existing.metadata || null); existing.lastSeenAt = now(); existing.buildId = BUILD_ID; if (existing.status === 'resolved') existing.resolvedAt = now(); await existing.save(); return existing; }
@@ -680,6 +689,15 @@ app.get('/api/home/index-data', async (_req, res) => {
   }
 });
 
+app.get('/api/index-data', async (req, res) => {
+  req.url = '/api/home/index-data';
+  return app._router.handle(req, res, () => {});
+});
+
+app.get('/api/home', async (req, res) => {
+  req.url = '/api/home/index-data';
+  return app._router.handle(req, res, () => {});
+});
 app.get('/api/categories', async (_req, res) => res.json((await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 })).map(toJSON)));
 app.get('/api/products', async (req, res) => { try { const query = {}; if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false'; if (req.query.category) query.category = String(req.query.category); if (req.query.sellerId) query.sellerId = String(req.query.sellerId); if (req.query.q) query.$text = { $search: String(req.query.q) }; const rows = await Product.find(query).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 200), 500)); return res.json(rows.map(normalizeProductForResponse)); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' }); } });
 app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
@@ -697,6 +715,10 @@ app.get('/api/banners', async (req, res) => {
   return res.json(rows.map(normalizeBannerForResponse));
 });
 
+app.get('/api/index/banners', async (req, res) => {
+  req.url = '/api/banners';
+  return app._router.handle(req, res, () => {});
+});
 
 app.get('/api/header_category_banner', async (_req, res) => {
   try {
@@ -706,6 +728,11 @@ app.get('/api/header_category_banner', async (_req, res) => {
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar banner do header' });
   }
+});
+
+app.get('/api/banners/header_category_banner', async (req, res) => {
+  req.url = '/api/header_category_banner';
+  return app._router.handle(req, res, () => {});
 });
 
 app.get('/api/admin/banners', adminRequired, async (_req, res) => {
@@ -822,21 +849,80 @@ app.get('/api/shipping/correios/label/:orderId/html', async (req, res) => { try 
 app.post('/api/admin/login', async (req, res) => {
   try {
     const email = String(req.body?.email || '').trim().toLowerCase();
-    const password = String(req.body?.password || '');
+    const password = String(req.body?.password || req.body?.senha || '');
     if (!email || !password) return res.status(400).json({ ok: false, error: 'email_password_required' });
+
     let adminUser = null;
+
     if (ADMIN_EMAIL && ADMIN_PASSWORD && email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      adminUser = { id: 'env-admin', userId: 'env-admin', uid: 'env-admin', email, role: 'admin', admin: true, active: true, name: ADMIN_NAME };
+      adminUser = {
+        id: 'env-admin',
+        userId: 'env-admin',
+        uid: 'env-admin',
+        email,
+        role: 'admin',
+        admin: true,
+        active: true,
+        name: ADMIN_NAME
+      };
     } else {
       const user = await User.findOne({ email });
-      if (user && String(user.role || '').toLowerCase() === 'admin') {
-        const valid = await bcrypt.compare(password, user.passwordHash || '');
-        if (valid) adminUser = { id: String(user._id), userId: String(user._id), uid: String(user._id), email: user.email || email, role: 'admin', admin: true, active: user.isActive !== false, name: user.name || ADMIN_NAME };
+      if (user && String(user.role || '').toLowerCase() === 'admin' && user.isActive !== false) {
+        let valid = false;
+
+        if (user.passwordHash) {
+          try {
+            valid = await bcrypt.compare(password, user.passwordHash);
+          } catch (_error) {
+            valid = false;
+          }
+        }
+
+        if (!valid && typeof user.password === 'string' && user.password) {
+          valid = password === user.password;
+        }
+
+        if (!valid && typeof user.senha === 'string' && user.senha) {
+          valid = password === user.senha;
+        }
+
+        if (valid) {
+          adminUser = {
+            id: String(user._id),
+            userId: String(user._id),
+            uid: String(user._id),
+            email: String(user.email || email).trim().toLowerCase(),
+            role: 'admin',
+            admin: true,
+            active: user.isActive !== false,
+            name: user.name || ADMIN_NAME
+          };
+        }
       }
     }
-    if (!adminUser) return res.status(401).json({ ok: false, error: 'invalid_admin_credentials' });
+
+    if (!adminUser) {
+      return res.status(401).json({
+        ok: false,
+        error: 'invalid_admin_credentials',
+        message: 'E-mail ou senha de administrador inválidos.'
+      });
+    }
+
     const token = signAdminToken(adminUser);
-    return res.json({ ok: true, token, ...adminUser, user: adminUser });
+    return res.json({
+      ok: true,
+      token,
+      id: adminUser.id,
+      userId: adminUser.userId,
+      uid: adminUser.uid,
+      email: adminUser.email,
+      role: 'admin',
+      admin: true,
+      active: adminUser.active !== false,
+      name: adminUser.name || ADMIN_NAME,
+      user: adminUser
+    });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'admin_login_failed' });
   }
@@ -845,6 +931,146 @@ app.post('/api/admin/login', async (req, res) => {
 app.get('/api/admin/me', adminRequired, async (req, res) => {
   const admin = req.admin || req.user || {};
   return res.json({ ok: true, id: String(admin.id || admin.uid || 'admin'), email: admin.email || '', role: 'admin', admin: true, name: admin.name || ADMIN_NAME });
+});
+
+app.get('/api/admin/store-settings', adminRequired, async (_req, res) => {
+  try {
+    const payments = await getPaymentsSettings();
+    const shipping = await getShippingSettings();
+    return res.json({
+      ok: true,
+      settings: {
+        payments: {
+          mercadopago: {
+            publicKey: payments?.mercadopago?.publicKey || '',
+            mode: payments?.mercadopago?.mode || 'prod',
+            enablePix: payments?.mercadopago?.enablePix !== false,
+            enableCard: payments?.mercadopago?.enableCard !== false,
+            enableBoleto: payments?.mercadopago?.enableBoleto !== false,
+            enabled: payments?.mercadopago?.enabled !== false,
+            splitEnabled: payments?.mercadopago?.splitEnabled !== false
+          },
+          pagarme: payments?.pagarme || {}
+        },
+        shipping: {
+          ...shipping,
+          correios: {
+            ...(shipping?.correios || {}),
+            maxKg: Number(
+              shipping?.correios?.maxKg ??
+              shipping?.correios?.maxWeightKg ??
+              shipping?.carriers?.correios?.maxWeightKg ??
+              30
+            ),
+            maxDimCm: Number(
+              shipping?.correios?.maxDimCm ??
+              shipping?.correios?.maxDimensionCm ??
+              shipping?.carriers?.correios?.maxDimensionCm ??
+              100
+            )
+          },
+          heavyCarriers: Array.isArray(shipping?.heavyCarriers)
+            ? shipping.heavyCarriers
+            : [],
+          manualRules: Array.isArray(shipping?.manualRules)
+            ? shipping.manualRules
+            : []
+        }
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'store_settings_read_failed' });
+  }
+});
+
+app.put('/api/admin/store-settings', adminRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const updatedBy = String((req.user && (req.user._id || req.user.id || req.user.uid || req.user.email)) || 'admin');
+
+    let paymentsSettings = await getPaymentsSettings();
+    let shippingSettings = await getShippingSettings();
+
+    if (body.payments && body.payments.mercadopago) {
+      paymentsSettings = {
+        ...paymentsSettings,
+        mercadopago: {
+          ...(paymentsSettings?.mercadopago || {}),
+          ...(body.payments.mercadopago || {})
+        },
+        pagarme: {
+          ...(paymentsSettings?.pagarme || {})
+        }
+      };
+      await setSetting('payments', paymentsSettings, updatedBy);
+    }
+
+    if (body.shipping) {
+      const incomingShipping = body.shipping || {};
+      shippingSettings = {
+        ...shippingSettings,
+        ...incomingShipping,
+        correios: {
+          ...(shippingSettings?.correios || {}),
+          ...(incomingShipping.correios || {})
+        },
+        heavyCarriers: Array.isArray(incomingShipping.heavyCarriers)
+          ? incomingShipping.heavyCarriers
+          : (Array.isArray(shippingSettings?.heavyCarriers) ? shippingSettings.heavyCarriers : []),
+        manualRules: Array.isArray(incomingShipping.manualRules)
+          ? incomingShipping.manualRules
+          : (Array.isArray(shippingSettings?.manualRules) ? shippingSettings.manualRules : [])
+      };
+
+      if (shippingSettings.correios) {
+        if (shippingSettings.correios.maxKg !== undefined) {
+          shippingSettings.correios.maxWeightKg = Number(shippingSettings.correios.maxKg || 30);
+        }
+        if (shippingSettings.correios.maxDimCm !== undefined) {
+          shippingSettings.correios.maxDimensionCm = Number(shippingSettings.correios.maxDimCm || 100);
+        }
+      }
+
+      await setSetting('shipping', shippingSettings, updatedBy);
+    }
+
+    const finalPayments = await getPaymentsSettings();
+    const finalShipping = await getShippingSettings();
+
+    return res.json({
+      ok: true,
+      settings: {
+        payments: finalPayments,
+        shipping: {
+          ...finalShipping,
+          correios: {
+            ...(finalShipping?.correios || {}),
+            maxKg: Number(
+              finalShipping?.correios?.maxKg ??
+              finalShipping?.correios?.maxWeightKg ??
+              finalShipping?.carriers?.correios?.maxWeightKg ??
+              30
+            ),
+            maxDimCm: Number(
+              finalShipping?.correios?.maxDimCm ??
+              finalShipping?.correios?.maxDimensionCm ??
+              finalShipping?.carriers?.correios?.maxDimensionCm ??
+              100
+            )
+          },
+          heavyCarriers: Array.isArray(finalShipping?.heavyCarriers) ? finalShipping.heavyCarriers : [],
+          manualRules: Array.isArray(finalShipping?.manualRules) ? finalShipping.manualRules : []
+        }
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'store_settings_save_failed' });
+  }
+});
+
+app.patch('/api/admin/store-settings', adminRequired, async (req, res) => {
+  req.method = 'PUT';
+  return app._router.handle(req, res, () => {});
 });
 
 

@@ -1,35 +1,27 @@
+
 // --- CONFIGURAÇÃO GLOBAL DE API ARIANA MÓVEIS ---
-// 1. Definição do novo endereço oficial
-const NOVO_BACKEND = "https://ariana-backend.onrender.com/api";
 
-// 2. Limpeza de segurança: Se o navegador tiver o link antigo, nós forçamos a troca
-if (localStorage.getItem("API_BASE") && localStorage.getItem("API_BASE").includes("ariana-move-mongo")) {
-    localStorage.removeItem("API_BASE");
-    localStorage.removeItem("API_BASE_URL");
-}
+const API_BACKEND = "https://ariana-backend.onrender.com";
 
-// 3. Lógica para definir a URL ativa
-const API_BASE = 
-  window.API_BASE || 
-  localStorage.getItem("API_BASE") || 
-  NOVO_BACKEND;
+// 🔥 Define sempre a API correta (sem depender de lixo antigo)
+window.API_ORIGIN = API_BACKEND;
+window.API_BASE = API_BACKEND + "/api";
 
-window.API_BASE = API_BASE;
-window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
-
-// 4. Salva o endereço correto para evitar erros de carregamento
+// 🔥 Força atualização limpa (sem apagar tudo do localStorage)
 try {
-  localStorage.setItem("API_BASE", window.API_BASE);
-  localStorage.setItem("API_BASE_URL", window.API_BASE);
-} catch(_e) {}
+    const current = localStorage.getItem("API_BASE");
 
-// header.js (Marketplace Ariana Móveis)
-// - Layout profissional e espaçado (desktop + mobile)
-// - Mega menu de categorias estilo marketplace
-// - Compatível com uso global (window.carregarHeader)
+    if (!current || !current.includes("ariana-backend")) {
+        localStorage.setItem("API_BASE", window.API_BASE);
+        localStorage.setItem("API_BASE_URL", window.API_BASE);
+    }
+} catch (e) {}
 
+// Variáveis usadas no restante do sistema
 const HEADER_API_BASE = window.API_BASE;
 const HEADER_API_ORIGIN = window.API_ORIGIN;
+
+// --- RESTO DO CÓDIGO ---
 function escapeHtml(str) {
   return String(str ?? '')
     .replaceAll('&', '&amp;')
@@ -38,7 +30,6 @@ function escapeHtml(str) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
-
 
 function __headerNormalizeText(s) {
   return String(s || '')

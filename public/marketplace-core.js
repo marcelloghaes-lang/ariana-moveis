@@ -6,7 +6,7 @@ function getProductImageUrl(p) {
   if (!p) return null;
 
   const direct = p.imageUrl || p.mainImageUrl || p.imagemUrl || p.imagem || p.foto || p.thumbnailUrl;
-  if (direct) return direct;
+  if (direct) return resolveApiImageUrl(direct);
 
   const arr = (Array.isArray(p.images) && p.images.length) ? p.images
     : ((Array.isArray(p.imagens) && p.imagens.length) ? p.imagens
@@ -14,18 +14,27 @@ function getProductImageUrl(p) {
 
   if (arr) {
     const mainObj = arr.find(x => x && typeof x === 'object' && (x.isMain === true || x.main === true || x.principal === true));
-    if (mainObj && (mainObj.url || mainObj.src)) return mainObj.url || mainObj.src;
+    if (mainObj && (mainObj.url || mainObj.src)) return resolveApiImageUrl(mainObj.url || mainObj.src);
 
     const firstObj = arr.find(x => x && typeof x === 'object' && (x.url || x.src));
-    if (firstObj) return firstObj.url || firstObj.src;
+    if (firstObj) return resolveApiImageUrl(firstObj.url || firstObj.src);
 
     const firstStr = arr.find(x => typeof x === 'string' && x.startsWith('http'));
-    if (firstStr) return firstStr;
+    if (firstStr) return resolveApiImageUrl(firstStr);
   }
 
-  if (p.url && String(p.url).startsWith('http')) return p.url;
+  if (p.url) return resolveApiImageUrl(p.url);
 
   return null;
+}
+
+
+function resolveApiImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw.includes("${")) return "";
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) return raw;
+  if (raw.startsWith("/")) return API_ORIGIN + raw;
+  return API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
 }
 
 /**
@@ -38,12 +47,16 @@ function getProductImageUrl(p) {
  * - Parcelamento no cartão (installments / installmentsCount / parcelas) -> exibe texto de parcelas
  */
 (function () {
-  // --- LÓGICA DE DETECÇÃO AUTOMÁTICA (LOCAL vs NUVEM) ---
-  const API_BASE = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
-      ? 'http://localhost:3000/api'                // Se estiver no seu PC
-      : 'https://ariana-move-mongo.onrender.com/api'; // Se estiver no Render
+ const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
 
-  console.log("[Core] Conectado à API em:", API_BASE);
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
+
+console.log("[Core] Conectado à API em:", API_BASE);
   // -----------------------------------------------------
 
   const toNumber = (v) => {
@@ -129,7 +142,10 @@ function getProductImageUrl(p) {
 // Lógica para Salvar Chamados de Suporte no MongoDB
 // ============================================================
 window.saveTicket = async function(ticketData) {
-    const API_BASE = localStorage.getItem("API_BASE") || "https://ariana-move-mongo.onrender.com/api";
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-backend.onrender.com/api";
     
     try {
         const response = await fetch(`${API_BASE}/tickets`, {

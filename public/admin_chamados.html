@@ -81,12 +81,18 @@
     </main>
   </div>
 
+  <script src="js/api-config.js"></script>
   <script src="js/header_auth_fix.js"></script>
 
   <script>
     const API_BASE =
+      window.API_BASE ||
       localStorage.getItem("API_BASE") ||
-      "https://ariana-move-mongo.onrender.com/api";
+      "https://ariana-backend.onrender.com/api";
+
+    const API_ORIGIN =
+      window.API_ORIGIN ||
+      String(API_BASE).replace(/\/api\/?$/i, "");
 
     const listaChamadosEl = document.getElementById("lista-chamados");
     const countAbertosEl = document.getElementById("count-abertos");
