@@ -10,6 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
+  <script src="js/api-config.js"></script>
 
   <style>
     body {
@@ -177,14 +178,18 @@
   </footer>
 
     <script src="js/layout-fit.js" defer></script>
-
   <script>
     const API_BASE =
-      localStorage.getItem("API_BASE") ||
       window.API_BASE ||
-      "https://ariana-move-mongo.onrender.com/api";
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-backend.onrender.com/api";
+
+    const API_ORIGIN =
+      window.API_ORIGIN ||
+      String(API_BASE).replace(/\/api\/?$/i, "");
 
     window.API_BASE = API_BASE;
+    window.API_ORIGIN = API_ORIGIN;
 
     const $ = (id) => document.getElementById(id);
 
@@ -505,7 +510,7 @@
       else sigep.classList.add("hidden");
     }
 
-    const SIGEP_API_BASE = localStorage.getItem("API_BASE") || localStorage.getItem("API_BASE_URL") || API_BASE;
+    const SIGEP_API_BASE = window.API_BASE || localStorage.getItem("API_BASE") || localStorage.getItem("API_BASE_URL") || API_BASE;
     let ultimoCodigoRastreio = null;
 
     window.buscarDadosDoPedido = async function () {

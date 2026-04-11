@@ -3,14 +3,97 @@
 let allImages = [];
 let productData = null;
 
-const API_BASE = localStorage.getItem("API_BASE") || window.API_BASE || "https://ariana-move-mongo.onrender.com/api";
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
+
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
 
 // fallback imagem
 const getSafeImage = (img) => {
-  if (!img) return "/images/sem-imagem.png";
-  if (typeof img === "string") return img;
-  return img.url || img.imageUrl || "/images/sem-imagem.png";
+  const raw =
+    typeof img === "string"
+      ? img
+      : (img?.url || img?.imageUrl || img?.path || img?.src || "");
+
+  if (!raw) return "/images/sem-imagem.png";
+
+  if (typeof window.resolveApiImageUrl === "function") {
+    return window.resolveApiImageUrl(raw);
+  }
+
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) {
+    return raw;
+  }
+
+  if (raw.startsWith("/")) return API_ORIGIN + raw;
+  return API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
 };
+
+function toNumber(value, fallback = 0) {
+  try {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+
+    let s = String(value).trim();
+    if (!s) return fallback;
+
+    s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
+
+    const hasComma = s.includes(",");
+    const hasDot = s.includes(".");
+
+    if (hasComma && hasDot) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else if (hasComma && !hasDot) {
+      s = s.replace(",", ".");
+    }
+
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function extractImages(product) {
+  const images = [];
+
+  const pushImage = (value) => {
+    if (!value) return;
+    const resolved = getSafeImage(value);
+    if (!resolved) return;
+    if (!images.includes(resolved)) images.push(resolved);
+  };
+
+  pushImage(product?.mainImageUrl);
+  pushImage(product?.imageUrl);
+  pushImage(product?.image);
+  pushImage(product?.imagem);
+
+  if (Array.isArray(product?.images)) {
+    product.images.forEach(pushImage);
+  } else if (product?.images && typeof product.images === "object") {
+    Object.values(product.images).forEach(pushImage);
+  }
+
+  if (Array.isArray(product?.imageUrls)) {
+    product.imageUrls.forEach(pushImage);
+  }
+
+  if (Array.isArray(product?.imagePaths)) {
+    product.imagePaths.forEach(pushImage);
+  }
+
+  if (!images.length) {
+    images.push("/images/sem-imagem.png");
+  }
+
+  return images;
+}
 
 // ==============================
 // CARREGAR PRODUTO
@@ -26,36 +109,45 @@ async function loadProductDetails() {
 
     if (!res.ok) throw new Error("Erro ao buscar produto");
 
-    const product = await res.json();
+    const payload = await res.json();
+    const product = payload?.item || payload?.product || payload?.data || payload || {};
 
     productData = product;
 
-    // ===== DADOS =====
-    document.getElementById("product-name").textContent =
-      product.name || "";
+    const productNameEl = document.getElementById("product-name");
+    const productPriceEl = document.getElementById("product-price-full");
+    const productDescriptionEl = document.getElementById("product-description");
+    const loadingMessageEl = document.getElementById("loading-message");
+    const detailsContainerEl = document.getElementById("product-details-container");
 
-    document.getElementById("product-price-full").textContent =
-      formatCurrency(product.price || 0);
-
-    document.getElementById("product-description").innerHTML =
-      product.description || "";
-
-    // ===== IMAGENS =====
-    let images = product.images || [];
-
-    if (!Array.isArray(images)) {
-      images = Object.values(images);
+    if (productNameEl) {
+      productNameEl.textContent = product.name || product.nome || product.title || "";
     }
 
-    allImages = images.map(getSafeImage);
+    if (productPriceEl) {
+      productPriceEl.textContent = formatCurrency(
+        product.price ?? product.preco ?? product.valor ?? 0
+      );
+    }
 
+    if (productDescriptionEl) {
+      productDescriptionEl.innerHTML =
+        product.description || product.descricao || "";
+    }
+
+    allImages = extractImages(product);
     renderGallery(allImages);
 
-    document.getElementById("loading-message").style.display = "none";
-    document.getElementById("product-details-container").style.display =
-      "grid";
+    if (loadingMessageEl) loadingMessageEl.style.display = "none";
+    if (detailsContainerEl) detailsContainerEl.style.display = "grid";
   } catch (error) {
     console.error("Erro ao carregar produto:", error);
+
+    const loadingMessageEl = document.getElementById("loading-message");
+    if (loadingMessageEl) {
+      loadingMessageEl.innerHTML =
+        '<p style="color:#dc2626;font-weight:700;">Erro ao carregar produto.</p>';
+    }
   }
 }
 
@@ -76,9 +168,8 @@ function renderGallery(images) {
     images.forEach((url, idx) => {
       const img = document.createElement("img");
       img.src = url;
-      img.className = `thumbnail-image ${
-        idx === 0 ? "active" : ""
-      }`;
+      img.className = `thumbnail-image ${idx === 0 ? "active" : ""}`;
+      img.alt = `Imagem ${idx + 1} do produto`;
 
       img.onclick = () => {
         if (mainImg) mainImg.src = url;
@@ -102,25 +193,60 @@ function formatCurrency(v) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-  }).format(Number(v || 0));
+  }).format(toNumber(v, 0));
 }
 
 // ==============================
-// BOTÃO COMPRAR (OPCIONAL)
+// BOTÃO COMPRAR
 // ==============================
 window.addToCart = function () {
   if (!productData) return;
 
-  let cart = JSON.parse(localStorage.getItem("cart") || "[]");
+  let cart = [];
+  try {
+    cart = JSON.parse(
+      localStorage.getItem("arianaMoveisCart") ||
+      localStorage.getItem("cart") ||
+      "[]"
+    );
+  } catch (_) {
+    cart = [];
+  }
 
-  cart.push({
-    id: productData._id || productData.id,
-    name: productData.name,
-    price: productData.price,
-    image: getSafeImage(productData.images?.[0]),
+  const productId = productData._id || productData.id;
+  const existingIndex = cart.findIndex(
+    (item) => String(item.id || item.productId || item._id) === String(productId)
+  );
+
+  const cartItem = {
+    id: productId,
+    productId: productId,
+    _id: productId,
+    name: productData.name || productData.nome || productData.title || "Produto",
+    price: toNumber(productData.price ?? productData.preco ?? productData.valor, 0),
+    image: allImages[0] || getSafeImage(productData.mainImageUrl || productData.imageUrl),
+    imageUrl: allImages[0] || getSafeImage(productData.mainImageUrl || productData.imageUrl),
+    quantity: 1,
     qty: 1,
-  });
+    sellerId:
+      productData.sellerId ||
+      productData.sellerUid ||
+      productData.seller_id ||
+      productData.vendorId ||
+      ""
+  };
 
+  if (existingIndex >= 0) {
+    const currentQty = Number(
+      cart[existingIndex].quantity || cart[existingIndex].qty || 1
+    );
+    cart[existingIndex].quantity = currentQty + 1;
+    cart[existingIndex].qty = currentQty + 1;
+  } else {
+    cart.push(cartItem);
+  }
+
+  localStorage.setItem("arianaMoveisCart", JSON.stringify(cart));
   localStorage.setItem("cart", JSON.stringify(cart));
 
   alert("Produto adicionado ao carrinho!");

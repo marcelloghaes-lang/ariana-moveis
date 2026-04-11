@@ -5,7 +5,38 @@
       currency: "BRL",
     }).format(Number(v || 0));
 
-  const escapeHtml = (v) => String(v || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const toNumber = (value, fallback = 0) => {
+    try {
+      if (value === null || value === undefined) return fallback;
+      if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+
+      let s = String(value).trim();
+      if (!s) return fallback;
+
+      s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
+
+      const hasComma = s.includes(",");
+      const hasDot = s.includes(".");
+
+      if (hasComma && hasDot) {
+        s = s.replace(/\./g, "").replace(",", ".");
+      } else if (hasComma && !hasDot) {
+        s = s.replace(",", ".");
+      }
+
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  };
+
+  const escapeHtml = (v) =>
+    String(v || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
   function ensureCardStyles() {
     if (document.getElementById("ariana-pro-market-styles")) return;
@@ -14,7 +45,7 @@
     style.id = "ariana-pro-market-styles";
     style.textContent = `
       .am-pro-card {
-        font-family: 'Inter', -apple-system, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         background: #fff;
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -26,11 +57,12 @@
         border: 1px solid #f0f0f0;
         position: relative;
         height: 100%;
+        text-decoration: none;
       }
 
       .am-pro-card:hover {
         box-shadow: 0 12px 24px rgba(0,0,0,0.12);
-        border-color: #0056b3; /* Azul Ariana */
+        border-color: #0056b3;
         transform: translateY(-4px);
       }
 
@@ -61,7 +93,7 @@
         font-weight: 500;
         line-height: 1.4;
         margin-bottom: 12px;
-        height: 40px;
+        min-height: 40px;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -72,6 +104,7 @@
         display: flex;
         flex-direction: column;
         gap: 1px;
+        margin-top: auto;
       }
 
       .am-pro-card__old-price {
@@ -79,6 +112,7 @@
         color: #999;
         text-decoration: line-through;
         margin-bottom: 2px;
+        min-height: 18px;
       }
 
       .am-pro-card__main-price {
@@ -89,11 +123,12 @@
         align-items: center;
         gap: 8px;
         letter-spacing: -0.5px;
+        flex-wrap: wrap;
       }
 
       .am-pro-card__discount-tag {
         font-size: 13px;
-        color: #00a650; /* Verde de Conversão */
+        color: #00a650;
         font-weight: 600;
       }
 
@@ -121,7 +156,7 @@
         color: #00a650;
         font-weight: 700;
         margin-top: 12px;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 4px;
         background: #e6f7ee;
@@ -133,42 +168,96 @@
     document.head.appendChild(style);
   }
 
-  window.createProductCard = function (p) {
+  function getImageUrl(product) {
+    const candidate =
+      product?.imageUrl ||
+      product?.mainImageUrl ||
+      product?.image ||
+      product?.imagem ||
+      product?.image_url ||
+      product?.imagemUrl ||
+      (Array.isArray(product?.images)
+        ? (typeof product.images[0] === "string"
+            ? product.images[0]
+            : (product.images[0]?.url || product.images[0]?.imageUrl || ""))
+        : "") ||
+      (Array.isArray(product?.imageUrls) ? product.imageUrls[0] : "") ||
+      (Array.isArray(product?.imagePaths) ? product.imagePaths[0] : "");
+
+    if (typeof window.resolveApiImageUrl === "function") {
+      return window.resolveApiImageUrl(candidate);
+    }
+
+    return String(candidate || "").trim();
+  }
+
+  function getProductId(product) {
+    return product?.id || product?._id || product?.productId || "";
+  }
+
+  function getProductName(product) {
+    return product?.name || product?.nome || product?.title || product?.titulo || "Produto";
+  }
+
+  window.createProductCard = function (product) {
     ensureCardStyles();
-    
-    // Pegando o preço cheio do produto
-    const fullPrice = Number(p?.price || p?.preco || 0);
-    
-    // Calculando o Pix com 17% de desconto
-    const pixPrice = fullPrice * 0.83; 
-    
-    // Parcelamento em 12x
-    const installmentValue = fullPrice / 12;
+
+    const id = getProductId(product);
+    const name = getProductName(product);
+    const imageUrl =
+      getImageUrl(product) ||
+      `https://placehold.co/600x400/ffffff/333333?text=${encodeURIComponent(name)}`;
+
+    const fullPrice = toNumber(
+      product?.price ??
+      product?.preco ??
+      product?.valor ??
+      product?.salePrice ??
+      product?.sale_price,
+      0
+    );
+
+    const pixPrice = fullPrice > 0 ? +(fullPrice * 0.83).toFixed(2) : 0;
+    const installmentValue = fullPrice > 0 ? +(fullPrice / 12).toFixed(2) : 0;
+    const oldPrice = fullPrice > 0 ? +(fullPrice * 1.15).toFixed(2) : 0;
+
+    const shippingText =
+      product?.shippingText ||
+      product?.shippingLabel ||
+      product?.freteLabel ||
+      product?.freteTexto ||
+      product?.shipping ||
+      product?.frete ||
+      "";
+
+    const shippingHtml = shippingText
+      ? `<div class="am-pro-card__shipping">${escapeHtml(shippingText)}</div>`
+      : "";
+
+    const href = `produto.html?id=${encodeURIComponent(id)}`;
 
     return `
-      <div class="am-pro-card" onclick="location.href='produto.html?id=${escapeHtml(p.id)}'">
+      <a class="am-pro-card" href="${href}">
         <div class="am-pro-card__image-container">
-          <img class="am-pro-card__image" src="${escapeHtml(p.imageUrl)}" alt="${escapeHtml(p.name)}">
+          <img class="am-pro-card__image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(name)}" loading="lazy">
         </div>
-        <div class="am-pro-card__title">${escapeHtml(p.name)}</div>
+        <div class="am-pro-card__title">${escapeHtml(name)}</div>
         <div class="am-pro-card__price-container">
-          <span class="am-pro-card__old-price">${formatCurrency(fullPrice * 1.15)}</span>
+          <span class="am-pro-card__old-price">${oldPrice > 0 ? formatCurrency(oldPrice) : "&nbsp;"}</span>
           <div class="am-pro-card__main-price">
             ${formatCurrency(pixPrice)}
             <span class="am-pro-card__discount-tag">17% OFF</span>
           </div>
           <div class="am-pro-card__pix-info">no PIX à vista</div>
-          
           <div class="am-pro-card__installments">
             ou 12x de ${formatCurrency(installmentValue)} s/ juros
           </div>
-          
           <div class="am-pro-card__total-prazo">
             Total parcelado: ${formatCurrency(fullPrice)}
           </div>
+          ${shippingHtml}
         </div>
-        <div class="am-pro-card__shipping"></div>
-      </div>
+      </a>
     `;
   };
 })();

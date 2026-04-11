@@ -97,50 +97,7 @@
     .loading-text{grid-column:1 / -1;text-align:center;color:var(--primary-blue);font-weight:800;padding:32px 12px}
     .error-text{grid-column:1 / -1;text-align:center;color:#dc2626;font-weight:700;padding:32px 12px}
   </style>
-<script>
-(function () {
-  const isLocal = /^(127\.0\.0\.1|localhost)$/i.test(location.hostname);
-  const saved = (function () {
-    try { return localStorage.getItem("API_BASE") || ""; } catch(_) { return ""; }
-  })();
 
-  const candidates = [];
-  const push = (value) => {
-    const v = String(value || "").trim().replace(/\/+$/, "");
-    if (!v) return;
-    if (!candidates.includes(v)) candidates.push(v);
-  };
-
-  if (isLocal) {
-    push("http://localhost:3000/api");
-    push(saved);
-    push("https://ariana-move-mongo.onrender.com/api");
-  } else {
-    push(saved);
-    push("https://ariana-move-mongo.onrender.com/api");
-    push("http://localhost:3000/api");
-  }
-
-  window.API_BASE_CANDIDATES = candidates;
-  window.API_BASE = candidates[0] || "https://ariana-move-mongo.onrender.com/api";
-  window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
-
-  try {
-    localStorage.setItem("API_BASE", window.API_BASE);
-    localStorage.setItem("API_BASE_URL", window.API_BASE);
-  } catch(_e) {}
-
-  window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
-  window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
-  window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
-    const raw = String(value || '').trim();
-    if (!raw || raw.includes('${')) return '';
-    if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
-    if (raw.startsWith('/')) return window.API_ORIGIN + raw;
-    return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
-  };
-})();
-</script>
 
 </head>
 
@@ -248,7 +205,7 @@
     let API_BASE =
       window.API_BASE ||
       (Array.isArray(window.API_BASE_CANDIDATES) && window.API_BASE_CANDIDATES[0]) ||
-      "https://ariana-move-mongo.onrender.com/api";
+      "https://ariana-backend.onrender.com/api";
 
     const API_BASE_CANDIDATES =
       Array.isArray(window.API_BASE_CANDIDATES) && window.API_BASE_CANDIDATES.length

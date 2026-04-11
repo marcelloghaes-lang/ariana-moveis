@@ -275,28 +275,21 @@
   </div>
 </div>
 
+<script src="js/api-config.js"></script>
 <script defer src="./header.js"></script>
 <script defer src="./footer.js"></script>
 <script src="js/layout-fit.js" defer></script>
 
 <script>
-// Remove o 'const' e usa o padrão global window
-(function () {
-  const isLocalHost = location.hostname === "127.0.0.1" || location.hostname === "localhost";
-  const LOCAL_API = "http://localhost:3000/api";
-  const CLOUD_API = "https://ariana-move-mongo.onrender.com/api";
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
 
-  const stored = (localStorage.getItem("API_BASE") || "").trim();
-  const resolved =
-    isLocalHost ? LOCAL_API :
-    (stored || window.API_BASE || CLOUD_API);
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
 
-  window.API_BASE = resolved;
-
-  try {
-    localStorage.setItem("API_BASE", resolved);
-  } catch (_) {}
-})();
 
 let currentUser = null;
 let currentProfile = null;

@@ -8,7 +8,9 @@
     <link rel="icon" type="image/png" href="./favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <script src="js/api-config.js"></script>
 
     <style>
         :root {
@@ -16,6 +18,7 @@
             --dark-bg: #1D2B3A;
             --site-bg: #F9FAFB;
         }
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--site-bg);
@@ -47,7 +50,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen flex flex-col bg-fundo-claro">
 
     <header id="main-header"></header>
 
@@ -154,6 +157,27 @@
     </div>
 
     <footer id="main-footer"></footer>
+
+    <script src="./header.js"></script>
+    <script>
+        (function () {
+            function loadHeaderSafely() {
+                try {
+                    if (typeof window.carregarHeader === "function") {
+                        window.carregarHeader();
+                    }
+                } catch (error) {
+                    console.error("[quem_somos] erro ao carregar header:", error);
+                }
+            }
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", loadHeaderSafely);
+            } else {
+                loadHeaderSafely();
+            }
+        })();
+    </script>
 
     <script src="footer.js" defer></script>
     <script src="js/layout-fit.js" defer></script>

@@ -10,28 +10,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
-<script>
-window.API_BASE =
-  (location.hostname === "127.0.0.1" || location.hostname === "localhost")
-    ? "" + window.API_BASE + ""
-    : "https://ariana-move-mongo.onrender.com/api";
-window.API_ORIGIN = String(window.API_BASE).replace(/\/api\/?$/i, "");
-try {
-  localStorage.setItem("API_BASE", window.API_BASE);
-  localStorage.setItem("API_BASE_URL", window.API_BASE);
-} catch(_e) {}
 
-window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
-window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
-window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
-  const raw = String(value || '').trim();
-  if (!raw || raw.includes('${')) return '';
-  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
-  if (raw.startsWith('/')) return window.API_ORIGIN + raw;
-  return window.API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
-};
-</script>
-
+  <script src="js/api-config.js"></script>
 </head>
 
 <body class="bg-fundo-claro font-sans text-text-dark">
@@ -64,8 +44,24 @@ Ver ofertas hoje
 <div id="footer-container"></div>
 
 <script>
-const API = window.API_BASE;
-window.API_BASE = API;
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
+
+const API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, "");
+
+window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
+window.initMiniBannersCarousel = window.initMiniBannersCarousel || function(){};
+window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
+  const raw = String(value || '').trim();
+  if (!raw || raw.includes('${')) return '';
+  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) return raw;
+  if (raw.startsWith('/')) return API_ORIGIN + raw;
+  return API_ORIGIN + '/' + raw.replace(/^\.?\//, '');
+};
 
 const favoritesListEl = document.getElementById('favorites-list');
 const emptyStateEl = document.getElementById('empty-state');
@@ -74,23 +70,14 @@ const favCountEl = document.getElementById('fav-count');
 const formatBRL = (val) =>
 new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-// ========================
-// GET FAVORITOS LOCAL
-// ========================
 function getFavorites(){
 return JSON.parse(localStorage.getItem("favorites") || "[]");
 }
 
-// ========================
-// SALVAR FAVORITOS
-// ========================
 function saveFavorites(list){
 localStorage.setItem("favorites", JSON.stringify(list));
 }
 
-// ========================
-// REMOVER
-// ========================
 window.removeFavorite = function(id){
 let favs = getFavorites();
 favs = favs.filter(f => String(f) !== String(id));
@@ -98,9 +85,23 @@ saveFavorites(favs);
 loadFavorites();
 };
 
-// ========================
-// RENDER
-// ========================
+function getProductImage(product) {
+  return (
+    window.resolveApiImageUrl(product?.imageUrl) ||
+    window.resolveApiImageUrl(product?.mainImageUrl) ||
+    window.resolveApiImageUrl(product?.thumbnail) ||
+    window.resolveApiImageUrl(product?.coverImage) ||
+    window.resolveApiImageUrl(product?.imagem) ||
+    window.resolveApiImageUrl(product?.foto) ||
+    window.resolveApiImageUrl(product?.image) ||
+    window.resolveApiImageUrl(product?.images?.[0]?.url) ||
+    window.resolveApiImageUrl(product?.images?.[0]?.path) ||
+    window.resolveApiImageUrl(product?.images?.[0]) ||
+    window.resolveApiImageUrl(product?.imageUrls?.[0]) ||
+    ""
+  );
+}
+
 function renderFavorites(products){
 
 favoritesListEl.innerHTML = "";
@@ -114,24 +115,28 @@ return;
 emptyStateEl.classList.add("hidden");
 
 products.forEach(product => {
+  const imageUrl = getProductImage(product);
+  const productId = product?._id || product?.id || "";
+  const productName = product?.name || product?.nome || "Produto sem nome";
+  const productPrice = Number(product?.price ?? product?.preco ?? 0);
 
 favoritesListEl.innerHTML += `
 <div class="bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col">
 
 <div class="h-56 p-4">
-<img src="${product.imageUrl}" class="w-full h-full object-contain">
+<img src="${imageUrl}" alt="${productName}" class="w-full h-full object-contain" onerror="this.onerror=null;this.src='https://via.placeholder.com/400x400?text=Sem+Imagem';">
 </div>
 
 <div class="p-5 text-center flex flex-col flex-grow">
-<h3 class="font-bold mb-2 text-sm">${product.name}</h3>
-<p class="text-xl font-black text-primary-blue mb-5">${formatBRL(product.price)}</p>
+<h3 class="font-bold mb-2 text-sm">${productName}</h3>
+<p class="text-xl font-black text-primary-blue mb-5">${formatBRL(productPrice)}</p>
 
 <div class="mt-auto space-y-2">
-<a href="produto.html?id=${product._id}" class="block bg-primary-blue text-white py-2 rounded-xl font-bold text-sm">
+<a href="produto.html?id=${productId}" class="block bg-primary-blue text-white py-2 rounded-xl font-bold text-sm">
 Ver Detalhes
 </a>
 
-<button onclick="removeFavorite('${product._id}')" class="text-red-500 text-xs">
+<button onclick="removeFavorite('${productId}')" class="text-red-500 text-xs">
 Remover
 </button>
 </div>
@@ -142,12 +147,9 @@ Remover
 });
 }
 
-// ========================
-// LOAD
-// ========================
 async function loadFavorites(){
 
-const ids = getFavorites();
+const ids = getFavorites().map(String);
 
 if(!ids.length){
 renderFavorites([]);
@@ -155,15 +157,23 @@ return;
 }
 
 try{
-const res = await fetch(`${API}/products`);
+const res = await fetch(`${API_BASE}/products`);
+if (!res.ok) throw new Error(`HTTP ${res.status}`);
 const all = await res.json();
 
-const filtered = all.filter(p => ids.includes(p._id));
+const products = Array.isArray(all)
+  ? all
+  : Array.isArray(all?.products)
+    ? all.products
+    : [];
+
+const filtered = products.filter(p => ids.includes(String(p?._id || p?.id)));
 
 renderFavorites(filtered);
 
 }catch(e){
-console.error(e);
+console.error('Erro ao carregar favoritos:', e);
+renderFavorites([]);
 }
 }
 
@@ -175,6 +185,7 @@ document.addEventListener("DOMContentLoaded", loadFavorites);
 </script>
 
 <script src="footer.js"></script>
+<script src="js/layout-fit.js" defer></script>
 
 </body>
 </html>

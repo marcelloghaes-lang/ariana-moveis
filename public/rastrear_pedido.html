@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-    <title>Nosso Compromisso | Ariana Móveis</title>
+    <title>Rastrear Pedido | Ariana Móveis</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind.min.css">
+
+    <script src="js/api-config.js"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
@@ -109,37 +111,14 @@
             background: #16A34A;
         }
 
-        .bg-warning {
-            background-color: #F59E0B;
-        }
-
-        .bg-success {
-            background-color: #16A34A;
-        }
-
-        .bg-error {
-            background-color: #FEE2E2;
-        }
-
-        .text-error {
-            color: #B91C1C;
-        }
-
-        .text-primary-blue {
-            color: #2E6DA4;
-        }
-
-        .border-accent-cyan {
-            border-color: #56B5FF;
-        }
-
-        .bg-dark-bg {
-            background-color: #1D2B3A;
-        }
-
-        .hover\:text-secondary-light-blue:hover {
-            color: #56B5FF;
-        }
+        .bg-warning { background-color: #F59E0B; }
+        .bg-success { background-color: #16A34A; }
+        .bg-error { background-color: #FEE2E2; }
+        .text-error { color: #B91C1C; }
+        .text-primary-blue { color: #2E6DA4; }
+        .border-accent-cyan { border-color: #56B5FF; }
+        .bg-dark-bg { background-color: #1D2B3A; }
+        .hover\:text-secondary-light-blue:hover { color: #56B5FF; }
 
         @media (max-width: 768px) {
             .header-ajustado {
@@ -201,7 +180,7 @@
             <h1 class="text-3xl sm:text-4xl font-extrabold text-primary-blue border-b-2 border-accent-cyan pb-3 mb-6 text-center">
                 <i class="fas fa-search mr-2"></i> Rastrear Seu Pedido
             </h1>
-            
+
             <p class="text-gray-700 text-center leading-relaxed mb-6">
                 Digite o número do seu pedido e seu CPF/CNPJ para verificar o status de entrega.
             </p>
@@ -215,52 +194,22 @@
                     <label for="cpf-cnpj" class="block mb-1 font-semibold text-sm">CPF/CNPJ do Comprador</label>
                     <input type="text" id="cpf-cnpj" placeholder="000.000.000-00" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-primary-blue focus:border-primary-blue">
                 </div>
-                <button type="submit" class="w-full sm:w-auto bg-primary-blue hover:bg-dark-blue text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex justify-center items-center">
+                <button type="submit" class="w-full sm:w-auto bg-primary-blue hover:bg-dark-bg text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex justify-center items-center">
                     <i class="fas fa-search mr-1"></i> Buscar
                 </button>
             </form>
-            
+
             <div id="tracking-error" class="p-4 bg-error bg-opacity-10 border border-red-200 text-error font-semibold rounded-lg hidden">
                 Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.
             </div>
 
-            <div class="border border-gray-300 p-4 rounded-lg mt-8" id="tracking-results" style="display: none;">
+            <div class="border border-gray-300 p-4 rounded-lg mt-8 hidden" id="tracking-results">
                 <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
-                    <h2 class="text-xl font-bold text-text-default">Pedido #<span id="display-order-id">20251022-0050</span></h2>
+                    <h2 class="text-xl font-bold text-text-default">Pedido #<span id="display-order-id">-</span></h2>
                     <span class="status font-bold text-sm px-3 py-1 rounded-full text-white bg-warning" id="display-status">Em Transporte</span>
                 </div>
-                
-                <div class="timeline" id="tracking-timeline">
-                    <div class="timeline-event relative pl-10 mb-6">
-                        <span class="date text-sm text-gray-500">22/10/2025 - 10:30h</span>
-                        <div class="description font-bold text-text-default mt-1">Saiu para entrega ao destinatário</div>
-                        <div class="icon"><i class="fas fa-truck-moving"></i></div>
-                    </div>
-                    
-                    <div class="timeline-event relative pl-10 mb-6">
-                        <span class="date text-sm text-gray-500">22/10/2025 - 08:00h</span>
-                        <div class="description font-bold text-text-default mt-1">Chegou na unidade de distribuição da sua cidade</div>
-                        <div class="icon"><i class="fas fa-box"></i></div>
-                    </div>
-                    
-                    <div class="timeline-event relative pl-10 mb-6">
-                        <span class="date text-sm text-gray-500">20/10/2025 - 18:00h</span>
-                        <div class="description font-bold text-text-default mt-1">Em rota de transferência entre centros logísticos</div>
-                        <div class="icon"><i class="fas fa-route"></i></div>
-                    </div>
-                    
-                    <div class="timeline-event delivered relative pl-10 mb-6">
-                        <span class="date text-sm text-gray-500">18/10/2025 - 14:00h</span>
-                        <div class="description mt-1">Pedido Faturado e Coletado pela Transportadora</div>
-                        <div class="icon"><i class="fas fa-clipboard-check"></i></div>
-                    </div>
 
-                    <div class="timeline-event relative pl-10 mb-6">
-                        <span class="date text-sm text-gray-500">17/10/2025 - 10:00h</span>
-                        <div class="description font-bold text-text-default mt-1">Pagamento Confirmado (Pedido #20251022-0050)</div>
-                        <div class="icon"><i class="fas fa-money-check-alt"></i></div>
-                    </div>
-                </div>
+                <div class="timeline" id="tracking-timeline"></div>
             </div>
 
             <p class="text-center mt-6 text-sm text-gray-500">
@@ -268,7 +217,7 @@
             </p>
         </div>
     </main>
-    
+
     <footer class="bg-dark-bg text-white mt-12 pt-10">
         <div class="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 pb-8">
             <div class="footer-column space-y-2 text-gray-300">
@@ -278,7 +227,7 @@
                 <p class="text-sm">CEP: 39740-000</p>
                 <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
             </div>
-            
+
             <div class="footer-column space-y-2 text-gray-300">
                 <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
                 <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
@@ -287,7 +236,7 @@
                 <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
                 <p class="text-xs">Sáb.: 08:00 às 12:00</p>
             </div>
-            
+
             <div class="footer-column space-y-2 text-gray-300">
                 <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
                 <ul class="space-y-2 text-sm">
@@ -297,7 +246,7 @@
                     <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
                 </ul>
             </div>
-            
+
             <div class="footer-column space-y-4 text-gray-300">
                 <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
                 <div class="social-icons flex space-x-4 text-2xl">
@@ -324,59 +273,60 @@
 
     <script>
         const API_BASE =
-            localStorage.getItem("API_BASE") ||
             window.API_BASE ||
-            window.API_BASE_URL ||
-            window.API_URL ||
-            "https://ariana-move-mongo.onrender.com/api";
-
-        window.API_BASE = API_BASE;
+            localStorage.getItem("API_BASE") ||
+            "https://ariana-backend.onrender.com/api";
 
         const STATUS_CLASS_MAP = {
-            'pendente': 'bg-warning',
-            'em processamento': 'bg-warning',
-            'processando': 'bg-warning',
-            'enviado': 'bg-warning',
-            'em transporte': 'bg-warning',
-            'saiu para entrega': 'bg-warning',
-            'entregue': 'bg-success',
-            'finalizado': 'bg-success'
+            "pendente": "bg-warning",
+            "em processamento": "bg-warning",
+            "processando": "bg-warning",
+            "enviado": "bg-warning",
+            "em transporte": "bg-warning",
+            "saiu para entrega": "bg-warning",
+            "entregue": "bg-success",
+            "finalizado": "bg-success"
         };
 
         const EVENT_ICON_MAP = {
-            'pagamento confirmado': 'fa-money-check-alt',
-            'pedido faturado': 'fa-clipboard-check',
-            'coletado pela transportadora': 'fa-clipboard-check',
-            'em rota de transferência entre centros logísticos': 'fa-route',
-            'chegou na unidade de distribuição da sua cidade': 'fa-box',
-            'saiu para entrega ao destinatário': 'fa-truck-moving',
-            'entregue ao destinatário': 'fa-check-circle'
+            "pagamento confirmado": "fa-money-check-alt",
+            "pedido faturado": "fa-clipboard-check",
+            "coletado pela transportadora": "fa-clipboard-check",
+            "em rota de transferência entre centros logísticos": "fa-route",
+            "chegou na unidade de distribuição da sua cidade": "fa-box",
+            "saiu para entrega ao destinatário": "fa-truck-moving",
+            "entregue ao destinatário": "fa-check-circle"
         };
 
         function normalizeStatus(status) {
-            return String(status || '').trim().toLowerCase();
+            return String(status || "").trim().toLowerCase();
+        }
+
+        function onlyDigits(v) {
+            return String(v || "").replace(/\D+/g, "");
         }
 
         function formatDateTime(value) {
             const date = new Date(value);
-            if (isNaN(date.getTime())) return value || '';
-            return date.toLocaleDateString('pt-BR') + ' - ' + date.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit'
-            }) + 'h';
+            if (isNaN(date.getTime())) return value || "";
+            return date.toLocaleDateString("pt-BR") + " - " + date.toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit"
+            }) + "h";
         }
 
         function pickIcon(description) {
-            const desc = String(description || '').trim().toLowerCase();
-            return EVENT_ICON_MAP[desc] || 'fa-circle';
+            const desc = String(description || "").trim().toLowerCase();
+            return EVENT_ICON_MAP[desc] || "fa-circle";
         }
 
         function buildTimelineItemHtml(item, delivered = false) {
+            const description = item.descricao || item.description || item.status || "Atualização do pedido";
             return `
-                <div class="timeline-event ${delivered ? 'delivered' : ''} relative pl-10 mb-6">
-                    <span class="date text-sm text-gray-500">${formatDateTime(item.data || item.date || item.createdAt || '')}</span>
-                    <div class="description font-bold text-text-default mt-1">${item.descricao || item.description || ''}</div>
-                    <div class="icon"><i class="fas ${pickIcon(item.descricao || item.description || '')}"></i></div>
+                <div class="timeline-event ${delivered ? "delivered" : ""} relative pl-10 mb-6">
+                    <span class="date text-sm text-gray-500">${formatDateTime(item.data || item.date || item.createdAt || "")}</span>
+                    <div class="description font-bold text-text-default mt-1">${description}</div>
+                    <div class="icon"><i class="fas ${pickIcon(description)}"></i></div>
                 </div>
             `;
         }
@@ -385,7 +335,7 @@
             const response = await fetch(`${API_BASE}${path}`, {
                 ...options,
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                     ...(options.headers || {})
                 }
             });
@@ -395,7 +345,7 @@
 
             try {
                 data = text ? JSON.parse(text) : null;
-            } catch {
+            } catch (_) {
                 data = text;
             }
 
@@ -406,45 +356,63 @@
             return data;
         }
 
-        document.getElementById('tracking-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const orderId = document.getElementById('order-id').value.trim();
-            const cpfCnpj = document.getElementById('cpf-cnpj').value.trim();
-            const resultsBox = document.getElementById('tracking-results');
-            const errorBox = document.getElementById('tracking-error');
-            const statusSpan = document.getElementById('display-status');
-            const timelineContainer = document.getElementById('tracking-timeline');
+        async function searchTracking(orderId, cpfCnpj) {
+            const normalizedOrderId = String(orderId || "").replace(/^#/, "").trim();
+            const normalizedCpf = onlyDigits(cpfCnpj);
 
-            resultsBox.style.display = 'none';
-            errorBox.classList.add('hidden');
-            errorBox.innerText = 'Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.';
-            statusSpan.classList.remove('bg-warning', 'bg-success');
+            const attempts = [
+                `/pedidos/rastrear?orderId=${encodeURIComponent(normalizedOrderId)}&cpfCnpj=${encodeURIComponent(cpfCnpj)}`,
+                `/pedidos/rastrear?id=${encodeURIComponent(normalizedOrderId)}&cpf=${encodeURIComponent(cpfCnpj)}`,
+                `/pedidos/rastrear?orderId=${encodeURIComponent(normalizedOrderId)}&cpf=${encodeURIComponent(normalizedCpf)}`,
+                `/orders/track?orderId=${encodeURIComponent(normalizedOrderId)}&cpf=${encodeURIComponent(normalizedCpf)}`,
+                `/orders/${encodeURIComponent(normalizedOrderId)}`
+            ];
+
+            let lastError = null;
+
+            for (const path of attempts) {
+                try {
+                    return await apiFetch(path);
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+
+            throw lastError || new Error("Não foi possível rastrear o pedido.");
+        }
+
+        document.getElementById("tracking-form").addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const orderId = document.getElementById("order-id").value.trim();
+            const cpfCnpj = document.getElementById("cpf-cnpj").value.trim();
+            const resultsBox = document.getElementById("tracking-results");
+            const errorBox = document.getElementById("tracking-error");
+            const statusSpan = document.getElementById("display-status");
+            const timelineContainer = document.getElementById("tracking-timeline");
+
+            resultsBox.classList.add("hidden");
+            errorBox.classList.add("hidden");
+            errorBox.innerText = "Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.";
+            statusSpan.classList.remove("bg-warning", "bg-success");
 
             if (!orderId || !cpfCnpj) {
-                errorBox.innerText = 'Por favor, preencha todos os campos.';
-                errorBox.classList.remove('hidden');
+                errorBox.innerText = "Por favor, preencha todos os campos.";
+                errorBox.classList.remove("hidden");
                 return;
             }
 
             try {
-                let data;
+                const data = await searchTracking(orderId, cpfCnpj);
+                const pedido = data?.pedido || data?.order || data?.item || data || {};
+                const tracking = pedido?.rastreamento || pedido?.tracking || data?.rastreamento || data?.tracking || [];
+                const status = pedido?.status || data?.status || "Em Transporte";
 
-                try {
-                    data = await apiFetch(`/pedidos/rastrear?orderId=${encodeURIComponent(orderId)}&cpfCnpj=${encodeURIComponent(cpfCnpj)}`);
-                } catch {
-                    data = await apiFetch(`/pedidos/rastrear?id=${encodeURIComponent(orderId)}&cpf=${encodeURIComponent(cpfCnpj)}`);
-                }
-
-                const pedido = data?.pedido || data?.order || data;
-                const tracking = pedido?.rastreamento || pedido?.tracking || data?.rastreamento || [];
-                const status = pedido?.status || data?.status || 'Em Transporte';
-
-                document.getElementById('display-order-id').innerText =
-                    pedido?.orderId || pedido?._id || pedido?.id || orderId;
+                document.getElementById("display-order-id").innerText =
+                    pedido?.orderId || pedido?._id || pedido?.id || orderId.replace(/^#/, "");
 
                 statusSpan.innerText = status;
-                statusSpan.classList.add(STATUS_CLASS_MAP[normalizeStatus(status)] || 'bg-warning');
+                statusSpan.classList.add(STATUS_CLASS_MAP[normalizeStatus(status)] || "bg-warning");
 
                 if (Array.isArray(tracking) && tracking.length) {
                     const ordered = [...tracking].sort((a, b) => {
@@ -454,15 +422,20 @@
                     });
 
                     timelineContainer.innerHTML = ordered.map(item =>
-                        buildTimelineItemHtml(item, normalizeStatus(status) === 'entregue' || normalizeStatus(status) === 'finalizado')
-                    ).join('');
+                        buildTimelineItemHtml(item, normalizeStatus(status) === "entregue" || normalizeStatus(status) === "finalizado")
+                    ).join("");
+                } else {
+                    timelineContainer.innerHTML = buildTimelineItemHtml({
+                        data: pedido?.updatedAt || pedido?.createdAt || new Date().toISOString(),
+                        descricao: `Status atual: ${status}`
+                    }, normalizeStatus(status) === "entregue" || normalizeStatus(status) === "finalizado");
                 }
 
-                resultsBox.style.display = 'block';
+                resultsBox.classList.remove("hidden");
             } catch (err) {
-                console.error('Erro ao rastrear pedido:', err);
-                errorBox.innerText = 'Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.';
-                errorBox.classList.remove('hidden');
+                console.error("Erro ao rastrear pedido:", err);
+                errorBox.innerText = "Não foi possível encontrar um pedido com os dados fornecidos. Verifique os números e tente novamente.";
+                errorBox.classList.remove("hidden");
             }
         });
     </script>

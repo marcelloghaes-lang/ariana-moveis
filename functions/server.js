@@ -61,7 +61,9 @@ const allowedOrigins = [
   'http://127.0.0.1:5500',
   'http://localhost:5500',
   'https://ariana-moveis-oficial.onrender.com',
-  'https://ariana-moveis.onrender.com'
+  'https://ariana-moveis.onrender.com',
+  'https://arianamoveis.com.br',
+  'https://www.arianamoveis.com.br'
 ];
 
 const envFrontendOrigins = String(process.env.FRONTEND_URLS || '')
@@ -657,7 +659,17 @@ app.get('/api/me', authRequired, (req, res) => res.json({ ok: true, user: toJSON
 app.patch('/api/users/me', authRequired, async (req, res) => { try { const allowed = ['name', 'cpf', 'phone', 'city', 'uf']; const patch = {}; for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key]; const before = toJSON(req.user); const after = await User.findByIdAndUpdate(req.user._id, { $set: patch }, { new: true }); await writeAuditLog({ scope: 'user_profile', eventType: 'user_profile_updated', status: 'success', changedKeys: changedKeys(before, toJSON(after)), metadata: { userId: String(req.user._id) } }); return res.json({ ok: true, user: toJSON(after) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao atualizar perfil' }); } });
 app.post('/api/seller/partner-request', async (req, res) => { try { const body = req.body || {}; const sellerId = uid('seller'); const seller = await Seller.create({ sellerId, displayName: body.name || body.displayName || '', storeName: body.storeName || body.name || '', email: body.email || '', phone: body.phone || '', document: body.document || body.cpf || '', status: 'pending', metadata: body }); return res.json({ ok: true, sellerId: seller.sellerId, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' }); } });
 app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
-app.get('/api/seller/:sellerId', async (req, res) => { const seller = await Seller.findOne({ sellerId: req.params.sellerId }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); });
+app.get('/api/seller/:sellerId', async (req, res) => {
+  const seller = await Seller.findOne({ sellerId: req.params.sellerId });
+  if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
+  return res.json({ ok: true, seller: toJSON(seller) });
+});
+
+app.get('/api/sellers/:sellerId', async (req, res) => {
+  const seller = await Seller.findOne({ sellerId: req.params.sellerId });
+  if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
+  return res.json({ ok: true, seller: toJSON(seller) });
+});
 
 app.get('/api/home/index-data', async (_req, res) => {
   try {
@@ -701,9 +713,64 @@ app.get('/api/home', async (req, res) => {
 app.get('/api/categories', async (_req, res) => res.json((await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 })).map(toJSON)));
 app.get('/api/products', async (req, res) => { try { const query = {}; if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false'; if (req.query.category) query.category = String(req.query.category); if (req.query.sellerId) query.sellerId = String(req.query.sellerId); if (req.query.q) query.$text = { $search: String(req.query.q) }; const rows = await Product.find(query).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 200), 500)); return res.json(rows.map(normalizeProductForResponse)); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' }); } });
 app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
-app.get('/api/products/seller/:sellerId', async (req, res) => res.json((await Product.find({ sellerId: req.params.sellerId }).sort({ createdAt: -1 })).map(normalizeProductForResponse)));
-app.get('/api/seller/products', async (req, res) => { const query = {}; if (req.query.sellerId) query.sellerId = String(req.query.sellerId); return res.json((await Product.find(query).sort({ createdAt: -1 })).map(normalizeProductForResponse)); });
-app.get('/api/seller/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); const row = oid ? await Product.findById(oid) : null; if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(toJSON(row)); });
+app.get('/api/products/seller/:sellerId', async (req, res) => {
+  try {
+    const sellerId = String(req.params.sellerId || '').trim();
+    const rows = await Product.find({ sellerId }).sort({ createdAt: -1 });
+    return res.json(rows.map(normalizeProductForResponse));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
+  }
+});
+
+app.get('/api/seller/products', async (req, res) => {
+  try {
+    const query = {};
+    const sellerId = String(req.query.sellerId || req.query.seller_id || req.query.storeId || '').trim();
+    if (sellerId) query.sellerId = sellerId;
+    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+    const rows = await Product.find(query).sort({ createdAt: -1 });
+    return res.json(rows.map(normalizeProductForResponse));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
+  }
+});
+
+app.get('/api/seller/:sellerId/products', async (req, res) => {
+  try {
+    const sellerId = String(req.params.sellerId || '').trim();
+    const query = { sellerId };
+    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+    const rows = await Product.find(query).sort({ createdAt: -1 });
+    return res.json(rows.map(normalizeProductForResponse));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
+  }
+});
+
+app.get('/api/sellers/:sellerId/products', async (req, res) => {
+  try {
+    const sellerId = String(req.params.sellerId || '').trim();
+    const query = { sellerId };
+    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+    const rows = await Product.find(query).sort({ createdAt: -1 });
+    return res.json(rows.map(normalizeProductForResponse));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
+  }
+});
+
+app.get('/api/seller/products/:id', async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    let row = oid ? await Product.findById(oid) : null;
+    if (!row) row = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] });
+    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
+    return res.json(normalizeProductForResponse(row));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
+  }
+});
 app.post('/api/products', authRequired, async (req, res) => { try { const body = req.body || {}; const sellerId = String(body.sellerId || req.user.sellerId || '').trim(); const seller = sellerId ? await Seller.findOne({ sellerId }) : null; const images = ensureArray(body.images).filter(Boolean); const image = body.image || images[0] || null; const doc = await Product.create({ sellerId, sellerName: seller?.storeName || seller?.displayName || '', name: body.name, slug: body.slug || sanitizeIdPart(body.name), description: body.description || '', category: body.category || '', categoryId: body.categoryId || '', brand: body.brand || '', sku: body.sku || uid('sku'), price: Number(body.price || 0), oldPrice: body.oldPrice !== undefined ? Number(body.oldPrice) : null, pixPrice: body.pixPrice !== undefined ? Number(body.pixPrice) : null, installmentCount: Number(body.installmentCount || 12), image, images: image ? Array.from(new Set([image, ...images])) : images, stock: Number(body.stock || 0), active: body.active !== false, specs: body.specs || {}, dimensions: body.dimensions || {}, logistics: body.logistics || {} }); return res.json({ ok: true, product: normalizeProductForResponse(doc) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao cadastrar produto' }); } });
 app.put('/api/products/:id', authRequired, async (req, res) => { try { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const before = await Product.findById(oid); if (!before) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); const update = { ...(req.body || {}) }; if (update.price !== undefined) update.price = Number(update.price); if (update.oldPrice !== undefined) update.oldPrice = Number(update.oldPrice); if (update.pixPrice !== undefined) update.pixPrice = Number(update.pixPrice); if (update.stock !== undefined) update.stock = Number(update.stock); const after = await Product.findByIdAndUpdate(oid, { $set: update }, { new: true }); await writeAuditLog({ scope: 'catalog', eventType: 'product_updated', status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { productId: String(after._id), sellerId: after.sellerId } }); return res.json({ ok: true, product: normalizeProductForResponse(after) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao editar produto' }); } });
 app.delete('/api/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });

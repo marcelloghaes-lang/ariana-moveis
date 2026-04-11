@@ -10,16 +10,44 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <link rel="stylesheet" href="./css/tailwind.min.css" />
 
+  <script src="js/api-config.js"></script>
+
   <style>
-    :root { --primary-blue: #2E6DA4; --dark-bg: #1D2B3A; --soft-gray: #F9FAFB; }
-    body { font-family: 'Inter', sans-serif; background-color: var(--soft-gray); color: var(--dark-bg); }
-    .hero-seller { background: linear-gradient(135deg, #1D2B3A 0%, #2E6DA4 100%); }
-    .feature-card { transition: transform 0.3s ease; border: 1px solid #e5e7eb; }
-    .feature-card:hover { transform: translateY(-5px); border-color: var(--primary-blue); }
+    :root {
+      --primary-blue: #2E6DA4;
+      --dark-bg: #1D2B3A;
+      --soft-gray: #F9FAFB;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--soft-gray);
+      color: var(--dark-bg);
+    }
+
+    .hero-seller {
+      background: linear-gradient(135deg, #1D2B3A 0%, #2E6DA4 100%);
+    }
+
+    .feature-card {
+      transition: transform 0.3s ease, border-color 0.3s ease;
+      border: 1px solid #e5e7eb;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--primary-blue);
+    }
+
+    .seller-hero-image {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
   </style>
 </head>
 
-<body>
+<body class="min-h-screen flex flex-col bg-fundo-claro">
   <header class="bg-white shadow-sm sticky top-0 z-50 py-4">
     <div class="container mx-auto px-6 flex justify-between items-center">
       <h1 class="text-2xl font-black text-primary-blue">
@@ -31,8 +59,7 @@
     </div>
   </header>
 
-  <main>
-    <!-- HERO -->
+  <main class="flex-1">
     <section class="hero-seller py-20 text-white text-center px-6">
       <div class="max-w-4xl mx-auto">
         <h2 class="text-4xl md:text-6xl font-black mb-6">
@@ -50,7 +77,6 @@
       </div>
     </section>
 
-    <!-- FEATURES -->
     <section class="py-20 container mx-auto px-6">
       <div class="text-center mb-16">
         <h3 class="text-3xl font-black text-slate-900">Por que vender na Ariana Móveis?</h3>
@@ -58,7 +84,6 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-        <!-- Card 1 -->
         <div class="feature-card bg-white p-8 rounded-2xl">
           <div class="w-16 h-16 bg-blue-50 text-primary-blue rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
             <i class="fas fa-store"></i>
@@ -69,7 +94,6 @@
           </p>
         </div>
 
-        <!-- Card 2 -->
         <div class="feature-card bg-white p-8 rounded-2xl">
           <div class="w-16 h-16 bg-blue-50 text-primary-blue rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
             <i class="fas fa-truck-fast"></i>
@@ -80,7 +104,6 @@
           </p>
         </div>
 
-        <!-- Card 3 -->
         <div class="feature-card bg-white p-8 rounded-2xl shadow-sm">
           <div class="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl border border-green-100">
             <i class="fas fa-hand-holding-usd"></i>
@@ -93,7 +116,6 @@
       </div>
     </section>
 
-    <!-- PASSO A PASSO -->
     <section class="bg-white py-20 px-6 border-y border-gray-100">
       <div class="container mx-auto max-w-5xl">
         <h3 class="text-3xl font-black text-center mb-16 text-slate-900">Passo a Passo para o Sucesso</h3>
@@ -135,7 +157,7 @@
             <img
               src="https://images.unsplash.com/v0/b/ariana-moveis-final.firebasestorage.app/o/products%2F1770762155063_p644xrq6.png?alt=media&token=b6452b1e-56ed-4ec9-9ee2-20b3963d245d"
               alt="Móveis Planejados"
-              class="rounded-xl shadow-lg"
+              class="rounded-xl shadow-lg seller-hero-image"
             />
           </div>
         </div>

@@ -9,10 +9,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind.min.css">
 
+    <script src="js/api-config.js"></script>
+
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; color: #334155; }
 
-        /* HEADER PROFISSIONAL */
         .header-ajustado {
             background-color: #2E6DA4;
             color: white;
@@ -32,7 +33,6 @@
             text-transform: uppercase;
         }
 
-        /* CARDS DE POLÍTICA */
         .policy-card {
             background: white;
             border-radius: 12px;
@@ -41,13 +41,18 @@
         }
         .policy-card:hover { transform: translateY(-4px); }
 
-        /* ESTILO DO CONTEÚDO DINÂMICO */
         .markdown-content h2 {
             font-size: 1.5rem;
             font-weight: 700;
             color: #1E293B;
             margin-top: 2rem;
             margin-bottom: 1rem;
+        }
+        .markdown-content p {
+            line-height: 1.7;
+        }
+        .markdown-content ul {
+            list-style: disc;
         }
         .highlight-box {
             background-color: #FFFBEB;
@@ -56,10 +61,16 @@
             margin: 1.5rem 0;
             border-radius: 4px;
         }
+
+        @media (max-width: 768px) {
+            .header-ajustado {
+                padding: 15px 16px;
+            }
+        }
     </style>
 </head>
 
-<body class="flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen bg-fundo-claro">
     <header class="shadow-xl">
         <div class="header-ajustado">
             <a href="index.html" class="voltar-loja-original">
@@ -98,40 +109,40 @@
         </div>
 
         <div class="bg-white p-8 sm:p-12 rounded-xl shadow-lg border border-gray-100">
-            <div id="policy-content" class="markdown-content">
-                </div>
+            <div id="policy-content" class="markdown-content"></div>
         </div>
     </main>
 
-    <script type="module">
-        const policyMarkdown = `
-        <h2 class="text-2xl font-bold">1. Diretrizes Gerais</h2>
-        <p>Nossa política fundamentada rigorosamente no <strong>Código de Defesa do Consumidor (Lei Federal nº 8.078/90)</strong>.</p>
-        <hr class="my-6">
-        <h2 class="text-2xl font-bold">2. Arrependimento ou Desistência</h2>
-        <p>Conforme o Artigo 49 do CDC, o cliente dispõe de até <strong>7 dias corridos</strong> para desistência.</p>
-        <ul class="list-disc ml-6 mt-4 space-y-2 text-gray-600">
-            <li>Produto na embalagem original, sem sinais de montagem.</li>
-            <li>Deve acompanhar Nota Fiscal (DANFE).</li>
-        </ul>
-        <div class="highlight-box">
-            <strong>Atenção:</strong> A garantia não cobre danos decorrentes de montagem inadequada realizada por terceiros.
-        </div>
-        `;
+    <div id="footer-container"></div>
 
-        const renderPolicy = () => {
-            const container = document.getElementById('policy-content');
-            if(container) container.innerHTML = policyMarkdown;
-        };
+    <script>
+        (function () {
+            const policyHtml = `
+                <h2 class="text-2xl font-bold">1. Diretrizes Gerais</h2>
+                <p>Nossa política é fundamentada rigorosamente no <strong>Código de Defesa do Consumidor (Lei Federal nº 8.078/90)</strong>.</p>
+                <hr class="my-6">
+                <h2 class="text-2xl font-bold">2. Arrependimento ou Desistência</h2>
+                <p>Conforme o Artigo 49 do CDC, o cliente dispõe de até <strong>7 dias corridos</strong> para desistência.</p>
+                <ul class="list-disc ml-6 mt-4 space-y-2 text-gray-600">
+                    <li>Produto na embalagem original, sem sinais de montagem.</li>
+                    <li>Deve acompanhar Nota Fiscal (DANFE).</li>
+                </ul>
+                <div class="highlight-box">
+                    <strong>Atenção:</strong> A garantia não cobre danos decorrentes de montagem inadequada realizada por terceiros.
+                </div>
+            `;
 
-        document.addEventListener('DOMContentLoaded', renderPolicy);
-        // REMOVIDO: start(); que causava o erro.
+            function renderPolicy() {
+                const container = document.getElementById('policy-content');
+                if (container) container.innerHTML = policyHtml;
+            }
+
+            document.addEventListener('DOMContentLoaded', renderPolicy);
+        })();
     </script>
 
     <script src="./marketplace-core.js"></script>
-
-     <script src="js/layout-fit.js" defer></script>
-     
-    <script src="footer.js"></script>
+    <script src="js/layout-fit.js" defer></script>
+    <script src="footer.js" defer></script>
 </body>
 </html>

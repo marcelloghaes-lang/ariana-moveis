@@ -1,421 +1,771 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pagamento | ARIANA MOVEIS</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  
-  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="js/api-config.js"></script>
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
 
-  <link rel="stylesheet" href="css/tailwind.min.css">
+  <style>
+    .mp-input{
+      width:100%;
+      border:1px solid #e5e7eb;
+      border-radius:0.75rem;
+      padding:0.85rem 0.95rem;
+      outline:none;
+      background:#fff;
+    }
+    .mp-input:focus{ box-shadow:0 0 0 3px rgba(59,130,246,.15); border-color:#60a5fa; }
+    .btn-primary{
+      background:#0ea5e9;
+      color:#fff;
+      font-weight:800;
+      border-radius:1rem;
+      padding:0.95rem 1.1rem;
+      width:100%;
+    }
+    .btn-primary:hover{ filter:brightness(.97); }
+    .btn-primary:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .btn-choice{
+      background:#fff;
+      border:2px solid #e5e7eb;
+      border-radius:1rem;
+      padding:1.25rem;
+      width:100%;
+      text-align:left;
+      transition:all .2s;
+      display:flex;
+      align-items:center;
+      gap:1rem;
+    }
+    .btn-choice:hover{ border-color:#0ea5e9; background:#f0f9ff; }
+    .btn-choice.active{ border-color:#0ea5e9; background:#f0f9ff; box-shadow:0 0 0 3px rgba(14,165,233,.1); }
+  </style>
 </head>
+<body class="bg-slate-50 text-slate-900 font-sans leading-relaxed">
 
-<body class="bg-fundo-claro font-sans text-text-dark">
-    <header class="w-full z-50 shadow-xl bg-primary-blue text-white">
-        <div class="max-w-8xl mx-auto flex justify-between items-center p-4">
-            <a href="index.html" class="text-2xl font-bold tracking-wider">ARIANA MOVEIS</a>
-            <div class="hidden md:flex space-x-6 text-sm font-medium">
-                <a href="dashboard_seller.html" class="hover:text-secondary-light-blue">Dashboard</a>
-                <a href="meus_produtos_seller.html" class="border-b-2 border-white">Meus Produtos</a>
-                <a href="pedidos_seller.html" class="hover:text-secondary-light-blue">Pedidos Recebidos</a>
-        <a href="conectar_mercadopago_seller.html" class="hover:text-secondary-light-blue flex items-center gap-1"><i class="fa-brands fa-cc-visa"></i>Mercado Pago</a>
-                <a href="configuracoes_parceiro.html" class="hover:text-secondary-light-blue">Configurações</a>
-            </div>
-            <div class="flex items-center space-x-2">
-                <i class="fas fa-user-circle text-2xl"></i>
-                <span class="text-sm font-semibold">Painel Seller</span>
-            </div>
-        </div>
-    </header>
-
-    <main class="flex-grow container mx-auto px-4 py-12">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-            
-            <div class="lg:col-span-2 space-y-6">
-                <h2 class="text-2xl font-bold text-dark-bg flex items-center mb-4">
-                    <i class="fas fa-shopping-basket mr-3 text-primary-blue"></i> Resumo do Pedido
-                </h2>
-                <div id="checkout-items" class="space-y-6">
-                    </div>
-            </div>
-
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 sticky top-24">
-                    <h3 class="text-xl font-bold text-dark-bg mb-6 border-b pb-4">Pagamento</h3>
-                    <div class="space-y-4 mb-6">
-                        <div class="flex justify-between text-gray-600">
-                            <span>Subtotal</span>
-                            <span id="summary-subtotal">R$ 0,00</span>
-                        </div>
-                        <div class="flex justify-between text-gray-600">
-                            <span>Portes</span>
-                            <span class="text-green-600 font-medium">Grátis</span>
-                        </div>
-                        <hr>
-                        <div class="flex justify-between text-xl font-bold text-primary-blue">
-                            <span>Total</span>
-                            <span id="summary-total">R$ 0,00</span>
-                        </div>
-                    </div>
-                    <button id="btn-finish-order" class="w-full bg-primary-blue text-white py-4 rounded-xl font-bold text-lg hover:bg-dark-bg transition-all shadow-lg">
-                        Finalizar Pedido
-                    </button>
-                </div>
-            </div>
-        </div>
-    </main>
-
-   <footer class="bg-dark-bg text-white mt-12 pt-10">
-    <div class="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-12 pb-8">
-        
-        <div class="footer-column space-y-2 text-gray-300">
-            <h3 class="text-lg font-bold text-primary-blue mb-4">Ariana Móveis</h3>
-            <p class="text-sm">Rua Olegário de Andrade, 54A</p>
-            <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
-            <p class="text-sm">CEP: 39740-000</p>
-            <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
-        </div>
-        
-        <div class="footer-column space-y-2 text-gray-300">
-            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
-            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
-            <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
-            <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
-            <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
-            <p class="text-xs">Sáb.: 08:00 às 12:00</p>
-        </div>
-
-        <div class="footer-column space-y-2 text-gray-300">
-            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
-            <ul class="space-y-2 text-sm">
-                <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
-                <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
-                <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
-                <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
-                <li><a href="assistencia.html" class="hover:text-secondary-light-blue transition-colors">Assistência Técnica</a></li>
-            </ul>
-        </div>
-
-        <div class="footer-column space-y-4 text-gray-300">
-            <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
-            <div class="social-icons flex space-x-4 text-2xl">
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
-            </div>
-            
-            <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
-            <div class="flex flex-nowrap items-center gap-2">
-                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
-                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
-            </div>
-        </div>
+  <div class="max-w-2xl mx-auto px-4 py-8">
+    <div class="mb-8 flex items-center justify-between">
+      <h1 class="text-2xl font-black tracking-tight">Pagamento</h1>
+      <div id="order-id-display" class="text-xs font-mono text-slate-400"></div>
     </div>
-    
-    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
-        &copy; 2025 Ariana Móveis. Todos os direitos reservados.
+
+    <div id="alert-box" class="hidden mb-6 p-4 rounded-xl text-sm font-medium border"></div>
+
+    <div id="section-choice" class="space-y-4">
+      <p class="text-slate-500 mb-4 font-medium">Como deseja pagar?</p>
+
+      <button class="btn-choice group" data-method="pix" type="button">
+        <div class="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-bold">Pix</div>
+          <div class="text-xs text-slate-500">Aprovação instantânea</div>
+        </div>
+        <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
+      </button>
+
+      <button class="btn-choice" data-method="card" type="button">
+        <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-bold">Cartão de Crédito</div>
+          <div class="text-xs text-slate-500">Parcele em até 12x</div>
+        </div>
+        <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
+      </button>
+
+      <button class="btn-choice" data-method="boleto" type="button">
+        <div class="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-bold">Boleto Bancário</div>
+          <div class="text-xs text-slate-500">Vencimento em 3 dias úteis</div>
+        </div>
+        <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
+      </button>
+
+      <div class="pt-6">
+        <button id="btn-continue" disabled class="btn-primary opacity-50 flex items-center justify-center gap-2" type="button">
+          Continuar
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
     </div>
-</footer>
 
-    
-<script>
-  const API_BASE =
-    localStorage.getItem("API_BASE") ||
-    window.API_BASE ||
-    "https://ariana-move-mongo.onrender.com/api";
+    <div id="panel-card" class="hidden space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Voltar
+      </button>
 
-  window.API_BASE = API_BASE;
-
-  let currentUser = null;
-  let cartItems = JSON.parse(localStorage.getItem("arianaMoveisCart")) || [];
-
-  const brl = (v) => new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL"
-  }).format(Number(v || 0));
-
-  function getUserToken() {
-    return (
-      localStorage.getItem("userToken") ||
-      localStorage.getItem("authToken") ||
-      localStorage.getItem("token") ||
-      localStorage.getItem("customerToken") ||
-      ""
-    );
-  }
-
-  function getHeaders(extra = {}) {
-    const token = getUserToken();
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...extra
-    };
-  }
-
-  async function apiFetch(path, options = {}) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: getHeaders(options.headers || {})
-    });
-
-    const text = await res.text();
-    let data = null;
-
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch (_) {
-      data = text;
-    }
-
-    if (!res.ok) {
-      throw new Error(
-        (data && (data.message || data.error)) ||
-        `Erro HTTP ${res.status}`
-      );
-    }
-
-    return data;
-  }
-
-  function normalizeCurrentUser(payload) {
-    const data = payload?.user || payload?.data || payload || null;
-    if (!data) return null;
-    return {
-      uid: data.uid || data.id || data._id || "",
-      email: data.email || "",
-      displayName: data.displayName || data.nome || data.name || "Cliente"
-    };
-  }
-
-  function normalizeItem(raw) {
-    const price = Number(raw?.price || 0);
-    const qty = Number(raw?.quantity || 1);
-    return {
-      productId: raw?.productId || raw?.id || raw?._id || "",
-      name: raw?.name || raw?.title || "Produto",
-      price,
-      quantity: qty,
-      image: raw?.image || raw?.imageUrl || raw?.img || "",
-      sellerId: raw?.sellerId || raw?.sellerUid || raw?.seller_id || ""
-    };
-  }
-
-  function groupBySeller(items) {
-    const map = new Map();
-    items.forEach((it) => {
-      const s = (it.sellerId || "").trim();
-      if (!s) return;
-      if (!map.has(s)) map.set(s, []);
-      map.get(s).push(it);
-    });
-    return map;
-  }
-
-  function pickShippingAddress(userData) {
-    const list = Array.isArray(userData?.addresses) ? userData.addresses : [];
-    const def = list.find((a) => a?.isDefault) || null;
-    const a = def || userData?.address || list[0] || null;
-    if (!a) return null;
-
-    return {
-      street: a.street || "",
-      number: a.number || "",
-      complement: a.complement || "",
-      district: a.district || "",
-      city: a.city || userData?.cidade || "",
-      state: a.state || userData?.estado || "",
-      cep: a.cep || ""
-    };
-  }
-
-  function renderCheckout() {
-    const container = document.getElementById("checkout-items");
-    if (!container) return;
-
-    if (!cartItems.length) {
-      container.innerHTML = `<p class="p-8 text-center text-gray-500">O seu carrinho está vazio.</p>`;
-      document.getElementById("summary-subtotal").textContent = brl(0);
-      document.getElementById("summary-total").textContent = brl(0);
-      return;
-    }
-
-    let grandTotal = 0;
-
-    container.innerHTML = cartItems
-      .map((raw) => {
-        const item = normalizeItem(raw);
-        const line = item.price * item.quantity;
-        grandTotal += line;
-        return `
-          <div class="flex items-center justify-between p-4 border-b">
-            <div class="flex items-center gap-4">
-              <img src="${item.image || "https://via.placeholder.com/64"}" class="w-16 h-16 rounded-lg object-cover border"/>
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <form id="form-checkout" class="space-y-4">
+          <div class="grid grid-cols-1 gap-4">
+            <div>
+              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Número do Cartão</label>
+              <div id="form-checkout__cardNumber" class="mp-input h-12"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
               <div>
-                <div class="font-black text-gray-800">${item.name}</div>
-                <div class="text-xs text-gray-500 mt-1">Qtd: ${item.quantity} • ${brl(item.price)}</div>
-                ${item.sellerId ? `<div class="text-[11px] text-gray-400 mt-1">Seller: ${item.sellerId}</div>` : `<div class="text-[11px] text-red-500 mt-1">Item sem sellerId — corrija no carrinho</div>`}
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Vencimento</label>
+                <div id="form-checkout__expirationDate" class="mp-input h-12"></div>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">CVV</label>
+                <div id="form-checkout__securityCode" class="mp-input h-12"></div>
               </div>
             </div>
-            <div class="font-black text-gray-800">${brl(line)}</div>
+            <div>
+              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Nome do Titular</label>
+              <input type="text" id="form-checkout__cardholderName" class="mp-input h-12" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Banco Emissor</label>
+                <select id="form-checkout__issuer" class="mp-input h-12"></select>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
+                <select id="form-checkout__installments" class="mp-input h-12"></select>
+              </div>
+            </div>
+            <select id="form-checkout__identificationType" class="hidden"></select>
+            <input type="text" id="form-checkout__identificationNumber" class="hidden" />
+            <input type="email" id="form-checkout__cardholderEmail" class="hidden" />
           </div>
-        `;
-      })
-      .join("");
+          <button type="submit" id="form-checkout__submit" class="btn-primary mt-6">Confirmar Pagamento</button>
+        </form>
+      </div>
+    </div>
 
-    document.getElementById("summary-subtotal").textContent = brl(grandTotal);
-    document.getElementById("summary-total").textContent = brl(grandTotal);
-  }
+    <div id="panel-pix" class="hidden space-y-6">
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Voltar
+      </button>
 
-  async function loadCurrentUser() {
-    try {
-      const payload = await apiFetch("/me");
-      currentUser = normalizeCurrentUser(payload);
-      return currentUser;
-    } catch (_) {
-      currentUser = null;
-      return null;
+      <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center space-y-6">
+        <div id="pix-loading" class="flex flex-col items-center py-8">
+          <div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+          <p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>
+        </div>
+
+        <div id="pix-content" class="hidden space-y-6">
+          <div class="bg-teal-50 rounded-2xl p-4 inline-block mx-auto border border-teal-100">
+            <img id="pix-qr-img" class="w-48 h-48 mx-auto" src="" alt="QR Code Pix" />
+          </div>
+          <div class="space-y-2 text-left">
+            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Código Pix (Copia e Cola)</label>
+            <div class="flex gap-2">
+              <input type="text" id="pix-code-input" readonly class="mp-input bg-slate-50 text-xs font-mono" />
+              <button id="btn-copy-pix" class="bg-slate-900 text-white px-4 rounded-xl hover:bg-slate-800 transition-colors" type="button">Copiar</button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 italic">O status do seu pedido será atualizado automaticamente após o pagamento.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-boleto" class="hidden space-y-6">
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Voltar
+      </button>
+      <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center space-y-6">
+        <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-600">
+          <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <h3 class="text-lg font-bold">Boleto Bancário</h3>
+        <p class="text-slate-500 text-sm">Ao clicar no botão abaixo, geraremos o boleto para o seu pedido. A compensação leva de 1 a 3 dias úteis.</p>
+        <button id="btn-generate-boleto" class="btn-primary" type="button">Gerar Boleto Agora</button>
+      </div>
+    </div>
+
+    <div id="order-summary" class="mt-8 pt-8 border-t border-slate-200 hidden">
+      <div class="flex items-center justify-between text-slate-500 mb-2">
+        <span class="text-sm">Total do Pedido</span>
+        <span id="summary-total" class="text-xl font-black text-slate-900">R$ 0,00</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-backend.onrender.com/api";
+
+    const API_ORIGIN =
+      window.API_ORIGIN ||
+      String(API_BASE).replace(/\/api\/?$/i, "");
+
+    window.API_BASE = API_BASE;
+    window.API_ORIGIN = API_ORIGIN;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+
+    let currentUser = null;
+    let customerProfile = null;
+    let orderData = null;
+    let mp = null;
+    let cardForm = null;
+    let pollTimer = null;
+
+    function digitsOnly(v) {
+      return String(v || "").replace(/\D+/g, "");
     }
-  }
 
-  async function loadUserProfile(uid) {
-    try {
-      return await apiFetch(`/users/${uid}`);
-    } catch (_) {
-      return {};
-    }
-  }
-
-  async function createOrder(orderDoc) {
-    return await apiFetch("/orders", {
-      method: "POST",
-      body: JSON.stringify(orderDoc)
-    });
-  }
-
-  async function finalizeOrder() {
-    if (!currentUser || !currentUser.uid) {
-      alert("Você precisa estar logado para finalizar.");
-      window.location.href = "login_cadastro.html";
-      return;
-    }
-
-    const btn = document.getElementById("btn-finish-order");
-    btn.disabled = true;
-    const oldHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> PROCESSANDO...';
-
-    try {
-      if (!cartItems.length) throw new Error("Carrinho vazio.");
-
-      const normalized = cartItems.map(normalizeItem);
-      const missingSeller = normalized.some((i) => !i.sellerId);
-      if (missingSeller) {
-        throw new Error("Existem itens sem sellerId no carrinho. Recarregue os produtos e tente novamente.");
+    function pick(...vals) {
+      for (const v of vals) {
+        if (v !== undefined && v !== null && String(v).trim() !== "") return v;
       }
+      return "";
+    }
 
-      const userData = await loadUserProfile(currentUser.uid);
-      const shippingAddress = pickShippingAddress(userData);
-
-      const bySeller = groupBySeller(normalized);
-      if (!bySeller.size) throw new Error("Não foi possível identificar o seller dos itens.");
-
-      const createdOrderIds = [];
-
-      for (const [sellerId, items] of bySeller.entries()) {
-        const subtotal = items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
-
-        const orderDoc = {
-          buyerId: currentUser.uid,
-          buyerEmail: currentUser.email || userData.email || "",
-          buyerName: userData.nome || currentUser.displayName || "Cliente",
-          sellerId,
-          items: items.map((it) => ({
-            productId: it.productId,
-            name: it.name,
-            price: it.price,
-            quantity: it.quantity,
-            image: it.image,
-            sellerId: it.sellerId
-          })),
-          totals: {
-            subtotal,
-            shipping: 0,
-            discount: 0,
-            total: subtotal
-          },
-          status: "pending",
-          trackingCode: "",
-          payment: {
-            provider: "manual",
-            type: "checkout",
-            mpPaymentId: "",
-            mpStatus: "pending"
-          },
-          shippingAddress: shippingAddress || null
-        };
-
-        const created = await createOrder(orderDoc);
-        const createdId =
-          created?.id ||
-          created?._id ||
-          created?.orderId ||
-          created?.data?.id ||
-          created?.data?._id ||
-          "";
-        createdOrderIds.push(createdId);
-      }
-
-      localStorage.removeItem("arianaMoveisCart");
-
-      alert(
-        createdOrderIds.length === 1
-          ? `Pedido criado com sucesso! Código: #${String(createdOrderIds[0] || "").slice(0, 8).toUpperCase()}`
-          : `Pedidos criados com sucesso! (${createdOrderIds.length} sellers)`
+    function getAuthToken() {
+      return (
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("customerToken") ||
+        ""
       );
-
-      window.location.href = "meus_pedidos.html";
-    } catch (e) {
-      console.error(e);
-      alert(e.message || "Erro ao processar o pedido. Tente novamente.");
-      btn.disabled = false;
-      btn.innerHTML = oldHtml;
     }
-  }
 
-  function bindActions() {
-    const btn = document.getElementById("btn-finish-order");
-    if (btn && !btn.__bound) {
-      btn.__bound = true;
-      btn.addEventListener("click", finalizeOrder);
+    function getHeaders(extra = {}) {
+      const token = getAuthToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {}),
+        ...extra
+      };
     }
-  }
 
-  async function initPage() {
-    bindActions();
-    renderCheckout();
-    await loadCurrentUser();
-  }
+    async function apiFetch(path, options = {}) {
+      const url = /^https?:\/\//i.test(String(path || ""))
+        ? String(path)
+        : `${API_BASE}${String(path || "").startsWith("/") ? "" : "/"}${String(path || "")}`;
 
-  window.addEventListener("DOMContentLoaded", initPage);
-</script>
+      const res = await fetch(url, {
+        ...options,
+        headers: getHeaders(options.headers || {})
+      });
 
-    <script src="marketplace-core.js"></script>
-    <script src="marketplace-core_global_payments.js"></script>
+      const text = await res.text();
+      let data = null;
 
-     <script src="js/layout-fit.js" defer></script>
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {
+        data = text;
+      }
 
-    <script src="js/header_auth_fix.js" defer></script>
+      if (!res.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${res.status}`
+        );
+      }
 
+      return data;
+    }
+
+    function setAlert(type, text) {
+      const box = document.getElementById("alert-box");
+      box.className = "mb-6 p-4 rounded-xl text-sm font-medium border";
+      if (type === "error") box.classList.add("bg-red-50", "border-red-100", "text-red-700");
+      else if (type === "success") box.classList.add("bg-teal-50", "border-teal-100", "text-teal-700");
+      else if (type === "loading") box.classList.add("bg-blue-50", "border-blue-100", "text-blue-700");
+      else box.classList.add("bg-slate-50", "border-slate-200", "text-slate-700");
+      box.innerText = text;
+      box.classList.remove("hidden");
+    }
+
+    function disablePayments(val) {
+      const cardBtn = document.getElementById("form-checkout__submit");
+      const boletoBtn = document.getElementById("btn-generate-boleto");
+      if (cardBtn) cardBtn.disabled = val;
+      if (boletoBtn) boletoBtn.disabled = val;
+    }
+
+    window.showChoice = () => {
+      document.getElementById("section-choice").classList.remove("hidden");
+      document.getElementById("panel-card").classList.add("hidden");
+      document.getElementById("panel-pix").classList.add("hidden");
+      document.getElementById("panel-boleto").classList.add("hidden");
+      unmountCardForm();
+    };
+
+    function showPanel(id) {
+      document.getElementById("section-choice").classList.add("hidden");
+      document.getElementById("panel-card").classList.add("hidden");
+      document.getElementById("panel-pix").classList.add("hidden");
+      document.getElementById("panel-boleto").classList.add("hidden");
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    function normalizeOrder(raw) {
+      const data = raw?.order || raw?.item || raw?.data || raw || {};
+      const totals = data?.totals || {};
+      return {
+        ...data,
+        _id: data._id || data.id || data.orderId || "",
+        id: data.id || data._id || data.orderId || "",
+        status: data.status || data.paymentStatus || "pending",
+        customer: data.customer || {},
+        address: data.shippingAddress || data.address || data.deliveryAddress || data.customer?.address || null,
+        totals: {
+          grandTotal: Number(
+            totals.grandTotal ??
+            totals.total ??
+            data.total ??
+            data.amount ??
+            data.valorTotal ??
+            0
+          ) || 0
+        }
+      };
+    }
+
+    function normalizeProfile(raw) {
+      return raw?.user || raw?.item || raw?.data || raw || {};
+    }
+
+    function normalizeAddress(addr) {
+      if (!addr || typeof addr !== "object") return null;
+
+      return {
+        street: pick(addr.street, addr.street_name, addr.logradouro, addr.rua, addr.address, addr.endereco),
+        number: pick(addr.number, addr.street_number, addr.numero, "S/N"),
+        neighborhood: pick(addr.neighborhood, addr.bairro),
+        city: pick(addr.city, addr.city_name, addr.cidade),
+        state: String(pick(addr.state, addr.federal_unit, addr.uf)).trim().toUpperCase().slice(0, 2),
+        zip: digitsOnly(pick(addr.zip, addr.zip_code, addr.cep, addr.zipCode)),
+        complement: pick(addr.complement, addr.complemento, addr.apartment, addr.apto, addr.compl)
+      };
+    }
+
+    function getOrderCpf() {
+      return digitsOnly(
+        pick(
+          customerProfile?.cpf,
+          customerProfile?.document,
+          orderData?.customer?.cpf,
+          orderData?.cpf
+        )
+      );
+    }
+
+    function getOrderFullName() {
+      return String(
+        pick(
+          customerProfile?.name,
+          customerProfile?.nome,
+          orderData?.customer?.name,
+          orderData?.customer?.nome,
+          currentUser?.name,
+          currentUser?.displayName,
+          "Cliente Ariana"
+        )
+      ).trim();
+    }
+
+    function splitFullName(full) {
+      const parts = String(full || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return { firstName: "Cliente", lastName: "Silva" };
+      if (parts.length === 1) return { firstName: parts[0], lastName: "Silva" };
+      return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+    }
+
+    function getBestAddress() {
+      return normalizeAddress(
+        orderData?.address ||
+        customerProfile?.address ||
+        (Array.isArray(customerProfile?.addresses) ? customerProfile.addresses[0] : null)
+      );
+    }
+
+    function toMpAddress(addr) {
+      const a = normalizeAddress(addr) || {};
+      return {
+        zip_code: a.zip || "",
+        street_name: a.street || "",
+        street_number: String(a.number || "S/N"),
+        neighborhood: a.neighborhood || "",
+        city: a.city || "",
+        federal_unit: a.state || "",
+        apartment: a.complement || ""
+      };
+    }
+
+    function getMpPayerStrict() {
+      const fullName = getOrderFullName();
+      const parts = splitFullName(fullName);
+      const idNumber = getOrderCpf();
+      const email = pick(
+        customerProfile?.email,
+        orderData?.customer?.email,
+        currentUser?.email
+      );
+      return {
+        email,
+        first_name: parts.firstName,
+        last_name: parts.lastName,
+        identification: { type: "CPF", number: idNumber },
+        address: toMpAddress(getBestAddress())
+      };
+    }
+
+    function getMpReceiverAddressFromOrder() {
+      const mpAddr = toMpAddress(getBestAddress());
+      return {
+        zip_code: mpAddr.zip_code || "",
+        street_name: mpAddr.street_name || "",
+        street_number: String(mpAddr.street_number || "S/N"),
+        neighborhood: mpAddr.neighborhood || "",
+        city_name: mpAddr.city || "",
+        state_name: mpAddr.federal_unit || "",
+        apartment: mpAddr.apartment || "",
+        receiver_name: getOrderFullName()
+      };
+    }
+
+    async function getMpPublicKey() {
+      const data = await apiFetch("/payments/mp/public-key");
+      const publicKey = data?.publicKey || data?.public_key || data?.key || "";
+      if (!publicKey) {
+        throw new Error("Não foi possível obter a Public Key do Mercado Pago.");
+      }
+      return publicKey;
+    }
+
+    function unmountCardForm() {
+      if (cardForm) {
+        try { cardForm.unmount(); } catch (_) {}
+        cardForm = null;
+      }
+    }
+
+    async function mountCardFormSafe() {
+      try {
+        if (!orderData?.totals?.grandTotal) {
+          throw new Error("Total do pedido inválido.");
+        }
+
+        if (!mp) {
+          const publicKey = await getMpPublicKey();
+          mp = new MercadoPago(publicKey, { locale: "pt-BR" });
+        }
+
+        if (cardForm) unmountCardForm();
+
+        cardForm = mp.cardForm({
+          amount: String(orderData.totals.grandTotal),
+          iframe: true,
+          form: {
+            id: "form-checkout",
+            cardNumber: { id: "form-checkout__cardNumber", placeholder: "0000 0000 0000 0000" },
+            expirationDate: { id: "form-checkout__expirationDate", placeholder: "MM/AA" },
+            securityCode: { id: "form-checkout__securityCode", placeholder: "123" },
+            cardholderName: { id: "form-checkout__cardholderName" },
+            issuer: { id: "form-checkout__issuer" },
+            installments: { id: "form-checkout__installments" },
+            identificationType: { id: "form-checkout__identificationType" },
+            identificationNumber: { id: "form-checkout__identificationNumber" },
+            cardholderEmail: { id: "form-checkout__cardholderEmail" }
+          },
+          callbacks: {
+            onFormMounted: (error) => {
+              if (error) {
+                console.warn("Erro ao montar formulário", error);
+                return;
+              }
+
+              const payer = getMpPayerStrict();
+              if (!payer.email) throw new Error("E-mail do cliente não encontrado.");
+              if (!payer.identification?.number || payer.identification.number.length !== 11) {
+                throw new Error("Verifique se seu CPF está correto no perfil.");
+              }
+
+              document.getElementById("form-checkout__cardholderEmail").value = payer.email || "";
+              document.getElementById("form-checkout__identificationType").value = "CPF";
+              document.getElementById("form-checkout__identificationNumber").value = payer.identification.number || "";
+              if (!document.getElementById("form-checkout__cardholderName").value) {
+                document.getElementById("form-checkout__cardholderName").value = getOrderFullName();
+              }
+            },
+            onSubmit: (event) => {
+              event.preventDefault();
+              const formData = cardForm.getCardFormData();
+              doPayCard(formData);
+            },
+            onIdentificationTypesReceived: (error) => {
+              if (error) console.warn("Erro identificação", error);
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Falha crítica no SDK:", err);
+        setAlert("error", err.message || "Falha ao iniciar o cartão.");
+      }
+    }
+
+    async function doPayCard(formData) {
+      try {
+        setAlert("loading", "Validando cartão junto ao banco...");
+        disablePayments(true);
+
+        const result = await apiFetch("/payments/mp/credit", {
+          method: "POST",
+          body: JSON.stringify({
+            token: formData.token,
+            issuer_id: formData.issuerId || formData.issuer_id,
+            payment_method_id: formData.paymentMethodId || formData.payment_method_id,
+            amount: Number(orderData?.totals?.grandTotal || formData.amount || 0),
+            installments: Number(formData.installments || 1),
+            orderId: orderId,
+            email: getMpPayerStrict().email || "",
+            cpf: getMpPayerStrict().identification?.number || "",
+            payer: getMpPayerStrict(),
+            address: toMpAddress(getBestAddress()),
+            receiver_address: getMpReceiverAddressFromOrder()
+          })
+        });
+
+        if (result?.ok || result?.approved || result?.status === "approved") {
+          setAlert("success", "Pagamento aprovado! Preparando seu pedido...");
+          setTimeout(() => {
+            window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
+          }, 2000);
+        } else {
+          throw new Error(result?.details?.message || result?.error || "Transação não autorizada.");
+        }
+      } catch (e) {
+        setAlert("error", "Erro: " + (e.message || "Falha no pagamento."));
+        disablePayments(false);
+      }
+    }
+
+    async function generatePix() {
+      try {
+        setAlert("loading", "Gerando seu QR Code Pix...");
+        const data = await apiFetch("/payments/mp/pix", {
+          method: "POST",
+          body: JSON.stringify({
+            orderId: orderId,
+            amount: orderData.totals.grandTotal,
+            email: getMpPayerStrict().email || "",
+            cpf: getMpPayerStrict().identification?.number || "",
+            payer: getMpPayerStrict(),
+            address: toMpAddress(getBestAddress()),
+            receiver_address: getMpReceiverAddressFromOrder()
+          })
+        });
+
+        if (data?.ok && (data?.qrCodeBase64 || data?.qrCode || data?.qr_code)) {
+          document.getElementById("pix-loading").classList.add("hidden");
+          document.getElementById("pix-content").classList.remove("hidden");
+          if (data?.qrCodeBase64) {
+            document.getElementById("pix-qr-img").src = `data:image/png;base64,${data.qrCodeBase64}`;
+          } else if (data?.qrCodeImage) {
+            document.getElementById("pix-qr-img").src = data.qrCodeImage;
+          }
+          document.getElementById("pix-code-input").value = data.qrCode || data.qr_code || "";
+          setAlert("success", "Pix gerado com sucesso.");
+        } else {
+          throw new Error(data?.error || "Falha ao gerar QR Code.");
+        }
+      } catch (e) {
+        setAlert("error", "Não foi possível gerar o PIX. " + (e.message || ""));
+        showChoice();
+      }
+    }
+
+    async function generateBoleto() {
+      try {
+        setAlert("loading", "Gerando boleto oficial...");
+        disablePayments(true);
+
+        const parts = splitFullName(getOrderFullName());
+        const payer = getMpPayerStrict();
+
+        const data = await apiFetch("/payments/mp/boleto", {
+          method: "POST",
+          body: JSON.stringify({
+            orderId: orderId,
+            amount: orderData.totals.grandTotal,
+            email: payer.email || "",
+            cpf: payer.identification?.number || "",
+            firstName: parts.firstName,
+            lastName: parts.lastName,
+            address: toMpAddress(getBestAddress()),
+            payer,
+            receiver_address: getMpReceiverAddressFromOrder()
+          })
+        });
+
+        if (data?.ok && (data?.ticketUrl || data?.ticket_url)) {
+          setAlert("success", "Boleto gerado com sucesso!");
+          window.open(data.ticketUrl || data.ticket_url, "_blank");
+        } else {
+          throw new Error(data?.details?.cause?.[0]?.description || data?.error || "Erro ao gerar boleto.");
+        }
+      } catch (e) {
+        setAlert("error", "Erro: " + (e.message || "Falha ao gerar boleto."));
+        disablePayments(false);
+      }
+    }
+
+    async function loadCurrentUser() {
+      try {
+        const data = await apiFetch("/me");
+        currentUser = normalizeProfile(data);
+      } catch (_) {
+        currentUser = null;
+      }
+    }
+
+    async function loadProfile() {
+      try {
+        const data = await apiFetch("/me");
+        customerProfile = normalizeProfile(data);
+      } catch (_) {
+        customerProfile = {};
+      }
+    }
+
+    async function loadOrder() {
+      if (!orderId) {
+        setAlert("error", "ID do pedido não fornecido.");
+        return;
+      }
+
+      document.getElementById("order-id-display").innerText = `PEDIDO: ${orderId}`;
+
+      const attempts = [
+        `/orders/${encodeURIComponent(orderId)}`,
+        `/pedidos/${encodeURIComponent(orderId)}`
+      ];
+
+      let lastError = null;
+
+      for (const path of attempts) {
+        try {
+          const data = await apiFetch(path);
+          orderData = normalizeOrder(data);
+          renderResumo();
+
+          if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
+            window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
+            return;
+          }
+
+          return;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+
+      throw lastError || new Error("Pedido não encontrado.");
+    }
+
+    function renderResumo() {
+      if (!orderData) return;
+      document.getElementById("order-summary").classList.remove("hidden");
+      document.getElementById("summary-total").innerText =
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+          .format(Number(orderData?.totals?.grandTotal || 0));
+      disablePayments(false);
+    }
+
+    async function refreshOrderStatus() {
+      try {
+        await loadOrder();
+      } catch (_) {}
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(refreshOrderStatus, 10000);
+    }
+
+    function bindChoice() {
+      if (window.__bindChoiceDone) return;
+      window.__bindChoiceDone = true;
+
+      const btns = document.querySelectorAll(".btn-choice");
+      const continueBtn = document.getElementById("btn-continue");
+
+      btns.forEach((b) => {
+        b.addEventListener("click", () => {
+          btns.forEach((x) => {
+            x.classList.remove("active");
+            const indicator = x.querySelector(".radio-indicator");
+            if (indicator) indicator.innerHTML = "";
+          });
+          b.classList.add("active");
+          const indicator = b.querySelector(".radio-indicator");
+          if (indicator) indicator.innerHTML = '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>';
+          continueBtn.disabled = false;
+          continueBtn.style.opacity = "1";
+          continueBtn.dataset.method = b.dataset.method;
+        });
+      });
+
+      continueBtn.addEventListener("click", async () => {
+        const method = continueBtn.dataset.method;
+        if (method === "card") {
+          showPanel("panel-card");
+          await mountCardFormSafe();
+        } else if (method === "pix") {
+          showPanel("panel-pix");
+          document.getElementById("pix-loading").classList.remove("hidden");
+          document.getElementById("pix-content").classList.add("hidden");
+          await generatePix();
+        } else if (method === "boleto") {
+          showPanel("panel-boleto");
+        }
+      });
+    }
+
+    async function init() {
+      try {
+        bindChoice();
+        document.getElementById("btn-generate-boleto").addEventListener("click", generateBoleto);
+        document.getElementById("btn-copy-pix").addEventListener("click", async () => {
+          const input = document.getElementById("pix-code-input");
+          try {
+            await navigator.clipboard.writeText(input.value || "");
+            setAlert("success", "Código Pix copiado!");
+          } catch (_) {
+            input.select();
+            document.execCommand("copy");
+            setAlert("success", "Código Pix copiado!");
+          }
+        });
+
+        await loadCurrentUser();
+        await loadProfile();
+        await loadOrder();
+        startPolling();
+      } catch (e) {
+        console.error(e);
+        setAlert("error", e.message || "Não foi possível carregar o pagamento.");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+    window.addEventListener("beforeunload", () => {
+      if (pollTimer) clearInterval(pollTimer);
+      unmountCardForm();
+    });
+  </script>
 </body>
 </html>
-
