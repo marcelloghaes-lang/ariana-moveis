@@ -87,10 +87,6 @@
   }
 </style>
 
-<div class="bg-primary-blue text-white text-center py-2 text-sm font-semibold">
-  ⭐ GARANTIA DE QUALIDADE E SATISFAÇÃO
-</div>
-
 <div id="header-container"></div>
 
 <main class="max-w-8xl mx-auto px-4 mt-8 pb-10">
@@ -274,21 +270,51 @@
     </form>
   </div>
 </div>
+</script>
+   <script src="./header.js"></script>
+  <script>
+    (function () {
+      const tryInitHeader = () => {
+        if (typeof window.carregarHeader !== 'function') {
+          setTimeout(tryInitHeader, 80);
+          return;
+        }
+
+        if (document.querySelector('header[data-ariana="1"]')) return;
+
+        try {
+          window.carregarHeader();
+          const h = document.querySelector('header');
+          if (h) h.setAttribute('data-ariana', '1');
+        } catch (e) {
+          console.error("[page] erro ao carregar header:", e);
+        }
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryInitHeader);
+      } else {
+        tryInitHeader();
+      }
+
+      window.addEventListener('marketplace:helpers-ready', tryInitHeader);
+    })();
+  </script>
 
 <script src="js/api-config.js"></script>
 <script defer src="./header.js"></script>
 <script defer src="./footer.js"></script>
 <script src="js/layout-fit.js" defer></script>
+<script src="./marketplace-core.js"></script>
+<script src="js/header_auth_fix.js" defer></script>
 
 <script>
-const API_BASE =
-  window.API_BASE ||
-  localStorage.getItem("API_BASE") ||
-  "https://ariana-backend.onrender.com/api";
+// CORREÇÃO CRÍTICA DE URL: Sincroniza com o seu server.js
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3000/api'
+    : 'https://ariana-move-mongo.onrender.com/api';
 
-const API_ORIGIN =
-  window.API_ORIGIN ||
-  String(API_BASE).replace(/\/api\/?$/i, "");
+const API_ORIGIN = String(API_BASE).replace(/\/api\/?$/i, "");
 
 
 let currentUser = null;
@@ -298,12 +324,12 @@ let currentOrders = [];
 let hasAnyAddress = false;
 
 function getAuthToken() {
+  // Busca em todas as chaves que você usa no sistema
   return (
-    currentUser?.token ||
-    currentUser?.accessToken ||
     localStorage.getItem("token") ||
-    localStorage.getItem("authToken") ||
+    localStorage.getItem("admin_token") ||
     localStorage.getItem("userToken") ||
+    localStorage.getItem("authToken") ||
     localStorage.getItem("customerToken") ||
     ""
   );
@@ -378,11 +404,12 @@ function normalizeUF(v) {
 
 function money(v) {
   const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString("pt-BR", { style: 'currency', currency: 'BRL' });
 }
 
 function displayMessage(msg, type = "success") {
   const container = document.getElementById('message-container');
+  if(!container) return;
   const div = document.createElement('div');
   div.className = `p-4 rounded shadow-lg text-white font-bold ${type === 'success' ? 'bg-green-500' : type === 'info' ? 'bg-blue-500' : 'bg-red-500'}`;
   div.textContent = msg;
@@ -423,39 +450,12 @@ function getStoredUser() {
       if (obj && typeof obj === 'object') return obj;
     } catch (_) {}
   }
-
-  try {
-    const clientSession = sessionStorage.getItem('clientArianaMoveis');
-    if (clientSession) return JSON.parse(clientSession);
-  } catch (_) {}
-
-  const token =
-    localStorage.getItem('userToken') ||
-    localStorage.getItem('authToken') ||
-    localStorage.getItem('token') ||
-    localStorage.getItem('customerToken') ||
-    '';
-
-  const email = localStorage.getItem('userEmail') || '';
-  const uid = localStorage.getItem('userId') || '';
-
-  if (token || email || uid) {
-    return { token, accessToken: token, email, uid, id: uid };
-  }
-
   return null;
-}
-
-function persistCurrentUserPatch(patch) {
-  const merged = { ...(currentUser || {}), ...(patch || {}) };
-  currentUser = merged;
-  try { localStorage.setItem('currentUser', JSON.stringify(merged)); } catch (_) {}
-  try { localStorage.setItem('clienteLogado', JSON.stringify(merged)); } catch (_) {}
-  try { localStorage.setItem('usuarioLogado', JSON.stringify(merged)); } catch (_) {}
 }
 
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { headers: getAuthHeaders() });
+  if (res.status === 401) { window.location.href = 'login_cadastro.html'; return; }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || data?.message || `Erro GET ${path}`);
   return data;
@@ -496,231 +496,116 @@ async function apiDelete(path) {
 async function loadProfile() {
   const res = await apiGet(`/me`);
   const data = res?.user || res?.item || res || {};
+  currentProfile = data;
 
-  currentProfile = data || {};
-
-  document.getElementById('user-display-name').textContent =
-    currentProfile.name || currentProfile.nome || currentUser?.name || currentUser?.email || "Cliente";
-
-  document.getElementById('profile-name').value = currentProfile.name || currentProfile.nome || "";
-  document.getElementById('profile-email').value = currentProfile.email || currentUser?.email || "";
-  document.getElementById('profile-phone').value = currentProfile.phone || currentProfile.telefone || "";
-  document.getElementById('profile-cpf').value = currentProfile.cpf ? formatCPF(currentProfile.cpf) : "";
-  document.getElementById('profile-birthdate').value = currentProfile.birthDate || currentProfile.birthdate || "";
-
-  persistCurrentUserPatch({
-    uid: currentProfile.uid || currentProfile.id || currentUser?.uid || currentUser?.id || "",
-    id: currentProfile.id || currentProfile.uid || currentUser?.id || currentUser?.uid || "",
-    name: currentProfile.name || currentProfile.nome || currentUser?.name || "",
-    email: currentProfile.email || currentUser?.email || "",
-    phone: currentProfile.phone || currentProfile.telefone || currentUser?.phone || "",
-    cpf: currentProfile.cpf || currentUser?.cpf || "",
-    emailVerified: currentProfile.emailVerified ?? currentUser?.emailVerified ?? false
-  });
+  document.getElementById('user-display-name').textContent = data.name || "Cliente";
+  document.getElementById('profile-name').value = data.name || "";
+  document.getElementById('profile-email').value = data.email || "";
+  document.getElementById('profile-phone').value = data.phone || "";
+  document.getElementById('profile-cpf').value = data.cpf ? formatCPF(data.cpf) : "";
+  document.getElementById('profile-birthdate').value = data.birthdate || data.birthDate || "";
 }
 
 function applyProfileLocks() {
   hasAnyAddress = currentAddresses.length > 0;
-
-  const data = currentProfile || {};
-  const nameInput = document.getElementById('profile-name');
-  const cpfInputEl = document.getElementById('profile-cpf');
-  const emailInput = document.getElementById('profile-email');
-  const phoneInput = document.getElementById('profile-phone');
-
-  const hintName = document.getElementById('hint-name-locked');
-  const hintCPF = document.getElementById('hint-cpf-locked');
-  const hintPhone = document.getElementById('hint-phone-locked');
-
-  if (emailInput) {
-    emailInput.disabled = true;
-    emailInput.classList.add('bg-gray-100');
-  }
-
   const lock = hasAnyAddress === true;
 
-  if (nameInput) {
-    nameInput.disabled = lock;
-    nameInput.classList.toggle('bg-gray-100', lock);
-    hintName?.classList.toggle('hidden', !lock);
-  }
+  ['profile-name', 'profile-cpf', 'profile-phone'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) {
+        el.disabled = lock;
+        el.classList.toggle('bg-gray-100', lock);
+    }
+  });
 
-  if (cpfInputEl) {
-    cpfInputEl.disabled = lock;
-    cpfInputEl.classList.toggle('bg-gray-100', lock);
-    hintCPF?.classList.toggle('hidden', !lock);
-  }
+  document.getElementById('hint-name-locked')?.classList.toggle('hidden', !lock);
+  document.getElementById('hint-cpf-locked')?.classList.toggle('hidden', !lock);
+  document.getElementById('hint-phone-locked')?.classList.toggle('hidden', !lock);
 
-  if (phoneInput) {
-    phoneInput.disabled = lock;
-    phoneInput.classList.toggle('bg-gray-100', lock);
-    hintPhone?.classList.toggle('hidden', !lock);
-  }
-
-  const missing = [];
-  if (!data.cpf) missing.push("CPF");
-  if (!(data.birthDate || data.birthdate)) missing.push("Data de nascimento");
-  if (!(data.phone || data.telefone)) missing.push("Celular");
-  if (!(data.name || data.nome)) missing.push("Nome");
-
+  const missing = !currentProfile.cpf || !currentProfile.name;
   const banner = document.getElementById('profile-missing-banner');
-  if (banner) {
-    if (!hasAnyAddress && missing.length) banner.classList.remove('hidden');
-    else banner.classList.add('hidden');
-  }
-
-  const btnChangePhone = document.getElementById('btn-request-phone-change');
-  if (btnChangePhone) {
-    btnChangePhone.classList.toggle('hidden', !hasAnyAddress);
-  }
+  if (banner) banner.classList.toggle('hidden', !(!hasAnyAddress && missing));
 }
 
 async function loadOrders() {
   const list = document.getElementById('orders-list');
-  list.innerHTML = "<p class='text-gray-400 italic'>Carregando pedidos...</p>";
-
-  let orders = [];
   try {
-    const res = await apiGet(`/orders/me`);
-    orders = Array.isArray(res) ? res : (res?.items || res?.orders || []);
-  } catch (e) {
-    list.innerHTML = "<p class='text-red-500'>Erro ao carregar pedidos.</p>";
-    document.getElementById('total-orders-count').textContent = "0";
-    return;
-  }
+    const orders = await apiGet(`/orders/me`);
+    currentOrders = Array.isArray(orders) ? orders : (orders.items || []);
+    document.getElementById('total-orders-count').textContent = String(currentOrders.length);
 
-  currentOrders = orders;
-  document.getElementById('total-orders-count').textContent = String(orders.length || 0);
+    if (!currentOrders.length) {
+      list.innerHTML = "<p class='text-gray-400 italic'>Nenhum pedido encontrado.</p>";
+      return;
+    }
 
-  if (!orders.length) {
-    list.innerHTML = "<p class='text-gray-400 italic'>Nenhum pedido encontrado.</p>";
-    return;
-  }
-
-  list.innerHTML = "";
-
-  orders
-    .sort((a, b) => {
-      const ta = new Date(a.createdAt || a.updatedAt || a.date || 0).getTime();
-      const tb = new Date(b.createdAt || b.updatedAt || b.date || 0).getTime();
-      return tb - ta;
-    })
-    .forEach((order) => {
-      const id = order.id || order._id || "";
+    list.innerHTML = currentOrders.map(order => {
+      const id = order._id || order.id;
       const shortId = String(id).slice(-6).toUpperCase();
-      const total =
-        Number(
-          order.totalPrice ??
-          order.total ??
-          order.amount ??
-          order.grandTotal ??
-          order.orderTotals?.total ??
-          order.totals?.total ??
-          0
-        ) || 0;
-
-      const status = String(order.status || order.paymentStatus || "Processando");
-      const items = Array.isArray(order.items || order.cartItems || order.products || order.itens)
-        ? (order.items || order.cartItems || order.products || order.itens)
-        : [];
-
-      const names = items
-        .map(it => (it?.name || it?.title || it?.productName || it?.nome || "").toString().trim())
-        .filter(Boolean);
-
-      const resumo = names.length
-        ? (names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : ""))
-        : "";
-
-      const created = order.createdAt || order.updatedAt || order.date || "";
-      const createdLabel = created ? new Date(created).toLocaleString("pt-BR") : "Recente";
-
-      list.innerHTML += `
+      const status = order.status || "Processando";
+      const items = order.items || [];
+      const resumo = items.map(i => i.name).slice(0, 2).join(", ");
+      
+      return `
         <div class="p-4 border rounded-lg flex justify-between items-center bg-white shadow-sm">
           <div>
             <p class="font-bold text-primary-blue">Pedido #${shortId}</p>
-            <p class="text-xs text-gray-500">${createdLabel}</p>
-            ${resumo ? `<p class="text-xs text-gray-700 mt-1"><strong>Itens:</strong> ${resumo}</p>` : ""}
-            <a href="detalhes_pedido.html?id=${encodeURIComponent(id)}&short=${shortId}" class="text-xs text-primary-blue font-bold underline mt-1 block">VER DETALHES E RASTREIO</a>
+            <p class="text-xs text-gray-500">${new Date(order.createdAt).toLocaleString("pt-BR")}</p>
+            <p class="text-xs text-gray-700 mt-1"><strong>Itens:</strong> ${resumo}</p>
+            <a href="detalhes_pedido.html?id=${id}" class="text-xs text-primary-blue font-bold underline mt-1 block">VER DETALHES</a>
           </div>
           <div class="text-right">
-            <p class="font-bold">R$ ${money(total)}</p>
+            <p class="font-bold">${money(order.total)}</p>
             <span class="text-[10px] uppercase font-black px-2 py-1 rounded bg-blue-100 text-blue-700">${status}</span>
           </div>
         </div>
       `;
-    });
+    }).join('');
+  } catch (e) {
+    list.innerHTML = "<p class='text-red-500'>Erro ao carregar pedidos.</p>";
+  }
 }
 
 async function loadAddresses() {
   const list = document.getElementById('lista-enderecos-cards');
-  list.innerHTML = "<p class='text-gray-400 italic'>Carregando endereços...</p>";
-
-  let addresses = [];
   try {
-    const res = await apiGet(`/addresses`);
-    addresses = Array.isArray(res) ? res : (res?.items || res?.addresses || []);
-  } catch (_) {
-    addresses = Array.isArray(currentProfile?.addresses) ? currentProfile.addresses : [];
-  }
+    const addrs = await apiGet(`/addresses`);
+    currentAddresses = Array.isArray(addrs) ? addrs : [];
 
-  currentAddresses = addresses;
-
-  if (!addresses.length) {
-    list.innerHTML = "<p class='text-gray-400 italic'>Nenhum endereço cadastrado.</p>";
-    applyProfileLocks();
-    return;
-  }
-
-  list.innerHTML = "";
-  addresses.forEach((addr, index) => {
-    const id = addr.id || addr._id || "";
-    const label = (addr.label || addr.name || addr.nickname || "").toString();
-    const street = (addr.street || addr.logradouro || addr.rua || "").toString();
-    const number = (addr.number || addr.numero || "").toString();
-    const city = (addr.city || addr.cidade || "").toString();
-    const state = normalizeUF(addr.state || addr.uf || "");
-
-    const card = document.createElement('div');
-    card.className = "address-card";
-    card.onclick = () => window.selectAddress(card);
-    card.innerHTML = `
-      <button onclick="event.stopPropagation(); window.deleteAddr('${id}', ${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors">
-        <i class="fas fa-trash"></i>
-      </button>
-      <h4 class="font-bold text-primary-blue uppercase">${label}</h4>
-      <p class="text-sm text-gray-600">${street}, ${number}</p>
-      <p class="text-sm text-gray-500">${city}/${state}</p>
-    `;
-    list.appendChild(card);
-  });
-
-  applyProfileLocks();
-}
-
-window.deleteAddr = async function(addressId, index) {
-  if (!confirm("Excluir este endereço?")) return;
-
-  try {
-    if (addressId) {
-      await apiDelete(`/addresses/${encodeURIComponent(addressId)}`);
-    } else {
-      const addr = currentAddresses[index];
-      if (!addr) throw new Error("Endereço não encontrado.");
-      await apiDelete(`/addresses/${encodeURIComponent(index)}`);
+    if (!currentAddresses.length) {
+      list.innerHTML = "<p class='text-gray-400 italic'>Nenhum endereço cadastrado.</p>";
+      applyProfileLocks();
+      return;
     }
 
-    displayMessage("Endereço excluído", "success");
-    await loadAddresses();
+    list.innerHTML = currentAddresses.map((addr, index) => `
+      <div class="address-card" onclick="window.selectAddress(this)">
+        <button onclick="event.stopPropagation(); window.deleteAddr('${addr._id}', ${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+          <i class="fas fa-trash"></i>
+        </button>
+        <h4 class="font-bold text-primary-blue uppercase">${addr.name || 'Endereço'}</h4>
+        <p class="text-sm text-gray-600">${addr.logradouro}, ${addr.numero}</p>
+        <p class="text-sm text-gray-500">${addr.cidade}/${addr.uf}</p>
+      </div>
+    `).join('');
+    applyProfileLocks();
   } catch (e) {
-    displayMessage("Erro ao excluir endereço", "error");
+    list.innerHTML = "<p class='text-red-500'>Erro ao carregar endereços.</p>";
   }
+}
+
+window.deleteAddr = async function(id, index) {
+  if (!confirm("Excluir este endereço?")) return;
+  try {
+    await apiDelete(`/addresses/${id}`);
+    displayMessage("Endereço excluído");
+    loadAddresses();
+  } catch (e) { displayMessage("Erro ao excluir", "error"); }
 };
 
 async function fetchViaCepAndFill(rawCep) {
   const cep = onlyDigits(rawCep);
   if (cep.length !== 8) return;
-
   try {
     const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
     const data = await res.json();
@@ -729,178 +614,46 @@ async function fetchViaCepAndFill(rawCep) {
       document.getElementById('address-neighborhood').value = data.bairro || "";
       document.getElementById('address-city').value = data.localidade || "";
       document.getElementById('address-state').value = (data.uf || "").toUpperCase();
-      document.getElementById('address-number')?.focus();
     }
   } catch (_) {}
 }
 
-function handleHashTabs() {
-  const h = (location.hash || "").toLowerCase().replace("#", "");
-  if (!h) return;
-
-  if (h === "pedidos" || h === "orders" || h === "meus-pedidos" || h === "meuspedidos") {
-    window.switchTab('orders');
-    const sec = document.getElementById('content-orders');
-    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-}
-
 async function saveProfile(e) {
   e.preventDefault();
-
-  const phoneEl = document.getElementById('profile-phone');
-  const phone = phoneEl.value.trim();
-  const cpfMasked = document.getElementById('profile-cpf').value.trim();
-  const birthDate = document.getElementById('profile-birthdate').value;
-  const name = document.getElementById('profile-name').value.trim();
-
-  if (!birthDate) {
-    displayMessage("Informe sua data de nascimento.", "error");
-    return;
-  }
-
-  if (!hasAnyAddress) {
-    if (!name) {
-      displayMessage("Informe seu nome completo.", "error");
-      return;
-    }
-    if (!cpfMasked) {
-      displayMessage("Informe seu CPF.", "error");
-      return;
-    }
-    if (!isValidCPF(cpfMasked)) {
-      displayMessage("CPF inválido. Verifique e tente novamente.", "error");
-      document.getElementById('profile-cpf').focus();
-      return;
-    }
-    if (!phone) {
-      displayMessage("Informe seu celular.", "error");
-      return;
-    }
-  }
-
   const payload = {
-    birthDate
+    name: document.getElementById('profile-name').value.trim(),
+    phone: document.getElementById('profile-phone').value.trim(),
+    cpf: onlyDigits(document.getElementById('profile-cpf').value),
+    birthdate: document.getElementById('profile-birthdate').value
   };
 
-  if (!hasAnyAddress) {
-    payload.name = name;
-    payload.cpf = onlyDigits(cpfMasked);
-    payload.phone = phone;
-  }
-
   try {
-    const uid = currentUser?.uid || currentUser?.id || "me";
     await apiPut(`/users/me`, payload);
-
-    persistCurrentUserPatch({
-      name: payload.name || currentUser?.name,
-      cpf: payload.cpf || currentUser?.cpf,
-      phone: payload.phone || currentUser?.phone
-    });
-
-    displayMessage("Cadastro atualizado com sucesso!", "success");
-    await loadProfile();
-    await loadAddresses();
-  } catch (e) {
-    displayMessage("Erro ao atualizar cadastro.", "error");
-  }
+    displayMessage("Cadastro atualizado!");
+    loadProfile();
+  } catch (e) { displayMessage("Erro ao atualizar", "error"); }
 }
 
 async function saveAddress(e) {
   e.preventDefault();
-
   const newAddr = {
-    label: document.getElementById('address-label').value.trim(),
-    cep: document.getElementById('address-cep').value.trim(),
-    street: document.getElementById('address-street').value.trim(),
-    number: document.getElementById('address-number').value.trim(),
-    complement: document.getElementById('address-complement').value.trim(),
-    neighborhood: document.getElementById('address-neighborhood').value.trim(),
-    city: document.getElementById('address-city').value.trim(),
-    state: document.getElementById('address-state').value.trim().toUpperCase(),
+    name: document.getElementById('address-label').value.trim(),
+    cep: onlyDigits(document.getElementById('address-cep').value),
+    logradouro: document.getElementById('address-street').value.trim(),
+    numero: document.getElementById('address-number').value.trim(),
+    complemento: document.getElementById('address-complement').value.trim(),
+    bairro: document.getElementById('address-neighborhood').value.trim(),
+    cidade: document.getElementById('address-city').value.trim(),
+    uf: document.getElementById('address-state').value.trim().toUpperCase(),
   };
 
-  if (!newAddr.label || !newAddr.cep || !newAddr.street || !newAddr.number || !newAddr.neighborhood || !newAddr.city || !newAddr.state) {
-    displayMessage("Preencha todos os campos obrigatórios do endereço.", "error");
-    return;
-  }
-
-  if (currentAddresses.length === 0) {
-    const name = document.getElementById('profile-name').value.trim();
-    const cpfMasked = document.getElementById('profile-cpf').value.trim();
-    const phone = document.getElementById('profile-phone').value.trim();
-    const birthDate = document.getElementById('profile-birthdate').value.trim();
-
-    if (!name) { displayMessage("Antes do 1º endereço, informe seu nome no perfil.", "error"); window.switchTab('profile'); return; }
-    if (!cpfMasked) { displayMessage("Antes do 1º endereço, informe seu CPF no perfil.", "error"); window.switchTab('profile'); return; }
-    if (!isValidCPF(cpfMasked)) { displayMessage("CPF inválido. Verifique no perfil.", "error"); window.switchTab('profile'); return; }
-    if (!phone) { displayMessage("Antes do 1º endereço, informe seu celular no perfil.", "error"); window.switchTab('profile'); return; }
-    if (!birthDate) { displayMessage("Antes do 1º endereço, informe sua data de nascimento no perfil.", "error"); window.switchTab('profile'); return; }
-
-    try {
-      const uid = currentUser?.uid || currentUser?.id || "me";
-      await apiPut(`/users/me`, {
-        name,
-        cpf: onlyDigits(cpfMasked),
-        phone,
-        birthDate
-      });
-    } catch (_) {}
-  }
-
   try {
-    const uid = currentUser?.uid || currentUser?.id || "me";
     await apiPost(`/addresses`, newAddr);
-
     document.getElementById('modal-endereco').classList.add('hidden');
     document.getElementById('form-address').reset();
-    displayMessage("Endereço salvo!", "success");
-
-    await loadProfile();
-    await loadAddresses();
-  } catch (e) {
-    displayMessage("Erro ao salvar endereço", "error");
-  }
-}
-
-async function requestPasswordReset() {
-  displayMessage("A redefinição de senha depende da rota do backend desta versão.", "info");
-}
-
-async function changePassword(e) {
-  e.preventDefault();
-  displayMessage("A troca de senha depende da rota do backend desta versão.", "info");
-}
-
-async function openPhoneChangeModal() {
-  const modalPhone = document.getElementById('modal-phone');
-  const newPhoneEl = document.getElementById('new-phone');
-  if (modalPhone) modalPhone.classList.remove('hidden');
-  if (newPhoneEl) {
-    newPhoneEl.value = "";
-    newPhoneEl.focus();
-  }
-}
-
-async function submitPhoneChange(e) {
-  e.preventDefault();
-
-  const phone = (document.getElementById('new-phone')?.value || "").trim();
-  if (!phone) {
-    displayMessage("Informe o novo celular.", "error");
-    return;
-  }
-
-  try {
-    const uid = currentUser?.uid || currentUser?.id || "me";
-    await apiPut(`/users/${encodeURIComponent(uid)}`, { phone });
-    document.getElementById('modal-phone')?.classList.add('hidden');
-    displayMessage("Celular atualizado com sucesso!", "success");
-    await loadProfile();
-  } catch (e) {
-    displayMessage("Erro ao atualizar celular.", "error");
-  }
+    displayMessage("Endereço salvo!");
+    loadAddresses();
+  } catch (e) { displayMessage("Erro ao salvar endereço", "error"); }
 }
 
 function bindEvents() {
@@ -911,142 +664,41 @@ function bindEvents() {
   });
 
   document.getElementById('logout-btn').onclick = () => {
-    try { localStorage.removeItem('currentUser'); } catch (_) {}
-    try { localStorage.removeItem('clienteLogado'); } catch (_) {}
-    try { localStorage.removeItem('usuarioLogado'); } catch (_) {}
-    try { localStorage.removeItem('token'); } catch (_) {}
-    try { localStorage.removeItem('authToken'); } catch (_) {}
-    try { localStorage.removeItem('userToken'); } catch (_) {}
-    try { localStorage.removeItem('customerToken'); } catch (_) {}
-    try { sessionStorage.removeItem('clientArianaMoveis'); } catch (_) {}
-    window.location.href = 'login_cadastro.html?logout=success';
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = 'login_cadastro.html';
   };
 
   document.getElementById('form-edit-profile').onsubmit = saveProfile;
   document.getElementById('form-address').onsubmit = saveAddress;
-  document.getElementById('form-change-password').onsubmit = changePassword;
-
-  const btnResetPwd = document.getElementById('btn-reset-password');
-  if (btnResetPwd) btnResetPwd.addEventListener('click', requestPasswordReset);
-
-  const btnReqPhone = document.getElementById('btn-request-phone-change');
-  if (btnReqPhone) btnReqPhone.addEventListener('click', openPhoneChangeModal);
-
-  const btnClosePhone = document.getElementById('btn-close-phone-modal');
-  const modalPhone = document.getElementById('modal-phone');
-  if (btnClosePhone && modalPhone) {
-    btnClosePhone.addEventListener('click', () => modalPhone.classList.add('hidden'));
-  }
-  if (modalPhone) {
-    modalPhone.addEventListener('click', (e) => {
-      if (e.target === modalPhone) modalPhone.classList.add('hidden');
-    });
-  }
-
-  const formPhone = document.getElementById('form-phone');
-  if (formPhone) formPhone.addEventListener('submit', submitPhoneChange);
 
   const cpfInput = document.getElementById('profile-cpf');
   if (cpfInput) {
-    cpfInput.addEventListener('input', (e) => {
-      if (cpfInput.disabled) return;
-      e.target.value = formatCPF(e.target.value);
-    });
-    cpfInput.addEventListener('blur', () => {
-      if (cpfInput.disabled) return;
-      if (cpfInput.value && !isValidCPF(cpfInput.value)) {
-        displayMessage("CPF inválido. Verifique e tente novamente.", "error");
-        cpfInput.focus();
-      }
-    });
+    cpfInput.oninput = (e) => e.target.value = formatCPF(e.target.value);
   }
 
-  const phoneInput = document.getElementById('profile-phone');
-  if (phoneInput) {
-    phoneInput.addEventListener('input', (e) => {
-      e.target.value = formatBRPhone(e.target.value);
-    });
+  const cepInput = document.getElementById('address-cep');
+  if (cepInput) {
+    cepInput.oninput = (e) => {
+        e.target.value = formatCEP(e.target.value);
+        if(onlyDigits(e.target.value).length === 8) fetchViaCepAndFill(e.target.value);
+    };
   }
-
-  const newPhoneEl = document.getElementById('new-phone');
-  if (newPhoneEl) {
-    newPhoneEl.addEventListener('input', (e) => {
-      e.target.value = formatBRPhone(e.target.value);
-    });
-  }
-
-  let cepTimer = null;
-  const cepInputEl = document.getElementById('address-cep');
-  if (cepInputEl) {
-    cepInputEl.addEventListener('input', (e) => {
-      e.target.value = formatCEP(e.target.value);
-      clearTimeout(cepTimer);
-      cepTimer = setTimeout(() => fetchViaCepAndFill(e.target.value), 350);
-    });
-
-    cepInputEl.addEventListener('blur', (e) => fetchViaCepAndFill(e.target.value));
-  }
-
-  window.addEventListener('hashchange', handleHashTabs);
 }
 
 async function init() {
-  currentUser = getStoredUser();
-
-  if (!currentUser) {
-    window.location.href = 'login_cadastro.html';
-    return;
-  }
+  const token = getAuthToken();
+  if (!token) { window.location.href = 'login_cadastro.html'; return; }
 
   bindEvents();
-
   try {
-    await loadProfile();
-    await loadAddresses();
-    await loadOrders();
-
+    await Promise.all([loadProfile(), loadAddresses(), loadOrders()]);
     document.getElementById('loading-message').style.display = 'none';
     document.getElementById('dashboard-content').style.display = 'grid';
-
-    const params = new URLSearchParams(window.location.search);
-    const ref = (document.referrer || '').toLowerCase();
-    const isBadRef = ref.includes('detalhes_pedido') || ref.includes('pedido') || ref.includes('minha_conta') || ref.includes('meus_pedidos');
-    const isSameOrigin = !ref || ref.includes(window.location.origin.toLowerCase());
-    const backHref = (params.get('from') === 'checkout') ? 'checkout.html'
-      : (!isBadRef && isSameOrigin && ref) ? document.referrer
-      : 'index.html';
-
-    const btnBackPurchase = document.getElementById('btn-back-purchase');
-    if (btnBackPurchase) btnBackPurchase.href = backHref;
-
-    if (params.get('tab') === 'address') {
-      window.switchTab('address');
-      if (params.get('from') === 'checkout') {
-        const btnBack = document.getElementById('btn-back-checkout');
-        if (btnBack) btnBack.classList.remove('hidden');
-      }
-    }
-
-    handleHashTabs();
   } catch (e) {
-    displayMessage("Erro ao carregar seus dados.", "error");
-    document.getElementById('loading-message').innerHTML = `
-      <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
-      <p class="text-lg text-text-dark font-semibold">Não foi possível carregar sua conta.</p>
-    `;
+    console.error(e);
   }
 }
-
-(function () {
-  let done = false;
-  function run() {
-    if (done) return;
-    if (typeof window.carregarHeader !== 'function') return;
-    try { window.carregarHeader(); done = true; } catch(e) { console.error("[minha_conta] header:", e); }
-  }
-  document.addEventListener('DOMContentLoaded', () => setTimeout(run, 0));
-  setTimeout(run, 250);
-})();
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
