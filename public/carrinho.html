@@ -349,6 +349,88 @@
       return true;
     }
 
+    function buildShippingItemsPayload() {
+      return (Array.isArray(cartItems) ? cartItems : []).map((it) => {
+        const qty = parseInt(it.quantity || 1, 10) || 1;
+        return {
+          id: resolveCartProductId(it) || it.id || null,
+          productId: resolveCartProductId(it) || it.id || null,
+          name: it.name || 'Produto',
+          sellerId: it.sellerId || 'admin',
+          sellerName: it.sellerName || 'Ariana Móveis',
+          quantity: qty,
+          qty,
+          unitPrice: Number(it.price || 0) || 0,
+          totalPrice: (Number(it.price || 0) || 0) * qty,
+          pesoKg: Number(it.pesoKg || 0) || 0,
+          alturaCm: Number(it.alturaCm || 0) || 0,
+          larguraCm: Number(it.larguraCm || 0) || 0,
+          comprimentoCm: Number(it.comprimentoCm || 0) || 0,
+          dimensions: {
+            altura: Number(it.alturaCm || 0) || 0,
+            largura: Number(it.larguraCm || 0) || 0,
+            comprimento: Number(it.comprimentoCm || 0) || 0
+          }
+        };
+      });
+    }
+
+    function getCartSubtotalValue() {
+      return (Array.isArray(cartItems) ? cartItems : []).reduce((sum, item) => {
+        return sum + ((Number(item.price) || 0) * (parseInt(item.quantity || 1, 10) || 1));
+      }, 0);
+    }
+
+    function extractBestShippingOptionFromResponse(data) {
+      if (!data || typeof data !== 'object') {
+        throw new Error('Resposta de frete inválida.');
+      }
+
+      if (Array.isArray(data.quotes) && data.quotes.length) {
+        const best = data.quotes.reduce((bestQuote, q) => {
+          const p = Number(q?.price);
+          if (!Number.isFinite(p)) return bestQuote;
+          if (!bestQuote || p < bestQuote.price) {
+            return {
+              price: p,
+              name: q?.name || q?.carrier || q?.service || 'Frete',
+              service: q?.service || q?.name || 'Frete',
+              carrier: q?.carrier || q?.name || 'Transportadora',
+              raw: q
+            };
+          }
+          return bestQuote;
+        }, null);
+
+        if (best) return best;
+      }
+
+      if (data.ok && (data.price != null || data.effectivePrice != null)) {
+        const price = Number(data.effectivePrice ?? data.price ?? 0) || 0;
+        return {
+          price,
+          name: data.name || data.carrier || data.service || 'Frete',
+          service: data.service || data.name || 'Frete',
+          carrier: data.carrier || data.name || 'Transportadora',
+          raw: data
+        };
+      }
+
+      if (data.quote && typeof data.quote === 'object') {
+        const q = data.quote;
+        const price = Number(q.effectivePrice ?? q.price ?? 0) || 0;
+        return {
+          price,
+          name: q.name || q.carrier || q.service || 'Frete',
+          service: q.service || q.name || 'Frete',
+          carrier: q.carrier || q.name || 'Transportadora',
+          raw: q
+        };
+      }
+
+      throw new Error(data?.error || data?.message || 'Sem opções de frete para este CEP.');
+    }
+
     async function quoteCorreios(cepDestino) {
       const cep = String(cepDestino || '').replace(/\D/g, '');
       if (cep.length !== 8) throw new Error('CEP inválido.');
@@ -358,64 +440,80 @@
 
       const defs = shippingSettings || normalizeShippingDefaults({});
       const pkg = computePackageFromCart();
+      const subtotal = getCartSubtotalValue();
 
       const payload = {
         cepDestino: cep,
+        destinationCep: cep,
+        cep,
+        subtotal,
+        total: subtotal,
+        invoiceValue: subtotal,
+        valorNota: subtotal,
         pesoKg: pkg.pesoKg,
-        comprimento: pkg.comprimentoCm,
-        largura: pkg.larguraCm,
-        altura: pkg.alturaCm,
+        weightKg: pkg.pesoKg,
+        comprimentoCm: pkg.comprimentoCm,
+        lengthCm: pkg.comprimentoCm,
+        larguraCm: pkg.larguraCm,
+        widthCm: pkg.larguraCm,
+        alturaCm: pkg.alturaCm,
+        heightCm: pkg.alturaCm,
+        items: buildShippingItemsPayload(),
         isArianaOrder: isArianaOrderFromCartItems(cartItems)
       };
 
       const apiBase = (localStorage.getItem('API_BASE') || window.API_BASE || API_BASE || '').replace(/\/+$/, '');
       if (!apiBase) throw new Error('API de frete não configurada.');
 
-      const response = await fetch(`${apiBase}/shipping/correios/quote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let data = null;
+      let usedEndpoint = '';
+      let lastError = '';
 
-      if (!response.ok) {
-        let details = '';
+      const endpoints = [
+        `${apiBase}/shipping/quote`,
+        `${apiBase}/shipping/calculate`,
+        `${apiBase}/shipping/correios/quote`
+      ];
+
+      for (const endpoint of endpoints) {
         try {
-          const errorData = await response.json();
-          details = errorData?.details || errorData?.error || errorData?.message || JSON.stringify(errorData);
-        } catch (_) {
-          try { details = await response.text(); } catch (_) {}
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const contentType = response.headers.get('content-type') || '';
+          const body = contentType.includes('application/json')
+            ? await response.json().catch(() => ({}))
+            : { error: await response.text().catch(() => '') };
+
+          if (!response.ok) {
+            lastError = body?.detail || body?.details || body?.error || body?.message || `HTTP ${response.status}`;
+            continue;
+          }
+
+          data = body;
+          usedEndpoint = endpoint;
+          break;
+        } catch (err) {
+          lastError = err?.message || String(err || '');
         }
-        throw new Error(details || 'Erro no servidor ao cotar frete.');
       }
 
-      const data = await response.json();
-
-      if (!data?.ok) {
-        throw new Error(data?.error || data?.message || 'Frete indisponível.');
+      if (!data) {
+        throw new Error(lastError || 'Erro no servidor ao cotar frete.');
       }
 
-      const quotes = Array.isArray(data?.quotes) ? data.quotes : [];
-      if (!quotes.length) {
-        const errs = Array.isArray(data?.errors) ? data.errors : [];
-        if (errs.length) throw new Error(errs[0]?.message || 'Sem opções de frete para este CEP.');
-        throw new Error('Sem opções de frete para este CEP.');
+      if (!data?.ok && !Array.isArray(data?.quotes) && !data?.quote) {
+        throw new Error(data?.detail || data?.error || data?.message || 'Frete indisponível.');
       }
 
-      const best = quotes.reduce((bestQuote, q) => {
-        const p = Number(q?.price);
-        if (!Number.isFinite(p)) return bestQuote;
-        if (!bestQuote || p < bestQuote.price) {
-          return { price: p, name: q?.name || q?.service, service: q?.service, raw: q };
-        }
-        return bestQuote;
-      }, null);
-
-      if (!best) throw new Error('Não foi possível calcular o frete.');
+      const best = extractBestShippingOptionFromResponse(data);
 
       let frete = Number(best.price || 0);
-      if (defs.freeShippingAbove > 0) {
-        const subtotal = cartItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (parseInt(item.quantity || 1, 10) || 1)), 0);
-        if (subtotal >= defs.freeShippingAbove) frete = 0;
+      if (defs.freeShippingAbove > 0 && subtotal >= defs.freeShippingAbove) {
+        frete = 0;
       }
 
       shippingState = {
@@ -425,7 +523,9 @@
         service: best.service,
         raw: data,
         cep,
-        name: best.name
+        name: best.name,
+        carrier: best.carrier,
+        endpoint: usedEndpoint
       };
 
       try {
@@ -433,15 +533,17 @@
           cep,
           service: best.service,
           name: best.name,
+          carrier: best.carrier,
           quotedPrice: Number(best.price || 0),
           effectivePrice: Number(frete || 0),
           updatedAt: Date.now(),
+          endpoint: usedEndpoint,
           raw: data
         }));
       } catch (_) {}
 
       await recalculateTotals();
-      return { raw: data, best, cep };
+      return { raw: data, best, cep, endpoint: usedEndpoint };
     }
 
     window.formatPrice = function(price) {
