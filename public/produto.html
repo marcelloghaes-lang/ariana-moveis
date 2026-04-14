@@ -1718,6 +1718,62 @@ function updateClientHeaderUI(user) {
             return sid === 'admin' || sname.indexOf('ariana') !== -1;
         }
 
+        function isSNDigitalProduct(p) {
+            var sid = String((p && p.sellerId) ? p.sellerId : '').toLowerCase().trim();
+            var sname = String((p && p.sellerName) ? p.sellerName : '').toLowerCase().trim();
+            return sid.indexOf('sn') !== -1 || sname.indexOf('sn digital') !== -1 || sname === 'sn';
+        }
+
+        function normalizeShippingQuotesFromResponse(data) {
+            if (!data || typeof data !== 'object') return [];
+            if (Array.isArray(data.quotes) && data.quotes.length) return data.quotes;
+
+            if (Array.isArray(data.options) && data.options.length) {
+                return data.options
+                    .filter(function(opt){ return !opt.unavailable && Number.isFinite(Number(opt.price)); })
+                    .map(function(opt){
+                        return {
+                            service: opt.service || opt.code || 'shipping',
+                            name: opt.label || opt.name || opt.service || 'Frete',
+                            label: opt.label || opt.name || opt.service || 'Frete',
+                            price: Number(opt.price || 0),
+                            deadlineDays: opt.deadlineDays || null,
+                            prazo: opt.prazo || null,
+                            provider: opt.provider || null,
+                            raw: opt
+                        };
+                    });
+            }
+
+            if (data.quote && typeof data.quote === 'object' && Number.isFinite(Number(data.quote.price ?? data.quote.effectivePrice))) {
+                return [{
+                    service: data.quote.service || 'shipping',
+                    name: data.quote.label || data.quote.name || data.quote.service || 'Frete',
+                    label: data.quote.label || data.quote.name || data.quote.service || 'Frete',
+                    price: Number(data.quote.effectivePrice ?? data.quote.price ?? 0),
+                    deadlineDays: data.quote.deadlineDays || null,
+                    prazo: data.quote.prazo || null,
+                    provider: data.quote.provider || null,
+                    raw: data.quote
+                }];
+            }
+
+            if (data.ok && Number.isFinite(Number(data.price ?? data.effectivePrice))) {
+                return [{
+                    service: data.service || 'shipping',
+                    name: data.label || data.name || data.service || 'Frete',
+                    label: data.label || data.name || data.service || 'Frete',
+                    price: Number(data.effectivePrice ?? data.price ?? 0),
+                    deadlineDays: data.deadlineDays || null,
+                    prazo: data.prazo || null,
+                    provider: data.provider || null,
+                    raw: data
+                }];
+            }
+
+            return [];
+        }
+
         function safeNumber(v, fallback) {
             const n = Number(v);
             return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -1755,7 +1811,15 @@ function updateClientHeaderUI(user) {
 
             const payload = {
                 cepDestino: sanitizeCep(cepDestino),
+                destinationCep: sanitizeCep(cepDestino),
+                cep: sanitizeCep(cepDestino),
                 pesoKg: ship.pesoKg,
+                weightKg: ship.pesoKg,
+                sellerId: productData?.sellerId || null,
+                sellerName: productData?.sellerName || productData?.soldBy || null,
+                shippingRule: isArianaProduct(productData) ? 'ariana' : (isSNDigitalProduct(productData) ? 'sn_digital' : undefined),
+                productPrice: safeNumber((productData && (productData.price ?? productData.preco)), 0),
+                invoiceValue: safeNumber((productData && (productData.price ?? productData.preco)), 0),
                 isArianaOrder: isArianaProduct(productData),
             };
 

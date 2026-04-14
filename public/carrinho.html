@@ -381,54 +381,59 @@
       }, 0);
     }
 
+    function normalizeShippingOption(q, fallbackRaw = null) {
+      if (!q || typeof q !== 'object') return null;
+      const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
+      if (!Number.isFinite(price)) return null;
+      return {
+        price,
+        name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
+        service: q.service || q.name || q.label || 'Frete',
+        carrier: q.carrier || q.provider || q.name || 'Transportadora',
+        raw: fallbackRaw || q
+      };
+    }
+
     function extractBestShippingOptionFromResponse(data) {
       if (!data || typeof data !== 'object') {
         throw new Error('Resposta de frete inválida.');
       }
 
-      if (Array.isArray(data.quotes) && data.quotes.length) {
-        const best = data.quotes.reduce((bestQuote, q) => {
-          const p = Number(q?.price);
-          if (!Number.isFinite(p)) return bestQuote;
-          if (!bestQuote || p < bestQuote.price) {
-            return {
-              price: p,
-              name: q?.name || q?.carrier || q?.service || 'Frete',
-              service: q?.service || q?.name || 'Frete',
-              carrier: q?.carrier || q?.name || 'Transportadora',
-              raw: q
-            };
-          }
-          return bestQuote;
-        }, null);
+      if (data.cheapest && typeof data.cheapest === 'object') {
+        const normalized = normalizeShippingOption(data.cheapest, data);
+        if (normalized) return normalized;
+      }
 
-        if (best) return best;
+      if (Array.isArray(data.options) && data.options.length) {
+        const validOptions = data.options
+          .filter((opt) => !opt?.unavailable)
+          .map((opt) => normalizeShippingOption(opt, data))
+          .filter(Boolean);
+        if (validOptions.length) {
+          return validOptions.reduce((best, current) => current.price < best.price ? current : best);
+        }
+      }
+
+      if (Array.isArray(data.quotes) && data.quotes.length) {
+        const validQuotes = data.quotes
+          .map((q) => normalizeShippingOption(q, data))
+          .filter(Boolean);
+        if (validQuotes.length) {
+          return validQuotes.reduce((best, current) => current.price < best.price ? current : best);
+        }
       }
 
       if (data.ok && (data.price != null || data.effectivePrice != null)) {
-        const price = Number(data.effectivePrice ?? data.price ?? 0) || 0;
-        return {
-          price,
-          name: data.name || data.carrier || data.service || 'Frete',
-          service: data.service || data.name || 'Frete',
-          carrier: data.carrier || data.name || 'Transportadora',
-          raw: data
-        };
+        const normalized = normalizeShippingOption(data, data);
+        if (normalized) return normalized;
       }
 
       if (data.quote && typeof data.quote === 'object') {
-        const q = data.quote;
-        const price = Number(q.effectivePrice ?? q.price ?? 0) || 0;
-        return {
-          price,
-          name: q.name || q.carrier || q.service || 'Frete',
-          service: q.service || q.name || 'Frete',
-          carrier: q.carrier || q.name || 'Transportadora',
-          raw: q
-        };
+        const normalized = normalizeShippingOption(data.quote, data);
+        if (normalized) return normalized;
       }
 
-      throw new Error(data?.error || data?.message || 'Sem opções de frete para este CEP.');
+      throw new Error(data?.detail || data?.error || data?.message || 'Sem opções de frete para este CEP.');
     }
 
     async function quoteCorreios(cepDestino) {
@@ -472,6 +477,7 @@
       const endpoints = [
         `${apiBase}/shipping/quote`,
         `${apiBase}/shipping/calculate`,
+        `${apiBase}/shipping/logistics/quote`,
         `${apiBase}/shipping/correios/quote`
       ];
 
@@ -489,7 +495,16 @@
             : { error: await response.text().catch(() => '') };
 
           if (!response.ok) {
-            lastError = body?.detail || body?.details || body?.error || body?.message || `HTTP ${response.status}`;
+            const currentError = body?.detail || body?.details || body?.error || body?.message || `HTTP ${response.status}`;
+            if (response.status === 404) {
+              lastError = currentError;
+              continue;
+            }
+            if (response.status === 401 || response.status === 403) {
+              lastError = currentError;
+              continue;
+            }
+            lastError = currentError;
             continue;
           }
 
@@ -964,7 +979,8 @@
             console.error('[cart] frete erro:', e);
             shippingState = { status: 'error', price: 0, effectivePrice: 0, service: null, raw: String(e), cep };
             await recalculateTotals();
-            window.displayMessage('Erro ao calcular frete. Verifique o CEP e tente novamente.', 'error', 'message-box', 6000);
+            const msg = String(e?.message || e || 'Erro ao calcular frete.');
+            window.displayMessage(msg.includes('Sem opções de frete') ? msg : 'Erro ao calcular frete. Verifique o CEP e tente novamente.', 'error', 'message-box', 6000);
           }
         });
       }
