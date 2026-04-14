@@ -1804,6 +1804,46 @@ function updateClientHeaderUI(user) {
             };
         }
 
+        function normalizeShippingQuoteOption(q, fallbackRaw = null) {
+            if (!q || typeof q !== "object") return null;
+            const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
+            if (!Number.isFinite(price)) return null;
+            return {
+                service: q.service || q.id || q.code || q.name || "shipping",
+                name: q.name || q.label || q.carrier || q.provider || q.service || "Frete",
+                label: q.label || q.name || q.carrier || q.provider || q.service || "Frete",
+                price,
+                effectivePrice: price,
+                deadlineDays: q.deadlineDays ?? q.deliveryDays ?? q.prazoDias ?? null,
+                prazo: q.prazo || q.deadlineText || null,
+                provider: q.provider || q.carrier || null,
+                raw: fallbackRaw || q
+            };
+        }
+
+        function extractShippingQuotesFromResponse(data) {
+            if (!data || typeof data !== "object") return [];
+            if (Array.isArray(data.quotes) && data.quotes.length) {
+                return data.quotes.map((q) => normalizeShippingQuoteOption(q, data)).filter(Boolean);
+            }
+            if (Array.isArray(data.options) && data.options.length) {
+                return data.options.filter((opt) => !opt?.unavailable).map((opt) => normalizeShippingQuoteOption(opt, data)).filter(Boolean);
+            }
+            if (data.cheapest && typeof data.cheapest === "object") {
+                const one = normalizeShippingQuoteOption(data.cheapest, data);
+                return one ? [one] : [];
+            }
+            if (data.quote && typeof data.quote === "object") {
+                const one = normalizeShippingQuoteOption(data.quote, data);
+                return one ? [one] : [];
+            }
+            if (data.ok && (data.price != null || data.effectivePrice != null || data.valor != null)) {
+                const one = normalizeShippingQuoteOption(data, data);
+                return one ? [one] : [];
+            }
+            return [];
+        }
+
         async function quoteCorreios(cepDestino) {
             const apiBase = getApiBaseUrl();
             if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
@@ -1851,36 +1891,70 @@ function updateClientHeaderUI(user) {
             if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
             const ship = pickProductShippingData();
             const qty = Math.max(1, Number(quantity || 1) || 1);
+            const cep = sanitizeCep(cepDestino);
+
+            const unitPrice = safeNumber((productData && (productData.price ?? productData.preco)), 0);
 
             const payload = {
-                cepDestino: sanitizeCep(cepDestino),
+                cepDestino: cep,
+                destinationCep: cep,
+                cep,
                 enableOwnDelivery: true,
                 margin: 0.10,
+                sellerId: productData?.sellerId || null,
+                sellerName: productData?.sellerName || productData?.soldBy || null,
+                shippingRule: isArianaProduct(productData) ? 'ariana' : (isSNDigitalProduct(productData) ? 'sn_digital' : undefined),
+                subtotal: unitPrice * qty,
+                total: unitPrice * qty,
+                invoiceValue: unitPrice * qty,
+                valorNota: unitPrice * qty,
                 items: [{
-                    pesoKg: ship.pesoKg,
-                    comprimento: ship.comprimento,
-                    largura: ship.largura,
-                    altura: ship.altura,
+                    id: productData?._id || productData?.id || null,
+                    productId: productData?._id || productData?.id || null,
+                    name: productData?.name || productData?.nome || 'Produto',
+                    sellerId: productData?.sellerId || null,
+                    sellerName: productData?.sellerName || productData?.soldBy || null,
                     quantity: qty,
+                    qty: qty,
+                    unitPrice,
+                    totalPrice: unitPrice * qty,
+                    pesoKg: ship.pesoKg,
+                    alturaCm: ship.altura,
+                    larguraCm: ship.largura,
+                    comprimentoCm: ship.comprimento
                 }],
             };
 
-            const resp = await fetch(`${apiBase}/shipping/logistics/quote`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
+            const endpoints = [
+                `${apiBase}/shipping/logistics/quote`,
+                `${apiBase}/shipping/quote`,
+                `${apiBase}/shipping/calculate`
+            ];
 
-            let data = null;
-            try { data = await resp.json(); } catch (_) { data = null; }
+            let lastMessage = '';
+            for (const endpoint of endpoints) {
+                try {
+                    const resp = await fetch(endpoint, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                    });
 
-            if (!resp.ok) {
-                const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `HTTP ${resp.status}`;
-                return { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: msg }] };
+                    let data = null;
+                    try { data = await resp.json(); } catch (_) { data = null; }
+
+                    const quotes = extractShippingQuotesFromResponse(data);
+                    if (resp.ok && quotes.length) {
+                        return { quotes, errors: [] };
+                    }
+
+                    lastMessage = (data && (data.detail || data.error || data.message)) ? (data.detail || data.error || data.message) : `HTTP ${resp.status}`;
+                } catch (error) {
+                    lastMessage = String(error?.message || error || 'Falha ao consultar logística');
+                }
             }
 
-            const quotes = Array.isArray(data?.quotes) ? data.quotes : [];
-            return { quotes, errors: [] };
+            return { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: lastMessage || "Falha ao consultar logística" }] };
         }
 
         async function quoteAllShipping(cepDestino, quantity) {
@@ -1892,22 +1966,30 @@ function updateClientHeaderUI(user) {
                 quoteLogistics(cep, qty),
             ]);
 
-            const corrVal = corr.status === "fulfilled" ? corr.value : { quotes: [], errors: [{ service: "Correios", name: "Correios", message: String(corr.reason || "Falha ao consultar Correios") }] };
-            const logiVal = logi.status === "fulfilled" ? logi.value : { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: String(logi.reason || "Falha ao consultar logística") }] };
+            const corrRaw = corr.status === "fulfilled" ? corr.value : null;
+            const corrQuotes = extractShippingQuotesFromResponse(corrRaw);
+            const corrErrors = corr.status === "fulfilled"
+                ? (corrQuotes.length ? [] : [{ service: "Correios", name: "Correios", message: corrRaw?.detail || corrRaw?.error || corrRaw?.message || "Sem opções nos Correios" }])
+                : [{ service: "Correios", name: "Correios", message: String(corr.reason?.message || corr.reason || "Falha ao consultar Correios") }];
+
+            const logiVal = logi.status === "fulfilled"
+                ? logi.value
+                : { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: String(logi.reason?.message || logi.reason || "Falha ao consultar logística") }] };
 
             return {
-                quotes: [...(corrVal.quotes || []), ...(logiVal.quotes || [])],
-                errors: [...(corrVal.errors || []), ...(logiVal.errors || [])],
+                quotes: [...corrQuotes, ...(logiVal.quotes || [])],
+                errors: [...corrErrors, ...(logiVal.errors || [])],
             };
         }
-
 
 function renderShippingQuotes(result, cep) {
             const shippingResult = document.getElementById('shipping-result');
             const fretePriceEl = document.getElementById('frete-price');
             if (!shippingResult || !fretePriceEl) return;
 
-            const quotes = Array.isArray(result.quotes) ? result.quotes : [];
+            const quotes = (Array.isArray(result.quotes) ? result.quotes : extractShippingQuotesFromResponse(result))
+                .map((q) => normalizeShippingQuoteOption(q, result))
+                .filter(Boolean);
             const errors = Array.isArray(result.errors) ? result.errors : [];
 
             if (!quotes.length && !errors.length) {
@@ -1916,7 +1998,6 @@ function renderShippingQuotes(result, cep) {
                 return;
             }
 
-            // Ordena por menor preço
             quotes.sort((a, b) => (Number(a.price) || 9e9) - (Number(b.price) || 9e9));
 
             const makeOption = (q, idx) => {
@@ -2036,8 +2117,11 @@ function renderShippingQuotes(result, cep) {
             // tenta restaurar seleção anterior
             try {
                 const saved = JSON.parse(localStorage.getItem("ariana_selected_shipping") || "null");
-                if (saved && saved.cepDestino && saved.price) {
-                    fretePriceEl.textContent = formatCurrency(Number(saved.price) || 0);
+                const savedCep = sanitizeCep(saved?.cepDestino || saved?.cep || "");
+                const savedPrice = Number(saved?.effectivePrice ?? saved?.quotedPrice ?? saved?.price ?? 0);
+                if (savedCep && Number.isFinite(savedPrice) && savedPrice >= 0) {
+                    fretePriceEl.textContent = savedPrice === 0 ? "Grátis" : formatCurrency(savedPrice);
+                    cepInput.value = savedCep.replace(/^(\d{5})(\d)/, '$1-$2');
                 }
             } catch (_) {}
         }
