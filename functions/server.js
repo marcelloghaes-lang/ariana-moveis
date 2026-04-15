@@ -597,7 +597,15 @@ function parseServices(raw) { return String(raw || '').split(',').map(s => Strin
 function safeAxiosError(e) { return { status: e?.response?.status || null, message: e?.response?.data?.message || e?.message || 'Erro externo', data: e?.response?.data || null }; }
 function positiveIntOrNull(v) { const n = Number(v); if (!Number.isFinite(n) || n <= 0) return null; return String(Math.round(n)); }
 function toGrams(v) { const n = Number(v); if (!Number.isFinite(n) || n <= 0) return ''; return String(Math.round(n * 1000)); }
-function pickPrice(item = {}) { const raw = item.pcFinal || item.vrServico || item.preco || item.valor || item.price || null; const n = Number(raw); return Number.isFinite(n) ? n : null; }
+function parseMoneyBR(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const normalized = raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+function pickPrice(item = {}) { const raw = item.pcFinal ?? item.vrServico ?? item.preco ?? item.valor ?? item.price ?? item.pcProduto ?? null; return parseMoneyBR(raw); }
 function pickDeadline(item = {}) { const raw = item.prazoEntrega || item.prazo || item.deadline || item.prazoDias || null; const n = Number(raw); return Number.isFinite(n) ? n : null; }
 const SERVICE_NAMES = { '03298': 'PAC', '03328': 'SEDEX', '03220': 'SEDEX Hoje', '03204': 'SEDEX 10', '03212': 'SEDEX 12' };
 let correiosTokenCache = { token: null, exp: 0 };
@@ -605,23 +613,250 @@ function correiosCfg(settings = null) { const cfg = settings && settings.correio
 async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token não retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
 async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } quotes.push({ service: coProduto, label: SERVICE_NAMES[coProduto] || coProduto, name: SERVICE_NAMES[coProduto] || coProduto, price: pickPrice(item), prazo: pickDeadline(item) ? `${pickDeadline(item)} dia(s)` : null, deadlineDays: pickDeadline(item), raw: item }); } quotes.sort((a,b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9)); return { ok: true, quotes, errors, bestQuote: quotes[0] || null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: hasDims ? { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } : null, servicesRequested: cfg.services, limits: { maxWeightKg: Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30), maxSideCm: Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100) } } }; }
 const viaCepCache = new Map();
-async function getDistanceKm(originCep, destinationCep) { const orsKey = String(process.env.OPENROUTE_API_KEY || '').trim(); if (!orsKey) return null; return null; }
+const geoCache = new Map();
+
+async function getDistanceKm(originCep, destinationCep) {
+  const origin = normalizeCepValue(originCep);
+  const destination = normalizeCepValue(destinationCep);
+  if (!origin || !destination || origin === destination) return 0;
+  const cacheKey = `${origin}:${destination}`;
+  if (geoCache.has(cacheKey)) return geoCache.get(cacheKey);
+  const originInfo = await lookupCepInfo(origin);
+  const destInfo = await lookupCepInfo(destination);
+  if (!originInfo?.city || !destInfo?.city) {
+    geoCache.set(cacheKey, 0);
+    return 0;
+  }
+  const query = `${destInfo.city}, ${destInfo.state || ''}, Brazil`;
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search';
+    const resp = await axios.get(url, {
+      params: { q: query, format: 'jsonv2', limit: 1 },
+      timeout: 10000,
+      headers: { 'User-Agent': 'ArianaMoveis/1.0 (shipping distance lookup)' }
+    });
+    const lat = Number(resp.data?.[0]?.lat);
+    const lon = Number(resp.data?.[0]?.lon);
+    const originMap = {
+      'GUANHAES|MG': { lat: -18.7752, lon: -42.9325 },
+      'GUANHÃES|MG': { lat: -18.7752, lon: -42.9325 }
+    };
+    const originKey = `${(originInfo.city || '').toUpperCase()}|${(originInfo.state || '').toUpperCase()}`;
+    const originCoords = originMap[originKey] || { lat: -18.7752, lon: -42.9325 };
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      geoCache.set(cacheKey, 0);
+      return 0;
+    }
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat - originCoords.lat);
+    const dLon = toRad(lon - originCoords.lon);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(originCoords.lat)) * Math.cos(toRad(lat)) *
+      Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const km = Number((R * c).toFixed(1));
+    geoCache.set(cacheKey, km);
+    return km;
+  } catch (_error) {
+    geoCache.set(cacheKey, 0);
+    return 0;
+  }
+}
 function calculateOwnDelivery(km, tiers = []) { const sorted = [...tiers].sort((a, b) => Number(a.maxKm || 0) - Number(b.maxKm || 0)); for (const tier of sorted) { if (Number(km || 0) <= Number(tier.maxKm || 0)) return { available: true, price: Number(tier.price || 0), service: 'own_delivery' }; } return { available: false }; }
 function normalizeShippingText(value = '') { return String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase(); }
 function normalizeCepValue(value = '') { const digits = normalizeDigits(value); return digits.length === 8 ? digits : ''; }
 function cepInRange(cep, startCep, endCep) { const cepNum = Number(normalizeCepValue(cep)); const startNum = Number(normalizeCepValue(startCep)); const endNum = Number(normalizeCepValue(endCep)); if (!Number.isFinite(cepNum) || !Number.isFinite(startNum) || !Number.isFinite(endNum)) return false; return cepNum >= startNum && cepNum <= endNum; }
 function buildManualShippingOption({ service, label, price, prazo, provider = 'configured', details = null, metadata = null }) { return { service, label, price: Number(price || 0), prazo: prazo || null, provider, details: details || null, metadata: metadata || null }; }
-function getBodyWeightKg(body = {}, settings = {}) { return Number(body.weightKg || body.pesoKg || body.weight || settings.correios?.pesoKgPadrao || 0); }
-function getBodyMaxDimensionCm(body = {}, settings = {}) { return Number(body.maxDimensionCm || body.dimensionCm || Math.max(Number(body.comprimento || body.comprimentoCm || body.length || settings.correios?.comprimentoCmPadrao || 0), Number(body.largura || body.larguraCm || body.width || settings.correios?.larguraCmPadrao || 0), Number(body.altura || body.alturaCm || body.height || settings.correios?.alturaCmPadrao || 0))); }
-function getSellerContext(body = {}) { const raw = [body.sellerName, body.seller, body.storeName, body.manufacturer, body.vendorName, body.brand].filter(Boolean).join(' '); const normalized = normalizeShippingText(raw); return { raw, normalized, isAriana: normalized.includes('ARIANA'), isSNDigital: normalized.includes('SN DIGITAL') || normalized === 'SN' || normalized.includes(' SN ') || normalized.startsWith('SN ') }; }
+function getBodyWeightKg(body = {}, settings = {}) {
+  const direct = Number(body.weightKg || body.pesoKg || body.weight || 0);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const items = Array.isArray(body.items) ? body.items : [];
+  const sum = items.reduce((acc, item) => {
+    const qty = Number(item.quantity || item.qty || 1) || 1;
+    const weight = Number(item.weightKg || item.pesoKg || item.weight || 0) || 0;
+    return acc + (qty * weight);
+  }, 0);
+  return Number(sum || settings.correios?.pesoKgPadrao || 0);
+}
+function getBodyMaxDimensionCm(body = {}, settings = {}) {
+  const direct = Number(body.maxDimensionCm || body.dimensionCm || 0);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const base = Math.max(
+    Number(body.comprimento || body.comprimentoCm || body.length || settings.correios?.comprimentoCmPadrao || 0),
+    Number(body.largura || body.larguraCm || body.width || settings.correios?.larguraCmPadrao || 0),
+    Number(body.altura || body.alturaCm || body.height || settings.correios?.alturaCmPadrao || 0)
+  );
+  if (Number.isFinite(base) && base > 0) return base;
+  const items = Array.isArray(body.items) ? body.items : [];
+  return items.reduce((acc, item) => Math.max(acc,
+    Number(item.comprimento || item.comprimentoCm || item.length || item.dimensions?.comprimento || 0) || 0,
+    Number(item.largura || item.larguraCm || item.width || item.dimensions?.largura || 0) || 0,
+    Number(item.altura || item.alturaCm || item.height || item.dimensions?.altura || 0) || 0
+  ), Number(settings.correios?.comprimentoCmPadrao || 0));
+}
+function getSellerContext(body = {}) {
+  const directParts = [
+    body.sellerId, body.sellerName, body.seller, body.storeName, body.manufacturer, body.vendorName, body.brand
+  ].filter(Boolean);
+  const itemParts = (Array.isArray(body.items) ? body.items : []).flatMap(item => [
+    item?.sellerId, item?.sellerName, item?.seller, item?.storeName, item?.manufacturer, item?.vendorName, item?.brand
+  ]).filter(Boolean);
+  const raw = [...directParts, ...itemParts].join(' ');
+  const normalized = normalizeShippingText(raw);
+  return {
+    raw,
+    normalized,
+    isAriana: normalized.includes('ARIANA') || normalized.includes('ADMIN'),
+    isSNDigital: normalized.includes('SN DIGITAL') || normalized === 'SN' || normalized.includes(' SN ') || normalized.startsWith('SN ')
+  };
+}
 async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
 async function resolveDestinationLocation(body = {}) { const cep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const explicitCity = body.cidade || body.city || body.destinationCity || body.shippingAddress?.cidade || body.shippingAddress?.city || ''; const explicitState = body.uf || body.state || body.destinationState || body.shippingAddress?.uf || body.shippingAddress?.state || ''; if (explicitCity) return { cep, city: String(explicitCity).trim(), state: String(explicitState || '').trim(), source: 'request' }; const viaCep = await lookupCepInfo(cep); if (viaCep) return { ...viaCep, source: 'viacep' }; return { cep, city: '', state: '', source: cep ? 'cep_only' : 'unknown' }; }
 function isRodocapCityAllowed(city = '', rodocapRule = {}) { const normalizedCity = normalizeShippingText(city); if (!normalizedCity) return false; const allowed = Array.isArray(rodocapRule.allowedCities) ? rodocapRule.allowedCities : []; return allowed.map(normalizeShippingText).includes(normalizedCity); }
-async function calculateShipping(body = {}) { const settings = await getShippingSettings(); const businessRules = settings.businessRules || {}; const arianaRule = businessRules.arianaMoveis || {}; const snRule = businessRules.snDigital || {}; const rodocapRule = businessRules.rodocap || {}; const weightKg = getBodyWeightKg(body, settings); const maxDimensionCm = getBodyMaxDimensionCm(body, settings); const distanceKm = Number(body.distanceKm || body.km || 0); const productPrice = Number(body.productPrice || body.price || body.valorNota || body.invoiceValue || 0); const destinationCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const sellerCtx = getSellerContext(body); const location = await resolveDestinationLocation(body); const options = []; const isAriana = body.shippingRule === 'ariana' || sellerCtx.isAriana; const isSNDigital = body.shippingRule === 'sn_digital' || sellerCtx.isSNDigital; if (isAriana && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd)) { options.push(buildManualShippingOption({ service: 'ariana_free_local', label: arianaRule.label || 'Ariana Móveis', price: 0, prazo: arianaRule.prazo || '1 a 3 dias úteis', provider: 'configured', details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`, metadata: { rule: 'ariana_free_local', cep: destinationCep } })); }
-if (isSNDigital && snRule.enabled !== false && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) { options.push(buildManualShippingOption({ service: 'sn_digital_ate_40km', label: snRule.label || 'SN Digital', price: Number(snRule.priceTier1 || 120), prazo: snRule.prazo || '1 a 3 dias úteis', provider: 'configured', details: `SN Digital até ${Number(snRule.maxKmTier1 || 40)} km.`, metadata: { rule: 'sn_digital_ate_40km', distanceKm } })); }
-if (isSNDigital && snRule.enabled !== false && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) { options.push(buildManualShippingOption({ service: 'sn_digital_40_70km', label: snRule.label || 'SN Digital', price: Number(snRule.priceTier2 || 190), prazo: snRule.prazo || '1 a 3 dias úteis', provider: 'configured', details: `SN Digital de ${Number(snRule.maxKmTier1 || 40)} até ${Number(snRule.maxKmTier2 || 70)} km.`, metadata: { rule: 'sn_digital_40_70km', distanceKm } })); }
-if (isSNDigital && rodocapRule.enabled !== false && distanceKm > Number(rodocapRule.minKmExclusive || 70)) { const allowedCity = isRodocapCityAllowed(location.city, rodocapRule); if (allowedCity) { const rodocapPrice = Number((productPrice * Number(rodocapRule.percentOfInvoice || 0.12)).toFixed(2)); options.push(buildManualShippingOption({ service: 'rodocap_12_percent', label: rodocapRule.label || 'Rodocap', price: rodocapPrice, prazo: rodocapRule.prazoPadrao || 'sob consulta', provider: 'configured', details: `Rodocap acima de ${Number(rodocapRule.minKmExclusive || 70)} km: 12% do valor da nota para cidades atendidas.`, metadata: { rule: 'rodocap_12_percent', distanceKm, destinationCity: location.city, destinationState: location.state, locationSource: location.source } })); } else { options.push({ service: 'rodocap_unavailable_city', label: rodocapRule.label || 'Rodocap', unavailable: true, provider: 'configured', error: location.city ? `Rodocap não atende a cidade ${location.city}.` : 'Rodocap depende da cidade do destino e essa cidade não foi identificada.', metadata: { rule: 'rodocap_city_check', destinationCity: location.city || null, destinationState: location.state || null, destinationCep: destinationCep || null, locationSource: location.source } }); } }
-const correios = settings.carriers?.correios || {}; const correiosAllowed = correios.enabled && weightKg > 0 && weightKg <= Number(correios.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(correios.maxDimensionCm || 100); if (correiosAllowed) { try { const quoted = await quoteCorreios(body, settings); if (Array.isArray(quoted.quotes)) options.push(...quoted.quotes.map(q => ({ service: q.service, label: q.label || q.name || 'Correios', price: Number(q.price || 0), prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s)` : null), provider: 'correios', raw: q.raw || null }))); } catch (error) { options.push({ service: 'correios_error', label: 'Correios', unavailable: true, error: error.message }); } } else { options.push({ service: 'correios_unavailable_limits', label: 'Correios', unavailable: true, provider: 'correios', error: `Correios disponíveis somente até ${Number(correios.maxWeightKg || 30)}kg e até ${Number(correios.maxDimensionCm || 100)}cm no maior lado.`, metadata: { weightKg, maxDimensionCm } }); } const totalExpress = settings.carriers?.totalExpress || {}; if (totalExpress.enabled && weightKg > 0 && weightKg <= Number(totalExpress.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(totalExpress.maxDimensionCm || 110)) { const base = Number(settings.totalExpressBasePrice || 0); if (base > 0) options.push({ service: 'total_express', label: 'Total Express', price: base, prazo: settings.totalExpressPrazo || 'sob consulta', provider: 'configured' }); } const ownDelivery = settings.carriers?.ownDelivery || {}; if (!isAriana && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) { const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []); if (own.available) options.push({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }); } options.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9)); const cheapest = options.find(o => Number.isFinite(Number(o.price))) || null; const montagemCost = Number((productPrice * Number(settings.montagemPercent || 0.12)).toFixed(2)); return { ok: true, options, cheapest, montagemCost, context: { sellerDetected: sellerCtx.raw || null, isAriana, isSNDigital, destinationCity: location.city || null, destinationState: location.state || null, destinationCep: destinationCep || null, locationSource: location.source, distanceKm, weightKg, maxDimensionCm }, settingsUsed: { montagemPercent: settings.montagemPercent, correios: settings.correios || {}, businessRules: settings.businessRules || {}, carriers: settings.carriers || {} } }; }
+async function calculateShipping(body = {}) {
+  const settings = await getShippingSettings();
+  const businessRules = settings.businessRules || {};
+  const arianaRule = businessRules.arianaMoveis || {};
+  const snRule = businessRules.snDigital || {};
+  const rodocapRule = businessRules.rodocap || {};
+  const weightKg = getBodyWeightKg(body, settings);
+  const maxDimensionCm = getBodyMaxDimensionCm(body, settings);
+  const productPrice = Number(body.productPrice || body.price || body.valorNota || body.invoiceValue || body.subtotal || 0);
+  const destinationCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
+  const sellerCtx = getSellerContext(body);
+  const location = await resolveDestinationLocation(body);
+  const originCep = normalizeCepValue(settings?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || '');
+  const inferredDistanceKm = await getDistanceKm(originCep, destinationCep);
+  const distanceKm = Number(body.distanceKm || body.km || inferredDistanceKm || 0);
+  const options = [];
+  const isAriana = body.shippingRule === 'ariana' || sellerCtx.isAriana;
+  const isSNDigital = body.shippingRule === 'sn_digital' || sellerCtx.isSNDigital;
+
+  const hasArianaFree = isAriana && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
+  if (hasArianaFree) {
+    options.push(buildManualShippingOption({
+      service: 'ariana_free_local',
+      label: arianaRule.label || 'Ariana Móveis',
+      price: 0,
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
+      metadata: { rule: 'ariana_free_local', cep: destinationCep }
+    }));
+  }
+
+  if (isSNDigital && snRule.enabled !== false && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
+    options.push(buildManualShippingOption({
+      service: 'sn_digital_ate_40km',
+      label: snRule.label || 'SN Digital',
+      price: Number(snRule.priceTier1 || 120),
+      prazo: snRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `SN Digital até ${Number(snRule.maxKmTier1 || 40)} km.`,
+      metadata: { rule: 'sn_digital_ate_40km', distanceKm }
+    }));
+  }
+  if (isSNDigital && snRule.enabled !== false && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
+    options.push(buildManualShippingOption({
+      service: 'sn_digital_40_70km',
+      label: snRule.label || 'SN Digital',
+      price: Number(snRule.priceTier2 || 190),
+      prazo: snRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `SN Digital de ${Number(snRule.maxKmTier1 || 40)} até ${Number(snRule.maxKmTier2 || 70)} km.`,
+      metadata: { rule: 'sn_digital_40_70km', distanceKm }
+    }));
+  }
+  if (isSNDigital && rodocapRule.enabled !== false && distanceKm > Number(rodocapRule.minKmExclusive || 70)) {
+    const allowedCity = isRodocapCityAllowed(location.city, rodocapRule);
+    if (allowedCity) {
+      const rodocapPrice = Number((productPrice * Number(rodocapRule.percentOfInvoice || 0.12)).toFixed(2));
+      options.push(buildManualShippingOption({
+        service: 'rodocap_12_percent',
+        label: rodocapRule.label || 'Rodocap',
+        price: rodocapPrice,
+        prazo: rodocapRule.prazoPadrao || 'sob consulta',
+        provider: 'configured',
+        details: `Rodocap acima de ${Number(rodocapRule.minKmExclusive || 70)} km: 12% do valor da nota para cidades atendidas.`,
+        metadata: { rule: 'rodocap_12_percent', distanceKm, destinationCity: location.city, destinationState: location.state, locationSource: location.source }
+      }));
+    } else {
+      options.push({
+        service: 'rodocap_unavailable_city',
+        label: rodocapRule.label || 'Rodocap',
+        unavailable: true,
+        provider: 'configured',
+        error: location.city ? `Rodocap não atende a cidade ${location.city}.` : 'Rodocap depende da cidade do destino e essa cidade não foi identificada.',
+        metadata: { rule: 'rodocap_city_check', destinationCity: location.city || null, destinationState: location.state || null, destinationCep: destinationCep || null, locationSource: location.source }
+      });
+    }
+  }
+
+  const correios = settings.carriers?.correios || {};
+  const correiosAllowed = !hasArianaFree && correios.enabled && weightKg > 0 && weightKg <= Number(correios.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(correios.maxDimensionCm || 100);
+  if (correiosAllowed) {
+    try {
+      const quoted = await quoteCorreios(body, settings);
+      if (Array.isArray(quoted.quotes)) {
+        options.push(...quoted.quotes
+          .map(q => ({
+            service: q.service,
+            label: q.label || q.name || 'Correios',
+            price: Number(q.price),
+            prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s)` : null),
+            provider: 'correios',
+            raw: q.raw || null
+          }))
+          .filter(q => Number.isFinite(q.price) && q.price > 0));
+      }
+    } catch (error) {
+      options.push({ service: 'correios_error', label: 'Correios', unavailable: true, error: error.message });
+    }
+  } else if (!hasArianaFree) {
+    options.push({ service: 'correios_unavailable_limits', label: 'Correios', unavailable: true, provider: 'correios', error: `Correios disponíveis somente até ${Number(correios.maxWeightKg || 30)}kg e até ${Number(correios.maxDimensionCm || 100)}cm no maior lado.`, metadata: { weightKg, maxDimensionCm } });
+  }
+
+  const totalExpress = settings.carriers?.totalExpress || {};
+  if (!hasArianaFree && totalExpress.enabled && weightKg > 0 && weightKg <= Number(totalExpress.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(totalExpress.maxDimensionCm || 110)) {
+    const base = Number(settings.totalExpressBasePrice || 0);
+    if (base > 0) options.push({ service: 'total_express', label: 'Total Express', price: base, prazo: settings.totalExpressPrazo || 'sob consulta', provider: 'configured' });
+  }
+
+  const ownDelivery = settings.carriers?.ownDelivery || {};
+  if (!hasArianaFree && !isAriana && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
+    const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []);
+    if (own.available) options.push({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' });
+  }
+
+  options.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
+  const cheapest = options.find(o => Number.isFinite(Number(o.price))) || null;
+  const montagemCost = Number((productPrice * Number(settings.montagemPercent || 0.12)).toFixed(2));
+  return {
+    ok: true,
+    options,
+    cheapest,
+    montagemCost,
+    context: {
+      sellerDetected: sellerCtx.raw || null,
+      isAriana,
+      isSNDigital,
+      destinationCity: location.city || null,
+      destinationState: location.state || null,
+      destinationCep: destinationCep || null,
+      locationSource: location.source,
+      distanceKm,
+      weightKg,
+      maxDimensionCm
+    },
+    settingsUsed: {
+      montagemPercent: settings.montagemPercent,
+      correios: settings.correios || {},
+      businessRules: settings.businessRules || {},
+      carriers: settings.carriers || {}
+    }
+  };
+}
 async function buildMercadoPagoHeaders() { const settings = await getPaymentsSettings(); const accessToken = settings.mercadopago?.accessToken || process.env.MP_ACCESS_TOKEN || ''; if (!accessToken) throw new Error('Mercado Pago access token não configurado.'); return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }; }
 async function createMercadoPagoPayment(payload) { const headers = await buildMercadoPagoHeaders(); const idempotencyKey = uid('mp'); const response = await axios.post('https://api.mercadopago.com/v1/payments', payload, { headers: { ...headers, 'X-Idempotency-Key': idempotencyKey }, timeout: 30000, validateStatus: () => true }); return { response, idempotencyKey }; }
 async function createPagarmeOrder(payload) { const settings = await getPaymentsSettings(); const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || ''; const endpoint = settings.pagarme?.endpoint || 'https://api.pagar.me/core/v5'; if (!apiKey) throw new Error('Pagar.me API key não configurada.'); return axios.post(`${endpoint}/orders`, payload, { auth: { username: apiKey, password: '' }, headers: { 'Content-Type': 'application/json' }, timeout: 30000, validateStatus: () => true }); }
@@ -911,6 +1146,8 @@ app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(
 app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
+app.post('/api/shipping/logistics/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' }); } });
+app.post('/shipping/logistics/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' }); } });
 app.get('/api/admin/shipping/rules', adminRequired, async (_req, res) => res.json({ ok: true, settings: await getShippingSettings() }));
 app.post('/api/admin/shipping/rules', adminRequired, async (req, res) => res.json({ ok: true, settings: await saveShippingSettings(req.body || {}, String(req.user._id)) }));
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || '' }); });
