@@ -1804,192 +1804,120 @@ function updateClientHeaderUI(user) {
             };
         }
 
-        function normalizeShippingQuoteOption(q, fallbackRaw = null) {
-            if (!q || typeof q !== "object") return null;
-            const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
-            if (!Number.isFinite(price)) return null;
-            return {
-                service: q.service || q.id || q.code || q.name || "shipping",
-                name: q.name || q.label || q.carrier || q.provider || q.service || "Frete",
-                label: q.label || q.name || q.carrier || q.provider || q.service || "Frete",
-                price,
-                effectivePrice: price,
-                deadlineDays: q.deadlineDays ?? q.deliveryDays ?? q.prazoDias ?? null,
-                prazo: q.prazo || q.deadlineText || null,
-                provider: q.provider || q.carrier || null,
-                raw: fallbackRaw || q
-            };
-        }
 
-        function extractShippingQuotesFromResponse(data) {
-            if (!data || typeof data !== "object") return [];
-            if (Array.isArray(data.quotes) && data.quotes.length) {
-                return data.quotes.map((q) => normalizeShippingQuoteOption(q, data)).filter(Boolean);
-            }
-            if (Array.isArray(data.options) && data.options.length) {
-                return data.options.filter((opt) => !opt?.unavailable).map((opt) => normalizeShippingQuoteOption(opt, data)).filter(Boolean);
-            }
-            if (data.cheapest && typeof data.cheapest === "object") {
-                const one = normalizeShippingQuoteOption(data.cheapest, data);
-                return one ? [one] : [];
-            }
-            if (data.quote && typeof data.quote === "object") {
-                const one = normalizeShippingQuoteOption(data.quote, data);
-                return one ? [one] : [];
-            }
-            if (data.ok && (data.price != null || data.effectivePrice != null || data.valor != null)) {
-                const one = normalizeShippingQuoteOption(data, data);
-                return one ? [one] : [];
-            }
-            return [];
-        }
+function normalizeQuoteOption(q, raw) {
+    if (!q || typeof q !== 'object' || q.unavailable) return null;
+    const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
+    if (!Number.isFinite(price)) return null;
+    const deadlineDays = Number(q.deadlineDays ?? q.prazoDias ?? q.prazoEntrega ?? q.deadline ?? 0) || null;
+    return {
+        service: q.service || q.coProduto || q.name || q.label || 'frete',
+        name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
+        price,
+        deadlineDays,
+        prazo: q.prazo || (deadlineDays ? `${deadlineDays} dia(s)` : null),
+        raw: raw || q
+    };
+}
 
-        async function quoteCorreios(cepDestino) {
-            const apiBase = getApiBaseUrl();
-            if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
-            const ship = pickProductShippingData();
+async function quoteUnifiedShipping(cepDestino, quantity) {
+    const apiBase = getApiBaseUrl();
+    if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
+    const ship = pickProductShippingData();
+    const qty = Math.max(1, Number(quantity || 1) || 1);
+    const cep = sanitizeCep(cepDestino);
+    const unitPrice = safeNumber((productData && (productData.price ?? productData.preco)), 0);
+    const payload = {
+        cepDestino: cep,
+        destinationCep: cep,
+        cep,
+        pesoKg: ship.pesoKg,
+        weightKg: ship.pesoKg,
+        productPrice: unitPrice * qty,
+        invoiceValue: unitPrice * qty,
+        valorNota: unitPrice * qty,
+        sellerId: productData?.sellerId || null,
+        sellerName: productData?.sellerName || productData?.soldBy || null,
+        shippingRule: isArianaProduct(productData) ? 'ariana' : (isSNDigitalProduct(productData) ? 'sn_digital' : undefined),
+        isArianaOrder: isArianaProduct(productData),
+        quantity: qty,
+        items: [{
+            id: productData?._id || productData?.id || null,
+            productId: productData?._id || productData?.id || null,
+            name: productData?.name || productData?.nome || 'Produto',
+            sellerId: productData?.sellerId || null,
+            sellerName: productData?.sellerName || productData?.soldBy || null,
+            quantity: qty,
+            qty,
+            unitPrice,
+            totalPrice: unitPrice * qty,
+            pesoKg: ship.pesoKg,
+            comprimentoCm: ship.comprimento || null,
+            larguraCm: ship.largura || null,
+            alturaCm: ship.altura || null,
+        }],
+    };
+    if (ship.comprimento) payload.comprimento = ship.comprimento;
+    if (ship.largura) payload.largura = ship.largura;
+    if (ship.altura) payload.altura = ship.altura;
 
-            const payload = {
-                cepDestino: sanitizeCep(cepDestino),
-                destinationCep: sanitizeCep(cepDestino),
-                cep: sanitizeCep(cepDestino),
-                pesoKg: ship.pesoKg,
-                weightKg: ship.pesoKg,
-                sellerId: productData?.sellerId || null,
-                sellerName: productData?.sellerName || productData?.soldBy || null,
-                shippingRule: isArianaProduct(productData) ? 'ariana' : (isSNDigitalProduct(productData) ? 'sn_digital' : undefined),
-                productPrice: safeNumber((productData && (productData.price ?? productData.preco)), 0),
-                invoiceValue: safeNumber((productData && (productData.price ?? productData.preco)), 0),
-                isArianaOrder: isArianaProduct(productData),
-            };
+    const endpoints = [
+        `${apiBase}/shipping/quote`,
+        `${apiBase}/shipping/calculate`,
+        `${apiBase}/shipping/logistics/quote`,
+        `${apiBase}/shipping/correios/quote`,
+    ];
 
-            // só envia dimensões se tiver pelo menos UMA (a API completa as faltantes)
-            const hasAnyDim = ship.comprimento || ship.largura || ship.altura;
-            if (hasAnyDim) {
-                if (ship.comprimento) payload.comprimento = ship.comprimento;
-                if (ship.largura) payload.largura = ship.largura;
-                if (ship.altura) payload.altura = ship.altura;
-            }
-
-            const resp = await fetch(`${apiBase}/shipping/correios/quote`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+    let mergedQuotes = [];
+    let errors = [];
+    let lastError = '';
+    for (const endpoint of endpoints) {
+        try {
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
-
             const data = await resp.json().catch(() => ({}));
-            if (!resp.ok || !data || data.ok !== true) {
-                const msg = (data && (data.error || data.details)) ? `${data.error || data.details}` : `Erro HTTP ${resp.status}`;
-                throw new Error(msg);
+            if (!resp.ok) {
+                lastError = data?.error || data?.message || `HTTP ${resp.status}`;
+                continue;
             }
-            return data;
-        }
-
-        
-        async function quoteLogistics(cepDestino, quantity) {
-            const apiBase = getApiBaseUrl();
-            if (!apiBase) throw new Error('Cotação online desativada no modo seguro de desenvolvimento.');
-            const ship = pickProductShippingData();
-            const qty = Math.max(1, Number(quantity || 1) || 1);
-            const cep = sanitizeCep(cepDestino);
-
-            const unitPrice = safeNumber((productData && (productData.price ?? productData.preco)), 0);
-
-            const payload = {
-                cepDestino: cep,
-                destinationCep: cep,
-                cep,
-                enableOwnDelivery: true,
-                margin: 0.10,
-                sellerId: productData?.sellerId || null,
-                sellerName: productData?.sellerName || productData?.soldBy || null,
-                shippingRule: isArianaProduct(productData) ? 'ariana' : (isSNDigitalProduct(productData) ? 'sn_digital' : undefined),
-                subtotal: unitPrice * qty,
-                total: unitPrice * qty,
-                invoiceValue: unitPrice * qty,
-                valorNota: unitPrice * qty,
-                items: [{
-                    id: productData?._id || productData?.id || null,
-                    productId: productData?._id || productData?.id || null,
-                    name: productData?.name || productData?.nome || 'Produto',
-                    sellerId: productData?.sellerId || null,
-                    sellerName: productData?.sellerName || productData?.soldBy || null,
-                    quantity: qty,
-                    qty: qty,
-                    unitPrice,
-                    totalPrice: unitPrice * qty,
-                    pesoKg: ship.pesoKg,
-                    alturaCm: ship.altura,
-                    larguraCm: ship.largura,
-                    comprimentoCm: ship.comprimento
-                }],
-            };
-
-            const endpoints = [
-                `${apiBase}/shipping/logistics/quote`,
-                `${apiBase}/shipping/quote`,
-                `${apiBase}/shipping/calculate`
-            ];
-
-            let lastMessage = '';
-            for (const endpoint of endpoints) {
-                try {
-                    const resp = await fetch(endpoint, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload),
-                    });
-
-                    let data = null;
-                    try { data = await resp.json(); } catch (_) { data = null; }
-
-                    const quotes = extractShippingQuotesFromResponse(data);
-                    if (resp.ok && quotes.length) {
-                        return { quotes, errors: [] };
-                    }
-
-                    lastMessage = (data && (data.detail || data.error || data.message)) ? (data.detail || data.error || data.message) : `HTTP ${resp.status}`;
-                } catch (error) {
-                    lastMessage = String(error?.message || error || 'Falha ao consultar logística');
-                }
+            const fromOptions = Array.isArray(data?.options) ? data.options.map((q) => normalizeQuoteOption(q, data)).filter(Boolean) : [];
+            const fromQuotes = Array.isArray(data?.quotes) ? data.quotes.map((q) => normalizeQuoteOption(q, data)).filter(Boolean) : [];
+            const fromCheapest = data?.cheapest ? [normalizeQuoteOption(data.cheapest, data)].filter(Boolean) : [];
+            const fromQuote = data?.quote ? [normalizeQuoteOption(data.quote, data)].filter(Boolean) : [];
+            const joined = [...fromOptions, ...fromQuotes, ...fromCheapest, ...fromQuote];
+            if (joined.length) mergedQuotes.push(...joined);
+            if (Array.isArray(data?.errors)) {
+                errors.push(...data.errors.map((e) => ({ service: e.service || 'Frete', name: e.name || e.service || 'Frete', message: e.message || e.error || 'Indisponível' })));
             }
-
-            return { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: lastMessage || "Falha ao consultar logística" }] };
+        } catch (err) {
+            lastError = err?.message || String(err || '');
         }
+    }
+    const byKey = new Map();
+    for (const q of mergedQuotes) {
+        const key = `${q.service}__${q.name}__${q.price}`;
+        if (!byKey.has(key)) byKey.set(key, q);
+    }
+    const quotes = Array.from(byKey.values()).sort((a, b) => (Number(a.price) || 9e9) - (Number(b.price) || 9e9));
+    if (!quotes.length && lastError && !errors.length) {
+        errors.push({ service: 'FRETE', name: 'Frete', message: lastError });
+    }
+    return { quotes, errors };
+}
 
-        async function quoteAllShipping(cepDestino, quantity) {
-            const cep = sanitizeCep(cepDestino);
-            const qty = Math.max(1, Number(quantity || 1) || 1);
-
-            const [corr, logi] = await Promise.allSettled([
-                quoteCorreios(cep),
-                quoteLogistics(cep, qty),
-            ]);
-
-            const corrRaw = corr.status === "fulfilled" ? corr.value : null;
-            const corrQuotes = extractShippingQuotesFromResponse(corrRaw);
-            const corrErrors = corr.status === "fulfilled"
-                ? (corrQuotes.length ? [] : [{ service: "Correios", name: "Correios", message: corrRaw?.detail || corrRaw?.error || corrRaw?.message || "Sem opções nos Correios" }])
-                : [{ service: "Correios", name: "Correios", message: String(corr.reason?.message || corr.reason || "Falha ao consultar Correios") }];
-
-            const logiVal = logi.status === "fulfilled"
-                ? logi.value
-                : { quotes: [], errors: [{ service: "LOGISTICA", name: "Logística", message: String(logi.reason?.message || logi.reason || "Falha ao consultar logística") }] };
-
-            return {
-                quotes: [...corrQuotes, ...(logiVal.quotes || [])],
-                errors: [...corrErrors, ...(logiVal.errors || [])],
-            };
-        }
+async function quoteAllShipping(cepDestino, quantity) {
+    return quoteUnifiedShipping(cepDestino, quantity);
+}
 
 function renderShippingQuotes(result, cep) {
             const shippingResult = document.getElementById('shipping-result');
             const fretePriceEl = document.getElementById('frete-price');
             if (!shippingResult || !fretePriceEl) return;
 
-            const quotes = (Array.isArray(result.quotes) ? result.quotes : extractShippingQuotesFromResponse(result))
-                .map((q) => normalizeShippingQuoteOption(q, result))
-                .filter(Boolean);
+            const quotes = Array.isArray(result.quotes) ? result.quotes : [];
             const errors = Array.isArray(result.errors) ? result.errors : [];
 
             if (!quotes.length && !errors.length) {
@@ -1998,6 +1926,7 @@ function renderShippingQuotes(result, cep) {
                 return;
             }
 
+            // Ordena por menor preço
             quotes.sort((a, b) => (Number(a.price) || 9e9) - (Number(b.price) || 9e9));
 
             const makeOption = (q, idx) => {
@@ -2117,11 +2046,8 @@ function renderShippingQuotes(result, cep) {
             // tenta restaurar seleção anterior
             try {
                 const saved = JSON.parse(localStorage.getItem("ariana_selected_shipping") || "null");
-                const savedCep = sanitizeCep(saved?.cepDestino || saved?.cep || "");
-                const savedPrice = Number(saved?.effectivePrice ?? saved?.quotedPrice ?? saved?.price ?? 0);
-                if (savedCep && Number.isFinite(savedPrice) && savedPrice >= 0) {
-                    fretePriceEl.textContent = savedPrice === 0 ? "Grátis" : formatCurrency(savedPrice);
-                    cepInput.value = savedCep.replace(/^(\d{5})(\d)/, '$1-$2');
+                if (saved && saved.cepDestino && saved.price) {
+                    fretePriceEl.textContent = formatCurrency(Number(saved.price) || 0);
                 }
             } catch (_) {}
         }

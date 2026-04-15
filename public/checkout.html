@@ -690,173 +690,149 @@
       return true;
     }
 
-    function buildCheckoutShippingItemsPayload() {
-      return (Array.isArray(cart) ? cart : []).map((it) => {
-        const qty = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1;
-        const price = safeNumber(it?.price ?? it?.valor ?? 0);
-        return {
-          id: it?.id || it?.productId || it?.produtoId || null,
-          productId: it?.id || it?.productId || it?.produtoId || null,
-          name: it?.name || it?.title || 'Produto',
-          sellerId: it?.sellerId || 'admin',
-          sellerName: it?.sellerName || 'Ariana Móveis',
-          quantity: qty,
-          qty: qty,
-          unitPrice: price,
-          totalPrice: price * qty,
-          pesoKg: Number(it?.pesoKg ?? 0) || 0,
-          alturaCm: Number(it?.alturaCm ?? 0) || 0,
-          larguraCm: Number(it?.larguraCm ?? 0) || 0,
-          comprimentoCm: Number(it?.comprimentoCm ?? 0) || 0
-        };
+
+function normalizeCheckoutShippingOption(q, raw = null) {
+  if (!q || typeof q !== 'object' || q.unavailable) return null;
+  const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
+  if (!Number.isFinite(price)) return null;
+  return {
+    provider: q.provider || q.carrier || 'shipping',
+    price,
+    service: q.service || q.name || q.label || 'Frete',
+    name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
+    deadlineDays: Number(q.deadlineDays ?? q.prazoDias ?? q.prazoEntrega ?? q.deadline ?? 0) || null,
+    raw: raw || q,
+  };
+}
+
+async function quoteShippingForCep(cepDestino) {
+  await loadSettings();
+  await enrichCartShipping();
+
+  const pkg = computePackage();
+  const cleanCep = String(cepDestino || '').replace(/\D/g, '');
+  const subtotal = computeCartTotal();
+  const payload = {
+    cepDestino: cleanCep,
+    destinationCep: cleanCep,
+    cep: cleanCep,
+    subtotal,
+    total: subtotal,
+    invoiceValue: subtotal,
+    valorNota: subtotal,
+    pesoKg: pkg.pesoKg,
+    weightKg: pkg.pesoKg,
+    alturaCm: pkg.alturaCm,
+    larguraCm: pkg.larguraCm,
+    comprimentoCm: pkg.comprimentoCm,
+    isArianaOrder: isArianaOrderFromCartItems(cart),
+    items: (Array.isArray(cart) ? cart : []).map((it) => ({
+      id: it.id || it.productId || null,
+      productId: it.id || it.productId || null,
+      name: it.name || 'Produto',
+      sellerId: it.sellerId || 'admin',
+      sellerName: it.sellerName || 'Ariana Móveis',
+      quantity: safeNumber(it.quantity ?? 1),
+      qty: safeNumber(it.quantity ?? 1),
+      unitPrice: safeNumber(it.price ?? 0),
+      totalPrice: safeNumber(it.price ?? 0) * safeNumber(it.quantity ?? 1),
+      pesoKg: safeNumber(it.pesoKg ?? it.weightKg ?? 0),
+      alturaCm: safeNumber(it.alturaCm ?? it.heightCm ?? 0),
+      larguraCm: safeNumber(it.larguraCm ?? it.widthCm ?? 0),
+      comprimentoCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? 0),
+    }))
+  };
+
+  const endpoints = [
+    `${getApiBaseUrl()}/shipping/quote`,
+    `${getApiBaseUrl()}/shipping/calculate`,
+    `${getApiBaseUrl()}/shipping/logistics/quote`,
+    `${getApiBaseUrl()}/shipping/correios/quote`,
+  ];
+
+  let best = null;
+  let full = null;
+  let lastError = '';
+  for (const endpoint of endpoints) {
+    try {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        lastError = data?.error || data?.message || `HTTP ${r.status}`;
+        continue;
+      }
+      const candidates = [
+        ...(Array.isArray(data?.options) ? data.options : []),
+        ...(Array.isArray(data?.quotes) ? data.quotes : []),
+        ...(data?.cheapest ? [data.cheapest] : []),
+        ...(data?.quote ? [data.quote] : []),
+      ].map((q) => normalizeCheckoutShippingOption(q, data)).filter(Boolean);
+      if (candidates.length) {
+        candidates.sort((a, b) => a.price - b.price);
+        best = candidates[0];
+        full = data;
+        break;
+      }
+      lastError = data?.error || data?.message || 'Nenhuma opção de frete disponível para este CEP.';
+    } catch (err) {
+      lastError = err?.message || String(err || '');
     }
+  }
 
-    function normalizeCheckoutShippingOption(q, fallbackRaw = null) {
-      if (!q || typeof q !== 'object') return null;
-      const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
-      if (!Number.isFinite(price)) return null;
-      return {
-        provider: q.provider || q.carrier || null,
-        price,
-        effectivePrice: price,
-        service: q.service || q.id || q.code || null,
-        name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
-        deadlineDays: q.deadlineDays ?? q.deliveryDays ?? q.prazoDias ?? null,
-        raw: fallbackRaw || q
-      };
-    }
+  if (!best) throw new Error(lastError || 'Falha ao cotar frete');
 
-    function extractCheckoutBestShipping(data) {
-      if (!data || typeof data !== 'object') return null;
-      if (data.cheapest && typeof data.cheapest === 'object') {
-        return normalizeCheckoutShippingOption(data.cheapest, data);
-      }
-      if (Array.isArray(data.options) && data.options.length) {
-        const opts = data.options.filter((opt) => !opt?.unavailable).map((opt) => normalizeCheckoutShippingOption(opt, data)).filter(Boolean);
-        if (opts.length) return opts.reduce((best, cur) => cur.price < best.price ? cur : best);
-      }
-      if (Array.isArray(data.quotes) && data.quotes.length) {
-        const opts = data.quotes.map((opt) => normalizeCheckoutShippingOption(opt, data)).filter(Boolean);
-        if (opts.length) return opts.reduce((best, cur) => cur.price < best.price ? cur : best);
-      }
-      if (data.quote && typeof data.quote === 'object') {
-        return normalizeCheckoutShippingOption(data.quote, data);
-      }
-      if (data.ok && (data.price != null || data.effectivePrice != null)) {
-        return normalizeCheckoutShippingOption(data, data);
-      }
-      return null;
-    }
+  shippingQuote = {
+    provider: best.provider,
+    price: Number(best.price) || 0,
+    service: best.service || null,
+    name: best.name || best.service || 'Frete',
+    deadlineDays: best.deadlineDays ?? null,
+    raw: best.raw || best,
+    pkg,
+    cepDestino: cleanCep,
+    request: payload,
+    full: full
+  };
 
-    async function quoteCorreiosForCep(cepDestino) {
-      await loadSettings();
-      await enrichCartShipping();
+  try {
+    localStorage.setItem('ariana_selected_shipping', JSON.stringify({
+      cep: cleanCep,
+      service: shippingQuote.service,
+      name: shippingQuote.name,
+      quotedPrice: shippingQuote.price,
+      effectivePrice: shippingQuote.price,
+      updatedAt: Date.now(),
+      raw: full
+    }));
+  } catch (_) {}
 
-      const cep = String(cepDestino || '').replace(/\D/g, '');
-      const pkg = computePackage();
-      const subtotal = computeCartTotal();
-
-      const payload = {
-        cepDestino: cep,
-        destinationCep: cep,
-        cep,
-        subtotal,
-        total: subtotal,
-        invoiceValue: subtotal,
-        valorNota: subtotal,
-        pesoKg: pkg.pesoKg,
-        weightKg: pkg.pesoKg,
-        alturaCm: pkg.alturaCm,
-        heightCm: pkg.alturaCm,
-        larguraCm: pkg.larguraCm,
-        widthCm: pkg.larguraCm,
-        comprimentoCm: pkg.comprimentoCm,
-        lengthCm: pkg.comprimentoCm,
-        items: buildCheckoutShippingItemsPayload(),
-        isArianaOrder: isArianaOrderFromCartItems(cart)
-      };
-
-      const endpoints = [
-        `${getApiBaseUrl()}/shipping/quote`,
-        `${getApiBaseUrl()}/shipping/calculate`,
-        `${getApiBaseUrl()}/shipping/correios/quote`
-      ];
-
-      let lastError = 'Falha ao cotar frete';
-      for (const endpoint of endpoints) {
-        try {
-          const r = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await r.json().catch(() => ({}));
-          const best = extractCheckoutBestShipping(data);
-
-          if (r.ok && best) {
-            shippingQuote = {
-              provider: best.provider || (endpoint.includes('correios') ? 'correios' : 'shipping'),
-              price: Number(best.price) || 0,
-              service: best.service || null,
-              name: best.name || best.service || 'Frete',
-              deadlineDays: best.deadlineDays ?? null,
-              raw: best.raw || best,
-              pkg,
-              cepDestino: payload.cepDestino,
-              request: payload,
-              full: data,
-              effectivePrice: Number(best.effectivePrice ?? best.price ?? 0) || 0
-            };
-
-            try {
-              localStorage.setItem('ariana_selected_shipping', JSON.stringify({
-                cep: payload.cepDestino,
-                service: shippingQuote.service,
-                name: shippingQuote.name,
-                quotedPrice: shippingQuote.price,
-                effectivePrice: shippingQuote.effectivePrice,
-                updatedAt: Date.now(),
-                raw: data
-              }));
-            } catch (_) {}
-
-            return shippingQuote;
-          }
-
-          lastError = data?.detail || data?.errors?.[0]?.message || data?.details?.msgs?.[0] || data?.error || data?.message || `HTTP ${r.status}`;
-        } catch (error) {
-          lastError = String(error?.message || error || 'Falha ao cotar frete');
-        }
-      }
-
-      throw new Error(lastError);
-    }
+  return shippingQuote;
+}
 
 async function quoteShippingForSelectedAddress(addrObj) {
-      await loadSettings();
-
-      const cep = String(addrObj?.cep || addrObj?.zip || "").replace(/\D/g,"");
-
-      try {
-        const saved = JSON.parse(localStorage.getItem("ariana_selected_shipping") || "null");
-        if (saved && String(saved.cep || "") === cep && Number.isFinite(Number(saved.effectivePrice ?? saved.quotedPrice))) {
-          shippingQuote = {
-            provider: "correios",
-            price: Number(saved.quotedPrice ?? 0),
-            service: saved.service || null,
-            name: saved.name || saved.service || "Correios",
-            cepDestino: cep,
-            effectivePrice: Number(saved.effectivePrice ?? saved.quotedPrice ?? 0),
-            full: saved.raw || null
-          };
-          return shippingQuote;
-        }
-      } catch (_) {}
-
-      return quoteCorreiosForCep(cep);
+  await loadSettings();
+  const cep = String(addrObj?.cep || addrObj?.zip || '').replace(/\D/g,'');
+  try {
+    const saved = JSON.parse(localStorage.getItem('ariana_selected_shipping') || 'null');
+    if (saved && String(saved.cep || '') === cep && Number.isFinite(Number(saved.effectivePrice ?? saved.quotedPrice))) {
+      shippingQuote = {
+        provider: 'shipping',
+        price: Number(saved.quotedPrice ?? 0),
+        service: saved.service || null,
+        name: saved.name || saved.service || 'Frete',
+        cepDestino: cep,
+        effectivePrice: Number(saved.effectivePrice ?? saved.quotedPrice ?? 0),
+        full: saved.raw || null
+      };
+      return shippingQuote;
     }
+  } catch (_) {}
+  return quoteShippingForCep(cep);
+}
 
     function updateTotalsUI() {
       const products = computeCartTotal();
