@@ -384,57 +384,45 @@ async function uploadToCloudinary(req, res) {
     }
 
     if (!isCloudinaryConfigured()) {
-      try {
-        if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      } catch (_cleanupErr) {}
-      return res.status(500).json({
-        ok: false,
-        error: 'Cloudinary não configurado. Verifique CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET no .env'
-      });
+      if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     }
 
+    // Define a pasta e limpa o nome do produto para o link
     const targetFolder = buildCloudinaryFolder(req.body?.path || req.query?.path || 'geral');
+    const nomeOriginal = req.body.name || req.body.nome || 'produto';
+    
+    const slug = nomeOriginal
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
+    // Upload com o nome do produto + timestamp
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: targetFolder,
+      public_id: `${slug}-${Date.now()}`,
       resource_type: 'image',
-      use_filename: true,
-      unique_filename: true,
-      overwrite: false
+      overwrite: true
     });
 
-    try {
-      if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    } catch (_cleanupErr) {}
+    // Limpa o arquivo temporário do servidor
+    if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     return res.json({
       ok: true,
       url: result.secure_url,
-      imageUrl: result.secure_url,
-      downloadURL: result.secure_url,
-      absoluteUrl: result.secure_url,
-      filename: req.file.originalname || '',
-      path: result.public_id,
-      filePath: result.public_id,
-      fullPath: result.public_id,
       public_id: result.public_id,
-      width: result.width || null,
-      height: result.height || null,
-      format: result.format || null,
-      bytes: result.bytes || null
+      format: result.format
     });
   } catch (error) {
-    try {
-      if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    } catch (_cleanupErr) {}
-    console.error('Erro no upload Cloudinary:', error);
-    return res.status(500).json({
-      ok: false,
-      error: error?.message || 'Falha ao subir para a nuvem'
-    });
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    console.error('Erro no upload:', error);
+    return res.status(500).json({ ok: false, error: error.message });
   }
 }
-
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, tmpUploadsDir),
@@ -611,7 +599,9 @@ const SERVICE_NAMES = { '03298': 'PAC', '03328': 'SEDEX', '03220': 'SEDEX Hoje',
 let correiosTokenCache = { token: null, exp: 0 };
 function correiosCfg(settings = null) { const cfg = settings && settings.correios ? settings.correios : {}; return { user: envFirst('CORREIOS_USER'), pass: envFirst('CORREIOS_PASS'), cartao: envFirst('CORREIOS_CARTAO'), contrato: envFirst('CORREIOS_CONTRATO'), dr: envFirst('CORREIOS_DR') || '0', originCep: normalizeDigits(cfg.origemCep || envFirst('LOJA_ORIGEM_CEP')), services: (Array.isArray(cfg.servicos) && cfg.servicos.length ? cfg.servicos : parseServices(envFirst('CORREIOS_SERVICOS'))), pesoKgPadrao: Number(cfg.pesoKgPadrao || 1), alturaCmPadrao: Number(cfg.alturaCmPadrao || 10), larguraCmPadrao: Number(cfg.larguraCmPadrao || 15), comprimentoCmPadrao: Number(cfg.comprimentoCmPadrao || 20), valorDeclaradoPadrao: Number(cfg.valorDeclaradoPadrao || 0), tokenUrl: 'https://api.correios.com.br/token/v1/autentica/cartaopostagem', precoUrl: 'https://api.correios.com.br/preco/v1/nacional' }; }
 async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token não retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
-async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } quotes.push({ service: coProduto, label: SERVICE_NAMES[coProduto] || coProduto, name: SERVICE_NAMES[coProduto] || coProduto, price: pickPrice(item), prazo: pickDeadline(item) ? `${pickDeadline(item)} dia(s)` : null, deadlineDays: pickDeadline(item), raw: item }); } quotes.sort((a,b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9)); return { ok: true, quotes, errors, bestQuote: quotes[0] || null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: hasDims ? { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } : null, servicesRequested: cfg.services, limits: { maxWeightKg: Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30), maxSideCm: Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100) } } }; }
+async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
+      const resolvedPrazo = resolvedDeadlineDays ? `${resolvedDeadlineDays} dia(s) úteis` : ((coProduto === '03298') ? '3 a 7 dias úteis' : (coProduto === '03328' || coProduto === '03220') ? '1 a 3 dias úteis' : 'sob consulta');
+      quotes.push({ service: coProduto, label: SERVICE_NAMES[coProduto] || coProduto, name: SERVICE_NAMES[coProduto] || coProduto, price: pickPrice(item), prazo: resolvedPrazo, deadlineDays: resolvedDeadlineDays, raw: item }); } quotes.sort((a,b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9)); return { ok: true, quotes, errors, bestQuote: quotes[0] || null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: hasDims ? { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } : null, servicesRequested: cfg.services, limits: { maxWeightKg: Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30), maxSideCm: Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100) } } }; }
 const viaCepCache = new Map();
 const geoCache = new Map();
 
@@ -667,7 +657,26 @@ function calculateOwnDelivery(km, tiers = []) { const sorted = [...tiers].sort((
 function normalizeShippingText(value = '') { return String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase(); }
 function normalizeCepValue(value = '') { const digits = normalizeDigits(value); return digits.length === 8 ? digits : ''; }
 function cepInRange(cep, startCep, endCep) { const cepNum = Number(normalizeCepValue(cep)); const startNum = Number(normalizeCepValue(startCep)); const endNum = Number(normalizeCepValue(endCep)); if (!Number.isFinite(cepNum) || !Number.isFinite(startNum) || !Number.isFinite(endNum)) return false; return cepNum >= startNum && cepNum <= endNum; }
-function buildManualShippingOption({ service, label, price, prazo, provider = 'configured', details = null, metadata = null }) { return { service, label, price: Number(price || 0), prazo: prazo || null, provider, details: details || null, metadata: metadata || null }; }
+function parsePrazoToDeadlineDays(prazo = '') {
+  const str = String(prazo || '').trim();
+  if (!str) return null;
+  const matches = str.match(/\d+/g);
+  if (!matches || !matches.length) return null;
+  return Number(matches[matches.length - 1]) || null;
+}
+function buildManualShippingOption({ service, label, price, prazo, provider = 'configured', details = null, metadata = null, deadlineDays = null }) {
+  const parsedDeadline = Number(deadlineDays || parsePrazoToDeadlineDays(prazo || '0') || 0) || null;
+  return {
+    service,
+    label,
+    price: Number(price || 0),
+    prazo: prazo || null,
+    deadlineDays: parsedDeadline,
+    provider,
+    details: details || null,
+    metadata: metadata || null
+  };
+}
 function getBodyWeightKg(body = {}, settings = {}) {
   const direct = Number(body.weightKg || body.pesoKg || body.weight || 0);
   if (Number.isFinite(direct) && direct > 0) return direct;
@@ -732,7 +741,7 @@ async function calculateShipping(body = {}) {
   const options = [];
   const isAriana = body.shippingRule === 'ariana' || body.isArianaOrder === true || sellerCtx.isAriana;
   const isSNDigital = body.shippingRule === 'sn_digital' || sellerCtx.isSNDigital;
-  const usesArianaLogistics = isAriana || body.useArianaLogistics === true || body.enableArianaLogistics === true;
+  const usesArianaLogistics = isAriana || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.snDigital?.appliesToArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
 
   const hasArianaFree = isAriana && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
   if (hasArianaFree) {
@@ -743,7 +752,8 @@ async function calculateShipping(body = {}) {
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
       details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
-      metadata: { rule: 'ariana_free_local', cep: destinationCep }
+      metadata: { rule: 'ariana_free_local', cep: destinationCep },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
     }));
   }
 
@@ -755,7 +765,8 @@ async function calculateShipping(body = {}) {
       prazo: snRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
       details: `SN Digital até ${Number(snRule.maxKmTier1 || 40)} km.`,
-      metadata: { rule: 'sn_digital_ate_40km', distanceKm }
+      metadata: { rule: 'sn_digital_ate_40km', distanceKm },
+      deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
   if (usesArianaLogistics && snRule.enabled !== false && !hasArianaFree && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
@@ -766,7 +777,8 @@ async function calculateShipping(body = {}) {
       prazo: snRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
       details: `SN Digital de ${Number(snRule.maxKmTier1 || 40)} até ${Number(snRule.maxKmTier2 || 70)} km.`,
-      metadata: { rule: 'sn_digital_40_70km', distanceKm }
+      metadata: { rule: 'sn_digital_40_70km', distanceKm },
+      deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
   if (usesArianaLogistics && rodocapRule.enabled !== false && !hasArianaFree && distanceKm > Number(rodocapRule.minKmExclusive || 70)) {
@@ -780,7 +792,8 @@ async function calculateShipping(body = {}) {
         prazo: rodocapRule.prazoPadrao || 'sob consulta',
         provider: 'configured',
         details: `Rodocap acima de ${Number(rodocapRule.minKmExclusive || 70)} km: 12% do valor da nota para cidades atendidas.`,
-        metadata: { rule: 'rodocap_12_percent', distanceKm, destinationCity: location.city, destinationState: location.state, locationSource: location.source }
+        metadata: { rule: 'rodocap_12_percent', distanceKm, destinationCity: location.city, destinationState: location.state, locationSource: location.source },
+        deadlineDays: parsePrazoToDeadlineDays(rodocapRule.prazoPadrao || '')
       }));
     } else {
       options.push({
@@ -1148,8 +1161,56 @@ app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(
 app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
-app.post('/api/shipping/logistics/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' }); } });
-app.post('/shipping/logistics/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' }); } });
+app.post('/api/shipping/logistics/quote', async (req, res) => {
+  try {
+    const result = await calculateShipping(req.body || {});
+    const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
+      service: q.service,
+      label: q.label || q.name || 'Logística',
+      name: q.label || q.name || 'Logística',
+      price: Number(q.price || 0),
+      prazo: q.prazo || null,
+      deadlineDays: q.deadlineDays || null,
+      provider: q.provider || 'configured',
+      raw: q.raw || null,
+      metadata: q.metadata || null
+    })) : [];
+    const errors = Array.isArray(result?.options) ? result.options.filter((q) => q && q.unavailable).map((q) => ({
+      service: q.service || 'LOGISTICA',
+      name: q.label || 'Logística',
+      message: q.error || 'Indisponível',
+      metadata: q.metadata || null
+    })) : [];
+    return res.json({ ok: true, quotes, errors, bestQuote: quotes[0] || null, context: result?.context || null });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' });
+  }
+});
+app.post('/shipping/logistics/quote', async (req, res) => {
+  try {
+    const result = await calculateShipping(req.body || {});
+    const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
+      service: q.service,
+      label: q.label || q.name || 'Logística',
+      name: q.label || q.name || 'Logística',
+      price: Number(q.price || 0),
+      prazo: q.prazo || null,
+      deadlineDays: q.deadlineDays || null,
+      provider: q.provider || 'configured',
+      raw: q.raw || null,
+      metadata: q.metadata || null
+    })) : [];
+    const errors = Array.isArray(result?.options) ? result.options.filter((q) => q && q.unavailable).map((q) => ({
+      service: q.service || 'LOGISTICA',
+      name: q.label || 'Logística',
+      message: q.error || 'Indisponível',
+      metadata: q.metadata || null
+    })) : [];
+    return res.json({ ok: true, quotes, errors, bestQuote: quotes[0] || null, context: result?.context || null });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' });
+  }
+});
 app.get('/api/admin/shipping/rules', adminRequired, async (_req, res) => res.json({ ok: true, settings: await getShippingSettings() }));
 app.post('/api/admin/shipping/rules', adminRequired, async (req, res) => res.json({ ok: true, settings: await saveShippingSettings(req.body || {}, String(req.user._id)) }));
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || '' }); });
