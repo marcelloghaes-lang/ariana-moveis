@@ -1029,20 +1029,63 @@ async function quoteShippingForSelectedAddress(addrObj) {
       const uid = user?.uid || user?.id || "";
 
       if (Array.isArray(user?.addresses) && user.addresses.length) {
-        addressesCache = user.addresses.map((a, i) => ({ id: a.id || `address_${i}`, ...a }));
+        addressesCache = user.addresses.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
       } else if (user?.address && typeof user.address === "object") {
-        addressesCache = [{ id: user.address.id || "address_doc", ...user.address }];
+        addressesCache = [{ id: user.address.id || user.address._id || "address_doc", ...user.address }];
       }
 
-      if (!addressesCache.length && uid) {
-        try {
-          const data = await apiGet(`/users/${encodeURIComponent(uid)}/addresses`);
-          const items = Array.isArray(data) ? data : (data.items || data.addresses || []);
+      try {
+        const data = await apiGet(`/addresses`);
+        const items = Array.isArray(data) ? data : (data.items || data.addresses || []);
+        if (items.length) {
           addressesCache = items.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
-        } catch (_) {}
+        }
+      } catch (_) {
+        if (!addressesCache.length && uid) {
+          try {
+            const data = await apiGet(`/users/${encodeURIComponent(uid)}/addresses`);
+            const items = Array.isArray(data) ? data : (data.items || data.addresses || []);
+            addressesCache = items.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
+          } catch (_) {}
+        }
       }
 
       renderAddressSelect();
+      tryAutoSelectAddress();
+    }
+
+
+    function getStoredCheckoutAddressId() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('ariana_checkout_address') || 'null');
+        return saved?.id ? String(saved.id) : '';
+      } catch (_) { return ''; }
+    }
+
+    function persistCheckoutAddress(addr) {
+      if (!addr) return;
+      const normalized = normalizeAddress(addr);
+      try {
+        localStorage.setItem('ariana_checkout_address', JSON.stringify({
+          id: String(addr.id || addr._id || ''),
+          raw: addr,
+          normalized
+        }));
+      } catch (_) {}
+    }
+
+    function tryAutoSelectAddress() {
+      if (!Array.isArray(addressesCache) || !addressesCache.length) return;
+      const preferredId = getStoredCheckoutAddressId();
+      let addr = null;
+      if (preferredId) {
+        addr = addressesCache.find((a) => String(a.id || a._id || '') === preferredId) || null;
+      }
+      if (!addr) {
+        addr = addressesCache.find((a) => !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main)) || addressesCache[0];
+      }
+      const el = document.querySelector(`.addr-card[data-addr-id="${String(addr?.id || addr?._id || '')}"]`);
+      if (el && addr) setAddr(el, String(addr.id || addr._id || ''));
     }
 
     function renderAddressSelect() {
@@ -1096,6 +1139,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
       selectedAddrObj = normalizeAddress(addr);
       selectedAddrText = `${[selectedAddrObj.street, selectedAddrObj.number].filter(Boolean).join(", ")} - ${[selectedAddrObj.city, selectedAddrObj.state].filter(Boolean).join("/")}`.trim();
+      persistCheckoutAddress({ ...(addr || {}), id: addr.id || addr._id || addrId });
 
       try {
         const cep = String(selectedAddrObj.cep || '').replace(/\D/g,'');

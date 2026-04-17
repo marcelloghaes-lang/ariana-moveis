@@ -435,6 +435,40 @@ function selectAddress(cardElement) {
 }
 window.selectAddress = selectAddress;
 
+function getCheckoutMode() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('from') === 'checkout';
+}
+
+function getPreferredAddressId() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ariana_checkout_address') || 'null');
+    return saved?.id ? String(saved.id) : '';
+  } catch (_) { return ''; }
+}
+
+function saveCheckoutAddressSelection(addr) {
+  if (!addr) return;
+  try {
+    localStorage.setItem('ariana_checkout_address', JSON.stringify({
+      id: String(addr._id || addr.id || ''),
+      raw: addr
+    }));
+  } catch (_) {}
+}
+
+async function setPrimaryAddress(addr) {
+  const id = String(addr?._id || addr?.id || '');
+  if (!id) throw new Error('Endereço sem ID.');
+  const payload = { isDefault: true, default: true, principal: true, main: true, isPrimary: true };
+  try {
+    await apiPut(`/addresses/${id}`, payload);
+  } catch (_) {
+    await apiPost(`/addresses/${id}/set-default`, payload).catch(() => null);
+  }
+}
+
+
 function getStoredUser() {
   const sources = [
     localStorage.getItem('currentUser'),
@@ -570,7 +604,7 @@ async function loadAddresses() {
   const list = document.getElementById('lista-enderecos-cards');
   try {
     const addrs = await apiGet(`/addresses`);
-    currentAddresses = Array.isArray(addrs) ? addrs : [];
+    currentAddresses = Array.isArray(addrs) ? addrs : (addrs.items || addrs.addresses || []);
 
     if (!currentAddresses.length) {
       list.innerHTML = "<p class='text-gray-400 italic'>Nenhum endereço cadastrado.</p>";
@@ -578,21 +612,55 @@ async function loadAddresses() {
       return;
     }
 
-    list.innerHTML = currentAddresses.map((addr, index) => `
-      <div class="address-card" onclick="window.selectAddress(this)">
-        <button onclick="event.stopPropagation(); window.deleteAddr('${addr._id}', ${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+    const preferredId = getPreferredAddressId();
+    list.innerHTML = currentAddresses.map((addr, index) => {
+      const id = String(addr._id || addr.id || '');
+      const isPrimary = !!(addr.isDefault || addr.default || addr.isPrimary || addr.primary || addr.principal || addr.main);
+      const isSelected = preferredId && preferredId === id;
+      return `
+      <div class="address-card ${isSelected ? 'selected' : ''}" data-address-id="${id}" onclick="window.selectAddress(this)">
+        <button onclick="event.stopPropagation(); window.deleteAddr('${id}', ${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
           <i class="fas fa-trash"></i>
         </button>
         <h4 class="font-bold text-primary-blue uppercase">${addr.name || 'Endereço'}</h4>
-        <p class="text-sm text-gray-600">${addr.logradouro}, ${addr.numero}</p>
-        <p class="text-sm text-gray-500">${addr.cidade}/${addr.uf}</p>
+        <p class="text-sm text-gray-600">${addr.logradouro || ''}, ${addr.numero || ''}</p>
+        <p class="text-sm text-gray-500">${addr.bairro ? addr.bairro + ' • ' : ''}${addr.cidade || ''}/${addr.uf || ''} ${addr.cep ? '• CEP ' + formatCEP(addr.cep) : ''}</p>
+        ${isPrimary ? `<span class="inline-block mt-3 text-xs font-black px-2 py-1 rounded-full bg-blue-100 text-primary-blue">Principal</span>` : ``}
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button type="button" onclick="event.stopPropagation(); window.chooseAddressForCheckout('${id}')" class="px-3 py-2 rounded-lg border border-primary-blue text-primary-blue font-bold text-xs">Usar no checkout</button>
+          <button type="button" onclick="event.stopPropagation(); window.makePrimaryAddress('${id}')" class="px-3 py-2 rounded-lg border font-bold text-xs">${isPrimary ? 'Endereço principal' : 'Definir principal'}</button>
+        </div>
       </div>
-    `).join('');
+    `}).join('');
     applyProfileLocks();
   } catch (e) {
     list.innerHTML = "<p class='text-red-500'>Erro ao carregar endereços.</p>";
   }
 }
+
+window.chooseAddressForCheckout = function(id) {
+  const addr = currentAddresses.find(a => String(a._id || a.id || '') === String(id));
+  if (!addr) return;
+  saveCheckoutAddressSelection(addr);
+  displayMessage('Endereço selecionado para o checkout.', 'success');
+  document.querySelectorAll('.address-card').forEach(card => card.classList.toggle('selected', card.dataset.addressId === String(id)));
+  if (getCheckoutMode()) {
+    setTimeout(() => { window.location.href = 'checkout.html'; }, 300);
+  }
+};
+
+window.makePrimaryAddress = async function(id) {
+  const addr = currentAddresses.find(a => String(a._id || a.id || '') === String(id));
+  if (!addr) return;
+  try {
+    await setPrimaryAddress(addr);
+    saveCheckoutAddressSelection({ ...addr, isDefault: true, default: true, principal: true, main: true });
+    displayMessage('Endereço principal atualizado.', 'success');
+    await loadAddresses();
+  } catch (e) {
+    displayMessage(e?.message || 'Erro ao definir endereço principal.', 'error');
+  }
+};
 
 window.deleteAddr = async function(id, index) {
   if (!confirm("Excluir este endereço?")) return;
@@ -648,11 +716,16 @@ async function saveAddress(e) {
   };
 
   try {
-    await apiPost(`/addresses`, newAddr);
+    const saved = await apiPost(`/addresses`, newAddr);
+    const addrSaved = saved?.item || saved?.address || saved;
+    if (addrSaved && getCheckoutMode()) saveCheckoutAddressSelection(addrSaved);
     document.getElementById('modal-endereco').classList.add('hidden');
     document.getElementById('form-address').reset();
     displayMessage("Endereço salvo!");
-    loadAddresses();
+    await loadAddresses();
+    if (addrSaved && getCheckoutMode()) {
+      setTimeout(() => { window.location.href = 'checkout.html'; }, 300);
+    }
   } catch (e) { displayMessage("Erro ao salvar endereço", "error"); }
 }
 
@@ -693,6 +766,11 @@ async function init() {
   bindEvents();
   try {
     await Promise.all([loadProfile(), loadAddresses(), loadOrders()]);
+    const params = new URLSearchParams(window.location.search);
+    const initialTab = params.get('tab') || (getCheckoutMode() ? 'address' : 'dashboard');
+    switchTab(initialTab);
+    const backCheckout = document.getElementById('btn-back-checkout');
+    if (backCheckout && getCheckoutMode()) backCheckout.classList.remove('hidden');
     document.getElementById('loading-message').style.display = 'none';
     document.getElementById('dashboard-content').style.display = 'grid';
   } catch (e) {
