@@ -974,30 +974,58 @@ async function quoteShippingForSelectedAddress(addrObj) {
       return null;
     }
 
-    async function apiGet(path) {
-      const res = await fetch(`${getApiBaseUrl()}${path}`, {
-        headers: { "Content-Type": "application/json" }
-      });
-      if (!res.ok) throw new Error(`Erro GET ${path}`);
-      return res.json();
+
+    function getAuthToken() {
+      return (
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("customerToken") ||
+        localStorage.getItem("admin_token") ||
+        sessionStorage.getItem("token") ||
+        ""
+      );
     }
 
-    async function apiPost(path, payload) {
-      const res = await fetch(`${getApiBaseUrl()}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        let msg = "Erro ao salvar";
-        try {
-          const j = await res.json();
-          msg = j?.error || j?.message || msg;
-        } catch (_) {}
-        throw new Error(msg);
-      }
-      return res.json();
+    function getAuthHeaders() {
+      const token = getAuthToken();
+      return token
+        ? { "Content-Type": "application/json", "Authorization": "Bearer " + token }
+        : { "Content-Type": "application/json" };
     }
+
+
+    async function apiGet(path) {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) {
+    let msg = `Erro GET ${path}`;
+    try {
+      const j = await res.json();
+      msg = j?.error || j?.message || msg;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+    async function apiPost(path, payload) {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    let msg = "Erro ao salvar";
+    try {
+      const j = await res.json();
+      msg = j?.error || j?.message || msg;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
 
     async function bootAuthAndProfile() {
       const overlay = document.getElementById("auth-guard-overlay");
@@ -1021,6 +1049,9 @@ async function quoteShippingForSelectedAddress(addrObj) {
       };
 
       if (overlay) overlay.remove();
+      if (!getAuthToken()) {
+        console.warn("[checkout] usuário encontrado no storage, mas sem token. As rotas protegidas podem falhar.");
+      }
       return true;
     }
 
@@ -1093,7 +1124,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
       if (!container) return;
 
       if (addressesCache.length === 0) {
-        container.innerHTML = `<div class="col-span-full py-4 text-gray-500 italic">Nenhum endereço cadastrado.</div>`;
+        container.innerHTML = `<div class="col-span-full py-4 text-gray-500 italic">Nenhum endereço cadastrado. <a class="text-blue-600 underline font-semibold" href="minha_conta.html?tab=address&from=checkout">Clique aqui para cadastrar</a>.</div>`;
         return;
       }
 
