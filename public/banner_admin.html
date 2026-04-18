@@ -412,8 +412,6 @@ const $ = (q) => document.querySelector(q);
       const token = getAdminToken();
       return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
     }
-
-
     async function fetchWithApiFallback(path, init = {}) {
       const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
       let lastError = null;
@@ -422,7 +420,9 @@ const $ = (q) => document.querySelector(q);
         try {
           const url = `${base}${path}`;
           const res = await fetch(url, init);
-          API_BASE = base;
+          window.API_BASE = base;
+      window.window.API_BASE = base;
+      try { localStorage.setItem("API_BASE", base); } catch (_) {}
           return res;
         } catch (err) {
           lastError = err;
