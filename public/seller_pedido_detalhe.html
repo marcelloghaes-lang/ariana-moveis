@@ -105,11 +105,48 @@
 </div>
 </main></div>
 
-<script>
-  const API_BASE = "https://ariana-moveis.onrender.com/api";
-  const $ = (id) => document.getElementById(id);
-  const state = { seller: null, order: null, orderId: new URLSearchParams(location.search).get('id') };
 
+<script>
+  const IS_LOCAL_HOST =
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost";
+
+  const API_BASE = IS_LOCAL_HOST
+    ? "http://localhost:3000/api"
+    : "https://ariana-backend.onrender.com/api";
+
+  const $ = (id) => document.getElementById(id);
+
+  function getSellerToken() {
+    return localStorage.getItem("seller_token") || "";
+  }
+  function getSellerProfile() {
+    try { return JSON.parse(localStorage.getItem("seller_profile") || "{}") || {}; } catch (_) { return {}; }
+  }
+  function clearSellerSession() {
+    localStorage.removeItem("seller_token");
+    localStorage.removeItem("seller_profile");
+    localStorage.removeItem("seller_status");
+    localStorage.removeItem("seller_active");
+    localStorage.removeItem("partner_request_id");
+  }
+  function authHeaders(extra = {}) {
+    const token = getSellerToken();
+    return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+  }
+  function ensureSellerSession() {
+    const token = getSellerToken();
+    if (!token) {
+      window.location.href = "seller_login.html";
+      return false;
+    }
+    return true;
+  }
+  function applySellerHeaderName() {
+    const profile = getSellerProfile();
+    const el = document.getElementById("user-display-name");
+    if (el) el.textContent = `Bem-vindo, ${profile.factoryName || profile.name || 'Seller'}!`;
+  }
   function toast(message, type='info') {
     const c = $('toast-container');
     if (!c) return alert(message);
@@ -122,15 +159,25 @@
   }
 
   async function apiFetch(path, options = {}) {
-    const token = localStorage.getItem('seller_token') || '';
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) }
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(options.headers || {}) }
     });
-    const data = await response.json();
+
+    if (response.status === 401 || response.status === 403) {
+      clearSellerSession();
+      window.location.href = 'seller_login.html';
+      throw new Error('Sessão expirada');
+    }
+
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.message || `Erro HTTP ${response.status}`);
     return data;
   }
+</script>
+
+<script>
+  const state = { seller: null, order: null, orderId: new URLSearchParams(location.search).get('id') };
 
   function fillOrder(data, seller) {
     const items = Array.isArray(data.items) ? data.items : [];
@@ -161,14 +208,20 @@
   }
 
   async function loadOrder() {
+    if (!ensureSellerSession()) return;
+    applySellerHeaderName();
     if (!state.orderId) return toast('Pedido não identificado.', 'error');
     try {
-      const profile = JSON.parse(localStorage.getItem('seller_profile') || '{}');
-      state.seller = profile;
+      const me = await apiFetch('/seller/auth/me');
+      const profile = me?.seller || me?.user || getSellerProfile();
+      localStorage.setItem('seller_profile', JSON.stringify(profile || {}));
+      state.seller = profile || {};
       const order = await apiFetch(`/seller/orders/${state.orderId}`);
-      state.order = order;
-      fillOrder(order, profile);
-    } catch (e) { toast('Erro ao carregar pedido.', 'error'); }
+      state.order = order?.order || order?.item || order;
+      fillOrder(state.order, state.seller);
+    } catch (e) {
+      if (String(e?.message || '') !== 'Sessão expirada') toast(e?.message || 'Erro ao carregar pedido.', 'error');
+    }
   }
 
   $('btn-save-status').addEventListener('click', async () => {
@@ -179,6 +232,14 @@
       loadOrder();
     } catch (e) { toast('Erro ao salvar status.', 'error'); }
   });
+
+  $('btn-sair')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    clearSellerSession();
+    window.location.href = 'seller_login.html';
+  });
+
+  $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
 
   window.onload = loadOrder;
 </script>

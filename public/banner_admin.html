@@ -421,8 +421,8 @@ const $ = (q) => document.querySelector(q);
           const url = `${base}${path}`;
           const res = await fetch(url, init);
           window.API_BASE = base;
-      window.window.API_BASE = base;
-      try { localStorage.setItem("API_BASE", base); } catch (_) {}
+          window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
+          try { localStorage.setItem("API_BASE", base); } catch (_) {}
           return res;
         } catch (err) {
           lastError = err;
@@ -549,12 +549,27 @@ const $ = (q) => document.querySelector(q);
 
     function normalizeIncomingBanners(incoming){
       const pickKey = (item) => item?.id || item?.slot || item?.slotId || item?.key || item?._id || '';
-      if (Array.isArray(incoming)) {
-        return Object.fromEntries(incoming.map(item => [pickKey(item), item]).filter(([k]) => !!k));
-      }
-      if (incoming && Array.isArray(incoming.banners)) {
-        return Object.fromEntries(incoming.banners.map(item => [pickKey(item), item]).filter(([k]) => !!k));
-      }
+      const mapItems = (items) => Object.fromEntries(
+        items.map(item => {
+          const raw = item || {};
+          const key = pickKey(raw);
+          return [key, {
+            ...raw,
+            id: raw.id || key,
+            key: raw.key || raw.id || key,
+            slot: raw.slot || key,
+            imageUrl: String(raw.imageUrl || raw.image || raw.url || '').trim(),
+            image: String(raw.image || raw.imageUrl || raw.url || '').trim(),
+            linkUrl: String(raw.linkUrl || raw.href || raw.link || '').trim(),
+            href: String(raw.href || raw.linkUrl || raw.link || '').trim(),
+            alt: String(raw.alt || '').trim(),
+            path: String(raw.path || raw.public_id || raw.filePath || '').trim(),
+            active: raw.active === true || String(raw.active).toLowerCase() === 'true'
+          }];
+        }).filter(([k]) => !!k)
+      );
+      if (Array.isArray(incoming)) return mapItems(incoming);
+      if (incoming && Array.isArray(incoming.banners)) return mapItems(incoming.banners);
       return incoming && typeof incoming === 'object' ? incoming : {};
     }
 
@@ -581,13 +596,20 @@ const $ = (q) => document.querySelector(q);
     function readForm(){
       const out = {};
       for(const id of BANNER_IDS){
+        const imageUrl = ($(`[data-banner="${id}"][data-field="imageUrl"]`)?.value || '').trim();
+        const linkUrl = ($(`[data-banner="${id}"][data-field="linkUrl"]`)?.value || '').trim();
+        const path = ($(`[data-banner="${id}"][data-field="path"]`)?.value || '').trim();
         out[id] = {
           id,
+          key: id,
           slot: id,
           active: ($(`[data-banner="${id}"][data-field="active"]`)?.value || 'false') === 'true',
-          imageUrl: ($(`[data-banner="${id}"][data-field="imageUrl"]`)?.value || '').trim(),
-          linkUrl: ($(`[data-banner="${id}"][data-field="linkUrl"]`)?.value || '').trim(),
+          imageUrl,
+          image: imageUrl,
+          linkUrl,
+          href: linkUrl,
           alt: ($(`[data-banner="${id}"][data-field="alt"]`)?.value || '').trim(),
+          path,
           updatedAt: Date.now()
         };
       }
@@ -599,11 +621,15 @@ const $ = (q) => document.querySelector(q);
       delete clean._id;
       delete clean.createdAt;
       clean.id = String(clean.id || clean.slot || clean.slotId || clean.key || '').trim();
+      clean.key = clean.id;
       clean.slot = String(clean.slot || clean.id).trim();
       clean.active = clean.active === true;
-      clean.imageUrl = String(clean.imageUrl || '').trim();
-      clean.linkUrl = String(clean.linkUrl || '').trim();
+      clean.imageUrl = String(clean.imageUrl || clean.image || '').trim();
+      clean.image = clean.imageUrl;
+      clean.linkUrl = String(clean.linkUrl || clean.href || clean.link || '').trim();
+      clean.href = clean.linkUrl;
       clean.alt = String(clean.alt || '').trim();
+      clean.path = String(clean.path || clean.public_id || '').trim();
       clean.updatedAt = Date.now();
       return clean;
     }
@@ -618,8 +644,8 @@ const $ = (q) => document.querySelector(q);
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('bannerId', bannerId);
       formData.append('path', 'banners');
+      formData.append('name', bannerId);
 
       const attempts = [
         { path: '/admin/uploads', init: { method:'POST', headers: authHeaders(), body: formData } },
@@ -636,8 +662,13 @@ const $ = (q) => document.querySelector(q);
             throw new Error(errData.error || errData.message || `Falha no upload (${res.status})`);
           }
           const data = await parseJsonSafe(res);
-          const url = data.url || data.imageUrl || data.downloadURL || data.secure_url || data.location || data.fileUrl || '';
-          if(url) return url;
+          const url = data.url || data.downloadURL || data.imageUrl || data.secure_url || '';
+          if(!url) throw new Error('Upload concluído sem URL pública');
+          return {
+            url,
+            path: data.path || data.fullPath || data.filePath || data.public_id || url,
+            filename: data.filename || file.name || `${bannerId}-${Date.now()}`
+          };
         }catch(err){
           lastError = err;
         }
@@ -662,10 +693,27 @@ const $ = (q) => document.querySelector(q);
           btn.classList.add('opacity-60');
           try{
             toast('info','Enviando imagem...');
-            const url = await uploadBannerImage(file, bannerId);
+            const uploaded = await uploadBannerImage(file, bannerId);
             const urlField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
-            if(urlField) urlField.value = url;
-            setPreview(bannerId, url);
+            if(urlField) urlField.value = uploaded.url;
+
+            let pathField = document.querySelector(`.field[data-field="path"][data-banner="${bannerId}"]`);
+            if(!pathField){
+              const anchor = document.querySelector(`.field[data-field="alt"][data-banner="${bannerId}"]`) ||
+                             document.querySelector(`.field[data-field="linkUrl"][data-banner="${bannerId}"]`) ||
+                             urlField;
+              if(anchor){
+                pathField = document.createElement('input');
+                pathField.type = 'hidden';
+                pathField.className = 'field';
+                pathField.setAttribute('data-field', 'path');
+                pathField.setAttribute('data-banner', bannerId);
+                anchor.parentNode.appendChild(pathField);
+              }
+            }
+            if(pathField) pathField.value = uploaded.path || '';
+
+            setPreview(bannerId, uploaded.url);
             toast('ok','Imagem enviada! Agora clique em Salvar tudo.');
             fileInput.value = '';
           }catch(err){
@@ -739,6 +787,20 @@ const $ = (q) => document.querySelector(q);
 
           const alt = $(`[data-banner="${id}"][data-field="alt"]`);
           if(alt) alt.value = data.alt || '';
+
+          let pathField = document.querySelector(`[data-banner="${id}"][data-field="path"]`);
+          if(!pathField){
+            const anchor = alt || link || img;
+            if(anchor){
+              pathField = document.createElement('input');
+              pathField.type = 'hidden';
+              pathField.className = 'field';
+              pathField.setAttribute('data-field', 'path');
+              pathField.setAttribute('data-banner', id);
+              anchor.parentNode.appendChild(pathField);
+            }
+          }
+          if(pathField) pathField.value = data.path || '';
 
           setChip(id, active);
           setPreview(id, data.imageUrl || '');

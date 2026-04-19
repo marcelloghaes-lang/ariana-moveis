@@ -118,19 +118,62 @@
     </main>
   </div>
 
-  <script>
-    const API_BASE = "https://ariana-move-mongo.onrender.com/api"; // URL do seu Render
-    const byId = (id) => document.getElementById(id);
+  
+<script>
+const IS_LOCAL_HOST = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+const API_BASE = IS_LOCAL_HOST ? "http://localhost:3000/api" : "https://ariana-backend.onrender.com/api";
+const byId = (id) => document.getElementById(id);
+const $ = byId;
+
+function getSellerToken() {
+  return localStorage.getItem("seller_token") || "";
+}
+function getSellerProfile() {
+  try { return JSON.parse(localStorage.getItem("seller_profile") || "{}") || {}; } catch(_) { return {}; }
+}
+function clearSellerSession() {
+  localStorage.removeItem("seller_token");
+  localStorage.removeItem("seller_profile");
+  localStorage.removeItem("partner_request_id");
+}
+function authHeaders(extra = {}) {
+  const token = getSellerToken();
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+}
+function ensureSellerSession() {
+  const token = getSellerToken();
+  if (!token) {
+    window.location.href = "seller_login.html";
+    return false;
+  }
+  return true;
+}
+function applySellerHeaderName() {
+  const profile = getSellerProfile();
+  const el = document.getElementById("user-display-name");
+  if (el) el.textContent = `Bem-vindo, ${profile.factoryName || profile.name || 'Seller'}!`;
+}
+</script>
+
+<script>
 
     function money(v) {
       return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     }
 
     async function renderExtrato() {
+      if (!ensureSellerSession()) return;
+      applySellerHeaderName();
       const tb = byId("tb");
       try {
-        const res = await fetch(`${API_BASE}/seller/extrato`);
+        const res = await fetch(`${API_BASE}/seller/extrato`, { headers: authHeaders() });
+        if (res.status === 401 || res.status === 403) {
+          clearSellerSession();
+          window.location.href = "seller_login.html";
+          return;
+        }
         const items = await res.json();
+        if (!res.ok) throw new Error(items?.message || `Erro ${res.status}`);
 
         if (!items.length) {
           tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Nenhum movimento encontrado.</td></tr>';
@@ -170,7 +213,7 @@
     window.onload = renderExtrato;
     byId("btn-refresh").onclick = renderExtrato;
     byId("sidebar-toggle").onclick = () => byId("sidebar").classList.toggle("-translate-x-full");
-    byId("btn-sair").onclick = () => { localStorage.clear(); window.location.href = "seller_login.html"; };
+    byId("btn-sair").onclick = () => { clearSellerSession(); window.location.href = "seller_login.html"; };
   </script>
 </body>
 </html>

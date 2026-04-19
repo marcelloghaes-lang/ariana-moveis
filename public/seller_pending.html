@@ -39,8 +39,13 @@
   </div>
 
 <script>
-  // CONFIGURAÇÃO DIRETA PARA O RENDER (FIM DO LOCALHOST)
-  const API_BASE = "https://ariana-moveis.onrender.com/api";
+  const IS_LOCAL_HOST =
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost";
+
+  const API_BASE = IS_LOCAL_HOST
+    ? "http://localhost:3000/api"
+    : "https://ariana-backend.onrender.com/api";
   const $ = (id) => document.getElementById(id);
 
   // Mapeamento de status que vêm do seu MongoDB Atlas
@@ -72,7 +77,7 @@
     try {
       // Pergunta o status real ao servidor no Render
       const response = await fetch(`${API_BASE}/seller/partner-requests/${rid}`);
-      if (!response.ok) throw new Error();
+      if (!response.ok) throw new Error(`Erro ${response.status}`);
       
       const data = await response.json();
       

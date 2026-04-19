@@ -46,8 +46,13 @@
   </div>
 
   <script>
-    // URL UNIFICADA DO RENDER
-    const API_BASE = "https://ariana-moveis.onrender.com/api";
+    const IS_LOCAL_HOST =
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "localhost";
+
+    const API_BASE = IS_LOCAL_HOST
+      ? "http://localhost:3000/api"
+      : "https://ariana-backend.onrender.com/api";
 
     const $ = (id) => document.getElementById(id);
 

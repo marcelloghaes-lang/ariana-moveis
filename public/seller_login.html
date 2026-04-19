@@ -6,6 +6,7 @@
   <title>Login do Seller | ARIANA MÓVEIS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
   <style>
     :root {
@@ -46,8 +47,14 @@
 </div>
 
 <script>
-  // URL DO RENDER - O FIM DO LOCALHOST
-  const API_BASE = "https://ariana-moveis.onrender.com/api";
+  const IS_LOCAL_HOST =
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost";
+
+  const API_BASE = IS_LOCAL_HOST
+    ? "http://localhost:3000/api"
+    : "https://ariana-backend.onrender.com/api";
+
   const $ = (id) => document.getElementById(id);
 
   function toast(message, type='info') {
@@ -88,6 +95,8 @@
       if (data.token) localStorage.setItem("seller_token", data.token);
       const seller = data.seller || data.user || data;
       localStorage.setItem("seller_profile", JSON.stringify(seller));
+      if (seller && seller.status) localStorage.setItem("seller_status", String(seller.status));
+      if (seller && seller.active !== undefined) localStorage.setItem("seller_active", String(!!seller.active));
 
       // Verifica status para o Onboarding
       const st = String(seller.status || "").toLowerCase();
@@ -112,7 +121,12 @@
     try {
       const seller = await apiFetch("/seller/auth/me", { headers: { Authorization: `Bearer ${token}` } });
       if (seller) window.location.href = 'seller_dashboard.html';
-    } catch (_) { localStorage.clear(); }
+    } catch (_) {
+      localStorage.removeItem("seller_token");
+      localStorage.removeItem("seller_profile");
+      localStorage.removeItem("seller_status");
+      localStorage.removeItem("seller_active");
+    }
   };
 </script>
 </body></html>

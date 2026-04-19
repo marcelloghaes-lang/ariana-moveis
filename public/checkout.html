@@ -1310,6 +1310,43 @@ async function quoteShippingForSelectedAddress(addrObj) {
       updateTotalsUI();
     }
 
+
+    function extractOrderIdFromResponse(response) {
+      const tryPaths = [
+        response?.id,
+        response?._id,
+        response?.orderId,
+        response?.pedidoId,
+        response?.item?.id,
+        response?.item?._id,
+        response?.item?.orderId,
+        response?.order?.id,
+        response?.order?._id,
+        response?.order?.orderId,
+        response?.data?.id,
+        response?.data?._id,
+        response?.data?.orderId,
+        response?.result?.id,
+        response?.result?._id,
+        response?.result?.orderId,
+        response?.pedido?.id,
+        response?.pedido?._id
+      ];
+      for (const v of tryPaths) {
+        if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+      }
+      return "";
+    }
+
+    function persistLastOrder(orderId, paymentMethod, orderResponse) {
+      try {
+        if (orderId) localStorage.setItem("arianaLastOrderId", orderId);
+        if (paymentMethod) localStorage.setItem("arianaLastOrderPayment", paymentMethod);
+        if (orderResponse) localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderResponse));
+      } catch (_) {}
+    }
+
+
     async function finalizarPedido() {
       const btn = document.getElementById("btn-pay");
       if (!selectedAddrObj) {
@@ -1432,21 +1469,21 @@ async function quoteShippingForSelectedAddress(addrObj) {
         };
 
         const response = await apiPost("/orders", orderPayload);
-        const orderId = response?.id || response?.orderId || response?._id || response?.item?.id || response?.item?._id;
+        const orderId = extractOrderIdFromResponse(response);
 
-        if (!orderId) throw new Error("Pedido criado sem ID retornado pela API.");
+        if (!orderId) {
+          console.error("[checkout] resposta sem orderId:", response);
+          throw new Error("Pedido criado sem ID retornado pela API.");
+        }
 
         try {
           localStorage.removeItem("arianaMoveisCart");
           localStorage.removeItem("ariana_moveis_cart");
         } catch (_) {}
 
-        try {
-          localStorage.setItem("arianaLastOrderId", orderId);
-          localStorage.setItem("arianaLastOrderPayment", selectedPayCode || "");
-        } catch (_) {}
+        persistLastOrder(orderId, selectedPayCode || "", response);
 
-        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}`;
+        window.location.href = `pedido_confirmado.html?orderId=${encodeURIComponent(orderId)}`;
       } catch (e) {
         console.error(e);
         alert(e?.message || "Erro ao finalizar pedido.");

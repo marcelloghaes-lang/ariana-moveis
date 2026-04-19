@@ -122,18 +122,90 @@
     </main>
   </div>
 
-  <script>
-    const API_BASE = "https://ariana-moveis.onrender.com/api";
-    const $ = (id) => document.getElementById(id);
+  
+<script>
+  const IS_LOCAL_HOST =
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost";
+
+  const API_BASE = IS_LOCAL_HOST
+    ? "http://localhost:3000/api"
+    : "https://ariana-backend.onrender.com/api";
+
+  const $ = (id) => document.getElementById(id);
+
+  function getSellerToken() {
+    return localStorage.getItem("seller_token") || "";
+  }
+  function getSellerProfile() {
+    try { return JSON.parse(localStorage.getItem("seller_profile") || "{}") || {}; } catch (_) { return {}; }
+  }
+  function clearSellerSession() {
+    localStorage.removeItem("seller_token");
+    localStorage.removeItem("seller_profile");
+    localStorage.removeItem("seller_status");
+    localStorage.removeItem("seller_active");
+    localStorage.removeItem("partner_request_id");
+  }
+  function authHeaders(extra = {}) {
+    const token = getSellerToken();
+    return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+  }
+  function ensureSellerSession() {
+    const token = getSellerToken();
+    if (!token) {
+      window.location.href = "seller_login.html";
+      return false;
+    }
+    return true;
+  }
+  function applySellerHeaderName() {
+    const profile = getSellerProfile();
+    const el = document.getElementById("user-display-name");
+    if (el) el.textContent = `Bem-vindo, ${profile.factoryName || profile.name || 'Seller'}!`;
+  }
+  function toast(message, type='info') {
+    const c = $('toast-container');
+    if (!c) return alert(message);
+    const el = document.createElement('div');
+    const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+    el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+    el.textContent = message;
+    c.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3400);
+  }
+</script>
+
+<script>
 
     async function loadOrders() {
+      if (!ensureSellerSession()) return;
+      applySellerHeaderName();
       const tbody = $("orders-tbody");
       try {
-        const token = localStorage.getItem("seller_token");
+        const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
+        if (meRes.status === 401 || meRes.status === 403) {
+          clearSellerSession();
+          window.location.href = 'seller_login.html';
+          return;
+        }
+        const meData = await meRes.json().catch(() => ({}));
+        const sellerMe = meData?.seller || meData?.user || meData || {};
+        if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email)) {
+          localStorage.setItem("seller_profile", JSON.stringify(sellerMe));
+          applySellerHeaderName();
+        }
+
         const res = await fetch(`${API_BASE}/seller/orders`, {
-            headers: { "Authorization": `Bearer ${token}` }
+            headers: authHeaders()
         });
+        if (res.status === 401 || res.status === 403) {
+          clearSellerSession();
+          window.location.href = 'seller_login.html';
+          return;
+        }
         const orders = await res.json();
+        if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
 
         if (!orders.length) {
           tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-gray-400">Nenhum pedido encontrado no banco.</td></tr>';
@@ -169,7 +241,7 @@
 
     window.onload = loadOrders;
     $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
-    $('btn-sair')?.addEventListener('click', () => { localStorage.clear(); window.location.href = 'seller_login.html'; });
+    $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
   </script>
 </body>
 </html>

@@ -68,14 +68,58 @@
 
 </div>
 
+
 <script>
-const API_BASE = "https://ariana-move-mongo.onrender.com/api";
+const IS_LOCAL_HOST = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+const API_BASE = IS_LOCAL_HOST ? "http://localhost:3000/api" : "https://ariana-backend.onrender.com/api";
+const byId = (id) => document.getElementById(id);
+const $ = byId;
+
+function getSellerToken() {
+  return localStorage.getItem("seller_token") || "";
+}
+function getSellerProfile() {
+  try { return JSON.parse(localStorage.getItem("seller_profile") || "{}") || {}; } catch(_) { return {}; }
+}
+function clearSellerSession() {
+  localStorage.removeItem("seller_token");
+  localStorage.removeItem("seller_profile");
+  localStorage.removeItem("partner_request_id");
+}
+function authHeaders(extra = {}) {
+  const token = getSellerToken();
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+}
+function ensureSellerSession() {
+  const token = getSellerToken();
+  if (!token) {
+    window.location.href = "seller_login.html";
+    return false;
+  }
+  return true;
+}
+function applySellerHeaderName() {
+  const profile = getSellerProfile();
+  const el = document.getElementById("user-display-name");
+  if (el) el.textContent = `Bem-vindo, ${profile.factoryName || profile.name || 'Seller'}!`;
+}
+</script>
+
+<script>
 
 async function carregarAtendimentos() {
+    if (!ensureSellerSession()) return;
+    applySellerHeaderName();
     const container = document.getElementById('atendimentos-container');
     try {
-        const res = await fetch(`${API_BASE}/seller/support`);
+        const res = await fetch(`${API_BASE}/seller/support`, { headers: authHeaders() });
+        if (res.status === 401 || res.status === 403) {
+            clearSellerSession();
+            window.location.href = 'seller_login.html';
+            return;
+        }
         const dados = await res.json();
+        if (!res.ok) throw new Error(dados?.message || `Erro ${res.status}`);
 
         if (!dados.length) {
             container.innerHTML = '<div class="text-center py-10 text-gray-400 font-medium bg-white rounded-2xl border border-dashed border-gray-300">Nenhum chamado aberto no momento.</div>';
@@ -121,13 +165,13 @@ async function carregarAtendimentos() {
 
 async function marcarComoLido(id) {
     try {
-        await fetch(`${API_BASE}/seller/support/${id}/read`, { method: 'PATCH' });
+        await fetch(`${API_BASE}/seller/support/${id}/read`, { method: 'PATCH', headers: authHeaders() });
         carregarAtendimentos();
     } catch (e) { console.error("Erro ao atualizar status", e); }
 }
 
 window.onload = carregarAtendimentos;
-document.getElementById('btn-sair').onclick = () => { localStorage.clear(); window.location.href="seller_login.html"; };
+document.getElementById('btn-sair').onclick = () => { clearSellerSession(); window.location.href="seller_login.html"; };
 </script>
 
 </body>

@@ -559,6 +559,22 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
     </section>
 
 
+
+    <!-- CELULARES (ABAIXO DO BANNER RODAPÉ) -->
+    <section id="cellphones-section" class="hidden page-wrap content-pad">
+      <h2 class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2 flex items-center">
+        <i class="fas fa-mobile-alt text-primary-blue mr-3"></i> Celulares em Destaque
+      </h2>
+      <div id="cellphones-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
+      <div class="text-center mt-8">
+        <a href="categoria.html?category=Celulares"
+           class="inline-flex items-center justify-center px-6 py-2 border border-primary-blue text-base font-medium rounded-lg text-primary-blue bg-white hover:bg-fundo-claro shadow-md transition-colors">
+          Ver Mais <i class="fas fa-arrow-right ml-2"></i>
+        </a>
+      </div>
+    </section>
+
+
     <!-- MAIS PRODUTOS (NOVAS OFERTAS) -->
     <section id="more-products-section" class="hidden page-wrap content-pad">
       <h2 class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2 flex items-center">
@@ -1306,6 +1322,7 @@ const loadProducts = async () => {
     loadOffers();
     loadNewArrivals();
     loadRecommended();
+    loadCellphones();
     loadMoreProducts();
   } catch (error) {
     console.error('Erro ao carregar produtos do MongoDB:', error);
@@ -1382,7 +1399,26 @@ const loadOffers = () => {
     };
 
 
-    const loadMoreProducts = () => {
+    
+const loadCellphones = () => {
+  const section = document.getElementById('cellphones-section');
+  if (!section) return;
+
+  const pick = allProducts.filter(p => {
+    const txt = `${p.name || ''} ${p.category || ''} ${p.categoria || ''}`.toLowerCase();
+    return txt.includes('celular') || txt.includes('smartphone') || txt.includes('iphone') || txt.includes('samsung');
+  }).slice(0,10);
+
+  if (pick.length > 0) {
+    renderProductCards(pick, 'cellphones-grid');
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+};
+
+
+const loadMoreProducts = () => {
       const section = document.getElementById('more-products-section');
       if (!section) return;
 

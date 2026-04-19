@@ -270,9 +270,7 @@
     </form>
   </div>
 </div>
-</script>
-   <script src="./header.js"></script>
-  <script>
+<script>
     (function () {
       const tryInitHeader = () => {
         if (typeof window.carregarHeader !== 'function') {
@@ -530,25 +528,35 @@ async function apiDelete(path) {
 async function loadProfile() {
   const res = await apiGet(`/me`);
   const data = res?.user || res?.item || res || {};
-  currentProfile = data;
+  const localUser = getStoredUser() || {};
 
-  document.getElementById('user-display-name').textContent = data.name || "Cliente";
-  document.getElementById('profile-name').value = data.name || "";
-  document.getElementById('profile-email').value = data.email || "";
-  document.getElementById('profile-phone').value = data.phone || "";
-  document.getElementById('profile-cpf').value = data.cpf ? formatCPF(data.cpf) : "";
-  document.getElementById('profile-birthdate').value = data.birthdate || data.birthDate || "";
+  currentProfile = {
+    ...localUser,
+    ...data,
+    name: data.name || localUser.name || localUser.nome || "",
+    email: data.email || localUser.email || "",
+    phone: data.phone || localUser.phone || localUser.telefone || "",
+    cpf: data.cpf || localUser.cpf || "",
+    birthdate: data.birthdate || data.birthDate || localUser.birthdate || localUser.birthDate || ""
+  };
+
+  document.getElementById('user-display-name').textContent = currentProfile.name || "Cliente";
+  document.getElementById('profile-name').value = currentProfile.name || "";
+  document.getElementById('profile-email').value = currentProfile.email || "";
+  document.getElementById('profile-phone').value = currentProfile.phone ? formatBRPhone(currentProfile.phone) : "";
+  document.getElementById('profile-cpf').value = currentProfile.cpf ? formatCPF(currentProfile.cpf) : "";
+  document.getElementById('profile-birthdate').value = currentProfile.birthdate || "";
 }
 
 function applyProfileLocks() {
   hasAnyAddress = currentAddresses.length > 0;
-  const lock = hasAnyAddress === true;
+  const lock = hasLockedProfileData(currentProfile);
 
-  ['profile-name', 'profile-cpf', 'profile-phone'].forEach(id => {
+  ['profile-name', 'profile-cpf', 'profile-phone', 'profile-birthdate'].forEach(id => {
     const el = document.getElementById(id);
-    if(el) {
-        el.disabled = lock;
-        el.classList.toggle('bg-gray-100', lock);
+    if (el) {
+      el.disabled = lock;
+      el.classList.toggle('bg-gray-100', lock);
     }
   });
 
@@ -556,9 +564,28 @@ function applyProfileLocks() {
   document.getElementById('hint-cpf-locked')?.classList.toggle('hidden', !lock);
   document.getElementById('hint-phone-locked')?.classList.toggle('hidden', !lock);
 
-  const missing = !currentProfile.cpf || !currentProfile.name;
+  const saveBtn = document.querySelector('#form-edit-profile button[type="submit"]');
+  const saveHint = document.getElementById('profile-save-hint');
+  if (saveBtn) {
+    saveBtn.disabled = lock;
+    saveBtn.classList.toggle('opacity-60', lock);
+    saveBtn.classList.toggle('cursor-not-allowed', lock);
+  }
+  if (saveHint) {
+    saveHint.textContent = lock
+      ? 'Dados pessoais já confirmados. Alterações somente por recuperação/atendimento.'
+      : '';
+  }
+
+  const missing = !currentProfile.cpf || !currentProfile.name || !(currentProfile.birthdate || currentProfile.birthDate);
   const banner = document.getElementById('profile-missing-banner');
-  if (banner) banner.classList.toggle('hidden', !(!hasAnyAddress && missing));
+  if (banner) banner.classList.toggle('hidden', !missing);
+
+  const resetBtn = document.getElementById('btn-reset-password');
+  if (resetBtn) resetBtn.classList.remove('hidden');
+
+  const phoneChangeBtn = document.getElementById('btn-request-phone-change');
+  if (phoneChangeBtn) phoneChangeBtn.classList.add('hidden');
 }
 
 async function loadOrders() {
@@ -686,8 +713,78 @@ async function fetchViaCepAndFill(rawCep) {
   } catch (_) {}
 }
 
+
+async function updateProfileApi(payload) {
+  const attempts = [
+    { path: `/users/me`, method: "PATCH" },
+    { path: `/me`, method: "PATCH" },
+    { path: `/users/me`, method: "PUT" },
+    { path: `/me`, method: "PUT" },
+  ];
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const res = await fetch(`${API_BASE}${attempt.path}`, {
+        method: attempt.method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload || {})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        lastError = new Error(data?.error || data?.message || `Erro ${attempt.method} ${attempt.path}`);
+        continue;
+      }
+      return data;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Não foi possível atualizar o perfil.");
+}
+
+function syncStoredUserProfile(profile) {
+  const sources = ['currentUser', 'clienteLogado', 'usuarioLogado', 'user'];
+  for (const key of sources) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') continue;
+      const merged = {
+        ...obj,
+        name: profile?.name || obj.name || obj.nome || "",
+        nome: profile?.name || obj.nome || obj.name || "",
+        email: profile?.email || obj.email || "",
+        phone: profile?.phone || obj.phone || obj.telefone || "",
+        telefone: profile?.phone || obj.telefone || obj.phone || "",
+        cpf: profile?.cpf || obj.cpf || "",
+        birthdate: profile?.birthdate || profile?.birthDate || obj.birthdate || obj.birthDate || ""
+      };
+      localStorage.setItem(key, JSON.stringify(merged));
+    } catch (_) {}
+  }
+}
+
+function hasLockedProfileData(profile) {
+  const p = profile || {};
+  return !!(
+    String(p.name || "").trim() &&
+    String(p.cpf || "").replace(/\D/g, "").length === 11 &&
+    String(p.birthdate || p.birthDate || "").trim()
+  );
+}
+
+
 async function saveProfile(e) {
   e.preventDefault();
+
+  if (hasLockedProfileData(currentProfile)) {
+    displayMessage("Seus dados pessoais já foram confirmados e não podem mais ser editados.", "info");
+    applyProfileLocks();
+    return;
+  }
+
   const payload = {
     name: document.getElementById('profile-name').value.trim(),
     phone: document.getElementById('profile-phone').value.trim(),
@@ -695,11 +792,38 @@ async function saveProfile(e) {
     birthdate: document.getElementById('profile-birthdate').value
   };
 
+  if (!payload.name) {
+    displayMessage("Informe o nome completo.", "error");
+    return;
+  }
+  if (!payload.cpf || !isValidCPF(payload.cpf)) {
+    displayMessage("CPF inválido.", "error");
+    return;
+  }
+  if (!payload.birthdate) {
+    displayMessage("Informe a data de nascimento.", "error");
+    return;
+  }
+
   try {
-    await apiPut(`/users/me`, payload);
-    displayMessage("Cadastro atualizado!");
-    loadProfile();
-  } catch (e) { displayMessage("Erro ao atualizar", "error"); }
+    const saved = await updateProfileApi(payload);
+    const profile = saved?.user || saved?.item || saved || payload;
+    currentProfile = { ...(currentProfile || {}), ...profile, ...payload };
+    syncStoredUserProfile(currentProfile);
+
+    document.getElementById('profile-name').value = currentProfile.name || payload.name || "";
+    document.getElementById('profile-phone').value = currentProfile.phone ? formatBRPhone(currentProfile.phone) : formatBRPhone(payload.phone);
+    document.getElementById('profile-cpf').value = currentProfile.cpf ? formatCPF(currentProfile.cpf) : formatCPF(payload.cpf);
+    document.getElementById('profile-birthdate').value = currentProfile.birthdate || currentProfile.birthDate || payload.birthdate || "";
+
+    displayMessage("Cadastro atualizado!", "success");
+
+    await loadProfile().catch(() => null);
+    applyProfileLocks();
+  } catch (e) {
+    console.error("[minha-conta] erro ao atualizar perfil:", e);
+    displayMessage(e?.message || "Erro ao atualizar", "error");
+  }
 }
 
 async function saveAddress(e) {
