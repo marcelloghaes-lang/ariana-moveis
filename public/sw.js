@@ -9,13 +9,33 @@ const IS_LOCAL = (
   location.hostname === "localhost"
 );
 
-const BASE = IS_LOCAL ? "/public" : "";  // <-- aqui está a mágica
+const BASE = IS_LOCAL ? "/public" : "";
 
 const PRECACHE_URLS = [
   `${BASE}/banner_admin.html`,
   `${BASE}/seller_login.html`,
   `${BASE}/`,
 ];
+
+function isSupportedRequestForCache(requestOrUrl) {
+  try {
+    const url = new URL(
+      typeof requestOrUrl === "string" ? requestOrUrl : requestOrUrl.url
+    );
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (_) {
+    return false;
+  }
+}
+
+async function safeCachePut(cache, requestOrUrl, response) {
+  try {
+    if (!response) return;
+    if (!isSupportedRequestForCache(requestOrUrl)) return;
+    if (!response.ok) return;
+    await cache.put(requestOrUrl, response.clone());
+  } catch (_) {}
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -25,8 +45,9 @@ self.addEventListener("install", (event) => {
     await Promise.allSettled(
       PRECACHE_URLS.map(async (url) => {
         try {
+          if (!isSupportedRequestForCache(new URL(url, self.location.origin).toString())) return;
           const res = await fetch(url, { cache: "no-store" });
-          if (res.ok) await cache.put(url, res.clone());
+          await safeCachePut(cache, url, res);
         } catch (_) {}
       })
     );
@@ -49,6 +70,9 @@ self.addEventListener("fetch", (event) => {
   // Só GET
   if (req.method !== "GET") return;
 
+  // Ignora esquemas não suportados no Cache API
+  if (!isSupportedRequestForCache(req)) return;
+
   // Navegação (abrir páginas HTML)
   if (req.mode === "navigate") {
     event.respondWith((async () => {
@@ -56,7 +80,7 @@ self.addEventListener("fetch", (event) => {
         // Rede primeiro
         const fresh = await fetch(req);
         const cache = await caches.open(CACHE_NAME);
-        cache.put(req, fresh.clone());
+        await safeCachePut(cache, req, fresh);
         return fresh;
       } catch (_) {
         // Cache fallback (mesma rota)
@@ -84,7 +108,7 @@ self.addEventListener("fetch", (event) => {
     try {
       const fresh = await fetch(req);
       const cache = await caches.open(CACHE_NAME);
-      cache.put(req, fresh.clone());
+      await safeCachePut(cache, req, fresh);
       return fresh;
     } catch (_) {
       return new Response("", { status: 504 });

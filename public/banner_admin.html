@@ -387,20 +387,28 @@
 
 <script>
     
-const API_BASE =
+const IS_LOCAL_HOST =
+  window.location.hostname === "127.0.0.1" ||
+  window.location.hostname === "localhost";
+
+const API_BASE_LOCAL = "http://localhost:3000/api";
+const API_BASE_RENDER = "https://ariana-backend.onrender.com/api";
+
+window.API_BASE =
   window.API_BASE ||
   localStorage.getItem("API_BASE") ||
-  "https://ariana-backend.onrender.com/api";
+  (IS_LOCAL_HOST ? API_BASE_LOCAL : API_BASE_RENDER);
 
-const API_ORIGIN =
+window.API_ORIGIN =
   window.API_ORIGIN ||
-  String(API_BASE).replace(/\/api\/?$/i, "");
+  String(window.API_BASE).replace(/\/api\/?$/i, "");
+
+const API_BASE = window.API_BASE;
+const API_ORIGIN = window.API_ORIGIN;
 
 const $ = (q) => document.querySelector(q);
-    const msg = document.getElementById('msg');
+const msg = document.getElementById('msg');
 
-    // --- ADICIONE ESTA LÓGICA AQUI ---
-    
 
     function getBannerSession(){
       try { return JSON.parse(localStorage.getItem('banner_admin_session') || 'null') || null; } catch(_e){ return null; }
@@ -422,7 +430,11 @@ const $ = (q) => document.querySelector(q);
           const res = await fetch(url, init);
           window.API_BASE = base;
           window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
-          try { localStorage.setItem("API_BASE", base); } catch (_) {}
+          try {
+            localStorage.setItem("API_BASE", base);
+            localStorage.setItem("API_BASE_URL", base);
+            localStorage.setItem("API_ORIGIN", window.API_ORIGIN);
+          } catch (_) {}
           return res;
         } catch (err) {
           lastError = err;
@@ -714,7 +726,8 @@ const $ = (q) => document.querySelector(q);
             if(pathField) pathField.value = uploaded.path || '';
 
             setPreview(bannerId, uploaded.url);
-            toast('ok','Imagem enviada! Agora clique em Salvar tudo.');
+            await saveSingleBannerById(bannerId);
+            toast('ok','Imagem enviada e salva no Mongo!');
             fileInput.value = '';
           }catch(err){
             console.error(err);
@@ -736,6 +749,74 @@ const $ = (q) => document.querySelector(q);
           setPreview(id, inp.value);
         });
       });
+    }
+
+
+    async function saveSingleBannerById(bannerId){
+      if(!getAdminToken()) throw new Error('Faça login para salvar.');
+
+      const imageUrl = ($(`[data-banner="${bannerId}"][data-field="imageUrl"]`)?.value || '').trim();
+      const linkUrl = ($(`[data-banner="${bannerId}"][data-field="linkUrl"]`)?.value || '').trim();
+      const alt = ($(`[data-banner="${bannerId}"][data-field="alt"]`)?.value || '').trim();
+      const active = ($(`[data-banner="${bannerId}"][data-field="active"]`)?.value || 'false') === 'true';
+
+      const payload = {
+        id: bannerId,
+        slot: bannerId,
+        key: bannerId,
+        active,
+        imageUrl,
+        image: imageUrl,
+        linkUrl,
+        href: linkUrl,
+        alt,
+        updatedAt: Date.now()
+      };
+
+      const attempts = [
+        {
+          path: '/admin/banners',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify(payload)
+          }
+        },
+        {
+          path: '/admin/banners/bulk',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify({ banners: [payload] })
+          }
+        }
+      ];
+
+      let lastError = null;
+      for (const attempt of attempts) {
+        try {
+          const res = await fetchWithApiFallback(attempt.path, attempt.init);
+          const data = await parseJsonSafe(res);
+          if(!res.ok) throw new Error(data.error || data.message || `Erro ao salvar (${res.status})`);
+
+          const saved = (data && (data.banner || data.item || (Array.isArray(data.banners) ? data.banners[0] : null) || data)) || payload;
+          const savedImage = String(saved.imageUrl || saved.image || imageUrl || '').trim();
+          const savedHref = String(saved.linkUrl || saved.href || linkUrl || '').trim();
+
+          const imgField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
+          const linkField = document.querySelector(`.field[data-field="linkUrl"][data-banner="${bannerId}"]`);
+          if (imgField) imgField.value = savedImage;
+          if (linkField) linkField.value = savedHref;
+
+          setPreview(bannerId, savedImage);
+          setChip(bannerId, !!(saved.active === true || active));
+          return saved;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      throw lastError || new Error('Falha ao salvar banner.');
     }
 
     async function loadAll(){
@@ -820,7 +901,14 @@ const $ = (q) => document.querySelector(q);
       }
 
       const payload = readForm();
-      const banners = Object.values(payload).map(sanitizeBannerForSave);
+      const banners = Object.values(payload).map(sanitizeBannerForSave).map(item => ({
+        ...item,
+        slot: item.slot || item.id,
+        image: item.image || item.imageUrl || '',
+        href: item.href || item.linkUrl || '',
+        imageUrl: item.image || item.imageUrl || '',
+        linkUrl: item.href || item.linkUrl || ''
+      }));
       const payloadById = Object.fromEntries(banners.map(item => [item.id, item]));
 
       const attempts = [
