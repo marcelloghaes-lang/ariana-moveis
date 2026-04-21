@@ -184,6 +184,10 @@
       localStorage.getItem("API_BASE") ||
       "https://ariana-backend.onrender.com/api";
 
+    function getLastOrderResponse() {
+      try { return JSON.parse(localStorage.getItem("arianaLastOrderResponse") || "null"); } catch (_) { return null; }
+    }
+
     const API_ORIGIN =
       window.API_ORIGIN ||
       String(API_BASE).replace(/\/api\/?$/i, "");

@@ -321,7 +321,11 @@
         status: data.status || data.paymentStatus || "pending",
         customer: data.customer || {},
         address: data.shippingAddress || data.address || data.deliveryAddress || data.customer?.address || null,
+        payment: data.payment || {},
+        items: Array.isArray(data.items) ? data.items : [],
         totals: {
+          subtotal: Number(totals.products ?? totals.subtotal ?? data.subtotal ?? 0) || 0,
+          shipping: Number(totals.shipping ?? data.shippingCost ?? data.shipping?.price ?? 0) || 0,
           grandTotal: Number(
             totals.grandTotal ??
             totals.total ??
@@ -329,7 +333,8 @@
             data.amount ??
             data.valorTotal ??
             0
-          ) || 0
+          ) || 0,
+          paymentMethod: totals.paymentMethod || data.paymentMethod || data.payment?.method || data.payment?.type || ""
         }
       };
     }
@@ -660,6 +665,10 @@
         try {
           const data = await apiFetch(path);
           orderData = normalizeOrder(data);
+          try {
+            localStorage.setItem("arianaLastOrderId", orderData.id || orderId || "");
+            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderData));
+          } catch (_) {}
           renderResumo();
 
           if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
@@ -695,6 +704,40 @@
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(refreshOrderStatus, 10000);
     }
+
+
+    function preselectSavedMethod() {
+      const savedMethod =
+        (new URLSearchParams(window.location.search).get("method") || "").trim() ||
+        (localStorage.getItem("arianaCheckoutSelectedPay") || "").trim() ||
+        (localStorage.getItem("arianaLastOrderPayment") || "").trim() ||
+        String(orderData?.totals?.paymentMethod || orderData?.payment?.method || "").trim();
+
+      if (!savedMethod) return;
+
+      const normalized =
+        savedMethod === "card" || savedMethod.toLowerCase().includes("cart") ? "card" :
+        savedMethod === "boleto" || savedMethod.toLowerCase().includes("boleto") ? "boleto" :
+        "pix";
+
+      const btn = document.querySelector(`.btn-choice[data-method="${normalized}"]`);
+      const continueBtn = document.getElementById("btn-continue");
+      if (!btn || !continueBtn) return;
+
+      document.querySelectorAll(".btn-choice").forEach((x) => {
+        x.classList.remove("active");
+        const indicator = x.querySelector(".radio-indicator");
+        if (indicator) indicator.innerHTML = "";
+      });
+
+      btn.classList.add("active");
+      const indicator = btn.querySelector(".radio-indicator");
+      if (indicator) indicator.innerHTML = '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>';
+      continueBtn.disabled = false;
+      continueBtn.style.opacity = "1";
+      continueBtn.dataset.method = normalized;
+    }
+
 
     function bindChoice() {
       if (window.__bindChoiceDone) return;
@@ -754,6 +797,7 @@
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
+        preselectSavedMethod();
         startPolling();
       } catch (e) {
         console.error(e);

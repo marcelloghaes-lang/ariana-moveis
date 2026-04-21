@@ -1482,8 +1482,12 @@ async function quoteShippingForSelectedAddress(addrObj) {
         } catch (_) {}
 
         persistLastOrder(orderId, selectedPayCode || "", response);
+        try {
+          localStorage.setItem("arianaCheckoutSelectedPay", selectedPayCode || "");
+          localStorage.setItem("arianaCheckoutAddress", JSON.stringify(addrN || {}));
+        } catch (_) {}
 
-        window.location.href = `pedido_confirmado.html?orderId=${encodeURIComponent(orderId)}`;
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || "")}`;
       } catch (e) {
         console.error(e);
         alert(e?.message || "Erro ao finalizar pedido.");
