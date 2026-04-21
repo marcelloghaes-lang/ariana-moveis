@@ -850,7 +850,7 @@ function carregarHeader() {
         <div class="flex items-center gap-6">
           <div class="flex items-center gap-2">
             <i class="fas fa-truck text-primary-blue"></i>
-            <span>Entregamos para todo o Brasil</span>
+            <span>Frete fixo para diversas regiões</span>
           </div>
           <div class="w-px h-3 bg-gray-300"></div>
           <div class="flex items-center gap-2 font-black text-primary-blue">
@@ -882,16 +882,9 @@ function carregarHeader() {
           </a>
 
           <a href="index.html"
-            class="flex flex-col justify-center gap-1 hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
-            <div class="flex items-baseline gap-2 text-2xl md:text-4xl font-black tracking-tighter italic">
-              <span class="ariana-logo-gradient">ARIANA</span>
-              <span class="text-secondary-light-blue text-sm md:text-lg font-black tracking-wide leading-none">MÓVEIS</span>
-            </div>
-            <div class="hidden md:flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-[0.28em] text-white/85 pl-1">
-              <span>Online</span>
-              <span class="text-secondary-light-blue/90">•</span>
-              <span>Para todo Brasil</span>
-            </div>
+            class="flex items-baseline gap-2 text-2xl md:text-4xl font-black tracking-tighter hover:text-secondary-light-blue transition-all select-none whitespace-nowrap italic leading-none">
+            <span class="ariana-logo-gradient">ARIANA</span>
+            <span class="text-secondary-light-blue text-sm md:text-lg font-black tracking-wide leading-none">MÓVEIS</span>
           </a>
         </div>
 
@@ -1022,11 +1015,8 @@ function carregarHeader() {
     <div id="mobile-sidebar" class="hidden fixed inset-0 z-[100] md:hidden">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="mobile-overlay"></div>
       <div class="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-white text-black shadow-2xl p-6 flex flex-col">
-        <div class="flex justify-between items-start mb-8">
-          <div class="leading-none">
-            <span class="block font-black text-2xl text-primary-blue italic">ARIANA</span>
-            <span class="block mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Online • Para todo Brasil</span>
-          </div>
+        <div class="flex justify-between items-center mb-8">
+          <span class="font-black text-2xl text-primary-blue italic">ARIANA</span>
           <button id="close-mobile-menu" class="p-2 rounded-lg hover:bg-gray-100">
             <i class="fas fa-times text-2xl text-gray-400"></i>
           </button>

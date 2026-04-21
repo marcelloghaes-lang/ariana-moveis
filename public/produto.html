@@ -450,6 +450,56 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
   }
 }
 
+
+/* --- DESCRIÇÃO RESUMIDA COM VER MAIS --- */
+.description-preview {
+    position: relative;
+    max-height: 210px;
+    overflow: hidden;
+    transition: max-height 0.35s ease;
+}
+
+.description-preview.is-expanded {
+    max-height: 4000px;
+}
+
+.description-preview:not(.is-expanded)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 72px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1));
+    pointer-events: none;
+}
+
+.description-toggle-wrap {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.description-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    color: #2E6DA4;
+    border: 1px solid #2E6DA4;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.description-toggle-btn:hover {
+    background: #2E6DA4;
+    color: #ffffff;
+}
+
 </style>
 </head>
 <body class="bg-fundo font-sans">
@@ -543,7 +593,15 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
   <i class="fas fa-chevron-down accordion-icon"></i>
 </div>
 <div id="content-description" class="accordion-content open">
+<div id="product-description-preview" class="description-preview is-collapsed">
 <div id="product-description" class="prose max-w-none text-gray-700"></div>
+</div>
+<div class="description-toggle-wrap">
+<button id="product-description-toggle" type="button" class="description-toggle-btn" onclick="window.toggleProductDescription()">
+<span id="product-description-toggle-text">Ver descrição completa</span>
+<i id="product-description-toggle-icon" class="fas fa-chevron-down"></i>
+</button>
+</div>
 </div>
 </div>
 <div class="accordion-item">
@@ -875,6 +933,15 @@ async function loadPaymentsSettingsForProduct() {
                 if (byId('product-sku')) byId('product-sku').textContent = `SKU: ${sku}`;
                 if (byId('product-description')) {
                     byId('product-description').innerHTML = productData.description || productData.descricao || 'Sem descrição disponível.';
+                    requestAnimationFrame(() => {
+                        const preview = byId('product-description-preview');
+                        const toggleBtn = byId('product-description-toggle');
+                        if (preview && toggleBtn) {
+                            preview.classList.remove('is-expanded');
+                            const needsToggle = preview.scrollHeight > preview.clientHeight + 8;
+                            toggleBtn.style.display = needsToggle ? 'inline-flex' : 'none';
+                        }
+                    });
                 }
 
                 const breadcrumbName = byId('breadcrumb-product-name');
@@ -1211,7 +1278,28 @@ const discountPercent = (original > 0) ? Math.round((1 - (cash / original)) * 10
             document.getElementById('lightbox-image').src = productImages[currentImageIndex];
         }
 
-        window.toggleAccordion = (titleElement) => {
+        
+window.toggleProductDescription = () => {
+    const preview = document.getElementById('product-description-preview');
+    const textEl = document.getElementById('product-description-toggle-text');
+    const iconEl = document.getElementById('product-description-toggle-icon');
+    if (!preview || !textEl || !iconEl) return;
+
+    const expanded = preview.classList.contains('is-expanded');
+    if (expanded) {
+        preview.classList.remove('is-expanded');
+        textEl.textContent = 'Ver descrição completa';
+        iconEl.classList.remove('fa-chevron-up');
+        iconEl.classList.add('fa-chevron-down');
+    } else {
+        preview.classList.add('is-expanded');
+        textEl.textContent = 'Ocultar descrição completa';
+        iconEl.classList.remove('fa-chevron-down');
+        iconEl.classList.add('fa-chevron-up');
+    }
+};
+
+window.toggleAccordion = (titleElement) => {
             const content = titleElement.nextElementSibling;
             const isExpanded = titleElement.getAttribute('aria-expanded') === 'true';
             if (isExpanded) {

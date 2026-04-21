@@ -1236,7 +1236,108 @@ const loadCategories = async () => {
 };
 
 // ===== Produtos =====
-    
+
+const HOME_SECTION_LIMITS = {
+  featured: 10,
+  offers: 15,
+  recommended: 15,
+  newArrivals: 10,
+  cellphones: 5,
+  more: 5
+};
+
+const __homeSectionSelections = {};
+
+const __homeGetProductKey = (product) => {
+  return String(
+    product?.id ||
+    product?._id ||
+    product?.slug ||
+    product?.sku ||
+    product?.codigo ||
+    product?.code ||
+    product?.name ||
+    ''
+  ).trim();
+};
+
+const __homeBuildTimestamp = (productData) => {
+  const candidates = [
+    productData?.createdAt,
+    productData?.updatedAt,
+    productData?.date,
+    productData?.dataCadastro,
+    productData?.publishedAt,
+    productData?.timestamp
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const ts = new Date(value).getTime();
+    if (Number.isFinite(ts) && ts > 0) return ts;
+  }
+
+  const numericCandidates = [
+    Number(productData?.createdAtTs),
+    Number(productData?.updatedAtTs),
+    Number(productData?.ts),
+    Number(productData?.timestamp)
+  ];
+
+  for (const n of numericCandidates) {
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  return 0;
+};
+
+const __homeSortByRecent = (list) => {
+  return [...(Array.isArray(list) ? list : [])].sort((a, b) => {
+    const bt = Number(b?._ts || 0);
+    const at = Number(a?._ts || 0);
+    if (bt !== at) return bt - at;
+
+    const bp = Number(b?.price || 0);
+    const ap = Number(a?.price || 0);
+    return bp - ap;
+  });
+};
+
+const __homeTakeUnique = (source, limit, excludeIds = new Set()) => {
+  const result = [];
+  const localSeen = new Set();
+
+  for (const product of Array.isArray(source) ? source : []) {
+    const key = __homeGetProductKey(product);
+    if (!key || excludeIds.has(key) || localSeen.has(key)) continue;
+    result.push(product);
+    localSeen.add(key);
+    if (result.length >= limit) break;
+  }
+
+  return result;
+};
+
+const __homeSaveSelection = (sectionKey, list) => {
+  __homeSectionSelections[sectionKey] = Array.isArray(list) ? list : [];
+  return __homeSectionSelections[sectionKey];
+};
+
+const __homeGetUsedIds = (excludeSections = []) => {
+  const skip = new Set(Array.isArray(excludeSections) ? excludeSections : []);
+  const used = new Set();
+
+  Object.entries(__homeSectionSelections).forEach(([sectionKey, items]) => {
+    if (skip.has(sectionKey)) return;
+    (Array.isArray(items) ? items : []).forEach((product) => {
+      const key = __homeGetProductKey(product);
+      if (key) used.add(key);
+    });
+  });
+
+  return used;
+};
+
 const loadProducts = async () => {
   const loadingContainer = document.getElementById('loading-container');
   const productGrid = document.getElementById('featured-product-grid');
@@ -1293,35 +1394,25 @@ const loadProducts = async () => {
         image: resolvedImage,
         price,
         oldPrice: oldPrice || 0,
+        _ts: __homeBuildTimestamp(productData),
         isOffer: productData.isOffer === true || productData.oferta === true || (Array.isArray(productData.homeSections) && productData.homeSections.includes('offers')),
         isNew: productData.isNew === true || productData.isNewArrival === true || productData.lancamento === true,
         isRecommended: productData.isRecommended === true || productData.recommended === true
       };
     });
 
+    const featuredPick = __homeSaveSelection(
+      'featured',
+      __homeTakeUnique(__homeSortByRecent(allProducts), HOME_SECTION_LIMITS.featured)
+    );
+
     if (productGrid) {
-      if (typeof window.createProductCard === 'function') {
-        productGrid.innerHTML = allProducts.slice(0, 10).map((p) => window.createProductCard(p)).join('');
-      } else {
-        productGrid.innerHTML = allProducts.slice(0, 10).map((p) => `
-          <a href="produto.html?id=${encodeURIComponent(p._id || p.id || '')}" class="product-card">
-            <div class="product-image-container">
-              <img src="${p.imageUrl}" alt="${String(p.name || 'Produto').replace(/"/g,'&quot;')}" loading="lazy">
-            </div>
-            <div class="product-card-body">
-              <p class="product-name">${p.name || 'Produto'}</p>
-              <div class="mt-auto">
-                <div class="product-price">${window.formatCurrency(p.price || 0)}</div>
-              </div>
-            </div>
-          </a>
-        `).join('');
-      }
+      renderProductCards(featuredPick, 'featured-product-grid');
     }
 
     loadOffers();
-    loadNewArrivals();
     loadRecommended();
+    loadNewArrivals();
     loadCellphones();
     loadMoreProducts();
   } catch (error) {
@@ -1335,79 +1426,87 @@ const loadProducts = async () => {
 };
 
 const loadOffers = () => {
-      const offersSection = document.getElementById('offers-section');
-      if (!offersSection) return;
-      const offersProducts = allProducts.filter(p => p.isOffer);
-      if (offersProducts.length > 0) { renderProductCards(offersProducts, 'offers-product-grid'); offersSection.classList.remove('hidden'); }
-      else offersSection.classList.add('hidden');
-    };
+  const section = document.getElementById('offers-section');
+  if (!section) return;
 
-    const loadBestSellers = () => {
-      const bestSellersSection = document.getElementById('best-sellers-section');
-      if (!bestSellersSection) return;
-      const bestSellers = allProducts.filter(p => p.isBestSeller);
-      if (bestSellers.length > 0) { renderProductCards(bestSellers, 'best-sellers-grid'); bestSellersSection.classList.remove('hidden'); }
-      else bestSellersSection.classList.add('hidden');
-    };
+  const usedIds = __homeGetUsedIds(['offers']);
+  const flagged = allProducts.filter((p) => p.isOffer === true || (Array.isArray(p.homeSections) && p.homeSections.includes('offers')));
+  const fallback = __homeSortByRecent(allProducts);
+  const source = flagged.length > 0 ? __homeSortByRecent(flagged) : fallback;
+  const pick = __homeSaveSelection('offers', __homeTakeUnique(source, HOME_SECTION_LIMITS.offers, usedIds));
 
-    
-    const loadRecommended = () => {
-      const section = document.getElementById('recommended-section');
-      if (!section) return;
+  if (pick.length > 0) {
+    renderProductCards(pick, 'offers-product-grid');
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+};
 
-      // Recomendados: prioriza flag do cadastro, senão faz fallback inteligente
-      const flagged = allProducts.filter(p => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')));
+const loadBestSellers = () => {
+  const bestSellersSection = document.getElementById('best-sellers-section');
+  if (!bestSellersSection) return;
+  const bestSellers = allProducts.filter(p => p.isBestSeller);
+  if (bestSellers.length > 0) { renderProductCards(bestSellers, 'best-sellers-grid'); bestSellersSection.classList.remove('hidden'); }
+  else bestSellersSection.classList.add('hidden');
+};
 
-      let pick = [];
-      if (flagged.length > 0) {
-        pick = flagged.slice(0, 20);
-      } else {
-        const base = allProducts.filter(p => !p.isOffer && !p.isBestSeller);
-        const sorted = [...base].sort((a, b) => (b._ts || 0) - (a._ts || 0));
-        pick = sorted.slice(0, 20);
-      }
+const loadRecommended = () => {
+  const section = document.getElementById('recommended-section');
+  if (!section) return;
 
-      if (pick.length > 0) {
-        renderProductCards(pick, 'recommended-grid');
-        section.classList.remove('hidden');
-      } else {
-        section.classList.add('hidden');
-      }
-    };
+  const usedIds = __homeGetUsedIds(['recommended']);
+  const flagged = allProducts.filter((p) => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')));
 
-    const loadNewArrivals = () => {
-      const section = document.getElementById('new-arrivals-section');
-      if (!section) return;
+  let source = [];
+  if (flagged.length > 0) {
+    source = __homeSortByRecent(flagged);
+  } else {
+    source = __homeSortByRecent(
+      allProducts.filter((p) => !p.isOffer && !p.isBestSeller)
+    );
+  }
 
-      // Lançamentos: tenta usar campo isNew, senão usa os mais recentes pelo timestamp
-      const flagged = allProducts.filter(p => p.isNew === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')));
-      let pick = [];
+  const pick = __homeSaveSelection('recommended', __homeTakeUnique(source, HOME_SECTION_LIMITS.recommended, usedIds));
 
-      if (flagged.length > 0) {
-        pick = flagged.slice(0, 20);
-      } else {
-        const sorted = [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0));
-        pick = sorted.slice(0, 20);
-      }
+  if (pick.length > 0) {
+    renderProductCards(pick, 'recommended-grid');
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+};
 
-      if (pick.length > 0) {
-        renderProductCards(pick, 'new-arrivals-grid');
-        section.classList.remove('hidden');
-      } else {
-        section.classList.add('hidden');
-      }
-    };
+const loadNewArrivals = () => {
+  const section = document.getElementById('new-arrivals-section');
+  if (!section) return;
 
+  const usedIds = __homeGetUsedIds(['newArrivals']);
+  const flagged = allProducts.filter((p) => p.isNew === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')));
+  const source = flagged.length > 0 ? __homeSortByRecent(flagged) : __homeSortByRecent(allProducts);
+  const pick = __homeSaveSelection('newArrivals', __homeTakeUnique(source, HOME_SECTION_LIMITS.newArrivals, usedIds));
 
-    
+  if (pick.length > 0) {
+    renderProductCards(pick, 'new-arrivals-grid');
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+};
+
 const loadCellphones = () => {
   const section = document.getElementById('cellphones-section');
   if (!section) return;
 
-  const pick = allProducts.filter(p => {
-    const txt = `${p.name || ''} ${p.category || ''} ${p.categoria || ''}`.toLowerCase();
-    return txt.includes('celular') || txt.includes('smartphone') || txt.includes('iphone') || txt.includes('samsung');
-  }).slice(0,10);
+  const usedIds = __homeGetUsedIds(['cellphones']);
+  const source = __homeSortByRecent(
+    allProducts.filter((p) => {
+      const txt = `${p.name || ''} ${p.category || ''} ${p.categoria || ''}`.toLowerCase();
+      return txt.includes('celular') || txt.includes('smartphone') || txt.includes('iphone') || txt.includes('samsung');
+    })
+  );
+
+  const pick = __homeSaveSelection('cellphones', __homeTakeUnique(source, HOME_SECTION_LIMITS.cellphones, usedIds));
 
   if (pick.length > 0) {
     renderProductCards(pick, 'cellphones-grid');
@@ -1417,33 +1516,22 @@ const loadCellphones = () => {
   }
 };
 
-
 const loadMoreProducts = () => {
-      const section = document.getElementById('more-products-section');
-      if (!section) return;
+  const section = document.getElementById('more-products-section');
+  if (!section) return;
 
-      const usedIds = new Set();
+  const usedIds = __homeGetUsedIds(['more']);
+  const source = __homeSortByRecent(allProducts);
+  const pick = __homeSaveSelection('more', __homeTakeUnique(source, HOME_SECTION_LIMITS.more, usedIds));
 
-      const markUsed = (list) => list.forEach(p => usedIds.add(p.id));
+  if (pick.length > 0) {
+    renderProductCards(pick, 'more-products-grid');
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+};
 
-      const offers = allProducts.filter(p => p.isOffer === true || (Array.isArray(p.homeSections) && p.homeSections.includes('offers')));
-      const best = allProducts.filter(p => p.isBestSeller === true || (Array.isArray(p.homeSections) && p.homeSections.includes('best_sellers')));
-      const news = allProducts.filter(p => p.isNew === true || (Array.isArray(p.homeSections) && p.homeSections.includes('new_arrivals')));
-      const recs = allProducts.filter(p => p.isRecommended === true || (Array.isArray(p.homeSections) && p.homeSections.includes('recommended')));
-      const feat = allProducts.filter(p => p.isFeatured === true || (Array.isArray(p.homeSections) && p.homeSections.includes('featured')));
-
-      markUsed(offers); markUsed(best); markUsed(news); markUsed(recs); markUsed(feat);
-
-      const sorted = [...allProducts].sort((a, b) => (b._ts || 0) - (a._ts || 0));
-      const pick = sorted.filter(p => !usedIds.has(p.id)).slice(0, 20);
-
-      if (pick.length > 0) {
-        renderProductCards(pick, 'more-products-grid');
-        section.classList.remove('hidden');
-      } else {
-        section.classList.add('hidden');
-      }
-    };
 const renderProductCards = (products, gridId) => {
   const gridContainer = document.getElementById(gridId);
   if (!gridContainer) return;
