@@ -321,11 +321,7 @@
         status: data.status || data.paymentStatus || "pending",
         customer: data.customer || {},
         address: data.shippingAddress || data.address || data.deliveryAddress || data.customer?.address || null,
-        payment: data.payment || {},
-        items: Array.isArray(data.items) ? data.items : [],
         totals: {
-          subtotal: Number(totals.products ?? totals.subtotal ?? data.subtotal ?? 0) || 0,
-          shipping: Number(totals.shipping ?? data.shippingCost ?? data.shipping?.price ?? 0) || 0,
           grandTotal: Number(
             totals.grandTotal ??
             totals.total ??
@@ -333,8 +329,7 @@
             data.amount ??
             data.valorTotal ??
             0
-          ) || 0,
-          paymentMethod: totals.paymentMethod || data.paymentMethod || data.payment?.method || data.payment?.type || ""
+          ) || 0
         }
       };
     }
@@ -583,6 +578,7 @@
             document.getElementById("pix-qr-img").src = data.qrCodeImage;
           }
           document.getElementById("pix-code-input").value = data.qrCode || data.qr_code || "";
+          clearCheckoutCartOnlyAfterSuccess();
           setAlert("success", "Pix gerado com sucesso.");
         } else {
           throw new Error(data?.error || "Falha ao gerar QR Code.");
@@ -617,6 +613,7 @@
         });
 
         if (data?.ok && (data?.ticketUrl || data?.ticket_url)) {
+          clearCheckoutCartOnlyAfterSuccess();
           setAlert("success", "Boleto gerado com sucesso!");
           window.open(data.ticketUrl || data.ticket_url, "_blank");
         } else {
@@ -665,10 +662,6 @@
         try {
           const data = await apiFetch(path);
           orderData = normalizeOrder(data);
-          try {
-            localStorage.setItem("arianaLastOrderId", orderData.id || orderId || "");
-            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderData));
-          } catch (_) {}
           renderResumo();
 
           if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
@@ -706,38 +699,70 @@
     }
 
 
-    function preselectSavedMethod() {
-      const savedMethod =
-        (new URLSearchParams(window.location.search).get("method") || "").trim() ||
-        (localStorage.getItem("arianaCheckoutSelectedPay") || "").trim() ||
-        (localStorage.getItem("arianaLastOrderPayment") || "").trim() ||
-        String(orderData?.totals?.paymentMethod || orderData?.payment?.method || "").trim();
-
-      if (!savedMethod) return;
-
+    function openSelectedMethod(method) {
       const normalized =
-        savedMethod === "card" || savedMethod.toLowerCase().includes("cart") ? "card" :
-        savedMethod === "boleto" || savedMethod.toLowerCase().includes("boleto") ? "boleto" :
+        method === "card" ? "card" :
+        method === "boleto" ? "boleto" :
         "pix";
 
-      const btn = document.querySelector(`.btn-choice[data-method="${normalized}"]`);
-      const continueBtn = document.getElementById("btn-continue");
-      if (!btn || !continueBtn) return;
+      selectedMethod = normalized;
 
-      document.querySelectorAll(".btn-choice").forEach((x) => {
-        x.classList.remove("active");
-        const indicator = x.querySelector(".radio-indicator");
-        if (indicator) indicator.innerHTML = "";
+      document.querySelectorAll(".btn-choice").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.method === normalized);
+        const indicator = btn.querySelector(".radio-indicator");
+        if (indicator) {
+          indicator.innerHTML = btn.dataset.method === normalized
+            ? '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>'
+            : "";
+        }
       });
 
-      btn.classList.add("active");
-      const indicator = btn.querySelector(".radio-indicator");
-      if (indicator) indicator.innerHTML = '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>';
-      continueBtn.disabled = false;
-      continueBtn.style.opacity = "1";
-      continueBtn.dataset.method = normalized;
+      const continueBtn = document.getElementById("btn-continue");
+      if (continueBtn) {
+        continueBtn.disabled = false;
+        continueBtn.classList.remove("opacity-50");
+      }
+
+      const choice = document.getElementById("section-choice");
+      const panelCard = document.getElementById("panel-card");
+      const panelPix = document.getElementById("panel-pix");
+      const panelBoleto = document.getElementById("panel-boleto");
+
+      if (choice) choice.classList.add("hidden");
+      if (panelCard) panelCard.classList.add("hidden");
+      if (panelPix) panelPix.classList.add("hidden");
+      if (panelBoleto) panelBoleto.classList.add("hidden");
+
+      if (normalized === "card" && panelCard) panelCard.classList.remove("hidden");
+      if (normalized === "pix" && panelPix) panelPix.classList.remove("hidden");
+      if (normalized === "boleto" && panelBoleto) panelBoleto.classList.remove("hidden");
     }
 
+    function tryAutoOpenMethod() {
+      const params = new URLSearchParams(window.location.search);
+      const method =
+        (params.get("method") || "").trim() ||
+        (localStorage.getItem("arianaCheckoutSelectedPay") || "").trim() ||
+        (localStorage.getItem("arianaLastOrderPayment") || "").trim();
+
+      if (!method) return;
+
+      if (method === "pix") {
+        openSelectedMethod("pix");
+      } else if (method === "boleto") {
+        openSelectedMethod("boleto");
+      } else if (method === "card") {
+        openSelectedMethod("card");
+      }
+    }
+
+    function clearCheckoutCartOnlyAfterSuccess() {
+      try {
+        localStorage.removeItem("arianaMoveisCart");
+        localStorage.removeItem("ariana_moveis_cart");
+        localStorage.removeItem("arianaCheckoutPendingCart");
+      } catch (_) {}
+    }
 
     function bindChoice() {
       if (window.__bindChoiceDone) return;
@@ -797,7 +822,6 @@
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
-        preselectSavedMethod();
         startPolling();
       } catch (e) {
         console.error(e);
