@@ -1346,6 +1346,41 @@ async function quoteShippingForSelectedAddress(addrObj) {
       } catch (_) {}
     }
 
+    const LARGE_SUPPLIER_KEYWORDS = [
+      'WHIRLPOOL', 'SAMSUNG', 'MOTOROLA', 'ELECTROLUX', 'ELETROLUX', 'BRASTEMP',
+      'CONSUL', 'LG', 'PHILCO', 'MONDIAL', 'MAGALU', 'MAGAZINE LUIZA', 'AMERICANAS',
+      'MIDEA', 'PANDIN', 'ITATIAIA', 'MOVAL', 'HB MOVEIS', 'HB MÓVEIS', 'HENN',
+      'DJ MOVEIS', 'DJ MÓVEIS', 'DEMOBILE', 'CARRARO', 'RUFATO', 'KAPPESBERG'
+    ];
+
+    function normalizeGatewayText(value) {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, ' ')
+        .trim();
+    }
+
+    function inferManufacturerFromCart(items) {
+      const list = Array.isArray(items) ? items : [];
+      const text = normalizeGatewayText(list.map((item) => [
+        item?.sellerName, item?.sellerId, item?.manufacturer, item?.brand, item?.vendorName, item?.storeName, item?.name
+      ].filter(Boolean).join(' ')).join(' '));
+
+      const match = LARGE_SUPPLIER_KEYWORDS.find((keyword) => text.includes(normalizeGatewayText(keyword)));
+      if (match) return match;
+
+      const firstNamed = list.find((item) => item?.sellerName || item?.manufacturer || item?.brand || item?.vendorName || item?.storeName);
+      return String(firstNamed?.sellerName || firstNamed?.manufacturer || firstNamed?.brand || firstNamed?.vendorName || firstNamed?.storeName || list[0]?.sellerId || 'Ariana Moveis').trim();
+    }
+
+    function isLargeSupplierCart(items) {
+      const manufacturer = inferManufacturerFromCart(items);
+      const normalized = normalizeGatewayText(manufacturer);
+      return LARGE_SUPPLIER_KEYWORDS.some((keyword) => normalized.includes(normalizeGatewayText(keyword)));
+    }
+
 
     async function finalizarPedido() {
       const btn = document.getElementById("btn-pay");
@@ -1446,6 +1481,22 @@ async function quoteShippingForSelectedAddress(addrObj) {
             phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || ""
           },
           address: addrN,
+          shippingAddress: addrN,
+          customerName: fullName,
+          customerEmail: authUser.email || "",
+          customerPhone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || "",
+          manufacturer: inferManufacturerFromCart(cart),
+          payment: {
+            method: selectedPayCode,
+            gateway: selectedPayCode === 'card' ? 'pagarme' : (isLargeSupplierCart(cart) ? 'pagarme' : 'mercadopago'),
+            routing: {
+              largeSupplier: isLargeSupplierCart(cart),
+              cardGateway: 'pagarme',
+              pixBoletoGateway: isLargeSupplierCart(cart) ? 'pagarme' : 'mercadopago'
+            }
+          },
+          total: valorFinal,
+          shippingCost: totalsComputed.shipping,
           totals: {
             products: totalsComputed.products,
             shipping: totalsComputed.shipping,
@@ -1483,7 +1534,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
         persistLastOrder(orderId, selectedPayCode || "", response);
 
-        window.location.href = `pedido_confirmado.html?orderId=${encodeURIComponent(orderId)}`;
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
       } catch (e) {
         console.error(e);
         alert(e?.message || "Erro ao finalizar pedido.");
@@ -1503,7 +1554,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
       document.getElementById('btn-next-1')?.addEventListener('click', () => goToStep(2));
       document.getElementById('btn-back-2')?.addEventListener('click', () => goToStep(1));
-      document.getElementById('btn-next-2')?.addEventListener('click', () => goToStep(3));
+      document.getElementById('btn-next-2')?.addEventListener('click', finalizarPedido);
       document.getElementById('btn-back-3')?.addEventListener('click', () => goToStep(2));
       document.getElementById('btn-pay')?.addEventListener('click', finalizarPedido);
 
@@ -1518,6 +1569,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
     (async function init() {
       bindEvents();
+
+      const duplicateStep = document.getElementById('step-3');
+      if (duplicateStep) duplicateStep.classList.add('hidden');
+      const next2 = document.getElementById('btn-next-2');
+      if (next2) next2.innerHTML = 'Ir para pagamento seguro <i class="fas fa-arrow-right ml-2"></i>' ;
 
       const ok = await bootAuthAndProfile();
       if (!ok) return;
