@@ -8,64 +8,87 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="js/api-config.js"></script>
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
 
   <style>
-    .field-box{width:100%;border:1px solid #e5e7eb;border-radius:0.75rem;padding:0.85rem 0.95rem;outline:none;background:#fff}
-    .field-box:focus{box-shadow:0 0 0 3px rgba(59,130,246,.15);border-color:#60a5fa}
-    .btn-primary{background:#0ea5e9;color:#fff;font-weight:800;border-radius:1rem;padding:0.95rem 1.1rem;width:100%}
-    .btn-primary:hover{filter:brightness(.97)}
-    .btn-primary:disabled{opacity:.55;cursor:not-allowed}
-    .btn-choice{background:#fff;border:2px solid #e5e7eb;border-radius:1rem;padding:1.25rem;width:100%;text-align:left;transition:all .2s;display:flex;align-items:center;gap:1rem}
-    .btn-choice:hover{border-color:#0ea5e9;background:#f0f9ff}
-    .btn-choice.active{border-color:#0ea5e9;background:#f0f9ff;box-shadow:0 0 0 3px rgba(14,165,233,.1)}
+    .mp-input{
+      width:100%;
+      border:1px solid #e5e7eb;
+      border-radius:0.75rem;
+      padding:0.85rem 0.95rem;
+      outline:none;
+      background:#fff;
+    }
+    .mp-input:focus{ box-shadow:0 0 0 3px rgba(59,130,246,.15); border-color:#60a5fa; }
+    .btn-primary{
+      background:#0ea5e9;
+      color:#fff;
+      font-weight:800;
+      border-radius:1rem;
+      padding:0.95rem 1.1rem;
+      width:100%;
+    }
+    .btn-primary:hover{ filter:brightness(.97); }
+    .btn-primary:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .btn-choice{
+      background:#fff;
+      border:2px solid #e5e7eb;
+      border-radius:1rem;
+      padding:1.25rem;
+      width:100%;
+      text-align:left;
+      transition:all .2s;
+      display:flex;
+      align-items:center;
+      gap:1rem;
+    }
+    .btn-choice:hover{ border-color:#0ea5e9; background:#f0f9ff; }
+    .btn-choice.active{ border-color:#0ea5e9; background:#f0f9ff; box-shadow:0 0 0 3px rgba(14,165,233,.1); }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans leading-relaxed">
+
   <div class="max-w-2xl mx-auto px-4 py-8">
-    <div class="mb-8 flex items-center justify-between gap-3">
+    <div class="mb-8 flex items-center justify-between">
       <h1 class="text-2xl font-black tracking-tight">Pagamento</h1>
-      <div class="text-right">
-        <div id="order-id-display" class="text-xs font-mono text-slate-400"></div>
-        <div id="gateway-hint" class="text-[11px] font-bold uppercase tracking-wider text-slate-400"></div>
-      </div>
+      <div id="order-id-display" class="text-xs font-mono text-slate-400"></div>
     </div>
 
     <div id="alert-box" class="hidden mb-6 p-4 rounded-xl text-sm font-medium border"></div>
 
-    <div id="order-summary" class="hidden bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-6">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm font-bold text-slate-500 uppercase tracking-wider">Total do Pedido</span>
-        <span id="summary-total" class="text-xl font-black text-slate-900">R$ 0,00</span>
-      </div>
-      <div class="text-sm text-slate-500" id="summary-address">Carregando endereço...</div>
-    </div>
-
     <div id="section-choice" class="space-y-4">
       <p class="text-slate-500 mb-4 font-medium">Como deseja pagar?</p>
 
-      <button class="btn-choice" data-method="pix" type="button">
-        <div class="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">PIX</div>
+      <button class="btn-choice group" data-method="pix" type="button">
+        <div class="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        </div>
         <div class="flex-1">
           <div class="font-bold">Pix</div>
-          <div id="pix-gateway-label" class="text-xs text-slate-500">Aprovação instantânea</div>
+          <div class="text-xs text-slate-500">Aprovação instantânea</div>
         </div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
 
       <button class="btn-choice" data-method="card" type="button">
-        <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">CC</div>
+        <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+        </div>
         <div class="flex-1">
           <div class="font-bold">Cartão de Crédito</div>
-          <div class="text-xs text-slate-500">Processado pelo Pagar.me</div>
+          <div class="text-xs text-slate-500">Parcele em até 12x</div>
         </div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
 
       <button class="btn-choice" data-method="boleto" type="button">
-        <div class="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">BOL</div>
+        <div class="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+        </div>
         <div class="flex-1">
           <div class="font-bold">Boleto Bancário</div>
-          <div id="boleto-gateway-label" class="text-xs text-slate-500">Compensação em 1 a 3 dias úteis</div>
+          <div class="text-xs text-slate-500">Vencimento em 3 dias úteis</div>
         </div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
@@ -73,140 +96,219 @@
       <div class="pt-6">
         <button id="btn-continue" disabled class="btn-primary opacity-50 flex items-center justify-center gap-2" type="button">
           Continuar
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         </button>
       </div>
     </div>
 
-    <div id="panel-card" class="hidden space-y-6">
-      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">← Voltar</button>
+    <div id="panel-card" class="hidden space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Voltar
+      </button>
+
       <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
         <form id="form-checkout" class="space-y-4">
-          <div>
-            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Número do Cartão</label>
-            <input type="text" id="card-number" class="field-box" placeholder="0000 0000 0000 0000" autocomplete="cc-number" />
-          </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4">
             <div>
-              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Validade</label>
-              <input type="text" id="card-expiration" class="field-box" placeholder="MM/AAAA" autocomplete="cc-exp" />
+              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Número do Cartão</label>
+              <div id="form-checkout__cardNumber" class="mp-input h-12"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Vencimento</label>
+                <div id="form-checkout__expirationDate" class="mp-input h-12"></div>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">CVV</label>
+                <div id="form-checkout__securityCode" class="mp-input h-12"></div>
+              </div>
             </div>
             <div>
-              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">CVV</label>
-              <input type="text" id="card-cvv" class="field-box" placeholder="123" autocomplete="cc-csc" />
+              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Nome do Titular</label>
+              <input type="text" id="form-checkout__cardholderName" class="mp-input h-12" />
             </div>
-          </div>
-          <div>
-            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Nome do Titular</label>
-            <input type="text" id="card-holder-name" class="field-box" />
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
-              <select id="card-installments" class="field-box"></select>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Banco Emissor</label>
+                <select id="form-checkout__issuer" class="mp-input h-12"></select>
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
+                <select id="form-checkout__installments" class="mp-input h-12"></select>
+              </div>
             </div>
-            <div>
-              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Gateway</label>
-              <input type="text" class="field-box bg-slate-50" value="Pagar.me" readonly />
-            </div>
+            <select id="form-checkout__identificationType" class="hidden"></select>
+            <input type="text" id="form-checkout__identificationNumber" class="hidden" />
+            <input type="email" id="form-checkout__cardholderEmail" class="hidden" />
           </div>
-          <button type="submit" id="form-checkout__submit" class="btn-primary mt-6">Pagar com cartão</button>
+          <button type="submit" id="form-checkout__submit" class="btn-primary mt-6">Confirmar Pagamento</button>
         </form>
       </div>
     </div>
 
     <div id="panel-pix" class="hidden space-y-6">
-      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">← Voltar</button>
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Voltar
+      </button>
+
       <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center space-y-6">
         <div id="pix-loading" class="flex flex-col items-center py-8">
           <div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
           <p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>
         </div>
+
         <div id="pix-content" class="hidden space-y-6">
           <div class="bg-teal-50 rounded-2xl p-4 inline-block mx-auto border border-teal-100">
-            <img id="pix-qr-img" class="w-48 h-48 mx-auto object-contain" src="" alt="QR Code Pix" />
+            <img id="pix-qr-img" class="w-48 h-48 mx-auto" src="" alt="QR Code Pix" />
           </div>
           <div class="space-y-2 text-left">
             <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Código Pix (Copia e Cola)</label>
             <div class="flex gap-2">
-              <input type="text" id="pix-code-input" readonly class="field-box bg-slate-50 text-xs font-mono" />
-              <button id="btn-copy-pix" class="bg-slate-900 text-white px-4 rounded-xl" type="button">Copiar</button>
+              <input type="text" id="pix-code-input" readonly class="mp-input bg-slate-50 text-xs font-mono" />
+              <button id="btn-copy-pix" class="bg-slate-900 text-white px-4 rounded-xl hover:bg-slate-800 transition-colors" type="button">Copiar</button>
             </div>
           </div>
+          <p class="text-xs text-slate-400 italic">O status do seu pedido será atualizado automaticamente após o pagamento.</p>
         </div>
       </div>
     </div>
 
     <div id="panel-boleto" class="hidden space-y-6">
-      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">← Voltar</button>
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Voltar
+      </button>
       <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center space-y-6">
-        <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-600 font-black">BOL</div>
+        <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-600">
+          <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
         <h3 class="text-lg font-bold">Boleto Bancário</h3>
-        <p class="text-slate-500 text-sm">Ao clicar abaixo, o boleto do seu pedido será gerado.</p>
-        <button id="btn-generate-boleto" class="btn-primary" type="button">Gerar boleto agora</button>
+        <p class="text-slate-500 text-sm">Ao clicar no botão abaixo, geraremos o boleto para o seu pedido. A compensação leva de 1 a 3 dias úteis.</p>
+        <button id="btn-generate-boleto" class="btn-primary" type="button">Gerar Boleto Agora</button>
+      </div>
+    </div>
+
+    <div id="order-summary" class="mt-8 pt-8 border-t border-slate-200 hidden">
+      <div class="flex items-center justify-between text-slate-500 mb-2">
+        <span class="text-sm">Total do Pedido</span>
+        <span id="summary-total" class="text-xl font-black text-slate-900">R$ 0,00</span>
       </div>
     </div>
   </div>
 
   <script>
-    const API_BASE = window.API_BASE || localStorage.getItem("API_BASE") || "https://ariana-backend.onrender.com/api";
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-backend.onrender.com/api";
+
+    const API_ORIGIN =
+      window.API_ORIGIN ||
+      String(API_BASE).replace(/\/api\/?$/i, "");
+
     window.API_BASE = API_BASE;
+    window.API_ORIGIN = API_ORIGIN;
 
-    const PAGARME_PUBLIC_KEY_FALLBACK = "pk_p4x3LJWT9Ofd79lV";
-    const LARGE_SUPPLIER_KEYWORDS = [
-      "WHIRLPOOL","SAMSUNG","MOTOROLA","ELECTROLUX","ELETROLUX","BRASTEMP","CONSUL","LG","PHILCO","MONDIAL",
-      "MAGALU","MAGAZINE LUIZA","AMERICANAS","MIDEA","PANDIN","ITATIAIA","MOVAL","HB MOVEIS","HENN","DJ MOVEIS",
-      "DEMOBILE","CARRARO","RUFATO","KAPPESBERG"
-    ];
-
-    const params = new URLSearchParams(window.location.search);
-    const orderId = params.get("orderId") || localStorage.getItem("arianaLastOrderId") || "";
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
 
     let currentUser = null;
     let customerProfile = null;
     let orderData = null;
+    let mp = null;
+    let cardForm = null;
     let pollTimer = null;
-    let selectedMethod = "pix";
 
-    function digitsOnly(v){ return String(v || "").replace(/\D+/g, ""); }
-    function pick(...vals){ for (const v of vals) if (v !== undefined && v !== null && String(v).trim() !== "") return v; return ""; }
-    function normalizeText(v){ return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim(); }
-    function money(v){ return new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL" }).format(Number(v || 0)); }
+    function digitsOnly(v) {
+      return String(v || "").replace(/\D+/g, "");
+    }
 
-    function getAuthToken(){ return localStorage.getItem("userToken") || localStorage.getItem("authToken") || localStorage.getItem("token") || localStorage.getItem("customerToken") || ""; }
-    function getHeaders(extra = {}){ const token = getAuthToken(); return { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}), ...extra }; }
+    function pick(...vals) {
+      for (const v of vals) {
+        if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+      }
+      return "";
+    }
+
+    function getAuthToken() {
+      return (
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("customerToken") ||
+        ""
+      );
+    }
+
+    function getHeaders(extra = {}) {
+      const token = getAuthToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {}),
+        ...extra
+      };
+    }
 
     async function apiFetch(path, options = {}) {
-      const url = /^https?:\/\//i.test(String(path || "")) ? String(path) : `${API_BASE}${String(path || "").startsWith("/") ? "" : "/"}${String(path || "")}`;
-      const res = await fetch(url, { ...options, headers: getHeaders(options.headers || {}) });
+      const url = /^https?:\/\//i.test(String(path || ""))
+        ? String(path)
+        : `${API_BASE}${String(path || "").startsWith("/") ? "" : "/"}${String(path || "")}`;
+
+      const res = await fetch(url, {
+        ...options,
+        headers: getHeaders(options.headers || {})
+      });
+
       const text = await res.text();
       let data = null;
-      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-      if (!res.ok) throw new Error((data && (data.message || data.error)) || `Erro HTTP ${res.status}`);
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {
+        data = text;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          (data && (data.message || data.error)) ||
+          `Erro HTTP ${res.status}`
+        );
+      }
+
       return data;
     }
 
     function setAlert(type, text) {
       const box = document.getElementById("alert-box");
       box.className = "mb-6 p-4 rounded-xl text-sm font-medium border";
-      if (type === "error") box.classList.add("bg-red-50","border-red-100","text-red-700");
-      else if (type === "success") box.classList.add("bg-teal-50","border-teal-100","text-teal-700");
-      else if (type === "loading") box.classList.add("bg-blue-50","border-blue-100","text-blue-700");
-      else box.classList.add("bg-slate-50","border-slate-200","text-slate-700");
+      if (type === "error") box.classList.add("bg-red-50", "border-red-100", "text-red-700");
+      else if (type === "success") box.classList.add("bg-teal-50", "border-teal-100", "text-teal-700");
+      else if (type === "loading") box.classList.add("bg-blue-50", "border-blue-100", "text-blue-700");
+      else box.classList.add("bg-slate-50", "border-slate-200", "text-slate-700");
       box.innerText = text;
       box.classList.remove("hidden");
     }
 
-    function normalizeAddress(addr) {
-      if (!addr || typeof addr !== "object") return null;
-      return {
-        street: pick(addr.street, addr.street_name, addr.logradouro, addr.rua, addr.address, addr.endereco),
-        number: pick(addr.number, addr.street_number, addr.numero, "S/N"),
-        neighborhood: pick(addr.neighborhood, addr.bairro),
-        city: pick(addr.city, addr.city_name, addr.cidade),
-        state: String(pick(addr.state, addr.federal_unit, addr.uf)).trim().toUpperCase().slice(0, 2),
-        zip: digitsOnly(pick(addr.zip, addr.zip_code, addr.cep, addr.zipCode)),
-        complement: pick(addr.complement, addr.complemento, addr.apartment, addr.apto, addr.compl)
-      };
+    function disablePayments(val) {
+      const cardBtn = document.getElementById("form-checkout__submit");
+      const boletoBtn = document.getElementById("btn-generate-boleto");
+      if (cardBtn) cardBtn.disabled = val;
+      if (boletoBtn) boletoBtn.disabled = val;
+    }
+
+    window.showChoice = () => {
+      document.getElementById("section-choice").classList.remove("hidden");
+      document.getElementById("panel-card").classList.add("hidden");
+      document.getElementById("panel-pix").classList.add("hidden");
+      document.getElementById("panel-boleto").classList.add("hidden");
+      unmountCardForm();
+    };
+
+    function showPanel(id) {
+      document.getElementById("section-choice").classList.add("hidden");
+      document.getElementById("panel-card").classList.add("hidden");
+      document.getElementById("panel-pix").classList.add("hidden");
+      document.getElementById("panel-boleto").classList.add("hidden");
+      document.getElementById(id).classList.remove("hidden");
     }
 
     function normalizeOrder(raw) {
@@ -220,24 +322,59 @@
         customer: data.customer || {},
         address: data.shippingAddress || data.address || data.deliveryAddress || data.customer?.address || null,
         totals: {
-          grandTotal: Number(totals.grandTotal ?? totals.total ?? data.total ?? data.amount ?? data.valorTotal ?? 0) || 0
+          grandTotal: Number(
+            totals.grandTotal ??
+            totals.total ??
+            data.total ??
+            data.amount ??
+            data.valorTotal ??
+            0
+          ) || 0
         }
       };
     }
 
-    function getStoredOrderSnapshot() {
-      try {
-        const raw = localStorage.getItem("arianaLastOrderResponse");
-        return raw ? JSON.parse(raw) : null;
-      } catch { return null; }
+    function normalizeProfile(raw) {
+      return raw?.user || raw?.item || raw?.data || raw || {};
+    }
+
+    function normalizeAddress(addr) {
+      if (!addr || typeof addr !== "object") return null;
+
+      return {
+        street: pick(addr.street, addr.street_name, addr.logradouro, addr.rua, addr.address, addr.endereco),
+        number: pick(addr.number, addr.street_number, addr.numero, "S/N"),
+        neighborhood: pick(addr.neighborhood, addr.bairro),
+        city: pick(addr.city, addr.city_name, addr.cidade),
+        state: String(pick(addr.state, addr.federal_unit, addr.uf)).trim().toUpperCase().slice(0, 2),
+        zip: digitsOnly(pick(addr.zip, addr.zip_code, addr.cep, addr.zipCode)),
+        complement: pick(addr.complement, addr.complemento, addr.apartment, addr.apto, addr.compl)
+      };
     }
 
     function getOrderCpf() {
-      return digitsOnly(pick(customerProfile?.cpf, customerProfile?.document, orderData?.customer?.cpf, orderData?.cpf));
+      return digitsOnly(
+        pick(
+          customerProfile?.cpf,
+          customerProfile?.document,
+          orderData?.customer?.cpf,
+          orderData?.cpf
+        )
+      );
     }
 
     function getOrderFullName() {
-      return String(pick(customerProfile?.name, customerProfile?.nome, orderData?.customer?.name, orderData?.customer?.nome, currentUser?.name, currentUser?.displayName, "Cliente Ariana")).trim();
+      return String(
+        pick(
+          customerProfile?.name,
+          customerProfile?.nome,
+          orderData?.customer?.name,
+          orderData?.customer?.nome,
+          currentUser?.name,
+          currentUser?.displayName,
+          "Cliente Ariana"
+        )
+      ).trim();
     }
 
     function splitFullName(full) {
@@ -248,7 +385,11 @@
     }
 
     function getBestAddress() {
-      return normalizeAddress(orderData?.address || customerProfile?.address || (Array.isArray(customerProfile?.addresses) ? customerProfile.addresses[0] : null));
+      return normalizeAddress(
+        orderData?.address ||
+        customerProfile?.address ||
+        (Array.isArray(customerProfile?.addresses) ? customerProfile.addresses[0] : null)
+      );
     }
 
     function toMpAddress(addr) {
@@ -259,8 +400,7 @@
         street_number: String(a.number || "S/N"),
         neighborhood: a.neighborhood || "",
         city: a.city || "",
-        federal_unit: a.state || "",
-        apartment: a.complement || ""
+        federal_unit: a.state || ""
       };
     }
 
@@ -268,7 +408,11 @@
       const fullName = getOrderFullName();
       const parts = splitFullName(fullName);
       const idNumber = getOrderCpf();
-      const email = pick(customerProfile?.email, orderData?.customer?.email, currentUser?.email);
+      const email = pick(
+        customerProfile?.email,
+        orderData?.customer?.email,
+        currentUser?.email
+      );
       return {
         email,
         first_name: parts.firstName,
@@ -279,7 +423,8 @@
     }
 
     function getMpReceiverAddressFromOrder() {
-      const mpAddr = toMpAddress(getBestAddress());
+      const bestAddr = normalizeAddress(getBestAddress()) || {};
+      const mpAddr = toMpAddress(bestAddr);
       return {
         zip_code: mpAddr.zip_code || "",
         street_name: mpAddr.street_name || "",
@@ -287,177 +432,328 @@
         neighborhood: mpAddr.neighborhood || "",
         city_name: mpAddr.city || "",
         state_name: mpAddr.federal_unit || "",
-        apartment: mpAddr.apartment || "",
+        apartment: bestAddr.complement || "",
         receiver_name: getOrderFullName()
       };
     }
 
-    function getRoutingSourceText() {
-      const stored = getStoredOrderSnapshot();
-      const parts = [
-        orderData?.manufacturer,
-        orderData?.payment?.gateway,
-        orderData?.payment?.routing ? JSON.stringify(orderData.payment.routing) : "",
-        ...(Array.isArray(orderData?.sellerIds) ? orderData.sellerIds : []),
-        ...(Array.isArray(orderData?.items) ? orderData.items.flatMap((item) => [item?.sellerName, item?.sellerId, item?.manufacturer, item?.brand, item?.vendorName, item?.storeName, item?.name]) : []),
-        stored?.order?.manufacturer,
-        ...(Array.isArray(stored?.order?.items) ? stored.order.items.flatMap((item) => [item?.sellerName, item?.sellerId, item?.manufacturer, item?.brand, item?.vendorName, item?.storeName, item?.name]) : [])
-      ].filter(Boolean);
-      return normalizeText(parts.join(" "));
+    async function getMpPublicKey() {
+      const data = await apiFetch("/payments/mp/public-key");
+      const publicKey = data?.publicKey || data?.public_key || data?.key || "";
+      if (!publicKey) {
+        throw new Error("Não foi possível obter a Public Key do Mercado Pago.");
+      }
+      return publicKey;
     }
 
-    function isLargeSupplierOrder() {
-      const text = getRoutingSourceText();
-      return LARGE_SUPPLIER_KEYWORDS.some((keyword) => text.includes(normalizeText(keyword)));
-    }
-
-    function resolveGateway(method) {
-      if (method === "card") return "pagarme";
-      return isLargeSupplierOrder() ? "pagarme" : "mercadopago";
-    }
-
-    function updateGatewayHints() {
-      const isLarge = isLargeSupplierOrder();
-      document.getElementById("gateway-hint").textContent = isLarge ? "Fornecedor grande: Pagar.me" : "Seller pequeno: MP no Pix/Boleto";
-      document.getElementById("pix-gateway-label").textContent = isLarge ? "Pix via Pagar.me" : "Pix via Mercado Pago";
-      document.getElementById("boleto-gateway-label").textContent = isLarge ? "Boleto via Pagar.me" : "Boleto via Mercado Pago";
-    }
-
-    function disablePayments(val) {
-      const cardBtn = document.getElementById("form-checkout__submit");
-      const boletoBtn = document.getElementById("btn-generate-boleto");
-      const continueBtn = document.getElementById("btn-continue");
-      if (cardBtn) cardBtn.disabled = val;
-      if (boletoBtn) boletoBtn.disabled = val;
-      if (continueBtn) continueBtn.disabled = val;
-    }
-
-    async function getPagarmePublicKey() {
-      try {
-        const data = await apiFetch("/payments/pagarme/public-key");
-        return data?.publicKey || data?.public_key || data?.key || PAGARME_PUBLIC_KEY_FALLBACK;
-      } catch {
-        return PAGARME_PUBLIC_KEY_FALLBACK;
+    function unmountCardForm() {
+      if (cardForm) {
+        try { cardForm.unmount(); } catch (_) {}
+        cardForm = null;
       }
     }
 
-    function getCardBrand(number) {
-      const n = digitsOnly(number);
-      if (/^4/.test(n)) return "visa";
-      if (/^(5[1-5]|2[2-7])/.test(n)) return "mastercard";
-      if (/^3[47]/.test(n)) return "amex";
-      if (/^(5067|4576|4011)/.test(n)) return "elo";
-      if (/^(6062|3841)/.test(n)) return "hipercard";
-      return "visa";
-    }
-
-    function toPagarmeAddress(addr) {
-      const a = normalizeAddress(addr) || {};
-      return {
-        line_1: [a.street, a.number].filter(Boolean).join(", ") || "Endereço não informado",
-        line_2: [a.neighborhood, a.complement].filter(Boolean).join(" - "),
-        zip_code: a.zip || "",
-        city: a.city || "",
-        state: a.state || "",
-        country: "BR"
-      };
-    }
-
-    function buildPagarmeCustomer() {
-      const doc = getOrderCpf();
-      const phoneDigits = digitsOnly(pick(orderData?.customer?.phone, currentUser?.phone, customerProfile?.phone));
-      const normalized = phoneDigits.startsWith("55") ? phoneDigits.slice(2) : phoneDigits;
-      return {
-        name: getOrderFullName(),
-        email: pick(customerProfile?.email, orderData?.customer?.email, currentUser?.email),
-        type: doc.length > 11 ? "company" : "individual",
-        document: doc,
-        phones: { mobile_phone: { country_code: "55", area_code: normalized.slice(0,2) || "31", number: normalized.slice(2) || "999999999" } },
-        address: toPagarmeAddress(getBestAddress())
-      };
-    }
-
-    function buildPagarmeItems() {
-      const items = Array.isArray(orderData?.items) && orderData.items.length ? orderData.items : [{ name: "Pedido Ariana Móveis", qty: 1, unitPrice: Number(orderData?.totals?.grandTotal || 0) }];
-      return items.map((item, index) => ({
-        code: String(item?.productId || item?._id || item?.sku || `item_${index + 1}`),
-        description: String(item?.name || `Item ${index + 1}`),
-        quantity: Number(item?.qty || item?.quantity || 1) || 1,
-        amount: Math.max(1, Math.round(Number(item?.unitPrice || item?.price || item?.totalPrice || 0) * 100))
-      }));
-    }
-
-    function buildPagarmeOrderPayload(method, extra = {}) {
-      const amount = Math.max(1, Math.round(Number(orderData?.totals?.grandTotal || 0) * 100));
-      const payload = {
-        code: `ariana_${orderId}`,
-        items: buildPagarmeItems(),
-        customer: buildPagarmeCustomer(),
-        payments: [],
-        metadata: {
-          orderId,
-          source: "ariana_moveis_site",
-          largeSupplier: isLargeSupplierOrder() ? "true" : "false",
-          requestedMethod: method
+    async function mountCardFormSafe() {
+      try {
+        if (!orderData?.totals?.grandTotal) {
+          throw new Error("Total do pedido inválido.");
         }
-      };
-      if (method === "card") {
-        payload.payments.push({
-          payment_method: "credit_card",
-          amount,
-          credit_card: {
-            installments: Number(extra.installments || 1),
-            statement_descriptor: "ARIANA MOVEIS",
-            card_token: extra.cardToken,
-            billing_address: toPagarmeAddress(getBestAddress())
+
+        if (!mp) {
+          const publicKey = await getMpPublicKey();
+          mp = new MercadoPago(publicKey, { locale: "pt-BR" });
+        }
+
+        if (cardForm) unmountCardForm();
+
+        cardForm = mp.cardForm({
+          amount: String(orderData.totals.grandTotal),
+          iframe: true,
+          form: {
+            id: "form-checkout",
+            cardNumber: { id: "form-checkout__cardNumber", placeholder: "0000 0000 0000 0000" },
+            expirationDate: { id: "form-checkout__expirationDate", placeholder: "MM/AA" },
+            securityCode: { id: "form-checkout__securityCode", placeholder: "123" },
+            cardholderName: { id: "form-checkout__cardholderName" },
+            issuer: { id: "form-checkout__issuer" },
+            installments: { id: "form-checkout__installments" },
+            identificationType: { id: "form-checkout__identificationType" },
+            identificationNumber: { id: "form-checkout__identificationNumber" },
+            cardholderEmail: { id: "form-checkout__cardholderEmail" }
+          },
+          callbacks: {
+            onFormMounted: (error) => {
+              if (error) {
+                console.warn("Erro ao montar formulário", error);
+                return;
+              }
+
+              const payer = getMpPayerStrict();
+              if (!payer.email) throw new Error("E-mail do cliente não encontrado.");
+              if (!payer.identification?.number || payer.identification.number.length !== 11) {
+                throw new Error("Verifique se seu CPF está correto no perfil.");
+              }
+
+              document.getElementById("form-checkout__cardholderEmail").value = payer.email || "";
+              document.getElementById("form-checkout__identificationType").value = "CPF";
+              document.getElementById("form-checkout__identificationNumber").value = payer.identification.number || "";
+              if (!document.getElementById("form-checkout__cardholderName").value) {
+                document.getElementById("form-checkout__cardholderName").value = getOrderFullName();
+              }
+            },
+            onSubmit: (event) => {
+              event.preventDefault();
+              const formData = cardForm.getCardFormData();
+              doPayCard(formData);
+            },
+            onIdentificationTypesReceived: (error) => {
+              if (error) console.warn("Erro identificação", error);
+            }
           }
         });
-      } else if (method === "pix") {
-        payload.payments.push({ payment_method: "pix", amount, pix: { expires_in: 3600, additional_information: [{ name: "Pedido", value: orderId }] } });
-      } else {
-        payload.payments.push({ payment_method: "boleto", amount, boleto: { due_at: new Date(Date.now() + 3*24*60*60*1000).toISOString(), instructions: "Pagar até o vencimento. Ariana Móveis." } });
+      } catch (err) {
+        console.error("Falha crítica no SDK:", err);
+        setAlert("error", err.message || "Falha ao iniciar o cartão.");
       }
-      return payload;
     }
 
-    function parsePagarmePaymentResult(payload) {
-      const root = payload?.data || payload || {};
-      const charge = Array.isArray(root?.charges) ? (root.charges[0] || {}) : {};
-      const tx = charge?.last_transaction || {};
-      return {
-        id: root?.id || charge?.id || tx?.id || "",
-        status: String(charge?.status || root?.status || tx?.status || "").toLowerCase(),
-        qrCode: tx?.qr_code || tx?.qr_code_text || tx?.pix_qr_code || tx?.pix_code || "",
-        qrCodeImage: tx?.qr_code_url || tx?.qr_code_image || "",
-        boletoUrl: tx?.url || tx?.pdf || tx?.pdf_url || tx?.boleto_url || "",
-        boletoLine: tx?.line || tx?.linha_digitavel || tx?.barcode || ""
-      };
+    async function doPayCard(formData) {
+      try {
+        setAlert("loading", "Validando cartão junto ao banco...");
+        disablePayments(true);
+
+        const result = await apiFetch("/payments/mp/credit", {
+          method: "POST",
+          body: JSON.stringify({
+            token: formData.token,
+            issuer_id: formData.issuerId || formData.issuer_id,
+            payment_method_id: formData.paymentMethodId || formData.payment_method_id,
+            amount: Number(orderData?.totals?.grandTotal || formData.amount || 0),
+            installments: Number(formData.installments || 1),
+            orderId: orderId,
+            email: getMpPayerStrict().email || "",
+            cpf: getMpPayerStrict().identification?.number || "",
+            payer: getMpPayerStrict(),
+            address: toMpAddress(getBestAddress()),
+            receiver_address: getMpReceiverAddressFromOrder()
+          })
+        });
+
+        if (result?.ok || result?.approved || result?.status === "approved") {
+          setAlert("success", "Pagamento aprovado! Preparando seu pedido...");
+          setTimeout(() => {
+            window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
+          }, 2000);
+        } else {
+          throw new Error(result?.details?.message || result?.error || "Transação não autorizada.");
+        }
+      } catch (e) {
+        setAlert("error", "Erro: " + (e.message || "Falha no pagamento."));
+        disablePayments(false);
+      }
     }
 
-    async function tokenizePagarmeCard() {
-      const publicKey = await getPagarmePublicKey();
-      const number = digitsOnly(document.getElementById("card-number").value || "");
-      const holder_name = String(document.getElementById("card-holder-name").value || getOrderFullName()).trim();
-      const expiration = String(document.getElementById("card-expiration").value || "").trim();
-      const cvv = digitsOnly(document.getElementById("card-cvv").value || "");
-      const [mmRaw, yyRaw] = expiration.split("/").map((v) => digitsOnly(v));
-      const exp_month = Number(mmRaw || 0);
-      const exp_year = Number((yyRaw || "").length === 2 ? `20${yyRaw}` : yyRaw || 0);
+    async function generatePix() {
+      try {
+        setAlert("loading", "Gerando seu QR Code Pix...");
+        const data = await apiFetch("/payments/mp/pix", {
+          method: "POST",
+          body: JSON.stringify({
+            orderId: orderId,
+            amount: orderData.totals.grandTotal,
+            email: getMpPayerStrict().email || "",
+            cpf: getMpPayerStrict().identification?.number || "",
+            payer: getMpPayerStrict(),
+            address: toMpAddress(getBestAddress()),
+            receiver_address: getMpReceiverAddressFromOrder()
+          })
+        });
 
-      if (!publicKey) throw new Error("Public Key do Pagar.me não encontrada.");
-      if (number.length < 13) throw new Error("Número do cartão inválido.");
-      if (!holder_name) throw new Error("Informe o nome do titular.");
-      if (!exp_month || exp_month < 1 || exp_month > 12 || !exp_year) throw new Error("Validade do cartão inválida.");
-      if (cvv.length < 3) throw new Error("CVV inválido.");
+        if (data?.ok && (data?.qrCodeBase64 || data?.qrCode || data?.qr_code)) {
+          document.getElementById("pix-loading").classList.add("hidden");
+          document.getElementById("pix-content").classList.remove("hidden");
+          if (data?.qrCodeBase64) {
+            document.getElementById("pix-qr-img").src = `data:image/png;base64,${data.qrCodeBase64}`;
+          } else if (data?.qrCodeImage) {
+            document.getElementById("pix-qr-img").src = data.qrCodeImage;
+          }
+          document.getElementById("pix-code-input").value = data.qrCode || data.qr_code || "";
+          clearCheckoutCartOnlyAfterSuccess();
+          setAlert("success", "Pix gerado com sucesso.");
+        } else {
+          throw new Error(data?.error || "Falha ao gerar QR Code.");
+        }
+      } catch (e) {
+        setAlert("error", "Não foi possível gerar o PIX. " + (e.message || ""));
+        showChoice();
+      }
+    }
 
-      const response = await fetch(`https://api.pagar.me/core/v5/tokens?appId=${encodeURIComponent(publicKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "card", card: { number, holder_name, exp_month, exp_year, cvv, brand: getCardBrand(number) } })
+    async function generateBoleto() {
+      try {
+        setAlert("loading", "Gerando boleto oficial...");
+        disablePayments(true);
+
+        const parts = splitFullName(getOrderFullName());
+        const payer = getMpPayerStrict();
+
+        const data = await apiFetch("/payments/mp/boleto", {
+          method: "POST",
+          body: JSON.stringify({
+            orderId: orderId,
+            amount: orderData.totals.grandTotal,
+            email: payer.email || "",
+            cpf: payer.identification?.number || "",
+            firstName: parts.firstName,
+            lastName: parts.lastName,
+            address: toMpAddress(getBestAddress()),
+            payer,
+            receiver_address: getMpReceiverAddressFromOrder()
+          })
+        });
+
+        if (data?.ok && (data?.ticketUrl || data?.ticket_url)) {
+          clearCheckoutCartOnlyAfterSuccess();
+          setAlert("success", "Boleto gerado com sucesso!");
+          window.open(data.ticketUrl || data.ticket_url, "_blank");
+        } else {
+          throw new Error(data?.details?.cause?.[0]?.description || data?.error || "Erro ao gerar boleto.");
+        }
+      } catch (e) {
+        setAlert("error", "Erro: " + (e.message || "Falha ao gerar boleto."));
+        disablePayments(false);
+      }
+    }
+
+    async function loadCurrentUser() {
+      try {
+        const data = await apiFetch("/me");
+        currentUser = normalizeProfile(data);
+      } catch (_) {
+        currentUser = null;
+      }
+    }
+
+    async function loadProfile() {
+      try {
+        const data = await apiFetch("/me");
+        customerProfile = normalizeProfile(data);
+      } catch (_) {
+        customerProfile = {};
+      }
+    }
+
+    async function loadOrder() {
+      if (!orderId) {
+        setAlert("error", "ID do pedido não fornecido.");
+        return;
+      }
+
+      document.getElementById("order-id-display").innerText = `PEDIDO: ${orderId}`;
+
+      const attempts = [
+        `/orders/${encodeURIComponent(orderId)}`,
+        `/pedidos/${encodeURIComponent(orderId)}`
+      ];
+
+      let lastError = null;
+
+      for (const path of attempts) {
+        try {
+          const data = await apiFetch(path);
+          orderData = normalizeOrder(data);
+          renderResumo();
+
+          if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
+            window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
+            return;
+          }
+
+          return;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+
+      throw lastError || new Error("Pedido não encontrado.");
+    }
+
+    function renderResumo() {
+      if (!orderData) return;
+      document.getElementById("order-summary").classList.remove("hidden");
+      document.getElementById("summary-total").innerText =
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+          .format(Number(orderData?.totals?.grandTotal || 0));
+      disablePayments(false);
+    }
+
+    async function refreshOrderStatus() {
+      try {
+        await loadOrder();
+      } catch (_) {}
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(refreshOrderStatus, 10000);
+    }
+
+
+    function openSelectedMethod(method) {
+      const normalized =
+        method === "card" ? "card" :
+        method === "boleto" ? "boleto" :
+        "pix";
+
+      selectedMethod = normalized;
+
+      document.querySelectorAll(".btn-choice").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.method === normalized);
+        const indicator = btn.querySelector(".radio-indicator");
+        if (indicator) {
+          indicator.innerHTML = btn.dataset.method === normalized
+            ? '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>'
+            : "";
+        }
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.message || data?.error || "Falha ao tokenizar cartão no Pagar.me.");
-      return data?.id || data?.token || "";
+
+      const continueBtn = document.getElementById("btn-continue");
+      if (continueBtn) {
+        continueBtn.disabled = false;
+        continueBtn.classList.remove("opacity-50");
+      }
+
+      const choice = document.getElementById("section-choice");
+      const panelCard = document.getElementById("panel-card");
+      const panelPix = document.getElementById("panel-pix");
+      const panelBoleto = document.getElementById("panel-boleto");
+
+      if (choice) choice.classList.add("hidden");
+      if (panelCard) panelCard.classList.add("hidden");
+      if (panelPix) panelPix.classList.add("hidden");
+      if (panelBoleto) panelBoleto.classList.add("hidden");
+
+      if (normalized === "card" && panelCard) panelCard.classList.remove("hidden");
+      if (normalized === "pix" && panelPix) panelPix.classList.remove("hidden");
+      if (normalized === "boleto" && panelBoleto) panelBoleto.classList.remove("hidden");
+    }
+
+    function tryAutoOpenMethod() {
+      const params = new URLSearchParams(window.location.search);
+      const method =
+        (params.get("method") || "").trim() ||
+        (localStorage.getItem("arianaCheckoutSelectedPay") || "").trim() ||
+        (localStorage.getItem("arianaLastOrderPayment") || "").trim();
+
+      if (!method) return;
+
+      if (method === "pix") {
+        openSelectedMethod("pix");
+      } else if (method === "boleto") {
+        openSelectedMethod("boleto");
+      } else if (method === "card") {
+        openSelectedMethod("card");
+      }
     }
 
     function clearCheckoutCartOnlyAfterSuccess() {
@@ -468,202 +764,64 @@
       } catch (_) {}
     }
 
-    function renderResumo() {
-      if (!orderData) return;
-      document.getElementById("order-summary").classList.remove("hidden");
-      document.getElementById("summary-total").innerText = money(orderData?.totals?.grandTotal || 0);
-      const a = getBestAddress();
-      document.getElementById("summary-address").innerText = a ? `${a.street || ""}, ${a.number || "S/N"} - ${a.neighborhood || ""} - ${a.city || ""}/${a.state || ""}` : "Endereço não informado";
-      document.getElementById("order-id-display").innerText = `PEDIDO: ${orderId}`;
-      updateGatewayHints();
-      Array.from({length:12}, (_,i)=>i+1).forEach((n) => {
-        const opt = document.createElement("option");
-        opt.value = String(n);
-        opt.textContent = `${n}x`;
-        document.getElementById("card-installments").appendChild(opt);
-      });
-      document.getElementById("card-holder-name").value = getOrderFullName();
-    }
-
-    async function loadCurrentUser(){ try { currentUser = (await apiFetch("/me"))?.user || (await apiFetch("/me")) || null; } catch { currentUser = null; } }
-    async function loadProfile(){ try { customerProfile = (await apiFetch("/me"))?.user || (await apiFetch("/me")) || {}; } catch { customerProfile = {}; } }
-
-    async function loadOrder() {
-      if (!orderId) throw new Error("ID do pedido não fornecido.");
-      const attempts = [`/orders/${encodeURIComponent(orderId)}`, `/pedidos/${encodeURIComponent(orderId)}`];
-      let lastError = null;
-      for (const path of attempts) {
-        try {
-          orderData = normalizeOrder(await apiFetch(path));
-          renderResumo();
-          return;
-        } catch (e) { lastError = e; }
-      }
-      const stored = getStoredOrderSnapshot();
-      if (stored) {
-        orderData = normalizeOrder(stored);
-        renderResumo();
-        return;
-      }
-      throw lastError || new Error("Pedido não encontrado.");
-    }
-
-    async function refreshOrderStatus() {
-      try {
-        await loadOrder();
-        const st = String(orderData?.status || "").toLowerCase();
-        if (["paid","approved","concluido","concluida"].includes(st)) window.location.href = `pedido_confirmado.html?orderId=${encodeURIComponent(orderId)}`;
-      } catch (_) {}
-    }
-
-    function startPolling(){ if (pollTimer) clearInterval(pollTimer); pollTimer = setInterval(refreshOrderStatus, 10000); }
-
-    window.showChoice = () => {
-      document.getElementById("section-choice").classList.remove("hidden");
-      document.getElementById("panel-card").classList.add("hidden");
-      document.getElementById("panel-pix").classList.add("hidden");
-      document.getElementById("panel-boleto").classList.add("hidden");
-    };
-
-    function showPanel(id) {
-      document.getElementById("section-choice").classList.add("hidden");
-      document.getElementById("panel-card").classList.add("hidden");
-      document.getElementById("panel-pix").classList.add("hidden");
-      document.getElementById("panel-boleto").classList.add("hidden");
-      document.getElementById(id).classList.remove("hidden");
-    }
-
-    async function doPayCard(event) {
-      event.preventDefault();
-      try {
-        setAlert("loading", "Validando cartão no Pagar.me...");
-        disablePayments(true);
-        const cardToken = await tokenizePagarmeCard();
-        const installments = Number(document.getElementById("card-installments").value || 1);
-        const result = await apiFetch("/payments/pagarme/order", { method: "POST", body: JSON.stringify(buildPagarmeOrderPayload("card", { cardToken, installments })) });
-        const parsed = parsePagarmePaymentResult(result);
-        if (result?.ok || ["paid","authorized","processing","pending"].includes(parsed.status)) {
-          clearCheckoutCartOnlyAfterSuccess();
-          setAlert("success", "Cartão enviado ao Pagar.me com sucesso!");
-          setTimeout(() => window.location.href = `pedido_confirmado.html?orderId=${encodeURIComponent(orderId)}`, 1800);
-        } else {
-          throw new Error(result?.data?.message || result?.error || "Transação não autorizada pelo Pagar.me.");
-        }
-      } catch (e) {
-        setAlert("error", "Erro: " + (e.message || "Falha no pagamento com cartão."));
-        disablePayments(false);
-      }
-    }
-
-    async function generatePix() {
-      try {
-        const gateway = resolveGateway("pix");
-        setAlert("loading", `Gerando seu QR Code Pix via ${gateway === "pagarme" ? "Pagar.me" : "Mercado Pago"}...`);
-        let parsed = null;
-        if (gateway === "pagarme") {
-          const result = await apiFetch("/payments/pagarme/order", { method: "POST", body: JSON.stringify(buildPagarmeOrderPayload("pix")) });
-          parsed = parsePagarmePaymentResult(result);
-        } else {
-          const data = await apiFetch("/payments/mp/pix", {
-            method: "POST",
-            body: JSON.stringify({ orderId, amount: orderData.totals.grandTotal, email: getMpPayerStrict().email || "", cpf: getMpPayerStrict().identification?.number || "", payer: getMpPayerStrict(), address: toMpAddress(getBestAddress()), receiver_address: getMpReceiverAddressFromOrder() })
-          });
-          parsed = { qrCode: data?.qrCode || data?.qr_code || "", qrCodeImage: data?.qrCodeImage || (data?.qrCodeBase64 ? `data:image/png;base64,${data.qrCodeBase64}` : "") };
-        }
-        if (!(parsed?.qrCode || parsed?.qrCodeImage)) throw new Error("Falha ao gerar QR Code.");
-        showPanel("panel-pix");
-        document.getElementById("pix-loading").classList.add("hidden");
-        document.getElementById("pix-content").classList.remove("hidden");
-        if (parsed.qrCodeImage) document.getElementById("pix-qr-img").src = parsed.qrCodeImage;
-        document.getElementById("pix-code-input").value = parsed.qrCode || "";
-        clearCheckoutCartOnlyAfterSuccess();
-        setAlert("success", `Pix gerado com sucesso via ${gateway === "pagarme" ? "Pagar.me" : "Mercado Pago"}.`);
-      } catch (e) {
-        setAlert("error", "Não foi possível gerar o PIX. " + (e.message || ""));
-        showChoice();
-      }
-    }
-
-    async function generateBoleto() {
-      try {
-        const gateway = resolveGateway("boleto");
-        setAlert("loading", `Gerando boleto via ${gateway === "pagarme" ? "Pagar.me" : "Mercado Pago"}...`);
-        disablePayments(true);
-        if (gateway === "pagarme") {
-          const result = await apiFetch("/payments/pagarme/order", { method: "POST", body: JSON.stringify(buildPagarmeOrderPayload("boleto")) });
-          const parsed = parsePagarmePaymentResult(result);
-          if (!(parsed?.boletoUrl || parsed?.boletoLine)) throw new Error(result?.data?.message || result?.error || "Erro ao gerar boleto.");
-          clearCheckoutCartOnlyAfterSuccess();
-          setAlert("success", "Boleto gerado com sucesso via Pagar.me!");
-          if (parsed.boletoUrl) window.open(parsed.boletoUrl, "_blank");
-        } else {
-          const parts = splitFullName(getOrderFullName());
-          const payer = getMpPayerStrict();
-          const data = await apiFetch("/payments/mp/boleto", {
-            method: "POST",
-            body: JSON.stringify({ orderId, amount: orderData.totals.grandTotal, email: payer.email || "", cpf: payer.identification?.number || "", firstName: parts.firstName, lastName: parts.lastName, address: toMpAddress(getBestAddress()), payer, receiver_address: getMpReceiverAddressFromOrder() })
-          });
-          if (!(data?.ok && (data?.ticketUrl || data?.ticket_url))) throw new Error(data?.details?.cause?.[0]?.description || data?.error || "Erro ao gerar boleto.");
-          clearCheckoutCartOnlyAfterSuccess();
-          setAlert("success", "Boleto gerado com sucesso via Mercado Pago!");
-          window.open(data.ticketUrl || data.ticket_url, "_blank");
-        }
-      } catch (e) {
-        setAlert("error", "Erro: " + (e.message || "Falha ao gerar boleto."));
-        disablePayments(false);
-      }
-    }
-
     function bindChoice() {
+      if (window.__bindChoiceDone) return;
+      window.__bindChoiceDone = true;
+
       const btns = document.querySelectorAll(".btn-choice");
       const continueBtn = document.getElementById("btn-continue");
+
       btns.forEach((b) => {
         b.addEventListener("click", () => {
-          selectedMethod = b.dataset.method || "pix";
           btns.forEach((x) => {
-            x.classList.toggle("active", x === b);
+            x.classList.remove("active");
             const indicator = x.querySelector(".radio-indicator");
-            if (indicator) indicator.innerHTML = x === b ? '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>' : "";
+            if (indicator) indicator.innerHTML = "";
           });
+          b.classList.add("active");
+          const indicator = b.querySelector(".radio-indicator");
+          if (indicator) indicator.innerHTML = '<div class="w-3 h-3 mx-auto mt-0.5 bg-blue-600 rounded-full"></div>';
           continueBtn.disabled = false;
-          continueBtn.classList.remove("opacity-50");
+          continueBtn.style.opacity = "1";
+          continueBtn.dataset.method = b.dataset.method;
         });
       });
+
       continueBtn.addEventListener("click", async () => {
-        if (selectedMethod === "card") {
+        const method = continueBtn.dataset.method;
+        if (method === "card") {
           showPanel("panel-card");
-          setAlert("info", "Cartão processado pelo Pagar.me.");
-        } else if (selectedMethod === "pix") {
+          await mountCardFormSafe();
+        } else if (method === "pix") {
+          showPanel("panel-pix");
           document.getElementById("pix-loading").classList.remove("hidden");
           document.getElementById("pix-content").classList.add("hidden");
           await generatePix();
-        } else {
+        } else if (method === "boleto") {
           showPanel("panel-boleto");
         }
       });
     }
 
-    function autoSelectMethod() {
-      const preferred = (params.get("method") || localStorage.getItem("arianaCheckoutSelectedPay") || localStorage.getItem("arianaLastOrderPayment") || "pix").trim();
-      const target = document.querySelector(`.btn-choice[data-method="${preferred}"]`) || document.querySelector('.btn-choice[data-method="pix"]');
-      if (target) target.click();
-    }
-
     async function init() {
       try {
         bindChoice();
-        document.getElementById("form-checkout").addEventListener("submit", doPayCard);
         document.getElementById("btn-generate-boleto").addEventListener("click", generateBoleto);
         document.getElementById("btn-copy-pix").addEventListener("click", async () => {
           const input = document.getElementById("pix-code-input");
-          try { await navigator.clipboard.writeText(input.value || ""); }
-          catch { input.select(); document.execCommand("copy"); }
-          setAlert("success", "Código Pix copiado!");
+          try {
+            await navigator.clipboard.writeText(input.value || "");
+            setAlert("success", "Código Pix copiado!");
+          } catch (_) {
+            input.select();
+            document.execCommand("copy");
+            setAlert("success", "Código Pix copiado!");
+          }
         });
+
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
-        autoSelectMethod();
         startPolling();
       } catch (e) {
         console.error(e);
@@ -672,7 +830,10 @@
     }
 
     document.addEventListener("DOMContentLoaded", init);
-    window.addEventListener("beforeunload", () => { if (pollTimer) clearInterval(pollTimer); });
+    window.addEventListener("beforeunload", () => {
+      if (pollTimer) clearInterval(pollTimer);
+      unmountCardForm();
+    });
   </script>
 </body>
 </html>
