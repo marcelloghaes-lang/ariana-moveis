@@ -127,7 +127,6 @@ function toast(message, type='info'){
   c.appendChild(el);
   setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)},3400);
 }
-</script>
 
 
 function toast(message, type='info') {
@@ -142,20 +141,23 @@ function toast(message, type='info') {
 // CARREGAR DADOS DO MONGODB
 async function loadSeller(){
   try {
-    const res = await fetch(`${API_BASE}/seller/me`);
-    const seller = await res.json();
+    const res = await fetch(`${API_BASE}/seller/me`, { headers: authHeaders({ 'Content-Type': 'application/json' }) });
+    if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
+    const seller = data.seller || data;
     
     $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.name || 'Seller'}!`;
-    $('factoryName').value = seller.factoryName || '';
-    $('cnpj').value = seller.cnpj || '';
-    $('bio').value = seller.bio || '';
+    $('factoryName').value = seller.factoryName || seller.storeName || seller.displayName || '';
+    $('cnpj').value = seller.cnpj || seller.document || '';
+    $('bio').value = seller.bio || seller.metadata?.bio || '';
     
-    const bank = seller.bankAccount || {};
+    const bank = seller.bankAccount || seller.metadata?.bankAccount || {};
     $('bankName').value = bank.bank || '';
     $('bankAgency').value = bank.agency || '';
     $('bankAccount').value = bank.account || '';
-    $('cepColeta').value = seller.cepColeta || '';
-    $('transpPropria').checked = !!seller.transpPropria;
+    $('cepColeta').value = seller.cepColeta || seller.metadata?.cepColeta || '';
+    $('transpPropria').checked = !!(seller.transpPropria ?? seller.metadata?.transpPropria);
   } catch(e) { console.error(e); }
 }
 

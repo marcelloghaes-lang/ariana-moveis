@@ -156,8 +156,8 @@
             Criar conta de Seller
           </h1>
           <p class="mt-3 text-slate-600 leading-relaxed">
-            Este formulário cria o usuário no <b>Firebase Authentication (Email/Senha)</b> e também cria o documento
-            em <b>Firestore → sellers/{uid}</b> com <b>active:true</b>.
+            Este formulário cria o usuário no <b>MongoDB / Ariana Seller</b> e também cria o documento
+            em <b>MongoDB → sellers</b> com <b>active:true</b>.
           </p>
 
           <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -184,7 +184,7 @@
                   <i class="fa-solid fa-database"></i>
                 </div>
                 <div>
-                  <div class="font-extrabold">Firestore</div>
+                  <div class="font-extrabold">MongoDB</div>
                   <div class="text-xs text-slate-600">sellers/{uid}</div>
                 </div>
               </div>
@@ -435,15 +435,16 @@ $('signup-form').addEventListener('submit', async (e)=>{
 
     const data = await res.json();
 
-    if(!data.id) throw new Error('ID não retornado pelo servidor');
+    const rid = data.id || data.sellerId || data?.seller?.sellerId || data?.seller?._id;
+    if(!rid) throw new Error('ID não retornado pelo servidor');
 
-    localStorage.setItem('partner_request_id', data.id);
+    localStorage.setItem('partner_request_id', rid);
 
     showAlert('Solicitação criada com sucesso. Continue no onboarding.', 'success');
     toast('Solicitação criada.', 'success');
 
     setTimeout(()=>{
-      window.location.href = 'seller_onboarding.html?rid=' + encodeURIComponent(data.id);
+      window.location.href = 'seller_onboarding.html?rid=' + encodeURIComponent(rid);
     },700);
 
   }catch(err){

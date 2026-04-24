@@ -923,8 +923,49 @@ app.post('/api/auth/login', async (req, res) => {
 });
 app.get('/api/me', authRequired, (req, res) => res.json({ ok: true, user: toJSON(req.user) }));
 app.patch('/api/users/me', authRequired, async (req, res) => { try { const allowed = ['name', 'cpf', 'phone', 'city', 'uf']; const patch = {}; for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key]; const before = toJSON(req.user); const after = await User.findByIdAndUpdate(req.user._id, { $set: patch }, { new: true }); await writeAuditLog({ scope: 'user_profile', eventType: 'user_profile_updated', status: 'success', changedKeys: changedKeys(before, toJSON(after)), metadata: { userId: String(req.user._id) } }); return res.json({ ok: true, user: toJSON(after) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao atualizar perfil' }); } });
-app.post('/api/seller/partner-request', async (req, res) => { try { const body = req.body || {}; const sellerId = uid('seller'); const seller = await Seller.create({ sellerId, displayName: body.name || body.displayName || '', storeName: body.storeName || body.name || '', email: body.email || '', phone: body.phone || '', document: body.document || body.cpf || '', status: 'pending', metadata: body }); return res.json({ ok: true, sellerId: seller.sellerId, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' }); } });
+app.post('/api/seller/partner-request', async (req, res) => { try { const body = req.body || {}; const sellerId = uid('seller'); const seller = await Seller.create({ sellerId, displayName: body.name || body.displayName || '', storeName: body.storeName || body.name || '', email: body.email || '', phone: body.phone || '', document: body.document || body.cpf || '', status: 'pending', metadata: body }); return res.json({ ok: true, id: seller.sellerId, sellerId: seller.sellerId, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' }); } });
 app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
+
+// ===== ROTAS SELLER CORRIGIDAS - ESPECÍFICAS ANTES DO CURINGA /api/seller/:sellerId =====
+async function sellerAuthRequired(req,res,next){
+  try{
+    const h=req.headers.authorization||''; const token=h.startsWith('Bearer ')?h.slice(7):'';
+    if(!token) return res.status(401).json({ok:false,error:'Token ausente'});
+    const dec=jwt.verify(token,JWT_SECRET);
+    const user=dec.id?await User.findById(dec.id):null;
+    if(!user) return res.status(401).json({ok:false,error:'Usuário inválido'});
+    let seller=user.sellerId?await Seller.findOne({sellerId:user.sellerId}):null;
+    if(!seller && user.email) seller=await Seller.findOne({email:String(user.email).toLowerCase()});
+    if(!seller) return res.status(403).json({ok:false,error:'Seller não encontrado'});
+    req.user=user; req.seller=seller; req.sellerId=String(seller.sellerId||user.sellerId||'');
+    next();
+  }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
+}
+function sellerProfile(s,u){ const o=toJSON(s)||{}; return {...o,id:String(o.sellerId||o._id||''),sellerId:String(o.sellerId||''),name:o.displayName||o.storeName||u?.name||'',factoryName:o.storeName||o.displayName||u?.name||'',email:o.email||u?.email||'',active:!['bloqueado','reprovado','blocked','rejected'].includes(String(o.status||'').toLowerCase())}; }
+app.post('/api/seller/auth/login',async(req,res)=>{
+  try{
+    const email=String(req.body?.email||'').trim().toLowerCase(); const password=String(req.body?.password||'');
+    if(!email||!password) return res.status(400).json({ok:false,error:'E-mail e senha são obrigatórios'});
+    let user=await User.findOne({email}); let seller=user?.sellerId?await Seller.findOne({sellerId:user.sellerId}):null;
+    if(!seller) seller=await Seller.findOne({email});
+    const temp=String(seller?.metadata?.requestedTempPass||seller?.metadata?.password||seller?.metadata?.senha||'');
+    let valid=false;
+    if(user?.passwordHash){ try{valid=await bcrypt.compare(password,String(user.passwordHash||''));}catch(_){valid=false;} if(!valid&&String(user.passwordHash||'')===password){valid=true; user.passwordHash=await bcrypt.hash(password,10); await user.save();}}
+    if(!valid&&temp&&temp===password) valid=true;
+    if(!seller&&user&&String(user.role||'').toLowerCase()==='seller'){ const sid=user.sellerId||uid('seller'); seller=await Seller.create({sellerId:sid,userId:user._id,displayName:user.name||email,storeName:user.name||email,email,phone:user.phone||'',document:user.cpf||'',status:'aprovado',onboardingCompleted:true,metadata:{}}); user.sellerId=sid; await user.save();}
+    if(!seller) return res.status(401).json({ok:false,error:'Seller não encontrado'});
+    if(!valid) return res.status(401).json({ok:false,error:'Credenciais inválidas'});
+    if(!user){ user=await User.create({name:seller.displayName||seller.storeName||email,email,passwordHash:await bcrypt.hash(password,10),phone:seller.phone||'',cpf:seller.document||'',role:'seller',sellerId:seller.sellerId,isActive:true}); seller.userId=user._id; await seller.save();}
+    if(String(user.role||'').toLowerCase()!=='seller'||!user.sellerId){ user.role='seller'; user.sellerId=seller.sellerId; await user.save();}
+    return res.json({ok:true,token:signToken(user),seller:sellerProfile(seller,user),user:toJSON(user)});
+  }catch(e){return res.status(500).json({ok:false,error:e.message||'Erro no login seller'});}
+});
+app.get('/api/seller/auth/me',sellerAuthRequired,(req,res)=>res.json({ok:true,seller:sellerProfile(req.seller,req.user),user:toJSON(req.user)}));
+app.get('/api/seller/orders',sellerAuthRequired,async(req,res)=>{try{const sid=req.sellerId; const rows=await Order.find({$or:[{sellerIds:sid},{'items.sellerId':sid}]}).sort({createdAt:-1}).limit(500); return res.json(rows.map(toJSON));}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao listar pedidos'});}});
+app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
+app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
+app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
+
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
   if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });

@@ -151,7 +151,6 @@ function toast(message, type='info'){
   c.appendChild(el);
   setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)},3400);
 }
-</script>
 
 
     async function loadDashboard() {
@@ -166,7 +165,9 @@ function toast(message, type='info'){
             const res = await fetch(`${API_BASE}/seller/dashboard`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+            if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
             $('kpi-products').textContent = data.totalProdutos || 0;
             $('kpi-orders').textContent = data.pedidosPendentes || 0;
@@ -195,7 +196,8 @@ function toast(message, type='info'){
         }
     }
 
-    $('btn-sair')?.addEventListener('click', () => {
+    $('btn-sair')?.addEventListener('click', (e) => {
+        e.preventDefault();
         clearSellerSession();
         window.location.href = 'seller_login.html';
     });

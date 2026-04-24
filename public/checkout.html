@@ -1459,7 +1459,9 @@ async function quoteShippingForSelectedAddress(addrObj) {
         }
 
         const shippingToSave = shippingQuote ? {
-          provider: "correios",
+          provider: String(shippingQuote.provider || "correios"),
+          responsibility: String((shippingQuote.provider || '').toLowerCase()).includes('correios') ? "ariana" : "seller",
+          usesArianaLogistics: String(shippingQuote.provider || '').toLowerCase().includes('correios'),
           cepOrigem: String(settingsShipping?.originCep || ""),
           cepDestino: shippingQuote.cepDestino,
           service: shippingQuote.service,
@@ -1467,7 +1469,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
           price: totalsComputed.shipping,
           pkg: shippingQuote.pkg || null,
           quote: shippingQuote.full || null,
-        } : null;
+        } : {
+          responsibility: "seller",
+          usesArianaLogistics: false,
+          price: 0
+        };
 
         const orderPayload = {
           userId: authUser.uid || authUser.id || "",
@@ -1488,11 +1494,12 @@ async function quoteShippingForSelectedAddress(addrObj) {
           manufacturer: inferManufacturerFromCart(cart),
           payment: {
             method: selectedPayCode,
-            gateway: selectedPayCode === 'card' ? 'pagarme' : (isLargeSupplierCart(cart) ? 'pagarme' : 'mercadopago'),
+            gateway: 'pagarme',
             routing: {
               largeSupplier: isLargeSupplierCart(cart),
               cardGateway: 'pagarme',
-              pixBoletoGateway: isLargeSupplierCart(cart) ? 'pagarme' : 'mercadopago'
+              pixBoletoGateway: 'pagarme',
+              defaultGateway: 'pagarme'
             }
           },
           total: valorFinal,
@@ -1532,6 +1539,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           localStorage.removeItem("ariana_moveis_cart");
         } catch (_) {}
 
+        try { localStorage.setItem("arianaLastOrderGateway", "pagarme"); } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
         window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;

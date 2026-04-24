@@ -1498,15 +1498,60 @@ const loadCellphones = () => {
   const section = document.getElementById('cellphones-section');
   if (!section) return;
 
-  const usedIds = __homeGetUsedIds(['cellphones']);
+  // Filtro mais seguro:
+  // 1) Prioriza categoria/slug de Celulares.
+  // 2) Só aceita pelo nome quando for claramente celular/smartphone/iPhone.
+  // 3) Bloqueia termos de áudio, caixa de som, acessórios e outros eletrônicos.
+  const normalizeText = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .toLowerCase();
+
+  const blockedTerms = [
+    'caixa de som', 'caixa som', 'speaker', 'jbl', 'som bluetooth',
+    'fone', 'headset', 'earbud', 'airpods', 'carregador', 'cabo',
+    'pelicula', 'capinha', 'case', 'suporte', 'smart tv', 'tv '
+  ];
+
+  const categoryTerms = [
+    'celular', 'celulares', 'smartphone', 'smartphones', 'telefonia'
+  ];
+
+  const nameTerms = [
+    'celular', 'smartphone', 'iphone', 'galaxy', 'moto g',
+    'motorola', 'xiaomi', 'redmi', 'poco', 'realme'
+  ];
+
   const source = __homeSortByRecent(
     allProducts.filter((p) => {
-      const txt = `${p.name || ''} ${p.category || ''} ${p.categoria || ''}`.toLowerCase();
-      return txt.includes('celular') || txt.includes('smartphone') || txt.includes('iphone') || txt.includes('samsung');
+      const name = normalizeText(p.name || p.nome || p.title || '');
+      const category = normalizeText([
+        p.category,
+        p.categoria,
+        p.categoryName,
+        p.categorySlug,
+        p.subcategory,
+        p.subcategorySlug,
+        p.slug
+      ].filter(Boolean).join(' '));
+
+      const full = `${name} ${category}`;
+
+      if (blockedTerms.some((term) => full.includes(term))) return false;
+
+      const categoryIsPhone = categoryTerms.some((term) => category.includes(term));
+      if (categoryIsPhone) return true;
+
+      return nameTerms.some((term) => name.includes(term));
     })
   );
 
-  const pick = __homeSaveSelection('cellphones', __homeTakeUnique(source, HOME_SECTION_LIMITS.cellphones, usedIds));
+  // Não exclui celulares só porque já apareceram em Destaques/Ofertas,
+  // mas mantém a própria seção sem duplicados.
+  const pick = __homeSaveSelection(
+    'cellphones',
+    __homeTakeUnique(source, HOME_SECTION_LIMITS.cellphones, new Set())
+  );
 
   if (pick.length > 0) {
     renderProductCards(pick, 'cellphones-grid');
