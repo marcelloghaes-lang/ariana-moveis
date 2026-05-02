@@ -297,6 +297,16 @@
         localStorage.setItem("API_BASE_URL", API_BASE);
       } catch(_) {}
 
+
+      window.resolveApiImageUrl = window.resolveApiImageUrl || function(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "/uploads/default.png";
+        if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+        const origin = window.API_ORIGIN || API_ORIGIN || String(API_BASE || "").replace(/\/api\/?$/i, "");
+        if (raw.startsWith("/")) return `${String(origin).replace(/\/+$/, "")}${raw}`;
+        return `${String(origin).replace(/\/+$/, "")}/${raw.replace(/^\.?\//, "")}`;
+      };
+
       const normalizeListResponse = (data) => {
         if (Array.isArray(data)) return data;
         if (data && Array.isArray(data.items)) return data.items;
@@ -592,14 +602,26 @@
               );
 
               if (items.length) {
-                return items.map(item => ({
-                  ...item,
-                  id: item.id || item._id,
-                  imageUrl: getNormalizedProductImage(item),
-                  mainImageUrl: getNormalizedProductImage(item),
-                  image: getNormalizedProductImage(item),
-                  imagem: getNormalizedProductImage(item)
-                }));
+                return items.map(item => {
+                  const image = getNormalizedProductImage(item);
+                  return {
+                    ...item,
+                    id: item.id || item._id || item.slug || item.sku || item.codigo || item.code || '',
+                    _id: item._id || item.id || item.slug || item.sku || '',
+                    name: item.name || item.nome || item.title || 'Produto',
+                    nome: item.nome || item.name || item.title || 'Produto',
+                    categoryName: item.categoryName || item.categoriaNome || item.category || item.categoria || '',
+                    category: item.category || item.categoria || item.categoryName || '',
+                    brand: item.brand || item.marca || '',
+                    description: item.description || item.descricao || item.desc || '',
+                    price: window.__toNumberBR(item.price ?? item.preco ?? item.valor ?? 0, 0),
+                    oldPrice: window.__toNumberBR(item.oldPrice ?? item.precoAntigo ?? item.precoDe ?? item.valorDe ?? 0, 0),
+                    imageUrl: image,
+                    mainImageUrl: image,
+                    image: image,
+                    imagem: image
+                  };
+                });
               }
             } catch (error) {
               console.warn("[todos_produtos] falhou em:", endpoint, error?.message || error);

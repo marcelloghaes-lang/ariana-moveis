@@ -534,6 +534,7 @@ function getLoggedUserCity() {
 
 function getLoggedUserCityUF() {
   const keys = [
+    'headerCityUF',
     'selectedAddress',
     'enderecoSelecionado',
     'checkoutAddress',
@@ -550,19 +551,45 @@ function getLoggedUserCityUF() {
     'userProfile',
     'userInfo',
     'perfilUsuario',
-    'headerCityUF'
+    'ariana_user',
+    'arianaUser',
+    'user',
+    'cliente'
   ];
+
+  const cleanText = (value) => {
+    const txt = String(value || '').trim();
+    if (!txt) return '';
+    if (/^(minha conta|defina seu endereço|defina seu endereco|null|undefined)$/i.test(txt)) return '';
+    return txt;
+  };
 
   const pickFromObject = (obj) => {
     if (!obj) return '';
 
     if (typeof obj === 'string') {
-      const txt = obj.trim();
-      if (!txt || txt === 'Minha conta' || txt === 'Defina seu endereço') return '';
+      const txt = cleanText(obj);
+      if (!txt) return '';
+      if (txt.includes('{') || txt.includes('[')) {
+        try { return pickFromObject(JSON.parse(txt)); } catch (_) {}
+      }
       return txt;
     }
 
-    const city = String(
+    if (Array.isArray(obj)) {
+      const preferred = obj.find(a => a && (a.isDefault || a.default || a.principal || a.selected));
+      const foundPreferred = pickFromObject(preferred);
+      if (foundPreferred) return foundPreferred;
+      for (const item of obj) {
+        const found = pickFromObject(item);
+        if (found) return found;
+      }
+      return '';
+    }
+
+    if (typeof obj !== 'object') return '';
+
+    const city = cleanText(
       obj.city ??
       obj.cidade ??
       obj.localidade ??
@@ -570,10 +597,11 @@ function getLoggedUserCityUF() {
       obj.município ??
       obj.cityName ??
       obj.nomeCidade ??
+      obj.town ??
       ''
-    ).trim();
+    );
 
-    const uf = String(
+    const uf = cleanText(
       obj.uf ??
       obj.UF ??
       obj.state ??
@@ -581,8 +609,9 @@ function getLoggedUserCityUF() {
       obj.federal_unit ??
       obj.ufSigla ??
       obj.siglaUf ??
+      obj.province ??
       ''
-    ).trim();
+    );
 
     if (city && uf) return `${city} - ${uf}`;
     if (city) return city;
@@ -594,7 +623,15 @@ function getLoggedUserCityUF() {
       obj.deliveryAddress,
       obj.defaultAddress,
       obj.primaryAddress,
-      obj.clienteEndereco
+      obj.clienteEndereco,
+      obj.selectedAddress,
+      obj.enderecoSelecionado,
+      obj.profile,
+      obj.perfil,
+      obj.user,
+      obj.usuario,
+      obj.cliente,
+      obj.data
     ].filter(Boolean);
 
     for (const item of nested) {
@@ -602,12 +639,19 @@ function getLoggedUserCityUF() {
       if (found) return found;
     }
 
-    const arrays = [obj.addresses, obj.enderecos, obj.listaEnderecos].filter(Array.isArray);
+    const arrays = [
+      obj.addresses,
+      obj.enderecos,
+      obj.listaEnderecos,
+      obj.address_list,
+      obj.items,
+      obj.docs,
+      obj.results
+    ].filter(Array.isArray);
+
     for (const arr of arrays) {
-      for (const item of arr) {
-        const found = pickFromObject(item);
-        if (found) return found;
-      }
+      const found = pickFromObject(arr);
+      if (found) return found;
     }
 
     return '';
@@ -619,11 +663,7 @@ function getLoggedUserCityUF() {
       if (!raw) continue;
 
       let data = null;
-      try {
-        data = JSON.parse(raw);
-      } catch (_) {
-        data = raw;
-      }
+      try { data = JSON.parse(raw); } catch (_) { data = raw; }
 
       const found = pickFromObject(data);
       if (found) return found;
@@ -631,15 +671,129 @@ function getLoggedUserCityUF() {
   }
 
   try {
-    const cached = String(window.__HEADER_CITY_UF__ || '').trim();
-    if (cached && cached !== 'Minha conta' && cached !== 'Defina seu endereço') return cached;
+    const cached = cleanText(window.__HEADER_CITY_UF__);
+    if (cached) return cached;
   } catch (_) {}
 
   return '';
 }
 
+function getLoggedUserIdForHeader() {
+  const keys = [
+    'clienteLogado',
+    'usuarioLogado',
+    'loggedUser',
+    'currentUser',
+    'userData',
+    'userProfile',
+    'userInfo',
+    'perfilUsuario',
+    'ariana_user',
+    'arianaUser',
+    'user',
+    'cliente'
+  ];
 
+  const pickId = (obj) => {
+    if (!obj || typeof obj !== 'object') return '';
+    return String(
+      obj.id ||
+      obj._id ||
+      obj.uid ||
+      obj.userId ||
+      obj.user_id ||
+      obj.customerId ||
+      obj.customer_id ||
+      obj.clienteId ||
+      obj.cliente_id ||
+      obj?.user?.id ||
+      obj?.user?._id ||
+      obj?.data?.id ||
+      obj?.data?._id ||
+      ''
+    ).trim();
+  };
 
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) continue;
+      let data = null;
+      try { data = JSON.parse(raw); } catch (_) { continue; }
+      const id = pickId(data);
+      if (id) return id;
+    } catch (_) {}
+  }
+
+  return '';
+}
+
+async function fetchHeaderDefaultAddressFromApi() {
+  try {
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('authToken') ||
+      localStorage.getItem('customer_token') ||
+      localStorage.getItem('cliente_token') ||
+      localStorage.getItem('user_token') ||
+      '';
+
+    const userId = getLoggedUserIdForHeader();
+    const headers = { Accept: 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const urls = [];
+    if (token) {
+      urls.push(`${HEADER_API_BASE}/users/me/addresses`);
+      urls.push(`${HEADER_API_BASE}/addresses/me`);
+      urls.push(`${HEADER_API_BASE}/users/me`);
+    }
+    if (userId) {
+      urls.push(`${HEADER_API_BASE}/users/${encodeURIComponent(userId)}/addresses`);
+      urls.push(`${HEADER_API_BASE}/users/${encodeURIComponent(userId)}`);
+    }
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { headers, cache: 'no-store' });
+        if (!res.ok) continue;
+        const data = await res.json().catch(() => null);
+        if (!data) continue;
+
+        const candidates = [];
+        if (Array.isArray(data)) candidates.push(...data);
+        if (Array.isArray(data.items)) candidates.push(...data.items);
+        if (Array.isArray(data.addresses)) candidates.push(...data.addresses);
+        if (Array.isArray(data.enderecos)) candidates.push(...data.enderecos);
+        if (data.address) candidates.push(data.address);
+        if (data.endereco) candidates.push(data.endereco);
+        if (data.defaultAddress) candidates.push(data.defaultAddress);
+        if (data.user) candidates.push(data.user);
+        candidates.push(data);
+
+        const preferred = candidates.find(a => a && (a.isDefault || a.default || a.principal || a.selected)) || candidates[0];
+        const cityUF = (function pick(obj) {
+          if (!obj || typeof obj !== 'object') return '';
+          const city = String(obj.city || obj.cidade || obj.localidade || obj.municipio || '').trim();
+          const uf = String(obj.uf || obj.UF || obj.state || obj.estado || '').trim();
+          if (city && uf) return `${city} - ${uf}`;
+          if (city) return city;
+          const nested = obj.address || obj.endereco || obj.shippingAddress || obj.defaultAddress;
+          if (nested && typeof nested === 'object') return pick(nested);
+          return '';
+        })(preferred);
+
+        if (cityUF) {
+          localStorage.setItem('headerCityUF', cityUF);
+          sessionStorage.setItem('headerCityUF', cityUF);
+          window.__HEADER_CITY_UF__ = cityUF;
+          return cityUF;
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return '';
+}
 
 function updateHeaderCityDisplay() {
   const legacyEl = document.getElementById('client-city-display');
@@ -1055,6 +1209,7 @@ function carregarHeader() {
 
   atualizarUsuarioHeader();
   updateHeaderCityDisplay();
+  try { setTimeout(__syncHeaderAddressFromAuth, 80); } catch (_) {}
   window.loadCartCounter();
   setTimeout(carregarCategoriasHeader, 150);
 
@@ -1302,10 +1457,10 @@ window.renderAccountPopover = renderAccountPopover;
 window.carregarHeader = carregarHeader;
 window.loadCartCounter = window.loadCartCounter;
 
-window.addEventListener('user:updated', atualizarUsuarioHeader);
+window.addEventListener('user:updated', () => { atualizarUsuarioHeader(); try { __syncHeaderAddressFromAuth(); } catch (_) {} });
 window.addEventListener('storage', () => { atualizarUsuarioHeader(); window.loadCartCounter(); });
-window.addEventListener('pageshow', () => { atualizarUsuarioHeader(); window.loadCartCounter(); });
-window.addEventListener('focus', () => { atualizarUsuarioHeader(); window.loadCartCounter(); });
+window.addEventListener('pageshow', () => { atualizarUsuarioHeader(); try { __syncHeaderAddressFromAuth(); } catch (_) {} window.loadCartCounter(); });
+window.addEventListener('focus', () => { atualizarUsuarioHeader(); try { __syncHeaderAddressFromAuth(); } catch (_) {} window.loadCartCounter(); });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     atualizarUsuarioHeader();
@@ -1348,8 +1503,18 @@ async function __loadHeaderAddressFromFirestoreByUid() {
 
 async function __syncHeaderAddressFromAuth() {
   try {
-    const cityUF = String(getLoggedUserCityUF() || '').trim();
-    window.__HEADER_CITY_UF__ = cityUF;
+    let cityUF = String(getLoggedUserCityUF() || '').trim();
+
+    if (!cityUF && isUserLoggedIn()) {
+      cityUF = String(await fetchHeaderDefaultAddressFromApi() || '').trim();
+    }
+
+    if (cityUF) {
+      window.__HEADER_CITY_UF__ = cityUF;
+      try { localStorage.setItem('headerCityUF', cityUF); } catch (_) {}
+      try { sessionStorage.setItem('headerCityUF', cityUF); } catch (_) {}
+    }
+
     updateHeaderCityDisplay();
     if (typeof window.renderAccountPopover === 'function') window.renderAccountPopover();
   } catch (_) {}
