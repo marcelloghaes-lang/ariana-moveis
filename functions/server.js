@@ -148,6 +148,10 @@ function changedKeys(before = {}, after = {}, prefix = '') {
 function sanitizeIdPart(value = '') {
   return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 120) || 'item';
 }
+
+function escapeRegex(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 function normalizeObjectId(id) {
   if (!id) return null;
   if (mongoose.Types.ObjectId.isValid(id)) return new mongoose.Types.ObjectId(id);
@@ -1028,23 +1032,32 @@ app.get('/api/products', async (req, res) => {
 
     if (req.query.category) {
       const cat = String(req.query.category).trim();
+      const catRx = new RegExp(escapeRegex(cat), 'i');
       query.$or = [
-        { category: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
-        { categoria: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
-        { categoryName: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
-        { categorySlug: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { category: catRx },
+        { categoria: catRx },
+        { categoryName: catRx },
+        { categorySlug: catRx },
         { categoryId: cat },
-        { subcategory: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
-        { subcategoria: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
-        { subcategoryName: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { subcategory: catRx },
+        { subcategoria: catRx },
+        { subcategoryName: catRx },
         { subcategoryId: cat }
       ];
     }
 
     if (req.query.q) {
       const q = String(req.query.q).trim();
-      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i');
-      const searchOr = [{ name: rx }, { description: rx }, { category: rx }, { categoria: rx }, { categoryName: rx }, { brand: rx }, { sku: rx }];
+      const rx = new RegExp(escapeRegex(q), 'i');
+      const searchOr = [
+        { name: rx },
+        { description: rx },
+        { category: rx },
+        { categoria: rx },
+        { categoryName: rx },
+        { brand: rx },
+        { sku: rx }
+      ];
       query.$and = query.$and || [];
       query.$and.push({ $or: searchOr });
     }
