@@ -344,6 +344,33 @@
     }).join('');
   };
 
+  const normalizeSearchTermAriana = (value) => String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const productSearchScoreAriana = (product, term) => {
+    const normalizedTerm = normalizeSearchTermAriana(term);
+    if (!normalizedTerm) return 1;
+    const fields = [
+      product.name, product.nome, product.title, product.titulo,
+      product.category, product.categoria, product.categoryName, product.categoriaNome,
+      product.categorySlug, product.categoryId,
+      product.subcategory, product.subcategoria, product.subcategoryName, product.subcategorySlug, product.subcategoryId,
+      product.description, product.descricao, product.brand, product.marca, product.sku, product.codigo, product.code
+    ].filter(Boolean).join(' ');
+    const haystack = normalizeSearchTermAriana(fields);
+    let score = 0;
+    if (haystack.includes(normalizedTerm)) score += 20;
+    for (const token of normalizedTerm.split(' ').filter(Boolean)) {
+      if (haystack.includes(token)) score += 5;
+    }
+    return score;
+  };
+
   window.applySearchFilter = (eventOrQuery = null) => {
     if (eventOrQuery && typeof eventOrQuery.preventDefault === 'function') eventOrQuery.preventDefault();
     const externalQuery = (typeof eventOrQuery === 'string') ? eventOrQuery : null;
@@ -369,11 +396,10 @@
     }
 
     const sourceList = (window.__BASE_PRODUCTS__ && window.__BASE_PRODUCTS__.length) ? window.__BASE_PRODUCTS__ : (window.__ALL_PRODUCTS__ || []);
-    const filteredProducts = sourceList.filter(product =>
-      (product.name || '').toLowerCase().includes(queryText) ||
-      (product.category || '').toLowerCase().includes(queryText) ||
-      (product.description || '').toLowerCase().includes(queryText)
-    );
+    const filteredProducts = sourceList
+      .map(product => ({ ...product, __searchScore: productSearchScoreAriana(product, queryText) }))
+      .filter(product => product.__searchScore > 0)
+      .sort((a, b) => b.__searchScore - a.__searchScore);
 
     renderProductCards(filteredProducts, 'featured-product-grid');
     if (headerEl) headerEl.textContent = sectionCfg2 ? `${sectionCfg2.title} — Busca: "${queryText}"` : `Resultados da Busca por "${queryText}"`;

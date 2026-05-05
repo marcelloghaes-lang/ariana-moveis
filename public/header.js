@@ -933,7 +933,7 @@ function redirectToSearch(query) {
     window.location.href = 'todos_produtos.html';
     return;
   }
-  window.location.href = `busca.html?q=${encodeURIComponent(q)}`;
+  window.location.href = `todos_produtos.html?q=${encodeURIComponent(q)}`;
 }
 
 window.applySearchFilter = function(eventOrQuery = null) {

@@ -436,7 +436,11 @@
         if (!tokens.length) return 1;
 
         const name = normalizeText(product.name || product.nome || "");
-        const category = normalizeText(product.categoryName || product.categoriaNome || product.category || product.categoria || "");
+        const category = normalizeText([
+          product.categoryName, product.categoriaNome, product.category, product.categoria,
+          product.categorySlug, product.categoryId, product.subcategoryName, product.subcategory,
+          product.subcategoria, product.subcategorySlug, product.subcategoryId
+        ].filter(Boolean).join(' '));
         const description = normalizeText(product.description || product.descricao || product.desc || "");
         const brand = normalizeText(product.brand || product.marca || "");
         const sku = normalizeText(product.sku || product.codigo || product.code || "");
