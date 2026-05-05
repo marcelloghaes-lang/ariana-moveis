@@ -1020,7 +1020,42 @@ app.get('/api/home', async (req, res) => {
   return app._router.handle(req, res, () => {});
 });
 app.get('/api/categories', async (_req, res) => res.json((await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 })).map(toJSON)));
-app.get('/api/products', async (req, res) => { try { const query = {}; if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false'; if (req.query.category) query.category = String(req.query.category); if (req.query.sellerId) query.sellerId = String(req.query.sellerId); if (req.query.q) query.$text = { $search: String(req.query.q) }; const rows = await Product.find(query).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 200), 500)); return res.json(rows.map(normalizeProductForResponse)); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' }); } });
+app.get('/api/products', async (req, res) => {
+  try {
+    const query = {};
+    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+    if (req.query.sellerId) query.sellerId = String(req.query.sellerId);
+
+    if (req.query.category) {
+      const cat = String(req.query.category).trim();
+      query.$or = [
+        { category: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { categoria: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { categoryName: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { categorySlug: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { categoryId: cat },
+        { subcategory: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { subcategoria: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { subcategoryName: new RegExp(cat.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i') },
+        { subcategoryId: cat }
+      ];
+    }
+
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\]/g, '\$&'), 'i');
+      const searchOr = [{ name: rx }, { description: rx }, { category: rx }, { categoria: rx }, { categoryName: rx }, { brand: rx }, { sku: rx }];
+      query.$and = query.$and || [];
+      query.$and.push({ $or: searchOr });
+    }
+
+    const rows = await Product.find(query).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 500), 1000));
+    return res.json(rows.map(normalizeProductForResponse));
+  } catch (error) {
+    console.error('[products] erro ao listar:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' });
+  }
+}); } });
 app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
 app.get('/api/products/seller/:sellerId', async (req, res) => {
   try {

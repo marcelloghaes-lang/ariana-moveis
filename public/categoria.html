@@ -205,11 +205,49 @@
         return { symbol: "R$", integer: integerPart, decimal: decimalPart };
       };
 
-      const normalizeText = (value) => String(value || '').trim().toLowerCase()
+      const normalizeSlug = (s) => String(s || '').trim().toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+      const normalizeText = (s) => String(s || '').trim().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-      const normalizeSlug = (s) => normalizeText(s).replace(/\s+/g, '-').replace(/^-+|-+$/g, '');
+      const categoryAliases = (c) => {
+        if (!c) return [];
+        return [c.id, c._id, c.slug, c.key, c.code, c.name, c.nome, c.title, c.titulo]
+          .filter(Boolean)
+          .flatMap(v => [String(v).trim(), normalizeSlug(v), normalizeText(v)])
+          .filter(Boolean);
+      };
+
+      const productCategoryText = (p) => normalizeText([
+        p?.categoryId, p?.categorySlug, p?.categoryName, p?.category, p?.categoria,
+        p?.subcategoryId, p?.subcategorySlug, p?.subcategoryName, p?.subcategory, p?.subcategoria,
+        p?.department, p?.departamento, p?.section, p?.secao, p?.tags, p?.name, p?.nome
+      ].filter(Boolean).join(' '));
+
+      const productCategoryValues = (p) => [
+        p?.categoryId, p?.categorySlug, p?.categoryName, p?.category, p?.categoria,
+        p?.subcategoryId, p?.subcategorySlug, p?.subcategoryName, p?.subcategory, p?.subcategoria,
+        p?.department, p?.departamento, p?.section, p?.secao
+      ].filter(Boolean).flatMap(v => [String(v).trim(), normalizeSlug(v), normalizeText(v)]).filter(Boolean);
+
+      const productMatchesAnyCategory = (product, cats) => {
+        const aliases = new Set((cats || []).flatMap(categoryAliases));
+        const values = new Set(productCategoryValues(product));
+        for (const a of aliases) {
+          if (!a) continue;
+          if (values.has(a)) return true;
+        }
+        const hay = productCategoryText(product);
+        for (const a of aliases) {
+          const n = normalizeText(a);
+          if (n && (hay === n || hay.includes(n) || n.includes(hay))) return true;
+        }
+        return false;
+      };
+
 
       function getOldPrice(raw) {
         const candidates = [
@@ -354,13 +392,13 @@
         const sort = $('sort')?.value || 'default';
 
         let filtered = allProducts.filter(p => {
-          const name = normalizeText(p.name || p.nome || p.titulo || '');
-          const cat = normalizeText(getCategoryLabel(p));
-          const desc = normalizeText(p.description || p.descricao || '');
-          const brand = normalizeText(p.brand || p.marca || '');
-          const sku = normalizeText(p.sku || p.codigo || p.code || '');
-          const haystack = [name, cat, desc, brand, sku].join(' ');
-          return !term || haystack.includes(term) || term.split(' ').every(t => haystack.includes(t));
+          const haystack = normalizeText([
+            p.name, p.nome, p.titulo, getCategoryLabel(p),
+            p.categoryId, p.categorySlug, p.categoryName, p.category, p.categoria,
+            p.subcategoryId, p.subcategorySlug, p.subcategoryName, p.subcategory, p.subcategoria,
+            p.description, p.descricao, p.brand, p.marca, p.sku
+          ].filter(Boolean).join(' '));
+          return !term || term.split(' ').filter(Boolean).every(w => haystack.includes(w));
         });
 
         if (sort === 'price-asc') filtered.sort((a,b) => getCurrentPrice(a) - getCurrentPrice(b));
@@ -541,29 +579,27 @@
       }
 
       function findCurrentCategory(categories, params) {
-        const catId = params.get('id') || params.get('categoryId');
-        const catSlugParam = params.get('slug') || params.get('categorySlug');
-        const catNameParam = params.get('name') || params.get('categoria') || params.get('category');
+        const wantedValues = [
+          params.get('id'), params.get('categoryId'), params.get('_id'),
+          params.get('slug'), params.get('categorySlug'),
+          params.get('name'), params.get('categoria'), params.get('category')
+        ].filter(Boolean);
 
-        let found = null;
-        if (catId) found = categories.find(c => c.id === catId) || null;
-        if (!found && catSlugParam) {
-          const wanted = normalizeSlug(catSlugParam);
-          found = categories.find(c => normalizeSlug(c.slug || c.name || c.nome || c.id) === wanted) || null;
+        for (const wantedRaw of wantedValues) {
+          const wantedId = String(wantedRaw || '').trim();
+          const wantedSlug = normalizeSlug(wantedRaw);
+          const wantedText = normalizeText(wantedRaw);
+          const found = categories.find(c => {
+            const aliases = categoryAliases(c);
+            return aliases.includes(wantedId) || aliases.includes(wantedSlug) || aliases.includes(wantedText);
+          });
+          if (found) return found;
         }
-        if (!found && catNameParam) {
-          const wantedSlug = normalizeSlug(catNameParam);
-          found = categories.find(c => normalizeSlug(c.slug || c.name || c.nome || c.id) === wantedSlug) || null;
-          if (!found) {
-            found = categories.find(c => String(c.name || c.nome || '').trim().toLowerCase() === String(catNameParam).trim().toLowerCase()) || null;
-          }
-        }
-        return found || null;
+        return null;
       }
 
       async function fetchProducts() {
         const attempts = [
-          '/products?limit=500',
           '/seller/products',
           '/products',
           '/home/index-data'
@@ -605,94 +641,29 @@
       async function collectProductsForContext(currentParent, currentSub) {
         const products = await fetchProducts();
 
-        const byParent = new Map();
-        for (const cat of allCategories) {
-          const parentId = String(cat.parentId || cat.parent || cat.parent_id || '').trim();
-          if (!parentId) continue;
-          const list = byParent.get(parentId) || [];
-          list.push(cat);
-          byParent.set(parentId, list);
-        }
+        const childrenOfParent = currentParent
+          ? allCategories.filter(c => String(c.parentId || c.parent || c.parent_id || '') === String(currentParent.id || currentParent._id || ''))
+          : [];
 
-        const expandCategoryTree = (root) => {
-          const out = [];
-          const seen = new Set();
-          const walk = (cat) => {
-            if (!cat) return;
-            const id = String(cat.id || cat._id || '').trim();
-            const key = id || normalizeSlug(cat.slug || cat.name || cat.nome);
-            if (key && seen.has(key)) return;
-            if (key) seen.add(key);
-            out.push(cat);
-            for (const child of (byParent.get(id) || [])) walk(child);
-          };
-          walk(root);
-          return out;
-        };
+        const targetCats = currentSub
+          ? [currentSub, currentParent].filter(Boolean)
+          : [currentParent, ...childrenOfParent].filter(Boolean);
 
-        const wantedCategories = currentSub ? [currentSub] : expandCategoryTree(currentParent);
-        if (!wantedCategories.length) return products;
+        if (!targetCats.length) return products;
 
-        const wantedIds = new Set();
-        const wantedTerms = new Set();
-        for (const cat of wantedCategories) {
-          const id = String(cat.id || cat._id || '').trim();
-          const name = String(cat.name || cat.nome || '').trim();
-          const slug = String(cat.slug || cat.key || cat.code || '').trim();
-          if (id) wantedIds.add(id.toLowerCase());
-          for (const value of [id, name, slug, normalizeSlug(slug || name || id), normalizeText(name), normalizeText(slug)]) {
-            const t = normalizeText(value);
-            if (t) wantedTerms.add(t);
-            const sl = normalizeSlug(value);
-            if (sl) wantedTerms.add(sl);
-          }
-        }
+        let filtered = products.filter(p => productMatchesAnyCategory(p, targetCats));
 
-        const productMatchesCategory = (p) => {
-          const rawValues = [
-            p.categoryId, p.category_id, p.categoryID,
-            p.categorySlug, p.category_slug,
-            p.categoryName, p.categoriaNome,
-            p.category, p.categoria,
-            p.subcategoryId, p.subcategory_id,
-            p.subcategorySlug, p.subcategory_slug,
-            p.subcategoryName, p.subcategory, p.subcategoria,
-            ...(Array.isArray(p.categories) ? p.categories : []),
-            ...(Array.isArray(p.categoryIds) ? p.categoryIds : []),
-            ...(Array.isArray(p.tags) ? p.tags : [])
-          ];
-
-          for (const raw of rawValues) {
-            if (raw && typeof raw === 'object') {
-              rawValues.push(raw.id, raw._id, raw.slug, raw.name, raw.nome);
-              continue;
-            }
-            const original = String(raw || '').trim();
-            if (!original) continue;
-            const lowered = original.toLowerCase();
-            const text = normalizeText(original);
-            const slug = normalizeSlug(original);
-            if (wantedIds.has(lowered) || wantedTerms.has(text) || wantedTerms.has(slug)) return true;
-            for (const term of wantedTerms) {
-              if (term.length >= 3 && (text.includes(term) || term.includes(text))) return true;
-            }
-          }
-          return false;
-        };
-
-        const matched = products.filter(productMatchesCategory);
-
-        // Segurança: se a categoria veio cadastrada com outro nome/slug no admin,
-        // não deixa a página morrer vazia. Mostra o catálogo e registra o aviso no console.
-        if (!matched.length && products.length) {
-          console.warn('[categoria] nenhum produto bateu com a categoria selecionada; exibindo catálogo completo como fallback.', {
-            categoria: currentSub || currentParent,
-            totalProdutos: products.length
+        // Segurança: se o Mongo estiver com categoryName diferente do cadastro, tenta uma busca mais aberta pelo nome da categoria.
+        if (!filtered.length) {
+          const words = targetCats.flatMap(c => normalizeText(c.name || c.nome || c.slug || '').split(' ')).filter(w => w.length >= 3);
+          filtered = products.filter(p => {
+            const hay = productCategoryText(p);
+            return words.length && words.some(w => hay.includes(w));
           });
-          return products;
         }
 
-        return matched;
+        console.log('[categoria] categoria atual:', currentParent, currentSub, 'produtos encontrados:', filtered.length, 'de', products.length);
+        return filtered;
       }
 
       async function initCategoria() {

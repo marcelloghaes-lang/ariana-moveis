@@ -929,11 +929,13 @@ function getSearchQueryFromInputs() {
 
 function redirectToSearch(query) {
   const q = String(query || '').trim();
-  if (!q) {
-    window.location.href = 'todos_produtos.html';
-    return;
-  }
-  window.location.href = `todos_produtos.html?q=${encodeURIComponent(q)}`;
+  const target = q ? `todos_produtos.html?q=${encodeURIComponent(q)}` : 'todos_produtos.html';
+  try {
+    const currentFile = String(location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    const currentQ = String(new URLSearchParams(location.search).get('q') || '').trim();
+    if (currentFile === 'todos_produtos.html' && currentQ === q) return;
+  } catch (_) {}
+  window.location.href = target;
 }
 
 window.applySearchFilter = function(eventOrQuery = null) {
@@ -944,14 +946,6 @@ window.applySearchFilter = function(eventOrQuery = null) {
   const queryText = typeof eventOrQuery === 'string'
     ? String(eventOrQuery || '').trim()
     : getSearchQueryFromInputs();
-
-  // Se já estamos no catálogo, não redireciona para a própria página.
-  // Isso evita o loop/reinício quando todos_produtos.html?q=... é aberto.
-  const path = String(window.location.pathname || '').toLowerCase();
-  const isCatalogPage = path.endsWith('/todos_produtos.html') || path.endsWith('todos_produtos.html');
-  if (isCatalogPage && typeof window.__ARIANA_CATALOG_APPLY_SEARCH === 'function') {
-    return window.__ARIANA_CATALOG_APPLY_SEARCH(queryText);
-  }
 
   redirectToSearch(queryText);
 };

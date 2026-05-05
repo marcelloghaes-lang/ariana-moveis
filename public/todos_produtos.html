@@ -344,78 +344,65 @@
     }).join('');
   };
 
-  const normalizeSearchTermAriana = (value) => String(value || '')
+  const normalizeSearchTextLocal = (value) => String(value || '')
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  const productSearchScoreAriana = (product, term) => {
-    const normalizedTerm = normalizeSearchTermAriana(term);
-    if (!normalizedTerm) return 1;
-    const fields = [
-      product.name, product.nome, product.title, product.titulo,
-      product.category, product.categoria, product.categoryName, product.categoriaNome,
-      product.categorySlug, product.categoryId,
-      product.subcategory, product.subcategoria, product.subcategoryName, product.subcategorySlug, product.subcategoryId,
-      product.description, product.descricao, product.brand, product.marca, product.sku, product.codigo, product.code
-    ].filter(Boolean).join(' ');
-    const haystack = normalizeSearchTermAriana(fields);
-    let score = 0;
-    if (haystack.includes(normalizedTerm)) score += 20;
-    for (const token of normalizedTerm.split(' ').filter(Boolean)) {
-      if (haystack.includes(token)) score += 5;
-    }
-    return score;
-  };
+  const productSearchText = (product) => normalizeSearchTextLocal([
+    product?.name, product?.nome, product?.title, product?.titulo,
+    product?.category, product?.categoria, product?.categoryName, product?.categorySlug, product?.categoryId,
+    product?.subcategory, product?.subcategoria, product?.subcategoryName, product?.subcategorySlug, product?.subcategoryId,
+    product?.description, product?.descricao, product?.brand, product?.marca, product?.sku
+  ].filter(Boolean).join(' '));
 
-  window.applySearchFilter = (eventOrQuery = null) => {
+  const applyCatalogSearchFilter = (eventOrQuery = null) => {
     if (eventOrQuery && typeof eventOrQuery.preventDefault === 'function') eventOrQuery.preventDefault();
-    const externalQuery = (typeof eventOrQuery === 'string') ? eventOrQuery : null;
-    let queryText;
 
-    if (externalQuery !== null) queryText = externalQuery.toLowerCase().trim();
-    else {
-      const searchInputDesktop = document.getElementById('search-input-desktop');
-      const searchInputMobile = document.getElementById('search-input-mobile');
-      queryText = (searchInputDesktop?.value || searchInputMobile?.value || '').toLowerCase().trim();
-    }
+    const externalQuery = (typeof eventOrQuery === 'string') ? eventOrQuery : null;
+    const desktop = document.getElementById('search-input-desktop');
+    const mobile = document.getElementById('search-input-mobile');
+    const rawQuery = externalQuery !== null ? externalQuery : (desktop?.value || mobile?.value || '');
+    const queryText = normalizeSearchTextLocal(rawQuery);
 
     const headerEl = $('search-results-header');
     const sectionCfg2 = getSectionConfigFromUrl();
+    const sourceList = (window.__BASE_PRODUCTS__ && window.__BASE_PRODUCTS__.length) ? window.__BASE_PRODUCTS__ : (window.__ALL_PRODUCTS__ || []);
 
-    if (queryText === "") {
-      renderProductCards(window.__BASE_PRODUCTS__ || window.__ALL_PRODUCTS__ || [], 'featured-product-grid');
+    if (!queryText) {
+      renderProductCards(sourceList, 'featured-product-grid');
       if (headerEl) headerEl.textContent = sectionCfg2 ? sectionCfg2.title : 'Catálogo Completo de Produtos';
-      const params = new URLSearchParams(window.location.search);
-      const section = params.get('section');
-      history.pushState(null, '', section ? `todos_produtos.html?section=${encodeURIComponent(section)}` : `todos_produtos.html`);
       return;
     }
 
-    const sourceList = (window.__BASE_PRODUCTS__ && window.__BASE_PRODUCTS__.length) ? window.__BASE_PRODUCTS__ : (window.__ALL_PRODUCTS__ || []);
-    const filteredProducts = sourceList
-      .map(product => ({ ...product, __searchScore: productSearchScoreAriana(product, queryText) }))
-      .filter(product => product.__searchScore > 0)
-      .sort((a, b) => b.__searchScore - a.__searchScore);
+    const words = queryText.split(' ').filter(Boolean);
+    const filteredProducts = sourceList.filter(product => {
+      const haystack = productSearchText(product);
+      return words.every(w => haystack.includes(w));
+    });
 
     renderProductCards(filteredProducts, 'featured-product-grid');
-    if (headerEl) headerEl.textContent = sectionCfg2 ? `${sectionCfg2.title} — Busca: "${queryText}"` : `Resultados da Busca por "${queryText}"`;
-
-    const params2 = new URLSearchParams(window.location.search);
-    const section2 = params2.get('section');
-    history.pushState(null, '', section2 ? `todos_produtos.html?section=${encodeURIComponent(section2)}&q=${encodeURIComponent(queryText)}` : `todos_produtos.html?q=${encodeURIComponent(queryText)}`);
+    if (headerEl) headerEl.textContent = sectionCfg2 ? `${sectionCfg2.title} — Busca: "${rawQuery}"` : `Resultados da Busca por "${rawQuery}"`;
   };
 
   const setupSearchListeners = () => {
     const searchInputDesktop = document.getElementById('search-input-desktop');
     const searchInputMobile = document.getElementById('search-input-mobile');
+
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q') || params.get('query') || params.get('busca') || '';
+    if (q) {
+      if (searchInputDesktop) searchInputDesktop.value = q;
+      if (searchInputMobile) searchInputMobile.value = q;
+    }
+
     let throttleTimer;
     const handleInput = () => {
       clearTimeout(throttleTimer);
-      throttleTimer = setTimeout(() => window.applySearchFilter(null), 300);
+      throttleTimer = setTimeout(() => applyCatalogSearchFilter(null), 220);
     };
     searchInputDesktop?.addEventListener('input', handleInput);
     searchInputMobile?.addEventListener('input', handleInput);
@@ -488,7 +475,7 @@
         const m = document.getElementById('search-input-mobile');
         if (d) d.value = decodedQuery;
         if (m) m.value = decodedQuery;
-        window.applySearchFilter(decodedQuery);
+        applyCatalogSearchFilter(decodedQuery);
       } else {
         renderProductCards(baseProducts, 'featured-product-grid');
       }
