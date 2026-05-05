@@ -1,174 +1,308 @@
-/**
- * ARIANA MÓVEIS - SCRIPT CENTRAL DE MARKETPLACE
- * Este ficheiro gere a lógica de Sellers sem mexer no seu HTML/CSS.
- *
- * ✅ Inclui agora um "bridge" para o Header carregar categorias do Firestore:
- *    - MarketplaceCore.bindMongoRemoved({...})  -> expõe refs no window (db, getDocs, collection, etc.)
- *    - MarketplaceCore.cacheCategories(cats) -> opcional, cache para o header
- */
-
-(function () {
-  'use strict';
-
-  const CART_KEY = 'arianaMoveisCart';
-
-  function safeJsonParse(str, fallback) {
-    try { return JSON.parse(str); } catch (_) { return fallback; }
-  }
-
-  function getCart() {
-    return safeJsonParse(localStorage.getItem(CART_KEY), []) || [];
-  }
-
-  function setCart(cart) {
-    localStorage.setItem(CART_KEY, JSON.stringify(cart || []));
-  }
-
-  function toNumber(val) {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  const MarketplaceCore = {
-    /**
-     * 🔌 Bridge do Firestore para scripts não-module (ex: header.js)
-     *
-     * Como usar (no seu init Firebase module):
-     * MarketplaceCore.bindMongoRemoved({ db, collection, getDocs, query, where, orderBy, limit });
-     */
-    bindMongoRemoved: function (refs) {
-      try {
-        if (!refs || !refs.db) return false;
-
-        // Expor no window para o header
-        window.db = refs.db;
-        if (refs.collection) window.collection = refs.collection;
-        if (refs.getDocs) window.getDocs = refs.getDocs;
-        if (refs.query) window.query = refs.query;
-        if (refs.where) window.where = refs.where;
-        if (refs.orderBy) window.orderBy = refs.orderBy;
-        if (refs.limit) window.limit = refs.limit;
-
-        return true;
-      } catch (e) {
-        console.warn('[MarketplaceCore] bindMongoRemoved falhou:', e);
-        return false;
-      }
-    },
-
-    /**
-     * ✅ Cache opcional (fallback) para o header usar sem buscar novamente
-     */
-    cacheCategories: function (categoriesArray) {
-      try {
-        if (Array.isArray(categoriesArray)) {
-          window.__CATEGORIES_CACHE__ = categoriesArray;
-          return true;
-        }
-      } catch (_) {}
-      return false;
-    },
-
-    // 1. Guarda o produto com a marca do Seller
-    adicionarAoCarrinho: function (produto, sellerId, sellerName) {
-      const carrinho = getCart();
-
-      const images = produto?.images || produto?.imagens;
-      const firstImage =
-        (typeof produto?.mainImage === 'string' && produto.mainImage) ? produto.mainImage :
-        (typeof produto?.mainImageUrl === 'string' && produto.mainImageUrl) ? produto.mainImageUrl :
-        (typeof produto?.imageUrl === 'string' && produto.imageUrl) ? produto.imageUrl :
-        (Array.isArray(images) && images[0])
-          ? (typeof images[0] === 'string' ? images[0] : (images[0]?.url || ''))
-          : '';
-
-      const novoItem = {
-        id: produto?.id,
-        name: produto?.name || produto?.nome || 'Produto',
-        price: toNumber(produto?.price),
-        image: firstImage || '',
-        quantity: toNumber(produto?.quantity) || 1,
-        // Identificação crucial do Marketplace
-        sellerId: sellerId || 'admin',
-        sellerName: sellerName || 'Ariana Móveis'
-      };
-
-      if (!novoItem.id) {
-        console.warn('[MarketplaceCore] Produto sem id. Não foi possível adicionar ao carrinho.');
-        alert('Erro: produto inválido (sem ID).');
-        return;
-      }
-
-      const index = carrinho.findIndex(item => item.id === novoItem.id);
-      if (index > -1) {
-        carrinho[index].quantity = toNumber(carrinho[index].quantity) + novoItem.quantity;
-      } else {
-        carrinho.push(novoItem);
-      }
-
-      setCart(carrinho);
-      console.log(`Sucesso: Produto de ${novoItem.sellerName} adicionado.`);
-      alert('Produto adicionado ao carrinho!');
-    },
-
-    // 2. Agrupa os itens por Seller para o Checkout
-    agruparPorVendedor: function () {
-      const carrinho = getCart();
-
-      return carrinho.reduce((grupos, item) => {
-        const sId = item?.sellerId || 'admin';
-        if (!grupos[sId]) {
-          grupos[sId] = {
-            nomeVendedor: item?.sellerName || 'Ariana Móveis',
-            itens: [],
-            total: 0
-          };
-        }
-        const price = toNumber(item?.price);
-        const qty = toNumber(item?.quantity) || 1;
-
-        grupos[sId].itens.push({ ...item, price, quantity: qty });
-        grupos[sId].total += (price * qty);
-
-        return grupos;
-      }, {});
-    },
-
-    // 3. Envia pedidos separados para o Firebase
-    finalizarPedidoMarketplace_MONGO_ADAPTAR: async function (db, dadosCliente, { addDoc, collection, serverTimestamp }) {
-      const pedidosAgrupados = this.agruparPorVendedor();
-      const promessas = [];
-
-      for (const sellerId in pedidosAgrupados) {
-        const grupo = pedidosAgrupados[sellerId];
-
-        const payloadPedido = {
-          ...(dadosCliente || {}), // Nome, e-mail, morada, etc.
-          sellerId: sellerId,
-          sellerName: grupo.nomeVendedor,
-          items: grupo.itens,
-          totalPrice: toNumber(grupo.total),
-          status: 'PENDENTE',
-          createdAt: serverTimestamp()
-        };
-
-        // Cria um documento de pedido diferente para cada Seller
-        promessas.push(addDoc(collection(db, 'orders'), payloadPedido));
-      }
-
-      return Promise.all(promessas);
-    },
-
-    // Utilitários (opcional)
-    getCart: getCart,
-    setCart: setCart,
-    clearCart: function () {
-      setCart([]);
-    }
+const API_BASE = window.API_BASE || localStorage.getItem("API_BASE") || "https://ariana-backend.onrender.com/api";
+(function(){
+  const toNumber = (v) => {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v).trim().replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
+    if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else if (s.includes(',')) s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
   };
-
-  // Torna o objeto acessível globalmente
-  window.MarketplaceCore = MarketplaceCore;
-
+  const DEFAULT_PAYMENT_SETTINGS = { pix:{enabled:true, discountPercent:17, label:'PIX'}, boleto:{enabled:false, discountPercent:0, label:'Boleto'}, card:{enabled:true, maxInstallments:12, interestFree:true} };
+  const normalizePaymentSettings = (raw) => {
+    const s = raw && typeof raw === 'object' ? raw : {};
+    const pix = s.pix || {}, boleto = s.boleto || {}, card = s.card || {};
+    return {
+      pix:{enabled: pix.enabled ?? DEFAULT_PAYMENT_SETTINGS.pix.enabled, discountPercent: toNumber(pix.discountPercent) ?? DEFAULT_PAYMENT_SETTINGS.pix.discountPercent, label: pix.label || DEFAULT_PAYMENT_SETTINGS.pix.label},
+      boleto:{enabled: boleto.enabled ?? DEFAULT_PAYMENT_SETTINGS.boleto.enabled, discountPercent: toNumber(boleto.discountPercent) ?? DEFAULT_PAYMENT_SETTINGS.boleto.discountPercent, label: boleto.label || DEFAULT_PAYMENT_SETTINGS.boleto.label},
+      card:{enabled: card.enabled ?? DEFAULT_PAYMENT_SETTINGS.card.enabled, maxInstallments: Math.max(1, Math.min(24, Math.floor(toNumber(card.maxInstallments) ?? 12))), interestFree: card.interestFree ?? true}
+    };
+  };
+  window.__PAYMENT_SETTINGS = window.__PAYMENT_SETTINGS || normalizePaymentSettings(null);
+  window.getPaymentSettings = async function(){
+    try {
+      const res = await fetch(String(API_BASE).replace(/\/+$/, '') + '/settings/payments', { headers:{Accept:'application/json'}, cache:'no-store' });
+      const data = await res.json().catch(() => null);
+      window.__PAYMENT_SETTINGS = normalizePaymentSettings(data || null);
+    } catch(_e) { window.__PAYMENT_SETTINGS = normalizePaymentSettings(window.__PAYMENT_SETTINGS || null); }
+    return window.__PAYMENT_SETTINGS;
+  };
+  window.loadGlobalPaymentsConfig = window.getPaymentSettings;
+  window.decorateProductWithPayments = window.decorateProductWithPayments || function(product){ return product; };
+  try { window.getPaymentSettings(); } catch(_e) {}
 })();
 
+(function () {
+  const CARD_STYLE_ID = "ariana-card-padrao-unico-v10";
+
+  function toNumberBR(value, fallback = 0) {
+    try {
+      if (value === null || value === undefined) return fallback;
+      if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+      let s = String(value).trim();
+      if (!s) return fallback;
+      s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
+      const hasComma = s.includes(",");
+      const hasDot = s.includes(".");
+      if (hasComma && hasDot) s = s.replace(/\./g, "").replace(",", ".");
+      else if (hasComma && !hasDot) s = s.replace(",", ".");
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function formatCurrency(value) {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(toNumberBR(value, 0));
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function clamp(n, min, max) {
+    return Math.min(max, Math.max(min, n));
+  }
+
+  function getProductId(p) {
+    return p?._id || p?.id || p?.productId || p?.produtoId || p?.sku || "";
+  }
+
+  function getProductName(p) {
+    return p?.name || p?.nome || p?.title || p?.titulo || "Produto";
+  }
+
+  function resolveImage(raw) {
+    const value = String(raw || "").trim();
+    if (!value || value.includes("${")) return "";
+    if (typeof window.resolveApiImageUrl === "function") return window.resolveApiImageUrl(value);
+    if (/^(https?:|data:|blob:)/i.test(value)) return value;
+    const origin = window.API_ORIGIN || String(window.API_BASE || "https://ariana-backend.onrender.com/api").replace(/\/api\/?$/i, "");
+    if (value.startsWith("/")) return origin + value;
+    return origin + "/" + value.replace(/^\.?\//, "");
+  }
+
+  function getImageUrl(p) {
+    const candidates = [
+      p?.mainImageUrl,
+      p?.imageUrl,
+      p?.image,
+      p?.imagem,
+      p?.image_url,
+      p?.imagemUrl,
+      Array.isArray(p?.images) ? p.images[0] : null,
+      Array.isArray(p?.imageUrls) ? p.imageUrls[0] : null,
+      Array.isArray(p?.imagePaths) ? p.imagePaths[0] : null,
+    ];
+
+    for (const item of candidates) {
+      const raw = typeof item === "string" ? item : (item?.url || item?.imageUrl || item?.src || item?.path || "");
+      const img = resolveImage(raw);
+      if (img) return img;
+    }
+    return "https://placehold.co/500x500/ffffff/333333?text=SEM+IMAGEM";
+  }
+
+  function pickNumber(p, keys, fallback = 0) {
+    for (const k of keys) {
+      const v = p?.[k];
+      if (v !== undefined && v !== null && String(v).trim?.() !== "") {
+        const n = toNumberBR(v, NaN);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    return fallback;
+  }
+
+  function getBasePrice(p) {
+    return pickNumber(p, ["price", "preco", "valor", "totalPrice", "salePrice", "sale_price"], 0);
+  }
+
+  function getOldPrice(p, basePrice) {
+    const old = pickNumber(p, ["oldPrice", "precoAntigo", "precoDe", "originalPrice", "listPrice"], 0);
+    return old > basePrice ? old : 0;
+  }
+
+  function getPixPercent(p) {
+    const direct = pickNumber(p, ["pixDiscountPercent", "descontoPixPercent", "discountPercent", "descontoPercentual"], 0);
+    if (direct > 0) return clamp(Math.round(direct), 0, 90);
+    const settings = window.__PAYMENT_SETTINGS;
+    const fromSettings = toNumberBR(settings?.pix?.discountPercent, 0);
+    if (settings?.pix?.enabled !== false && fromSettings > 0) return clamp(Math.round(fromSettings), 0, 90);
+    return 17;
+  }
+
+  function getPixPrice(p, basePrice, pixPercent) {
+    const explicit = pickNumber(p, ["pixPrice", "precoPix", "cashPrice", "precoVista", "pricePix"], 0);
+    if (explicit > 0 && explicit <= basePrice) return explicit;
+    return +(basePrice * (1 - pixPercent / 100)).toFixed(2);
+  }
+
+  function ensureCardStyles() {
+    if (document.getElementById(CARD_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = CARD_STYLE_ID;
+    style.textContent = `
+      .am-pro-card, .product-card {
+        background:#fff !important;
+        border-radius:4px !important;
+        border:1px solid #e7e7e7 !important;
+        box-shadow:0 1px 5px rgba(0,0,0,.08) !important;
+        transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease !important;
+        overflow:hidden !important;
+        display:flex !important;
+        flex-direction:column !important;
+        cursor:pointer !important;
+        padding:10px !important;
+        height:100% !important;
+        text-decoration:none !important;
+        color:#333 !important;
+        position:relative !important;
+        font-family:'Inter', Arial, sans-serif !important;
+      }
+      .am-pro-card:hover, .product-card:hover {
+        transform:translateY(-2px) !important;
+        box-shadow:0 4px 8px rgba(0,0,0,.10) !important;
+        border-color:#d5d5d5 !important;
+      }
+      .product-image-container, .am-pro-card__image-container {
+        width:100% !important;
+        height:180px !important;
+        position:relative !important;
+        overflow:hidden !important;
+        margin-bottom:10px !important;
+        display:flex !important;
+        justify-content:center !important;
+        align-items:center !important;
+        background:#fff !important;
+      }
+      .product-image-container img, .am-pro-card__image {
+        max-width:100% !important;
+        max-height:100% !important;
+        width:auto !important;
+        height:auto !important;
+        object-fit:contain !important;
+        transition:none !important;
+        transform:none !important;
+      }
+      .product-card-body, .am-pro-card__price-container {
+        padding:0 !important;
+        flex-grow:1 !important;
+        display:flex !important;
+        flex-direction:column !important;
+        justify-content:flex-start !important;
+      }
+      .product-name, .am-pro-card__title {
+        font-size:.85rem !important;
+        font-weight:400 !important;
+        color:#444 !important;
+        min-height:3em !important;
+        max-height:3em !important;
+        overflow:hidden !important;
+        text-overflow:ellipsis !important;
+        display:-webkit-box !important;
+        -webkit-line-clamp:2 !important;
+        -webkit-box-orient:vertical !important;
+        margin:0 0 10px 0 !important;
+        line-height:1.45 !important;
+      }
+      .product-old-price, .am-pro-card__old-price {
+        font-size:.8rem !important;
+        color:#999 !important;
+        text-decoration:line-through !important;
+        font-weight:400 !important;
+        line-height:1.2 !important;
+        min-height:auto !important;
+        margin:0 0 4px 0 !important;
+      }
+      .product-price-row { display:flex !important; align-items:center !important; gap:6px !important; flex-wrap:wrap !important; }
+      .product-price, .am-pro-card__main-price {
+        font-size:1.25rem !important;
+        font-weight:800 !important;
+        color:#333 !important;
+        margin-top:2px !important;
+        display:flex !important;
+        align-items:baseline !important;
+        line-height:1.05 !important;
+        letter-spacing:-.3px !important;
+      }
+      .product-discount-inline, .am-pro-card__discount-tag {
+        font-size:.72rem !important;
+        color:#00a650 !important;
+        font-weight:800 !important;
+        line-height:1 !important;
+        white-space:nowrap !important;
+      }
+      .product-pix-text, .am-pro-card__pix-info {
+        font-size:.75rem !important;
+        color:#555 !important;
+        font-weight:600 !important;
+        margin-top:4px !important;
+        margin-bottom:0 !important;
+      }
+      .product-installments, .am-pro-card__installments {
+        font-size:.78rem !important;
+        color:#333 !important;
+        margin-top:8px !important;
+        line-height:1.35 !important;
+        font-weight:500 !important;
+      }
+      .product-total-prazo, .am-pro-card__total-prazo {
+        font-size:.72rem !important;
+        color:#888 !important;
+        margin-top:5px !important;
+        line-height:1.25 !important;
+        font-weight:400 !important;
+      }
+      .product-tag-container{position:absolute !important;top:5px !important;left:5px !important;z-index:10 !important;display:flex !important;flex-direction:column !important;gap:5px !important;}
+      .product-tag{color:#fff !important;font-size:.72rem !important;font-weight:800 !important;padding:2px 5px !important;border-radius:2px !important;display:block !important;width:fit-content !important;line-height:1 !important;}
+      .tag-orange{background:#ff931e !important;}
+    `;
+    document.head.appendChild(style);
+  }
+
+  window.createProductCard = function createProductCard(product) {
+    ensureCardStyles();
+
+    const id = getProductId(product);
+    const name = getProductName(product);
+    const href = `produto.html?id=${encodeURIComponent(id)}`;
+    const imageUrl = getImageUrl(product);
+    const basePrice = getBasePrice(product);
+    const oldPrice = getOldPrice(product, basePrice);
+    const pixPercent = getPixPercent(product);
+    const pixPrice = basePrice > 0 ? getPixPrice(product, basePrice, pixPercent) : 0;
+    const installmentCount = clamp(Math.round(pickNumber(product, ["installmentCount", "installmentsCount", "parcelas", "cardInstallments"], 12) || 12), 1, 24);
+    const installmentValue = basePrice > 0 ? +(basePrice / installmentCount).toFixed(2) : 0;
+    const showDiscount = pixPercent > 0 && basePrice > 0;
+
+    return `
+      <a class="product-card" href="${escapeHtml(href)}">
+        ${showDiscount ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${pixPercent}% OFF</span></div>` : ""}
+        <div class="product-image-container">
+          <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">
+        </div>
+        <div class="product-card-body">
+          <div class="product-name">${escapeHtml(name)}</div>
+          ${oldPrice > 0 ? `<div class="product-old-price">${formatCurrency(oldPrice)}</div>` : `<div class="product-old-price" style="visibility:hidden">.</div>`}
+          <div class="product-price-row">
+            <div class="product-price">${formatCurrency(pixPrice || basePrice)}</div>
+            ${showDiscount ? `<span class="product-discount-inline">${pixPercent}% OFF</span>` : ""}
+          </div>
+          <div class="product-pix-text">no PIX à vista</div>
+          <div class="product-installments">ou ${installmentCount}x de ${formatCurrency(installmentValue)} s/ juros</div>
+          <div class="product-total-prazo">Total parcelado: ${formatCurrency(basePrice)}</div>
+        </div>
+      </a>
+    `;
+  };
+
+  window.__ARIANA_PRODUCT_CARD_STANDARD__ = true;
+})();
