@@ -1200,8 +1200,12 @@ async function loadPaymentsSettingsForProduct() {
             return {
                 oldPrice,
                 fullPrice,
+                original: fullPrice,
+                prazoPrice: fullPrice,
+                cash: pixPrice,
                 pixPrice,
                 pixPercent,
+                discountPercent: pixPercent,
                 oldDiscountPercent,
                 installments,
                 installmentValue,
@@ -1209,7 +1213,7 @@ async function loadPaymentsSettingsForProduct() {
                 fullPriceFormatted: formatCurrency(fullPrice),
                 pixPriceFormatted: formatCurrency(pixPrice),
                 installmentValueFormatted: formatCurrency(installmentValue),
-                installmentsText: `ou 12x de ${formatCurrency(installmentValue)} s/ juros`,
+                installmentsText: `ou 12x de ${formatCurrency(installmentValue)} s/ juros no cartão`,
                 totalPrazoText: `Total parcelado: ${formatCurrency(fullPrice)}`
             };
         }
@@ -1245,9 +1249,10 @@ async function loadPaymentsSettingsForProduct() {
             const installmentsEl = document.getElementById('product-price-installments');
             if (installmentsEl) {
                 installmentsEl.innerHTML = `
-                    <span class="block text-gray-700 font-semibold">${pricing.installmentsText}</span>
-                    <span class="block text-xs text-gray-500 mt-1">${pricing.totalPrazoText}</span>
+                    <span class="block text-gray-800 font-extrabold text-base">${pricing.installmentsText}</span>
+                    <span class="block text-sm text-gray-500 mt-1">${pricing.totalPrazoText}</span>
                 `;
+                installmentsEl.style.display = 'block';
             }
         }
 
@@ -2182,6 +2187,7 @@ function renderShippingQuotes(result, cep) {
             try { await loadProductDetails(); } catch (e) { console.error('[produto] erro ao carregar detalhes:', e); }
         });
     </script>
+    <script src="./detalhes_produto.js"></script>
     <script src="./header.js"></script>
 <script>
         (function() {
