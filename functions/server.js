@@ -63,7 +63,9 @@ const allowedOrigins = [
   'https://ariana-moveis-oficial.onrender.com',
   'https://ariana-moveis.onrender.com',
   'https://arianamoveis.com.br',
-  'https://www.arianamoveis.com.br'
+  'https://www.arianamoveis.com.br',
+  'https://arianamoveis.site',
+  'https://www.arianamoveis.site'
 ];
 
 const envFrontendOrigins = String(process.env.FRONTEND_URLS || '')

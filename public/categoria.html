@@ -563,6 +563,7 @@
 
       async function fetchProducts() {
         const attempts = [
+          '/products?limit=500',
           '/seller/products',
           '/products',
           '/home/index-data'
@@ -679,7 +680,19 @@
           return false;
         };
 
-        return products.filter(productMatchesCategory);
+        const matched = products.filter(productMatchesCategory);
+
+        // Segurança: se a categoria veio cadastrada com outro nome/slug no admin,
+        // não deixa a página morrer vazia. Mostra o catálogo e registra o aviso no console.
+        if (!matched.length && products.length) {
+          console.warn('[categoria] nenhum produto bateu com a categoria selecionada; exibindo catálogo completo como fallback.', {
+            categoria: currentSub || currentParent,
+            totalProdutos: products.length
+          });
+          return products;
+        }
+
+        return matched;
       }
 
       async function initCategoria() {

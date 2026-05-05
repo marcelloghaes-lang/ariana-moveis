@@ -945,6 +945,14 @@ window.applySearchFilter = function(eventOrQuery = null) {
     ? String(eventOrQuery || '').trim()
     : getSearchQueryFromInputs();
 
+  // Se já estamos no catálogo, não redireciona para a própria página.
+  // Isso evita o loop/reinício quando todos_produtos.html?q=... é aberto.
+  const path = String(window.location.pathname || '').toLowerCase();
+  const isCatalogPage = path.endsWith('/todos_produtos.html') || path.endsWith('todos_produtos.html');
+  if (isCatalogPage && typeof window.__ARIANA_CATALOG_APPLY_SEARCH === 'function') {
+    return window.__ARIANA_CATALOG_APPLY_SEARCH(queryText);
+  }
+
   redirectToSearch(queryText);
 };
 
