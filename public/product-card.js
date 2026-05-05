@@ -91,8 +91,47 @@
   }
 
   function getOldPrice(p, basePrice) {
-    const old = pickNumber(p, ["oldPrice", "precoAntigo", "precoDe", "originalPrice", "listPrice"], 0);
-    return old > basePrice ? old : 0;
+    const old = pickNumber(p, [
+      "oldPrice",
+      "precoAntigo",
+      "precoDe",
+      "originalPrice",
+      "listPrice",
+      "old_price",
+      "regularPrice",
+      "regular_price",
+      "precoOriginal",
+      "preco_original",
+      "precoCheio",
+      "preco_cheio",
+      "precoCortado",
+      "preco_cortado",
+      "compareAtPrice",
+      "compare_at_price",
+      "priceFrom",
+      "price_from",
+      "valorDe",
+      "valor_de",
+      "valorAntigo",
+      "valor_antigo"
+    ], 0);
+
+    if (old > basePrice) return old;
+
+    // Fallback: alguns produtos antigos gravaram o preço cheio/parcelado em campos separados.
+    const full = pickNumber(p, [
+      "fullPrice",
+      "full_price",
+      "precoPrazo",
+      "preco_prazo",
+      "cardPrice",
+      "cartaoPrice",
+      "precoCartao",
+      "totalParcelado",
+      "total_parcelado"
+    ], 0);
+
+    return full > basePrice ? full : 0;
   }
 
   function getPixPercent(p) {
