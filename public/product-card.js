@@ -7,7 +7,7 @@
     "originalPrice", "original_price", "priceOriginal", "price_original", "listPrice", "list_price",
     "regularPrice", "regular_price", "precoOriginal", "preco_original", "precoCheio", "preco_cheio",
     "precoCortado", "preco_cortado", "valorAntigo", "valor_antigo", "valorDe", "valor_de",
-    "compareAtPrice", "compare_at_price", "de", "priceBefore", "beforePrice"
+    "compareAtPrice", "compare_at_price", "priceBefore", "beforePrice", "de"
   ];
 
   function toNumberBR(value, fallback = 0) {
@@ -15,8 +15,9 @@
       if (value === null || value === undefined) return fallback;
       if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
       let s = String(value).trim();
-      if (!s || s === "-" || s.toLowerCase() === "null") return fallback;
+      if (!s || s === "-" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return fallback;
       s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
+      if (!s || s === "-") return fallback;
       const hasComma = s.includes(",");
       const hasDot = s.includes(".");
       if (hasComma && hasDot) s = s.replace(/\./g, "").replace(",", ".");
@@ -43,7 +44,7 @@
   function pick(obj, keys) {
     for (const key of keys) {
       const v = obj?.[key];
-      if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+      if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim() !== "-") return v;
     }
     return null;
   }
@@ -71,28 +72,33 @@
     return origin + "/" + raw.replace(/^\.?\//, "");
   }
 
-  function getBasePrice(p) {
-    return toNumberBR(p?.price ?? p?.preco ?? p?.valor ?? p?.salePrice ?? p?.sale_price ?? p?.precoPrazo ?? p?.preco_prazo ?? 0, 0);
-  }
+  function getCardPricing(p) {
+    const pixPercentRaw = toNumberBR(p?.pixDiscountPercent ?? p?.descontoPixPercent ?? p?.pixDiscount ?? p?.descontoPix ?? window.__PAYMENT_SETTINGS?.pix?.discountPercent, NaN);
+    const pixPercent = Number.isFinite(pixPercentRaw) && pixPercentRaw > 0 ? Math.min(90, Math.max(0, pixPercentRaw)) : 17;
 
-  function getOldPrice(p, basePrice) {
-    const raw = pick(p, OLD_PRICE_KEYS);
-    const old = toNumberBR(raw, 0);
-    return old > basePrice ? old : 0;
-  }
+    const rawPrice = toNumberBR(p?.price ?? p?.preco ?? p?.valor ?? p?.precoPrazo ?? p?.preco_prazo ?? p?.salePrice ?? p?.sale_price ?? 0, 0);
+    const explicitPix = toNumberBR(p?.pixPrice ?? p?.precoPix ?? p?.pix_price ?? p?.cashPrice ?? p?.preco_avista ?? p?.precoVista, NaN);
 
-  function getPixPercent(p) {
-    const direct = toNumberBR(p?.pixDiscountPercent ?? p?.descontoPixPercent ?? p?.pixDiscount ?? p?.descontoPix, NaN);
-    if (Number.isFinite(direct) && direct > 0) return Math.min(90, Math.max(0, direct));
-    const global = toNumberBR(window.__PAYMENT_SETTINGS?.pix?.discountPercent, NaN);
-    if (Number.isFinite(global) && global > 0) return Math.min(90, Math.max(0, global));
-    return 17;
+    // Regra da loja: product.price/preco é o valor parcelado/cheio do cartão.
+    // PIX é esse valor com o desconto global (17% por padrão), exceto se vier pixPrice explícito.
+    const fullPrice = rawPrice;
+    const pixPrice = Number.isFinite(explicitPix) && explicitPix > 0 ? explicitPix : +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
+
+    const oldRaw = pick(p, OLD_PRICE_KEYS);
+    let oldPrice = toNumberBR(oldRaw, 0);
+    // Preço antigo é o "de" riscado acima. Se não vier ou vier inválido, não inventa traço.
+    if (!(oldPrice > pixPrice)) oldPrice = 0;
+
+    const installmentCount = Math.max(1, Math.min(24, Math.round(toNumberBR(p?.installmentCount ?? p?.installmentsCount ?? p?.parcelas ?? 12, 12))));
+    const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;
+
+    return { fullPrice, pixPrice, oldPrice, pixPercent, installmentCount, installmentValue };
   }
 
   function ensureCardStyles() {
-    if (document.getElementById("ariana-card-unificado-v14")) return;
+    if (document.getElementById("ariana-card-unificado-v15")) return;
     const style = document.createElement("style");
-    style.id = "ariana-card-unificado-v14";
+    style.id = "ariana-card-unificado-v15";
     style.textContent = `
       .product-card,.am-pro-card{background:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .25s,box-shadow .25s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%;text-decoration:none;color:inherit;position:relative;font-family:Inter,Arial,sans-serif;}
       .product-card:hover,.am-pro-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.10);border-color:#2E6DA4;}
@@ -112,21 +118,18 @@
     document.head.appendChild(style);
   }
 
+  window.ArianaProductPricing = window.ArianaProductPricing || { toNumberBR, formatCurrency, getCardPricing };
+
   window.createProductCard = function createProductCard(product) {
     ensureCardStyles();
     const id = getProductId(product);
     const name = getProductName(product);
-    const fullPrice = getBasePrice(product);                 // preço cheio parcelado
-    const oldPrice = getOldPrice(product, fullPrice);        // preço antigo riscado, se existir
-    const pixPercent = getPixPercent(product);
-    const pixPrice = fullPrice > 0 ? +(fullPrice * (1 - pixPercent / 100)).toFixed(2) : 0;
-    const installmentCount = 12;
-    const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;
+    const { fullPrice, pixPrice, oldPrice, pixPercent, installmentCount, installmentValue } = getCardPricing(product);
     const imageUrl = getImageUrl(product);
     const href = `produto.html?id=${encodeURIComponent(id)}`;
     const oldHtml = oldPrice > 0
       ? `<div class="product-old-price am-pro-card__old-price">${formatCurrency(oldPrice)}</div>`
-      : `<div class="product-old-price am-pro-card__old-price" style="visibility:hidden">${formatCurrency(fullPrice || 0)}</div>`;
+      : `<div class="product-old-price am-pro-card__old-price" style="visibility:hidden">&nbsp;</div>`;
 
     return `
       <a class="product-card am-pro-card" href="${escapeHtml(href)}">

@@ -1,314 +1,201 @@
-// NOVO PADRÃO - SEM FIREBASE
+/**
+ * detalhes_produto.js
+ * Ariana Móveis - detalhe do produto sem Firebase.
+ * Corrige preço antigo, PIX, parcelamento e ordem visual.
+ */
 
-let allImages = [];
-let productData = null;
+const API_BASE = window.API_BASE || localStorage.getItem("API_BASE") || "https://ariana-backend.onrender.com/api";
+const API_ORIGIN = window.API_ORIGIN || String(API_BASE).replace(/\/api\/?$/i, "");
 
-const API_BASE =
-  window.API_BASE ||
-  localStorage.getItem("API_BASE") ||
-  "https://ariana-backend.onrender.com/api";
-
-const API_ORIGIN =
-  window.API_ORIGIN ||
-  String(API_BASE).replace(/\/api\/?$/i, "");
-
-// fallback imagem
-const getSafeImage = (img) => {
-  const raw =
-    typeof img === "string"
-      ? img
-      : (img?.url || img?.imageUrl || img?.path || img?.src || "");
-
-  if (!raw) return "/images/sem-imagem.png";
-
-  if (typeof window.resolveApiImageUrl === "function") {
-    return window.resolveApiImageUrl(raw);
-  }
-
-  if (/^https?:\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) {
-    return raw;
-  }
-
-  if (raw.startsWith("/")) return API_ORIGIN + raw;
-  return API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
-};
+let currentProduct = null;
+let currentImageIndex = 0;
+let productImages = [];
+let isFavorite = false;
 
 function toNumber(value, fallback = 0) {
   try {
     if (value === null || value === undefined) return fallback;
     if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
-
     let s = String(value).trim();
-    if (!s) return fallback;
-
+    if (!s || s === "-" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return fallback;
     s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
-
+    if (!s || s === "-") return fallback;
     const hasComma = s.includes(",");
     const hasDot = s.includes(".");
-
-    if (hasComma && hasDot) {
-      s = s.replace(/\./g, "").replace(",", ".");
-    } else if (hasComma && !hasDot) {
-      s = s.replace(",", ".");
-    }
-
+    if (hasComma && hasDot) s = s.replace(/\./g, "").replace(",", ".");
+    else if (hasComma && !hasDot) s = s.replace(",", ".");
     const n = parseFloat(s);
     return Number.isFinite(n) ? n : fallback;
-  } catch (_) {
-    return fallback;
-  }
+  } catch (_) { return fallback; }
+}
+window.__toNumberBR = window.__toNumberBR || toNumber;
+
+function formatCurrency(v) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(toNumber(v, 0));
 }
 
-function extractImages(product) {
+function safeArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") return Object.values(value);
+  return [];
+}
+
+function resolveImage(img) {
+  const raw = typeof img === "string" ? img : (img?.url || img?.imageUrl || img?.downloadURL || img?.src || img?.path || "");
+  if (!raw) return "https://placehold.co/600x400?text=Sem+Imagem";
+  if (typeof window.resolveApiImageUrl === "function") return window.resolveApiImageUrl(raw);
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+  if (raw.startsWith("/")) return API_ORIGIN + raw;
+  return API_ORIGIN + "/" + raw.replace(/^\.?\//, "");
+}
+
+function getImages(product) {
   const images = [];
-
-  const pushImage = (value) => {
-    if (!value) return;
-    const resolved = getSafeImage(value);
-    if (!resolved) return;
-    if (!images.includes(resolved)) images.push(resolved);
+  const push = (v) => {
+    if (!v) return;
+    const url = resolveImage(v);
+    if (url && !images.includes(url)) images.push(url);
   };
-
-  pushImage(product?.mainImageUrl);
-  pushImage(product?.imageUrl);
-  pushImage(product?.image);
-  pushImage(product?.imagem);
-
-  if (Array.isArray(product?.images)) {
-    product.images.forEach(pushImage);
-  } else if (product?.images && typeof product.images === "object") {
-    Object.values(product.images).forEach(pushImage);
-  }
-
-  if (Array.isArray(product?.imageUrls)) {
-    product.imageUrls.forEach(pushImage);
-  }
-
-  if (Array.isArray(product?.imagePaths)) {
-    product.imagePaths.forEach(pushImage);
-  }
-
-  if (!images.length) {
-    images.push("/images/sem-imagem.png");
-  }
-
+  push(product.mainImageUrl); push(product.imageUrl); push(product.image); push(product.imagem);
+  safeArray(product.images || product.imagens || product.gallery || product.galeria).forEach(push);
+  safeArray(product.imageUrls).forEach(push);
+  safeArray(product.imagePaths).forEach(push);
+  if (!images.length) images.push("https://placehold.co/600x400?text=Sem+Imagem");
   return images;
 }
 
-// ==============================
-// CARREGAR PRODUTO
-// ==============================
-async function loadProductDetails() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const productId = urlParams.get("id");
-
-  if (!productId) return;
-
-  try {
-    const res = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
-
-    if (!res.ok) throw new Error("Erro ao buscar produto");
-
-    const payload = await res.json();
-    const product = payload?.item || payload?.product || payload?.data || payload || {};
-
-    productData = product;
-
-    const productNameEl = document.getElementById("product-name");
-    const productPriceEl = document.getElementById("product-price-full");
-    const productDescriptionEl = document.getElementById("product-description");
-    const loadingMessageEl = document.getElementById("loading-message");
-    const detailsContainerEl = document.getElementById("product-details-container");
-
-    if (productNameEl) {
-      productNameEl.textContent = product.name || product.nome || product.title || "";
-    }
-
-    if (productPriceEl) {
-      productPriceEl.textContent = formatCurrency(
-        product.price ?? product.preco ?? product.valor ?? 0
-      );
-    }
-
-    if (productDescriptionEl) {
-      productDescriptionEl.innerHTML =
-        product.description || product.descricao || "";
-    }
-
-    allImages = extractImages(product);
-    renderGallery(allImages);
-
-    if (loadingMessageEl) loadingMessageEl.style.display = "none";
-    if (detailsContainerEl) detailsContainerEl.style.display = "grid";
-  } catch (error) {
-    console.error("Erro ao carregar produto:", error);
-
-    const loadingMessageEl = document.getElementById("loading-message");
-    if (loadingMessageEl) {
-      loadingMessageEl.innerHTML =
-        '<p style="color:#dc2626;font-weight:700;">Erro ao carregar produto.</p>';
-    }
+function pick(obj, keys) {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim() !== "-") return v;
   }
+  return null;
 }
 
-// ==============================
-// GALERIA
-// ==============================
-function renderGallery(images) {
-  const mainImg = document.getElementById("main-product-image");
-  const thumbContainer = document.getElementById("thumbnail-gallery");
-
-  if (images.length > 0 && mainImg) {
-    mainImg.src = images[0];
-  }
-
-  if (thumbContainer) {
-    thumbContainer.innerHTML = "";
-
-    images.forEach((url, idx) => {
-      const img = document.createElement("img");
-      img.src = url;
-      img.className = `thumbnail-image ${idx === 0 ? "active" : ""}`;
-      img.alt = `Imagem ${idx + 1} do produto`;
-
-      img.onclick = () => {
-        if (mainImg) mainImg.src = url;
-
-        document
-          .querySelectorAll(".thumbnail-image")
-          .forEach((t) => t.classList.remove("active"));
-
-        img.classList.add("active");
-      };
-
-      thumbContainer.appendChild(img);
-    });
-  }
+function computePricing(product) {
+  const pixPercentRaw = toNumber(product.pixDiscountPercent ?? product.descontoPixPercent ?? product.pixDiscount ?? product.descontoPix ?? window.__PAYMENT_SETTINGS?.pix?.discountPercent, NaN);
+  const pixPercent = Number.isFinite(pixPercentRaw) && pixPercentRaw > 0 ? Math.min(90, Math.max(0, pixPercentRaw)) : 17;
+  const fullPrice = toNumber(product.price ?? product.preco ?? product.valor ?? product.precoPrazo ?? product.preco_prazo, 0);
+  const explicitPix = toNumber(product.pixPrice ?? product.precoPix ?? product.pix_price ?? product.cashPrice ?? product.preco_avista ?? product.precoVista, NaN);
+  const pixPrice = Number.isFinite(explicitPix) && explicitPix > 0 ? explicitPix : +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
+  const oldRaw = pick(product, ["oldPrice","old_price","precoAntigo","preco_antigo","precoDe","preco_de","originalPrice","original_price","priceOriginal","price_original","listPrice","list_price","regularPrice","regular_price","precoOriginal","preco_original","precoCheio","preco_cheio","precoCortado","preco_cortado","valorAntigo","valor_antigo","valorDe","valor_de","compareAtPrice","compare_at_price","priceBefore","beforePrice","de"]);
+  const oldPriceCandidate = toNumber(oldRaw, 0);
+  const oldPrice = oldPriceCandidate > pixPrice ? oldPriceCandidate : 0;
+  const installments = 12;
+  const installmentValue = fullPrice > 0 ? +(fullPrice / installments).toFixed(2) : 0;
+  return { fullPrice, pixPrice, oldPrice, pixPercent, installments, installmentValue };
 }
 
-// ==============================
-// FORMATAR PREÇO
-// ==============================
-function formatCurrency(v) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(toNumber(v, 0));
+async function fetchProductData(id) {
+  const response = await fetch(`${String(API_BASE).replace(/\/+$/, "")}/products/${encodeURIComponent(id)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
+  if (!response.ok) throw new Error(`Produto não encontrado (${response.status})`);
+  const data = await response.json();
+  return data?.item || data?.product || data?.data || data;
 }
 
-// ==============================
-// BOTÃO COMPRAR
-// ==============================
-window.addToCart = function () {
-  if (!productData) return;
+function renderImageGallery(urls) {
+  productImages = Array.isArray(urls) ? urls : [];
+  const mainImage = document.getElementById("main-product-image");
+  const gallery = document.getElementById("thumbnail-gallery");
+  if (mainImage && productImages[0]) mainImage.src = productImages[0];
+  if (!gallery) return;
+  gallery.innerHTML = "";
+  productImages.forEach((url, index) => {
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = `Miniatura ${index + 1}`;
+    img.className = `thumbnail-image bg-white shadow-sm border border-gray-200 ${index === 0 ? "active" : ""}`;
+    img.onclick = () => window.selectImage(index);
+    gallery.appendChild(img);
+  });
+}
 
-  let cart = [];
-  try {
-    cart = JSON.parse(
-      localStorage.getItem("arianaMoveisCart") ||
-      localStorage.getItem("cart") ||
-      "[]"
-    );
-  } catch (_) {
-    cart = [];
-  }
-
-  const productId = productData._id || productData.id;
-  const existingIndex = cart.findIndex(
-    (item) => String(item.id || item.productId || item._id) === String(productId)
-  );
-
-  const cartItem = {
-    id: productId,
-    productId: productId,
-    _id: productId,
-    name: productData.name || productData.nome || productData.title || "Produto",
-    price: toNumber(productData.price ?? productData.preco ?? productData.valor, 0),
-    image: allImages[0] || getSafeImage(productData.mainImageUrl || productData.imageUrl),
-    imageUrl: allImages[0] || getSafeImage(productData.mainImageUrl || productData.imageUrl),
-    quantity: 1,
-    qty: 1,
-    sellerId:
-      productData.sellerId ||
-      productData.sellerUid ||
-      productData.seller_id ||
-      productData.vendorId ||
-      ""
-  };
-
-  if (existingIndex >= 0) {
-    const currentQty = Number(
-      cart[existingIndex].quantity || cart[existingIndex].qty || 1
-    );
-    cart[existingIndex].quantity = currentQty + 1;
-    cart[existingIndex].qty = currentQty + 1;
-  } else {
-    cart.push(cartItem);
-  }
-
-  localStorage.setItem("arianaMoveisCart", JSON.stringify(cart));
-  localStorage.setItem("cart", JSON.stringify(cart));
-
-  alert("Produto adicionado ao carrinho!");
+window.selectImage = function(index) {
+  if (index < 0 || index >= productImages.length) return;
+  currentImageIndex = index;
+  const mainImage = document.getElementById("main-product-image");
+  if (mainImage) mainImage.src = productImages[index];
+  document.querySelectorAll(".thumbnail-image").forEach((img, i) => img.classList.toggle("active", i === index));
 };
 
-// ==============================
-// INIT
-// ==============================
-document.addEventListener("DOMContentLoaded", loadProductDetails);
+function setText(ids, value) {
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = value; });
+}
+function setHTML(ids, value) {
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = value; });
+}
 
+function displayProduct(product) {
+  currentProduct = product;
+  const pricing = computePricing(product);
+  const name = product.name || product.nome || product.title || "Produto";
+  const sku = product.sku || product.codigo || product.id || product._id || "";
+  document.title = `${name} | ARIANA MÓVEIS`;
 
-// ===== FIX V13: ordem do preço no detalhe do produto =====
-(function(){
-  function enforceProductPriceOrder(){
-    const oldEl = document.getElementById('product-old-price');
-    const priceEl = document.getElementById('product-price-full');
-    const pixEl = document.getElementById('product-price-cash');
-    const instEl = document.getElementById('product-price-installments');
-    const box = priceEl && priceEl.parentElement;
-    if (!box) return;
-    box.style.display = 'flex';
-    box.style.flexDirection = 'column';
-    box.style.gap = '8px';
-    [oldEl, priceEl, pixEl, instEl].forEach(el => { if (el) box.appendChild(el); });
-    if (oldEl) oldEl.style.order = '1';
-    if (priceEl) priceEl.style.order = '2';
-    if (pixEl) pixEl.style.order = '3';
-    if (instEl) instEl.style.order = '4';
+  setText(["product-name", "product-name-display", "breadcrumb-product-name"], name);
+  setText(["product-sku", "product-id-display"], sku ? `SKU: ${sku}` : "");
+
+  const oldEl = document.getElementById("product-old-price");
+  if (oldEl) {
+    if (pricing.oldPrice > pricing.pixPrice) {
+      oldEl.textContent = formatCurrency(pricing.oldPrice);
+      oldEl.style.display = "block";
+      oldEl.style.color = "#999";
+      oldEl.style.textDecoration = "line-through";
+    } else oldEl.style.display = "none";
   }
-  window.enforceProductPriceOrder = enforceProductPriceOrder;
-  document.addEventListener('DOMContentLoaded', function(){
-    enforceProductPriceOrder();
-    setTimeout(enforceProductPriceOrder, 400);
-    setTimeout(enforceProductPriceOrder, 1200);
-  });
-})();
 
+  setHTML(["product-price-full", "product-price-display"], `
+    <span class="text-2xl font-normal mr-1">R$</span>
+    ${formatCurrency(pricing.pixPrice).replace("R$", "").trim()}
+    <span class="text-green-500 text-lg ml-2 font-semibold">${Math.round(pricing.pixPercent)}% OFF</span>
+  `);
 
-// FIX V14: preço de detalhe no padrão correto
-(function(){
-  function toNum(v, fallback = 0){
-    if (window.__toNumberBR) return window.__toNumberBR(v, fallback);
-    const n = Number(v); return Number.isFinite(n) ? n : fallback;
+  setHTML(["product-price-cash"], `<i class="fas fa-bolt mr-1"></i> ${formatCurrency(pricing.pixPrice)} no PIX à vista`);
+  setHTML(["product-price-installments", "product-installments-display"], `ou ${pricing.installments}x de ${formatCurrency(pricing.installmentValue)} s/ juros no cartão<br><span class="text-xs text-gray-500 font-medium">Total parcelado: ${formatCurrency(pricing.fullPrice)}</span>`);
+
+  const desc = product.description || product.descricao || "";
+  setHTML(["product-description", "product-description-content"], String(desc).replace(/\n/g, "<br>"));
+
+  const detailsList = document.getElementById("product-details-list");
+  if (detailsList) {
+    detailsList.innerHTML = "";
+    safeArray(product.details || product.detalhes || product.fichaTecnica || product.ficha_tecnica).forEach(detail => {
+      const li = document.createElement("li");
+      li.textContent = typeof detail === "string" ? detail : String(detail || "");
+      detailsList.appendChild(li);
+    });
   }
-  function fmt(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(toNum(v,0)); }
-  function enforceProductPriceOrderV14(){
-    const oldEl = document.getElementById('product-old-price');
-    const priceEl = document.getElementById('product-price-full');
-    const pixEl = document.getElementById('product-price-cash');
-    const instEl = document.getElementById('product-price-installments');
-    if (!priceEl) return;
-    const box = priceEl.parentElement;
-    if (!box) return;
-    box.style.setProperty('display','flex','important');
-    box.style.setProperty('flex-direction','column','important');
-    box.style.setProperty('gap','8px','important');
-    [[oldEl,1],[priceEl,2],[pixEl,3],[instEl,4]].forEach(([el,n])=>{ if(el){ box.appendChild(el); el.style.setProperty('order',String(n),'important'); } });
-  }
-  window.enforceProductPriceOrder = enforceProductPriceOrderV14;
-  document.addEventListener('DOMContentLoaded', function(){
-    enforceProductPriceOrderV14();
-    setTimeout(enforceProductPriceOrderV14, 300);
-    setTimeout(enforceProductPriceOrderV14, 1200);
-  });
-})();
+
+  renderImageGallery(getImages(product));
+  const loading = document.getElementById("loading-message");
+  const details = document.getElementById("product-details-container") || document.getElementById("product-content-grid");
+  if (loading) loading.style.display = "none";
+  if (details) details.style.display = details.id === "product-details-container" ? "grid" : "grid";
+}
+
+async function initProductPage() {
+  const productId = new URLSearchParams(window.location.search).get("id");
+  const loading = document.getElementById("loading-message");
+  if (!productId) { if (loading) loading.textContent = "Erro: ID do produto não fornecido na URL."; return; }
+  try { displayProduct(await fetchProductData(productId)); }
+  catch (e) { console.error(e); if (loading) loading.textContent = "Produto não encontrado ou ocorreu um erro na busca."; }
+}
+
+window.toggleAccordion = window.toggleAccordion || function(element) {
+  const content = element?.nextElementSibling;
+  if (!content) return;
+  const isExpanded = element.getAttribute("aria-expanded") === "true";
+  content.classList.toggle("open", !isExpanded);
+  content.style.maxHeight = isExpanded ? 0 : content.scrollHeight + "px";
+  element.setAttribute("aria-expanded", String(!isExpanded));
+};
+
+window.openLightbox = window.openLightbox || function(index) { window.selectImage(index || 0); };
+window.closeLightbox = window.closeLightbox || function() {};
+window.prevImage = window.prevImage || function() { window.selectImage((currentImageIndex - 1 + productImages.length) % productImages.length); };
+window.nextImage = window.nextImage || function() { window.selectImage((currentImageIndex + 1) % productImages.length); };
+
+window.toggleFavorite = window.toggleFavorite || function() {};
+
+document.addEventListener("DOMContentLoaded", initProductPage);
