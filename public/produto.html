@@ -881,7 +881,10 @@ async function loadPaymentsSettingsForProduct() {
       let d = enabled ? __num(pix.discountPercent ?? pix.descontoPercent ?? pix.descontoPix, 0) : 0;
       if (d < 0) d = 0;
       if (d > 90) d = 90;
-      __pixDiscountPercent = d;
+
+      // Ariana Móveis: mesmo padrão visual do index.
+      // Se o Admin/API não retornar desconto válido, mantém 17% OFF no PIX.
+      __pixDiscountPercent = d > 0 ? d : 17;
       return __paymentsSettings;
     }
   } catch (e) {
@@ -889,7 +892,7 @@ async function loadPaymentsSettingsForProduct() {
   }
 
   __paymentsSettings = {};
-  __pixDiscountPercent = 10;
+  __pixDiscountPercent = 17;
   return __paymentsSettings;
 }
 
@@ -1167,13 +1170,12 @@ async function loadPaymentsSettingsForProduct() {
 
             // Se não tiver desconto explícito no produto, aplica o desconto GLOBAL (PIX/BOLETO) configurado no Admin.
 if (cash == null) {
-    const desc = __num(__pixDiscountPercent, 0);
-    if (desc > 0) {
-        const fator = (100 - desc) / 100;
-        cash = Math.max(0, original * fator);
-    } else {
-        cash = Math.max(0, original);
-    }
+    // Mesmo cálculo do index:
+    // preço do Mongo = preço cheio/parcelado
+    // preço PIX = preço cheio com desconto
+    const desc = __num(__pixDiscountPercent, 17) || 17;
+    const fator = (100 - desc) / 100;
+    cash = Math.max(0, original * fator);
 }
 const discountPercent = (original > 0) ? Math.round((1 - (cash / original)) * 100) : 0;
 
