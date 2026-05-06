@@ -67,8 +67,6 @@ function normalizeProductData(data) {
     const nome = data.nome || data.name || data.title || "Produto";
     const categoria = data.categoria || data.category || data.categoryName || "";
     const preco = toNumber(data.preco ?? data.price ?? data.valor ?? 0, 0);
-    const oldPrice = toNumber(data.oldPrice ?? data.old_price ?? data.precoAntigo ?? data.precoDe ?? data.originalPrice ?? data.listPrice ?? 0, 0);
-    const pixPercent = toNumber(data.pixDiscountPercent ?? data.descontoPixPercent ?? 17, 17);
     const descricao = data.descricao || data.description || "";
     const id = data._id || data.id || "";
 
@@ -89,8 +87,6 @@ function normalizeProductData(data) {
         nome,
         categoria,
         preco,
-        oldPrice,
-        pixPercent,
         descricao,
         detalhes: detalhesBrutos,
         imagens
@@ -230,30 +226,89 @@ function displayProduct(data) {
     if (breadcrumbProductName) breadcrumbProductName.textContent = data.nome;
     if (productIdDisplay) productIdDisplay.textContent = data.id;
 
-    const pixPercent = Number.isFinite(Number(data.pixPercent)) ? Number(data.pixPercent) : 17;
-    const fullPrice = Number(data.preco || 0);
-    const pixPrice = fullPrice > 0 ? fullPrice * (1 - pixPercent / 100) : 0;
-    const oldPrice = Number(data.oldPrice || 0) > fullPrice ? Number(data.oldPrice) : fullPrice;
-    const installmentPrice = fullPrice / 12;
+    // ======================================================
+    // PREÇOS PADRÃO IGUAL AO INDEX
+    // Regra Ariana Móveis:
+    // - preço vindo do Mongo = preço cheio / total parcelado
+    // - PIX = preço cheio com 17% de desconto
+    // - parcelamento = 12x sobre o preço cheio
+    // ======================================================
+    const pixPercent = 17;
+    const fullPrice = toNumber(data.preco, 0);
+    const pixPrice = fullPrice > 0 ? +(fullPrice * (1 - pixPercent / 100)).toFixed(2) : 0;
+    const installmentCount = 12;
+    const installmentPrice = fullPrice > 0 ? fullPrice / installmentCount : 0;
 
-    const formattedPix = pixPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    const formattedOld = oldPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    const formattedInstallment = installmentPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    const formattedFull = fullPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const formattedFullPrice = fullPrice.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+    });
+
+    const formattedPixPrice = pixPrice.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+    });
+
+    const formattedInstallment = installmentPrice.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+    });
+
+    // IDs antigos e novos: mantém compatibilidade com as versões do seu produto.html
+    const oldPriceDisplay = document.getElementById("product-old-price");
+    const pixPriceDisplay = document.getElementById("product-price-cash") || document.getElementById("product-pix-price");
+    const pixBadgeDisplay = document.getElementById("product-pix-badge") || document.getElementById("product-discount-badge");
+    const totalInstallmentDisplay = document.getElementById("product-installment-total") || document.getElementById("product-total-installments");
+
+    if (oldPriceDisplay) {
+        oldPriceDisplay.textContent = formattedFullPrice;
+        oldPriceDisplay.style.display = "block";
+        oldPriceDisplay.style.color = "#999";
+        oldPriceDisplay.style.textDecoration = "line-through";
+        oldPriceDisplay.style.fontSize = "16px";
+        oldPriceDisplay.style.marginBottom = "6px";
+    }
 
     if (productPriceDisplay) {
         productPriceDisplay.innerHTML = `
-            <div style="font-size:14px;color:#999;text-decoration:line-through;margin-bottom:6px;">${formattedOld}</div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span>${formattedPix}</span>
-                <span style="background:#e6f6ea;color:#00a650;font-size:14px;font-weight:800;padding:4px 8px;border-radius:6px;">${Math.round(pixPercent)}% OFF</span>
-            </div>
-            <div style="font-size:15px;color:#00a650;font-weight:700;margin-top:6px;">no PIX à vista</div>
+            <span>${formattedPixPrice}</span>
+            <span style="background:#e6f6ea;color:#00a650;font-size:14px;font-weight:800;padding:4px 8px;border-radius:6px;margin-left:8px;vertical-align:middle;">${pixPercent}% OFF</span>
         `;
     }
 
+    if (pixPriceDisplay) {
+        pixPriceDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${formattedPixPrice} no PIX à vista`;
+        pixPriceDisplay.style.display = "block";
+        pixPriceDisplay.style.color = "#16a34a";
+        pixPriceDisplay.style.fontWeight = "700";
+    }
+
+    if (pixBadgeDisplay) {
+        pixBadgeDisplay.textContent = `${pixPercent}% OFF`;
+        pixBadgeDisplay.style.display = "inline-flex";
+    }
+
     if (installmentsDisplay) {
-        installmentsDisplay.innerHTML = `ou 12x de ${formattedInstallment} s/ juros no cartão<br><span style="font-size:13px;color:#777;">Total parcelado: ${formattedFull}</span>`;
+        installmentsDisplay.textContent = `ou ${installmentCount}x de ${formattedInstallment} s/ juros no cartão`;
+        installmentsDisplay.style.display = "block";
+        installmentsDisplay.style.marginTop = "12px";
+        installmentsDisplay.style.fontWeight = "700";
+        installmentsDisplay.style.color = "#1f2937";
+    }
+
+    if (totalInstallmentDisplay) {
+        totalInstallmentDisplay.textContent = `Total parcelado: ${formattedFullPrice}`;
+        totalInstallmentDisplay.style.display = "block";
+        totalInstallmentDisplay.style.marginTop = "4px";
+        totalInstallmentDisplay.style.color = "#6b7280";
+    } else if (installmentsDisplay && !document.getElementById("product-installment-total-auto")) {
+        const totalEl = document.createElement("div");
+        totalEl.id = "product-installment-total-auto";
+        totalEl.textContent = `Total parcelado: ${formattedFullPrice}`;
+        totalEl.style.marginTop = "4px";
+        totalEl.style.color = "#6b7280";
+        totalEl.style.fontSize = "14px";
+        installmentsDisplay.insertAdjacentElement("afterend", totalEl);
     }
 
     if (data.imagens && data.imagens.length > 0) {
