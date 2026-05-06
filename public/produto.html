@@ -1163,39 +1163,48 @@ async function loadPaymentsSettingsForProduct() {
 
         function computeDetailPricing(productData) {
             const n = (v) => {
-                const x = window.__toNumberBR(v, NaN);
-                 return Number.isFinite(x) ? x : null;
+                const x = window.__toNumberBR ? window.__toNumberBR(v, NaN) : Number(v);
+                return Number.isFinite(x) ? x : null;
             };
 
-            const oldPrice = n(productData.oldPrice ?? productData.old_price ?? productData.precoOriginal ?? productData.priceOriginal ?? productData.originalPrice);
-            const currentPrice = n(productData.price ?? productData.preco ?? productData.valor);
+            const pick = (obj, keys) => {
+                for (const key of keys) {
+                    const v = obj?.[key];
+                    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+                }
+                return null;
+            };
 
-            // Se existir oldPrice e o currentPrice for menor, usa como desconto do produto.
-            let original = (oldPrice != null && oldPrice > 0) ? oldPrice : (currentPrice != null ? currentPrice : 0);
-            let cash = (oldPrice != null && currentPrice != null && currentPrice > 0 && currentPrice < oldPrice) ? currentPrice : null;
+            const oldKeys = [
+                'oldPrice','old_price','oldprice','precoAntigo','preco_antigo','precoDe','preco_de',
+                'originalPrice','original_price','priceOriginal','price_original','listPrice','list_price',
+                'regularPrice','regular_price','precoOriginal','preco_original','precoCheio','preco_cheio',
+                'precoCortado','preco_cortado','valorAntigo','valor_antigo','valorDe','valor_de',
+                'compareAtPrice','compare_at_price','de','priceBefore','beforePrice'
+            ];
 
-            // Se não tiver desconto explícito no produto, aplica o desconto GLOBAL (PIX/BOLETO) configurado no Admin.
-if (cash == null) {
-    const desc = __num(__pixDiscountPercent, 0);
-    if (desc > 0) {
-        const fator = (100 - desc) / 100;
-        cash = Math.max(0, original * fator);
-    } else {
-        cash = Math.max(0, original);
-    }
-}
-const discountPercent = (original > 0) ? Math.round((1 - (cash / original)) * 100) : 0;
+            // preço cheio / preço a prazo salvo no Mongo: é o total parcelado em 12x
+            const full = n(productData.price ?? productData.preco ?? productData.valor ?? productData.precoPrazo ?? productData.preco_prazo) || 0;
+            const old = n(pick(productData, oldKeys)) || 0;
 
+            const pixPercentRaw = n(productData.pixDiscountPercent ?? productData.descontoPixPercent ?? productData.pixDiscount ?? productData.descontoPix);
+            const globalPix = n(window.__PAYMENT_SETTINGS?.pix?.discountPercent);
+            const pixPercent = (pixPercentRaw && pixPercentRaw > 0) ? pixPercentRaw : ((globalPix && globalPix > 0) ? globalPix : 17);
+
+            const cash = full > 0 ? Math.max(0, full * (100 - pixPercent) / 100) : 0;
             const installments = 12;
-            const instValue = (original > 0) ? (original / installments) : 0;
+            const instValue = full > 0 ? (full / installments) : 0;
 
             return {
-                original,
+                full,
+                old,
+                original: full,
                 cash,
-                discountPercent,
-                originalFormatted: formatCurrency(original),
+                discountPercent: Math.round(pixPercent),
+                oldFormatted: old > full ? formatCurrency(old) : '',
+                originalFormatted: formatCurrency(full),
                 cashValueFormatted: formatCurrency(cash),
-                installmentsText: `ou ${installments}x de ${formatCurrency(instValue)} s/ juros no cartão<br><span class="text-xs text-gray-500 font-medium">Total parcelado: ${formatCurrency(original)}</span>`
+                installmentsText: `ou ${installments}x de ${formatCurrency(instValue)} s/ juros no cartão<br><span class="text-xs text-gray-500 font-medium">Total parcelado: ${formatCurrency(full)}</span>`
             };
         }
 
@@ -1203,8 +1212,8 @@ const discountPercent = (original > 0) ? Math.round((1 - (cash / original)) * 10
             // Preço Riscado
             const oldPriceEl = document.getElementById('product-old-price');
             if (oldPriceEl) {
-                if (pricing.discountPercent > 0 && pricing.original > pricing.cash) {
-                    oldPriceEl.innerText = pricing.originalFormatted;
+                if (pricing.old && pricing.old > pricing.full) {
+                    oldPriceEl.innerText = pricing.oldFormatted;
                     oldPriceEl.style.display = 'block';
                 } else {
                     oldPriceEl.style.display = 'none';
@@ -2218,6 +2227,39 @@ function renderShippingQuotes(result, cep) {
   window.enforceProductPriceOrder = enforceProductPriceOrder;
   const run = () => { enforceProductPriceOrder(); setTimeout(enforceProductPriceOrder, 300); setTimeout(enforceProductPriceOrder, 1000); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+})();
+</script>
+
+
+<script>
+// FIX V14 definitivo: preço principal primeiro, parcelamento somente abaixo do PIX
+(function(){
+  function enforceProductPriceOrderV14(){
+    const oldEl = document.getElementById('product-old-price');
+    const priceEl = document.getElementById('product-price-full');
+    const pixEl = document.getElementById('product-price-cash');
+    const instEl = document.getElementById('product-price-installments');
+    if (!priceEl) return;
+    const box = priceEl.parentElement;
+    if (!box) return;
+    box.style.setProperty('display','flex','important');
+    box.style.setProperty('flex-direction','column','important');
+    box.style.setProperty('gap','8px','important');
+    const order = [[oldEl,1],[priceEl,2],[pixEl,3],[instEl,4]];
+    order.forEach(([el,n]) => {
+      if (!el) return;
+      box.appendChild(el);
+      el.style.setProperty('order', String(n), 'important');
+    });
+  }
+  window.enforceProductPriceOrder = enforceProductPriceOrderV14;
+  window.enforceProductPriceOrderV14 = enforceProductPriceOrderV14;
+  document.addEventListener('DOMContentLoaded', function(){
+    enforceProductPriceOrderV14();
+    setTimeout(enforceProductPriceOrderV14, 200);
+    setTimeout(enforceProductPriceOrderV14, 800);
+    setTimeout(enforceProductPriceOrderV14, 1800);
+  });
 })();
 </script>
 

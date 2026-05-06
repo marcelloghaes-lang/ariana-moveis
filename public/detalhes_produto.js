@@ -283,3 +283,32 @@ document.addEventListener("DOMContentLoaded", loadProductDetails);
     setTimeout(enforceProductPriceOrder, 1200);
   });
 })();
+
+
+// FIX V14: preço de detalhe no padrão correto
+(function(){
+  function toNum(v, fallback = 0){
+    if (window.__toNumberBR) return window.__toNumberBR(v, fallback);
+    const n = Number(v); return Number.isFinite(n) ? n : fallback;
+  }
+  function fmt(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(toNum(v,0)); }
+  function enforceProductPriceOrderV14(){
+    const oldEl = document.getElementById('product-old-price');
+    const priceEl = document.getElementById('product-price-full');
+    const pixEl = document.getElementById('product-price-cash');
+    const instEl = document.getElementById('product-price-installments');
+    if (!priceEl) return;
+    const box = priceEl.parentElement;
+    if (!box) return;
+    box.style.setProperty('display','flex','important');
+    box.style.setProperty('flex-direction','column','important');
+    box.style.setProperty('gap','8px','important');
+    [[oldEl,1],[priceEl,2],[pixEl,3],[instEl,4]].forEach(([el,n])=>{ if(el){ box.appendChild(el); el.style.setProperty('order',String(n),'important'); } });
+  }
+  window.enforceProductPriceOrder = enforceProductPriceOrderV14;
+  document.addEventListener('DOMContentLoaded', function(){
+    enforceProductPriceOrderV14();
+    setTimeout(enforceProductPriceOrderV14, 300);
+    setTimeout(enforceProductPriceOrderV14, 1200);
+  });
+})();

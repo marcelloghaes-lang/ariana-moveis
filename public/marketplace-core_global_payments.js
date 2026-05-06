@@ -10,12 +10,20 @@
   window.API_BASE = window.API_BASE || API_BASE_LOCAL;
   window.API_ORIGIN = window.API_ORIGIN || String(window.API_BASE).replace(/\/api\/?$/i, "");
 
+  const OLD_PRICE_KEYS = [
+    "oldPrice", "old_price", "oldprice", "precoAntigo", "preco_antigo", "precoDe", "preco_de",
+    "originalPrice", "original_price", "priceOriginal", "price_original", "listPrice", "list_price",
+    "regularPrice", "regular_price", "precoOriginal", "preco_original", "precoCheio", "preco_cheio",
+    "precoCortado", "preco_cortado", "valorAntigo", "valor_antigo", "valorDe", "valor_de",
+    "compareAtPrice", "compare_at_price", "de", "priceBefore", "beforePrice"
+  ];
+
   function toNumberBR(value, fallback = 0) {
     try {
       if (value === null || value === undefined) return fallback;
       if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
       let s = String(value).trim();
-      if (!s) return fallback;
+      if (!s || s === "-" || s.toLowerCase() === "null") return fallback;
       s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
       const hasComma = s.includes(",");
       const hasDot = s.includes(".");
@@ -23,9 +31,7 @@
       else if (hasComma && !hasDot) s = s.replace(",", ".");
       const n = parseFloat(s);
       return Number.isFinite(n) ? n : fallback;
-    } catch (_) {
-      return fallback;
-    }
+    } catch (_) { return fallback; }
   }
 
   window.__toNumberBR = window.__toNumberBR || toNumberBR;
@@ -92,13 +98,19 @@
     return null;
   }
 
+  function imageOf(p) {
+    return p.mainImageUrl || p.imageUrl || p.image || p.imagem ||
+      (Array.isArray(p.images) ? (typeof p.images[0] === "string" ? p.images[0] : (p.images[0]?.url || p.images[0]?.imageUrl || "")) : "") ||
+      "https://placehold.co/600x400/ffffff/333333?text=Sem+Imagem";
+  }
+
   window.decorateProductWithPayments = function decorateProductWithPayments(product) {
     const p = product && typeof product === "object" ? { ...product } : {};
-    const fullPrice = toNumberBR(p.price ?? p.preco ?? p.valor ?? 0, 0);
+    const fullPrice = toNumberBR(p.price ?? p.preco ?? p.valor ?? p.precoPrazo ?? p.preco_prazo ?? 0, 0);
     const pixPercent = toNumberBR(p.pixDiscountPercent ?? p.descontoPixPercent, window.__PAYMENT_SETTINGS?.pix?.discountPercent ?? 17);
     const pixPrice = fullPrice > 0 ? +(fullPrice * (1 - pixPercent / 100)).toFixed(2) : 0;
     const installments = Math.max(1, Math.min(24, Math.floor(toNumberBR(p.installmentCount ?? p.installmentsCount ?? p.parcelas, window.__PAYMENT_SETTINGS?.card?.maxInstallments ?? 12)))) || 12;
-    const old = toNumberBR(pick(p, ["oldPrice", "old_price", "precoAntigo", "precoDe", "originalPrice", "priceOriginal", "listPrice", "regularPrice", "precoOriginal", "preco_cheio", "precoCortado"]), 0);
+    const old = toNumberBR(pick(p, OLD_PRICE_KEYS), 0);
     return {
       ...p,
       __priceFull: fullPrice,
@@ -114,14 +126,15 @@
     };
   };
 
-  // Só cria card se product-card.js ainda não tiver carregado. Assim evita sobrescrever o padrão visual.
   if (typeof window.createProductCard !== "function") {
     window.createProductCard = function createProductCard(product) {
       const p = window.decorateProductWithPayments(product);
       const id = p.id || p._id || p.productId || "";
       const name = p.name || p.nome || p.title || "Produto";
-      const image = p.mainImageUrl || p.imageUrl || p.image || p.imagem || "https://placehold.co/600x400/ffffff/333333?text=Sem+Imagem";
-      const oldHtml = p.__oldPrice ? `<div class="product-old-price">${p.__oldPriceFormatted}</div>` : `<div class="product-old-price">&nbsp;</div>`;
+      const image = imageOf(p);
+      const oldHtml = p.__oldPrice
+        ? `<div class="product-old-price">${p.__oldPriceFormatted}</div>`
+        : `<div class="product-old-price" style="visibility:hidden">${p.__priceFullFormatted}</div>`;
       return `
         <a class="product-card" href="produto.html?id=${encodeURIComponent(id)}">
           <div class="product-tag-container"><span class="product-tag tag-orange">-${Math.round(p.__pixPercent)}% OFF</span></div>

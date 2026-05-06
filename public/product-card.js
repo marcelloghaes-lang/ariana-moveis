@@ -2,13 +2,20 @@
   "use strict";
 
   const FALLBACK_IMG = "https://placehold.co/600x400/ffffff/333333?text=Sem+Imagem";
+  const OLD_PRICE_KEYS = [
+    "oldPrice", "old_price", "oldprice", "precoAntigo", "preco_antigo", "precoDe", "preco_de",
+    "originalPrice", "original_price", "priceOriginal", "price_original", "listPrice", "list_price",
+    "regularPrice", "regular_price", "precoOriginal", "preco_original", "precoCheio", "preco_cheio",
+    "precoCortado", "preco_cortado", "valorAntigo", "valor_antigo", "valorDe", "valor_de",
+    "compareAtPrice", "compare_at_price", "de", "priceBefore", "beforePrice"
+  ];
 
   function toNumberBR(value, fallback = 0) {
     try {
       if (value === null || value === undefined) return fallback;
       if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
       let s = String(value).trim();
-      if (!s) return fallback;
+      if (!s || s === "-" || s.toLowerCase() === "null") return fallback;
       s = s.replace(/[R$\s]/g, "").replace(/[^0-9.,-]/g, "");
       const hasComma = s.includes(",");
       const hasDot = s.includes(".");
@@ -16,9 +23,7 @@
       else if (hasComma && !hasDot) s = s.replace(",", ".");
       const n = parseFloat(s);
       return Number.isFinite(n) ? n : fallback;
-    } catch (_) {
-      return fallback;
-    }
+    } catch (_) { return fallback; }
   }
 
   window.__toNumberBR = window.__toNumberBR || toNumberBR;
@@ -57,7 +62,6 @@
       (Array.isArray(p?.images) ? (typeof p.images[0] === "string" ? p.images[0] : (p.images[0]?.url || p.images[0]?.imageUrl || p.images[0]?.src || "")) : "") ||
       (Array.isArray(p?.imageUrls) ? p.imageUrls[0] : "") ||
       (Array.isArray(p?.imagePaths) ? p.imagePaths[0] : "");
-
     if (typeof window.resolveApiImageUrl === "function") return window.resolveApiImageUrl(candidate) || FALLBACK_IMG;
     const raw = String(candidate || "").trim();
     if (!raw || raw.includes("${")) return FALLBACK_IMG;
@@ -68,14 +72,11 @@
   }
 
   function getBasePrice(p) {
-    return toNumberBR(p?.price ?? p?.preco ?? p?.valor ?? p?.salePrice ?? p?.sale_price ?? 0, 0);
+    return toNumberBR(p?.price ?? p?.preco ?? p?.valor ?? p?.salePrice ?? p?.sale_price ?? p?.precoPrazo ?? p?.preco_prazo ?? 0, 0);
   }
 
   function getOldPrice(p, basePrice) {
-    const raw = pick(p, [
-      "oldPrice", "old_price", "precoAntigo", "precoDe", "originalPrice", "priceOriginal",
-      "listPrice", "regularPrice", "precoOriginal", "preco_cheio", "precoCortado", "de"
-    ]);
+    const raw = pick(p, OLD_PRICE_KEYS);
     const old = toNumberBR(raw, 0);
     return old > basePrice ? old : 0;
   }
@@ -89,9 +90,9 @@
   }
 
   function ensureCardStyles() {
-    if (document.getElementById("ariana-card-unificado-v13")) return;
+    if (document.getElementById("ariana-card-unificado-v14")) return;
     const style = document.createElement("style");
-    style.id = "ariana-card-unificado-v13";
+    style.id = "ariana-card-unificado-v14";
     style.textContent = `
       .product-card,.am-pro-card{background:#fff;border-radius:4px;border:1px solid #e7e7e7;box-shadow:none;transition:transform .25s,box-shadow .25s;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;padding:10px;height:100%;text-decoration:none;color:inherit;position:relative;font-family:Inter,Arial,sans-serif;}
       .product-card:hover,.am-pro-card:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(0,0,0,.10);border-color:#2E6DA4;}
@@ -113,21 +114,19 @@
 
   window.createProductCard = function createProductCard(product) {
     ensureCardStyles();
-
     const id = getProductId(product);
     const name = getProductName(product);
-    const fullPrice = getBasePrice(product);
-    const oldPrice = getOldPrice(product, fullPrice);
+    const fullPrice = getBasePrice(product);                 // preço cheio parcelado
+    const oldPrice = getOldPrice(product, fullPrice);        // preço antigo riscado, se existir
     const pixPercent = getPixPercent(product);
     const pixPrice = fullPrice > 0 ? +(fullPrice * (1 - pixPercent / 100)).toFixed(2) : 0;
     const installmentCount = 12;
     const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;
     const imageUrl = getImageUrl(product);
     const href = `produto.html?id=${encodeURIComponent(id)}`;
-
     const oldHtml = oldPrice > 0
-      ? `<div class="product-old-price">${formatCurrency(oldPrice)}</div>`
-      : `<div class="product-old-price">&nbsp;</div>`;
+      ? `<div class="product-old-price am-pro-card__old-price">${formatCurrency(oldPrice)}</div>`
+      : `<div class="product-old-price am-pro-card__old-price" style="visibility:hidden">${formatCurrency(fullPrice || 0)}</div>`;
 
     return `
       <a class="product-card am-pro-card" href="${escapeHtml(href)}">
@@ -146,7 +145,6 @@
           <div class="product-installments am-pro-card__installments">ou ${installmentCount}x de ${formatCurrency(installmentValue)} s/ juros</div>
           <div class="am-card-total am-pro-card__total-prazo">Total parcelado: ${formatCurrency(fullPrice)}</div>
         </div>
-      </a>
-    `;
+      </a>`;
   };
 })();
