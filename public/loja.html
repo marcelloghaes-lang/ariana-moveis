@@ -399,8 +399,8 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
     const $ = (id) => document.getElementById(id);
 
     let __paymentsConfig = {
-      cash: { enabled: false, discountPercent: 0, label: "à vista", price: null },
-      card: { enabled: true, installments: 12, text: "em até 12x" }
+      cash: { enabled: true, discountPercent: 17, label: "no PIX à vista", price: null },
+      card: { enabled: true, installments: 12, text: "" }
     };
 
     function __num(v, def = 0) {
@@ -465,7 +465,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
           data?.pixEnabled ??
           data?.cashEnabled ??
           data?.enabled ??
-          false;
+          true;
 
         const disc = __num(
           data?.cash?.discountPercent ??
@@ -473,14 +473,14 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
           data?.pixDiscountPercent ??
           data?.descontoPix ??
           data?.desconto_pix,
-          0
+          17
         );
 
         const cashLabel =
           data?.cash?.label ??
           data?.pix?.label ??
           data?.cashLabel ??
-          "à vista";
+          "no PIX à vista";
 
         const installments = Math.max(
           1,
@@ -503,9 +503,9 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 
         __paymentsConfig = {
           cash: {
-            enabled: !!cashEnabled && disc > 0,
-            discountPercent: disc,
-            label: cashLabel,
+            enabled: cashEnabled !== false && disc > 0,
+            discountPercent: disc > 0 ? disc : 17,
+            label: cashLabel || "no PIX à vista",
             price: null
           },
           card: {
@@ -516,8 +516,8 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
         };
       } catch (_) {
         __paymentsConfig = {
-          cash: { enabled: false, discountPercent: 0, label: "à vista", price: null },
-          card: { enabled: true, installments: 12, text: "em até 12x" }
+          cash: { enabled: true, discountPercent: 17, label: "no PIX à vista", price: null },
+          card: { enabled: true, installments: 12, text: "" }
         };
       }
     }
@@ -583,58 +583,52 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
     }
 
     function createIndexStyleCard(product) {
-      const decorated = decorateProductWithPayments(product);
-      const payments = decorated.__payments || null;
+      const raw = product || {};
+      const productId = raw.id || raw._id || raw.productId || raw.produtoId || "";
+      const name = raw.nome || raw.name || raw.title || "Produto";
+      const img = raw.imageUrl || resolveMainImageUrl(raw) || "https://placehold.co/400x400?text=SEM+IMAGEM";
 
-      const basePrice = Number(decorated.price || 0);
-      const cashPrice = payments?.cash?.enabled ? Number(payments.cash.price || basePrice) : basePrice;
+      const fullPrice = __num(raw.price ?? raw.preco ?? raw.valor ?? raw.precoCheio ?? raw.regularPrice, 0);
+      const explicitOldPrice = __num(
+        raw.oldPrice ?? raw.old_price ?? raw.precoAntigo ?? raw.precoDe ?? raw.originalPrice ?? raw.listPrice ?? raw.compareAtPrice,
+        0
+      );
 
-      const priceParts = window.formatPriceParts(cashPrice);
+      const discountPercent = Math.max(0, Math.round(__num(__paymentsConfig?.cash?.discountPercent, 17) || 17));
+      const installments = Math.max(1, Math.round(__num(__paymentsConfig?.card?.installments, 12) || 12));
 
-      const hasCashDiscount =
-        !!payments?.cash?.enabled &&
-        __num(payments.cash.discountPercent, 0) > 0 &&
-        cashPrice < basePrice;
+      // Padrão Ariana / Index:
+      // preço salvo no Mongo = preço cheio/parcelado.
+      // preço PIX = preço cheio com desconto.
+      const oldPriceValue = explicitOldPrice > fullPrice ? explicitOldPrice : fullPrice;
+      const pixPrice = oldPriceValue > 0 ? +(oldPriceValue * ((100 - discountPercent) / 100)).toFixed(2) : 0;
+      const installmentValue = oldPriceValue > 0 ? oldPriceValue / installments : 0;
 
-      const explicitOldPrice = __num(decorated.oldPrice, 0);
-      const hasOldPrice = hasCashDiscount || explicitOldPrice > cashPrice;
-
-      const oldPriceValue = hasCashDiscount ? basePrice : (hasOldPrice ? explicitOldPrice : null);
-      const oldPriceFormatted = oldPriceValue ? window.formatCurrency(oldPriceValue) : null;
-
-      const discountValue = hasCashDiscount
-        ? Math.round(__num(payments.cash.discountPercent, 0))
-        : (hasOldPrice ? Math.round(((explicitOldPrice - cashPrice) / explicitOldPrice) * 100) : 0);
-
-      let installmentsText = payments?.card?.text || "";
-      const installments = Number(payments?.card?.installments || 12);
-
-      if (!installmentsText && installments > 1 && basePrice > 0) {
-        installmentsText = `ou em até ${installments}x de ${window.formatCurrency(basePrice / installments)} sem juros`;
-      }
-
-      const cashLabel = payments?.cash?.enabled ? (payments.cash.label || "à vista") : "à vista";
-      const productId = decorated.id || decorated._id || "";
+      const priceParts = window.formatPriceParts(pixPrice);
+      const oldPriceFormatted = window.formatCurrency(oldPriceValue);
+      const installmentText = `ou ${installments}x de ${window.formatCurrency(installmentValue)} s/ juros`;
+      const totalPrazoText = `Total parcelado: ${window.formatCurrency(oldPriceValue)}`;
+      const safeName = String(name || "Produto").replace(/"/g, "&quot;");
 
       const card = document.createElement("a");
       card.href = `produto.html?id=${encodeURIComponent(productId)}`;
       card.className = "product-card";
       card.innerHTML = `
         <div class="product-image-container">
-          ${discountValue ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${discountValue}% OFF</span></div>` : ""}
-          <img src="${decorated.imageUrl}" alt="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x400?text=SEM+IMAGEM';">
+          <div class="product-tag-container"><span class="product-tag tag-orange">-${discountPercent}% OFF</span></div>
+          <img src="${img}" alt="${safeName}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/400x400?text=SEM+IMAGEM';">
         </div>
         <div class="product-card-body">
-          <p class="product-name" title="${String(decorated.name || "Produto").replace(/"/g, "&quot;")}">${decorated.name || "Produto"}</p>
+          <p class="product-name" title="${safeName}">${safeName}</p>
           <div class="mt-auto">
-            ${oldPriceFormatted ? `<p class="product-old-price">${oldPriceFormatted}</p>` : `<p class="product-old-price" style="visibility:hidden">R$ 0,00</p>`}
+            <p class="product-old-price">${oldPriceFormatted}</p>
             <div class="product-price">
               <span class="currency">${priceParts.symbol}</span>
               <span class="price-integer">${priceParts.integer}</span>
               <span class="decimal-part">,${priceParts.decimal}</span>
-              <span class="cash-text">${cashLabel}</span>
+              <span class="cash-text">no PIX à vista</span>
             </div>
-            <p class="product-installments">${installmentsText || " "}</p>
+            <p class="product-installments">${installmentText}<br><span style="color:#888;">${totalPrazoText}</span></p>
           </div>
         </div>
       `;
@@ -944,5 +938,11 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 
     initLoja();
   </script>
+  <script src="./product-card.js"></script>
+
+<script src="marketplace-core_global_payments.js"></script>
+
+ <script src="js/layout-fit.js" defer></script>
+
 </body>
 </html>
