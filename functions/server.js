@@ -1023,6 +1023,120 @@ app.get('/api/home', async (req, res) => {
   req.url = '/api/home/index-data';
   return app._router.handle(req, res, () => {});
 });
+
+// ==========================================
+// SEO: SITEMAP E ROBOTS DINÂMICOS
+// ==========================================
+function getPublicSiteUrl() {
+  const fromEnv = String(process.env.SITE_URL || process.env.FRONTEND_URL || 'https://arianamoveis.com.br').trim();
+  return fromEnv.replace(/\/+$/, '') || 'https://arianamoveis.com.br';
+}
+
+function xmlEscape(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function isoDateOnly(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().split('T')[0];
+  return date.toISOString().split('T')[0];
+}
+
+function buildProductSeoUrl(baseUrl, product = {}) {
+  const id = String(product._id || product.id || '').trim();
+  const slug = String(product.slug || '').trim();
+
+  // Mantém compatível com seu site atual, que abre produto por produto.html?id=...
+  // Usa o slug só se não existir _id.
+  const identifier = id || slug || sanitizeIdPart(product.name || product.sku || 'produto');
+  return `${baseUrl}/produto.html?id=${encodeURIComponent(identifier)}`;
+}
+
+function buildCategorySeoUrl(baseUrl, category = {}) {
+  const id = String(category._id || category.id || '').trim();
+  const slug = String(category.slug || category.name || '').trim();
+  const identifier = id || slug;
+  return `${baseUrl}/categoria.html?id=${encodeURIComponent(identifier)}`;
+}
+
+app.get('/sitemap.xml', async (_req, res) => {
+  try {
+    const baseUrl = getPublicSiteUrl();
+
+    const [products, categories] = await Promise.all([
+      Product.find({ active: { $ne: false } })
+        .select('_id id slug name sku updatedAt createdAt active')
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(10000)
+        .lean(),
+      Category.find({ active: { $ne: false } })
+        .select('_id id slug name updatedAt createdAt active')
+        .sort({ sortOrder: 1, name: 1 })
+        .limit(1000)
+        .lean()
+    ]);
+
+    const urls = [];
+
+    const addUrl = (loc, lastmod, priority = '0.8', changefreq = 'weekly') => {
+      if (!loc) return;
+      urls.push(
+        `  <url>\n` +
+        `    <loc>${xmlEscape(loc)}</loc>\n` +
+        `    <lastmod>${xmlEscape(isoDateOnly(lastmod))}</lastmod>\n` +
+        `    <changefreq>${xmlEscape(changefreq)}</changefreq>\n` +
+        `    <priority>${xmlEscape(priority)}</priority>\n` +
+        `  </url>`
+      );
+    };
+
+    addUrl(`${baseUrl}/`, new Date(), '1.0', 'daily');
+    addUrl(`${baseUrl}/index.html`, new Date(), '1.0', 'daily');
+    addUrl(`${baseUrl}/todos_produtos.html`, new Date(), '0.9', 'daily');
+    addUrl(`${baseUrl}/ofertas.html`, new Date(), '0.9', 'daily');
+    addUrl(`${baseUrl}/nossas_lojas.html`, new Date(), '0.6', 'monthly');
+    addUrl(`${baseUrl}/contato.html`, new Date(), '0.5', 'monthly');
+
+    for (const category of (categories || [])) {
+      addUrl(buildCategorySeoUrl(baseUrl, category), category.updatedAt || category.createdAt, '0.7', 'weekly');
+    }
+
+    for (const product of (products || [])) {
+      addUrl(buildProductSeoUrl(baseUrl, product), product.updatedAt || product.createdAt, '0.8', 'weekly');
+    }
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urls.join('\n') +
+      `\n</urlset>\n`;
+
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.status(200).send(xml);
+  } catch (error) {
+    console.error('[sitemap] erro ao gerar sitemap dinâmico:', error);
+    return res.status(500).type('text/plain').send('Erro ao gerar sitemap');
+  }
+});
+
+app.get('/robots.txt', (_req, res) => {
+  const baseUrl = getPublicSiteUrl();
+  const txt =
+    `User-agent: *\n` +
+    `Allow: /\n\n` +
+    `Sitemap: ${baseUrl}/sitemap.xml\n`;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  return res.status(200).send(txt);
+});
+
+
 app.get('/api/categories', async (_req, res) => res.json((await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 })).map(toJSON)));
 app.get('/api/products', async (req, res) => {
   try {
@@ -1068,7 +1182,7 @@ app.get('/api/products', async (req, res) => {
     console.error('[products] erro ao listar:', error);
     return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' });
   }
-});
+}); } });
 app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
 app.get('/api/products/seller/:sellerId', async (req, res) => {
   try {
@@ -1840,80 +1954,6 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'admin_delete_failed' }); }
 });
 
-// ==========================================
-// ROTA DO SITEMAP XML (GOOGLE) - VERSÃO CORRIGIDA
-// ==========================================
-app.get('/sitemap.xml', async (req, res) => {
-  try {
-    // Usamos exatamente a mesma coleção mapeada que o teu painel admin usa
-    const ProductModel = adminCollectionMap['products'];
-    const CategoryModel = adminCollectionMap['categories'];
-
-    let produtos = [];
-    let categorias = [];
-
-    if (ProductModel) {
-      produtos = await ProductModel.find({ active: { $ne: false } }).lean();
-    }
-    if (CategoryModel) {
-      categorias = await CategoryModel.find({ active: { $ne: false } }).lean();
-    }
-
-    const baseUrl = 'https://arianamoveis.com.br';
-    const hoje = new Date().toISOString().split('T')[0];
-
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    // O truque aqui é colocar o "notranslate" para o Chrome não quebrar a tela
-    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" class="notranslate" google="notranslate">\n`;
-
-    // 1. Páginas Estáticas
-    const paginasEstaticas = ['', '/produtos', '/categorias'];
-    paginasEstaticas.forEach(url => {
-      xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}${url}</loc>\n`;
-      xml += `    <lastmod>${hoje}</lastmod>\n`;
-      xml += `    <changefreq>daily</changefreq>\n`;
-      xml += `    <priority>${url === '' ? '1.0' : '0.8'}</priority>\n`;
-      xml += `  </url>\n`;
-    });
-
-    // 2. Categorias
-    categorias.forEach(cat => {
-      const slug = cat.slug || String(cat.name || cat._id).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
-      const dataMod = cat.updatedAt ? new Date(cat.updatedAt).toISOString().split('T')[0] : hoje;
-      xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/categoria/${slug}</loc>\n`;
-      xml += `    <lastmod>${dataMod}</lastmod>\n`;
-      xml += `    <changefreq>weekly</changefreq>\n`;
-      xml += `    <priority>0.7</priority>\n`;
-      xml += `  </url>\n`;
-    });
-
-    // 3. Produtos
-    produtos.forEach(prod => {
-      const slug = prod.slug || String(prod.name || prod._id).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
-      const dataMod = prod.updatedAt ? new Date(prod.updatedAt).toISOString().split('T')[0] : hoje;
-      xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/produto/${slug}</loc>\n`;
-      xml += `    <lastmod>${dataMod}</lastmod>\n`;
-      xml += `    <changefreq>weekly</changefreq>\n`;
-      xml += `    <priority>0.8</priority>\n`;
-      xml += `  </url>\n`;
-    });
-
-    xml += `</urlset>`;
-
-    // Forçamos o navegador a ler como texto/xml puro e sem cache antigo
-    res.header('Content-Type', 'text/xml; charset=utf-8');
-    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.status(200).send(xml);
-
-  } catch (error) {
-    console.error('Erro no sitemap:', error);
-    res.header('Content-Type', 'text/xml; charset=utf-8');
-    return res.status(500).send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://arianamoveis.com.br</loc></url></urlset>`);
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
