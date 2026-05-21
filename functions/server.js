@@ -1841,71 +1841,60 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
 });
 
 // ==========================================
-// ROTA DO SITEMAP XML (GOOGLE) - VERSÃO MAPA REAL
+// ROTA DO SITEMAP XML (GOOGLE) - VERSÃO CORRIGIDA
 // ==========================================
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    // Pega os modelos reais que seu site usa no painel administrativo
+    // Usamos exatamente a mesma coleção mapeada que o teu painel admin usa
     const ProductModel = adminCollectionMap['products'];
     const CategoryModel = adminCollectionMap['categories'];
 
     let produtos = [];
     let categorias = [];
 
-    // Busca os produtos e categorias se os modelos existirem
     if (ProductModel) {
-      produtos = await ProductModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+      produtos = await ProductModel.find({ active: { $ne: false } }).lean();
     }
     if (CategoryModel) {
-      categorias = await CategoryModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+      categorias = await CategoryModel.find({ active: { $ne: false } }).lean();
     }
 
     const baseUrl = 'https://arianamoveis.com.br';
     const hoje = new Date().toISOString().split('T')[0];
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    // O truque aqui é colocar o "notranslate" para o Chrome não quebrar a tela
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" class="notranslate" google="notranslate">\n`;
 
-    // 1. Páginas Estáticas Principais
-    const paginasEstaticas = [
-      { url: '', priority: '1.0', changefreq: 'daily' },
-      { url: '/produtos', priority: '0.9', changefreq: 'daily' },
-      { url: '/categorias', priority: '0.8', changefreq: 'weekly' }
-    ];
-
-    paginasEstaticas.forEach(pg => {
+    // 1. Páginas Estáticas
+    const paginasEstaticas = ['', '/produtos', '/categorias'];
+    paginasEstaticas.forEach(url => {
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}${pg.url}</loc>\n`;
+      xml += `    <loc>${baseUrl}${url}</loc>\n`;
       xml += `    <lastmod>${hoje}</lastmod>\n`;
-      xml += `    <changefreq>${pg.changefreq}</changefreq>\n`;
-      xml += `    <priority>${pg.priority}</priority>\n`;
+      xml += `    <changefreq>daily</changefreq>\n`;
+      xml += `    <priority>${url === '' ? '1.0' : '0.8'}</priority>\n`;
       xml += `  </url>\n`;
     });
 
-    // 2. Páginas Dinâmicas de Categorias
+    // 2. Categorias
     categorias.forEach(cat => {
-      const slugCategoria = cat.slug || String(cat.name || cat._id).toLowerCase().trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      const slug = cat.slug || String(cat.name || cat._id).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
       const dataMod = cat.updatedAt ? new Date(cat.updatedAt).toISOString().split('T')[0] : hoje;
-      
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/categoria/${slugCategoria}</loc>\n`;
+      xml += `    <loc>${baseUrl}/categoria/${slug}</loc>\n`;
       xml += `    <lastmod>${dataMod}</lastmod>\n`;
       xml += `    <changefreq>weekly</changefreq>\n`;
       xml += `    <priority>0.7</priority>\n`;
       xml += `  </url>\n`;
     });
 
-    // 3. Páginas Dinâmicas de Produtos
+    // 3. Produtos
     produtos.forEach(prod => {
-      const slugProduto = prod.slug || String(prod.name || prod._id).toLowerCase().trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      const slug = prod.slug || String(prod.name || prod._id).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
       const dataMod = prod.updatedAt ? new Date(prod.updatedAt).toISOString().split('T')[0] : hoje;
-      
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/produto/${slugProduto}</loc>\n`;
+      xml += `    <loc>${baseUrl}/produto/${slug}</loc>\n`;
       xml += `    <lastmod>${dataMod}</lastmod>\n`;
       xml += `    <changefreq>weekly</changefreq>\n`;
       xml += `    <priority>0.8</priority>\n`;
@@ -1914,12 +1903,14 @@ app.get('/sitemap.xml', async (req, res) => {
 
     xml += `</urlset>`;
 
-    res.header('Content-Type', 'application/xml; charset=utf-8');
+    // Forçamos o navegador a ler como texto/xml puro e sem cache antigo
+    res.header('Content-Type', 'text/xml; charset=utf-8');
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.status(200).send(xml);
 
   } catch (error) {
-    console.error('Erro ao gerar sitemap:', error);
-    res.header('Content-Type', 'application/xml; charset=utf-8');
+    console.error('Erro no sitemap:', error);
+    res.header('Content-Type', 'text/xml; charset=utf-8');
     return res.status(500).send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://arianamoveis.com.br</loc></url></urlset>`);
   }
 });
