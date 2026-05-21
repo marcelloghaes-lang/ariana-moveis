@@ -1182,8 +1182,7 @@ app.get('/api/products', async (req, res) => {
     console.error('[products] erro ao listar:', error);
     return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' });
   }
-});
-
+  });
 app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
 app.get('/api/products/seller/:sellerId', async (req, res) => {
   try {
