@@ -1371,6 +1371,7 @@ app.get('/api/shipping/correios/tracking/:code', async (req, res) => { try { con
 app.get('/api/shipping/correios/label/:orderId/html', async (req, res) => { try { const order = await Order.findById(req.params.orderId); if (!order) return res.status(404).send('Pedido não encontrado'); const addr = order.shippingAddress || {}; const items = Array.isArray(order.items) ? order.items : []; const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Etiqueta ${String(order._id)}</title><style>body{font-family:Arial,sans-serif;padding:24px} .box{border:2px solid #111;padding:24px;max-width:760px} .muted{color:#555;font-size:12px} h1{margin:0 0 12px} .row{margin:8px 0}</style></head><body><div class="box"><h1>Ariana Móveis - Etiqueta</h1><div class="row"><strong>Pedido:</strong> ${String(order._id)}</div><div class="row"><strong>Destinatário:</strong> ${String(order.customerName || addr.name || '')}</div><div class="row"><strong>Telefone:</strong> ${String(order.customerPhone || addr.phone || '')}</div><div class="row"><strong>Endereço:</strong> ${String(addr.logradouro || '')}, ${String(addr.numero || '')} - ${String(addr.bairro || '')}</div><div class="row"><strong>Cidade/UF:</strong> ${String(addr.cidade || '')}/${String(addr.uf || '')} - CEP ${String(addr.cep || '')}</div><div class="row"><strong>Itens:</strong> ${items.map(i => `${String(i.name || 'Item')} x${Number(i.qty || 1)}`).join(', ')}</div><div class="row"><strong>Código de rastreio:</strong> ${String(order.trackingCode || '') || '—'}</div><div class="muted">Etiqueta HTML de contingência. A etiqueta operacional oficial depende do fluxo contratado dos Correios.</div></div></body></html>`; res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(html); } catch (error) { return res.status(500).send(error.message || 'Erro ao gerar etiqueta'); } });
 
 
+
 app.post('/api/admin/login', async (req, res) => {
   try {
     const email = String(req.body?.email || '').trim().toLowerCase();
@@ -1840,18 +1841,20 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
 });
 
 // ==========================================
-// ROTA DO SITEMAP XML (GOOGLE)
+// ROTA DO SITEMAP XML (GOOGLE) - VERSÃO COMPATÍVEL
 // ==========================================
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    // Busca todos os produtos ativos da base de dados
-    const produtos = await Product.find({ active: true }).select('slug updatedAt').lean();
-    
-    // Busca todas as categorias ativas da base de dados
-    const categorias = await Category.find({ active: true }).select('slug updatedAt').lean();
+    // Busca os produtos direto da coleção registrada no banco de dados
+    const ProductModel = mongoose.models.Product || mongoose.model('Product');
+    const CategoryModel = mongoose.models.Category || mongoose.model('Category');
 
-    // URL base do seu site
+    // Busca produtos que não estejam marcados estritamente como inativos
+    const produtos = await ProductModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+    const categorias = await CategoryModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+
     const baseUrl = 'https://arianamoveis.com.br';
+    const hoje = new Date().toISOString().split('T')[0];
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
@@ -1860,12 +1863,8 @@ app.get('/sitemap.xml', async (req, res) => {
     const paginasEstaticas = [
       { url: '', priority: '1.0', changefreq: 'daily' },
       { url: '/produtos', priority: '0.9', changefreq: 'daily' },
-      { url: '/categorias', priority: '0.8', changefreq: 'weekly' },
-      { url: '/sobre', priority: '0.5', changefreq: 'monthly' },
-      { url: '/contato', priority: '0.5', changefreq: 'monthly' }
+      { url: '/categorias', priority: '0.8', changefreq: 'weekly' }
     ];
-
-    const hoje = new Date().toISOString().split('T')[0];
 
     paginasEstaticas.forEach(pg => {
       xml += `  <url>\n`;
@@ -1878,9 +1877,13 @@ app.get('/sitemap.xml', async (req, res) => {
 
     // 2. Páginas Dinâmicas de Categorias
     categorias.forEach(cat => {
+      const slugCategoria = cat.slug || String(cat.name || cat._id).toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
       const dataMod = cat.updatedAt ? new Date(cat.updatedAt).toISOString().split('T')[0] : hoje;
+      
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/categoria/${cat.slug}</loc>\n`;
+      xml += `    <loc>${baseUrl}/categoria/${slugCategoria}</loc>\n`;
       xml += `    <lastmod>${dataMod}</lastmod>\n`;
       xml += `    <changefreq>weekly</changefreq>\n`;
       xml += `    <priority>0.7</priority>\n`;
@@ -1889,9 +1892,13 @@ app.get('/sitemap.xml', async (req, res) => {
 
     // 3. Páginas Dinâmicas de Produtos
     produtos.forEach(prod => {
+      const slugProduto = prod.slug || String(prod.name || prod._id).toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
       const dataMod = prod.updatedAt ? new Date(prod.updatedAt).toISOString().split('T')[0] : hoje;
+      
       xml += `  <url>\n`;
-      xml += `    <loc>${baseUrl}/produto/${prod.slug}</loc>\n`;
+      xml += `    <loc>${baseUrl}/produto/${slugProduto}</loc>\n`;
       xml += `    <lastmod>${dataMod}</lastmod>\n`;
       xml += `    <changefreq>weekly</changefreq>\n`;
       xml += `    <priority>0.8</priority>\n`;
@@ -1900,14 +1907,12 @@ app.get('/sitemap.xml', async (req, res) => {
 
     xml += `</urlset>`;
 
-    // Define o cabeçalho correto para XML e envia a resposta
-    res.header('Content-Type', 'application/xml');
+    res.header('Content-Type', 'application/xml; charset=utf-8');
     return res.status(200).send(xml);
 
   } catch (error) {
     console.error('Erro ao gerar sitemap:', error);
-    res.header('Content-Type', 'application/xml');
-    // Retorna um sitemap básico apenas com a home caso a base de dados falhe, para não quebrar o site
+    res.header('Content-Type', 'application/xml; charset=utf-8');
     return res.status(500).send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://arianamoveis.com.br</loc></url></urlset>`);
   }
 });
