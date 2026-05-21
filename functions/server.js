@@ -1841,17 +1841,24 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
 });
 
 // ==========================================
-// ROTA DO SITEMAP XML (GOOGLE) - VERSÃO COMPATÍVEL
+// ROTA DO SITEMAP XML (GOOGLE) - VERSÃO MAPA REAL
 // ==========================================
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    // Busca os produtos direto da coleção registrada no banco de dados
-    const ProductModel = mongoose.models.Product || mongoose.model('Product');
-    const CategoryModel = mongoose.models.Category || mongoose.model('Category');
+    // Pega os modelos reais que seu site usa no painel administrativo
+    const ProductModel = adminCollectionMap['products'];
+    const CategoryModel = adminCollectionMap['categories'];
 
-    // Busca produtos que não estejam marcados estritamente como inativos
-    const produtos = await ProductModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
-    const categorias = await CategoryModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+    let produtos = [];
+    let categorias = [];
+
+    // Busca os produtos e categorias se os modelos existirem
+    if (ProductModel) {
+      produtos = await ProductModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+    }
+    if (CategoryModel) {
+      categorias = await CategoryModel.find({ active: { $ne: false } }).select('slug name updatedAt').lean();
+    }
 
     const baseUrl = 'https://arianamoveis.com.br';
     const hoje = new Date().toISOString().split('T')[0];
