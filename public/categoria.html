@@ -142,584 +142,320 @@
 
   <script>
     (async function () {
-      window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
-        try{
+      const $ = (id) => document.getElementById(id);
+
+      window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0) {
+        try {
           if (v === null || v === undefined) return fallback;
           if (typeof v === 'number') return Number.isFinite(v) ? v : fallback;
           let s = String(v).trim();
           if (!s) return fallback;
-          s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g,'');
+          s = s.replace(/[R$\s]/g, '').replace(/[^0-9.,-]/g, '');
           const hasComma = s.includes(',');
           const hasDot = s.includes('.');
-          if (hasComma && hasDot){
-            s = s.replace(/\./g,'').replace(',', '.');
-          } else if (hasComma && !hasDot){
-            s = s.replace(',', '.');
-          }
+          if (hasComma && hasDot) s = s.replace(/\./g, '').replace(',', '.');
+          else if (hasComma && !hasDot) s = s.replace(',', '.');
           const n = parseFloat(s);
           return Number.isFinite(n) ? n : fallback;
-        }catch(_e){
-          return fallback;
-        }
+        } catch (_) { return fallback; }
       };
 
-      const API_BASE =
-        window.API_BASE ||
-        localStorage.getItem("API_BASE") ||
-        "https://ariana-backend.onrender.com/api";
+      let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
+      window.API_BASE = API_BASE;
+      window.API_ORIGIN = window.API_ORIGIN || String(API_BASE).replace(/\/api\/?$/i, '');
 
-      const API_ORIGIN =
-        window.API_ORIGIN ||
-        String(API_BASE).replace(/\/api\/?$/i, "");
-
-      try {
-        localStorage.setItem("API_BASE", API_BASE);
-        localStorage.setItem("API_BASE_URL", API_BASE);
-      } catch(_) {}
-      const $ = id => document.getElementById(id);
       let allProducts = [];
       let allCategories = [];
-
-      async function waitForMarketplacePayments(maxMs = 8000) {
-        const start = Date.now();
-        while (Date.now() - start < maxMs) {
-          if (typeof window.decorateProductWithPayments === 'function' || typeof window.getPaymentSettings === 'function') {
-            return true;
-          }
-          await new Promise(r => setTimeout(r, 60));
-        }
-        return false;
-      }
+      let currentCategory = null;
+      let currentParent = null;
+      let currentSub = null;
 
       const formatCurrency = (v) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(window.__toNumberBR(v, 0));
 
-      const formatPriceParts = (value) => {
-        const formatted = formatCurrency(value);
-        const numericString = formatted.replace("R$", "").replace(/\./g, "").trim();
-        const idx = numericString.lastIndexOf(",");
-        let integerPart = (idx >= 0) ? numericString.substring(0, idx) : numericString;
-        let decimalPart = (idx >= 0) ? numericString.substring(idx + 1) : "00";
-        integerPart = integerPart || "0";
-        decimalPart = String(decimalPart || "00").padEnd(2, "0").substring(0, 2);
-        return { symbol: "R$", integer: integerPart, decimal: decimalPart };
-      };
-
-      const normalizeSlug = (s) => String(s || '').trim().toLowerCase()
+      const norm = (s) => String(s || '')
+        .toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
 
-      const normalizeText = (s) => String(s || '').trim().toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const slug = (s) => norm(s).replace(/\s+/g, '-');
 
-      const categoryAliases = (c) => {
-        if (!c) return [];
-        return [c.id, c._id, c.slug, c.key, c.code, c.name, c.nome, c.title, c.titulo]
-          .filter(Boolean)
-          .flatMap(v => [String(v).trim(), normalizeSlug(v), normalizeText(v)])
-          .filter(Boolean);
-      };
+      function escapeHtml(v) {
+        return String(v ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
 
-      const productCategoryText = (p) => normalizeText([
-        p?.categoryId, p?.categorySlug, p?.categoryName, p?.category, p?.categoria,
-        p?.subcategoryId, p?.subcategorySlug, p?.subcategoryName, p?.subcategory, p?.subcategoria,
-        p?.department, p?.departamento, p?.section, p?.secao, p?.tags, p?.name, p?.nome
-      ].filter(Boolean).join(' '));
+      function resolveImage(product) {
+        const raw = product?.imageUrl || product?.mainImageUrl || product?.image || product?.imagem ||
+          (Array.isArray(product?.images) ? (typeof product.images[0] === 'string' ? product.images[0] : product.images[0]?.url || product.images[0]?.imageUrl) : '') ||
+          (Array.isArray(product?.imageUrls) ? product.imageUrls[0] : '') ||
+          (Array.isArray(product?.imagePaths) ? product.imagePaths[0] : '');
+        if (typeof window.resolveApiImageUrl === 'function') return window.resolveApiImageUrl(raw);
+        if (!raw) return 'https://placehold.co/400x400?text=SEM+IMAGEM';
+        if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+        if (String(raw).startsWith('/')) return window.API_ORIGIN + raw;
+        return window.API_ORIGIN + '/' + String(raw).replace(/^\.?\//, '');
+      }
 
-      const productCategoryValues = (p) => [
-        p?.categoryId, p?.categorySlug, p?.categoryName, p?.category, p?.categoria,
-        p?.subcategoryId, p?.subcategorySlug, p?.subcategoryName, p?.subcategory, p?.subcategoria,
-        p?.department, p?.departamento, p?.section, p?.secao
-      ].filter(Boolean).flatMap(v => [String(v).trim(), normalizeSlug(v), normalizeText(v)]).filter(Boolean);
+      function getPrice(p) {
+        return window.__toNumberBR(p.price ?? p.preco ?? p.valor ?? p.salePrice ?? p.finalPrice ?? 0, 0);
+      }
 
-      const productMatchesAnyCategory = (product, cats) => {
-        const aliases = new Set((cats || []).flatMap(categoryAliases));
-        const values = new Set(productCategoryValues(product));
-        for (const a of aliases) {
-          if (!a) continue;
-          if (values.has(a)) return true;
-        }
-        const hay = productCategoryText(product);
-        for (const a of aliases) {
-          const n = normalizeText(a);
-          if (n && (hay === n || hay.includes(n) || n.includes(hay))) return true;
+      function getOldPrice(p) {
+        const n = window.__toNumberBR(p.oldPrice ?? p.precoAntigo ?? p.precoDe ?? p.compareAtPrice ?? p.originalPrice ?? p.listPrice, NaN);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      }
+
+      async function apiGet(path) {
+        const url = `${String(API_BASE).replace(/\/+$/, '')}/${String(path).replace(/^\/+/, '')}`;
+        const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status} em ${path}`);
+        return await res.json();
+      }
+
+      async function waitHelpers(maxMs = 3000) {
+        const start = Date.now();
+        while (Date.now() - start < maxMs) {
+          if (typeof window.createProductCard === 'function') return true;
+          await new Promise(r => setTimeout(r, 50));
         }
         return false;
-      };
+      }
 
+      async function fetchCategories() {
+        const data = await apiGet('/categories');
+        const items = Array.isArray(data) ? data : (data.items || data.categories || data.data || []);
+        return items.map(c => ({
+          ...c,
+          id: String(c.id || c._id || '').trim(),
+          name: c.name || c.nome || c.title || '',
+          slug: c.slug || c.key || c.code || slug(c.name || c.nome || c.title || ''),
+          parentId: String(c.parentId || c.parent || c.parent_id || '').trim()
+        })).filter(c => c.id && c.active !== false);
+      }
 
-      function getOldPrice(raw) {
-        const candidates = [
-          raw.oldPrice, raw.precoAntigo, raw.preco_antigo, raw.preco_anterior,
-          raw.compareAtPrice, raw.compare_at_price, raw.precoDe, raw.preco_de,
-          raw.listPrice, raw.list_price, raw.originalPrice, raw.original_price,
-          raw.priceFrom, raw.precoOriginal, raw.preco_original
-        ];
-        for (const value of candidates) {
-          const n = window.__toNumberBR(value, NaN);
-          if (Number.isFinite(n) && n > 0) return n;
+      async function fetchProducts() {
+        const paths = ['/products', '/seller/products'];
+        let last = [];
+        for (const path of paths) {
+          try {
+            const data = await apiGet(path);
+            const items = Array.isArray(data) ? data : (data.items || data.products || data.data || []);
+            if (Array.isArray(items) && items.length) return items.filter(p => p && p.active !== false).map(p => ({ ...p, id: String(p.id || p._id || p.productId || '').trim() }));
+            last = items || [];
+          } catch (_) {}
+        }
+        return Array.isArray(last) ? last : [];
+      }
+
+      function isRoot(cat) {
+        const p = String(cat?.parentId || '').trim().toLowerCase();
+        return !p || p === 'null' || p === 'undefined' || p === '0' || p === 'root';
+      }
+
+      function findCategoryFromUrl(params) {
+        const id = params.get('id') || params.get('categoryId');
+        const wanted = params.get('slug') || params.get('categorySlug') || params.get('name') || params.get('category') || params.get('categoria');
+        if (id) {
+          const found = allCategories.find(c => String(c.id) === String(id) || String(c._id) === String(id));
+          if (found) return found;
+        }
+        if (wanted) {
+          const n = norm(wanted);
+          const s = slug(wanted);
+          return allCategories.find(c =>
+            norm(c.name) === n || slug(c.name) === s || slug(c.slug) === s || norm(c.slug) === n || String(c.id) === String(wanted)
+          ) || null;
         }
         return null;
       }
 
-      function getCurrentPrice(raw) {
-        const candidates = [
-          raw.price, raw.preco, raw.valor, raw.salePrice,
-          raw.sale_price, raw.precoPor, raw.preco_por, raw.finalPrice, raw.final_price
-        ];
-        for (const value of candidates) {
-          const n = window.__toNumberBR(value, NaN);
-          if (Number.isFinite(n) && n > 0) return n;
-        }
-        return 0;
-      }
-
-      function getGlobalPaymentSettings() {
-        return (
-          window?.GLOBAL_PAYMENT_SETTINGS ||
-          window?.globalPaymentSettings ||
-          window?.PAYMENT_SETTINGS ||
-          window?.paymentSettings ||
-          window?.APP_PAYMENT_SETTINGS ||
-          {}
-        );
-      }
-
-      function getCashDiscountPercent(product) {
-        const candidates = [
-          product?.__payments?.cash?.discountPercent,
-          product?.cashDiscountPercent,
-          product?.discountPercent,
-          product?.descontoPercentual,
-          product?.desconto_percentual,
-          getGlobalPaymentSettings()?.cash?.discountPercent,
-          getGlobalPaymentSettings()?.cashDiscountPercent,
-          getGlobalPaymentSettings()?.pix?.discountPercent
-        ];
-        for (const value of candidates) {
-          const n = Number(value);
-          if (Number.isFinite(n) && n > 0) return n;
-        }
-        return 0;
-      }
-
-      function getCashDisplayPrice(product, basePrice) {
-        const explicitCandidates = [
-          product?.__payments?.cash?.price,
-          product?.cashPrice,
-          product?.priceCash,
-          product?.precoPix,
-          product?.preco_pix,
-          product?.precoAvista,
-          product?.preco_avista
-        ];
-        for (const value of explicitCandidates) {
-          const n = window.__toNumberBR(value, NaN);
-          if (Number.isFinite(n) && n > 0) return n;
-        }
-
-        const discountPercent = getCashDiscountPercent(product);
-        if (discountPercent > 0 && basePrice > 0) {
-          return basePrice * (1 - (discountPercent / 100));
-        }
-
-        return basePrice;
-      }
-
-      function getInstallmentsText(product, displayPrice) {
-        try {
-          if (product?.__payments?.card?.enabled && product?.__payments?.card?.text) {
-            return product.__payments.card.text;
-          }
-          if (typeof product?.parcelamentoTexto === 'string' && product.parcelamentoTexto.trim()) {
-            return product.parcelamentoTexto.trim();
-          }
-          if (typeof product?.installmentsText === 'string' && product.installmentsText.trim()) {
-            return product.installmentsText.trim();
-          }
-          if (typeof product?.parcelamento === 'string' && product.parcelamento.trim()) {
-            return product.parcelamento.trim();
-          }
-          if (typeof product?.parcelasTexto === 'string' && product.parcelasTexto.trim()) {
-            return product.parcelasTexto.trim();
-          }
-
-          const gs = getGlobalPaymentSettings();
-          const maxInstallments =
-            Number(product?.maxInstallments) ||
-            Number(product?.max_installments) ||
-            Number(product?.parcelasMaximas) ||
-            Number(product?.parcelas_maximas) ||
-            Number(gs?.card?.maxInstallments) ||
-            Number(gs?.maxInstallments) ||
-            Number(gs?.installments) ||
-            12;
-
-          if (maxInstallments > 1 && displayPrice > 0) {
-            const installmentValue = displayPrice / maxInstallments;
-            return `em até ${maxInstallments}x de ${formatCurrency(installmentValue)} sem juros`;
-          }
-        } catch (_) {}
-        return '';
-      }
-
-      function getCategoryLabel(p) {
-        return String(
-          p.subcategoryName || p.subcategory || p.subcategoria ||
-          p.categoryName || p.category || p.categoria || ''
-        ).trim();
-      }
-
-      function getNormalizedProductImage(product) {
-        return window.resolveApiImageUrl(
-          product?.imageUrl ||
-          product?.mainImageUrl ||
-          product?.image ||
-          product?.imagem ||
-          (Array.isArray(product?.images)
-            ? (typeof product.images[0] === 'string'
-                ? product.images[0]
-                : product.images[0]?.url)
-            : '') ||
-          (Array.isArray(product?.imagePaths) ? product.imagePaths[0] : '') ||
-          (Array.isArray(product?.imageUrls) ? product.imageUrls[0] : '')
-        );
-      }
-
-      function applyFilters() {
-        const term = normalizeText($('search')?.value || '');
-        const sort = $('sort')?.value || 'default';
-
-        let filtered = allProducts.filter(p => {
-          const haystack = normalizeText([
-            p.name, p.nome, p.titulo, getCategoryLabel(p),
-            p.categoryId, p.categorySlug, p.categoryName, p.category, p.categoria,
-            p.subcategoryId, p.subcategorySlug, p.subcategoryName, p.subcategory, p.subcategoria,
-            p.description, p.descricao, p.brand, p.marca, p.sku
-          ].filter(Boolean).join(' '));
-          return !term || term.split(' ').filter(Boolean).every(w => haystack.includes(w));
+      function getChildren(parent) {
+        if (!parent) return [];
+        const pid = String(parent.id || parent._id || '').trim();
+        const pslug = slug(parent.slug || parent.name);
+        const pname = norm(parent.name);
+        return allCategories.filter(c => {
+          const cp = String(c.parentId || c.parent || c.parent_id || '').trim();
+          return cp === pid || slug(cp) === pslug || norm(cp) === pname;
         });
-
-        if (sort === 'price-asc') filtered.sort((a,b) => getCurrentPrice(a) - getCurrentPrice(b));
-        else if (sort === 'price-desc') filtered.sort((a,b) => getCurrentPrice(b) - getCurrentPrice(a));
-        else if (sort === 'name-asc') filtered.sort((a,b) => String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR'));
-
-        renderProducts(filtered);
       }
 
-      function renderProducts(products) {
+      function aliasTermsForCategory(cat, includeChildren = true) {
+        const terms = new Set();
+        const add = (v) => {
+          const a = norm(v); const b = slug(v);
+          if (a) terms.add(a);
+          if (b) terms.add(b.replace(/-/g, ' '));
+        };
+        if (!cat) return terms;
+        [cat.id, cat._id, cat.name, cat.nome, cat.slug, cat.key, cat.code].forEach(add);
+        const name = norm(cat.name || cat.nome || cat.slug);
+        const packs = {
+          'smart tv': ['smart tv','smarttv','tv','televisor','televisores'],
+          'smartphones': ['smartphones','smartphone','celular','celulares','telefone'],
+          'celulares': ['smartphones','smartphone','celular','celulares','telefone'],
+          'moveis': ['moveis','movel','móveis','móvel','guarda roupas','guarda roupa','sofa','sofas','cama','camas','cozinha','rack','painel','mesa','cadeira'],
+          'eletrodomesticos': ['eletrodomesticos','eletro domesticos','geladeira','geladeiras','refrigerador','fogao','fogoes','microondas','micro ondas','maquina de lavar','lavadora'],
+          'eletroportateis': ['eletroportateis','eletro portateis','air fryer','fritadeira','secador','ventilador','liquidificador','batedeira'],
+          'informatica': ['informatica','notebook','computador','computadores','monitor','impressora'],
+          'som e audio': ['som','audio','caixa de som','caixa som','speaker'],
+          'caixa de som': ['som','audio','caixa de som','caixa som','speaker'],
+          'beleza e saude': ['beleza','saude','maquina de corte','barbeador','secador','chapinha']
+        };
+        for (const [key, vals] of Object.entries(packs)) {
+          if (name.includes(key) || key.includes(name)) vals.forEach(add);
+        }
+        if (includeChildren) getChildren(cat).forEach(ch => aliasTermsForCategory(ch, false).forEach(t => terms.add(t)));
+        return terms;
+      }
+
+      function productSearchText(p) {
+        const values = [
+          p.id, p._id, p.sku, p.slug,
+          p.name, p.nome, p.title, p.titulo,
+          p.categoryId, p.category_id, p.categoriaId,
+          p.categoryName, p.category, p.categoria,
+          p.subcategoryId, p.subcategory_id,
+          p.subcategoryName, p.subcategory, p.subcategoria,
+          p.department, p.departamento,
+          p.brand, p.marca,
+          p.description, p.descricao
+        ];
+        return norm(values.filter(Boolean).join(' '));
+      }
+
+      function matchesCategory(p, cat) {
+        if (!cat) return true;
+        const text = productSearchText(p);
+        const directIds = [p.categoryId, p.category_id, p.categoriaId, p.subcategoryId, p.subcategory_id].map(v => String(v || '').trim());
+        const validIds = [cat.id, cat._id, ...getChildren(cat).map(c => c.id), ...getChildren(cat).map(c => c._id)].map(v => String(v || '').trim()).filter(Boolean);
+        if (directIds.some(id => id && validIds.includes(id))) return true;
+        const terms = aliasTermsForCategory(cat, true);
+        for (const t of terms) {
+          if (!t || t.length < 2) continue;
+          if (text.includes(t)) return true;
+        }
+        return false;
+      }
+
+      function renderSidebar() {
+        const sidebar = $('categories-sidebar');
+        if (!sidebar) return;
+        const roots = allCategories.filter(isRoot).sort((a,b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+        sidebar.innerHTML = roots.map(cat => {
+          const active = currentParent && String(cat.id) === String(currentParent.id) && !currentSub;
+          const children = getChildren(cat).sort((a,b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+          return `
+            <li>
+              <a href="categoria.html?id=${encodeURIComponent(cat.id)}"
+                 class="block w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition ${active ? 'bg-primary-blue text-white shadow' : 'bg-gray-50 text-gray-700 hover:bg-blue-50 hover:text-primary-blue'}">
+                 ${escapeHtml(cat.name)}
+              </a>
+              ${children.length ? `<div class="mt-2 ml-3 space-y-1 border-l border-gray-200 pl-3">
+                ${children.map(ch => {
+                  const subActive = currentSub && String(ch.id) === String(currentSub.id);
+                  return `<a href="categoria.html?id=${encodeURIComponent(ch.id)}" class="block px-2 py-1 rounded-md text-xs font-semibold ${subActive ? 'bg-blue-100 text-primary-blue' : 'text-gray-500 hover:text-primary-blue hover:bg-gray-50'}">${escapeHtml(ch.name)}</a>`;
+                }).join('')}
+              </div>` : ''}
+            </li>`;
+        }).join('');
+      }
+
+      function renderProducts(list) {
         const grid = $('product-grid');
         const empty = $('empty-state');
         if (!grid) return;
         grid.innerHTML = '';
-
-        if (!products || products.length === 0) {
+        if (!list.length) {
           empty?.classList.remove('hidden');
           return;
         }
         empty?.classList.add('hidden');
 
-        if (typeof window.createProductCard === "function") {
-          grid.innerHTML = products.map(p => {
-            const normalizedImage = getNormalizedProductImage(p);
-            return window.createProductCard({
-              ...p,
-              id: p.id || p._id,
-              imageUrl: normalizedImage,
-              mainImageUrl: normalizedImage,
-              image: normalizedImage,
-              imagem: normalizedImage
-            });
-          }).join('');
+        if (typeof window.createProductCard === 'function') {
+          grid.innerHTML = list.map(p => window.createProductCard({
+            ...p,
+            id: p.id || p._id,
+            imageUrl: resolveImage(p),
+            mainImageUrl: resolveImage(p),
+            image: resolveImage(p),
+            imagem: resolveImage(p)
+          })).join('');
           return;
         }
 
-        grid.innerHTML = products.map(raw => {
-          const currentPrice = getCurrentPrice(raw);
-          const oldPriceRaw = getOldPrice(raw);
-          const normalizedImage = getNormalizedProductImage(raw);
-          const normalized = {
-            ...raw,
-            id: raw.id || raw._id,
-            name: raw.name || raw.nome || raw.titulo || '',
-            title: raw.title || raw.name || raw.nome || raw.titulo || '',
-            price: currentPrice,
-            preco: currentPrice,
-            valor: currentPrice,
-            oldPrice: oldPriceRaw,
-            precoAntigo: oldPriceRaw,
-            preco_antigo: oldPriceRaw,
-            compareAtPrice: oldPriceRaw,
-            categoryName: raw.categoryName || raw.category || raw.categoria || '',
-            subcategoryName: raw.subcategoryName || raw.subcategory || raw.subcategoria || '',
-            imageUrl: normalizedImage,
-            mainImageUrl: normalizedImage,
-            image: normalizedImage,
-            imagem: normalizedImage
-          };
-
-          let p = normalized;
-          try {
-            if (typeof window.decorateProductWithPayments === 'function') {
-              p = window.decorateProductWithPayments(normalized) || normalized;
-            }
-          } catch (_) {
-            p = normalized;
-          }
-
-          const basePrice = window.__toNumberBR(
-            p.price ?? p.preco ?? p.valor ?? currentPrice ?? 0,
-            0
-          );
-          const oldPrice = window.__toNumberBR(
-            p.oldPrice ?? p.precoAntigo ?? p.preco_antigo ?? oldPriceRaw ?? null,
-            NaN
-          );
-
-          const discountPercent = getCashDiscountPercent(p);
-          const displayPrice = getCashDisplayPrice(p, basePrice);
-
-          let badgePercent = null;
-          let showOld = null;
-
-          if (Number.isFinite(oldPrice) && oldPrice > basePrice) {
-            badgePercent = Math.round(((oldPrice - basePrice) / oldPrice) * 100);
-            showOld = oldPrice;
-          } else if (discountPercent > 0 && displayPrice < basePrice) {
-            badgePercent = Math.round(discountPercent);
-            showOld = basePrice;
-          }
-
-          const priceParts = formatPriceParts(displayPrice);
-          const installmentsText = getInstallmentsText(p, displayPrice) || 'em até 12x';
-          const safeImage = getNormalizedProductImage(p);
-
-          return `
-            <a href="produto.html?id=${encodeURIComponent(p.id)}" class="product-card">
-              <div class="product-image-container">
-                ${badgePercent ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${badgePercent}% OFF</span></div>` : ``}
-                <img src="${safeImage}" alt="${String(p.name||'').replace(/"/g,'&quot;')}" loading="lazy">
+        grid.innerHTML = list.map(p => {
+          const id = p.id || p._id || '';
+          const name = p.name || p.nome || p.title || 'Produto';
+          const full = getOldPrice(p) || getPrice(p);
+          const pix = getPrice(p) || full;
+          const off = full > pix ? Math.round((1 - pix / full) * 100) : 0;
+          const inst = full / 12;
+          return `<a href="produto.html?id=${encodeURIComponent(id)}" class="product-card">
+            <div class="product-image-container">
+              ${off ? `<div class="product-tag-container"><span class="product-tag tag-orange">-${off}% OFF</span></div>` : ''}
+              <img src="${resolveImage(p)}" alt="${escapeHtml(name)}" loading="lazy">
+            </div>
+            <div class="product-card-body">
+              <p class="product-name">${escapeHtml(name)}</p>
+              <div class="mt-auto">
+                ${full > pix ? `<p class="product-old-price">${formatCurrency(full)}</p>` : `<p class="product-old-price" style="opacity:0">.</p>`}
+                <div class="product-price"><span class="currency">R$</span><span class="price-integer">${formatCurrency(pix).replace('R$','').trim()}</span><span class="cash-text">à vista</span></div>
+                <p class="product-installments">ou 12x de ${formatCurrency(inst)} s/ juros</p>
+                <p class="product-installments text-gray-400">Total parcelado: ${formatCurrency(full)}</p>
               </div>
-              <div class="product-card-body">
-                <p class="product-name">${p.name || ''}</p>
-                <div class="mt-auto">
-                  ${showOld ? `<p class="product-old-price">${formatCurrency(showOld)}</p>` : `<p class="product-old-price" style="opacity:0">.</p>`}
-                  <div class="product-price">
-                    <span class="currency">${priceParts.symbol}</span>
-                    <span class="price-integer">${priceParts.integer}</span>
-                    <span class="decimal-part">,${priceParts.decimal}</span>
-                    <span class="cash-text">à vista</span>
-                  </div>
-                  <p class="product-installments">${installmentsText}</p>
-                </div>
-              </div>
-            </a>`;
+            </div>
+          </a>`;
         }).join('');
       }
 
-      function isRootCategory(cat) {
-        const parentRaw = cat?.parentId ?? cat?.parent ?? cat?.parent_id ?? cat?.parentID ?? null;
-        const parent = String(parentRaw == null ? '' : parentRaw).trim().toLowerCase();
-        return !parent || parent === 'null' || parent === 'undefined' || parent === '0' || parent === 'root';
+      function applyFilters() {
+        const term = norm($('search')?.value || '');
+        const sort = $('sort')?.value || 'default';
+        let filtered = allProducts.filter(p => matchesCategory(p, currentCategory));
+        if (term) filtered = filtered.filter(p => productSearchText(p).includes(term));
+        if (sort === 'price-asc') filtered.sort((a,b) => getPrice(a) - getPrice(b));
+        if (sort === 'price-desc') filtered.sort((a,b) => getPrice(b) - getPrice(a));
+        if (sort === 'name-asc') filtered.sort((a,b) => String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR'));
+        renderProducts(filtered);
       }
 
-      function buildSidebar(parentCategories, currentParent, currentSub, childrenByParent) {
-        const sidebar = $('categories-sidebar');
-        if (!sidebar) return;
-
-        const parents = [...(Array.isArray(parentCategories) ? parentCategories : [])].sort((a,b) =>
-          Number(a.order ?? a.ordem ?? 9999) - Number(b.order ?? b.ordem ?? 9999) ||
-          String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR')
-        );
-
-        sidebar.innerHTML = parents.map(cat => {
-          const nm = cat.name || cat.nome || '';
-          const isParentActive = !!(currentParent && cat.id === currentParent.id && !currentSub);
-          const children = [...(childrenByParent.get(cat.id) || [])].sort((a,b) =>
-            Number(a.order ?? a.ordem ?? 9999) - Number(b.order ?? b.ordem ?? 9999) ||
-            String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR')
-          );
-          return `
-            <li class="space-y-2">
-              <a href="categoria.html?id=${encodeURIComponent(cat.id)}" class="text-sm ${isParentActive ? 'font-bold text-primary-blue' : 'text-gray-700 hover:text-primary-blue'} transition-colors">
-                ${nm}
-              </a>
-              ${children.length ? `
-                <ul class="pl-3 border-l border-gray-200 space-y-2">
-                  ${children.map(sub => {
-                    const subName = sub.name || sub.nome || '';
-                    const isSubActive = !!(currentSub && sub.id === currentSub.id);
-                    return `<li><a href="categoria.html?id=${encodeURIComponent(sub.id)}" class="text-xs ${isSubActive ? 'font-bold text-primary-blue' : 'text-gray-500 hover:text-primary-blue'} transition-colors">${subName}</a></li>`;
-                  }).join('')}
-                </ul>` : ''}
-            </li>`;
-        }).join('');
-      }
-
-      function setBreadcrumb(currentParent, currentSub) {
+      function setTitles() {
+        const title = $('category-title');
         const breadcrumb = $('breadcrumb');
-        if (!breadcrumb) return;
-        const parentName = currentParent?.name || currentParent?.nome || 'Categorias';
-        const parentSlug = currentParent?.slug || normalizeSlug(parentName);
-        breadcrumb.innerHTML = currentSub
-          ? `<a href="index.html">Início</a><span>/</span><a href="categoria.html?slug=${encodeURIComponent(parentSlug)}">${parentName}</a><span>/</span><span class="text-gray-600">${currentSub.name || currentSub.nome || 'Subcategoria'}</span>`
-          : `<a href="index.html">Início</a><span>/</span><span class="text-gray-600">${parentName}</span>`;
-      }
-
-      async function fetchCategories() {
-        const data = await window.apiRequestWithFallback('/categories', {
-          headers: { "Content-Type": "application/json" }
-        });
-        const items = Array.isArray(data) ? data : (data?.items || data?.categories || []);
-        API_BASE = window.API_BASE;
-        return items
-          .map(item => ({ ...item, id: item.id || item._id }))
-          .filter(c => c.active !== false);
-      }
-
-      function findCurrentCategory(categories, params) {
-        const wantedValues = [
-          params.get('id'), params.get('categoryId'), params.get('_id'),
-          params.get('slug'), params.get('categorySlug'),
-          params.get('name'), params.get('categoria'), params.get('category')
-        ].filter(Boolean);
-
-        for (const wantedRaw of wantedValues) {
-          const wantedId = String(wantedRaw || '').trim();
-          const wantedSlug = normalizeSlug(wantedRaw);
-          const wantedText = normalizeText(wantedRaw);
-          const found = categories.find(c => {
-            const aliases = categoryAliases(c);
-            return aliases.includes(wantedId) || aliases.includes(wantedSlug) || aliases.includes(wantedText);
-          });
-          if (found) return found;
-        }
-        return null;
-      }
-
-      async function fetchProducts() {
-        const attempts = [
-          '/seller/products',
-          '/products',
-          '/home/index-data'
-        ];
-
-        for (const path of attempts) {
-          try {
-            const data = await window.apiRequestWithFallback(path, {
-              headers: { "Content-Type": "application/json" }
-            });
-
-            const rawItems = Array.isArray(data)
-              ? data
-              : (data?.items || data?.products || data?.data || (Array.isArray(data?.homeProducts) ? data.homeProducts : []));
-
-            if (!Array.isArray(rawItems) || rawItems.length === 0) continue;
-
-            API_BASE = window.API_BASE;
-
-            return rawItems.map(item => {
-              const normalizedImage = getNormalizedProductImage(item);
-              return {
-                ...item,
-                id: item.id || item._id,
-                imageUrl: normalizedImage,
-                mainImageUrl: normalizedImage,
-                image: normalizedImage,
-                imagem: normalizedImage
-              };
-            });
-          } catch (err) {
-            console.warn('[categoria] falhou em', path, err?.message || err);
-          }
-        }
-
-        throw new Error("Erro ao carregar produtos");
-      }
-
-      async function collectProductsForContext(currentParent, currentSub) {
-        const products = await fetchProducts();
-
-        const childrenOfParent = currentParent
-          ? allCategories.filter(c => String(c.parentId || c.parent || c.parent_id || '') === String(currentParent.id || currentParent._id || ''))
-          : [];
-
-        const targetCats = currentSub
-          ? [currentSub, currentParent].filter(Boolean)
-          : [currentParent, ...childrenOfParent].filter(Boolean);
-
-        if (!targetCats.length) return products;
-
-        let filtered = products.filter(p => productMatchesAnyCategory(p, targetCats));
-
-        // Segurança: se o Mongo estiver com categoryName diferente do cadastro, tenta uma busca mais aberta pelo nome da categoria.
-        if (!filtered.length) {
-          const words = targetCats.flatMap(c => normalizeText(c.name || c.nome || c.slug || '').split(' ')).filter(w => w.length >= 3);
-          filtered = products.filter(p => {
-            const hay = productCategoryText(p);
-            return words.length && words.some(w => hay.includes(w));
-          });
-        }
-
-        console.log('[categoria] categoria atual:', currentParent, currentSub, 'produtos encontrados:', filtered.length, 'de', products.length);
-        return filtered;
+        const label = currentSub?.name || currentParent?.name || currentCategory?.name || 'Categorias';
+        if (title) title.textContent = label;
+        if (breadcrumb) breadcrumb.innerHTML = `<a href="index.html">Início</a><span>/</span><span class="text-gray-600">${escapeHtml(label)}</span>`;
       }
 
       async function initCategoria() {
         try {
           $('loading')?.classList.remove('hidden');
-
-          await waitForMarketplacePayments();
-          if (typeof window.getPaymentSettings === 'function') {
-            await window.getPaymentSettings(true);
-          }
+          await waitHelpers();
+          allCategories = await fetchCategories();
+          allProducts = await fetchProducts();
 
           const params = new URLSearchParams(window.location.search);
-          allCategories = await fetchCategories();
+          currentCategory = findCategoryFromUrl(params) || null;
+          if (!currentCategory && allCategories.length) currentCategory = allCategories.find(isRoot) || allCategories[0];
 
-          if (!allCategories.length) {
-            $('loading')?.classList.add('hidden');
-            $('empty-state')?.classList.remove('hidden');
-            return;
+          if (currentCategory) {
+            currentSub = !isRoot(currentCategory) ? currentCategory : null;
+            currentParent = currentSub ? allCategories.find(c => String(c.id) === String(currentSub.parentId)) : currentCategory;
           }
 
-          const currentNode = findCurrentCategory(allCategories, params) || allCategories.find(c => !c.parentId) || allCategories[0];
-          const parentCategories = allCategories.filter(c => isRootCategory(c));
-          const childrenByParent = new Map();
-
-          allCategories.filter(c => !isRootCategory(c)).forEach(c => {
-            const arr = childrenByParent.get(c.parentId) || [];
-            arr.push(c);
-            childrenByParent.set(c.parentId, arr);
-          });
-
-          for (const arr of childrenByParent.values()) {
-            arr.sort((a,b) =>
-              Number(a.order || 9999) - Number(b.order || 9999) ||
-              String(a.name || a.nome || '').localeCompare(String(b.name || b.nome || ''), 'pt-BR')
-            );
-          }
-
-          const currentSub = currentNode.parentId ? currentNode : null;
-          const currentParent = currentSub
-            ? (allCategories.find(c => c.id === currentSub.parentId) || null)
-            : currentNode;
-
-          $('category-title').textContent = currentSub
-            ? (currentSub.name || currentSub.nome || 'Subcategoria')
-            : (currentParent?.name || currentParent?.nome || 'Categoria');
-
-          setBreadcrumb(currentParent, currentSub);
-          buildSidebar(parentCategories, currentParent, currentSub, childrenByParent);
-
-          allProducts = await collectProductsForContext(currentParent, currentSub);
-
+          renderSidebar();
+          setTitles();
           $('loading')?.classList.add('hidden');
           applyFilters();
-          window.dispatchEvent(new Event('marketplace:helpers-ready'));
         } catch (err) {
-          console.error('[categoria] erro:', err);
+          console.error('[categoria] erro ao carregar:', err);
           $('loading')?.classList.add('hidden');
           $('empty-state')?.classList.remove('hidden');
         }
@@ -727,7 +463,6 @@
 
       $('search')?.addEventListener('input', applyFilters);
       $('sort')?.addEventListener('change', applyFilters);
-
       initCategoria();
     })();
   </script>

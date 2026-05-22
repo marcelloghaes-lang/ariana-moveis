@@ -47,7 +47,7 @@ const renderGlobalFooter = () => {
         </div>
     </div>
     <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
-        &copy; 2026 Ariana Móveis. Todos os direitos reservados.
+        &copy; 2022 Ariana Móveis. Todos os direitos reservados.
     </div>
 </footer>`;
 

@@ -2003,8 +2003,68 @@ function renderShippingQuotes(result, cep) {
             const fretePriceEl = document.getElementById('frete-price');
             if (!shippingResult || !fretePriceEl) return;
 
-            const quotes = Array.isArray(result.quotes) ? result.quotes : [];
+            let quotes = Array.isArray(result.quotes) ? result.quotes : [];
             const errors = Array.isArray(result.errors) ? result.errors : [];
+
+            // =========================================================
+            // REGRA ARIANA MÓVEIS: CORREIOS INDISPONÍVEL
+            // Se o backend informou erro/indisponibilidade dos Correios
+            // ou retornou Correios com preço 0, NÃO renderiza como opção.
+            // Isso evita mostrar "Correios R$ 0,00" quando o produto passa
+            // de 30kg ou 100cm no maior lado.
+            // =========================================================
+            const normalizeCarrierName = (value) => String(value || '')
+                .toLowerCase()
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+
+            const isCorreiosService = (q) => {
+                const raw = normalizeCarrierName([
+                    q?.service,
+                    q?.name,
+                    q?.label,
+                    q?.provider,
+                    q?.carrier,
+                    q?.raw?.service,
+                    q?.raw?.name,
+                    q?.raw?.label,
+                    q?.raw?.provider,
+                    q?.raw?.carrier
+                ].filter(Boolean).join(' '));
+
+                return raw.includes('correios') ||
+                       raw.includes('pac') ||
+                       raw.includes('sedex') ||
+                       ['03220','03298','03212','03328'].some(code => raw.includes(code));
+            };
+
+            const correiosErrorDetected = errors.some((e) => {
+                const raw = normalizeCarrierName(`${e?.service || ''} ${e?.name || ''} ${e?.message || ''}`);
+                return raw.includes('correios') ||
+                       raw.includes('pac') ||
+                       raw.includes('sedex') ||
+                       raw.includes('limite maximo') ||
+                       raw.includes('limite excedido') ||
+                       raw.includes('30kg') ||
+                       raw.includes('100cm');
+            });
+
+            quotes = quotes.filter((q) => {
+                const price = Number(q?.price ?? q?.effectivePrice ?? q?.valor ?? 0);
+                const unavailable = q?.unavailable === true ||
+                                    q?.available === false ||
+                                    q?.disponivel === false ||
+                                    q?.raw?.unavailable === true ||
+                                    q?.raw?.available === false ||
+                                    q?.raw?.disponivel === false;
+
+                if (unavailable) return false;
+                if (isCorreiosService(q) && (correiosErrorDetected || !Number.isFinite(price) || price <= 0)) {
+                    return false;
+                }
+                return Number.isFinite(price) && price > 0;
+            });
 
             if (!quotes.length && !errors.length) {
                 shippingResult.innerHTML = `<p class="text-gray-600">Nenhuma cotação retornada para o CEP ${cep}.</p>`;
