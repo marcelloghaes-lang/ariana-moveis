@@ -1137,6 +1137,100 @@ app.get('/robots.txt', (_req, res) => {
 });
 
 
+// ==========================================
+// SEO: INDEXNOW (BING / EDGE)
+// ==========================================
+const INDEXNOW_KEY = String(process.env.INDEXNOW_KEY || 'a1b2c3d4e5f67890123456789abcdef0').trim();
+const INDEXNOW_ENDPOINT = 'https://api.indexnow.org/indexnow';
+
+function getIndexNowKeyLocation() {
+  return `${getPublicSiteUrl()}/${INDEXNOW_KEY}.txt`;
+}
+
+function normalizeIndexNowUrls(urls = []) {
+  return Array.from(new Set(ensureArray(urls)
+    .map((url) => String(url || '').trim())
+    .filter((url) => /^https?:\/\//i.test(url))
+  )).slice(0, 10000);
+}
+
+async function submitIndexNowUrls(urls = []) {
+  const urlList = normalizeIndexNowUrls(urls);
+  if (!urlList.length) return { ok: false, skipped: true, reason: 'empty_url_list' };
+
+  const host = new URL(getPublicSiteUrl()).host;
+  const payload = {
+    host,
+    key: INDEXNOW_KEY,
+    keyLocation: getIndexNowKeyLocation(),
+    urlList
+  };
+
+  const response = await axios.post(INDEXNOW_ENDPOINT, payload, {
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    timeout: 30000,
+    validateStatus: () => true
+  });
+
+  return {
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
+    submitted: urlList.length,
+    data: response.data || null
+  };
+}
+
+app.get(`/${INDEXNOW_KEY}.txt`, (_req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  return res.status(200).send(INDEXNOW_KEY);
+});
+
+app.post('/api/indexnow/submit', adminRequired, async (req, res) => {
+  try {
+    const urls = req.body?.urls || req.body?.urlList || req.body?.url || [];
+    const result = await submitIndexNowUrls(urls);
+    return res.status(result.ok ? 200 : 400).json(result);
+  } catch (error) {
+    console.error('[indexnow] erro ao enviar URLs:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'indexnow_submit_failed' });
+  }
+});
+
+app.post('/api/indexnow/submit-all-products', adminRequired, async (_req, res) => {
+  try {
+    const baseUrl = getPublicSiteUrl();
+    const [products, categories] = await Promise.all([
+      Product.find({ active: { $ne: false } })
+        .select('_id id slug name sku updatedAt createdAt active')
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(10000)
+        .lean(),
+      Category.find({ active: { $ne: false } })
+        .select('_id id slug name updatedAt createdAt active')
+        .sort({ sortOrder: 1, name: 1 })
+        .limit(1000)
+        .lean()
+    ]);
+
+    const urls = [
+      `${baseUrl}/`,
+      `${baseUrl}/index.html`,
+      `${baseUrl}/todos_produtos.html`,
+      `${baseUrl}/ofertas.html`,
+      ...(categories || []).map((category) => buildCategorySeoUrl(baseUrl, category)),
+      ...(products || []).map((product) => buildProductSeoUrl(baseUrl, product))
+    ];
+
+    const result = await submitIndexNowUrls(urls);
+    return res.status(result.ok ? 200 : 400).json({ ...result, products: products.length, categories: categories.length });
+  } catch (error) {
+    console.error('[indexnow] erro ao enviar todos os produtos:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'indexnow_submit_all_failed' });
+  }
+});
+
+
 app.get('/api/categories', async (_req, res) => res.json((await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 })).map(toJSON)));
 app.get('/api/products', async (req, res) => {
   try {
@@ -1182,7 +1276,7 @@ app.get('/api/products', async (req, res) => {
     console.error('[products] erro ao listar:', error);
     return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' });
   }
-  });
+});
 app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
 app.get('/api/products/seller/:sellerId', async (req, res) => {
   try {
