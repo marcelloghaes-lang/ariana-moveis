@@ -1921,45 +1921,56 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
   const { default: sharp } = await import('sharp');
   const W = Number(width || 1600);
   const H = Number(height || 520);
+  const slot = String(targetSlot || '').toLowerCase();
   const safeTitle = xmlEscape(title || 'Ariana Móveis');
   const safeSubtitle = xmlEscape(subtitle || 'Ofertas selecionadas para você');
   const isVertical = H > W;
-  const isSquare = Math.abs(W - H) < 30;
-  const brandFs = Math.max(20, Math.round(W * 0.021));
-  const titleFs = Math.max(isVertical ? 42 : 36, Math.round(W * (isVertical ? 0.074 : isSquare ? 0.060 : 0.043)));
-  const subFs = Math.max(18, Math.round(W * (isVertical ? 0.040 : 0.022)));
-  const topBrandY = Math.round(H * 0.13);
-  const titleY = Math.round(H * (isVertical ? 0.27 : isSquare ? 0.25 : 0.42));
-  const subY = Math.round(titleY + titleFs * 0.82);
-  const ctaW = Math.round(W * (isVertical ? 0.62 : 0.22));
-  const ctaH = Math.max(44, Math.round(H * 0.14));
-  const ctaX = Math.round(W * 0.05);
-  const ctaY = Math.round(H - ctaH - H * 0.10);
-  const ctaFs = Math.max(18, Math.round(ctaH * 0.38));
-  const textMaxW = isVertical ? Math.round(W * 0.86) : Math.round(W * 0.53);
+  const isSquare = Math.abs(W - H) < 40;
+  const isThin = (W / H) >= 3.2;
+  const R = Math.round(Math.min(W, H) * 0.04);
+
+  // Layout profissional: texto sempre visível, produto grande, sem cortes e sem ficar vazando para fora.
+  const margin = Math.round(W * (isVertical ? 0.075 : 0.055));
+  const brandFs = Math.max(18, Math.round(Math.min(W, H) * (isVertical ? 0.040 : 0.048)));
+  const titleFs = Math.max(30, Math.round(Math.min(W, H) * (isThin ? 0.115 : isSquare ? 0.082 : isVertical ? 0.065 : 0.095)));
+  const subFs = Math.max(18, Math.round(Math.min(W, H) * (isThin ? 0.050 : isSquare ? 0.036 : isVertical ? 0.033 : 0.043)));
+  const ctaH = Math.max(42, Math.round(H * (isThin ? 0.17 : isSquare ? 0.105 : isVertical ? 0.075 : 0.15)));
+  const ctaW = Math.round(W * (isVertical ? 0.60 : isSquare ? 0.42 : isThin ? 0.26 : 0.30));
+  const ctaX = margin;
+  const ctaY = Math.round(H - ctaH - H * (isThin ? 0.13 : 0.08));
+  const phoneFs = Math.max(14, Math.round(Math.min(W, H) * (isThin ? 0.040 : 0.026)));
+
+  const textW = isVertical ? Math.round(W * 0.86) : Math.round(W * (isThin ? 0.46 : isSquare ? 0.55 : 0.50));
+  const brandY = Math.round(H * (isThin ? 0.15 : 0.12));
+  const titleTop = Math.round(H * (isThin ? 0.25 : isSquare ? 0.15 : isVertical ? 0.18 : 0.25));
+  const titleBoxH = Math.round(titleFs * (isThin ? 1.95 : 2.35));
+  const subTop = Math.round(titleTop + titleBoxH + H * 0.025);
 
   const bg = Buffer.from(`
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#0047AB"/>
-          <stop offset="58%" stop-color="#0A63D8"/>
-          <stop offset="100%" stop-color="#062E6F"/>
+          <stop offset="0%" stop-color="#003A90"/>
+          <stop offset="48%" stop-color="#075FD3"/>
+          <stop offset="100%" stop-color="#05285F"/>
         </linearGradient>
+        <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#001E4D" flood-opacity="0.28"/></filter>
       </defs>
-      <rect width="${W}" height="${H}" rx="${Math.max(0, Math.round(Math.min(W,H)*0.035))}" fill="url(#bg)"/>
-      <circle cx="${Math.round(W*0.84)}" cy="${Math.round(-H*0.12)}" r="${Math.round(Math.min(W,H)*0.50)}" fill="#ffffff" opacity="0.10"/>
-      <circle cx="${Math.round(W*0.93)}" cy="${Math.round(H*0.84)}" r="${Math.round(Math.min(W,H)*0.42)}" fill="#F7C600" opacity="0.22"/>
-      <text x="${Math.round(W*0.05)}" y="${topBrandY}" font-family="Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
-      <foreignObject x="${Math.round(W*0.05)}" y="${Math.max(0, titleY-titleFs)}" width="${textMaxW}" height="${Math.round(titleFs*1.60)}">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:900;line-height:0.98;color:white;letter-spacing:-1px;">${safeTitle}</div>
+      <rect width="${W}" height="${H}" rx="${R}" fill="url(#bg)"/>
+      <circle cx="${Math.round(W*0.82)}" cy="${Math.round(-H*0.08)}" r="${Math.round(Math.min(W,H)*0.58)}" fill="#ffffff" opacity="0.10"/>
+      <circle cx="${Math.round(W*0.95)}" cy="${Math.round(H*0.95)}" r="${Math.round(Math.min(W,H)*0.46)}" fill="#F7C600" opacity="0.20"/>
+      <circle cx="${Math.round(W*0.70)}" cy="${Math.round(H*0.34)}" r="${Math.round(Math.min(W,H)*0.22)}" fill="#ffffff" opacity="0.06"/>
+
+      <text x="${margin}" y="${brandY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
+      <foreignObject x="${margin}" y="${titleTop}" width="${textW}" height="${titleBoxH}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:900;line-height:0.96;color:#ffffff;letter-spacing:-1.5px;text-shadow:0 4px 14px rgba(0,0,0,.18);">${safeTitle}</div>
       </foreignObject>
-      <foreignObject x="${Math.round(W*0.052)}" y="${subY}" width="${textMaxW}" height="${Math.round(subFs*2.6)}">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Arial,Helvetica,sans-serif;font-size:${subFs}px;font-weight:700;line-height:1.15;color:#EAF4FF;">${safeSubtitle}</div>
+      <foreignObject x="${margin}" y="${subTop}" width="${textW}" height="${Math.round(subFs*2.8)}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${subFs}px;font-weight:700;line-height:1.18;color:#EAF4FF;">${safeSubtitle}</div>
       </foreignObject>
-      <rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH*0.32)}" fill="#16A34A"/>
-      <text x="${ctaX + ctaW/2}" y="${Math.round(ctaY + ctaH*0.62)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${ctaFs}" font-weight="900" fill="#ffffff">COMPRE AGORA</text>
-      <text x="${Math.round(W*0.05)}" y="${Math.round(H*0.94)}" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(16, Math.round(W*0.018))}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
+      <rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH*0.32)}" fill="#16A34A" filter="url(#shadow)"/>
+      <text x="${ctaX + ctaW/2}" y="${Math.round(ctaY + ctaH*0.64)}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${Math.max(16, Math.round(ctaH*0.38))}" font-weight="900" fill="#ffffff">COMPRE AGORA</text>
+      <text x="${margin}" y="${Math.round(H*0.94)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${phoneFs}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
     </svg>`);
 
   const composites = [{ input: bg, top: 0, left: 0 }];
@@ -1967,21 +1978,27 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
   function productPositions() {
     if (isVertical) {
       return [
-        { left: Math.round(W*0.18), top: Math.round(H*0.43), width: Math.round(W*0.64), height: Math.round(H*0.26) },
-        { left: Math.round(W*0.28), top: Math.round(H*0.63), width: Math.round(W*0.44), height: Math.round(H*0.19) }
+        { left: Math.round(W*0.14), top: Math.round(H*0.45), width: Math.round(W*0.72), height: Math.round(H*0.28) },
+        { left: Math.round(W*0.22), top: Math.round(H*0.67), width: Math.round(W*0.56), height: Math.round(H*0.18) }
       ];
     }
     if (isSquare) {
       return [
-        { left: Math.round(W*0.47), top: Math.round(H*0.18), width: Math.round(W*0.40), height: Math.round(H*0.40) },
-        { left: Math.round(W*0.60), top: Math.round(H*0.49), width: Math.round(W*0.30), height: Math.round(H*0.30) }
+        { left: Math.round(W*0.42), top: Math.round(H*0.16), width: Math.round(W*0.50), height: Math.round(H*0.43) },
+        { left: Math.round(W*0.58), top: Math.round(H*0.48), width: Math.round(W*0.34), height: Math.round(H*0.30) }
+      ];
+    }
+    if (isThin) {
+      return [
+        { left: Math.round(W*0.50), top: Math.round(H*0.12), width: Math.round(W*0.22), height: Math.round(H*0.72) },
+        { left: Math.round(W*0.68), top: Math.round(H*0.17), width: Math.round(W*0.18), height: Math.round(H*0.62) },
+        { left: Math.round(W*0.82), top: Math.round(H*0.20), width: Math.round(W*0.15), height: Math.round(H*0.56) }
       ];
     }
     return [
-      { left: Math.round(W*0.55), top: Math.round(H*0.16), width: Math.round(W*0.19), height: Math.round(H*0.62) },
-      { left: Math.round(W*0.70), top: Math.round(H*0.21), width: Math.round(W*0.17), height: Math.round(H*0.54) },
-      { left: Math.round(W*0.84), top: Math.round(H*0.24), width: Math.round(W*0.14), height: Math.round(H*0.46) },
-      { left: Math.round(W*0.43), top: Math.round(H*0.30), width: Math.round(W*0.15), height: Math.round(H*0.42) }
+      { left: Math.round(W*0.52), top: Math.round(H*0.14), width: Math.round(W*0.24), height: Math.round(H*0.66) },
+      { left: Math.round(W*0.70), top: Math.round(H*0.18), width: Math.round(W*0.20), height: Math.round(H*0.58) },
+      { left: Math.round(W*0.84), top: Math.round(H*0.22), width: Math.round(W*0.14), height: Math.round(H*0.50) }
     ];
   }
 
@@ -1990,8 +2007,8 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
     const pos = positions[i];
     const productPng = await loadRemoteImageAsPng(pickProductImage(products[i]), pos.width, pos.height);
     if (!productPng) continue;
-    const pad = Math.max(10, Math.round(Math.min(W, H) * 0.018));
-    const card = Buffer.from(`<svg width="${pos.width + pad*2}" height="${pos.height + pad*2}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="s"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#00275f" flood-opacity="0.25"/></filter></defs><rect x="${pad}" y="${pad}" width="${pos.width}" height="${pos.height}" rx="${Math.round(Math.min(pos.width,pos.height)*0.10)}" fill="#ffffff" filter="url(#s)"/></svg>`);
+    const pad = Math.max(8, Math.round(Math.min(W, H) * 0.020));
+    const card = Buffer.from(`<svg width="${pos.width + pad*2}" height="${pos.height + pad*2}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="s"><feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#001E4D" flood-opacity="0.25"/></filter></defs><rect x="${pad}" y="${pad}" width="${pos.width}" height="${pos.height}" rx="${Math.round(Math.min(pos.width,pos.height)*0.08)}" fill="#ffffff" opacity="0.96" filter="url(#s)"/></svg>`);
     composites.push({ input: card, left: pos.left - pad, top: pos.top - pad });
     composites.push({ input: productPng, left: pos.left, top: pos.top });
   }
