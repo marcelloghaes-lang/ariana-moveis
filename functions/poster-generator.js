@@ -9,7 +9,7 @@ const WHATSAPP_NUMBER = '5531985147119';
 const WHATSAPP_TEXT = 'Olá! Vim pelo cartaz da Ariana Móveis e quero comprar este produto.';
 const TEXT_DARK = '#172033';
 const TEXT_MUTED = '#64748B';
-const CARD_STROKE = '#D6E8FF';
+const CARD_STROKE = '#CFE4FF';
 
 function escapeXml(value = '') {
   return String(value || '')
@@ -18,6 +18,10 @@ function escapeXml(value = '') {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function removeAccents(value = '') {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function toNumber(value, fallback = 0) {
@@ -58,9 +62,6 @@ function wrapText(text = '', maxChars = 34, maxLines = 2) {
   }
 
   if (current && lines.length < maxLines) lines.push(current);
-
-  // V28: não usa reticências nos títulos. Melhor quebrar em linhas naturais
-  // para o cartaz ficar mais profissional e evitar aparência de texto cortado.
   return lines.length ? lines.slice(0, maxLines) : ['Produto Ariana Móveis'];
 }
 
@@ -77,10 +78,7 @@ async function loadImageBuffer(url) {
 }
 
 function calculatePricing(product = {}, pixPercent = 17) {
-  const fullPrice = toNumber(
-    product.oldPrice || product.precoAntigo || product.precoDe || product.price || product.preco || 0,
-    0
-  );
+  const fullPrice = toNumber(product.oldPrice || product.precoAntigo || product.precoDe || product.price || product.preco || 0, 0);
   const explicitPix = toNumber(product.pixPrice || product.precoPix || product.cashPrice || 0, 0);
   const pixPrice = explicitPix > 0 ? explicitPix : +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
   const installmentCount = Number(product.installmentCount || 12) || 12;
@@ -88,46 +86,101 @@ function calculatePricing(product = {}, pixPercent = 17) {
   return { fullPrice, pixPrice, pixPercent, installmentCount, installmentPrice };
 }
 
+function detectProductType(product = {}) {
+  const text = removeAccents(`${product.name || product.title || ''} ${product.categoryName || product.category || ''} ${product.brand || ''}`);
+  if (/smart\s*tv|televis|tv\b|roku|monitor/.test(text)) return 'tv';
+  if (/cooktop|fogao|forno|micro-ondas|microondas/.test(text)) return 'wide';
+  if (/geladeira|refrigerador|freezer|guarda[- ]?roupa|roupeiro|armario|cozinha|comoda|painel|rack|mesa|escrivaninha/.test(text)) return 'large';
+  if (/smartphone|celular|iphone|moto\s*g|telefone/.test(text)) return 'phone';
+  if (/maquina|lavadora|tanquinho|ar condicionado|ventilador|air fryer|fritadeira|secador|caixa de som/.test(text)) return 'medium';
+  return 'default';
+}
+
 function layoutForVariant(variant) {
   const isStory = variant === 'story';
+
   if (isStory) {
     return {
       width: 1080,
       height: 1920,
       headerH: 112,
-      shell: { x: 45, y: 132, w: 990, h: 1628, rx: 42 },
-      title: { x: 70, y: 176, size: 39, gap: 45, maxChars: 31, maxLines: 3, catOffset: 22 },
-      imageBox: { x: 70, y: 390, w: 940, h: 675, rx: 34 },
-      img: { w: 915, h: 645, top: 405 },
-      priceCard: { x: 70, y: 1102, w: 940, h: 390, rx: 34 },
-      badge: { x: 92, y: 1132, w: 245, h: 66, fs: 28 },
-      offerBadge: { w: 238, fs: 25 },
-      oldPrice: { x: 92, y: 1238, fs: 31 },
-      pixPrice: { x: 92, y: 1334, fs: 72 },
-      pixText: { x: 555, y: 1334, fs: 31 },
-      installment: { x: 92, y: 1398, fs: 29 },
-      total: { x: 92, y: 1449, fs: 24 },
-      cta: { x: 70, y: 1582, w: 940, h: 112, fs: 41, textY: 1653, phoneY: 1765, phoneFs: 34 }
+      shell: { x: 42, y: 128, w: 996, h: 1648, rx: 42 },
+
+      // V31: título mais compacto para liberar área nobre ao produto
+      title: { x: 70, y: 174, size: 37, gap: 41, maxChars: 34, maxLines: 3, catOffset: 18 },
+
+      // V31: área do produto maior, principalmente para guarda-roupa/lavadora/TV
+      imageBox: { x: 58, y: 372, w: 964, h: 780, rx: 34 },
+
+      // V31: preço mais para baixo, sem encostar na imagem
+      priceCard: { x: 70, y: 1178, w: 940, h: 366, rx: 34 },
+      badge: { x: 94, y: 1212, w: 252, h: 66, fs: 28 },
+      offerBadge: { w: 245, fs: 25 },
+      oldPrice: { x: 94, y: 1320, fs: 30 },
+      pixPrice: { x: 94, y: 1410, fs: 72 },
+      pixText: { x: 560, y: 1410, fs: 31 },
+      installment: { x: 94, y: 1474, fs: 28 },
+      total: { x: 94, y: 1522, fs: 24 },
+
+      // V31: botão mais destacado e WhatsApp maior
+      cta: { x: 70, y: 1614, w: 940, h: 112, fs: 42, textY: 1686, phoneY: 1786, phoneFs: 38 }
     };
   }
+
   return {
     width: 1080,
     height: 1080,
     headerH: 92,
-    shell: { x: 45, y: 112, w: 990, h: 920, rx: 42 },
-    title: { x: 70, y: 150, size: 34, gap: 39, maxChars: 37, maxLines: 3, catOffset: 20 },
-    imageBox: { x: 70, y: 292, w: 940, h: 360, rx: 30 },
-    img: { w: 900, h: 342, top: 300 },
-    priceCard: { x: 70, y: 682, w: 940, h: 255, rx: 30 },
-    badge: { x: 92, y: 708, w: 225, h: 54, fs: 23 },
-    offerBadge: { w: 210, fs: 22 },
-    oldPrice: { x: 92, y: 798, fs: 26 },
-    pixPrice: { x: 92, y: 864, fs: 56 },
-    pixText: { x: 505, y: 864, fs: 26 },
-    installment: { x: 92, y: 910, fs: 24 },
-    total: { x: 92, y: 944, fs: 19 },
-    cta: { x: 70, y: 965, w: 940, h: 78, fs: 31, textY: 1016, phoneY: 1064, phoneFs: 22 }
+    shell: { x: 42, y: 108, w: 996, h: 930, rx: 42 },
+
+    // V31: título menor/mais eficiente para não tomar espaço do produto
+    title: { x: 70, y: 145, size: 32, gap: 36, maxChars: 44, maxLines: 2, catOffset: 21 },
+
+    // V31: área de produto aumentada
+    imageBox: { x: 58, y: 248, w: 964, h: 462, rx: 30 },
+
+    // V31: bloco de preço mais compacto, sem sobreposição com botão
+    priceCard: { x: 70, y: 730, w: 940, h: 214, rx: 30 },
+    badge: { x: 92, y: 754, w: 225, h: 54, fs: 23 },
+    offerBadge: { w: 214, fs: 22 },
+    oldPrice: { x: 92, y: 836, fs: 25 },
+    pixPrice: { x: 92, y: 899, fs: 56 },
+    pixText: { x: 505, y: 899, fs: 26 },
+    installment: { x: 92, y: 943, fs: 23 },
+    total: { x: 92, y: 976, fs: 19 },
+
+    // V31: botão com mais respiro e telefone legível
+    cta: { x: 70, y: 966, w: 940, h: 74, fs: 31, textY: 1015, phoneY: 1064, phoneFs: 24 }
   };
+}
+
+function productImagePreset(product = {}, variant = 'square') {
+  const type = detectProductType(product);
+  const isStory = variant === 'story';
+
+  /*
+    V31:
+    Em vez de um tamanho genérico, cada família recebe um enquadramento próprio.
+    A imagem é recortada/trimada antes e ampliada dentro desses limites.
+    Isso evita TV/fogão bons e guarda-roupa/lavadora pequenos demais.
+  */
+  const presets = isStory ? {
+    tv:      { w: 1010, h: 760, top: 378, zoom: 1.08 },
+    wide:    { w: 1010, h: 765, top: 380, zoom: 1.08 },
+    large:   { w: 990,  h: 790, top: 376, zoom: 1.12 }, // guarda-roupa, armário, painel, cozinha
+    phone:   { w: 700,  h: 790, top: 370, zoom: 1.06 },
+    medium:  { w: 920,  h: 785, top: 376, zoom: 1.14 }, // lavadora, ar, ventilador, air fryer
+    default: { w: 900,  h: 770, top: 384, zoom: 1.10 }
+  } : {
+    tv:      { w: 1010, h: 455, top: 252, zoom: 1.05 },
+    wide:    { w: 1000, h: 460, top: 250, zoom: 1.08 },
+    large:   { w: 990,  h: 468, top: 246, zoom: 1.12 }, // guarda-roupa/móveis largos
+    phone:   { w: 650,  h: 468, top: 245, zoom: 1.06 },
+    medium:  { w: 900,  h: 468, top: 246, zoom: 1.14 }, // lavadora e pequenos
+    default: { w: 880,  h: 458, top: 252, zoom: 1.10 }
+  };
+
+  return presets[type] || presets.default;
 }
 
 function backgroundSvg({ width, height, variant }) {
@@ -137,7 +190,7 @@ function backgroundSvg({ width, height, variant }) {
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#ffffff"/>
-        <stop offset="44%" stop-color="#eef6ff"/>
+        <stop offset="42%" stop-color="#edf6ff"/>
         <stop offset="100%" stop-color="#dbeafe"/>
       </linearGradient>
       <linearGradient id="hero" x1="0" y1="0" x2="1" y2="0">
@@ -145,7 +198,7 @@ function backgroundSvg({ width, height, variant }) {
         <stop offset="100%" stop-color="#0A63D8"/>
       </linearGradient>
       <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#002b60" flood-opacity="0.18"/>
+        <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#002b60" flood-opacity="0.20"/>
       </filter>
     </defs>
     <rect width="${width}" height="${height}" fill="url(#bg)"/>
@@ -180,9 +233,9 @@ function foregroundSvg({ width, height, product, pricing, variant }) {
     ${category ? `<text x="70" y="${L.title.y + titleLines.length * L.title.gap + L.title.catOffset}" font-size="${isStory ? 25 : 22}" font-weight="800" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">${escapeXml(category)}</text>` : ''}
 
     <rect x="${L.badge.x}" y="${L.badge.y}" width="${L.badge.w}" height="${L.badge.h}" rx="17" fill="${BRAND_GREEN}"/>
-    <text x="${L.badge.x + L.badge.w / 2}" y="${L.badge.y + (isStory ? 43 : 34)}" text-anchor="middle" font-size="${L.badge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${pricing.pixPercent}% OFF</text>
+    <text x="${L.badge.x + L.badge.w / 2}" y="${L.badge.y + (isStory ? 43 : 36)}" text-anchor="middle" font-size="${L.badge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${pricing.pixPercent}% OFF</text>
     <rect x="${offerX}" y="${L.badge.y}" width="${L.offerBadge.w}" height="${L.badge.h}" rx="17" fill="${BRAND_ORANGE}"/>
-    <text x="${offerX + L.offerBadge.w / 2}" y="${L.badge.y + (isStory ? 43 : 34)}" text-anchor="middle" font-size="${L.offerBadge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">OFERTA PIX</text>
+    <text x="${offerX + L.offerBadge.w / 2}" y="${L.badge.y + (isStory ? 43 : 36)}" text-anchor="middle" font-size="${L.offerBadge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">OFERTA PIX</text>
 
     <text x="${L.oldPrice.x}" y="${L.oldPrice.y}" font-size="${L.oldPrice.fs}" fill="#94a3b8" text-decoration="line-through" font-family="Arial, Helvetica, sans-serif">de ${brl(pricing.fullPrice)}</text>
     <text x="${L.pixPrice.x}" y="${L.pixPrice.y}" font-size="${L.pixPrice.fs}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${brl(pricing.pixPrice)}</text>
@@ -204,6 +257,7 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
   const height = L.height;
   const pricing = calculatePricing(product, Number(options.pixPercent || 17));
   const imageUrl = getMainImageUrl(product);
+  const preset = productImagePreset(product, variant);
 
   const bg = Buffer.from(backgroundSvg({ width, height, variant }));
   const fg = Buffer.from(foregroundSvg({ width, height, product, pricing, variant }));
@@ -211,22 +265,36 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
 
   const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    let pipeline = sharp(rawImage).rotate();
+    let pipeline = sharp(rawImage).rotate().flatten({ background: '#ffffff' });
     try {
-      pipeline = pipeline.flatten({ background: '#ffffff' }).trim({ background: '#ffffff', threshold: 18 });
+      pipeline = pipeline.trim({ background: '#ffffff', threshold: 50 });
     } catch (_error) {
-      pipeline = sharp(rawImage).rotate();
+      pipeline = sharp(rawImage).rotate().flatten({ background: '#ffffff' });
     }
 
+    const finalW = Math.round(preset.w * preset.zoom);
+    const finalH = Math.round(preset.h * preset.zoom);
+
     const productPng = await pipeline
-      .resize(L.img.w, L.img.h, {
+      .resize(finalW, finalH, {
         fit: 'contain',
         background: { r: 255, g: 255, b: 255, alpha: 0 },
         withoutEnlargement: false
       })
       .png()
       .toBuffer();
-    composites.push({ input: productPng, top: L.img.top, left: Math.round((width - L.img.w) / 2) });
+
+    /*
+      V31:
+      Centraliza a imagem final no eixo X, mas prende o topo por categoria.
+      Isso evita que zoom alto empurre guarda-roupa/máquina para cima ou para baixo
+      e melhora o aproveitamento da área branca.
+    */
+    composites.push({
+      input: productPng,
+      top: Math.round(preset.top),
+      left: Math.round((width - finalW) / 2)
+    });
   }
 
   composites.push({ input: fg, top: 0, left: 0 });

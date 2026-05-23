@@ -447,7 +447,7 @@ const sellerSchema = new mongoose.Schema({ sellerId: { type: String, index: true
 const categorySchema = new mongoose.Schema({ name: { type: String, required: true }, slug: String, parentId: { type: String, default: null }, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, image: String }, baseOptions);
 const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
 productSchema.index({ name: 'text', description: 'text', category: 'text', brand: 'text' });
-const bannerSchema = new mongoose.Schema({ slot: { type: String, required: true, index: true }, title: String, subtitle: String, image: String, href: String, alt: String, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, device: { type: String, default: 'all' } }, baseOptions);
+const bannerSchema = new mongoose.Schema({ slot: { type: String, required: true, index: true }, targetSlot: { type: String, index: true }, title: String, subtitle: String, image: String, href: String, alt: String, active: { type: Boolean, default: true }, status: { type: String, default: 'published', index: true }, source: { type: String, default: 'manual' }, draftType: String, products: [mongoose.Schema.Types.Mixed], sortOrder: { type: Number, default: 0 }, device: { type: String, default: 'all' } }, baseOptions);
 const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, name: String, phone: String, cep: String, logradouro: String, numero: String, bairro: String, cidade: String, uf: String, complemento: String, reference: String, isDefault: { type: Boolean, default: false } }, baseOptions);
 const ticketSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, orderId: { type: String, default: null }, protocolo: { type: String, index: true }, tipo: String, assunto: String, mensagem: String, status: { type: String, default: 'Novo' }, origem: { type: String, default: 'site' }, nome: String, email: String, telefone: String, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const contactSchema = new mongoose.Schema({ name: String, email: String, phone: String, subject: String, message: String, source: { type: String, default: 'fale_conosco' }, status: { type: String, default: 'novo' } }, baseOptions);
@@ -487,12 +487,17 @@ function normalizeBannerPayload(input = {}, fallback = {}) {
   const slot = String(source.slot || source.id || fallback.slot || '').trim();
   return {
     slot,
+    targetSlot: String(source.targetSlot || source.slot || '').trim(),
     title: String(source.title || '').trim(),
     subtitle: String(source.subtitle || '').trim(),
     image: String(source.image || source.imageUrl || '').trim(),
     href: String(source.href || source.linkUrl || '').trim(),
     alt: String(source.alt || '').trim(),
     active: source.active === true || String(source.active).toLowerCase() == 'true',
+    status: String(source.status || (source.active === false ? 'draft' : 'published')).trim(),
+    source: String(source.source || 'manual').trim(),
+    draftType: String(source.draftType || '').trim(),
+    products: Array.isArray(source.products) ? source.products : [],
     sortOrder: Number(source.sortOrder || 0),
     device: String(source.device || 'all').trim() || 'all',
   };
@@ -506,6 +511,11 @@ function normalizeBannerForResponse(doc) {
     slot: String(obj.slot || obj.id || ''),
     imageUrl: String(obj.image || obj.imageUrl || '').trim(),
     linkUrl: String(obj.href || obj.linkUrl || '').trim(),
+    targetSlot: String(obj.targetSlot || obj.slot || '').trim(),
+    status: String(obj.status || (obj.active === false ? 'draft' : 'published')).trim(),
+    source: String(obj.source || 'manual').trim(),
+    draftType: String(obj.draftType || '').trim(),
+    products: Array.isArray(obj.products) ? obj.products : [],
     alt: String(obj.alt || '').trim(),
   };
 }
@@ -1830,6 +1840,118 @@ function uploadBufferToCloudinary(buffer, options = {}) {
   });
 }
 
+
+function pickProductImage(product = {}) {
+  return String(product.mainImageUrl || product.imageUrl || product.image || product.imagem || product.images?.[0]?.url || '').trim();
+}
+
+async function loadRemoteImageAsPng(url, width, height) {
+  if (!url) return null;
+  try {
+    const { default: sharp } = await import('sharp');
+    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 25000 });
+    return await sharp(Buffer.from(response.data))
+      .rotate()
+      .flatten({ background: '#ffffff' })
+      .resize(width, height, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 }, withoutEnlargement: false })
+      .png()
+      .toBuffer();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function bannerDraftDefinitions() {
+  return [
+    { key: 'ofertas_imperdiveis', targetSlot: 'home_ofertas_imperdiveis', title: 'Ofertas imperdíveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', filter: { isOffer: true } },
+    { key: 'lancamentos', targetSlot: 'home_lancamentos', title: 'Lançamentos Ariana Móveis', subtitle: 'Novidades selecionadas para sua casa', filter: { isNewArrival: true } },
+    { key: 'recomendado', targetSlot: 'home_recomendado', title: 'Recomendado pra você', subtitle: 'Produtos escolhidos para vender mais', filter: { isRecommended: true } },
+    { key: 'mais_vendidos', targetSlot: 'home_mais_vendidos', title: 'Mais vendidos', subtitle: 'Os queridinhos dos clientes Ariana', filter: { isBestSeller: true } },
+    { key: 'smart_tv', targetSlot: 'home_categoria_smart_tv', title: 'Smart TVs em destaque', subtitle: 'Imagem de cinema para sua sala', categoryRegex: /smart\s*tv|televis|tv/i },
+    { key: 'moveis', targetSlot: 'home_categoria_moveis', title: 'Móveis para renovar sua casa', subtitle: 'Guarda-roupas, salas, cozinhas e muito mais', categoryRegex: /m[oó]veis|guarda|roupeiro|cama|sala|cozinha|rack|painel/i },
+    { key: 'colchoes', targetSlot: 'home_categoria_colchoes', title: 'Colchões com conforto de verdade', subtitle: 'Escolha seu modelo e compre pelo WhatsApp', categoryRegex: /colch[oõ]es|colchao|colchão/i },
+    { key: 'eletrodomesticos', targetSlot: 'home_categoria_eletrodomesticos', title: 'Eletrodomésticos em oferta', subtitle: 'Geladeiras, lavadoras, fogões e muito mais', categoryRegex: /eletrodom[eé]sticos|geladeira|refrigerador|lavadora|m[aá]quina|fog[aã]o|freezer/i }
+  ];
+}
+
+async function selectProductsForBanner(definition, usedIds = new Set(), limit = 3) {
+  const base = { active: { $ne: false } };
+  let docs = [];
+  if (definition.filter) {
+    docs = await Product.find({ ...base, ...definition.filter }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit * 3);
+  }
+  if (definition.categoryRegex) {
+    const rx = definition.categoryRegex;
+    docs = await Product.find({
+      ...base,
+      $or: [{ category: rx }, { categoryName: rx }, { name: rx }, { description: rx }]
+    }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit * 3);
+  }
+  if (!docs.length) docs = await Product.find(base).sort({ updatedAt: -1, createdAt: -1 }).limit(limit * 3);
+  const chosen = [];
+  for (const doc of docs) {
+    const id = String(doc._id);
+    if (usedIds.has(id) && docs.length > limit) continue;
+    chosen.push(doc);
+    usedIds.add(id);
+    if (chosen.length >= limit) break;
+  }
+  return chosen.map(normalizeProductForResponse);
+}
+
+async function generateMarketingBannerBuffer({ title, subtitle, products = [] }) {
+  const { default: sharp } = await import('sharp');
+  const width = 1600;
+  const height = 520;
+  const safeTitle = xmlEscape(title || 'Ariana Móveis');
+  const safeSubtitle = xmlEscape(subtitle || 'Ofertas selecionadas para você');
+  const bg = Buffer.from(`
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0047AB"/><stop offset="100%" stop-color="#0A63D8"/></linearGradient>
+        <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00275f" flood-opacity="0.30"/></filter>
+      </defs>
+      <rect width="1600" height="520" rx="34" fill="url(#bg)"/>
+      <circle cx="1320" cy="-80" r="260" fill="#ffffff" opacity="0.10"/>
+      <circle cx="1480" cy="420" r="250" fill="#F7C600" opacity="0.22"/>
+      <text x="78" y="120" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
+      <text x="78" y="220" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900" fill="#ffffff">${safeTitle}</text>
+      <text x="82" y="288" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" fill="#EAF4FF">${safeSubtitle}</text>
+      <rect x="82" y="352" width="330" height="72" rx="22" fill="#16A34A"/>
+      <text x="247" y="399" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="900" fill="#ffffff">COMPRE AGORA</text>
+      <text x="82" y="462" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
+    </svg>`);
+
+  const composites = [{ input: bg, top: 0, left: 0 }];
+  const positions = [
+    { left: 875, top: 72, width: 330, height: 330 },
+    { left: 1110, top: 118, width: 300, height: 300 },
+    { left: 1325, top: 92, width: 250, height: 250 }
+  ];
+  for (let i = 0; i < Math.min(products.length, positions.length); i += 1) {
+    const pos = positions[i];
+    const productPng = await loadRemoteImageAsPng(pickProductImage(products[i]), pos.width, pos.height);
+    if (!productPng) continue;
+    const card = Buffer.from(`<svg width="${pos.width + 36}" height="${pos.height + 36}" xmlns="http://www.w3.org/2000/svg"><rect x="18" y="18" width="${pos.width}" height="${pos.height}" rx="28" fill="#ffffff" filter="url(#shadow)"/></svg>`);
+    composites.push({ input: card, left: pos.left - 18, top: pos.top - 18 });
+    composites.push({ input: productPng, left: pos.left, top: pos.top });
+  }
+  return sharp({ create: { width, height, channels: 4, background: '#ffffff' } }).composite(composites).png().toBuffer();
+}
+
+async function generateAndSaveProductCreative(doc, variant = 'square', pixPercent = 17) {
+  const product = normalizeProductForResponse(doc);
+  const buffer = await generateProductPosterBuffer(product, { variant, pixPercent });
+  const publicId = `${sanitizeIdPart(product.name || product.sku || product.id)}-${variant}-${Date.now()}`;
+  const result = await uploadBufferToCloudinary(buffer, {
+    folder: buildCloudinaryFolder(`posters/produtos/${variant}`),
+    public_id: publicId
+  });
+  const poster = { variant, url: result.secure_url, public_id: result.public_id, width: result.width, height: result.height, format: result.format, createdAt: new Date().toISOString() };
+  await Product.findByIdAndUpdate(doc._id, { $push: { posters: { $each: [poster], $slice: -20 } }, $set: { updatedAt: new Date() } });
+  return poster;
+}
+
 app.post('/api/admin/posters/product/:id', adminRequired, async (req, res) => {
   try {
     if (!isCloudinaryConfigured()) {
@@ -1841,31 +1963,9 @@ app.post('/api/admin/posters/product/:id', adminRequired, async (req, res) => {
     if (!doc) doc = await Product.findOne({ $or: [{ slug: req.params.id }, { sku: req.params.id }] });
     if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
 
-    const product = normalizeProductForResponse(doc);
     const variant = String(req.body?.variant || req.query?.variant || 'square').toLowerCase() === 'story' ? 'story' : 'square';
     const pixPercent = Number(req.body?.pixPercent || req.query?.pixPercent || 17);
-
-    const buffer = await generateProductPosterBuffer(product, { variant, pixPercent });
-    const publicId = `${sanitizeIdPart(product.name || product.sku || product.id)}-${variant}-${Date.now()}`;
-    const result = await uploadBufferToCloudinary(buffer, {
-      folder: buildCloudinaryFolder(`posters/produtos/${variant}`),
-      public_id: publicId
-    });
-
-    const poster = {
-      variant,
-      url: result.secure_url,
-      public_id: result.public_id,
-      width: result.width,
-      height: result.height,
-      format: result.format,
-      createdAt: new Date().toISOString()
-    };
-
-    await Product.findByIdAndUpdate(doc._id, {
-      $push: { posters: { $each: [poster], $slice: -20 } },
-      $set: { updatedAt: new Date() }
-    });
+    const poster = await generateAndSaveProductCreative(doc, variant, pixPercent);
 
     return res.json({ ok: true, productId: String(doc._id), poster, url: poster.url });
   } catch (error) {
@@ -1881,6 +1981,135 @@ app.post('/api/admin/posters/offers', adminRequired, async (req, res) => {
     return res.json({ ok: true, message: 'Primeira versão instalada. Use /api/admin/posters/product/:id para gerar posters por produto.', products: products.map(normalizeProductForResponse) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'offers_poster_failed' });
+  }
+});
+
+
+app.post('/api/admin/posters/bulk', adminRequired, async (req, res) => {
+  try {
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
+    const variant = String(req.body?.variant || req.query?.variant || 'square').toLowerCase() === 'story' ? 'story' : 'square';
+    const limit = Math.min(Math.max(Number(req.body?.limit || req.query?.limit || 500), 1), 1000);
+    const pixPercent = Number(req.body?.pixPercent || req.query?.pixPercent || 17);
+    const products = await Product.find({ active: { $ne: false } }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit);
+    const results = [];
+    for (const doc of products) {
+      try {
+        const poster = await generateAndSaveProductCreative(doc, variant, pixPercent);
+        results.push({ ok: true, productId: String(doc._id), name: doc.name, url: poster.url });
+      } catch (error) {
+        results.push({ ok: false, productId: String(doc._id), name: doc.name, error: error.message });
+      }
+    }
+    return res.json({ ok: true, variant, total: products.length, success: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, results });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'bulk_posters_failed' });
+  }
+});
+
+app.post('/api/admin/marketing/banner-drafts/generate', adminRequired, async (req, res) => {
+  try {
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
+    const definitions = bannerDraftDefinitions();
+    const usedIds = new Set();
+    const saved = [];
+    for (const def of definitions) {
+      const products = await selectProductsForBanner(def, usedIds, 3);
+      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products });
+      const result = await uploadBufferToCloudinary(buffer, {
+        folder: buildCloudinaryFolder('banners/rascunhos'),
+        public_id: `draft-${def.key}-${Date.now()}`
+      });
+      const slot = `draft_${def.key}_${Date.now()}`;
+      const doc = await Banner.create({
+        slot,
+        targetSlot: def.targetSlot,
+        title: def.title,
+        subtitle: def.subtitle,
+        image: result.secure_url,
+        href: def.targetSlot.includes('categoria') ? '/categoria.html' : '/produtos.html',
+        alt: def.title,
+        active: false,
+        status: 'draft',
+        source: 'automatic',
+        draftType: 'home_banner',
+        products: products.map(p => ({ id: String(p.id || p._id), name: p.name, image: p.imageUrl || p.mainImageUrl || '' })),
+        sortOrder: saved.length + 1,
+        device: 'all'
+      });
+      saved.push(doc);
+    }
+    return res.json({ ok: true, count: saved.length, drafts: saved.map(normalizeBannerForResponse) });
+  } catch (error) {
+    console.error('[marketing] erro ao gerar rascunhos:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'banner_drafts_generate_failed' });
+  }
+});
+
+app.get('/api/admin/marketing/banner-drafts', adminRequired, async (_req, res) => {
+  try {
+    const rows = await Banner.find({ status: 'draft', active: false }).sort({ createdAt: -1 }).limit(100);
+    return res.json({ ok: true, drafts: rows.map(normalizeBannerForResponse) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'banner_drafts_list_failed' });
+  }
+});
+
+app.post('/api/admin/marketing/banner-drafts/:id/publish', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    const doc = oid ? await Banner.findById(oid) : await Banner.findOne({ slot: req.params.id });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho não encontrado' });
+    const targetSlot = String(req.body?.targetSlot || doc.targetSlot || doc.slot || '').trim();
+    if (!targetSlot) return res.status(400).json({ ok: false, error: 'targetSlot_required' });
+    await Banner.updateMany({ _id: { $ne: doc._id }, slot: targetSlot, active: true }, { $set: { active: false, status: 'archived' } });
+    doc.slot = targetSlot;
+    doc.targetSlot = targetSlot;
+    doc.active = true;
+    doc.status = 'published';
+    doc.source = doc.source || 'automatic';
+    await doc.save();
+    return res.json({ ok: true, banner: normalizeBannerForResponse(doc) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'banner_draft_publish_failed' });
+  }
+});
+
+app.delete('/api/admin/marketing/banner-drafts/:id', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    const doc = oid ? await Banner.findByIdAndDelete(oid) : await Banner.findOneAndDelete({ slot: req.params.id, status: 'draft' });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho não encontrado' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'banner_draft_delete_failed' });
+  }
+});
+
+app.post('/api/admin/marketing/generate-all-drafts', adminRequired, async (req, res) => {
+  try {
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
+    const limit = Math.min(Math.max(Number(req.body?.limit || req.query?.limit || 500), 1), 1000);
+    const products = await Product.find({ active: { $ne: false } }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit);
+    const posters = [];
+    const stories = [];
+    for (const doc of products) {
+      try { const poster = await generateAndSaveProductCreative(doc, 'square', 17); posters.push({ ok: true, productId: String(doc._id), url: poster.url }); } catch (error) { posters.push({ ok: false, productId: String(doc._id), error: error.message }); }
+      try { const story = await generateAndSaveProductCreative(doc, 'story', 17); stories.push({ ok: true, productId: String(doc._id), url: story.url }); } catch (error) { stories.push({ ok: false, productId: String(doc._id), error: error.message }); }
+    }
+    const definitions = bannerDraftDefinitions();
+    const usedIds = new Set();
+    const drafts = [];
+    for (const def of definitions) {
+      const selected = await selectProductsForBanner(def, usedIds, 3);
+      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products: selected });
+      const result = await uploadBufferToCloudinary(buffer, { folder: buildCloudinaryFolder('banners/rascunhos'), public_id: `draft-${def.key}-${Date.now()}` });
+      const doc = await Banner.create({ slot: `draft_${def.key}_${Date.now()}`, targetSlot: def.targetSlot, title: def.title, subtitle: def.subtitle, image: result.secure_url, href: def.targetSlot.includes('categoria') ? '/categoria.html' : '/produtos.html', alt: def.title, active: false, status: 'draft', source: 'automatic', draftType: 'home_banner', products: selected.map(p => ({ id: String(p.id || p._id), name: p.name, image: p.imageUrl || p.mainImageUrl || '' })), sortOrder: drafts.length + 1, device: 'all' });
+      drafts.push(normalizeBannerForResponse(doc));
+    }
+    return res.json({ ok: true, products: products.length, postersSuccess: posters.filter(x => x.ok).length, storiesSuccess: stories.filter(x => x.ok).length, bannerDrafts: drafts.length, posters, stories, drafts });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'generate_all_drafts_failed' });
   }
 });
 
