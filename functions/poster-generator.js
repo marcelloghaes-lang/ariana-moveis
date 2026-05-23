@@ -9,6 +9,7 @@ const WHATSAPP_NUMBER = '5531985147119';
 const WHATSAPP_TEXT = 'Olá! Vim pelo cartaz da Ariana Móveis e quero comprar este produto.';
 const TEXT_DARK = '#172033';
 const TEXT_MUTED = '#64748B';
+const CARD_STROKE = '#D6E8FF';
 
 function escapeXml(value = '') {
   return String(value || '')
@@ -76,7 +77,6 @@ async function loadImageBuffer(url) {
 }
 
 function calculatePricing(product = {}, pixPercent = 17) {
-  // Regra visual da Ariana: preço do Mongo é o preço cheio/parcelado; PIX recebe desconto.
   const fullPrice = toNumber(
     product.oldPrice || product.precoAntigo || product.precoDe || product.price || product.preco || 0,
     0
@@ -88,22 +88,56 @@ function calculatePricing(product = {}, pixPercent = 17) {
   return { fullPrice, pixPrice, pixPercent, installmentCount, installmentPrice };
 }
 
-function backgroundSvg({ width, height, variant }) {
+function layoutForVariant(variant) {
   const isStory = variant === 'story';
-  const headerH = isStory ? 112 : 92;
-  const imageBox = isStory
-    ? { x: 70, y: 430, w: 940, h: 650, rx: 34 }
-    : { x: 72, y: 270, w: 936, h: 410, rx: 30 };
-  const priceCard = isStory
-    ? { x: 70, y: 1115, w: 940, h: 400, rx: 34 }
-    : { x: 70, y: 700, w: 940, h: 245, rx: 30 };
+  if (isStory) {
+    return {
+      width: 1080,
+      height: 1920,
+      headerH: 112,
+      shell: { x: 45, y: 132, w: 990, h: 1628, rx: 42 },
+      title: { x: 70, y: 186, size: 42, gap: 49, maxChars: 28, maxLines: 3, catOffset: 17 },
+      imageBox: { x: 70, y: 405, w: 940, h: 650, rx: 34 },
+      img: { w: 900, h: 610, top: 425 },
+      priceCard: { x: 70, y: 1090, w: 940, h: 395, rx: 34 },
+      badge: { x: 92, y: 1120, w: 245, h: 66, fs: 28 },
+      offerBadge: { w: 238, fs: 25 },
+      oldPrice: { x: 92, y: 1232, fs: 30 },
+      pixPrice: { x: 92, y: 1325, fs: 72 },
+      pixText: { x: 555, y: 1325, fs: 31 },
+      installment: { x: 92, y: 1386, fs: 29 },
+      total: { x: 92, y: 1435, fs: 24 },
+      cta: { x: 70, y: 1585, w: 940, h: 108, fs: 40, textY: 1653, phoneY: 1755, phoneFs: 28 }
+    };
+  }
+  return {
+    width: 1080,
+    height: 1080,
+    headerH: 92,
+    shell: { x: 45, y: 112, w: 990, h: 920, rx: 42 },
+    title: { x: 70, y: 158, size: 41, gap: 48, maxChars: 34, maxLines: 2, catOffset: 18 },
+    imageBox: { x: 70, y: 265, w: 940, h: 405, rx: 30 },
+    img: { w: 890, h: 385, top: 275 },
+    priceCard: { x: 70, y: 695, w: 940, h: 255, rx: 30 },
+    badge: { x: 92, y: 720, w: 225, h: 52, fs: 23 },
+    offerBadge: { w: 210, fs: 22 },
+    oldPrice: { x: 92, y: 812, fs: 25 },
+    pixPrice: { x: 92, y: 875, fs: 55 },
+    pixText: { x: 505, y: 875, fs: 25 },
+    installment: { x: 92, y: 918, fs: 23 },
+    total: { x: 92, y: 948, fs: 18 },
+    cta: { x: 70, y: 972, w: 940, h: 74, fs: 30, textY: 1021, phoneY: 1063, phoneFs: 18 }
+  };
+}
 
+function backgroundSvg({ width, height, variant }) {
+  const L = layoutForVariant(variant);
   return `
   <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#ffffff"/>
-        <stop offset="48%" stop-color="#eef6ff"/>
+        <stop offset="44%" stop-color="#eef6ff"/>
         <stop offset="100%" stop-color="#dbeafe"/>
       </linearGradient>
       <linearGradient id="hero" x1="0" y1="0" x2="1" y2="0">
@@ -115,69 +149,59 @@ function backgroundSvg({ width, height, variant }) {
       </filter>
     </defs>
     <rect width="${width}" height="${height}" fill="url(#bg)"/>
-    <rect x="0" y="0" width="${width}" height="${headerH}" fill="url(#hero)"/>
-    <circle cx="${width - (isStory ? 78 : 70)}" cy="${headerH / 2}" r="${isStory ? 31 : 27}" fill="${BRAND_YELLOW}"/>
+    <rect x="0" y="0" width="${width}" height="${L.headerH}" fill="url(#hero)"/>
+    <circle cx="${width - (variant === 'story' ? 78 : 70)}" cy="${L.headerH / 2}" r="${variant === 'story' ? 31 : 27}" fill="${BRAND_YELLOW}"/>
 
-    <rect x="45" y="${isStory ? 135 : 115}" width="${width - 90}" height="${isStory ? 1660 : 900}" rx="42" fill="#ffffff" filter="url(#shadow)"/>
-    <rect x="${imageBox.x}" y="${imageBox.y}" width="${imageBox.w}" height="${imageBox.h}" rx="${imageBox.rx}" fill="#f8fbff" stroke="#dbeafe" stroke-width="2"/>
-    <rect x="${priceCard.x}" y="${priceCard.y}" width="${priceCard.w}" height="${priceCard.h}" rx="${priceCard.rx}" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-    <path d="M${imageBox.x + 28} ${imageBox.y + imageBox.h - 18} H${imageBox.x + imageBox.w - 28}" stroke="#e2e8f0" stroke-width="2"/>
+    <rect x="${L.shell.x}" y="${L.shell.y}" width="${L.shell.w}" height="${L.shell.h}" rx="${L.shell.rx}" fill="#ffffff" filter="url(#shadow)"/>
+    <rect x="${L.imageBox.x}" y="${L.imageBox.y}" width="${L.imageBox.w}" height="${L.imageBox.h}" rx="${L.imageBox.rx}" fill="#f8fbff" stroke="${CARD_STROKE}" stroke-width="2"/>
+    <rect x="${L.priceCard.x}" y="${L.priceCard.y}" width="${L.priceCard.w}" height="${L.priceCard.h}" rx="${L.priceCard.rx}" fill="#ffffff" stroke="${CARD_STROKE}" stroke-width="2"/>
+    <path d="M${L.imageBox.x + 28} ${L.imageBox.y + L.imageBox.h - 18} H${L.imageBox.x + L.imageBox.w - 28}" stroke="#e2e8f0" stroke-width="2"/>
   </svg>`;
 }
 
 function foregroundSvg({ width, height, product, pricing, variant }) {
+  const L = layoutForVariant(variant);
   const isStory = variant === 'story';
-  const headerH = isStory ? 112 : 92;
-  const titleLines = wrapText(product.name || product.title || 'Produto Ariana Móveis', isStory ? 28 : 34, isStory ? 3 : 2);
-  const titleY = isStory ? 190 : 158;
-  const titleSize = isStory ? 46 : 42;
-  const lineGap = isStory ? 54 : 50;
+  const titleLines = wrapText(product.name || product.title || 'Produto Ariana Móveis', L.title.maxChars, L.title.maxLines);
   const category = String(product.categoryName || product.category || '').trim();
-
-  const priceY = isStory ? 1248 : 790;
-  const badge = isStory
-    ? { x: 92, y: 1145, w: 270, h: 68, fs: 31 }
-    : { x: 92, y: 724, w: 230, h: 52, fs: 25 };
-  const cta = isStory
-    ? { x: 70, y: 1605, w: 940, h: 108, fs: 40, urlY: 1810 }
-    : { x: 70, y: 960, w: 940, h: 76, fs: 30, urlY: 1057 };
-
   const titleText = titleLines.map((line, idx) => `
-    <text x="70" y="${titleY + idx * lineGap}" font-size="${titleSize}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`).join('');
+    <text x="${L.title.x}" y="${L.title.y + idx * L.title.gap}" font-size="${L.title.size}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`).join('');
 
   const whatsappLabel = isStory ? 'WHATSAPP (31) 98514-7119' : 'WhatsApp (31) 98514-7119';
+  const offerX = L.badge.x + L.badge.w + 20;
 
   return `
   <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
     <text x="70" y="${isStory ? 70 : 58}" font-size="${isStory ? 36 : 32}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">ARIANA MÓVEIS</text>
     <text x="${isStory ? 560 : 620}" y="${isStory ? 70 : 58}" font-size="${isStory ? 22 : 20}" font-weight="800" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">ONLINE • PARA TODO BRASIL</text>
-    <text x="${width - (isStory ? 78 : 70)}" y="${headerH / 2 + 8}" text-anchor="middle" font-size="${isStory ? 20 : 18}" font-weight="900" fill="${BRAND_BLUE_DARK}" font-family="Arial, Helvetica, sans-serif">PIX</text>
+    <text x="${width - (isStory ? 78 : 70)}" y="${L.headerH / 2 + 8}" text-anchor="middle" font-size="${isStory ? 20 : 18}" font-weight="900" fill="${BRAND_BLUE_DARK}" font-family="Arial, Helvetica, sans-serif">PIX</text>
 
     ${titleText}
-    ${category ? `<text x="70" y="${titleY + titleLines.length * lineGap + 18}" font-size="${isStory ? 26 : 22}" font-weight="800" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">${escapeXml(category)}</text>` : ''}
+    ${category ? `<text x="70" y="${L.title.y + titleLines.length * L.title.gap + L.title.catOffset}" font-size="${isStory ? 25 : 22}" font-weight="800" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">${escapeXml(category)}</text>` : ''}
 
-    <rect x="${badge.x}" y="${badge.y}" width="${badge.w}" height="${badge.h}" rx="17" fill="${BRAND_GREEN}"/>
-    <text x="${badge.x + badge.w / 2}" y="${badge.y + (isStory ? 45 : 35)}" text-anchor="middle" font-size="${badge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${pricing.pixPercent}% OFF</text>
-    <rect x="${badge.x + badge.w + 20}" y="${badge.y}" width="${isStory ? 245 : 210}" height="${badge.h}" rx="17" fill="${BRAND_ORANGE}"/>
-    <text x="${badge.x + badge.w + 20 + (isStory ? 122 : 105)}" y="${badge.y + (isStory ? 45 : 35)}" text-anchor="middle" font-size="${isStory ? 27 : 23}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">OFERTA PIX</text>
+    <rect x="${L.badge.x}" y="${L.badge.y}" width="${L.badge.w}" height="${L.badge.h}" rx="17" fill="${BRAND_GREEN}"/>
+    <text x="${L.badge.x + L.badge.w / 2}" y="${L.badge.y + (isStory ? 43 : 34)}" text-anchor="middle" font-size="${L.badge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${pricing.pixPercent}% OFF</text>
+    <rect x="${offerX}" y="${L.badge.y}" width="${L.offerBadge.w}" height="${L.badge.h}" rx="17" fill="${BRAND_ORANGE}"/>
+    <text x="${offerX + L.offerBadge.w / 2}" y="${L.badge.y + (isStory ? 43 : 34)}" text-anchor="middle" font-size="${L.offerBadge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">OFERTA PIX</text>
 
-    <text x="92" y="${priceY}" font-size="${isStory ? 34 : 27}" fill="#94a3b8" text-decoration="line-through" font-family="Arial, Helvetica, sans-serif">de ${brl(pricing.fullPrice)}</text>
-    <text x="92" y="${priceY + (isStory ? 100 : 70)}" font-size="${isStory ? 74 : 56}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${brl(pricing.pixPrice)}</text>
-    <text x="${isStory ? 555 : 505}" y="${priceY + (isStory ? 100 : 70)}" font-size="${isStory ? 33 : 25}" font-weight="900" fill="${BRAND_GREEN}" font-family="Arial, Helvetica, sans-serif">no PIX à vista</text>
-    <text x="92" y="${priceY + (isStory ? 162 : 118)}" font-size="${isStory ? 31 : 24}" font-weight="800" fill="#334155" font-family="Arial, Helvetica, sans-serif">ou ${pricing.installmentCount}x de ${brl(pricing.installmentPrice)} s/ juros no cartão</text>
-    <text x="92" y="${priceY + (isStory ? 210 : 153)}" font-size="${isStory ? 25 : 19}" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">Total parcelado: ${brl(pricing.fullPrice)}</text>
+    <text x="${L.oldPrice.x}" y="${L.oldPrice.y}" font-size="${L.oldPrice.fs}" fill="#94a3b8" text-decoration="line-through" font-family="Arial, Helvetica, sans-serif">de ${brl(pricing.fullPrice)}</text>
+    <text x="${L.pixPrice.x}" y="${L.pixPrice.y}" font-size="${L.pixPrice.fs}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${brl(pricing.pixPrice)}</text>
+    <text x="${L.pixText.x}" y="${L.pixText.y}" font-size="${L.pixText.fs}" font-weight="900" fill="${BRAND_GREEN}" font-family="Arial, Helvetica, sans-serif">no PIX à vista</text>
+    <text x="${L.installment.x}" y="${L.installment.y}" font-size="${L.installment.fs}" font-weight="800" fill="#334155" font-family="Arial, Helvetica, sans-serif">ou ${pricing.installmentCount}x de ${brl(pricing.installmentPrice)} s/ juros no cartão</text>
+    <text x="${L.total.x}" y="${L.total.y}" font-size="${L.total.fs}" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">Total parcelado: ${brl(pricing.fullPrice)}</text>
 
-    <rect x="${cta.x}" y="${cta.y}" width="${cta.w}" height="${cta.h}" rx="22" fill="${BRAND_BLUE}"/>
-    <text x="${width / 2}" y="${cta.y + (isStory ? 67 : 49)}" text-anchor="middle" font-size="${cta.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">COMPRE AGORA</text>
-    <text x="${width / 2}" y="${cta.urlY}" text-anchor="middle" font-size="${isStory ? 25 : 18}" font-weight="800" fill="#5d8fd8" font-family="Arial, Helvetica, sans-serif">${whatsappLabel}</text>
+    <rect x="${L.cta.x}" y="${L.cta.y}" width="${L.cta.w}" height="${L.cta.h}" rx="22" fill="${BRAND_BLUE}"/>
+    <text x="${width / 2}" y="${L.cta.textY}" text-anchor="middle" font-size="${L.cta.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">COMPRE AGORA</text>
+    <text x="${width / 2}" y="${L.cta.phoneY}" text-anchor="middle" font-size="${L.cta.phoneFs}" font-weight="900" fill="${BRAND_BLUE}" font-family="Arial, Helvetica, sans-serif">${whatsappLabel}</text>
   </svg>`;
 }
 
 export async function generateProductPosterBuffer(product = {}, options = {}) {
   const { default: sharp } = await import('sharp');
   const variant = options.variant === 'story' ? 'story' : 'square';
-  const width = 1080;
-  const height = variant === 'story' ? 1920 : 1080;
+  const L = layoutForVariant(variant);
+  const width = L.width;
+  const height = L.height;
   const pricing = calculatePricing(product, Number(options.pixPercent || 17));
   const imageUrl = getMainImageUrl(product);
 
@@ -187,23 +211,22 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
 
   const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    const imgBox = variant === 'story'
-      ? { w: 880, h: 590, top: 465 }
-      : { w: 850, h: 365, top: 300 };
-
     let pipeline = sharp(rawImage).rotate();
     try {
-      // Remove margens brancas grandes das fotos de produto sem cortar o objeto.
       pipeline = pipeline.flatten({ background: '#ffffff' }).trim({ background: '#ffffff', threshold: 18 });
     } catch (_error) {
       pipeline = sharp(rawImage).rotate();
     }
 
     const productPng = await pipeline
-      .resize(imgBox.w, imgBox.h, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 }, withoutEnlargement: false })
+      .resize(L.img.w, L.img.h, {
+        fit: 'contain',
+        background: { r: 255, g: 255, b: 255, alpha: 0 },
+        withoutEnlargement: false
+      })
       .png()
       .toBuffer();
-    composites.push({ input: productPng, top: imgBox.top, left: Math.round((width - imgBox.w) / 2) });
+    composites.push({ input: productPng, top: L.img.top, left: Math.round((width - L.img.w) / 2) });
   }
 
   composites.push({ input: fg, top: 0, left: 0 });
