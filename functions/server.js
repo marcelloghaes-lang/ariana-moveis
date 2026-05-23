@@ -1862,15 +1862,33 @@ async function loadRemoteImageAsPng(url, width, height) {
 }
 
 function bannerDraftDefinitions() {
+  // Slots oficiais do painel de banners. Ao publicar, o rascunho vira exatamente o mesmo
+  // documento/slot que o index lê e que o painel manual também edita.
   return [
-    { key: 'ofertas_imperdiveis', targetSlot: 'home_ofertas_imperdiveis', title: 'Ofertas imperdíveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', filter: { isOffer: true } },
-    { key: 'lancamentos', targetSlot: 'home_lancamentos', title: 'Lançamentos Ariana Móveis', subtitle: 'Novidades selecionadas para sua casa', filter: { isNewArrival: true } },
-    { key: 'recomendado', targetSlot: 'home_recomendado', title: 'Recomendado pra você', subtitle: 'Produtos escolhidos para vender mais', filter: { isRecommended: true } },
-    { key: 'mais_vendidos', targetSlot: 'home_mais_vendidos', title: 'Mais vendidos', subtitle: 'Os queridinhos dos clientes Ariana', filter: { isBestSeller: true } },
-    { key: 'smart_tv', targetSlot: 'home_categoria_smart_tv', title: 'Smart TVs em destaque', subtitle: 'Imagem de cinema para sua sala', categoryRegex: /smart\s*tv|televis|tv/i },
-    { key: 'moveis', targetSlot: 'home_categoria_moveis', title: 'Móveis para renovar sua casa', subtitle: 'Guarda-roupas, salas, cozinhas e muito mais', categoryRegex: /m[oó]veis|guarda|roupeiro|cama|sala|cozinha|rack|painel/i },
-    { key: 'colchoes', targetSlot: 'home_categoria_colchoes', title: 'Colchões com conforto de verdade', subtitle: 'Escolha seu modelo e compre pelo WhatsApp', categoryRegex: /colch[oõ]es|colchao|colchão/i },
-    { key: 'eletrodomesticos', targetSlot: 'home_categoria_eletrodomesticos', title: 'Eletrodomésticos em oferta', subtitle: 'Geladeiras, lavadoras, fogões e muito mais', categoryRegex: /eletrodom[eé]sticos|geladeira|refrigerador|lavadora|m[aá]quina|fog[aã]o|freezer/i }
+    { key: 'index_main', targetSlot: 'index_main', title: 'Ofertas imperdíveis Ariana Móveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', width: 1920, height: 480, productLimit: 4, filter: { isOffer: true }, href: 'todos_produtos.html?section=offers' },
+    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'Promoção especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 2, filter: { isOffer: true }, href: 'todos_produtos.html?section=offers' },
+
+    { key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'Móveis em destaque', subtitle: 'Renove sua casa com preço especial', width: 800, height: 450, productLimit: 2, categoryRegex: /m[oó]veis|guarda|roupeiro|cama|sala|cozinha|rack|painel/i, href: 'categoria.html?category=Móveis' },
+    { key: 'index_mini_2', targetSlot: 'index_mini_2', title: 'Som e áudio', subtitle: 'Produtos selecionados para você', width: 800, height: 450, productLimit: 2, categoryRegex: /som|audio|áudio|caixa/i, href: 'categoria.html?category=Som e Áudio' },
+    { key: 'index_mini_3', targetSlot: 'index_mini_3', title: 'Climatização', subtitle: 'Mais conforto para sua casa', width: 800, height: 450, productLimit: 2, categoryRegex: /ar condicionado|climatizador|ventilador/i, href: 'categoria.html?category=Ventiladores' },
+    { key: 'index_mini_4', targetSlot: 'index_mini_4', title: 'Celulares', subtitle: 'Smartphones com ofertas especiais', width: 800, height: 450, productLimit: 2, categoryRegex: /smartphone|celular|iphone|telefone/i, href: 'categoria.html?category=Smartphones' },
+    { key: 'index_mini_5', targetSlot: 'index_mini_5', title: 'Smart TVs', subtitle: 'Imagem de cinema para sua sala', width: 800, height: 450, productLimit: 2, categoryRegex: /smart\s*tv|televis|tv/i, href: 'categoria.html?category=Smart Tv' },
+
+    { key: 'index_duo_1', targetSlot: 'index_duo_1', title: 'Lançamentos', subtitle: 'Novidades selecionadas para sua casa', width: 1200, height: 400, productLimit: 3, filter: { isNewArrival: true }, href: 'todos_produtos.html?section=new_arrivals' },
+    { key: 'index_duo_2', targetSlot: 'index_duo_2', title: 'Recomendado pra você', subtitle: 'Produtos escolhidos para vender mais', width: 1200, height: 400, productLimit: 3, filter: { isRecommended: true }, href: 'todos_produtos.html?section=recommended' },
+
+    { key: 'index_secondary_1', targetSlot: 'index_secondary_1', title: 'Queridinhos da internet', subtitle: 'Os produtos mais procurados na Ariana Móveis', width: 1200, height: 350, productLimit: 3, filter: { isBestSeller: true }, href: 'todos_produtos.html?section=best_sellers' },
+    { key: 'index_secondary_2', targetSlot: 'index_secondary_2', title: 'Promoção exclusiva', subtitle: 'Selecionamos ofertas para você economizar', width: 1200, height: 350, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html?section=featured' },
+
+    { key: 'home_card_1', targetSlot: 'home_card_1', title: 'Eletrodomésticos', subtitle: 'Geladeiras, lavadoras e muito mais', width: 800, height: 800, productLimit: 2, categoryRegex: /eletrodom[eé]sticos|geladeira|refrigerador|lavadora|m[aá]quina|fog[aã]o|freezer/i, href: 'todos_produtos.html?q=eletro' },
+    { key: 'home_card_2', targetSlot: 'home_card_2', title: 'Informática', subtitle: 'Tecnologia para sua rotina', width: 800, height: 800, productLimit: 2, categoryRegex: /inform[aá]tica|notebook|computador|monitor/i, href: 'todos_produtos.html?q=informatica' },
+    { key: 'home_card_3', targetSlot: 'home_card_3', title: 'Móveis', subtitle: 'Ambientes bonitos e completos', width: 800, height: 800, productLimit: 2, categoryRegex: /m[oó]veis|guarda|roupeiro|cama|sala|cozinha|rack|painel/i, href: 'todos_produtos.html?q=moveis' },
+
+    { key: 'footer_banner', targetSlot: 'footer_banner', title: 'Mais ofertas para você', subtitle: 'Ariana Móveis: compra fácil pelo site ou WhatsApp', width: 1920, height: 400, productLimit: 4, href: 'todos_produtos.html' },
+    { key: 'header_category_banner', targetSlot: 'header_category_banner', title: 'Categorias Ariana', subtitle: 'Encontre móveis, eletros, colchões e tecnologia', width: 900, height: 520, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html' },
+
+    { key: 'produto_detail_horizontal_1', targetSlot: 'produto_detail_horizontal_1', title: 'Complemente sua compra', subtitle: 'Produtos selecionados para combinar com sua casa', width: 1200, height: 350, productLimit: 3, filter: { isRecommended: true }, href: 'todos_produtos.html?section=recommended' },
+    { key: 'produto_detail_horizontal_2', targetSlot: 'produto_detail_horizontal_2', title: 'Oferta especial Ariana', subtitle: 'Condições imperdíveis por tempo limitado', width: 1200, height: 350, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html?section=offers' }
   ];
 }
 
@@ -1899,44 +1917,86 @@ async function selectProductsForBanner(definition, usedIds = new Set(), limit = 
   return chosen.map(normalizeProductForResponse);
 }
 
-async function generateMarketingBannerBuffer({ title, subtitle, products = [] }) {
+async function generateMarketingBannerBuffer({ title, subtitle, products = [], width = 1600, height = 520, targetSlot = '' }) {
   const { default: sharp } = await import('sharp');
-  const width = 1600;
-  const height = 520;
+  const W = Number(width || 1600);
+  const H = Number(height || 520);
   const safeTitle = xmlEscape(title || 'Ariana Móveis');
   const safeSubtitle = xmlEscape(subtitle || 'Ofertas selecionadas para você');
+  const isVertical = H > W;
+  const isSquare = Math.abs(W - H) < 30;
+  const brandFs = Math.max(20, Math.round(W * 0.021));
+  const titleFs = Math.max(isVertical ? 42 : 36, Math.round(W * (isVertical ? 0.074 : isSquare ? 0.060 : 0.043)));
+  const subFs = Math.max(18, Math.round(W * (isVertical ? 0.040 : 0.022)));
+  const topBrandY = Math.round(H * 0.13);
+  const titleY = Math.round(H * (isVertical ? 0.27 : isSquare ? 0.25 : 0.42));
+  const subY = Math.round(titleY + titleFs * 0.82);
+  const ctaW = Math.round(W * (isVertical ? 0.62 : 0.22));
+  const ctaH = Math.max(44, Math.round(H * 0.14));
+  const ctaX = Math.round(W * 0.05);
+  const ctaY = Math.round(H - ctaH - H * 0.10);
+  const ctaFs = Math.max(18, Math.round(ctaH * 0.38));
+  const textMaxW = isVertical ? Math.round(W * 0.86) : Math.round(W * 0.53);
+
   const bg = Buffer.from(`
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0047AB"/><stop offset="100%" stop-color="#0A63D8"/></linearGradient>
-        <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00275f" flood-opacity="0.30"/></filter>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0047AB"/>
+          <stop offset="58%" stop-color="#0A63D8"/>
+          <stop offset="100%" stop-color="#062E6F"/>
+        </linearGradient>
       </defs>
-      <rect width="1600" height="520" rx="34" fill="url(#bg)"/>
-      <circle cx="1320" cy="-80" r="260" fill="#ffffff" opacity="0.10"/>
-      <circle cx="1480" cy="420" r="250" fill="#F7C600" opacity="0.22"/>
-      <text x="78" y="120" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
-      <text x="78" y="220" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="900" fill="#ffffff">${safeTitle}</text>
-      <text x="82" y="288" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="700" fill="#EAF4FF">${safeSubtitle}</text>
-      <rect x="82" y="352" width="330" height="72" rx="22" fill="#16A34A"/>
-      <text x="247" y="399" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="900" fill="#ffffff">COMPRE AGORA</text>
-      <text x="82" y="462" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
+      <rect width="${W}" height="${H}" rx="${Math.max(0, Math.round(Math.min(W,H)*0.035))}" fill="url(#bg)"/>
+      <circle cx="${Math.round(W*0.84)}" cy="${Math.round(-H*0.12)}" r="${Math.round(Math.min(W,H)*0.50)}" fill="#ffffff" opacity="0.10"/>
+      <circle cx="${Math.round(W*0.93)}" cy="${Math.round(H*0.84)}" r="${Math.round(Math.min(W,H)*0.42)}" fill="#F7C600" opacity="0.22"/>
+      <text x="${Math.round(W*0.05)}" y="${topBrandY}" font-family="Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
+      <foreignObject x="${Math.round(W*0.05)}" y="${Math.max(0, titleY-titleFs)}" width="${textMaxW}" height="${Math.round(titleFs*1.60)}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:900;line-height:0.98;color:white;letter-spacing:-1px;">${safeTitle}</div>
+      </foreignObject>
+      <foreignObject x="${Math.round(W*0.052)}" y="${subY}" width="${textMaxW}" height="${Math.round(subFs*2.6)}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Arial,Helvetica,sans-serif;font-size:${subFs}px;font-weight:700;line-height:1.15;color:#EAF4FF;">${safeSubtitle}</div>
+      </foreignObject>
+      <rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH*0.32)}" fill="#16A34A"/>
+      <text x="${ctaX + ctaW/2}" y="${Math.round(ctaY + ctaH*0.62)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${ctaFs}" font-weight="900" fill="#ffffff">COMPRE AGORA</text>
+      <text x="${Math.round(W*0.05)}" y="${Math.round(H*0.94)}" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(16, Math.round(W*0.018))}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
     </svg>`);
 
   const composites = [{ input: bg, top: 0, left: 0 }];
-  const positions = [
-    { left: 875, top: 72, width: 330, height: 330 },
-    { left: 1110, top: 118, width: 300, height: 300 },
-    { left: 1325, top: 92, width: 250, height: 250 }
-  ];
+
+  function productPositions() {
+    if (isVertical) {
+      return [
+        { left: Math.round(W*0.18), top: Math.round(H*0.43), width: Math.round(W*0.64), height: Math.round(H*0.26) },
+        { left: Math.round(W*0.28), top: Math.round(H*0.63), width: Math.round(W*0.44), height: Math.round(H*0.19) }
+      ];
+    }
+    if (isSquare) {
+      return [
+        { left: Math.round(W*0.47), top: Math.round(H*0.18), width: Math.round(W*0.40), height: Math.round(H*0.40) },
+        { left: Math.round(W*0.60), top: Math.round(H*0.49), width: Math.round(W*0.30), height: Math.round(H*0.30) }
+      ];
+    }
+    return [
+      { left: Math.round(W*0.55), top: Math.round(H*0.16), width: Math.round(W*0.19), height: Math.round(H*0.62) },
+      { left: Math.round(W*0.70), top: Math.round(H*0.21), width: Math.round(W*0.17), height: Math.round(H*0.54) },
+      { left: Math.round(W*0.84), top: Math.round(H*0.24), width: Math.round(W*0.14), height: Math.round(H*0.46) },
+      { left: Math.round(W*0.43), top: Math.round(H*0.30), width: Math.round(W*0.15), height: Math.round(H*0.42) }
+    ];
+  }
+
+  const positions = productPositions();
   for (let i = 0; i < Math.min(products.length, positions.length); i += 1) {
     const pos = positions[i];
     const productPng = await loadRemoteImageAsPng(pickProductImage(products[i]), pos.width, pos.height);
     if (!productPng) continue;
-    const card = Buffer.from(`<svg width="${pos.width + 36}" height="${pos.height + 36}" xmlns="http://www.w3.org/2000/svg"><rect x="18" y="18" width="${pos.width}" height="${pos.height}" rx="28" fill="#ffffff" filter="url(#shadow)"/></svg>`);
-    composites.push({ input: card, left: pos.left - 18, top: pos.top - 18 });
+    const pad = Math.max(10, Math.round(Math.min(W, H) * 0.018));
+    const card = Buffer.from(`<svg width="${pos.width + pad*2}" height="${pos.height + pad*2}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="s"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#00275f" flood-opacity="0.25"/></filter></defs><rect x="${pad}" y="${pad}" width="${pos.width}" height="${pos.height}" rx="${Math.round(Math.min(pos.width,pos.height)*0.10)}" fill="#ffffff" filter="url(#s)"/></svg>`);
+    composites.push({ input: card, left: pos.left - pad, top: pos.top - pad });
     composites.push({ input: productPng, left: pos.left, top: pos.top });
   }
-  return sharp({ create: { width, height, channels: 4, background: '#ffffff' } }).composite(composites).png().toBuffer();
+
+  return sharp({ create: { width: W, height: H, channels: 4, background: '#ffffff' } }).composite(composites).png().toBuffer();
 }
 
 async function generateAndSaveProductCreative(doc, variant = 'square', pixPercent = 17) {
@@ -2014,8 +2074,8 @@ app.post('/api/admin/marketing/banner-drafts/generate', adminRequired, async (re
     const usedIds = new Set();
     const saved = [];
     for (const def of definitions) {
-      const products = await selectProductsForBanner(def, usedIds, 3);
-      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products });
+      const products = await selectProductsForBanner(def, usedIds, Number(def.productLimit || 3));
+      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products, width: def.width, height: def.height, targetSlot: def.targetSlot });
       const result = await uploadBufferToCloudinary(buffer, {
         folder: buildCloudinaryFolder('banners/rascunhos'),
         public_id: `draft-${def.key}-${Date.now()}`
@@ -2027,12 +2087,12 @@ app.post('/api/admin/marketing/banner-drafts/generate', adminRequired, async (re
         title: def.title,
         subtitle: def.subtitle,
         image: result.secure_url,
-        href: def.targetSlot.includes('categoria') ? '/categoria.html' : '/produtos.html',
+        href: def.href || (def.targetSlot.includes('categoria') ? 'categoria.html' : 'todos_produtos.html'),
         alt: def.title,
         active: false,
         status: 'draft',
         source: 'automatic',
-        draftType: 'home_banner',
+        draftType: 'slot_banner',
         products: products.map(p => ({ id: String(p.id || p._id), name: p.name, image: p.imageUrl || p.mainImageUrl || '' })),
         sortOrder: saved.length + 1,
         device: 'all'
@@ -2062,7 +2122,7 @@ app.post('/api/admin/marketing/banner-drafts/:id/publish', adminRequired, async 
     if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho não encontrado' });
     const targetSlot = String(req.body?.targetSlot || doc.targetSlot || doc.slot || '').trim();
     if (!targetSlot) return res.status(400).json({ ok: false, error: 'targetSlot_required' });
-    await Banner.updateMany({ _id: { $ne: doc._id }, slot: targetSlot, active: true }, { $set: { active: false, status: 'archived' } });
+    await Banner.updateMany({ _id: { $ne: doc._id }, $or: [{ slot: targetSlot }, { targetSlot }], active: true }, { $set: { active: false, status: 'archived' } });
     doc.slot = targetSlot;
     doc.targetSlot = targetSlot;
     doc.active = true;
@@ -2101,10 +2161,10 @@ app.post('/api/admin/marketing/generate-all-drafts', adminRequired, async (req, 
     const usedIds = new Set();
     const drafts = [];
     for (const def of definitions) {
-      const selected = await selectProductsForBanner(def, usedIds, 3);
-      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products: selected });
+      const selected = await selectProductsForBanner(def, usedIds, Number(def.productLimit || 3));
+      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products: selected, width: def.width, height: def.height, targetSlot: def.targetSlot });
       const result = await uploadBufferToCloudinary(buffer, { folder: buildCloudinaryFolder('banners/rascunhos'), public_id: `draft-${def.key}-${Date.now()}` });
-      const doc = await Banner.create({ slot: `draft_${def.key}_${Date.now()}`, targetSlot: def.targetSlot, title: def.title, subtitle: def.subtitle, image: result.secure_url, href: def.targetSlot.includes('categoria') ? '/categoria.html' : '/produtos.html', alt: def.title, active: false, status: 'draft', source: 'automatic', draftType: 'home_banner', products: selected.map(p => ({ id: String(p.id || p._id), name: p.name, image: p.imageUrl || p.mainImageUrl || '' })), sortOrder: drafts.length + 1, device: 'all' });
+      const doc = await Banner.create({ slot: `draft_${def.key}_${Date.now()}`, targetSlot: def.targetSlot, title: def.title, subtitle: def.subtitle, image: result.secure_url, href: def.href || (def.targetSlot.includes('categoria') ? 'categoria.html' : 'todos_produtos.html'), alt: def.title, active: false, status: 'draft', source: 'automatic', draftType: 'slot_banner', products: selected.map(p => ({ id: String(p.id || p._id), name: p.name, image: p.imageUrl || p.mainImageUrl || '' })), sortOrder: drafts.length + 1, device: 'all' });
       drafts.push(normalizeBannerForResponse(doc));
     }
     return res.json({ ok: true, products: products.length, postersSuccess: posters.filter(x => x.ok).length, storiesSuccess: stories.filter(x => x.ok).length, bannerDrafts: drafts.length, posters, stories, drafts });

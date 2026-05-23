@@ -45,6 +45,7 @@
         <a href="#" onclick="window.changeView('dashboard')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="dashboard"><i class="fas fa-home"></i><span>Dashboard</span></a>
         <a href="#" onclick="window.changeView('atendimentos')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="atendimentos"><i class="fas fa-headset"></i><div class="flex-1 flex items-center justify-between"><span>Atendimentos</span><span id="badge-atendimentos" class="hidden bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">0</span></div></a>
         <a href="#" onclick="window.changeView('products')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="products"><i class="fas fa-box"></i><span>Produtos</span></a>
+        <a href="#" onclick="window.changeView('marketing')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="marketing"><i class="fas fa-bullhorn"></i><span>Marketing IA</span></a>
         <a href="#" onclick="window.changeView('orders')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="orders"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
         <a href="#" onclick="window.changeView('users')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="users"><i class="fas fa-users"></i><span>Usuários</span></a>
         <a href="#" onclick="window.changeView('categories')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="categories"><i class="fas fa-tags"></i><span>Categorias</span></a>
@@ -79,6 +80,7 @@
         </div>
         <div id="dashboard-view" class="view hidden animate-fade"><div id="dashboard-content"></div></div>
         <div id="products-view" class="view hidden animate-fade"><div id="products-content"></div></div>
+        <div id="marketing-view" class="view hidden animate-fade"><div id="marketing-content"></div></div>
         <div id="orders-view" class="view hidden animate-fade"><div id="orders-content"></div></div>
         <div id="users-view" class="view hidden animate-fade"><div id="users-content"></div></div>
         <div id="categories-view" class="view hidden animate-fade"><div id="categories-content"></div></div>
@@ -253,6 +255,7 @@ window.changeView = async function(viewName, force=false){
   if(viewName==='atendimentos' && phonesPanel) phonesPanel.classList.remove('hidden');
   if(viewName==='dashboard') await renderDashboardView();
   if(viewName==='products') await renderProductsView();
+  if(viewName==='marketing') await renderMarketingView();
   if(viewName==='orders') await renderOrdersView();
   if(viewName==='users') await renderUsersView();
   if(viewName==='categories') await renderCategoriesView();
@@ -454,6 +457,121 @@ window.generateProductPoster = async function(id, variant = 'square'){
     displayMessage(`Erro ao gerar ${label}: ${e.message}`, 'error');
   }
 }
+
+async function runMarketingAction(endpoint, payload = {}, successMessage = 'Ação concluída com sucesso!'){
+  const data = await apiRequest(endpoint, {
+    method:'POST',
+    headers:buildHeadersAuth(),
+    body:JSON.stringify(payload)
+  });
+  displayMessage(successMessage,'success');
+  return data;
+}
+
+window.generateAllProductPosters = async function(variant = 'square'){
+  const label = variant === 'story' ? 'stories' : 'posters';
+  if(!confirm(`Gerar ${label} para todos os produtos ativos? Isso pode demorar se houver muitos produtos.`)) return;
+  try{
+    const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters');
+    const original=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='Gerando...';}
+    const data = await runMarketingAction('/admin/posters/bulk', { variant, limit: 1000 }, `${label.charAt(0).toUpperCase()+label.slice(1)} gerados: ${label}.`);
+    displayMessage(`Concluído: ${data.success||0} sucesso(s), ${data.failed||0} falha(s).`,'info');
+    await loadProducts().catch(()=>null);
+    if(btn){btn.disabled=false;btn.innerHTML=original;}
+  }catch(e){ displayMessage(`Erro ao gerar ${label}: ${e.message}`,'error'); const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters'); if(btn) btn.disabled=false; }
+}
+
+window.generateBannerDrafts = async function(){
+  if(!confirm('Gerar prévias automáticas de TODOS os formatos do painel banner? Nada será publicado no site sem sua aprovação.')) return;
+  try{
+    const btn=document.getElementById('btn-generate-banner-drafts'); const original=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='Gerando prévias...';}
+    const data = await runMarketingAction('/admin/marketing/banner-drafts/generate', {}, 'Prévia(s) de banners gerada(s) como rascunho.');
+    displayMessage(`${data.count||0} rascunho(s) criado(s). Revise antes de publicar.`,'info');
+    await renderMarketingView();
+    if(btn){btn.disabled=false;btn.innerHTML=original;}
+  }catch(e){ displayMessage(`Erro ao gerar rascunhos: ${e.message}`,'error'); const btn=document.getElementById('btn-generate-banner-drafts'); if(btn) btn.disabled=false; }
+}
+
+window.generateEverythingDraftMode = async function(){
+  if(!confirm('Gerar posters, stories e todos os banners do painel em rascunho? Os banners NÃO serão publicados automaticamente.')) return;
+  try{
+    const btn=document.getElementById('btn-generate-everything'); const original=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='Gerando tudo...';}
+    const data = await runMarketingAction('/admin/marketing/generate-all-drafts', { limit: 1000 }, 'Geração geral concluída.');
+    displayMessage(`Posters: ${data.postersSuccess||0} | Stories: ${data.storiesSuccess||0} | Banners rascunho: ${data.bannerDrafts||0}`,'success');
+    await loadProducts().catch(()=>null);
+    await renderMarketingView();
+    if(btn){btn.disabled=false;btn.innerHTML=original;}
+  }catch(e){ displayMessage(`Erro na geração geral: ${e.message}`,'error'); const btn=document.getElementById('btn-generate-everything'); if(btn) btn.disabled=false; }
+}
+
+async function loadBannerDrafts(){
+  const data = await apiRequest('/admin/marketing/banner-drafts',{headers:buildHeadersAuth()});
+  return Array.isArray(data?.drafts) ? data.drafts : [];
+}
+
+window.publishBannerDraft = async function(id){
+  if(!confirm('Publicar este banner no site agora?')) return;
+  try{
+    await runMarketingAction(`/admin/marketing/banner-drafts/${encodeURIComponent(id)}/publish`, {}, 'Banner publicado no site com sucesso.');
+    await renderMarketingView();
+  }catch(e){ displayMessage(`Erro ao publicar banner: ${e.message}`,'error'); }
+}
+
+window.deleteBannerDraft = async function(id){
+  if(!confirm('Excluir este rascunho de banner?')) return;
+  try{
+    await apiRequest(`/admin/marketing/banner-drafts/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()});
+    displayMessage('Rascunho excluído.','success');
+    await renderMarketingView();
+  }catch(e){ displayMessage(`Erro ao excluir rascunho: ${e.message}`,'error'); }
+}
+
+function renderBannerDraftCards(drafts=[]){
+  if(!drafts.length) return '<div class="p-8 text-center text-sm text-gray-500 border rounded-2xl bg-gray-50">Nenhum banner em rascunho ainda. Clique em “Gerar prévias de banners”.</div>';
+  return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">${drafts.map(d=>{
+    const id=escHtml(d.id||d._id||d.slot||'');
+    const products=Array.isArray(d.products)?d.products:[];
+    return `<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div class="bg-gray-50 aspect-[16/5] overflow-hidden"><img src="${escHtml(d.imageUrl||d.image||'')}" class="w-full h-full object-cover" onerror="this.style.display='none'"></div>
+      <div class="p-4">
+        <div class="flex items-start justify-between gap-3"><div><h3 class="font-black text-gray-900">${escHtml(d.title||'Banner automático')}</h3><p class="text-sm text-gray-500 mt-1">Destino: ${escHtml(d.targetSlot||d.slot||'')}</p></div><span class="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold">RASCUNHO</span></div>
+        <p class="text-sm text-gray-600 mt-3">${escHtml(d.subtitle||'')}</p>
+        <div class="mt-3 text-xs text-gray-500">Produtos usados: ${products.map(p=>escHtml(p.name||'produto')).join(', ') || 'seleção automática'}</div>
+        <div class="mt-4 flex flex-wrap gap-2"><a href="${escHtml(d.imageUrl||d.image||'#')}" target="_blank" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Ver prévia</a><button onclick="window.publishBannerDraft('${id}')" class="px-3 py-2 rounded-md bg-success-green text-white text-sm font-semibold">Publicar este banner</button><button onclick="window.deleteBannerDraft('${id}')" class="px-3 py-2 rounded-md bg-error-red text-white text-sm font-semibold">Excluir</button></div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderMarketingView(){
+  const box=document.getElementById('marketing-content');
+  if(!box) return;
+  box.innerHTML='<div class="bg-white p-6 rounded-xl shadow-sm text-gray-500">Carregando marketing automático...</div>';
+  let drafts=[];
+  try{ drafts=await loadBannerDrafts(); }catch(_e){ drafts=[]; }
+  box.innerHTML=`
+    <div class="space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-100">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div><h2 class="text-2xl font-black text-gray-900">Marketing automático Ariana Móveis</h2><p class="text-sm text-gray-500 mt-1">Gere posters, stories e todos os formatos de banners do painel. Ao aprovar, o banner ocupa o mesmo slot que o painel manual edita e o index lê.</p></div>
+          <button id="btn-generate-everything" onclick="window.generateEverythingDraftMode()" class="px-5 py-3 rounded-xl bg-primary-blue text-white font-black shadow hover:opacity-90">GERAR TUDO EM RASCUNHO</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <button id="btn-generate-all-posters" onclick="window.generateAllProductPosters('square')" class="p-5 rounded-2xl border border-blue-100 bg-blue-50 text-left hover:shadow"><div class="text-lg font-black text-primary-blue">Gerar todos os posters</div><div class="text-sm text-gray-600 mt-1">1080x1080 para todos os produtos ativos.</div></button>
+          <button id="btn-generate-all-stories" onclick="window.generateAllProductPosters('story')" class="p-5 rounded-2xl border border-green-100 bg-green-50 text-left hover:shadow"><div class="text-lg font-black text-green-700">Gerar todos os stories</div><div class="text-sm text-gray-600 mt-1">1080x1920 para WhatsApp/Instagram.</div></button>
+          <button id="btn-generate-banner-drafts" onclick="window.generateBannerDrafts()" class="p-5 rounded-2xl border border-yellow-100 bg-yellow-50 text-left hover:shadow"><div class="text-lg font-black text-yellow-800">Gerar banners do painel</div><div class="text-sm text-gray-600 mt-1">Cria rascunhos para todos os slots oficiais do index e do painel banner.</div></button>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-100">
+        <div class="flex items-center justify-between mb-5"><div><h2 class="text-xl font-black text-gray-900">Banners em rascunho</h2><p class="text-sm text-gray-500">Revise a arte antes de publicar. O mesmo banner poderá ser alterado depois pelo painel de banners manual.</p></div><button onclick="renderMarketingView()" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Atualizar</button></div>
+        ${renderBannerDraftCards(drafts)}
+      </div>
+    </div>`;
+}
+
 window.setMainImage = async function(encodedName){ const name=decodeURIComponent(encodedName); if(!editingProductId) return; productImagesCache=productImagesCache.map(img=>({...img,isMain:img.name===name})); if(!productImagesCache.some(x=>x.isMain)&&productImagesCache.length) productImagesCache[0].isMain=true; renderProductImages(); await persistProductImages(); }
 window.deleteImage = async function(encodedName){ const name=decodeURIComponent(encodedName); if(!editingProductId) return; const img=productImagesCache.find(x=>x.name===name); if(!img) return; if(!confirm(`Excluir a imagem ${name}?`)) return; try{ if(img.path){ await apiRequest(`/admin/uploads?path=${encodeURIComponent(img.path)}`,{method:'DELETE',headers:buildHeadersAuth()}).catch(()=>null); } productImagesCache=productImagesCache.filter(x=>x.name!==name); if(productImagesCache.length&&!productImagesCache.some(x=>x.isMain)) productImagesCache[0].isMain=true; await persistProductImages(); renderProductImages(); displayMessage('Imagem removida com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
 async function persistProductImages(){
@@ -680,7 +798,10 @@ async function renderProductsView(){
       </div>
     </div>
     <div class="bg-white p-5 rounded-lg shadow-md mt-6 overflow-hidden">
-      <h2 class="text-xl font-bold text-text-dark mb-4">Produtos cadastrados</h2>
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+        <div><h2 class="text-xl font-bold text-text-dark">Produtos cadastrados</h2><p class="text-sm text-gray-500">Também dá para gerar artes em lote pela tela Marketing IA.</p></div>
+        <div class="flex flex-wrap gap-2"><button type="button" onclick="window.generateAllProductPosters('square')" class="px-3 py-2 rounded-md bg-success-green text-white text-xs font-bold">Gerar posters de todos</button><button type="button" onclick="window.generateAllProductPosters('story')" class="px-3 py-2 rounded-md bg-secondary-light-blue text-white text-xs font-bold">Gerar stories de todos</button><button type="button" onclick="window.changeView('marketing')" class="px-3 py-2 rounded-md bg-primary-blue text-white text-xs font-bold">Banners em rascunho</button></div>
+      </div>
       <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
     </div>`;
   const productForm=document.getElementById('product-form');
