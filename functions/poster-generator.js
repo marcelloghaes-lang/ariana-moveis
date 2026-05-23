@@ -4,7 +4,9 @@ const BRAND_BLUE = '#0047AB';
 const BRAND_BLUE_DARK = '#073B7A';
 const BRAND_YELLOW = '#F7C600';
 const BRAND_GREEN = '#16A34A';
+const BRAND_ORANGE = '#FF7A00';
 const TEXT_DARK = '#172033';
+const TEXT_MUTED = '#64748B';
 
 function escapeXml(value = '') {
   return String(value || '')
@@ -16,7 +18,13 @@ function escapeXml(value = '') {
 }
 
 function toNumber(value, fallback = 0) {
-  const n = Number(String(value ?? '').replace(',', '.'));
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  const clean = String(value ?? '')
+    .replace(/R\$/gi, '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const n = Number(clean);
   return Number.isFinite(n) ? n : fallback;
 }
 
@@ -24,8 +32,8 @@ function brl(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(toNumber(value, 0));
 }
 
-function wrapText(text = '', maxChars = 28, maxLines = 3) {
-  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+function wrapText(text = '', maxChars = 34, maxLines = 2) {
+  const words = String(text || 'Produto Ariana Móveis').trim().split(/\s+/).filter(Boolean);
   const lines = [];
   let current = '';
   for (const word of words) {
@@ -39,10 +47,12 @@ function wrapText(text = '', maxChars = 28, maxLines = 3) {
     if (lines.length >= maxLines) break;
   }
   if (current && lines.length < maxLines) lines.push(current);
-  if (words.length && lines.join(' ').length < words.join(' ').length && lines.length) {
-    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/\.{3}$/,'')}...`;
+  const original = words.join(' ');
+  const rendered = lines.join(' ');
+  if (original.length > rendered.length && lines.length) {
+    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/\.{3}$/,'').slice(0, Math.max(8, maxChars - 3))}...`;
   }
-  return lines;
+  return lines.length ? lines : ['Produto Ariana Móveis'];
 }
 
 function getMainImageUrl(product = {}) {
@@ -53,92 +63,131 @@ function getMainImageUrl(product = {}) {
 
 async function loadImageBuffer(url) {
   if (!url) return null;
-  const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 });
+  const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 25000 });
   return Buffer.from(response.data);
 }
 
 function calculatePricing(product = {}, pixPercent = 17) {
-  const fullPrice = toNumber(product.oldPrice || product.precoAntigo || product.precoDe || product.price || product.preco || 0, 0);
-  const pixPrice = toNumber(product.pixPrice || product.precoPix || product.cashPrice || 0, 0) || +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
+  // Regra visual da Ariana: preço do Mongo é o preço cheio/parcelado; PIX recebe desconto.
+  const fullPrice = toNumber(
+    product.oldPrice || product.precoAntigo || product.precoDe || product.price || product.preco || 0,
+    0
+  );
+  const explicitPix = toNumber(product.pixPrice || product.precoPix || product.cashPrice || 0, 0);
+  const pixPrice = explicitPix > 0 ? explicitPix : +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
   const installmentCount = Number(product.installmentCount || 12) || 12;
-  const installmentPrice = fullPrice / installmentCount;
+  const installmentPrice = fullPrice > 0 ? fullPrice / installmentCount : 0;
   return { fullPrice, pixPrice, pixPercent, installmentCount, installmentPrice };
 }
 
-function baseSvg({ width, height, product, pricing, variant }) {
+function backgroundSvg({ width, height, variant }) {
   const isStory = variant === 'story';
-  const titleLines = wrapText(product.name || product.title || 'Produto Ariana Móveis', isStory ? 24 : 30, isStory ? 4 : 3);
-  const category = String(product.categoryName || product.category || '').trim();
-  const titleY = isStory ? 128 : 116;
-  const titleSize = isStory ? 54 : 46;
-  const priceY = isStory ? 1370 : 830;
-  const badgeX = isStory ? 700 : 750;
-  const badgeY = priceY - 110;
-  const topText = titleLines.map((line, idx) => `<text x="70" y="${titleY + idx * (titleSize + 12)}" font-size="${titleSize}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`).join('');
+  const headerH = isStory ? 112 : 92;
+  const imageBox = isStory
+    ? { x: 78, y: 410, w: 924, h: 780, rx: 36 }
+    : { x: 72, y: 270, w: 936, h: 430, rx: 32 };
+  const priceCard = isStory
+    ? { x: 70, y: 1218, w: 940, h: 350, rx: 34 }
+    : { x: 70, y: 710, w: 940, h: 220, rx: 30 };
 
   return `
   <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#ffffff"/>
-        <stop offset="48%" stop-color="#eef6ff"/>
+        <stop offset="45%" stop-color="#eef6ff"/>
         <stop offset="100%" stop-color="#dbeafe"/>
       </linearGradient>
+      <linearGradient id="hero" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#0047AB"/>
+        <stop offset="100%" stop-color="#0A63D8"/>
+      </linearGradient>
       <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#002b60" flood-opacity="0.20"/>
+        <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#002b60" flood-opacity="0.18"/>
       </filter>
     </defs>
     <rect width="${width}" height="${height}" fill="url(#bg)"/>
-    <rect x="0" y="0" width="${width}" height="${isStory ? 88 : 72}" fill="${BRAND_BLUE}"/>
-    <text x="70" y="${isStory ? 60 : 50}" font-size="${isStory ? 34 : 30}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">ARIANA MÓVEIS</text>
-    <text x="${isStory ? 560 : 620}" y="${isStory ? 60 : 50}" font-size="${isStory ? 22 : 20}" font-weight="800" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">ONLINE • PARA TODO BRASIL</text>
-    <circle cx="${width - 92}" cy="${isStory ? 44 : 36}" r="${isStory ? 28 : 24}" fill="${BRAND_YELLOW}"/>
-    <text x="${width - 92}" y="${isStory ? 52 : 44}" text-anchor="middle" font-size="${isStory ? 20 : 18}" font-weight="900" fill="${BRAND_BLUE_DARK}" font-family="Arial, Helvetica, sans-serif">PIX</text>
+    <rect x="0" y="0" width="${width}" height="${headerH}" fill="url(#hero)"/>
+    <circle cx="${width - (isStory ? 78 : 70)}" cy="${headerH / 2}" r="${isStory ? 31 : 27}" fill="${BRAND_YELLOW}"/>
 
-    <rect x="45" y="${isStory ? 112 : 95}" width="${width - 90}" height="${isStory ? 1540 : 860}" rx="38" fill="#ffffff" filter="url(#shadow)"/>
-    <rect x="70" y="${isStory ? 735 : 465}" width="${width - 140}" height="${isStory ? 560 : 275}" rx="34" fill="#f8fbff" stroke="#dbeafe"/>
+    <rect x="45" y="${isStory ? 135 : 115}" width="${width - 90}" height="${isStory ? 1660 : 850}" rx="42" fill="#ffffff" filter="url(#shadow)"/>
+    <rect x="${imageBox.x}" y="${imageBox.y}" width="${imageBox.w}" height="${imageBox.h}" rx="${imageBox.rx}" fill="#f8fbff" stroke="#dbeafe" stroke-width="2"/>
+    <rect x="${priceCard.x}" y="${priceCard.y}" width="${priceCard.w}" height="${priceCard.h}" rx="${priceCard.rx}" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
+    <path d="M${imageBox.x + 28} ${imageBox.y + imageBox.h - 18} H${imageBox.x + imageBox.w - 28}" stroke="#e2e8f0" stroke-width="2"/>
+  </svg>`;
+}
 
-    ${topText}
-    ${category ? `<text x="70" y="${titleY + titleLines.length * (titleSize + 12) + 20}" font-size="${isStory ? 26 : 22}" font-weight="700" fill="#64748b" font-family="Arial, Helvetica, sans-serif">${escapeXml(category)}</text>` : ''}
+function foregroundSvg({ width, height, product, pricing, variant }) {
+  const isStory = variant === 'story';
+  const headerH = isStory ? 112 : 92;
+  const titleLines = wrapText(product.name || product.title || 'Produto Ariana Móveis', isStory ? 28 : 34, isStory ? 3 : 2);
+  const titleY = isStory ? 190 : 158;
+  const titleSize = isStory ? 50 : 44;
+  const lineGap = isStory ? 58 : 52;
+  const category = String(product.categoryName || product.category || '').trim();
+  const priceY = isStory ? 1296 : 775;
+  const badge = isStory
+    ? { x: 92, y: 1238, w: 275, h: 74, fs: 33 }
+    : { x: 92, y: 728, w: 235, h: 58, fs: 27 };
+  const cta = isStory
+    ? { x: 70, y: 1635, w: 940, h: 110, fs: 42, urlY: 1810 }
+    : { x: 70, y: 955, w: 940, h: 78, fs: 31, urlY: 1056 };
 
-    <rect x="70" y="${badgeY}" width="${isStory ? 310 : 250}" height="${isStory ? 82 : 64}" rx="18" fill="${BRAND_GREEN}"/>
-    <text x="${isStory ? 225 : 195}" y="${badgeY + (isStory ? 55 : 43)}" text-anchor="middle" font-size="${isStory ? 36 : 28}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${pricing.pixPercent}% OFF</text>
+  const titleText = titleLines.map((line, idx) => `
+    <text x="70" y="${titleY + idx * lineGap}" font-size="${titleSize}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`).join('');
 
-    <text x="70" y="${priceY}" font-size="${isStory ? 34 : 28}" fill="#94a3b8" text-decoration="line-through" font-family="Arial, Helvetica, sans-serif">de ${brl(pricing.fullPrice)}</text>
-    <text x="70" y="${priceY + (isStory ? 92 : 76)}" font-size="${isStory ? 72 : 62}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${brl(pricing.pixPrice)}</text>
-    <text x="${isStory ? 510 : 450}" y="${priceY + (isStory ? 92 : 76)}" font-size="${isStory ? 32 : 26}" font-weight="900" fill="${BRAND_GREEN}" font-family="Arial, Helvetica, sans-serif">no PIX à vista</text>
-    <text x="70" y="${priceY + (isStory ? 150 : 126)}" font-size="${isStory ? 31 : 26}" font-weight="800" fill="#334155" font-family="Arial, Helvetica, sans-serif">ou ${pricing.installmentCount}x de ${brl(pricing.installmentPrice)} s/ juros</text>
-    <text x="70" y="${priceY + (isStory ? 198 : 164)}" font-size="${isStory ? 25 : 21}" fill="#64748b" font-family="Arial, Helvetica, sans-serif">Total parcelado: ${brl(pricing.fullPrice)}</text>
+  return `
+  <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <text x="70" y="${isStory ? 70 : 58}" font-size="${isStory ? 36 : 32}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">ARIANA MÓVEIS</text>
+    <text x="${isStory ? 560 : 620}" y="${isStory ? 70 : 58}" font-size="${isStory ? 22 : 20}" font-weight="800" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">ONLINE • PARA TODO BRASIL</text>
+    <text x="${width - (isStory ? 78 : 70)}" y="${headerH / 2 + 8}" text-anchor="middle" font-size="${isStory ? 20 : 18}" font-weight="900" fill="${BRAND_BLUE_DARK}" font-family="Arial, Helvetica, sans-serif">PIX</text>
 
-    <rect x="70" y="${height - (isStory ? 210 : 120)}" width="${width - 140}" height="${isStory ? 105 : 72}" rx="22" fill="${BRAND_BLUE}"/>
-    <text x="${width / 2}" y="${height - (isStory ? 145 : 75)}" text-anchor="middle" font-size="${isStory ? 42 : 31}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">COMPRE AGORA</text>
-    <text x="${width / 2}" y="${height - (isStory ? 78 : 31)}" text-anchor="middle" font-size="${isStory ? 26 : 18}" font-weight="700" fill="#dbeafe" font-family="Arial, Helvetica, sans-serif">arianamoveis.com.br</text>
+    ${titleText}
+    ${category ? `<text x="70" y="${titleY + titleLines.length * lineGap + 18}" font-size="${isStory ? 27 : 23}" font-weight="800" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">${escapeXml(category)}</text>` : ''}
+
+    <rect x="${badge.x}" y="${badge.y}" width="${badge.w}" height="${badge.h}" rx="18" fill="${BRAND_GREEN}"/>
+    <text x="${badge.x + badge.w / 2}" y="${badge.y + (isStory ? 49 : 39)}" text-anchor="middle" font-size="${badge.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${pricing.pixPercent}% OFF</text>
+    <rect x="${badge.x + badge.w + 20}" y="${badge.y}" width="${isStory ? 245 : 210}" height="${badge.h}" rx="18" fill="${BRAND_ORANGE}"/>
+    <text x="${badge.x + badge.w + 20 + (isStory ? 122 : 105)}" y="${badge.y + (isStory ? 49 : 39)}" text-anchor="middle" font-size="${isStory ? 28 : 23}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">OFERTA PIX</text>
+
+    <text x="92" y="${priceY}" font-size="${isStory ? 35 : 27}" fill="#94a3b8" text-decoration="line-through" font-family="Arial, Helvetica, sans-serif">de ${brl(pricing.fullPrice)}</text>
+    <text x="92" y="${priceY + (isStory ? 100 : 74)}" font-size="${isStory ? 76 : 58}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${brl(pricing.pixPrice)}</text>
+    <text x="${isStory ? 555 : 500}" y="${priceY + (isStory ? 100 : 74)}" font-size="${isStory ? 33 : 25}" font-weight="900" fill="${BRAND_GREEN}" font-family="Arial, Helvetica, sans-serif">no PIX à vista</text>
+    <text x="92" y="${priceY + (isStory ? 162 : 121)}" font-size="${isStory ? 32 : 25}" font-weight="800" fill="#334155" font-family="Arial, Helvetica, sans-serif">ou ${pricing.installmentCount}x de ${brl(pricing.installmentPrice)} s/ juros no cartão</text>
+    <text x="92" y="${priceY + (isStory ? 210 : 158)}" font-size="${isStory ? 26 : 20}" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">Total parcelado: ${brl(pricing.fullPrice)}</text>
+
+    <rect x="${cta.x}" y="${cta.y}" width="${cta.w}" height="${cta.h}" rx="22" fill="${BRAND_BLUE}"/>
+    <text x="${width / 2}" y="${cta.y + (isStory ? 68 : 50)}" text-anchor="middle" font-size="${cta.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">COMPRE AGORA</text>
+    <text x="${width / 2}" y="${cta.urlY}" text-anchor="middle" font-size="${isStory ? 26 : 18}" font-weight="800" fill="#7aa7e8" font-family="Arial, Helvetica, sans-serif">arianamoveis.com.br</text>
   </svg>`;
 }
 
 export async function generateProductPosterBuffer(product = {}, options = {}) {
   const { default: sharp } = await import('sharp');
   const variant = options.variant === 'story' ? 'story' : 'square';
-  const width = variant === 'story' ? 1080 : 1080;
+  const width = 1080;
   const height = variant === 'story' ? 1920 : 1080;
   const pricing = calculatePricing(product, Number(options.pixPercent || 17));
   const imageUrl = getMainImageUrl(product);
-  const overlay = Buffer.from(baseSvg({ width, height, product, pricing, variant }));
 
-  const composites = [{ input: overlay, top: 0, left: 0 }];
+  const bg = Buffer.from(backgroundSvg({ width, height, variant }));
+  const fg = Buffer.from(foregroundSvg({ width, height, product, pricing, variant }));
+  const composites = [{ input: bg, top: 0, left: 0 }];
+
   const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    const imgWidth = variant === 'story' ? 840 : 620;
-    const imgHeight = variant === 'story' ? 720 : 560;
-    const imgLeft = Math.round((width - imgWidth) / 2);
-    const imgTop = variant === 'story' ? 590 : 300;
+    const imgBox = variant === 'story'
+      ? { w: 860, h: 700, top: 465 }
+      : { w: 820, h: 350, top: 330 };
     const productPng = await sharp(rawImage)
       .rotate()
-      .resize(imgWidth, imgHeight, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+      .resize(imgBox.w, imgBox.h, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 }, withoutEnlargement: false })
       .png()
       .toBuffer();
-    composites.push({ input: productPng, top: imgTop, left: imgLeft });
+    composites.push({ input: productPng, top: imgBox.top, left: Math.round((width - imgBox.w) / 2) });
   }
+
+  composites.push({ input: fg, top: 0, left: 0 });
 
   return sharp({ create: { width, height, channels: 4, background: '#ffffff' } })
     .composite(composites)
