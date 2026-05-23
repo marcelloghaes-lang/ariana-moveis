@@ -21,6 +21,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { generateProductPosterBuffer } from './poster-generator.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -444,7 +445,7 @@ const baseOptions = { timestamps: true, versionKey: false };
 const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin'] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true } }, baseOptions);
 const sellerSchema = new mongoose.Schema({ sellerId: { type: String, index: true, unique: true }, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, displayName: String, storeName: String, email: String, phone: String, document: String, status: { type: String, default: 'pending' }, onboardingCompleted: { type: Boolean, default: false }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const categorySchema = new mongoose.Schema({ name: { type: String, required: true }, slug: String, parentId: { type: String, default: null }, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, image: String }, baseOptions);
-const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false } }, baseOptions);
+const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
 productSchema.index({ name: 'text', description: 'text', category: 'text', brand: 'text' });
 const bannerSchema = new mongoose.Schema({ slot: { type: String, required: true, index: true }, title: String, subtitle: String, image: String, href: String, alt: String, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, device: { type: String, default: 'all' } }, baseOptions);
 const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, name: String, phone: String, cep: String, logradouro: String, numero: String, bairro: String, cidade: String, uf: String, complemento: String, reference: String, isDefault: { type: Boolean, default: false } }, baseOptions);
@@ -1808,6 +1809,80 @@ app.patch('/api/admin/store-settings', adminRequired, async (req, res) => {
 });
 
 
+
+
+function uploadBufferToCloudinary(buffer, options = {}) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: options.folder || 'ariana_moveis/posters',
+        public_id: options.public_id,
+        resource_type: 'image',
+        overwrite: true,
+        format: 'png'
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        return resolve(result);
+      }
+    );
+    stream.end(buffer);
+  });
+}
+
+app.post('/api/admin/posters/product/:id', adminRequired, async (req, res) => {
+  try {
+    if (!isCloudinaryConfigured()) {
+      return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
+    }
+
+    const oid = normalizeObjectId(req.params.id);
+    let doc = oid ? await Product.findById(oid) : null;
+    if (!doc) doc = await Product.findOne({ $or: [{ slug: req.params.id }, { sku: req.params.id }] });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
+
+    const product = normalizeProductForResponse(doc);
+    const variant = String(req.body?.variant || req.query?.variant || 'square').toLowerCase() === 'story' ? 'story' : 'square';
+    const pixPercent = Number(req.body?.pixPercent || req.query?.pixPercent || 17);
+
+    const buffer = await generateProductPosterBuffer(product, { variant, pixPercent });
+    const publicId = `${sanitizeIdPart(product.name || product.sku || product.id)}-${variant}-${Date.now()}`;
+    const result = await uploadBufferToCloudinary(buffer, {
+      folder: buildCloudinaryFolder(`posters/produtos/${variant}`),
+      public_id: publicId
+    });
+
+    const poster = {
+      variant,
+      url: result.secure_url,
+      public_id: result.public_id,
+      width: result.width,
+      height: result.height,
+      format: result.format,
+      createdAt: new Date().toISOString()
+    };
+
+    await Product.findByIdAndUpdate(doc._id, {
+      $push: { posters: { $each: [poster], $slice: -20 } },
+      $set: { updatedAt: new Date() }
+    });
+
+    return res.json({ ok: true, productId: String(doc._id), poster, url: poster.url });
+  } catch (error) {
+    console.error('[posters] erro ao gerar poster do produto:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'poster_generate_failed' });
+  }
+});
+
+app.post('/api/admin/posters/offers', adminRequired, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.body?.limit || req.query?.limit || 6), 8);
+    const products = await Product.find({ active: { $ne: false }, isOffer: true }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit);
+    return res.json({ ok: true, message: 'Primeira versão instalada. Use /api/admin/posters/product/:id para gerar posters por produto.', products: products.map(normalizeProductForResponse) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'offers_poster_failed' });
+  }
+});
 
 app.post('/api/upload', upload.single('file'), uploadToCloudinary);
 app.post('/admin/uploads', adminRequired, upload.single('file'), uploadToCloudinary);

@@ -401,7 +401,7 @@ function renderProductsTable(){
       <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
       <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
       <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
-      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button><button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button></div></td>
+      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button><button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button><button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button></div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
 }
@@ -431,6 +431,29 @@ window.editProduct = function(id){
   document.getElementById('product-form-title').textContent=`Editar Produto: ${p.name||''}`; document.getElementById('product-submit-btn').innerHTML='Atualizar Produto'; renderProductImages(); window.scrollTo({top:0,behavior:'smooth'});
 }
 window.deleteProduct = async function(id){ if(!confirm('Excluir este produto?')) return; try{ await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()}); await loadProducts(); resetProductForm(); displayMessage('Produto excluído com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
+window.generateProductPoster = async function(id, variant = 'square'){
+  const productId = String(id || editingProductId || '').trim();
+  if(!productId){ displayMessage('Salve ou selecione um produto antes de gerar o cartaz.','error'); return; }
+  const label = variant === 'story' ? 'story' : 'poster';
+  try{
+    displayMessage(`Gerando ${label} automático...`, 'info');
+    const data = await apiRequest(`/admin/posters/product/${encodeURIComponent(productId)}`,{
+      method:'POST',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({ variant })
+    });
+    if(data && data.url){
+      window.open(data.url, '_blank');
+      displayMessage(`${label.charAt(0).toUpperCase()+label.slice(1)} gerado e salvo no Cloudinary!`, 'success');
+      await loadProducts().catch(()=>null);
+      if(currentView === 'products') await renderProductsView().catch(()=>null);
+    } else {
+      displayMessage(`${label} gerado, mas não recebi a URL.`, 'info');
+    }
+  }catch(e){
+    displayMessage(`Erro ao gerar ${label}: ${e.message}`, 'error');
+  }
+}
 window.setMainImage = async function(encodedName){ const name=decodeURIComponent(encodedName); if(!editingProductId) return; productImagesCache=productImagesCache.map(img=>({...img,isMain:img.name===name})); if(!productImagesCache.some(x=>x.isMain)&&productImagesCache.length) productImagesCache[0].isMain=true; renderProductImages(); await persistProductImages(); }
 window.deleteImage = async function(encodedName){ const name=decodeURIComponent(encodedName); if(!editingProductId) return; const img=productImagesCache.find(x=>x.name===name); if(!img) return; if(!confirm(`Excluir a imagem ${name}?`)) return; try{ if(img.path){ await apiRequest(`/admin/uploads?path=${encodeURIComponent(img.path)}`,{method:'DELETE',headers:buildHeadersAuth()}).catch(()=>null); } productImagesCache=productImagesCache.filter(x=>x.name!==name); if(productImagesCache.length&&!productImagesCache.some(x=>x.isMain)) productImagesCache[0].isMain=true; await persistProductImages(); renderProductImages(); displayMessage('Imagem removida com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
 async function persistProductImages(){
@@ -645,7 +668,7 @@ async function renderProductsView(){
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Largura</label><input id="product-width" type="number" step="1" value="15" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
           </div>
           <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-gray-700">${productFlagsMarkup({})}</div>
-          <div class="flex items-center justify-end gap-3 pt-2"><button type="button" id="product-submit-btn" onclick="window.handleProductSaveClick(event)" class="px-4 py-2 rounded-md bg-primary-blue text-white font-semibold hover:bg-secondary-light-blue">Salvar Produto</button></div>
+          <div class="flex flex-wrap items-center justify-end gap-3 pt-2"><button type="button" id="product-poster-btn" class="px-4 py-2 rounded-md bg-success-green text-white font-semibold hover:opacity-90">Gerar Poster</button><button type="button" id="product-story-btn" class="px-4 py-2 rounded-md bg-secondary-light-blue text-white font-semibold hover:opacity-90">Gerar Story</button><button type="button" id="product-submit-btn" onclick="window.handleProductSaveClick(event)" class="px-4 py-2 rounded-md bg-primary-blue text-white font-semibold hover:bg-secondary-light-blue">Salvar Produto</button></div>
         </form>
       </div>
       <div class="bg-white p-5 rounded-lg shadow-md">
@@ -664,6 +687,8 @@ async function renderProductsView(){
   const productSaveBtn=document.getElementById('product-submit-btn');
   const productUploadBtn=document.getElementById('product-upload-btn');
   const productResetBtn=document.getElementById('product-reset-btn');
+  const productPosterBtn=document.getElementById('product-poster-btn');
+  const productStoryBtn=document.getElementById('product-story-btn');
   if(productForm){
     productForm.onsubmit=function(ev){
       if(ev){
@@ -676,6 +701,8 @@ async function renderProductsView(){
   if(productSaveBtn) productSaveBtn.onclick=window.handleProductSaveClick;
   if(productUploadBtn) productUploadBtn.onclick=window.handleProductUploadClick;
   if(productResetBtn) productResetBtn.onclick=resetProductForm;
+  if(productPosterBtn) productPosterBtn.onclick=()=>window.generateProductPoster(editingProductId,'square');
+  if(productStoryBtn) productStoryBtn.onclick=()=>window.generateProductPoster(editingProductId,'story');
   if (editingProductId) {
     window.editProduct(editingProductId);
   } else {
