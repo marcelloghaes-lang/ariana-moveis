@@ -45,6 +45,7 @@ function wrapText(text = '', maxChars = 34, maxLines = 2) {
   const words = String(text || 'Produto Ariana Móveis').trim().split(/\s+/).filter(Boolean);
   const lines = [];
   let current = '';
+
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
     if (next.length > maxChars && current) {
@@ -55,13 +56,12 @@ function wrapText(text = '', maxChars = 34, maxLines = 2) {
     }
     if (lines.length >= maxLines) break;
   }
+
   if (current && lines.length < maxLines) lines.push(current);
-  const original = words.join(' ');
-  const rendered = lines.join(' ');
-  if (original.length > rendered.length && lines.length) {
-    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/\.{3}$/,'').slice(0, Math.max(8, maxChars - 3))}...`;
-  }
-  return lines.length ? lines : ['Produto Ariana Móveis'];
+
+  // V28: não usa reticências nos títulos. Melhor quebrar em linhas naturais
+  // para o cartaz ficar mais profissional e evitar aparência de texto cortado.
+  return lines.length ? lines.slice(0, maxLines) : ['Produto Ariana Móveis'];
 }
 
 function getMainImageUrl(product = {}) {
@@ -96,18 +96,18 @@ function layoutForVariant(variant) {
       height: 1920,
       headerH: 112,
       shell: { x: 45, y: 132, w: 990, h: 1628, rx: 42 },
-      title: { x: 70, y: 186, size: 42, gap: 49, maxChars: 28, maxLines: 3, catOffset: 17 },
-      imageBox: { x: 70, y: 405, w: 940, h: 650, rx: 34 },
-      img: { w: 900, h: 610, top: 425 },
-      priceCard: { x: 70, y: 1090, w: 940, h: 395, rx: 34 },
-      badge: { x: 92, y: 1120, w: 245, h: 66, fs: 28 },
+      title: { x: 70, y: 176, size: 39, gap: 45, maxChars: 31, maxLines: 3, catOffset: 22 },
+      imageBox: { x: 70, y: 390, w: 940, h: 675, rx: 34 },
+      img: { w: 915, h: 645, top: 405 },
+      priceCard: { x: 70, y: 1102, w: 940, h: 390, rx: 34 },
+      badge: { x: 92, y: 1132, w: 245, h: 66, fs: 28 },
       offerBadge: { w: 238, fs: 25 },
-      oldPrice: { x: 92, y: 1232, fs: 30 },
-      pixPrice: { x: 92, y: 1325, fs: 72 },
-      pixText: { x: 555, y: 1325, fs: 31 },
-      installment: { x: 92, y: 1386, fs: 29 },
-      total: { x: 92, y: 1435, fs: 24 },
-      cta: { x: 70, y: 1585, w: 940, h: 108, fs: 40, textY: 1653, phoneY: 1755, phoneFs: 28 }
+      oldPrice: { x: 92, y: 1238, fs: 31 },
+      pixPrice: { x: 92, y: 1334, fs: 72 },
+      pixText: { x: 555, y: 1334, fs: 31 },
+      installment: { x: 92, y: 1398, fs: 29 },
+      total: { x: 92, y: 1449, fs: 24 },
+      cta: { x: 70, y: 1582, w: 940, h: 112, fs: 41, textY: 1653, phoneY: 1765, phoneFs: 34 }
     };
   }
   return {
@@ -115,18 +115,18 @@ function layoutForVariant(variant) {
     height: 1080,
     headerH: 92,
     shell: { x: 45, y: 112, w: 990, h: 920, rx: 42 },
-    title: { x: 70, y: 158, size: 41, gap: 48, maxChars: 34, maxLines: 2, catOffset: 18 },
-    imageBox: { x: 70, y: 265, w: 940, h: 405, rx: 30 },
-    img: { w: 890, h: 385, top: 275 },
-    priceCard: { x: 70, y: 695, w: 940, h: 255, rx: 30 },
-    badge: { x: 92, y: 720, w: 225, h: 52, fs: 23 },
+    title: { x: 70, y: 150, size: 34, gap: 39, maxChars: 37, maxLines: 3, catOffset: 20 },
+    imageBox: { x: 70, y: 292, w: 940, h: 360, rx: 30 },
+    img: { w: 900, h: 342, top: 300 },
+    priceCard: { x: 70, y: 682, w: 940, h: 255, rx: 30 },
+    badge: { x: 92, y: 708, w: 225, h: 54, fs: 23 },
     offerBadge: { w: 210, fs: 22 },
-    oldPrice: { x: 92, y: 812, fs: 25 },
-    pixPrice: { x: 92, y: 875, fs: 55 },
-    pixText: { x: 505, y: 875, fs: 25 },
-    installment: { x: 92, y: 918, fs: 23 },
-    total: { x: 92, y: 948, fs: 18 },
-    cta: { x: 70, y: 972, w: 940, h: 74, fs: 30, textY: 1021, phoneY: 1063, phoneFs: 18 }
+    oldPrice: { x: 92, y: 798, fs: 26 },
+    pixPrice: { x: 92, y: 864, fs: 56 },
+    pixText: { x: 505, y: 864, fs: 26 },
+    installment: { x: 92, y: 910, fs: 24 },
+    total: { x: 92, y: 944, fs: 19 },
+    cta: { x: 70, y: 965, w: 940, h: 78, fs: 31, textY: 1016, phoneY: 1064, phoneFs: 22 }
   };
 }
 
@@ -167,7 +167,7 @@ function foregroundSvg({ width, height, product, pricing, variant }) {
   const titleText = titleLines.map((line, idx) => `
     <text x="${L.title.x}" y="${L.title.y + idx * L.title.gap}" font-size="${L.title.size}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`).join('');
 
-  const whatsappLabel = isStory ? 'WHATSAPP (31) 98514-7119' : 'WhatsApp (31) 98514-7119';
+  const whatsappLabel = 'WHATSAPP (31) 98514-7119';
   const offerX = L.badge.x + L.badge.w + 20;
 
   return `
