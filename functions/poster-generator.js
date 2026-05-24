@@ -265,11 +265,11 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
 
   const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    let pipeline = sharp(rawImage).rotate().flatten({ background: '#ffffff' });
+    let pipeline = sharp(rawImage).rotate().ensureAlpha();
     try {
       pipeline = pipeline.trim({ background: '#ffffff', threshold: 50 });
     } catch (_error) {
-      pipeline = sharp(rawImage).rotate().flatten({ background: '#ffffff' });
+      pipeline = sharp(rawImage).rotate().ensureAlpha();
     }
 
     const finalW = Math.round(preset.w * preset.zoom);
