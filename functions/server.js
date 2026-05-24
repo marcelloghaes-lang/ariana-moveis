@@ -1881,68 +1881,94 @@ function regexForBannerGroup(group = '') {
 }
 
 function bannerCopyForDefinition(def = {}, products = []) {
-  const group = def.group || productBannerGroup(products[0] || {});
+  const group = String(def.group || productBannerGroup(products[0] || {}) || 'geral').trim();
+
+  // Textos de campanha por CATEGORIA, não por produto individual.
+  // Assim o banner fica profissional: mostra produtos da categoria e uma chamada geral da seção.
   const copies = {
-    moveis: ['Móveis para renovar sua casa', 'Guarda-roupas, sofás e móveis selecionados com oferta especial'],
-    eletrodomesticos: ['Eletrodomésticos em oferta', 'Geladeiras, lavadoras, fogões e itens úteis para o dia a dia'],
-    colchoes: ['Colchões com conforto de verdade', 'Modelos selecionados para você dormir melhor'],
-    celulares: ['Smartphones com ofertas especiais', 'Tecnologia, praticidade e preço especial para você'],
-    tvs: ['Smart TVs para sua sala', 'Imagem de cinema e entretenimento para toda a família'],
-    som: ['Som e áudio para sua rotina', 'Caixas, antenas e acessórios selecionados para você'],
-    climatizacao: ['Climatização para sua casa', 'Ventiladores e aparelhos para deixar seu ambiente mais confortável'],
-    informatica: ['Informática para o seu dia', 'Produtos de tecnologia com qualidade e preço especial'],
-    geral: [def.title || 'Ofertas Ariana Móveis', def.subtitle || 'Produtos selecionados com preço especial']
+    moveis: [
+      'As melhores ofertas de móveis você encontra aqui',
+      'Ambientes completos, bonitos e funcionais para transformar sua casa.'
+    ],
+    eletrodomesticos: [
+      'Eletrodomésticos com as melhores condições de pagamento',
+      'Geladeiras, lavadoras, fogões e utilidades para facilitar seu dia a dia.'
+    ],
+    colchoes: [
+      'Conforto de verdade para suas noites de descanso',
+      'Colchões selecionados com qualidade, preço justo e compra segura.'
+    ],
+    celulares: [
+      'Tecnologia que acompanha sua rotina',
+      'Smartphones selecionados com ofertas especiais para você aproveitar mais.'
+    ],
+    tvs: [
+      'Imagem de cinema para sua sala',
+      'Smart TVs selecionadas para transformar seus momentos em família.'
+    ],
+    som: [
+      'Som de qualidade para todos os momentos',
+      'Caixas, áudio e acessórios selecionados com ofertas especiais.'
+    ],
+    climatizacao: [
+      'Mais conforto para sua casa todos os dias',
+      'Ventiladores e climatização com preço especial para deixar seu ambiente melhor.'
+    ],
+    informatica: [
+      'Os melhores produtos eletrônicos e tecnologia do mercado',
+      'Produtos escolhidos para transformar sua vida num verdadeiro sonho.'
+    ],
+    geral: [
+      def.title || 'Ofertas selecionadas Ariana Móveis',
+      def.subtitle || 'Produtos escolhidos com qualidade, preço especial e compra segura.'
+    ]
   };
+
   const [title, subtitle] = copies[group] || copies.geral;
   return { title, subtitle };
 }
 
 async function loadRemoteImageAsPng(url, width, height) {
   if (!url) return null;
+
   try {
     const { default: sharp } = await import('sharp');
-    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 25000 });
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      headers: { 'User-Agent': 'ArianaMoveisBannerBot/2.0' }
+    });
+
     const source = Buffer.from(response.data);
 
-    /*
-      Remove o “quadrado branco” das fotos de produto.
-      A maioria das imagens cadastradas vem como JPG/PNG com fundo branco. O código antigo
-      apenas redimensionava a foto, então o fundo branco ia junto para o banner.
-      Aqui criamos uma máscara: pixels quase brancos viram transparência e o produto mantém
-      a proporção original, sem esticar ou deformar.
-    */
-    let img = sharp(source).rotate().ensureAlpha();
+    // IMPORTANTE:
+    // O código anterior transformava pixels brancos em transparência.
+    // Isso estragava produto branco/cinza, como guarda-roupa, geladeira, ventilador e TV.
+    // Agora a imagem é tratada com fundo branco preservado, sem apagar partes do produto.
+    let img = sharp(source, { failOn: 'none' })
+      .rotate()
+      .flatten({ background: '#ffffff' });
+
+    // Corta somente a borda branca externa quando possível, sem remover branco do produto.
     try {
-      img = img.trim({ background: '#ffffff', threshold: 28 });
+      img = img.trim({ background: '#ffffff', threshold: 10 });
     } catch (_error) {
-      img = sharp(source).rotate().ensureAlpha();
+      img = sharp(source, { failOn: 'none' }).rotate().flatten({ background: '#ffffff' });
     }
 
-    const { data, info } = await img
-      .resize(width, height, {
+    return await img
+      .resize(Math.round(width), Math.round(height), {
         fit: 'inside',
+        position: 'center',
         withoutEnlargement: false,
-        background: { r: 255, g: 255, b: 255, alpha: 0 }
+        kernel: sharp.kernel.lanczos3,
+        background: '#ffffff'
       })
-      .raw()
-      .ensureAlpha()
-      .toBuffer({ resolveWithObject: true });
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const isWhite = max > 238 && min > 224 && (max - min) < 24;
-      const isNearWhite = max > 248 && min > 235;
-      if (isWhite || isNearWhite) data[i + 3] = 0;
-    }
-
-    return await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
-      .png()
+      .sharpen({ sigma: 0.45, m1: 0.7, m2: 0.35 })
+      .png({ quality: 100, compressionLevel: 9, adaptiveFiltering: true })
       .toBuffer();
-  } catch (_error) {
+  } catch (error) {
+    console.error('Erro ao carregar imagem do produto para banner:', error?.message || error);
     return null;
   }
 }
@@ -2010,99 +2036,117 @@ function bannerPrice(product = {}) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-async function generateMarketingBannerBuffer({ title, subtitle, products = [], width = 1600, height = 520, targetSlot = '' }) {
+async function generateMarketingBannerBuffer({ title, subtitle, products = [], width = 1600, height = 520, targetSlot = '', group: forcedGroup = '' }) {
   const { default: sharp } = await import('sharp');
+
   const W = Number(width || 1600);
   const H = Number(height || 520);
   const isVertical = H > W;
-  const isSquare = Math.abs(W - H) < 40;
+  const isSquare = Math.abs(W - H) < 60;
   const isThin = (W / H) >= 3.2;
-  const group = productBannerGroup(products[0] || { name: title, category: subtitle });
+
+  const group = String(forcedGroup || productBannerGroup(products[0] || { name: title, category: subtitle }) || 'geral');
   const copy = bannerCopyForDefinition({ title, subtitle, group }, products);
   const safeTitle = xmlEscape(copy.title || title || 'Ariana Móveis');
   const safeSubtitle = xmlEscape(copy.subtitle || subtitle || 'Ofertas selecionadas para você');
 
   const margin = Math.round(W * (isVertical ? 0.070 : 0.052));
-  const brandFs = Math.max(15, Math.round(Math.min(W, H) * (isThin ? 0.036 : isSquare ? 0.038 : 0.040)));
-  const eyebrowFs = Math.max(11, Math.round(Math.min(W, H) * (isThin ? 0.030 : 0.024)));
-  const titleFs = Math.max(26, Math.round(Math.min(W, H) * (isThin ? 0.078 : isSquare ? 0.064 : isVertical ? 0.060 : 0.074)));
-  const subFs = Math.max(15, Math.round(Math.min(W, H) * (isThin ? 0.036 : isSquare ? 0.030 : isVertical ? 0.029 : 0.036)));
-  const ctaH = Math.max(42, Math.round(H * (isThin ? 0.150 : isSquare ? 0.090 : isVertical ? 0.072 : 0.130)));
-  const ctaW = Math.round(W * (isVertical ? 0.60 : isSquare ? 0.40 : isThin ? 0.24 : 0.31));
-  const textW = isVertical ? Math.round(W * 0.82) : Math.round(W * (isThin ? 0.42 : isSquare ? 0.44 : 0.43));
-  const brandY = Math.round(H * (isThin ? 0.14 : 0.115));
-  const titleTop = Math.round(H * (isThin ? 0.235 : isSquare ? 0.150 : isVertical ? 0.165 : 0.205));
-  const titleBoxH = Math.round(titleFs * (isThin ? 1.72 : isVertical ? 2.35 : 2.08));
-  const subTop = Math.round(titleTop + titleBoxH + H * 0.015);
+  const R = Math.round(Math.min(W, H) * 0.045);
+
+  const brandFs = Math.max(15, Math.round(Math.min(W, H) * (isThin ? 0.034 : isSquare ? 0.036 : 0.038)));
+  const eyebrowFs = Math.max(10, Math.round(Math.min(W, H) * (isThin ? 0.023 : 0.020)));
+  const titleFs = Math.max(28, Math.round(Math.min(W, H) * (isThin ? 0.070 : isSquare ? 0.060 : isVertical ? 0.057 : 0.068)));
+  const subFs = Math.max(16, Math.round(Math.min(W, H) * (isThin ? 0.032 : isSquare ? 0.028 : isVertical ? 0.027 : 0.032)));
+  const ctaH = Math.max(42, Math.round(H * (isThin ? 0.145 : isSquare ? 0.088 : isVertical ? 0.070 : 0.128)));
+  const ctaW = Math.round(W * (isVertical ? 0.62 : isSquare ? 0.43 : isThin ? 0.25 : 0.32));
+  const textW = isVertical ? Math.round(W * 0.84) : Math.round(W * (isThin ? 0.43 : isSquare ? 0.45 : 0.44));
+
+  const brandY = Math.round(H * (isThin ? 0.14 : 0.112));
+  const titleTop = Math.round(H * (isThin ? 0.240 : isSquare ? 0.150 : isVertical ? 0.160 : 0.205));
+  const titleBoxH = Math.round(titleFs * (isThin ? 2.0 : isVertical ? 2.75 : 2.30));
+  const subTop = Math.round(titleTop + titleBoxH + H * 0.012);
   const ctaX = margin;
   const ctaY = Math.round(H - ctaH - H * (isThin ? 0.125 : 0.085));
-  const phoneFs = Math.max(10, Math.round(Math.min(W, H) * (isThin ? 0.026 : 0.020)));
-  const R = Math.round(Math.min(W, H) * 0.045);
+  const phoneFs = Math.max(10, Math.round(Math.min(W, H) * (isThin ? 0.024 : 0.019)));
 
   const bg = Buffer.from(`
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stop-color="#003A90"/>
-          <stop offset="46%" stop-color="#0057CB"/>
+          <stop offset="45%" stop-color="#0057CB"/>
           <stop offset="100%" stop-color="#041D47"/>
         </linearGradient>
         <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.20"/>
           <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
         </linearGradient>
-        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#001E4D" flood-opacity="0.34"/></filter>
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#001E4D" flood-opacity="0.34"/>
+        </filter>
       </defs>
       <rect width="${W}" height="${H}" rx="${R}" fill="url(#bg)"/>
-      <circle cx="${Math.round(W*0.78)}" cy="${Math.round(-H*0.06)}" r="${Math.round(Math.min(W,H)*0.68)}" fill="url(#shine)"/>
-      <circle cx="${Math.round(W*0.95)}" cy="${Math.round(H*0.92)}" r="${Math.round(Math.min(W,H)*0.52)}" fill="#F7C600" opacity="0.20"/>
-      <circle cx="${Math.round(W*0.64)}" cy="${Math.round(H*0.55)}" r="${Math.round(Math.min(W,H)*0.24)}" fill="#ffffff" opacity="0.07"/>
-      <rect x="${margin}" y="${Math.round(brandY - brandFs*0.88)}" width="${Math.round(brandFs*8.4)}" height="${Math.round(brandFs*1.35)}" rx="${Math.round(brandFs*0.38)}" fill="rgba(255,255,255,.10)"/>
-      <text x="${margin + Math.round(brandFs*0.42)}" y="${brandY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
-      <text x="${margin}" y="${Math.round(brandY + brandFs*1.35)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${eyebrowFs}" font-weight="900" fill="#DDEBFF">OFERTAS SELECIONADAS • COMPRA SEGURA</text>
+      <circle cx="${Math.round(W * 0.80)}" cy="${Math.round(-H * 0.08)}" r="${Math.round(Math.min(W, H) * 0.75)}" fill="url(#shine)"/>
+      <circle cx="${Math.round(W * 0.96)}" cy="${Math.round(H * 0.92)}" r="${Math.round(Math.min(W, H) * 0.55)}" fill="#F7C600" opacity="0.18"/>
+      <circle cx="${Math.round(W * 0.63)}" cy="${Math.round(H * 0.58)}" r="${Math.round(Math.min(W, H) * 0.25)}" fill="#ffffff" opacity="0.07"/>
+
+      <rect x="${margin}" y="${Math.round(brandY - brandFs * 0.90)}" width="${Math.round(brandFs * 8.6)}" height="${Math.round(brandFs * 1.38)}" rx="${Math.round(brandFs * 0.40)}" fill="#ffffff" opacity="0.10"/>
+      <text x="${margin + Math.round(brandFs * 0.42)}" y="${brandY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="950" fill="#F7C600">ARIANA MÓVEIS</text>
+      <text x="${margin}" y="${Math.round(brandY + brandFs * 1.35)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${eyebrowFs}" font-weight="900" fill="#DDEBFF">OFERTAS SELECIONADAS • COMPRA SEGURA</text>
+
       <foreignObject x="${margin}" y="${titleTop}" width="${textW}" height="${titleBoxH}">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:950;line-height:0.98;color:#ffffff;letter-spacing:-1px;text-shadow:0 5px 14px rgba(0,0,0,.22);">${safeTitle}</div>
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:950;line-height:1.02;color:#ffffff;letter-spacing:-1px;text-shadow:0 5px 14px rgba(0,0,0,.22);">${safeTitle}</div>
       </foreignObject>
-      <foreignObject x="${margin}" y="${subTop}" width="${textW}" height="${Math.round(subFs*3.4)}">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${subFs}px;font-weight:800;line-height:1.16;color:#EAF4FF;">${safeSubtitle}</div>
+      <foreignObject x="${margin}" y="${subTop}" width="${textW}" height="${Math.round(subFs * 4.2)}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${subFs}px;font-weight:800;line-height:1.18;color:#EAF4FF;">${safeSubtitle}</div>
       </foreignObject>
-      <rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH*0.36)}" fill="#16A34A" filter="url(#shadow)"/>
-      <text x="${ctaX + ctaW/2}" y="${Math.round(ctaY + ctaH*0.63)}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${Math.max(13, Math.round(ctaH*0.36))}" font-weight="950" fill="#ffffff">COMPRE AGORA</text>
-      <text x="${margin}" y="${Math.round(H*0.935)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${phoneFs}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
+
+      <rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH * 0.36)}" fill="#16A34A" filter="url(#shadow)"/>
+      <text x="${ctaX + ctaW / 2}" y="${Math.round(ctaY + ctaH * 0.63)}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${Math.max(13, Math.round(ctaH * 0.36))}" font-weight="950" fill="#ffffff">COMPRE AGORA</text>
+      <text x="${margin}" y="${Math.round(H * 0.935)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${phoneFs}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
     </svg>`);
 
   const composites = [{ input: bg, top: 0, left: 0 }];
 
   function productPositions(count = 1) {
     if (isVertical) {
-      return [{ left: Math.round(W*0.10), top: Math.round(H*0.42), width: Math.round(W*0.80), height: Math.round(H*0.34), labelTop: Math.round(H*0.765) }];
+      return count <= 1
+        ? [{ left: Math.round(W * 0.12), top: Math.round(H * 0.40), width: Math.round(W * 0.76), height: Math.round(H * 0.42) }]
+        : [
+            { left: Math.round(W * 0.08), top: Math.round(H * 0.38), width: Math.round(W * 0.54), height: Math.round(H * 0.35) },
+            { left: Math.round(W * 0.38), top: Math.round(H * 0.51), width: Math.round(W * 0.54), height: Math.round(H * 0.35) }
+          ];
     }
+
     if (isSquare) {
       return count <= 1
-        ? [{ left: Math.round(W*0.42), top: Math.round(H*0.20), width: Math.round(W*0.52), height: Math.round(H*0.45), labelTop: Math.round(H*0.66) }]
+        ? [{ left: Math.round(W * 0.44), top: Math.round(H * 0.20), width: Math.round(W * 0.48), height: Math.round(H * 0.50) }]
         : [
-            { left: Math.round(W*0.42), top: Math.round(H*0.18), width: Math.round(W*0.42), height: Math.round(H*0.35), labelTop: Math.round(H*0.55) },
-            { left: Math.round(W*0.56), top: Math.round(H*0.47), width: Math.round(W*0.34), height: Math.round(H*0.28), labelTop: Math.round(H*0.76) }
+            { left: Math.round(W * 0.42), top: Math.round(H * 0.18), width: Math.round(W * 0.40), height: Math.round(H * 0.40) },
+            { left: Math.round(W * 0.57), top: Math.round(H * 0.45), width: Math.round(W * 0.34), height: Math.round(H * 0.34) }
           ];
     }
+
     if (isThin) {
       return count <= 1
-        ? [{ left: Math.round(W*0.57), top: Math.round(H*0.08), width: Math.round(W*0.36), height: Math.round(H*0.76), labelTop: Math.round(H*0.80) }]
+        ? [{ left: Math.round(W * 0.56), top: Math.round(H * 0.08), width: Math.round(W * 0.38), height: Math.round(H * 0.78) }]
         : [
-            { left: Math.round(W*0.50), top: Math.round(H*0.12), width: Math.round(W*0.20), height: Math.round(H*0.65), labelTop: Math.round(H*0.77) },
-            { left: Math.round(W*0.66), top: Math.round(H*0.10), width: Math.round(W*0.20), height: Math.round(H*0.65), labelTop: Math.round(H*0.77) },
-            { left: Math.round(W*0.80), top: Math.round(H*0.14), width: Math.round(W*0.16), height: Math.round(H*0.60), labelTop: Math.round(H*0.77) }
+            { left: Math.round(W * 0.49), top: Math.round(H * 0.12), width: Math.round(W * 0.21), height: Math.round(H * 0.66) },
+            { left: Math.round(W * 0.65), top: Math.round(H * 0.10), width: Math.round(W * 0.21), height: Math.round(H * 0.66) },
+            { left: Math.round(W * 0.79), top: Math.round(H * 0.14), width: Math.round(W * 0.18), height: Math.round(H * 0.62) }
           ];
     }
+
     return count <= 1
-      ? [{ left: Math.round(W*0.55), top: Math.round(H*0.10), width: Math.round(W*0.36), height: Math.round(H*0.70), labelTop: Math.round(H*0.79) }]
+      ? [{ left: Math.round(W * 0.55), top: Math.round(H * 0.10), width: Math.round(W * 0.38), height: Math.round(H * 0.72) }]
       : [
-          { left: Math.round(W*0.48), top: Math.round(H*0.12), width: Math.round(W*0.27), height: Math.round(H*0.66), labelTop: Math.round(H*0.79) },
-          { left: Math.round(W*0.69), top: Math.round(H*0.14), width: Math.round(W*0.24), height: Math.round(H*0.62), labelTop: Math.round(H*0.79) }
+          { left: Math.round(W * 0.47), top: Math.round(H * 0.12), width: Math.round(W * 0.28), height: Math.round(H * 0.68) },
+          { left: Math.round(W * 0.68), top: Math.round(H * 0.14), width: Math.round(W * 0.25), height: Math.round(H * 0.64) }
         ];
   }
 
   const positions = productPositions(products.length);
+
   for (let i = 0; i < Math.min(products.length, positions.length); i += 1) {
     const pos = positions[i];
     const product = products[i] || {};
@@ -2115,32 +2159,21 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
 
     composites.push({
       input: Buffer.from(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="${Math.round(pos.left + pos.width/2)}" cy="${Math.round(pos.top + pos.height*0.92)}" rx="${Math.round(pos.width*0.36)}" ry="${Math.round(pos.height*0.065)}" fill="#001A3D" opacity="0.22"/>
+        <ellipse cx="${Math.round(pos.left + pos.width / 2)}" cy="${Math.round(pos.top + pos.height * 0.94)}" rx="${Math.round(pos.width * 0.35)}" ry="${Math.round(pos.height * 0.060)}" fill="#001A3D" opacity="0.22"/>
       </svg>`),
       top: 0,
       left: 0
     });
-    composites.push({ input: productPng, left, top });
 
-    const price = bannerPrice(product);
-    const labelW = Math.round(Math.min(pos.width * 0.96, W * (isThin ? 0.19 : 0.34)));
-    const labelH = Math.round(Math.max(44, Math.min(H * 0.16, 72)));
-    const labelX = Math.round(pos.left + (pos.width - labelW) / 2);
-    const labelY = Math.min(Math.round(pos.labelTop || (pos.top + pos.height + 8)), H - labelH - 12);
-    const nameFs = Math.max(10, Math.round(labelH * 0.28));
-    const priceFs = Math.max(11, Math.round(labelH * 0.32));
-    composites.push({
-      input: Buffer.from(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${labelX}" y="${labelY}" width="${labelW}" height="${labelH}" rx="${Math.round(labelH*0.28)}" fill="#ffffff" opacity="0.96"/>
-        <text x="${labelX + Math.round(labelW*0.08)}" y="${labelY + Math.round(labelH*0.42)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${nameFs}" font-weight="900" fill="#172033">${xmlEscape(bannerShortName(product))}</text>
-        ${price ? `<text x="${labelX + Math.round(labelW*0.08)}" y="${labelY + Math.round(labelH*0.78)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${priceFs}" font-weight="950" fill="#16A34A">${xmlEscape(price)} no PIX</text>` : ''}
-      </svg>`),
-      top: 0,
-      left: 0
-    });
+    // Sem etiqueta individual, sem nome individual e sem preço individual em cima do produto.
+    // A legenda do banner fica somente na chamada principal por categoria.
+    composites.push({ input: productPng, left, top });
   }
 
-  return sharp({ create: { width: W, height: H, channels: 4, background: '#ffffff' } }).composite(composites).png().toBuffer();
+  return sharp({ create: { width: W, height: H, channels: 4, background: '#ffffff' } })
+    .composite(composites)
+    .png({ quality: 100, compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
 }
 
 async function generateAndSaveProductCreative(doc, variant = 'square', pixPercent = 17) {
@@ -2219,7 +2252,7 @@ app.post('/api/admin/marketing/banner-drafts/generate', adminRequired, async (re
     const saved = [];
     for (const def of definitions) {
       const products = await selectProductsForBanner(def, usedIds, Number(def.productLimit || 3));
-      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products, width: def.width, height: def.height, targetSlot: def.targetSlot });
+      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products, width: def.width, height: def.height, targetSlot: def.targetSlot, group: def.group });
       const result = await uploadBufferToCloudinary(buffer, {
         folder: buildCloudinaryFolder('banners/rascunhos'),
         public_id: `draft-${def.key}-${Date.now()}`
@@ -2306,7 +2339,7 @@ app.post('/api/admin/marketing/generate-all-drafts', adminRequired, async (req, 
     const drafts = [];
     for (const def of definitions) {
       const selected = await selectProductsForBanner(def, usedIds, Number(def.productLimit || 3));
-      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products: selected, width: def.width, height: def.height, targetSlot: def.targetSlot });
+      const buffer = await generateMarketingBannerBuffer({ title: def.title, subtitle: def.subtitle, products: selected, width: def.width, height: def.height, targetSlot: def.targetSlot, group: def.group });
       const result = await uploadBufferToCloudinary(buffer, { folder: buildCloudinaryFolder('banners/rascunhos'), public_id: `draft-${def.key}-${Date.now()}` });
       const doc = await Banner.create({ slot: `draft_${def.key}_${Date.now()}`, targetSlot: def.targetSlot, title: def.title, subtitle: def.subtitle, image: result.secure_url, href: def.href || (def.targetSlot.includes('categoria') ? 'categoria.html' : 'todos_produtos.html'), alt: def.title, active: false, status: 'draft', source: 'automatic', draftType: 'slot_banner', products: selected.map(p => ({ id: String(p.id || p._id), name: p.name, image: p.imageUrl || p.mainImageUrl || '' })), sortOrder: drafts.length + 1, device: 'all' });
       drafts.push(normalizeBannerForResponse(doc));
