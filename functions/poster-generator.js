@@ -77,76 +77,6 @@ async function loadImageBuffer(url) {
   return Buffer.from(response.data);
 }
 
-async function removeEdgeWhiteBackground(inputBuffer, sharp, options = {}) {
-  const threshold = Number(options.threshold || 238);
-  const tolerance = Number(options.tolerance || 34);
-
-  const { data, info } = await sharp(inputBuffer)
-    .rotate()
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const width = info.width;
-  const height = info.height;
-  const channels = info.channels;
-  const visited = new Uint8Array(width * height);
-  const queue = [];
-
-  const isWhiteBackground = (pixelIndex) => {
-    const offset = pixelIndex * channels;
-    const r = data[offset];
-    const g = data[offset + 1];
-    const b = data[offset + 2];
-    const a = data[offset + 3];
-    if (a <= 8) return true;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    return r >= threshold && g >= threshold && b >= threshold && (max - min) <= tolerance;
-  };
-
-  const pushIfBackground = (x, y) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return;
-    const pixelIndex = y * width + x;
-    if (visited[pixelIndex] || !isWhiteBackground(pixelIndex)) return;
-    visited[pixelIndex] = 1;
-    queue.push(pixelIndex);
-  };
-
-  for (let x = 0; x < width; x += 1) {
-    pushIfBackground(x, 0);
-    pushIfBackground(x, height - 1);
-  }
-  for (let y = 0; y < height; y += 1) {
-    pushIfBackground(0, y);
-    pushIfBackground(width - 1, y);
-  }
-
-  for (let cursor = 0; cursor < queue.length; cursor += 1) {
-    const pixelIndex = queue[cursor];
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-    pushIfBackground(x + 1, y);
-    pushIfBackground(x - 1, y);
-    pushIfBackground(x, y + 1);
-    pushIfBackground(x, y - 1);
-  }
-
-  for (let i = 0; i < visited.length; i += 1) {
-    if (visited[i]) data[i * channels + 3] = 0;
-  }
-
-  const transparentPng = await sharp(data, { raw: info }).png().toBuffer();
-  try {
-    return await sharp(transparentPng)
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 })
-      .png()
-      .toBuffer();
-  } catch (_error) {
-    return transparentPng;
-  }
-}
-
 function calculatePricing(product = {}, pixPercent = 17) {
   const fullPrice = toNumber(product.oldPrice || product.precoAntigo || product.precoDe || product.price || product.preco || 0, 0);
   const explicitPix = toNumber(product.pixPrice || product.precoPix || product.cashPrice || 0, 0);
@@ -335,12 +265,17 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
 
   const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    const transparentProduct = await removeEdgeWhiteBackground(rawImage, sharp).catch(() => rawImage);
+    let pipeline = sharp(rawImage).rotate().flatten({ background: '#ffffff' });
+    try {
+      pipeline = pipeline.trim({ background: '#ffffff', threshold: 50 });
+    } catch (_error) {
+      pipeline = sharp(rawImage).rotate().flatten({ background: '#ffffff' });
+    }
 
     const finalW = Math.round(preset.w * preset.zoom);
     const finalH = Math.round(preset.h * preset.zoom);
 
-    const productPng = await sharp(transparentProduct)
+    const productPng = await pipeline
       .resize(finalW, finalH, {
         fit: 'contain',
         background: { r: 255, g: 255, b: 255, alpha: 0 },

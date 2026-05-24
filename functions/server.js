@@ -1841,109 +1841,74 @@ function uploadBufferToCloudinary(buffer, options = {}) {
 }
 
 
+
 function pickProductImage(product = {}) {
-  return String(product.mainImageUrl || product.imageUrl || product.image || product.imagem || product.images?.[0]?.url || '').trim();
+  const imgs = Array.isArray(product.images) ? product.images : [];
+  const main = imgs.find((img) => img && img.isMain && (img.url || img.imageUrl)) || imgs.find((img) => img && (img.url || img.imageUrl));
+  return String(product.mainImageUrl || product.imageUrl || product.image || product.imagem || main?.url || main?.imageUrl || '').trim();
 }
 
-async function removeEdgeWhiteBackground(inputBuffer, options = {}) {
-  const { default: sharp } = await import('sharp');
-  const threshold = Number(options.threshold || 238);
-  const tolerance = Number(options.tolerance || 34);
+function normalizeBannerText(value = '') {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
 
-  const { data, info } = await sharp(inputBuffer)
-    .rotate()
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+function productBannerGroup(product = {}) {
+  const text = normalizeBannerText(`${product.name || ''} ${product.title || ''} ${product.category || ''} ${product.categoryName || ''} ${product.description || ''}`);
+  if (/colch|cama box|travesseiro|pillow/.test(text)) return 'colchoes';
+  if (/smart\s*tv|televis|\btv\b|roku|monitor/.test(text)) return 'tvs';
+  if (/smartphone|celular|iphone|galaxy|motorola|moto\s*g/.test(text)) return 'celulares';
+  if (/caixa de som|som|audio|amplificad|speaker|bluetooth|antena/.test(text)) return 'som';
+  if (/ar condicionado|climatizador|ventilador|ventisol|turbo/.test(text)) return 'climatizacao';
+  if (/notebook|computador|informatica|impressora|teclado|mouse|tablet/.test(text)) return 'informatica';
+  if (/geladeira|refrigerador|freezer|lavadora|maquina de lavar|tanquinho|fogao|fogão|cooktop|forno|micro-ondas|microondas|air fryer|fritadeira|eletrodomestico|eletrodoméstico/.test(text)) return 'eletrodomesticos';
+  if (/guarda[- ]?roupa|roupeiro|sofa|sof[aá]|rack|painel|mesa|cadeira|cozinha|armario|armário|comoda|cômoda|balcao|balcão|multiuso|moveis|móveis/.test(text)) return 'moveis';
+  return 'geral';
+}
 
-  const width = info.width;
-  const height = info.height;
-  const channels = info.channels;
-  const visited = new Uint8Array(width * height);
-  const queue = [];
+const BANNER_GROUP_RULES = {
+  moveis: /m[oó]veis|guarda[- ]?roupa|roupeiro|sof[aá]|rack|painel|mesa|cadeira|cozinha|arm[aá]rio|c[oô]moda|balc[aã]o|multiuso/i,
+  eletrodomesticos: /eletrodom[eé]sticos|geladeira|refrigerador|freezer|lavadora|m[aá]quina de lavar|tanquinho|fog[aã]o|cooktop|forno|micro[- ]?ondas|air fryer|fritadeira/i,
+  colchoes: /colch[oõ]es?|cama box|travesseiro|pillow/i,
+  celulares: /smartphone|celular|iphone|galaxy|motorola|moto\s*g/i,
+  tvs: /smart\s*tv|televis[aã]o|\btv\b|roku|monitor/i,
+  som: /som|[aá]udio|caixa de som|amplificada|bluetooth|antena/i,
+  climatizacao: /ar condicionado|climatizador|ventilador|ventisol|turbo/i,
+  informatica: /inform[aá]tica|notebook|computador|impressora|teclado|mouse|tablet/i
+};
 
-  const isWhiteBackground = (pixelIndex) => {
-    const offset = pixelIndex * channels;
-    const r = data[offset];
-    const g = data[offset + 1];
-    const b = data[offset + 2];
-    const a = data[offset + 3];
-    if (a <= 8) return true;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    return r >= threshold && g >= threshold && b >= threshold && (max - min) <= tolerance;
+function regexForBannerGroup(group = '') {
+  return BANNER_GROUP_RULES[String(group || '').trim()] || null;
+}
+
+function bannerCopyForDefinition(def = {}, products = []) {
+  const group = def.group || productBannerGroup(products[0] || {});
+  const copies = {
+    moveis: ['Móveis para renovar sua casa', 'Guarda-roupas, sofás e móveis selecionados com oferta especial'],
+    eletrodomesticos: ['Eletrodomésticos em oferta', 'Geladeiras, lavadoras, fogões e itens úteis para o dia a dia'],
+    colchoes: ['Colchões com conforto de verdade', 'Modelos selecionados para você dormir melhor'],
+    celulares: ['Smartphones com ofertas especiais', 'Tecnologia, praticidade e preço especial para você'],
+    tvs: ['Smart TVs para sua sala', 'Imagem de cinema e entretenimento para toda a família'],
+    som: ['Som e áudio para sua rotina', 'Caixas, antenas e acessórios selecionados para você'],
+    climatizacao: ['Climatização para sua casa', 'Ventiladores e aparelhos para deixar seu ambiente mais confortável'],
+    informatica: ['Informática para o seu dia', 'Produtos de tecnologia com qualidade e preço especial'],
+    geral: [def.title || 'Ofertas Ariana Móveis', def.subtitle || 'Produtos selecionados com preço especial']
   };
-
-  const pushIfBackground = (x, y) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return;
-    const pixelIndex = y * width + x;
-    if (visited[pixelIndex] || !isWhiteBackground(pixelIndex)) return;
-    visited[pixelIndex] = 1;
-    queue.push(pixelIndex);
-  };
-
-  for (let x = 0; x < width; x += 1) {
-    pushIfBackground(x, 0);
-    pushIfBackground(x, height - 1);
-  }
-  for (let y = 0; y < height; y += 1) {
-    pushIfBackground(0, y);
-    pushIfBackground(width - 1, y);
-  }
-
-  for (let cursor = 0; cursor < queue.length; cursor += 1) {
-    const pixelIndex = queue[cursor];
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-    pushIfBackground(x + 1, y);
-    pushIfBackground(x - 1, y);
-    pushIfBackground(x, y + 1);
-    pushIfBackground(x, y - 1);
-  }
-
-  for (let i = 0; i < visited.length; i += 1) {
-    if (visited[i]) data[i * channels + 3] = 0;
-  }
-
-  const transparentPng = await sharp(data, { raw: info }).png().toBuffer();
-  try {
-    return await sharp(transparentPng)
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 })
-      .png()
-      .toBuffer();
-  } catch (_error) {
-    return transparentPng;
-  }
+  const [title, subtitle] = copies[group] || copies.geral;
+  return { title, subtitle };
 }
 
 async function loadRemoteImageAsPng(url, width, height) {
   if (!url) return null;
   try {
     const { default: sharp } = await import('sharp');
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 25000,
-      headers: { 'User-Agent': 'ArianaMoveisBot/1.0' }
-    });
-
-    const originalBuffer = Buffer.from(response.data);
-    let transparentProduct = originalBuffer;
-    try {
-      const cut = await removeEdgeWhiteBackground(originalBuffer, { threshold: 232, tolerance: 42 });
-      const meta = await sharp(cut).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const alphaIndex = meta.info.channels - 1;
-      let visible = 0;
-      for (let i = alphaIndex; i < meta.data.length; i += meta.info.channels) if (meta.data[i] > 18) visible += 1;
-      const visibleRatio = visible / Math.max(1, meta.info.width * meta.info.height);
-      if (visibleRatio > 0.015) transparentProduct = cut;
-    } catch (_error) {
-      transparentProduct = originalBuffer;
-    }
-
-    return await sharp(transparentProduct)
+    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 25000 });
+    // Importante: sem flatten e sem resize forçado com fundo branco.
+    // A imagem mantém proporção original, fica transparente quando já vem em PNG/WebP,
+    // e não cria o quadrado branco atrás do produto.
+    return await sharp(Buffer.from(response.data))
       .rotate()
-      .trim({ background: { r: 255, g: 255, b: 255, alpha: 0 }, threshold: 10 })
-      .resize(width, height, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 }, withoutEnlargement: false })
+      .trim({ background: '#ffffff', threshold: 18 })
+      .resize(width, height, { fit: 'inside', withoutEnlargement: false })
       .png()
       .toBuffer();
   } catch (_error) {
@@ -1953,66 +1918,54 @@ async function loadRemoteImageAsPng(url, width, height) {
 
 function bannerDraftDefinitions() {
   return [
-    { key: 'index_main', targetSlot: 'index_main', title: 'Ofertas imperdíveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', width: 1920, height: 480, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html?section=offers' },
-    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'Promoção especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 2, filter: { isOffer: true }, href: 'todos_produtos.html?section=offers' },
-    { key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'Móveis em destaque', subtitle: 'Renove sua casa com preço especial', width: 800, height: 450, productLimit: 2, categoryRegex: /m[oó]veis|guarda|roupeiro|cama|sala|cozinha|rack|painel/i, href: 'categoria.html?category=Móveis' },
-    { key: 'index_mini_2', targetSlot: 'index_mini_2', title: 'Som e áudio', subtitle: 'Produtos selecionados para você', width: 800, height: 450, productLimit: 2, categoryRegex: /som|audio|áudio|caixa/i, href: 'categoria.html?category=Som e Áudio' },
-    { key: 'index_mini_3', targetSlot: 'index_mini_3', title: 'Climatização', subtitle: 'Mais conforto para sua casa', width: 800, height: 450, productLimit: 2, categoryRegex: /ar condicionado|climatizador|ventilador/i, href: 'categoria.html?category=Ventiladores' },
-    { key: 'index_mini_4', targetSlot: 'index_mini_4', title: 'Celulares', subtitle: 'Smartphones com ofertas especiais', width: 800, height: 450, productLimit: 2, categoryRegex: /smartphone|celular|iphone|telefone/i, href: 'categoria.html?category=Smartphones' },
-    { key: 'index_mini_5', targetSlot: 'index_mini_5', title: 'Smart TVs', subtitle: 'Imagem de cinema para sua sala', width: 800, height: 450, productLimit: 2, categoryRegex: /smart\s*tv|televis|tv/i, href: 'categoria.html?category=Smart Tv' },
-    { key: 'index_duo_1', targetSlot: 'index_duo_1', title: 'Lançamentos', subtitle: 'Novidades selecionadas para sua casa', width: 1200, height: 400, productLimit: 3, filter: { isNewArrival: true }, href: 'todos_produtos.html?section=new_arrivals' },
-    { key: 'index_duo_2', targetSlot: 'index_duo_2', title: 'Recomendado pra você', subtitle: 'Produtos escolhidos para vender mais', width: 1200, height: 400, productLimit: 3, filter: { isRecommended: true }, href: 'todos_produtos.html?section=recommended' },
-    { key: 'index_secondary_1', targetSlot: 'index_secondary_1', title: 'Queridinhos da internet', subtitle: 'Os produtos mais procurados na Ariana Móveis', width: 1200, height: 350, productLimit: 3, filter: { isBestSeller: true }, href: 'todos_produtos.html?section=best_sellers' },
-    { key: 'index_secondary_2', targetSlot: 'index_secondary_2', title: 'Promoção exclusiva', subtitle: 'Selecionamos ofertas para você economizar', width: 1200, height: 350, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html?section=featured' },
-    { key: 'home_card_1', targetSlot: 'home_card_1', title: 'Eletrodomésticos', subtitle: 'Geladeiras, lavadoras e muito mais', width: 800, height: 800, productLimit: 2, categoryRegex: /eletrodom[eé]sticos|geladeira|refrigerador|lavadora|m[aá]quina|fog[aã]o|freezer/i, href: 'todos_produtos.html?q=eletro' },
-    { key: 'home_card_2', targetSlot: 'home_card_2', title: 'Informática', subtitle: 'Tecnologia para sua rotina', width: 800, height: 800, productLimit: 2, categoryRegex: /inform[aá]tica|notebook|computador|monitor/i, href: 'todos_produtos.html?q=informatica' },
-    { key: 'home_card_3', targetSlot: 'home_card_3', title: 'Móveis', subtitle: 'Ambientes bonitos e completos', width: 800, height: 800, productLimit: 2, categoryRegex: /m[oó]veis|guarda|roupeiro|cama|sala|cozinha|rack|painel/i, href: 'todos_produtos.html?q=moveis' },
-    { key: 'footer_banner', targetSlot: 'footer_banner', title: 'Mais ofertas para você', subtitle: 'Compra fácil pelo site ou WhatsApp', width: 1920, height: 400, productLimit: 4, href: 'todos_produtos.html' },
-    { key: 'header_category_banner', targetSlot: 'header_category_banner', title: 'Categorias Ariana', subtitle: 'Móveis, eletros, colchões e tecnologia', width: 900, height: 520, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html' },
-    { key: 'produto_detail_horizontal_1', targetSlot: 'produto_detail_horizontal_1', title: 'Complemente sua compra', subtitle: 'Produtos selecionados para combinar com sua casa', width: 1200, height: 350, productLimit: 3, filter: { isRecommended: true }, href: 'todos_produtos.html?section=recommended' },
-    { key: 'produto_detail_horizontal_2', targetSlot: 'produto_detail_horizontal_2', title: 'Oferta especial Ariana', subtitle: 'Condições imperdíveis por tempo limitado', width: 1200, height: 350, productLimit: 3, filter: { isOffer: true }, href: 'todos_produtos.html?section=offers' }
+    { key: 'index_main', targetSlot: 'index_main', title: 'Ofertas imperdíveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', width: 1920, height: 480, productLimit: 3, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'Promoção especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 1, group: 'tvs', href: 'todos_produtos.html?section=offers' },
+
+    { key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'Móveis em destaque', subtitle: 'Renove sua casa com preço especial', width: 800, height: 450, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_mini_2', targetSlot: 'index_mini_2', title: 'Som e áudio', subtitle: 'Produtos selecionados para você', width: 800, height: 450, productLimit: 2, group: 'som', href: 'categoria.html?category=Som e Áudio' },
+    { key: 'index_mini_3', targetSlot: 'index_mini_3', title: 'Climatização', subtitle: 'Mais conforto para sua casa', width: 800, height: 450, productLimit: 2, group: 'climatizacao', href: 'categoria.html?category=Ventiladores' },
+    { key: 'index_mini_4', targetSlot: 'index_mini_4', title: 'Celulares', subtitle: 'Smartphones com ofertas especiais', width: 800, height: 450, productLimit: 2, group: 'celulares', href: 'categoria.html?category=Smartphones' },
+    { key: 'index_mini_5', targetSlot: 'index_mini_5', title: 'Smart TVs', subtitle: 'Imagem de cinema para sua sala', width: 800, height: 450, productLimit: 2, group: 'tvs', href: 'categoria.html?category=Smart Tv' },
+
+    { key: 'index_duo_1', targetSlot: 'index_duo_1', title: 'Lançamentos', subtitle: 'Novidades selecionadas para sua casa', width: 1200, height: 400, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_duo_2', targetSlot: 'index_duo_2', title: 'Recomendado pra você', subtitle: 'Produtos escolhidos para vender mais', width: 1200, height: 400, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' },
+
+    { key: 'index_secondary_1', targetSlot: 'index_secondary_1', title: 'Queridinhos da internet', subtitle: 'Os produtos mais procurados na Ariana Móveis', width: 1200, height: 350, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' },
+    { key: 'index_secondary_2', targetSlot: 'index_secondary_2', title: 'Promoção exclusiva', subtitle: 'Selecionamos ofertas para você economizar', width: 1200, height: 350, productLimit: 2, group: 'colchoes', href: 'categoria.html?category=Colchões' },
+
+    { key: 'home_card_1', targetSlot: 'home_card_1', title: 'Eletrodomésticos', subtitle: 'Geladeiras, lavadoras e muito mais', width: 800, height: 800, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' },
+    { key: 'home_card_2', targetSlot: 'home_card_2', title: 'Informática', subtitle: 'Tecnologia para sua rotina', width: 800, height: 800, productLimit: 2, group: 'informatica', href: 'categoria.html?category=Informática' },
+    { key: 'home_card_3', targetSlot: 'home_card_3', title: 'Móveis', subtitle: 'Ambientes bonitos e completos', width: 800, height: 800, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+
+    { key: 'footer_banner', targetSlot: 'footer_banner', title: 'Mais ofertas para você', subtitle: 'Ariana Móveis: compra fácil pelo site ou WhatsApp', width: 1920, height: 400, productLimit: 3, group: 'colchoes', href: 'categoria.html?category=Colchões' },
+    { key: 'header_category_banner', targetSlot: 'header_category_banner', title: 'Categorias Ariana', subtitle: 'Encontre móveis, eletros, colchões e tecnologia', width: 900, height: 520, productLimit: 2, group: 'moveis', href: 'todos_produtos.html' },
+
+    { key: 'produto_detail_horizontal_1', targetSlot: 'produto_detail_horizontal_1', title: 'Complemente sua compra', subtitle: 'Produtos selecionados para combinar com sua casa', width: 1200, height: 350, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'produto_detail_horizontal_2', targetSlot: 'produto_detail_horizontal_2', title: 'Oferta especial Ariana', subtitle: 'Condições imperdíveis por tempo limitado', width: 1200, height: 350, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' }
   ];
 }
 
 async function selectProductsForBanner(definition, usedIds = new Set(), limit = 3) {
   const base = { active: { $ne: false } };
-  let docs = [];
-  if (definition.filter) docs = await Product.find({ ...base, ...definition.filter }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit * 8);
-  if (definition.categoryRegex) {
-    const rx = definition.categoryRegex;
-    docs = await Product.find({ ...base, $or: [{ category: rx }, { categoryName: rx }, { name: rx }, { description: rx }] }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit * 8);
-  }
-  if (!docs.length) docs = await Product.find(base).sort({ updatedAt: -1, createdAt: -1 }).limit(limit * 8);
-  const normalized = docs.map(normalizeProductForResponse).filter((p) => pickProductImage(p));
+  const groupRx = regexForBannerGroup(definition.group) || definition.categoryRegex || null;
+  const query = groupRx ? {
+    ...base,
+    $or: [{ category: groupRx }, { categoryName: groupRx }, { name: groupRx }, { description: groupRx }, { brand: groupRx }]
+  } : base;
+
+  let docs = await Product.find(query).sort({ isOffer: -1, isHighlight: -1, updatedAt: -1, createdAt: -1 }).limit(limit * 8);
+  // Nunca completa banner de categoria com produto de outra família. Se achou só 1, usa só 1.
+  docs = docs.filter((doc) => !definition.group || productBannerGroup(normalizeProductForResponse(doc)) === definition.group);
+
   const chosen = [];
-  for (const product of normalized) {
-    const id = String(product.id || product._id || product.sku || product.name || Math.random());
-    if (usedIds.has(id) && normalized.length > limit) continue;
-    chosen.push(product); usedIds.add(id);
+  for (const doc of docs) {
+    const id = String(doc._id);
+    if (usedIds.has(id) && docs.length > limit) continue;
+    chosen.push(doc);
+    usedIds.add(id);
     if (chosen.length >= limit) break;
   }
-  if (chosen.length < limit) {
-    for (const product of normalized) {
-      const id = String(product.id || product._id || product.sku || product.name || Math.random());
-      if (chosen.some((p) => String(p.id || p._id || p.sku || p.name) === id)) continue;
-      chosen.push(product);
-      if (chosen.length >= limit) break;
-    }
-  }
-  return chosen;
-}
-
-function wrapBannerLines(text = '', maxChars = 22, maxLines = 2) {
-  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
-  const lines = [];
-  let current = '';
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxChars && current) { lines.push(current); current = word; } else current = next;
-    if (lines.length >= maxLines) break;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-  return lines.slice(0, maxLines);
+  return chosen.map(normalizeProductForResponse);
 }
 
 async function generateMarketingBannerBuffer({ title, subtitle, products = [], width = 1600, height = 520, targetSlot = '' }) {
@@ -2022,39 +1975,94 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
   const isVertical = H > W;
   const isSquare = Math.abs(W - H) < 40;
   const isThin = (W / H) >= 3.2;
-  const R = Math.round(Math.min(W, H) * 0.035);
-  const margin = Math.round(W * (isVertical ? 0.07 : 0.045));
-  const brandFs = Math.max(14, Math.round(Math.min(W, H) * (isThin ? 0.040 : isSquare ? 0.030 : 0.034)));
-  const titleFs = Math.max(26, Math.round(Math.min(W, H) * (isThin ? 0.095 : isSquare ? 0.060 : isVertical ? 0.060 : 0.070)));
-  const subFs = Math.max(14, Math.round(Math.min(W, H) * (isThin ? 0.040 : isSquare ? 0.032 : 0.034)));
-  const titleLines = wrapBannerLines(title || 'Ariana Móveis', isVertical ? 16 : isSquare ? 18 : isThin ? 21 : 22, isVertical ? 3 : 2);
-  const subLines = wrapBannerLines(subtitle || 'Ofertas selecionadas para você', isVertical ? 24 : isThin ? 42 : 34, 2);
-  const titleY = Math.round(H * (isThin ? 0.28 : isVertical ? 0.16 : isSquare ? 0.16 : 0.24));
-  const titleLineGap = Math.round(titleFs * 0.95);
-  const subY = titleY + titleLines.length * titleLineGap + Math.round(H * 0.055);
-  const subLineGap = Math.round(subFs * 1.25);
-  const ctaH = Math.max(34, Math.round(H * (isThin ? 0.16 : isVertical ? 0.07 : isSquare ? 0.082 : 0.13)));
-  const ctaW = Math.round(W * (isVertical ? 0.62 : isSquare ? 0.42 : isThin ? 0.25 : 0.27));
+  const R = Math.round(Math.min(W, H) * 0.04);
+  const group = productBannerGroup(products[0] || { name: title, category: subtitle });
+  const copy = bannerCopyForDefinition({ title, subtitle, group }, products);
+  const safeTitle = xmlEscape(copy.title || title || 'Ariana Móveis');
+  const safeSubtitle = xmlEscape(copy.subtitle || subtitle || 'Ofertas selecionadas para você');
+
+  const margin = Math.round(W * (isVertical ? 0.075 : 0.055));
+  const brandFs = Math.max(14, Math.round(Math.min(W, H) * (isThin ? 0.035 : isSquare ? 0.040 : 0.038)));
+  const titleFs = Math.max(26, Math.round(Math.min(W, H) * (isThin ? 0.090 : isSquare ? 0.070 : isVertical ? 0.064 : 0.080)));
+  const subFs = Math.max(15, Math.round(Math.min(W, H) * (isThin ? 0.038 : isSquare ? 0.032 : isVertical ? 0.030 : 0.038)));
+  const ctaH = Math.max(38, Math.round(H * (isThin ? 0.145 : isSquare ? 0.090 : isVertical ? 0.070 : 0.125)));
+  const ctaW = Math.round(W * (isVertical ? 0.62 : isSquare ? 0.42 : isThin ? 0.25 : 0.30));
   const ctaX = margin;
-  const ctaY = isVertical ? Math.round(H * 0.82) : Math.round(H - ctaH - H * 0.12);
-  const phoneFs = Math.max(11, Math.round(Math.min(W, H) * (isThin ? 0.030 : 0.022)));
-  const titleSvg = titleLines.map((line, idx) => `<text x="${margin}" y="${titleY + idx * titleLineGap}" font-family="Arial, Helvetica, sans-serif" font-size="${titleFs}" font-weight="900" fill="#ffffff">${xmlEscape(line)}</text>`).join('');
-  const subSvg = subLines.map((line, idx) => `<text x="${margin}" y="${subY + idx * subLineGap}" font-family="Arial, Helvetica, sans-serif" font-size="${subFs}" font-weight="800" fill="#EAF4FF">${xmlEscape(line)}</text>`).join('');
-  const bg = Buffer.from(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0047AB"/><stop offset="58%" stop-color="#075FD3"/><stop offset="100%" stop-color="#05285F"/></linearGradient><filter id="shadow" x="-25%" y="-25%" width="150%" height="150%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#001E4D" flood-opacity="0.24"/></filter></defs><rect width="${W}" height="${H}" rx="${R}" fill="url(#bg)"/><circle cx="${Math.round(W*0.82)}" cy="${Math.round(-H*0.10)}" r="${Math.round(Math.min(W,H)*0.55)}" fill="#ffffff" opacity="0.10"/><circle cx="${Math.round(W*0.97)}" cy="${Math.round(H*0.92)}" r="${Math.round(Math.min(W,H)*0.42)}" fill="#F7C600" opacity="0.18"/><circle cx="${Math.round(W*0.64)}" cy="${Math.round(H*0.48)}" r="${Math.round(Math.min(W,H)*0.18)}" fill="#ffffff" opacity="0.055"/><text x="${margin}" y="${Math.round(H * (isThin ? 0.14 : 0.10))}" font-family="Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>${titleSvg}${subSvg}<rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH*0.35)}" fill="#16A34A" filter="url(#shadow)"/><text x="${ctaX + ctaW/2}" y="${Math.round(ctaY + ctaH*0.64)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(13, Math.round(ctaH*0.38))}" font-weight="900" fill="#ffffff">COMPRE AGORA</text><text x="${margin}" y="${Math.round(H*0.925)}" font-family="Arial, Helvetica, sans-serif" font-size="${phoneFs}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text></svg>`);
+  const ctaY = Math.round(H - ctaH - H * (isThin ? 0.12 : 0.08));
+  const phoneFs = Math.max(10, Math.round(Math.min(W, H) * (isThin ? 0.026 : 0.020)));
+
+  const textW = isVertical ? Math.round(W * 0.84) : Math.round(W * (isThin ? 0.44 : isSquare ? 0.47 : 0.45));
+  const brandY = Math.round(H * (isThin ? 0.14 : 0.12));
+  const titleTop = Math.round(H * (isThin ? 0.24 : isSquare ? 0.15 : isVertical ? 0.18 : 0.22));
+  const titleBoxH = Math.round(titleFs * (isThin ? 1.75 : 2.15));
+  const subTop = Math.round(titleTop + titleBoxH + H * 0.018);
+
+  const bg = Buffer.from(`
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#003A90"/>
+          <stop offset="50%" stop-color="#075FD3"/>
+          <stop offset="100%" stop-color="#05285F"/>
+        </linearGradient>
+        <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#001E4D" flood-opacity="0.26"/></filter>
+      </defs>
+      <rect width="${W}" height="${H}" rx="${R}" fill="url(#bg)"/>
+      <circle cx="${Math.round(W*0.78)}" cy="${Math.round(-H*0.08)}" r="${Math.round(Math.min(W,H)*0.62)}" fill="#ffffff" opacity="0.10"/>
+      <circle cx="${Math.round(W*0.96)}" cy="${Math.round(H*0.94)}" r="${Math.round(Math.min(W,H)*0.48)}" fill="#F7C600" opacity="0.18"/>
+      <circle cx="${Math.round(W*0.67)}" cy="${Math.round(H*0.55)}" r="${Math.round(Math.min(W,H)*0.20)}" fill="#ffffff" opacity="0.055"/>
+
+      <text x="${margin}" y="${brandY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="900" fill="#F7C600">ARIANA MÓVEIS</text>
+      <foreignObject x="${margin}" y="${titleTop}" width="${textW}" height="${titleBoxH}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:900;line-height:0.98;color:#ffffff;letter-spacing:-0.8px;text-shadow:0 4px 12px rgba(0,0,0,.18);">${safeTitle}</div>
+      </foreignObject>
+      <foreignObject x="${margin}" y="${subTop}" width="${textW}" height="${Math.round(subFs*3.2)}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${subFs}px;font-weight:750;line-height:1.18;color:#EAF4FF;">${safeSubtitle}</div>
+      </foreignObject>
+      <rect x="${ctaX}" y="${ctaY}" width="${ctaW}" height="${ctaH}" rx="${Math.round(ctaH*0.32)}" fill="#16A34A" filter="url(#shadow)"/>
+      <text x="${ctaX + ctaW/2}" y="${Math.round(ctaY + ctaH*0.64)}" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${Math.max(13, Math.round(ctaH*0.36))}" font-weight="900" fill="#ffffff">COMPRE AGORA</text>
+      <text x="${margin}" y="${Math.round(H*0.93)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${phoneFs}" font-weight="900" fill="#ffffff">WhatsApp: (31) 98514-7119</text>
+    </svg>`);
+
   const composites = [{ input: bg, top: 0, left: 0 }];
-  function productPositions() {
-    if (isVertical) return [ { left: Math.round(W*0.11), top: Math.round(H*0.39), width: Math.round(W*0.78), height: Math.round(H*0.26) }, { left: Math.round(W*0.20), top: Math.round(H*0.58), width: Math.round(W*0.60), height: Math.round(H*0.20) } ];
-    if (isSquare) return [ { left: Math.round(W*0.38), top: Math.round(H*0.18), width: Math.round(W*0.56), height: Math.round(H*0.38) }, { left: Math.round(W*0.53), top: Math.round(H*0.44), width: Math.round(W*0.40), height: Math.round(H*0.28) } ];
-    if (isThin) return [ { left: Math.round(W*0.53), top: Math.round(H*0.13), width: Math.round(W*0.20), height: Math.round(H*0.68) }, { left: Math.round(W*0.68), top: Math.round(H*0.15), width: Math.round(W*0.17), height: Math.round(H*0.64) }, { left: Math.round(W*0.81), top: Math.round(H*0.17), width: Math.round(W*0.15), height: Math.round(H*0.60) }, { left: Math.round(W*0.91), top: Math.round(H*0.22), width: Math.round(W*0.09), height: Math.round(H*0.50) } ];
-    return [ { left: Math.round(W*0.53), top: Math.round(H*0.14), width: Math.round(W*0.23), height: Math.round(H*0.64) }, { left: Math.round(W*0.68), top: Math.round(H*0.18), width: Math.round(W*0.20), height: Math.round(H*0.58) }, { left: Math.round(W*0.82), top: Math.round(H*0.22), width: Math.round(W*0.15), height: Math.round(H*0.50) } ];
+
+  function productPositions(count = 1) {
+    if (isVertical) {
+      return [{ left: Math.round(W*0.13), top: Math.round(H*0.43), width: Math.round(W*0.74), height: Math.round(H*0.33) }];
+    }
+    if (isSquare) {
+      return count <= 1
+        ? [{ left: Math.round(W*0.42), top: Math.round(H*0.22), width: Math.round(W*0.50), height: Math.round(H*0.42) }]
+        : [
+            { left: Math.round(W*0.43), top: Math.round(H*0.20), width: Math.round(W*0.44), height: Math.round(H*0.34) },
+            { left: Math.round(W*0.56), top: Math.round(H*0.48), width: Math.round(W*0.34), height: Math.round(H*0.26) }
+          ];
+    }
+    if (isThin) {
+      return count <= 1
+        ? [{ left: Math.round(W*0.58), top: Math.round(H*0.12), width: Math.round(W*0.34), height: Math.round(H*0.72) }]
+        : [
+            { left: Math.round(W*0.52), top: Math.round(H*0.16), width: Math.round(W*0.20), height: Math.round(H*0.66) },
+            { left: Math.round(W*0.68), top: Math.round(H*0.14), width: Math.round(W*0.20), height: Math.round(H*0.66) },
+            { left: Math.round(W*0.82), top: Math.round(H*0.17), width: Math.round(W*0.15), height: Math.round(H*0.60) }
+          ];
+    }
+    return count <= 1
+      ? [{ left: Math.round(W*0.56), top: Math.round(H*0.13), width: Math.round(W*0.34), height: Math.round(H*0.68) }]
+      : [
+          { left: Math.round(W*0.50), top: Math.round(H*0.15), width: Math.round(W*0.25), height: Math.round(H*0.64) },
+          { left: Math.round(W*0.70), top: Math.round(H*0.17), width: Math.round(W*0.22), height: Math.round(H*0.60) }
+        ];
   }
-  const usableProducts = products.filter((p) => pickProductImage(p));
-  const positions = productPositions();
-  for (let i = 0; i < Math.min(usableProducts.length, positions.length); i += 1) {
+
+  const positions = productPositions(products.length);
+  for (let i = 0; i < Math.min(products.length, positions.length); i += 1) {
     const pos = positions[i];
-    const productPng = await loadRemoteImageAsPng(pickProductImage(usableProducts[i]), pos.width, pos.height);
-    if (productPng) composites.push({ input: productPng, left: pos.left, top: pos.top });
+    const productPng = await loadRemoteImageAsPng(pickProductImage(products[i]), pos.width, pos.height);
+    if (!productPng) continue;
+    composites.push({ input: productPng, left: pos.left, top: pos.top });
   }
+
   return sharp({ create: { width: W, height: H, channels: 4, background: '#ffffff' } }).composite(composites).png().toBuffer();
 }
 
