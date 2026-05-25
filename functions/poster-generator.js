@@ -272,8 +272,19 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
       pipeline = sharp(rawImage).rotate().ensureAlpha();
     }
 
-    const finalW = Math.round(preset.w * preset.zoom);
-    const finalH = Math.round(preset.h * preset.zoom);
+    /*
+      V32 - correção para produtos grandes:
+      O erro "Image to composite must have same dimensions or smaller" acontecia
+      quando preset.w * zoom passava de 1080px. Agora o produto sempre fica
+      dentro da caixa de imagem do layout, tanto no poster quadrado quanto no story.
+    */
+    const maxBoxW = Math.max(120, Math.round((L.imageBox?.w || width) - 28));
+    const maxBoxH = Math.max(120, Math.round((L.imageBox?.h || height) - 28));
+    const requestedW = Math.round(preset.w * preset.zoom);
+    const requestedH = Math.round(preset.h * preset.zoom);
+    const scale = Math.min(1, maxBoxW / requestedW, maxBoxH / requestedH);
+    const finalW = Math.max(80, Math.round(requestedW * scale));
+    const finalH = Math.max(80, Math.round(requestedH * scale));
 
     const productPng = await pipeline
       .resize(finalW, finalH, {
@@ -284,16 +295,26 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
       .png()
       .toBuffer();
 
-    /*
-      V31:
-      Centraliza a imagem final no eixo X, mas prende o topo por categoria.
-      Isso evita que zoom alto empurre guarda-roupa/máquina para cima ou para baixo
-      e melhora o aproveitamento da área branca.
-    */
+    const productMeta = await sharp(productPng).metadata();
+    const realW = Math.min(Number(productMeta.width || finalW), width);
+    const realH = Math.min(Number(productMeta.height || finalH), height);
+
+    const boxX = Number(L.imageBox?.x || 0);
+    const boxY = Number(L.imageBox?.y || 0);
+    const boxW = Number(L.imageBox?.w || width);
+    const boxH = Number(L.imageBox?.h || height);
+
+    const desiredTop = Number.isFinite(Number(preset.top))
+      ? Number(preset.top)
+      : boxY + (boxH - realH) / 2;
+
+    const left = Math.max(0, Math.min(width - realW, Math.round(boxX + (boxW - realW) / 2)));
+    const top = Math.max(0, Math.min(height - realH, Math.round(Math.max(boxY + 8, Math.min(desiredTop, boxY + boxH - realH - 8)))));
+
     composites.push({
       input: productPng,
-      top: Math.round(preset.top),
-      left: Math.round((width - finalW) / 2)
+      top,
+      left
     });
   }
 
