@@ -233,23 +233,105 @@ function signAdminToken(payload = {}) {
   return jwt.sign({ role: 'admin', admin: true, active: true, ...payload }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+function adminPermissionAllowedForRoute(req, permissions = []) {
+  const role = String(req.admin?.role || req.auth?.role || '').toLowerCase();
+  if (role === 'admin' || req.admin?.admin === true) return true;
+
+  const perms = new Set(Array.isArray(permissions) ? permissions : []);
+  const method = String(req.method || 'GET').toUpperCase();
+  const pathOnly = String(req.path || req.originalUrl || '').split('?')[0];
+
+  const has = (permission) => perms.has(permission);
+  const hasAny = (...items) => items.some((item) => has(item));
+
+  if (pathOnly === '/api/admin/me') return true;
+
+  if (pathOnly.startsWith('/api/admin/categories') && method === 'GET') {
+    return hasAny('categories:read', 'products:read', 'products:create', 'products:update');
+  }
+
+  if (pathOnly === '/api/admin/uploads' && ['POST', 'DELETE'].includes(method)) {
+    return hasAny('uploads:create', 'products:create', 'products:update');
+  }
+
+  if (pathOnly.startsWith('/api/admin/posters/product')) {
+    return method === 'POST' && has('posters:generate');
+  }
+
+  if (pathOnly.startsWith('/api/admin/posters/bulk') || pathOnly.startsWith('/api/admin/posters/offers')) {
+    return method === 'POST' && has('posters:generate:bulk');
+  }
+
+  if (pathOnly === '/api/admin/products' || pathOnly.startsWith('/api/admin/products/')) {
+    if (method === 'GET') return has('products:read');
+    if (method === 'POST') return has('products:create');
+    if (['PATCH', 'PUT'].includes(method)) return has('products:update');
+    if (method === 'DELETE') return has('products:delete');
+  }
+
+  return false;
+}
+
 async function adminRequired(req, res, next) {
   try {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
     if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
+
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded && (decoded.admin === true || String(decoded.role || '').toLowerCase() === 'admin')) {
+    const decodedRole = String(decoded.role || '').toLowerCase();
+
+    if (decoded && (decoded.admin === true || decodedRole === 'admin')) {
       req.admin = decoded;
       req.user = decoded;
+      req.auth = decoded;
       return next();
     }
+
     const user = decoded.id ? await User.findById(decoded.id) : null;
-    if (user && String(user.role || '').toLowerCase() === 'admin') {
-      req.admin = { id: String(user._id), email: user.email || '', name: user.name || ADMIN_NAME, role: 'admin', admin: true };
+    const userRole = String(user?.role || decodedRole || '').toLowerCase();
+
+    if (user && user.isActive === false) {
+      return res.status(403).json({ ok: false, error: 'Usuário desativado' });
+    }
+
+    if (user && userRole === 'admin') {
+      req.admin = {
+        id: String(user._id),
+        email: user.email || '',
+        name: user.name || ADMIN_NAME,
+        role: 'admin',
+        admin: true,
+        permissions: ['*']
+      };
       req.user = user;
+      req.auth = req.admin;
       return next();
     }
+
+    if (user && userRole === 'staff') {
+      const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+      req.admin = {
+        id: String(user._id),
+        email: user.email || '',
+        name: user.name || 'Colaborador',
+        role: 'staff',
+        admin: false,
+        permissions
+      };
+      req.user = user;
+      req.auth = req.admin;
+
+      if (adminPermissionAllowedForRoute(req, permissions)) return next();
+
+      return res.status(403).json({
+        ok: false,
+        error: 'Sem permissão para esta ação',
+        requiredPath: req.path,
+        method: req.method
+      });
+    }
+
     return res.status(403).json({ ok: false, error: 'Acesso negado' });
   } catch (_error) {
     return res.status(401).json({ ok: false, error: 'Token inválido' });
@@ -442,7 +524,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 const baseOptions = { timestamps: true, versionKey: false };
-const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin'] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true } }, baseOptions);
+const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin', 'staff'] }, permissions: { type: [String], default: [] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true } }, baseOptions);
 const sellerSchema = new mongoose.Schema({ sellerId: { type: String, index: true, unique: true }, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, displayName: String, storeName: String, email: String, phone: String, document: String, status: { type: String, default: 'pending' }, onboardingCompleted: { type: Boolean, default: false }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const categorySchema = new mongoose.Schema({ name: { type: String, required: true }, slug: String, parentId: { type: String, default: null }, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, image: String }, baseOptions);
 const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
@@ -1612,7 +1694,7 @@ app.post('/api/admin/login', async (req, res) => {
       };
     } else {
       const user = await User.findOne({ email });
-      if (user && String(user.role || '').toLowerCase() === 'admin' && user.isActive !== false) {
+      if (user && ['admin', 'staff'].includes(String(user.role || '').toLowerCase()) && user.isActive !== false) {
         let valid = false;
 
         if (user.passwordHash) {
@@ -1632,15 +1714,17 @@ app.post('/api/admin/login', async (req, res) => {
         }
 
         if (valid) {
+          const role = String(user.role || '').toLowerCase() === 'staff' ? 'staff' : 'admin';
           adminUser = {
             id: String(user._id),
             userId: String(user._id),
             uid: String(user._id),
             email: String(user.email || email).trim().toLowerCase(),
-            role: 'admin',
-            admin: true,
+            role,
+            admin: role === 'admin',
             active: user.isActive !== false,
-            name: user.name || ADMIN_NAME
+            name: user.name || (role === 'admin' ? ADMIN_NAME : 'Colaborador'),
+            permissions: Array.isArray(user.permissions) ? user.permissions : []
           };
         }
       }
@@ -1675,7 +1759,16 @@ app.post('/api/admin/login', async (req, res) => {
 
 app.get('/api/admin/me', adminRequired, async (req, res) => {
   const admin = req.admin || req.user || {};
-  return res.json({ ok: true, id: String(admin.id || admin.uid || 'admin'), email: admin.email || '', role: 'admin', admin: true, name: admin.name || ADMIN_NAME });
+  const role = String(admin.role || 'admin').toLowerCase();
+  return res.json({
+    ok: true,
+    id: String(admin.id || admin.uid || admin._id || 'admin'),
+    email: admin.email || '',
+    role,
+    admin: role === 'admin' || admin.admin === true,
+    name: admin.name || (role === 'admin' ? ADMIN_NAME : 'Colaborador'),
+    permissions: Array.isArray(admin.permissions) ? admin.permissions : []
+  });
 });
 
 app.get('/api/admin/store-settings', adminRequired, async (_req, res) => {

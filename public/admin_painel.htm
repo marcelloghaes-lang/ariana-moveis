@@ -161,6 +161,39 @@ function formatDateTime(v){const d=toJSDate(v); return d?d.toLocaleString('pt-BR
 function formatDateOnly(v){const d=toJSDate(v); return d?d.toLocaleDateString('pt-BR'):'—'}
 function nowISO(){return new Date().toISOString()}
 function getAdminToken(){return localStorage.getItem('admin_token')||''}
+function getAdminRole(){return String(localStorage.getItem('admin_role')||'admin').toLowerCase()}
+function getAdminPermissions(){
+  try { return JSON.parse(localStorage.getItem('admin_permissions') || '[]') || []; } catch(_e) { return []; }
+}
+function hasAdminPerm(permission){
+  const role = getAdminRole();
+  if(role === 'admin') return true;
+  const perms = getAdminPermissions();
+  return Array.isArray(perms) && (perms.includes('*') || perms.includes(permission));
+}
+function hasAnyAdminPerm(...permissions){
+  return permissions.some((permission) => hasAdminPerm(permission));
+}
+function canAccessView(view){
+  const role = getAdminRole();
+  if(role === 'admin') return true;
+  if(view === 'products') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate');
+  if(view === 'dashboard') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate');
+  return false;
+}
+function applyAdminPermissionsToUI(){
+  const role = getAdminRole();
+  const isAdmin = role === 'admin';
+
+  document.querySelectorAll('.view-link').forEach((link) => {
+    const view = link.dataset.view || '';
+    if(isAdmin || canAccessView(view)) link.classList.remove('hidden');
+    else link.classList.add('hidden');
+  });
+
+  const allowedStart = isAdmin ? 'dashboard' : (canAccessView('products') ? 'products' : 'dashboard');
+  if(!isAdmin && !canAccessView(currentView)) currentView = allowedStart;
+}
 function buildHeadersAuth(extra={}){const t=getAdminToken(); return t?{...extra,Authorization:`Bearer ${t}`}:{...extra}}
 function displayMessage(message,type='info'){
   const container=document.getElementById('toast-container');
@@ -247,6 +280,11 @@ function startPoller(fn, ms=20000){ const id=setInterval(fn,ms); pollers.push(id
 function renderUserDisplayName(name){document.getElementById('user-display-name').textContent=`Bem-vindo, ${name||'Admin'}!`;}
 
 window.changeView = async function(viewName, force=false){
+  applyAdminPermissionsToUI();
+  if(!canAccessView(viewName)){
+    displayMessage('Você não tem permissão para acessar esta área.','error');
+    viewName = hasAnyAdminPerm('products:read','products:create','products:update','posters:generate') ? 'products' : 'dashboard';
+  }
   if(viewName!==currentView||force){ currentView=viewName; }
   const phonesPanel = document.getElementById('phones-config-panel'); if(phonesPanel) phonesPanel.classList.add('hidden');
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
@@ -281,6 +319,9 @@ window.handleSignIn = async function(){
     localStorage.setItem('admin_name', adminName);
     localStorage.setItem('admin_email', adminEmail);
     localStorage.setItem('admin_id', adminId);
+    localStorage.setItem('admin_role', (me && me.role) || data.role || 'admin');
+    localStorage.setItem('admin_permissions', JSON.stringify((me && me.permissions) || data.permissions || []));
+    applyAdminPermissionsToUI();
 
     document.getElementById('login-view').classList.add('hidden');
     renderUserDisplayName(adminName);
@@ -290,7 +331,7 @@ window.handleSignIn = async function(){
   finally{btn.innerHTML=original; btn.disabled=false;}
 }
 window.handleSignOut = async function(){
-  localStorage.removeItem('admin_token'); localStorage.removeItem('admin_name'); localStorage.removeItem('admin_email'); localStorage.removeItem('admin_id');
+  localStorage.removeItem('admin_token'); localStorage.removeItem('admin_name'); localStorage.removeItem('admin_email'); localStorage.removeItem('admin_id'); localStorage.removeItem('admin_role'); localStorage.removeItem('admin_permissions');
   stopPollers(); currentView='dashboard';
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   document.getElementById('login-view').classList.remove('hidden');
@@ -305,6 +346,9 @@ async function bootAuthed(targetView='dashboard'){
     localStorage.setItem('admin_name', adminName);
     if (me.email) localStorage.setItem('admin_email', me.email);
     if (me.id || me._id) localStorage.setItem('admin_id', String(me.id || me._id));
+    localStorage.setItem('admin_role', me.role || 'admin');
+    localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
+    applyAdminPermissionsToUI();
   }
   await Promise.allSettled([loadCategories(), loadProducts(), loadOrders(), loadUsers(), loadNotifications(), loadTelefones()]);
   await window.changeView(targetView || currentView || 'dashboard', true);
@@ -326,7 +370,16 @@ async function init(){
   document.getElementById('notif-mark-read').addEventListener('click', markNotificationsRead);
   const token=getAdminToken();
   if(token){
-    try{ const me=await fetchAdminMe(); renderUserDisplayName(me.name||me.email||'Admin'); document.getElementById('login-view').classList.add('hidden'); await bootAuthed(currentView || 'dashboard'); return; }catch(e){ window.handleSignOut(); }
+    try{
+      const me=await fetchAdminMe();
+      renderUserDisplayName(me.name||me.email||'Admin');
+      localStorage.setItem('admin_role', me.role || 'admin');
+      localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
+      applyAdminPermissionsToUI();
+      document.getElementById('login-view').classList.add('hidden');
+      await bootAuthed(currentView || 'dashboard');
+      return;
+    }catch(e){ window.handleSignOut(); }
   }
   document.getElementById('login-view').classList.remove('hidden'); document.getElementById('view-title').textContent='Login';
 }
@@ -404,7 +457,7 @@ function renderProductsTable(){
       <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
       <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
       <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
-      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button><button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button><button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button></div></td>
+      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
 }
@@ -433,8 +486,9 @@ window.editProduct = function(id){
   productImagesCache=(Array.isArray(p.images)?p.images:[]).map(normalizeImageEntry).filter(Boolean); if(!productImagesCache.length && p.imageUrl) productImagesCache=[{url:p.imageUrl,path:p.mainImagePath||p.imageUrl,name:'principal',isMain:true}];
   document.getElementById('product-form-title').textContent=`Editar Produto: ${p.name||''}`; document.getElementById('product-submit-btn').innerHTML='Atualizar Produto'; renderProductImages(); window.scrollTo({top:0,behavior:'smooth'});
 }
-window.deleteProduct = async function(id){ if(!confirm('Excluir este produto?')) return; try{ await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()}); await loadProducts(); resetProductForm(); displayMessage('Produto excluído com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
+window.deleteProduct = async function(id){ if(!hasAdminPerm('products:delete')){ displayMessage('Você não tem permissão para excluir produtos.','error'); return; } if(!confirm('Excluir este produto?')) return; try{ await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()}); await loadProducts(); resetProductForm(); displayMessage('Produto excluído com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
 window.generateProductPoster = async function(id, variant = 'square'){
+  if(!hasAdminPerm('posters:generate')){ displayMessage('Você não tem permissão para gerar posters.','error'); return; }
   const productId = String(id || editingProductId || '').trim();
   if(!productId){ displayMessage('Salve ou selecione um produto antes de gerar o cartaz.','error'); return; }
   const label = variant === 'story' ? 'story' : 'poster';
@@ -643,6 +697,8 @@ window.handleProductSaveClick = async function(e){
 }
 
 async function saveProductFromForm(e){
+  if(editingProductId && !hasAdminPerm('products:update')){ displayMessage('Você não tem permissão para atualizar produtos.','error'); return; }
+  if(!editingProductId && !hasAdminPerm('products:create')){ displayMessage('Você não tem permissão para cadastrar produtos.','error'); return; }
   if(e){
     if(typeof e.preventDefault === 'function') e.preventDefault();
     if(typeof e.stopPropagation === 'function') e.stopPropagation();
@@ -731,6 +787,7 @@ window.handleProductUploadClick = async function(e){
 }
 
 async function uploadProductImages(options={}){
+  if(!hasAnyAdminPerm('uploads:create','products:create','products:update')){ displayMessage('Você não tem permissão para enviar imagens.','error'); return; }
   try{
     const productId=String(options.productId||document.getElementById('product-id')?.value||editingProductId||'').trim();
     if(!productId) throw new Error('Salve o produto primeiro antes de enviar imagens');
@@ -777,6 +834,7 @@ async function renderProductsView(){
   await Promise.allSettled([loadProducts(), loadCategories()]);
   const box=document.getElementById('products-content');
   box.innerHTML=`
+    ${getAdminRole() !== 'admin' ? '<div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900"><b>Acesso limitado:</b> você tem permissão somente nas funções liberadas para produtos/posters.</div>' : ''}
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div class="xl:col-span-2 bg-white p-5 rounded-lg shadow-md">
         <div class="flex items-center justify-between mb-4"><h2 id="product-form-title" class="text-2xl font-bold text-text-dark">Cadastrar / Editar Produto</h2><button type="button" id="product-reset-btn" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Limpar</button></div>
