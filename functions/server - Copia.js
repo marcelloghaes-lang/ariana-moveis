@@ -693,16 +693,7 @@ function parseMoneyBR(value) {
   return Number.isFinite(n) ? n : null;
 }
 function pickPrice(item = {}) { const raw = item.pcFinal ?? item.vrServico ?? item.preco ?? item.valor ?? item.price ?? item.pcProduto ?? null; return parseMoneyBR(raw); }
-function pickDeadline(item = {}) {
-  const raw = item.prazoEntrega ?? item.prazo ?? item.deadline ?? item.prazoDias ?? item.deliveryTime ?? item.delivery_time ?? item.dtPrazoEntrega ?? null;
-  if (raw === null || raw === undefined || raw === '') return null;
-  const direct = Number(raw);
-  if (Number.isFinite(direct) && direct > 0) return direct;
-  const matches = String(raw).match(/\d+/g);
-  if (!matches || !matches.length) return null;
-  const n = Number(matches[matches.length - 1]);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
+function pickDeadline(item = {}) { const raw = item.prazoEntrega || item.prazo || item.deadline || item.prazoDias || null; const n = Number(raw); return Number.isFinite(n) ? n : null; }
 const SERVICE_NAMES = { '03298': 'PAC', '03328': 'SEDEX', '03220': 'SEDEX Hoje', '03204': 'SEDEX 10', '03212': 'SEDEX 12' };
 let correiosTokenCache = { token: null, exp: 0 };
 function correiosCfg(settings = null) { const cfg = settings && settings.correios ? settings.correios : {}; return { user: envFirst('CORREIOS_USER'), pass: envFirst('CORREIOS_PASS'), cartao: envFirst('CORREIOS_CARTAO'), contrato: envFirst('CORREIOS_CONTRATO'), dr: envFirst('CORREIOS_DR') || '0', originCep: normalizeDigits(cfg.origemCep || envFirst('LOJA_ORIGEM_CEP')), services: (Array.isArray(cfg.servicos) && cfg.servicos.length ? cfg.servicos : parseServices(envFirst('CORREIOS_SERVICOS'))), pesoKgPadrao: Number(cfg.pesoKgPadrao || 1), alturaCmPadrao: Number(cfg.alturaCmPadrao || 10), larguraCmPadrao: Number(cfg.larguraCmPadrao || 15), comprimentoCmPadrao: Number(cfg.comprimentoCmPadrao || 20), valorDeclaradoPadrao: Number(cfg.valorDeclaradoPadrao || 0), tokenUrl: 'https://api.correios.com.br/token/v1/autentica/cartaopostagem', precoUrl: 'https://api.correios.com.br/preco/v1/nacional' }; }
@@ -926,8 +917,7 @@ async function calculateShipping(body = {}) {
             service: q.service,
             label: q.label || q.name || 'Correios',
             price: Number(q.price),
-            prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s) úteis` : 'sob consulta'),
-            deadlineDays: q.deadlineDays || parsePrazoToDeadlineDays(q.prazo || ''),
+            prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s)` : null),
             provider: 'correios',
             raw: q.raw || null
           }))
@@ -943,33 +933,22 @@ async function calculateShipping(body = {}) {
   const totalExpress = settings.carriers?.totalExpress || {};
   if (!hasArianaFree && totalExpress.enabled && weightKg > 0 && weightKg <= Number(totalExpress.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(totalExpress.maxDimensionCm || 110)) {
     const base = Number(settings.totalExpressBasePrice || 0);
-    if (base > 0) options.push(buildManualShippingOption({ service: 'total_express', label: 'Total Express', price: base, prazo: settings.totalExpressPrazo || 'sob consulta', provider: 'configured' }));
+    if (base > 0) options.push({ service: 'total_express', label: 'Total Express', price: base, prazo: settings.totalExpressPrazo || 'sob consulta', provider: 'configured' });
   }
 
   const ownDelivery = settings.carriers?.ownDelivery || {};
   if (!hasArianaFree && !isAriana && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
     const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []);
-    if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }));
+    if (own.available) options.push({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' });
   }
 
   options.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
-  const normalizedOptions = options.map((option) => ({
-    ...option,
-    name: option.name || option.label || 'Logística',
-    prazo: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
-    deliveryTime: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
-    prazoEntrega: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
-    deadlineDays: option.deadlineDays || parsePrazoToDeadlineDays(option.prazo || '')
-  }));
-  const quotes = normalizedOptions.filter((o) => !o.unavailable && Number.isFinite(Number(o.price)));
-  const cheapest = quotes[0] || null;
+  const cheapest = options.find(o => Number.isFinite(Number(o.price))) || null;
   const montagemCost = Number((productPrice * Number(settings.montagemPercent || 0.12)).toFixed(2));
   return {
     ok: true,
-    options: normalizedOptions,
-    quotes,
+    options,
     cheapest,
-    bestQuote: cheapest,
     montagemCost,
     context: {
       sellerDetected: sellerCtx.raw || null,
@@ -1542,135 +1521,7 @@ app.post('/api/admin/banners', adminRequired, async (req, res) => {
 app.get('/api/addresses', authRequired, async (req, res) => res.json((await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 })).map(toJSON)));
 app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
 app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
-
-function normalizeOrderItemsForCheckout(body = {}) {
-  return ensureArray(body.items).map((item) => {
-    const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
-    const unitPrice = Number(item.unitPrice || item.price || 0) || 0;
-    return {
-      productId: String(item.productId || item._id || item.id || '').trim(),
-      sellerId: String(item.sellerId || '').trim(),
-      name: item.name || item.nome || '',
-      sku: item.sku || '',
-      qty,
-      unitPrice,
-      totalPrice: Number(item.totalPrice || (unitPrice * qty)),
-      image: item.image || item.imageUrl || item.imagem || ''
-    };
-  });
-}
-
-async function reserveStockForOrderItems(items = []) {
-  const reserved = [];
-  try {
-    for (const item of items) {
-      const oid = normalizeObjectId(item.productId);
-      if (!oid) {
-        const err = new Error(`Produto inválido no carrinho: ${item.name || item.productId || 'sem identificação'}`);
-        err.statusCode = 400;
-        throw err;
-      }
-
-      const qty = Math.max(1, Number(item.qty || 1) || 1);
-      const product = await Product.findOneAndUpdate(
-        { _id: oid, active: { $ne: false }, stock: { $gte: qty } },
-        { $inc: { stock: -qty }, $set: { updatedAt: now() } },
-        { new: true }
-      );
-
-      if (!product) {
-        const current = await Product.findById(oid).select('name stock active');
-        const available = Number(current?.stock || 0);
-        const productName = current?.name || item.name || 'Produto';
-        const err = new Error(available <= 0
-          ? `${productName} está sem estoque no momento.`
-          : `${productName} possui apenas ${available} unidade(s) em estoque.`);
-        err.statusCode = 409;
-        err.code = 'INSUFFICIENT_STOCK';
-        err.productId = String(oid);
-        err.availableStock = available;
-        throw err;
-      }
-
-      reserved.push({ productId: String(oid), qty });
-      item.name = item.name || product.name || '';
-      item.sku = item.sku || product.sku || '';
-      item.sellerId = item.sellerId || product.sellerId || '';
-      item.image = item.image || product.imageUrl || product.image || product.mainImageUrl || '';
-    }
-    return reserved;
-  } catch (error) {
-    for (const row of reserved.reverse()) {
-      try {
-        await Product.findByIdAndUpdate(row.productId, { $inc: { stock: row.qty }, $set: { updatedAt: now() } });
-      } catch (_rollbackError) {}
-    }
-    throw error;
-  }
-}
-
-app.post('/api/orders', async (req, res) => {
-  let reservedStock = [];
-  try {
-    const body = req.body || {};
-    const items = normalizeOrderItemsForCheckout(body);
-
-    if (!items.length) {
-      return res.status(400).json({ ok: false, error: 'Carrinho vazio. Adicione ao menos um produto para finalizar a compra.' });
-    }
-
-    reservedStock = await reserveStockForOrderItems(items);
-
-    const subtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-    const shippingCost = Number(body.shippingCost || body.shipping?.price || 0);
-    const montagemCost = Number(body.montagemCost || 0);
-    const total = Number(body.total || (subtotal + shippingCost + montagemCost));
-    const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean)));
-
-    const shipping = body.shipping || {};
-    if (shipping && !shipping.prazo && (shipping.deadlineDays || shipping.deliveryTime || shipping.prazoEntrega)) {
-      shipping.prazo = shipping.deliveryTime || shipping.prazoEntrega || `${shipping.deadlineDays} dia(s) úteis`;
-    }
-
-    const order = await Order.create({
-      userId: normalizeObjectId(body.userId) || null,
-      sellerIds,
-      customerName: body.customerName || body.customer?.name || '',
-      customerEmail: body.customerEmail || body.customer?.email || '',
-      customerPhone: body.customerPhone || body.customer?.phone || '',
-      status: body.status || 'pendente',
-      statusLabel: body.statusLabel || body.status || 'pendente',
-      items,
-      subtotal,
-      shippingCost,
-      montagemCost,
-      total,
-      payment: body.payment || {},
-      shippingAddress: body.shippingAddress || {},
-      shipping,
-      notes: body.notes || '',
-      manufacturer: body.manufacturer || sellerIds[0] || ''
-    });
-
-    if (body.enqueueManufacturer !== false) await enqueueManufacturerDispatch(order);
-    await Notification.create({ type: 'order_created', title: 'Novo pedido criado', message: `Pedido ${order._id} criado com sucesso.`, relatedId: String(order._id), severity: 'info' });
-    return res.json({ ok: true, order: toJSON(order) });
-  } catch (error) {
-    if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
-      for (const row of reservedStock.reverse()) {
-        try { await Product.findByIdAndUpdate(row.productId, { $inc: { stock: row.qty }, $set: { updatedAt: now() } }); } catch (_rollbackError) {}
-      }
-    }
-    const statusCode = Number(error.statusCode || 500);
-    return res.status(statusCode).json({
-      ok: false,
-      error: error.message || 'Erro ao criar pedido',
-      code: error.code || undefined,
-      productId: error.productId || undefined,
-      availableStock: error.availableStock ?? undefined
-    });
-  }
-});
+app.post('/api/orders', async (req, res) => { try { const body = req.body || {}; const items = ensureArray(body.items).map((item) => ({ productId: String(item.productId || item._id || ''), sellerId: String(item.sellerId || ''), name: item.name || '', sku: item.sku || '', qty: Number(item.qty || item.quantity || 1), unitPrice: Number(item.unitPrice || item.price || 0), totalPrice: Number(item.totalPrice || ((item.unitPrice || item.price || 0) * (item.qty || item.quantity || 1))), image: item.image || '' })); const subtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0); const shippingCost = Number(body.shippingCost || body.shipping?.price || 0); const montagemCost = Number(body.montagemCost || 0); const total = Number(body.total || (subtotal + shippingCost + montagemCost)); const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean))); const order = await Order.create({ userId: normalizeObjectId(body.userId) || null, sellerIds, customerName: body.customerName || body.customer?.name || '', customerEmail: body.customerEmail || body.customer?.email || '', customerPhone: body.customerPhone || body.customer?.phone || '', status: body.status || 'pendente', statusLabel: body.statusLabel || body.status || 'pendente', items, subtotal, shippingCost, montagemCost, total, payment: body.payment || {}, shippingAddress: body.shippingAddress || {}, shipping: body.shipping || {}, notes: body.notes || '', manufacturer: body.manufacturer || sellerIds[0] || '' }); if (body.enqueueManufacturer !== false) await enqueueManufacturerDispatch(order); await Notification.create({ type: 'order_created', title: 'Novo pedido criado', message: `Pedido ${order._id} criado com sucesso.`, relatedId: String(order._id), severity: 'info' }); return res.json({ ok: true, order: toJSON(order) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pedido' }); } });
 app.get('/api/orders/me', authRequired, async (req, res) => res.json((await Order.find({ userId: req.user._id }).sort({ createdAt: -1 })).map(toJSON)));
 app.get('/api/orders/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const row = await Order.findById(oid); if (!row) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); if (req.user.role === 'customer' && String(row.userId || '') !== String(req.user._id)) return res.status(403).json({ ok: false, error: 'Sem permissão' }); return res.json(toJSON(row)); });
 app.patch('/api/orders/:id/status', authRequired, async (req, res) => { try { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const before = await Order.findById(oid); if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); const patch = { status: req.body?.status || before.status, statusLabel: req.body?.statusLabel || req.body?.status || before.statusLabel, trackingCode: req.body?.trackingCode !== undefined ? req.body.trackingCode : before.trackingCode }; const after = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true }); await writeAuditLog({ scope: 'orders', eventType: 'order_status_updated', orderId: String(after._id), status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { actorUserId: String(req.user._id) } }); const notifyResult = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), 'status_route'); return res.json({ ok: true, order: toJSON(after), whatsapp: notifyResult }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do pedido' }); } });

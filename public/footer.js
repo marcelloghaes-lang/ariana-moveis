@@ -11,7 +11,7 @@ const renderGlobalFooter = () => {
         </div>
         <div class="footer-column space-y-2 text-gray-300">
             <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
-            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
+            <p class="text-sm"><i class="fas fa-phone mr-1"></i> (31) 98514-7119</p>
             <p class="text-sm"><i class="fas fa-envelope mr-1"></i> contato@arianamoveis.com.br</p>
             <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
             <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
