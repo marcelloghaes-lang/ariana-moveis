@@ -411,10 +411,16 @@
       }
 
       if (!res.ok) {
-        throw new Error(
-          (data && (data.message || data.error)) ||
-          `Erro HTTP ${res.status}`
+        const details = data && (
+          data.message ||
+          data.error ||
+          data.status_detail ||
+          data.statusDetail ||
+          data.details?.message ||
+          data.details?.cause?.[0]?.description ||
+          data.response?.message
         );
+        throw new Error(details || `Erro HTTP ${res.status}`);
       }
 
       return data;
@@ -566,7 +572,9 @@
           number: phoneDigits.length >= 10 ? phoneDigits.slice(2) : phoneDigits
         };
       }
-      if (customer.birthDate) payer.date_of_birth = customer.birthDate;
+      // A data de nascimento é enviada separadamente no payload e gravada como metadata no backend.
+      // Não enviamos date_of_birth dentro de payer porque algumas versões da API de Payments do Mercado Pago
+      // retornam HTTP 400 quando recebem campos extras dentro de payer.
       return payer;
     }
 

@@ -1920,6 +1920,11 @@ function buildMercadoPagoPayer(body = {}) {
   delete payerAddress.state_name;
 
   const out = { ...payer, email, first_name: firstName, last_name: lastName };
+  // Evita HTTP 400 do Mercado Pago por campos extras dentro de payer.
+  delete out.date_of_birth;
+  delete out.birthDate;
+  delete out.birth_date;
+  delete out.customer;
   if (Object.keys(payerAddress).length) out.address = payerAddress;
   else delete out.address;
   if (cpf) out.identification = { type: ((body.identification && body.identification.type) || (payer.identification && payer.identification.type) || 'CPF'), number: cpf };
@@ -1995,7 +2000,7 @@ app.post('/api/payments/mp/credit', async (req, res) => {
       payment_method_id: body.payment_method_id || 'visa',
       issuer_id: body.issuer_id,
       payer: buildMercadoPagoPayer(body),
-      metadata: { orderId: body.orderId || null, paymentMethod: 'card' },
+      metadata: { orderId: body.orderId || null, paymentMethod: 'card', birthDate: body.birthDate || body.customer?.birthDate || null, phone: body.phone || body.customer?.phone || null },
       notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
     };
     const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
@@ -2033,7 +2038,14 @@ app.post('/api/payments/mp/credit', async (req, res) => {
       order: updatedOrder ? toJSON(updatedOrder) : null
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' });
+    const status = error?.response?.status || 500;
+    const details = error?.response?.data || null;
+    return res.status(status).json({
+      ok: false,
+      error: details?.message || details?.cause?.[0]?.description || error.message || 'Erro ao criar pagamento cartão no Mercado Pago',
+      statusDetail: details?.status_detail || '',
+      details
+    });
   }
 });
 
@@ -2048,7 +2060,7 @@ app.post('/api/payments/mp/card', async (req, res) => {
       payment_method_id: body.payment_method_id || 'visa',
       issuer_id: body.issuer_id,
       payer: buildMercadoPagoPayer(body),
-      metadata: { orderId: body.orderId || null, paymentMethod: 'card' },
+      metadata: { orderId: body.orderId || null, paymentMethod: 'card', birthDate: body.birthDate || body.customer?.birthDate || null, phone: body.phone || body.customer?.phone || null },
       notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
     };
     const { response, idempotencyKey } = await createMercadoPagoPayment(payload);

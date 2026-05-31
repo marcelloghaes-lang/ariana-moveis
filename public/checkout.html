@@ -870,10 +870,14 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
     function atualizarVisualPagamentos(totalCheio) {
       const total = Number(totalCheio || 0);
-      const desc = getDiscountPercentFor('pix');
-      const fator = getDiscountFactorFor('pix');
-      const valorComDesconto = total * fator;
-      const formatado = brl(valorComDesconto);
+      const descPix = getDiscountPercentFor('pix');
+      const fatorPix = getDiscountFactorFor('pix');
+      const valorPix = total * fatorPix;
+      const formatadoPix = brl(valorPix);
+      const descBoleto = getDiscountPercentFor('boleto');
+      const fatorBoleto = getDiscountFactorFor('boleto');
+      const valorBoleto = total * fatorBoleto;
+      const formatadoBoleto = brl(valorBoleto);
       const mlGreen = "#00a650";
 
       const pixLabel = document.getElementById('label-pix');
@@ -886,7 +890,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
                 <div class="pay-title">Pix</div>
                 <div class="pay-desc">Aprovação rápida</div>
               </div>
-              <div style="color:${mlGreen};font-weight:800;">${formatado} ${desc > 0 ? `<small>(${desc}% OFF)</small>` : ``}</div>
+              <div style="color:${mlGreen};font-weight:800;">${formatadoPix} ${descPix > 0 ? `<small>(${descPix}% OFF)</small>` : ``}</div>
             </div>
           `;
         }
@@ -902,7 +906,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
                 <div class="pay-title">Boleto</div>
                 <div class="pay-desc">Compensação bancária</div>
               </div>
-              <div style="color:${mlGreen};font-weight:800;">${formatado} ${desc > 0 ? `<small>(${desc}% OFF)</small>` : ``}</div>
+              <div style="color:${mlGreen};font-weight:800;">${formatadoPix} ${descPix > 0 ? `<small>(${descPix}% OFF)</small>` : ``}</div>
             </div>
           `;
         }
@@ -1431,8 +1435,8 @@ async function quoteShippingForSelectedAddress(addrObj) {
         selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : 'Cartão de Crédito');
 
         let valorFinal = totalsComputed.grandTotal;
-        const desc = getDiscountPercentFor('pix');
-        const fator = getDiscountFactorFor('pix');
+        const desc = getDiscountPercentFor(paySelected);
+        const fator = getDiscountFactorFor(paySelected);
 
         if ((paySelected === 'pix' || paySelected === 'boleto') && desc > 0) {
           valorFinal = totalsComputed.grandTotal * fator;
@@ -1494,12 +1498,12 @@ async function quoteShippingForSelectedAddress(addrObj) {
           manufacturer: inferManufacturerFromCart(cart),
           payment: {
             method: selectedPayCode,
-            gateway: 'pagarme',
+            gateway: 'mercadopago',
             routing: {
               largeSupplier: isLargeSupplierCart(cart),
-              cardGateway: 'pagarme',
-              pixBoletoGateway: 'pagarme',
-              defaultGateway: 'pagarme'
+              cardGateway: 'mercadopago',
+              pixBoletoGateway: 'mercadopago',
+              defaultGateway: 'mercadopago'
             }
           },
           total: valorFinal,
@@ -1509,7 +1513,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
             shipping: totalsComputed.shipping,
             grandTotalOriginal: totalsComputed.grandTotal,
             grandTotal: valorFinal,
-            discountApplied: (valorFinal < totalsComputed.grandTotal) ? `${getDiscountPercentFor('pix')}%` : '0%',
+            discountApplied: (valorFinal < totalsComputed.grandTotal) ? `${getDiscountPercentFor(paySelected)}%` : '0%',
             paymentMethod: selectedPayCode
           },
           shipping: shippingToSave,
@@ -1539,14 +1543,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
           localStorage.removeItem("ariana_moveis_cart");
         } catch (_) {}
 
-        try {
-          localStorage.setItem("arianaLastOrderGateway", "mercadopago");
-          localStorage.setItem("arianaCheckoutSelectedPay", selectedPayCode || "pix");
-          localStorage.setItem("arianaLastOrderPayment", selectedPayCode || "pix");
-        } catch (_) {}
+        try { localStorage.setItem("arianaLastOrderGateway", "mercadopago"); } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
-        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}`;
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
       } catch (e) {
         console.error(e);
         alert(e?.message || "Erro ao finalizar pedido.");

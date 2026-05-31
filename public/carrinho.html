@@ -868,20 +868,33 @@
 
         const pixEnabled = !!(paymentSettings && paymentSettings.pix && paymentSettings.pix.enabled);
         const pixDiscountPercent = pixEnabled ? Number(paymentSettings.pix.discountPercent || 0) : 0;
-        const fatorPix = (100 - pixDiscountPercent) / 100;
-        const valorPix = totalGeral * (Number.isFinite(fatorPix) ? fatorPix : 1);
+        const boletoEnabled = !!(paymentSettings && paymentSettings.boleto && paymentSettings.boleto.enabled);
+        const boletoDiscountPercent = boletoEnabled ? Number(paymentSettings.boleto.discountPercent || 0) : 0;
+
+        const calcDiscounted = (percent) => {
+          const fator = (100 - Number(percent || 0)) / 100;
+          return totalGeral * (Number.isFinite(fator) ? fator : 1);
+        };
 
         let pixPromo = document.getElementById('pix-incentive');
         if (!pixPromo) {
-          pixPromo = document.createElement('p');
+          pixPromo = document.createElement('div');
           pixPromo.id = 'pix-incentive';
-          pixPromo.className = "text-green-600 text-sm font-semibold mt-2 text-center";
+          pixPromo.className = "text-green-600 text-sm font-semibold mt-2 text-center space-y-1";
           totalEl.parentNode.appendChild(pixPromo);
         }
 
+        const lines = [];
         if (pixDiscountPercent > 0) {
+          lines.push(`No PIX: <span class="text-lg">${window.formatPrice(calcDiscounted(pixDiscountPercent))}</span> <span class="text-xs" style="color:#00a650">(${pixDiscountPercent}% OFF)</span>`);
+        }
+        if (boletoDiscountPercent > 0) {
+          lines.push(`No boleto: <span class="text-lg">${window.formatPrice(calcDiscounted(boletoDiscountPercent))}</span> <span class="text-xs" style="color:#00a650">(${boletoDiscountPercent}% OFF)</span>`);
+        }
+
+        if (lines.length) {
           pixPromo.classList.remove('hidden');
-          pixPromo.innerHTML = `Pagando com PIX você paga apenas <br> <span class="text-lg">${window.formatPrice(valorPix)}</span> <span class="text-xs" style="color:#00a650">(${pixDiscountPercent}% OFF)</span>`;
+          pixPromo.innerHTML = lines.join('<br>');
         } else {
           pixPromo.innerHTML = '';
           pixPromo.classList.add('hidden');
