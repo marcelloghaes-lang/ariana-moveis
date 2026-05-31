@@ -217,6 +217,7 @@
     let mp = null;
     let cardForm = null;
     let pollTimer = null;
+    let selectedMethod = (urlParams.get('method') || localStorage.getItem("arianaCheckoutSelectedPay") || localStorage.getItem("arianaLastOrderPayment") || "").trim();
 
     function digitsOnly(v) {
       return String(v || "").replace(/\D+/g, "");
@@ -246,6 +247,64 @@
         ...(token ? { Authorization: "Bearer " + token } : {}),
         ...extra
       };
+    }
+
+    function getMpStatus(result) {
+      return String(
+        result?.status ||
+        result?.data?.status ||
+        result?.raw?.status ||
+        result?.payment?.status ||
+        ""
+      ).toLowerCase();
+    }
+
+    function isMpApproved(result) {
+      return result?.approved === true || getMpStatus(result) === "approved";
+    }
+
+    function getMpStatusMessage(result) {
+      return (
+        result?.error ||
+        result?.details?.message ||
+        result?.data?.status_detail ||
+        result?.raw?.status_detail ||
+        result?.statusDetail ||
+        "Transação não aprovada pelo Mercado Pago."
+      );
+    }
+
+    function mergeAndCachePayment(method, result, statusOverride) {
+      const mpStatus = statusOverride || getMpStatus(result) || "pending";
+      const merged = {
+        ...(orderData || {}),
+        paymentMethod: method,
+        payment_method: method,
+        paymentStatus: mpStatus === "approved" ? "approved" : mpStatus,
+        status: mpStatus === "approved" ? "approved" : (orderData?.status || "pending_payment"),
+        payment: {
+          ...(orderData?.payment || {}),
+          provider: "mercadopago",
+          method,
+          type: method === "card" ? "credit_card" : method,
+          paymentId: result?.id || result?.paymentId || result?.data?.id || result?.raw?.id || "",
+          status: mpStatus,
+          statusDetail: result?.statusDetail || result?.data?.status_detail || result?.raw?.status_detail || "",
+          raw: result?.data || result?.raw || result || null
+        },
+        totals: {
+          ...(orderData?.totals || {}),
+          paymentMethod: method
+        }
+      };
+      try {
+        localStorage.setItem("arianaLastOrderId", String(orderId || ""));
+        localStorage.setItem("arianaLastOrderPayment", method);
+        localStorage.setItem("arianaCheckoutSelectedPay", method);
+        localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
+      } catch (_) {}
+      orderData = normalizeOrder(merged);
+      return merged;
     }
 
     async function apiFetch(path, options = {}) {
@@ -519,7 +578,7 @@
 
     async function doPayCard(formData) {
       try {
-        setAlert("loading", "Validando cartão junto ao banco...");
+        setAlert("loading", "Validando cartão junto ao Mercado Pago...");
         disablePayments(true);
 
         const result = await apiFetch("/payments/mp/credit", {
@@ -535,25 +594,26 @@
             cpf: getMpPayerStrict().identification?.number || "",
             payer: getMpPayerStrict(),
             address: toMpAddress(getBestAddress()),
-            receiver_address: getMpReceiverAddressFromOrder()
+            receiver_address: getMpReceiverAddressFromOrder(),
+            paymentMethod: "card"
           })
         });
 
-        if (result?.ok || result?.approved || result?.status === "approved") {
-          try {
-            const merged = { ...(orderData || {}), payment: result?.payment || result, paymentStatus: "approved", status: "approved" };
-            localStorage.setItem("arianaLastOrderId", String(orderId || ""));
-            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
-          } catch (_) {}
+        if (isMpApproved(result)) {
+          mergeAndCachePayment("card", result, "approved");
+          clearCheckoutCartOnlyAfterSuccess();
           setAlert("success", "Pagamento aprovado! Preparando seu pedido...");
           setTimeout(() => {
             window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
-          }, 2000);
-        } else {
-          throw new Error(result?.details?.message || result?.error || "Transação não autorizada.");
+          }, 1200);
+          return;
         }
+
+        const mpStatus = getMpStatus(result) || "pending";
+        mergeAndCachePayment("card", result, mpStatus);
+        throw new Error(`${getMpStatusMessage(result)} Status: ${mpStatus}`);
       } catch (e) {
-        setAlert("error", "Erro: " + (e.message || "Falha no pagamento."));
+        setAlert("error", "Erro no cartão: " + (e.message || "Falha no pagamento."));
         disablePayments(false);
       }
     }
@@ -576,7 +636,15 @@
 
         if (data?.ok && (data?.qrCodeBase64 || data?.qrCode || data?.qr_code)) {
           try {
-            const merged = { ...(orderData || {}), payment: data?.payment || data, paymentStatus: "pending", status: "pending" };
+            const merged = {
+              ...(orderData || {}),
+              paymentMethod: "pix",
+              payment_method: "pix",
+              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "pix", type: "pix", ...(data?.payment || data || {}) },
+              paymentStatus: "pending",
+              status: "pending",
+              totals: { ...(orderData?.totals || {}), paymentMethod: "pix" }
+            };
             localStorage.setItem("arianaLastOrderId", String(orderId || ""));
             localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
           } catch (_) {}
@@ -624,7 +692,15 @@
 
         if (data?.ok && (data?.ticketUrl || data?.ticket_url)) {
           try {
-            const merged = { ...(orderData || {}), payment: data?.payment || data, paymentStatus: "pending", status: "pending" };
+            const merged = {
+              ...(orderData || {}),
+              paymentMethod: "pix",
+              payment_method: "pix",
+              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "pix", type: "pix", ...(data?.payment || data || {}) },
+              paymentStatus: "pending",
+              status: "pending",
+              totals: { ...(orderData?.totals || {}), paymentMethod: "pix" }
+            };
             localStorage.setItem("arianaLastOrderId", String(orderId || ""));
             localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
           } catch (_) {}
@@ -757,21 +833,30 @@
       if (normalized === "boleto" && panelBoleto) panelBoleto.classList.remove("hidden");
     }
 
-    function tryAutoOpenMethod() {
+    async function tryAutoOpenMethod() {
       const params = new URLSearchParams(window.location.search);
-      const method =
-        (params.get("method") || "").trim() ||
-        (localStorage.getItem("arianaCheckoutSelectedPay") || "").trim() ||
-        (localStorage.getItem("arianaLastOrderPayment") || "").trim();
+      const method = (
+        params.get("method") ||
+        localStorage.getItem("arianaCheckoutSelectedPay") ||
+        localStorage.getItem("arianaLastOrderPayment") ||
+        ""
+      ).trim().toLowerCase();
 
       if (!method) return;
 
-      if (method === "pix") {
-        openSelectedMethod("pix");
+      if (method === "card") {
+        selectedMethod = "card";
+        showPanel("panel-card");
+        await mountCardFormSafe();
+      } else if (method === "pix") {
+        selectedMethod = "pix";
+        showPanel("panel-pix");
+        document.getElementById("pix-loading").classList.remove("hidden");
+        document.getElementById("pix-content").classList.add("hidden");
+        await generatePix();
       } else if (method === "boleto") {
-        openSelectedMethod("boleto");
-      } else if (method === "card") {
-        openSelectedMethod("card");
+        selectedMethod = "boleto";
+        showPanel("panel-boleto");
       }
     }
 
@@ -803,6 +888,11 @@
           continueBtn.disabled = false;
           continueBtn.style.opacity = "1";
           continueBtn.dataset.method = b.dataset.method;
+          selectedMethod = b.dataset.method || "";
+          try {
+            localStorage.setItem("arianaCheckoutSelectedPay", selectedMethod);
+            localStorage.setItem("arianaLastOrderPayment", selectedMethod);
+          } catch (_) {}
         });
       });
 
@@ -841,6 +931,7 @@
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
+        await tryAutoOpenMethod();
         startPolling();
       } catch (e) {
         console.error(e);

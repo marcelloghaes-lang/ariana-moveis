@@ -308,7 +308,24 @@
 
       try {
         const data = await apiGet(`/orders/${encodeURIComponent(orderId)}`);
-        const order = data?.item || data?.order || data || null;
+        let order = data?.item || data?.order || data || null;
+        const last = getLastOrderResponse();
+        const lastId = String(localStorage.getItem("arianaLastOrderId") || last?._id || last?.id || last?.orderId || "");
+        if (order && last && (!lastId || lastId === String(orderId))) {
+          const lastOrder = last?.item || last?.order || last;
+          const lastPaymentMethod = lastOrder?.paymentMethod || lastOrder?.payment_method || lastOrder?.payment?.method || lastOrder?.totals?.paymentMethod;
+          if (lastPaymentMethod && lastPaymentMethod !== "pix") {
+            order = {
+              ...order,
+              paymentMethod: lastPaymentMethod,
+              payment_method: lastPaymentMethod,
+              paymentStatus: lastOrder.paymentStatus || order.paymentStatus,
+              status: lastOrder.status || order.status,
+              payment: { ...(order.payment || {}), ...(lastOrder.payment || {}), method: lastPaymentMethod },
+              totals: { ...(order.totals || {}), ...(lastOrder.totals || {}), paymentMethod: lastPaymentMethod }
+            };
+          }
+        }
         if (order) {
           try {
             localStorage.setItem("arianaLastOrderResponse", JSON.stringify(order));

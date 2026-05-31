@@ -1539,7 +1539,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
           localStorage.removeItem("ariana_moveis_cart");
         } catch (_) {}
 
-        try { localStorage.setItem("arianaLastOrderGateway", "pagarme"); } catch (_) {}
+        try {
+          localStorage.setItem("arianaLastOrderGateway", "mercadopago");
+          localStorage.setItem("arianaCheckoutSelectedPay", selectedPayCode || "pix");
+          localStorage.setItem("arianaLastOrderPayment", selectedPayCode || "pix");
+        } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
         window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;

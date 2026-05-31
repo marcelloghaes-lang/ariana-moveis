@@ -1950,12 +1950,145 @@ function normalizeMercadoPagoPaymentResponse(data = {}) {
   };
 }
 
+
+async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, extra = {}) {
+  try {
+    const oid = normalizeObjectId(orderId);
+    if (!oid) return null;
+    const status = String(mpData?.status || '').toLowerCase();
+    const approved = status === 'approved';
+    const patch = {
+      status: approved ? 'pago' : 'pending_payment',
+      statusLabel: approved ? 'Pagamento aprovado' : 'Aguardando confirmação do pagamento',
+      payment: {
+        provider: 'mercadopago',
+        method,
+        type: method === 'card' ? 'credit_card' : method,
+        paymentId: mpData?.id ? String(mpData.id) : '',
+        status: status || 'pending',
+        statusDetail: mpData?.status_detail || '',
+        liveMode: mpData?.live_mode === true,
+        installments: extra.installments || undefined,
+        paymentMethodId: extra.paymentMethodId || mpData?.payment_method_id || '',
+        issuerId: extra.issuerId || mpData?.issuer_id || '',
+        raw: redact(mpData || {})
+      }
+    };
+    return await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
+  } catch (error) {
+    console.error('Erro ao atualizar pedido com pagamento Mercado Pago:', error.message || error);
+    return null;
+  }
+}
+
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || '' }); });
 app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: Number(body.amount || body.total || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) return res.status(response.status).json(normalizeMercadoPagoPaymentResponse(response.data)); return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar PIX', details: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar PIX no Mercado Pago' }); } });
 
-app.post('/api/payments/mp/credit', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: Number(body.amount || body.total || 0), token: body.token, description: body.description || `Pedido Ariana Móveis`, installments: Number(body.installments || 1), payment_method_id: body.payment_method_id || 'visa', issuer_id: body.issuer_id, payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_card_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey, alias: 'credit' } }); return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, data: response.data, raw: response.data, approved: response.data?.status === 'approved', status: response.data?.status || '' }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' }); } });
+app.post('/api/payments/mp/credit', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const payload = {
+      transaction_amount: Number(body.amount || body.total || 0),
+      token: body.token,
+      description: body.description || `Pedido Ariana Móveis`,
+      installments: Number(body.installments || 1),
+      payment_method_id: body.payment_method_id || 'visa',
+      issuer_id: body.issuer_id,
+      payer: buildMercadoPagoPayer(body),
+      metadata: { orderId: body.orderId || null, paymentMethod: 'card' },
+      notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
+    };
+    const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
+    const mpData = response.data || {};
+    const approved = mpData?.status === 'approved';
 
-app.post('/api/payments/mp/card', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: Number(body.amount || body.total || 0), token: body.token, description: body.description || `Pedido Ariana Móveis`, installments: Number(body.installments || 1), payment_method_id: body.payment_method_id || 'visa', issuer_id: body.issuer_id, payer: body.payer || {}, metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_card_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, data: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' }); } });
+    const updatedOrder = await updateOrderPaymentFromMercadoPago(body.orderId, 'card', mpData, {
+      installments: Number(body.installments || 1),
+      paymentMethodId: body.payment_method_id || mpData?.payment_method_id || '',
+      issuerId: body.issuer_id || mpData?.issuer_id || ''
+    });
+
+    await writeAuditLog({
+      scope: 'payments',
+      eventType: 'mercadopago_card_created',
+      orderId: body.orderId || null,
+      status: response.status >= 200 && response.status < 300 ? 'success' : 'error',
+      statusCode: response.status,
+      request: payload,
+      response: mpData,
+      metadata: { provider: 'mercadopago', idempotencyKey, alias: 'credit', orderUpdated: !!updatedOrder }
+    });
+
+    return res.status(response.status).json({
+      ok: response.status >= 200 && response.status < 300,
+      approved,
+      status: mpData?.status || '',
+      statusDetail: mpData?.status_detail || '',
+      id: mpData?.id ? String(mpData.id) : '',
+      paymentId: mpData?.id ? String(mpData.id) : '',
+      paymentMethod: 'card',
+      method: 'card',
+      data: mpData,
+      raw: mpData,
+      order: updatedOrder ? toJSON(updatedOrder) : null
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' });
+  }
+});
+
+app.post('/api/payments/mp/card', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const payload = {
+      transaction_amount: Number(body.amount || body.total || 0),
+      token: body.token,
+      description: body.description || `Pedido Ariana Móveis`,
+      installments: Number(body.installments || 1),
+      payment_method_id: body.payment_method_id || 'visa',
+      issuer_id: body.issuer_id,
+      payer: buildMercadoPagoPayer(body),
+      metadata: { orderId: body.orderId || null, paymentMethod: 'card' },
+      notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
+    };
+    const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
+    const mpData = response.data || {};
+    const approved = mpData?.status === 'approved';
+
+    const updatedOrder = await updateOrderPaymentFromMercadoPago(body.orderId, 'card', mpData, {
+      installments: Number(body.installments || 1),
+      paymentMethodId: body.payment_method_id || mpData?.payment_method_id || '',
+      issuerId: body.issuer_id || mpData?.issuer_id || ''
+    });
+
+    await writeAuditLog({
+      scope: 'payments',
+      eventType: 'mercadopago_card_created',
+      orderId: body.orderId || null,
+      status: response.status >= 200 && response.status < 300 ? 'success' : 'error',
+      statusCode: response.status,
+      request: payload,
+      response: mpData,
+      metadata: { provider: 'mercadopago', idempotencyKey, alias: 'card', orderUpdated: !!updatedOrder }
+    });
+
+    return res.status(response.status).json({
+      ok: response.status >= 200 && response.status < 300,
+      approved,
+      status: mpData?.status || '',
+      statusDetail: mpData?.status_detail || '',
+      id: mpData?.id ? String(mpData.id) : '',
+      paymentId: mpData?.id ? String(mpData.id) : '',
+      paymentMethod: 'card',
+      method: 'card',
+      data: mpData,
+      raw: mpData,
+      order: updatedOrder ? toJSON(updatedOrder) : null
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' });
+  }
+});
 app.post('/api/payments/mp/boleto', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: Number(body.amount || body.total || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'bolbradesco', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_boleto_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) return res.status(response.status).json(normalizeMercadoPagoPaymentResponse(response.data)); return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar boleto', details: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar boleto no Mercado Pago' }); } });
 app.post('/api/webhooks/mercadopago', async (req, res) => { try { const payload = req.body || {}; const event = await PaymentEvent.create({ provider: 'mercadopago', eventType: payload.type || payload.action || 'unknown', externalId: payload.data?.id ? String(payload.data.id) : null, orderId: payload.data?.metadata?.orderId || payload.orderId || null, payload }); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_webhook_received', orderId: event.orderId || null, status: 'received', request: payload, metadata: { provider: 'mercadopago' } }); return res.json({ ok: true }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Mercado Pago' }); } });
 app.post('/api/payments/pagarme/order', async (req, res) => { try { const payload = req.body || {}; const response = await createPagarmeOrder(payload); await writeAuditLog({ scope: 'payments', eventType: 'pagarme_order_created', orderId: payload.metadata?.orderId || payload.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'pagarme' } }); return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, data: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pedido no Pagar.me' }); } });
