@@ -561,6 +561,26 @@ const ManufacturerDispatchQueue = mongoose.model('ManufacturerDispatchQueue', ma
 const OperationalAlert = mongoose.model('OperationalAlert', operationalAlertSchema);
 const WhatsAppWebhook = mongoose.model('WhatsAppWebhook', whatsappWebhookSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
+
+async function createAdminNotification(data = {}) {
+  try {
+    const title = String(data.title || 'Notificação').trim();
+    const message = String(data.message || '').trim();
+    if (!title && !message) return null;
+    return await Notification.create({
+      type: String(data.type || 'system').trim(),
+      title,
+      message,
+      status: data.status || 'unread',
+      relatedId: data.relatedId ? String(data.relatedId) : '',
+      severity: data.severity || 'info'
+    });
+  } catch (error) {
+    console.error('Erro ao criar notificação administrativa:', error.message || error);
+    return null;
+  }
+}
+
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
 
 
@@ -611,10 +631,10 @@ function parseBannerInput(body = {}) {
   return [];
 }
 
-const WHATSAPP_EVOLUTION_DEFAULT_API_URL = process.env.EVOLUTION_API_URL || 'http://167.86.108.75:8081';
-const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE = process.env.EVOLUTION_INSTANCE || 'Ariana_Oficial';
+const WHATSAPP_EVOLUTION_DEFAULT_API_URL = process.env.EVOLUTION_API_URL || 'http://167.86.108.75:8082';
+const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE = process.env.EVOLUTION_INSTANCE || 'Ariana_SAC';
 const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
-const DEFAULT_WHATSAPP_SETTINGS = { enabled: false, apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: '' };
+const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
 const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
 const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
@@ -664,6 +684,89 @@ function buildTrackingLine(order = {}, trackingCode = '') { const code = String(
 function buildOrderStatusMessage(orderId, order = {}, settings = {}) { const template = String(settings.statusTemplate || DEFAULT_WHATSAPP_SETTINGS.statusTemplate).trim(); const replacements = { customerName: extractOrderCustomerName(order), orderId: String(orderId || order.id || order.orderId || '').trim() || '---', status: String(order.status || order.statusLabel || 'Atualizado').trim(), trackingCode: String(order.trackingCode || order.tracking_code || '').trim(), trackingLine: buildTrackingLine(order), storeName: 'Ariana Móveis' }; return template.replace(/\{(customerName|orderId|status|trackingCode|trackingLine|storeName)\}/g, (_, key) => replacements[key] || '').replace(/\n{3,}/g, '\n\n').trim(); }
 function buildOrderChatMessage(orderId, order = {}, message = {}) { const senderName = String(message.senderName || 'Equipe Ariana Móveis').trim(); const senderType = String(message.senderType || 'admin').trim(); const customerName = extractOrderCustomerName(order); const base = senderType === 'customer' ? `Olá! O cliente ${senderName} enviou uma nova mensagem no pedido ${orderId} da Ariana Móveis.` : `Olá, ${customerName}! Você recebeu uma nova mensagem sobre o pedido ${orderId} na Ariana Móveis.`; const text = String(message.text || '').trim(); return `${base}\n\nMensagem: ${text}`.trim(); }
 async function waSendTextMessage({ number, text, settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(cfg.instanceName)}`; const response = await axios.post(url, { number: normalizedNumber, text: String(text || '').trim(), delay: Number(delay || 0) || 0, linkPreview: false }, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status }; }
+
+function formatMoneyBRL(value = 0) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY }).format(Number(value || 0));
+}
+
+function formatOrderItemsForWhatsapp(items = []) {
+  const rows = ensureArray(items).filter(Boolean).slice(0, 12).map((item) => {
+    const qty = Number(item.qty || item.quantity || 1) || 1;
+    const name = String(item.name || item.nome || item.sku || 'Produto').trim();
+    const total = Number(item.totalPrice || (Number(item.unitPrice || item.price || 0) * qty) || 0);
+    return `• ${qty}x ${name}${total ? ` — ${formatMoneyBRL(total)}` : ''}`;
+  });
+  if (!rows.length) return '• Itens não informados';
+  if (ensureArray(items).length > rows.length) rows.push(`• +${ensureArray(items).length - rows.length} item(ns)`);
+  return rows.join('
+');
+}
+
+function buildAdminNewOrderMessage(orderDoc = {}) {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const orderId = String(order._id || order.id || '').slice(-8).toUpperCase() || '---';
+  const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente não informado').trim();
+  const customerPhone = String(order.customerPhone || order.shippingAddress?.phone || '').trim();
+  const paymentMethod = String(order.payment?.method || order.payment?.payment_method || order.payment?.type || order.payment?.provider || 'Não informado').trim();
+  const address = order.shippingAddress || {};
+  const cidadeUf = [address.cidade || address.city, address.uf || address.state].filter(Boolean).join('/');
+  const prazo = order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || (order.shipping?.deadlineDays ? `${order.shipping.deadlineDays} dia(s) úteis` : 'Não informado');
+  const painelUrl = process.env.ADMIN_PANEL_URL || process.env.APP_ADMIN_URL || process.env.APP_BASE_URL || '';
+
+  return [
+    '🛒 *NOVA VENDA REALIZADA*',
+    '',
+    `Pedido: #${orderId}`,
+    `Cliente: ${customerName}`,
+    customerPhone ? `Telefone: ${customerPhone}` : 'Telefone: não informado',
+    `Valor total: ${formatMoneyBRL(order.total || 0)}`,
+    `Pagamento: ${paymentMethod}`,
+    `Status: ${order.statusLabel || order.status || 'pendente'}`,
+    `Prazo/Frete: ${prazo}`,
+    cidadeUf ? `Cidade: ${cidadeUf}` : '',
+    '',
+    '*Itens:*',
+    formatOrderItemsForWhatsapp(order.items || []),
+    painelUrl ? `
+Painel: ${painelUrl}` : ''
+  ].filter((line) => line !== '').join('
+');
+}
+
+async function waNotifyAdminNewOrder(orderDoc = {}, origin = 'order_created') {
+  try {
+    const settings = await getWhatsappSettings();
+    const targets = parseAdminNotifyNumbers(settings);
+    if (!settings.enabled) return { skipped: true, reason: 'integration_disabled' };
+    if (!targets.length) return { skipped: true, reason: 'missing_admin_notify_numbers' };
+
+    const text = buildAdminNewOrderMessage(orderDoc);
+    const results = [];
+    for (const number of targets) {
+      try {
+        const sent = await waSendTextMessage({ number, text, settings });
+        results.push({ number, ok: true, status: sent.status, data: sent.data || null });
+      } catch (error) {
+        results.push({ number, ok: false, error: error.message || String(error) });
+      }
+    }
+
+    await writeAuditLog({
+      scope: 'whatsapp_evolution',
+      eventType: 'admin_new_order_whatsapp_sent',
+      orderId: String(orderDoc?._id || orderDoc?.id || ''),
+      status: results.some((row) => row.ok) ? 'success' : 'error',
+      request: { origin, numbers: targets, text },
+      response: results,
+      metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl }
+    });
+
+    return { ok: results.some((row) => row.ok), results };
+  } catch (error) {
+    console.error('Erro ao notificar nova venda por WhatsApp:', error.message || error);
+    return { ok: false, error: error.message || String(error) };
+  }
+}
 async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 'image', fileName = '', settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); if (!String(mediaUrl || '').trim()) throw new Error('URL da mídia não informada.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendMedia/${encodeURIComponent(cfg.instanceName)}`; const payload = { number: normalizedNumber, mediatype: String(mediaType || 'image').trim().toLowerCase(), media: String(mediaUrl || '').trim(), caption: String(caption || '').trim(), fileName: String(fileName || '').trim() || undefined, delay: Number(delay || 0) || 0 }; const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status, payload: redact(payload) }; }
 async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('Configuração incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
 function waParseIncomingWebhook(body = {}) { const payload = body?.data || body?.message || body || {}; const key = payload?.key || body?.key || {}; const message = payload?.message || body?.message || {}; const text = message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || body?.text || ''; const remoteJid = key?.remoteJid || payload?.key?.remoteJid || body?.remoteJid || ''; const number = cleanPhone(String(remoteJid).split('@')[0] || body?.from || ''); const pushName = payload?.pushName || body?.pushName || body?.sender?.pushName || null; const fromMe = key?.fromMe === true || body?.fromMe === true; const event = String(body?.event || body?.type || '').trim() || null; return { event, remoteJid, number, pushName, fromMe, text: String(text || '').trim(), raw: body }; }
@@ -1653,8 +1756,16 @@ app.post('/api/orders', async (req, res) => {
     });
 
     if (body.enqueueManufacturer !== false) await enqueueManufacturerDispatch(order);
-    await Notification.create({ type: 'order_created', title: 'Novo pedido criado', message: `Pedido ${order._id} criado com sucesso.`, relatedId: String(order._id), severity: 'info' });
-    return res.json({ ok: true, order: toJSON(order) });
+    await createAdminNotification({
+      type: 'order_created',
+      title: '🛒 Nova venda recebida',
+      message: `Pedido ${order._id} - ${order.customerName || 'Cliente'} - Total ${formatMoneyBRL(order.total || 0)}`,
+      relatedId: String(order._id),
+      severity: 'success'
+    });
+
+    const adminWhatsapp = await waNotifyAdminNewOrder(order, 'api_orders_create');
+    return res.json({ ok: true, order: toJSON(order), adminWhatsapp });
   } catch (error) {
     if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
       for (const row of reservedStock.reverse()) {
@@ -1673,7 +1784,48 @@ app.post('/api/orders', async (req, res) => {
 });
 app.get('/api/orders/me', authRequired, async (req, res) => res.json((await Order.find({ userId: req.user._id }).sort({ createdAt: -1 })).map(toJSON)));
 app.get('/api/orders/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const row = await Order.findById(oid); if (!row) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); if (req.user.role === 'customer' && String(row.userId || '') !== String(req.user._id)) return res.status(403).json({ ok: false, error: 'Sem permissão' }); return res.json(toJSON(row)); });
-app.patch('/api/orders/:id/status', authRequired, async (req, res) => { try { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const before = await Order.findById(oid); if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); const patch = { status: req.body?.status || before.status, statusLabel: req.body?.statusLabel || req.body?.status || before.statusLabel, trackingCode: req.body?.trackingCode !== undefined ? req.body.trackingCode : before.trackingCode }; const after = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true }); await writeAuditLog({ scope: 'orders', eventType: 'order_status_updated', orderId: String(after._id), status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { actorUserId: String(req.user._id) } }); const notifyResult = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), 'status_route'); return res.json({ ok: true, order: toJSON(after), whatsapp: notifyResult }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do pedido' }); } });
+app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    const before = await Order.findById(oid);
+    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    const previousStatus = String(before.status || '');
+    const patch = {
+      status: req.body?.status || before.status,
+      statusLabel: req.body?.statusLabel || req.body?.status || before.statusLabel,
+      trackingCode: req.body?.trackingCode !== undefined ? req.body.trackingCode : before.trackingCode
+    };
+
+    const after = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
+
+    await writeAuditLog({
+      scope: 'orders',
+      eventType: 'order_status_updated',
+      orderId: String(after._id),
+      status: 'success',
+      changedKeys: changedKeys(toJSON(before), toJSON(after)),
+      metadata: { actorUserId: String(req.user._id) }
+    });
+
+    if (String(after.status || '') !== previousStatus || String(after.trackingCode || '') !== String(before.trackingCode || '')) {
+      await createAdminNotification({
+        type: 'order_updated',
+        title: '📦 Pedido atualizado',
+        message: `Pedido ${after._id} mudou para ${after.statusLabel || after.status || 'Atualizado'}${after.trackingCode ? ` - Rastreio: ${after.trackingCode}` : ''}`,
+        relatedId: String(after._id),
+        severity: 'info'
+      });
+    }
+
+    const notifyResult = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), 'status_route');
+    return res.json({ ok: true, order: toJSON(after), whatsapp: notifyResult });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do pedido' });
+  }
+});
 app.get('/api/seller/orders', authRequired, async (req, res) => { const sellerId = String(req.query.sellerId || req.user.sellerId || '').trim(); return res.json((await Order.find({ sellerIds: sellerId }).sort({ createdAt: -1 })).map(toJSON)); });
 app.post('/api/tickets', async (req, res) => { const body = req.body || {}; const doc = await Ticket.create({ userId: normalizeObjectId(body.userId) || null, orderId: body.orderId || null, protocolo: body.protocolo || `TK-${Date.now()}`, tipo: body.tipo || 'Suporte', assunto: body.assunto || '', mensagem: body.mensagem || body.message || '', status: body.status || 'Novo', origem: body.origem || 'site', nome: body.nome || body.name || '', email: body.email || '', telefone: body.telefone || body.phone || '', metadata: body.metadata || {} }); return res.json({ ok: true, ticket: toJSON(doc) }); });
 app.get('/api/tickets', authRequired, async (req, res) => { const query = req.user.role === 'admin' ? {} : { userId: req.user._id }; return res.json((await Ticket.find(query).sort({ createdAt: -1 })).map(toJSON)); });
@@ -2807,8 +2959,27 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
     const existingDoc = await Model.findById(oid);
     if (!existingDoc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const beforeObj = toJSON(existingDoc);
     const payload = key === 'products' ? productPayloadFromBody({ ...(req.body || {}) }, existingDoc) : (req.body || {});
     const doc = await Model.findByIdAndUpdate(oid, { $set: payload }, { new: true, runValidators: true });
+
+    if (key === 'orders') {
+      const afterObj = toJSON(doc);
+      const changed = changedKeys(beforeObj, afterObj);
+      const statusChanged = String(beforeObj.status || '') !== String(afterObj.status || '') || String(beforeObj.statusLabel || '') !== String(afterObj.statusLabel || '');
+      const trackingChanged = String(beforeObj.trackingCode || '') !== String(afterObj.trackingCode || '');
+      if (statusChanged || trackingChanged) {
+        await createAdminNotification({
+          type: 'order_updated',
+          title: '📦 Pedido atualizado',
+          message: `Pedido ${afterObj.id || afterObj._id} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
+          relatedId: String(afterObj.id || afterObj._id),
+          severity: statusChanged ? 'info' : 'success'
+        });
+      }
+      await writeAuditLog({ scope: 'admin_orders', eventType: 'admin_order_updated', orderId: String(afterObj.id || afterObj._id), status: 'success', changedKeys: changed, metadata: { actor: req.admin?.email || req.admin?.id || 'admin' } }).catch(() => null);
+    }
+
     return res.json(key === 'products' ? normalizeProductForResponse(doc) : toJSON(doc));
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'admin_patch_failed' }); }
 });
