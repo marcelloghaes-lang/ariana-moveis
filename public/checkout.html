@@ -1546,7 +1546,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
-        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}`;
       } catch (e) {
         console.error(e);
         alert(e?.message || "Erro ao finalizar pedido.");

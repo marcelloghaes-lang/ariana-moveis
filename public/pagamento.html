@@ -217,7 +217,7 @@
     let mp = null;
     let cardForm = null;
     let pollTimer = null;
-    let selectedMethod = (urlParams.get('method') || localStorage.getItem("arianaCheckoutSelectedPay") || localStorage.getItem("arianaLastOrderPayment") || "").trim();
+    let selectedMethod = "";
 
     function digitsOnly(v) {
       return String(v || "").replace(/\D+/g, "");
@@ -931,7 +931,7 @@
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
-        await tryAutoOpenMethod();
+        // Não abrir PIX/cartão automaticamente. O cliente precisa escolher a forma de pagamento nesta tela.
         startPolling();
       } catch (e) {
         console.error(e);
