@@ -125,8 +125,31 @@
             </div>
             <div>
               <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Nome do Titular</label>
-              <input type="text" id="form-checkout__cardholderName" class="mp-input h-12" />
+              <input type="text" id="form-checkout__cardholderName" class="mp-input h-12" autocomplete="cc-name" />
             </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">CPF do Titular</label>
+                <input type="text" id="customerCpf" maxlength="14" placeholder="000.000.000-00" class="mp-input h-12" autocomplete="off" inputmode="numeric" />
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Data de Nascimento</label>
+                <input type="date" id="customerBirthDate" class="mp-input h-12" autocomplete="bday" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Telefone</label>
+                <input type="tel" id="customerPhone" maxlength="15" placeholder="(00) 00000-0000" class="mp-input h-12" autocomplete="tel" inputmode="tel" />
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">E-mail</label>
+                <input type="email" id="customerEmail" placeholder="cliente@email.com" class="mp-input h-12" autocomplete="email" />
+              </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Banco Emissor</label>
@@ -221,6 +244,67 @@
 
     function digitsOnly(v) {
       return String(v || "").replace(/\D+/g, "");
+    }
+
+    function getInputValue(id) {
+      const el = document.getElementById(id);
+      return el ? String(el.value || "").trim() : "";
+    }
+
+    function maskCpfValue(value) {
+      const d = digitsOnly(value).slice(0, 11);
+      return d
+        .replace(/^(\d{3})(\d)/, "$1.$2")
+        .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+        .replace(/\.(\d{3})(\d)/, ".$1-$2");
+    }
+
+    function maskPhoneValue(value) {
+      const d = digitsOnly(value).slice(0, 11);
+      if (d.length <= 10) {
+        return d
+          .replace(/^(\d{2})(\d)/, "($1) $2")
+          .replace(/(\d{4})(\d)/, "$1-$2");
+      }
+      return d
+        .replace(/^(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{5})(\d)/, "$1-$2");
+    }
+
+    function getCardCustomerData() {
+      const profileCpf = digitsOnly(pick(customerProfile?.cpf, customerProfile?.document, orderData?.customer?.cpf, orderData?.cpf));
+      const profileEmail = pick(customerProfile?.email, orderData?.customer?.email, currentUser?.email);
+      const profilePhone = pick(customerProfile?.phone, customerProfile?.telefone, orderData?.customerPhone, orderData?.customer?.phone, orderData?.shippingAddress?.phone);
+      const fullName = pick(getInputValue("form-checkout__cardholderName"), getOrderFullName());
+      return {
+        name: fullName,
+        cpf: digitsOnly(pick(getInputValue("customerCpf"), profileCpf)),
+        birthDate: getInputValue("customerBirthDate"),
+        phone: digitsOnly(pick(getInputValue("customerPhone"), profilePhone)),
+        email: pick(getInputValue("customerEmail"), profileEmail)
+      };
+    }
+
+    function fillCustomerFieldsFromOrder() {
+      const data = getCardCustomerData();
+      const cpfEl = document.getElementById("customerCpf");
+      const phoneEl = document.getElementById("customerPhone");
+      const emailEl = document.getElementById("customerEmail");
+      const birthEl = document.getElementById("customerBirthDate");
+      if (cpfEl && !cpfEl.value && data.cpf) cpfEl.value = maskCpfValue(data.cpf);
+      if (phoneEl && !phoneEl.value && data.phone) phoneEl.value = maskPhoneValue(data.phone);
+      if (emailEl && !emailEl.value && data.email) emailEl.value = data.email;
+      if (birthEl && !birthEl.value) birthEl.value = pick(customerProfile?.birthDate, customerProfile?.birth_date, customerProfile?.dataNascimento, orderData?.customer?.birthDate, orderData?.customer?.birth_date);
+    }
+
+    function validateCardCustomerData() {
+      const data = getCardCustomerData();
+      if (!data.name || data.name.split(/\s+/).length < 2) throw new Error("Informe o nome completo do titular do cartão.");
+      if (!data.cpf || data.cpf.length !== 11) throw new Error("Informe um CPF válido do titular do cartão.");
+      if (!data.birthDate) throw new Error("Informe a data de nascimento do titular do cartão.");
+      if (!data.phone || data.phone.length < 10) throw new Error("Informe um telefone válido do titular do cartão.");
+      if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) throw new Error("Informe um e-mail válido do titular do cartão.");
+      return data;
     }
 
     function pick(...vals) {
@@ -414,6 +498,7 @@
     function getOrderCpf() {
       return digitsOnly(
         pick(
+          getInputValue("customerCpf"),
           customerProfile?.cpf,
           customerProfile?.document,
           orderData?.customer?.cpf,
@@ -464,21 +549,25 @@
     }
 
     function getMpPayerStrict() {
-      const fullName = getOrderFullName();
+      const customer = getCardCustomerData();
+      const fullName = customer.name || getOrderFullName();
       const parts = splitFullName(fullName);
-      const idNumber = getOrderCpf();
-      const email = pick(
-        customerProfile?.email,
-        orderData?.customer?.email,
-        currentUser?.email
-      );
-      return {
-        email,
+      const phoneDigits = digitsOnly(customer.phone);
+      const payer = {
+        email: customer.email,
         first_name: parts.firstName,
         last_name: parts.lastName,
-        identification: { type: "CPF", number: idNumber },
+        identification: { type: "CPF", number: customer.cpf || getOrderCpf() },
         address: toMpAddress(getBestAddress())
       };
+      if (phoneDigits) {
+        payer.phone = {
+          area_code: phoneDigits.length >= 10 ? phoneDigits.slice(0, 2) : "",
+          number: phoneDigits.length >= 10 ? phoneDigits.slice(2) : phoneDigits
+        };
+      }
+      if (customer.birthDate) payer.date_of_birth = customer.birthDate;
+      return payer;
     }
 
     function getMpReceiverAddressFromOrder() {
@@ -547,18 +636,14 @@
                 return;
               }
 
-              const payer = getMpPayerStrict();
-              if (!payer.email) throw new Error("E-mail do cliente não encontrado.");
-              if (!payer.identification?.number || payer.identification.number.length !== 11) {
-                throw new Error("Verifique se seu CPF está correto no perfil.");
-              }
-
-              document.getElementById("form-checkout__cardholderEmail").value = payer.email || "";
-              document.getElementById("form-checkout__identificationType").value = "CPF";
-              document.getElementById("form-checkout__identificationNumber").value = payer.identification.number || "";
               if (!document.getElementById("form-checkout__cardholderName").value) {
                 document.getElementById("form-checkout__cardholderName").value = getOrderFullName();
               }
+              fillCustomerFieldsFromOrder();
+              const payer = getMpPayerStrict();
+              document.getElementById("form-checkout__cardholderEmail").value = payer.email || "";
+              document.getElementById("form-checkout__identificationType").value = "CPF";
+              document.getElementById("form-checkout__identificationNumber").value = payer.identification?.number || "";
             },
             onSubmit: (event) => {
               event.preventDefault();
@@ -578,9 +663,15 @@
 
     async function doPayCard(formData) {
       try {
+        const customer = validateCardCustomerData();
+        document.getElementById("form-checkout__cardholderEmail").value = customer.email;
+        document.getElementById("form-checkout__identificationType").value = "CPF";
+        document.getElementById("form-checkout__identificationNumber").value = customer.cpf;
+
         setAlert("loading", "Validando cartão junto ao Mercado Pago...");
         disablePayments(true);
 
+        const payer = getMpPayerStrict();
         const result = await apiFetch("/payments/mp/credit", {
           method: "POST",
           body: JSON.stringify({
@@ -590,9 +681,12 @@
             amount: Number(orderData?.totals?.grandTotal || formData.amount || 0),
             installments: Number(formData.installments || 1),
             orderId: orderId,
-            email: getMpPayerStrict().email || "",
-            cpf: getMpPayerStrict().identification?.number || "",
-            payer: getMpPayerStrict(),
+            email: customer.email,
+            cpf: customer.cpf,
+            birthDate: customer.birthDate,
+            phone: customer.phone,
+            customer: customer,
+            payer: payer,
             address: toMpAddress(getBestAddress()),
             receiver_address: getMpReceiverAddressFromOrder(),
             paymentMethod: "card"
@@ -694,12 +788,12 @@
           try {
             const merged = {
               ...(orderData || {}),
-              paymentMethod: "pix",
-              payment_method: "pix",
-              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "pix", type: "pix", ...(data?.payment || data || {}) },
+              paymentMethod: "boleto",
+              payment_method: "boleto",
+              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "boleto", type: "boleto", ...(data?.payment || data || {}) },
               paymentStatus: "pending",
               status: "pending",
-              totals: { ...(orderData?.totals || {}), paymentMethod: "pix" }
+              totals: { ...(orderData?.totals || {}), paymentMethod: "boleto" }
             };
             localStorage.setItem("arianaLastOrderId", String(orderId || ""));
             localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
@@ -915,6 +1009,9 @@
     async function init() {
       try {
         bindChoice();
+        document.getElementById("customerCpf")?.addEventListener("input", (e) => { e.target.value = maskCpfValue(e.target.value); });
+        document.getElementById("customerPhone")?.addEventListener("input", (e) => { e.target.value = maskPhoneValue(e.target.value); });
+        document.getElementById("customerEmail")?.addEventListener("blur", (e) => { e.target.value = String(e.target.value || "").trim().toLowerCase(); });
         document.getElementById("btn-generate-boleto").addEventListener("click", generateBoleto);
         document.getElementById("btn-copy-pix").addEventListener("click", async () => {
           const input = document.getElementById("pix-code-input");
