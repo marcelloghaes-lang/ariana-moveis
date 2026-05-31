@@ -698,8 +698,7 @@ function formatOrderItemsForWhatsapp(items = []) {
   });
   if (!rows.length) return '• Itens não informados';
   if (ensureArray(items).length > rows.length) rows.push(`• +${ensureArray(items).length - rows.length} item(ns)`);
-  return rows.join('
-');
+  return rows.join('\n');
 }
 
 function buildAdminNewOrderMessage(orderDoc = {}) {
@@ -729,8 +728,7 @@ function buildAdminNewOrderMessage(orderDoc = {}) {
     formatOrderItemsForWhatsapp(order.items || []),
     painelUrl ? `
 Painel: ${painelUrl}` : ''
-  ].filter((line) => line !== '').join('
-');
+  ].filter((line) => line !== '').join('\n');
 }
 
 async function waNotifyAdminNewOrder(orderDoc = {}, origin = 'order_created') {
