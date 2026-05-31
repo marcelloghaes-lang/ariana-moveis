@@ -256,27 +256,75 @@
       return params.get("orderId") || params.get("pedidoId") || params.get("id") || localStorage.getItem("arianaLastOrderId") || "";
     }
 
+    function getAuthToken() {
+      return (
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("customerToken") ||
+        localStorage.getItem("arianaToken") ||
+        ""
+      );
+    }
+
+    function getHeaders(extra = {}) {
+      const token = getAuthToken();
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {}),
+        ...extra
+      };
+    }
+
     async function apiGet(path) {
       const res = await fetch(`${API_BASE}${path}`, {
-        headers: { "Content-Type": "application/json" }
+        headers: getHeaders()
       });
+
+      const text = await res.text();
+      let data = null;
+
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {
+        data = text;
+      }
 
       if (!res.ok) {
         let msg = `Erro GET ${path}`;
-        try {
-          const j = await res.json();
-          msg = j?.error || j?.message || msg;
-        } catch (_) {}
+        if (data && typeof data === "object") {
+          msg = data.error || data.message || msg;
+        } else if (typeof data === "string" && data.trim()) {
+          msg = data.trim();
+        }
         throw new Error(msg);
       }
 
-      return res.json();
+      return data;
     }
 
     async function loadOrder(orderId) {
       if (!orderId) return null;
-      const data = await apiGet(`/orders/${encodeURIComponent(orderId)}`);
-      return data?.item || data?.order || data || null;
+
+      try {
+        const data = await apiGet(`/orders/${encodeURIComponent(orderId)}`);
+        const order = data?.item || data?.order || data || null;
+        if (order) {
+          try {
+            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(order));
+            localStorage.setItem("arianaLastOrderId", String(orderId));
+          } catch (_) {}
+        }
+        return order;
+      } catch (error) {
+        const last = getLastOrderResponse();
+        const lastId = String(localStorage.getItem("arianaLastOrderId") || last?._id || last?.id || last?.orderId || "");
+        if (last && (!lastId || lastId === String(orderId))) {
+          console.warn("Pedido carregado do cache local porque a consulta autenticada falhou:", error.message || error);
+          return last?.item || last?.order || last;
+        }
+        throw error;
+      }
     }
 
     function extractAddress(order) {

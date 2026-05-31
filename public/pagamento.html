@@ -540,6 +540,11 @@
         });
 
         if (result?.ok || result?.approved || result?.status === "approved") {
+          try {
+            const merged = { ...(orderData || {}), payment: result?.payment || result, paymentStatus: "approved", status: "approved" };
+            localStorage.setItem("arianaLastOrderId", String(orderId || ""));
+            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
+          } catch (_) {}
           setAlert("success", "Pagamento aprovado! Preparando seu pedido...");
           setTimeout(() => {
             window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
@@ -570,6 +575,11 @@
         });
 
         if (data?.ok && (data?.qrCodeBase64 || data?.qrCode || data?.qr_code)) {
+          try {
+            const merged = { ...(orderData || {}), payment: data?.payment || data, paymentStatus: "pending", status: "pending" };
+            localStorage.setItem("arianaLastOrderId", String(orderId || ""));
+            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
+          } catch (_) {}
           document.getElementById("pix-loading").classList.add("hidden");
           document.getElementById("pix-content").classList.remove("hidden");
           if (data?.qrCodeBase64) {
@@ -613,6 +623,11 @@
         });
 
         if (data?.ok && (data?.ticketUrl || data?.ticket_url)) {
+          try {
+            const merged = { ...(orderData || {}), payment: data?.payment || data, paymentStatus: "pending", status: "pending" };
+            localStorage.setItem("arianaLastOrderId", String(orderId || ""));
+            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
+          } catch (_) {}
           clearCheckoutCartOnlyAfterSuccess();
           setAlert("success", "Boleto gerado com sucesso!");
           window.open(data.ticketUrl || data.ticket_url, "_blank");
@@ -662,6 +677,10 @@
         try {
           const data = await apiFetch(path);
           orderData = normalizeOrder(data);
+          try {
+            localStorage.setItem("arianaLastOrderId", String(orderId || orderData?._id || orderData?.id || ""));
+            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderData));
+          } catch (_) {}
           renderResumo();
 
           if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
