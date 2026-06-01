@@ -793,6 +793,14 @@ function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
 
 async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, origin = 'admin_order_status_update') {
   try {
+    console.log('[WHATSAPP STATUS ADMIN] INICIO', {
+      orderId,
+      origin,
+      beforeStatus: before?.status,
+      beforeStatusLabel: before?.statusLabel,
+      afterStatus: after?.status,
+      afterStatusLabel: after?.statusLabel
+    });
     const settings = await getWhatsappSettings();
     const targets = parseAdminNotifyNumbers(settings);
     if (!settings.enabled) return { skipped: true, reason: 'integration_disabled' };
@@ -829,7 +837,18 @@ async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 
 async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('Configuração incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
 function waParseIncomingWebhook(body = {}) { const payload = body?.data || body?.message || body || {}; const key = payload?.key || body?.key || {}; const message = payload?.message || body?.message || {}; const text = message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || body?.text || ''; const remoteJid = key?.remoteJid || payload?.key?.remoteJid || body?.remoteJid || ''; const number = cleanPhone(String(remoteJid).split('@')[0] || body?.from || ''); const pushName = payload?.pushName || body?.pushName || body?.sender?.pushName || null; const fromMe = key?.fromMe === true || body?.fromMe === true; const event = String(body?.event || body?.type || '').trim() || null; return { event, remoteJid, number, pushName, fromMe, text: String(text || '').trim(), raw: body }; }
 async function waPersistWebhook(body = {}) { const parsed = waParseIncomingWebhook(body); await WhatsAppWebhook.create({ event: parsed.event || null, remoteJid: parsed.remoteJid || null, number: parsed.number || null, pushName: parsed.pushName || null, fromMe: parsed.fromMe === true, text: parsed.text || null, payload: redact(body || null) }); if ((parsed.event === 'MESSAGES_UPSERT' || !parsed.event) && !parsed.fromMe && parsed.text) await Ticket.create({ protocolo: `WA-${Date.now()}`, nome: parsed.pushName || parsed.number || 'WhatsApp', email: null, tipo: 'WhatsApp', status: 'Novo', telefone: parsed.number || null, mensagem: parsed.text, origem: 'evolution_webhook', metadata: { remoteJid: parsed.remoteJid || null } }); return parsed; }
-async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, origin = 'route') { const prevStatus = String(before?.status || '').trim(); const nextStatus = String(after?.status || '').trim(); if (!nextStatus) return { skipped: true, reason: 'missing_status' }; if (prevStatus === nextStatus) return { skipped: true, reason: 'status_unchanged' }; const settings = await getWhatsappSettings(); if (!settings.enabled) return { skipped: true, reason: 'integration_disabled' }; if (!settings.autoNotifyOrderStatus) return { skipped: true, reason: 'auto_notify_disabled' }; const alreadyNotified = String(after?.whatsappNotification?.lastStatusNotified || '').trim(); if (alreadyNotified === nextStatus) return { skipped: true, reason: 'already_notified' }; const number = extractOrderPhone(after, settings.defaultCountryCode || '55'); if (!number) { await Order.findByIdAndUpdate(orderId, { $set: { whatsappNotification: { ...(after.whatsappNotification || {}), lastAttemptAt: now(), lastStatusNotified: null, lastError: 'Telefone do cliente não encontrado.', origin } } }); return { skipped: true, reason: 'missing_phone' }; } const text = buildOrderStatusMessage(orderId, after, settings); const sent = await waSendTextMessage({ number, text, settings }); await Order.findByIdAndUpdate(orderId, { $set: { whatsappNotification: { ...(after.whatsappNotification || {}), lastAttemptAt: now(), lastStatusNotified: nextStatus, lastMessage: text, lastPhone: number, lastError: null, lastResponse: redact(sent.data || null), origin } } }); await writeAuditLog({ scope: 'whatsapp_evolution', eventType: 'order_status_whatsapp_sent', orderId: String(orderId), status: 'success', request: { number, text, origin }, response: sent.data || null, metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl } }); return { ok: true, number, text, sent }; }
+async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, origin = 'route') {
+  console.log('[WHATSAPP STATUS CLIENTE] INICIO', {
+    orderId,
+    origin,
+    beforeStatus: before?.status,
+    beforeStatusLabel: before?.statusLabel,
+    afterStatus: after?.status,
+    afterStatusLabel: after?.statusLabel,
+    customerPhone: after?.customerPhone,
+    shippingPhone: after?.shippingAddress?.phone
+  });
+  const prevStatus = String(before?.status || '').trim(); const nextStatus = String(after?.status || '').trim(); if (!nextStatus) return { skipped: true, reason: 'missing_status' }; if (prevStatus === nextStatus) return { skipped: true, reason: 'status_unchanged' }; const settings = await getWhatsappSettings(); if (!settings.enabled) return { skipped: true, reason: 'integration_disabled' }; if (!settings.autoNotifyOrderStatus) return { skipped: true, reason: 'auto_notify_disabled' }; const alreadyNotified = String(after?.whatsappNotification?.lastStatusNotified || '').trim(); if (alreadyNotified === nextStatus) return { skipped: true, reason: 'already_notified' }; const number = extractOrderPhone(after, settings.defaultCountryCode || '55'); if (!number) { await Order.findByIdAndUpdate(orderId, { $set: { whatsappNotification: { ...(after.whatsappNotification || {}), lastAttemptAt: now(), lastStatusNotified: null, lastError: 'Telefone do cliente não encontrado.', origin } } }); return { skipped: true, reason: 'missing_phone' }; } const text = buildOrderStatusMessage(orderId, after, settings); const sent = await waSendTextMessage({ number, text, settings }); await Order.findByIdAndUpdate(orderId, { $set: { whatsappNotification: { ...(after.whatsappNotification || {}), lastAttemptAt: now(), lastStatusNotified: nextStatus, lastMessage: text, lastPhone: number, lastError: null, lastResponse: redact(sent.data || null), origin } } }); await writeAuditLog({ scope: 'whatsapp_evolution', eventType: 'order_status_whatsapp_sent', orderId: String(orderId), status: 'success', request: { number, text, origin }, response: sent.data || null, metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl } }); return { ok: true, number, text, sent }; }
 async function waNotifyOrderChatMessage(orderId, order = {}, message = {}, origin = 'route') { const settings = await getWhatsappSettings(); if (!settings.enabled) return { skipped: true, reason: 'integration_disabled' }; if (!settings.chatNotifyEnabled) return { skipped: true, reason: 'chat_notify_disabled' }; const senderType = String(message.senderType || '').trim() || 'customer'; const defaultCountryCode = settings.defaultCountryCode || '55'; const targets = new Set(); if (senderType === 'customer') { const sellerPhone = extractSellerPhone(order, defaultCountryCode); if (sellerPhone) targets.add(sellerPhone); for (const n of parseAdminNotifyNumbers(settings)) targets.add(n); } else { const customerPhone = extractOrderPhone(order, defaultCountryCode); if (customerPhone) targets.add(customerPhone); } const numbers = Array.from(targets).filter(Boolean); if (!numbers.length) return { skipped: true, reason: 'missing_target_phone' }; const text = buildOrderChatMessage(orderId, order, message); const results = []; for (const number of numbers) { const sent = await waSendTextMessage({ number, text, settings }); results.push({ number, status: sent.status, data: sent.data || null }); } await Order.findByIdAndUpdate(orderId, { $set: { chatMeta: { ...(order.chatMeta || {}), lastWhatsappNotifyAt: now(), lastWhatsappNotifyTargets: numbers, lastWhatsappNotifyMessage: text, lastWhatsappNotifyOrigin: origin } } }); await writeAuditLog({ scope: 'whatsapp_evolution', eventType: 'order_chat_whatsapp_sent', orderId: String(orderId), status: 'success', request: { origin, senderType, numbers, text }, response: results, metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl } }); return { ok: true, numbers, text, results }; }
 
 async function getManufacturerIntegration(manufacturer) { return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() }); }
@@ -3378,7 +3397,58 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
           severity: statusChanged ? 'info' : 'success'
         });
       }
-      await writeAuditLog({ scope: 'admin_orders', eventType: 'admin_order_updated', orderId: String(afterObj.id || afterObj._id), status: 'success', changedKeys: changed, metadata: { actor: req.admin?.email || req.admin?.id || 'admin' } }).catch(() => null);
+      const shouldNotifyWhatsapp = statusChanged || trackingChanged;
+      let whatsapp = null;
+      let adminWhatsapp = null;
+
+      if (shouldNotifyWhatsapp) {
+        try {
+          whatsapp = await waMaybeNotifyOrderStatusChange(
+            String(afterObj.id || afterObj._id),
+            beforeObj,
+            afterObj,
+            'admin_collection_patch'
+          );
+        } catch (error) {
+          whatsapp = { ok: false, error: error.message || String(error) };
+          console.error('[WHATSAPP STATUS CLIENTE] ERRO', whatsapp);
+        }
+
+        try {
+          adminWhatsapp = await waNotifyAdminOrderStatusChange(
+            String(afterObj.id || afterObj._id),
+            beforeObj,
+            afterObj,
+            'admin_collection_patch_admin'
+          );
+        } catch (error) {
+          adminWhatsapp = { ok: false, error: error.message || String(error) };
+          console.error('[WHATSAPP STATUS ADMIN] ERRO', adminWhatsapp);
+        }
+      } else {
+        whatsapp = { skipped: true, reason: 'status_and_tracking_unchanged' };
+        adminWhatsapp = { skipped: true, reason: 'status_and_tracking_unchanged' };
+      }
+
+      await writeAuditLog({
+        scope: 'admin_orders',
+        eventType: 'admin_order_updated',
+        orderId: String(afterObj.id || afterObj._id),
+        status: 'success',
+        changedKeys: changed,
+        metadata: {
+          actor: req.admin?.email || req.admin?.id || 'admin',
+          whatsapp,
+          adminWhatsapp
+        }
+      }).catch(() => null);
+
+      return res.json({
+        ok: true,
+        order: afterObj,
+        whatsapp,
+        adminWhatsapp
+      });
     }
 
     return res.json(key === 'products' ? normalizeProductForResponse(doc) : toJSON(doc));
