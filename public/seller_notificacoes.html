@@ -190,66 +190,90 @@
         applySellerHeaderName();
       }
 
-      const res = await fetch(`${API_BASE}/seller/orders`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/seller/notifications?limit=100`, { headers: authHeaders() });
       if (res.status === 401 || res.status === 403) {
         clearSellerSession();
         window.location.href = 'seller_login.html';
         return;
       }
-      const orders = await res.json();
-      if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
-      
-      if (!orders.length) {
-        $('empty').classList.remove('hidden');
-        $('countPill').textContent = '0 notificações';
+
+      const rows = await res.json();
+      if (!res.ok) throw new Error(rows?.message || rows?.error || `Erro ${res.status}`);
+
+      const list = Array.isArray(rows) ? rows : (rows.items || rows.notifications || []);
+      if (!list.length) {
+        notifs = [];
+        renderNotifs();
         return;
       }
 
-      notifs = orders.slice(0, 50).map(o => {
+      notifs = list.map(n => {
+        const typeRaw = String(n.type || '').toLowerCase();
         let type = 'new';
-        let title = 'Novo pedido registrado';
-        if (o.status === 'paid' || o.status === 'approved') { type = 'paid'; title = 'Pagamento aprovado'; }
-        if (o.status === 'shipped') { type = 'shipped'; title = 'Produto enviado'; }
-        if (o.status === 'pending_payment') { type = 'pending'; title = 'Aguardando pagamento'; }
+        if (typeRaw.includes('payment') || typeRaw.includes('paid')) type = 'paid';
+        if (typeRaw.includes('ship') || typeRaw.includes('enviado')) type = 'shipped';
+        if (typeRaw.includes('pending') || typeRaw.includes('pend')) type = 'pending';
 
         return {
-          id: o._id,
-          title,
+          notificationId: n.id || n._id,
+          orderId: n.relatedId || n.metadata?.orderId || '',
+          title: n.title || 'Notificação',
+          message: n.message || '',
           type,
-          status: o.status || 'pendente',
-          date: new Date(o.createdAt || Date.now()).toLocaleString('pt-BR')
+          readStatus: String(n.status || 'unread'),
+          status: n.metadata?.statusLabel || n.metadata?.status || '',
+          date: new Date(n.createdAt || Date.now()).toLocaleString('pt-BR')
         };
       });
 
       renderNotifs();
     } catch (e) {
+      console.error(e);
       toast("Erro ao carregar notificações.", "error");
     }
+  }
+
+  async function markSellerNotificationRead(notificationId) {
+    if (!notificationId) return;
+    try {
+      await fetch(`${API_BASE}/seller/notifications/${encodeURIComponent(notificationId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ status: 'read' })
+      });
+    } catch (_) {}
   }
 
   function renderNotifs() {
     const filter = $('filter').value;
     const filtered = notifs.filter(n => filter === 'all' || n.type === filter);
-    
-    $('countPill').textContent = `${filtered.length} notificações`;
+    const unreadCount = notifs.filter(n => String(n.readStatus || '').toLowerCase() !== 'read').length;
+
+    $('countPill').textContent = `${filtered.length} notificações${unreadCount ? ` · ${unreadCount} nova(s)` : ''}`;
     $('empty').classList.toggle('hidden', filtered.length > 0);
-    
-    $('list').innerHTML = filtered.map(n => `
-      <a href="seller_pedido_detalhe.html?id=${n.id}" class="block rounded-2xl border border-gray-100 p-5 hover:bg-gray-50 transition-all animate-fade">
+
+    $('list').innerHTML = filtered.map(n => {
+      const orderId = String(n.orderId || '').trim();
+      const href = orderId ? `seller_pedido_detalhe.html?id=${encodeURIComponent(orderId)}` : '#';
+      const unreadClass = String(n.readStatus || '').toLowerCase() !== 'read' ? 'bg-blue-50 border-blue-100' : 'bg-white';
+      const shortOrder = orderId ? orderId.substring(0,8).toUpperCase() : '---';
+      return `
+      <a href="${href}" onclick="markSellerNotificationRead('${String(n.notificationId || '').replace(/'/g, "\\'")}')" class="block rounded-2xl border p-5 hover:bg-gray-50 transition-all animate-fade ${unreadClass}">
         <div class="flex items-center justify-between gap-4">
           <div class="flex items-center gap-4">
             <div class="w-10 h-10 rounded-full bg-primary-blue flex items-center justify-center text-white">
-              <i class="fas ${n.type === 'paid' ? 'fa-check-circle' : 'fa-bell'}"></i>
+              <i class="fas ${n.type === 'paid' ? 'fa-check-circle' : n.type === 'shipped' ? 'fa-truck' : 'fa-bell'}"></i>
             </div>
             <div>
               <div class="font-black text-dark-bg">${n.title}</div>
-              <div class="muted text-xs font-bold mt-1">Pedido #${String(n.id).substring(0,8).toUpperCase()} · ${n.date}</div>
+              <div class="text-sm text-gray-600 mt-1">${n.message || ''}</div>
+              <div class="muted text-xs font-bold mt-1">Pedido #${shortOrder} · ${n.date}</div>
             </div>
           </div>
-          <span class="pill ${statusClass(n.status)} uppercase font-black text-[10px]">${n.status}</span>
+          <span class="pill ${statusClass(n.status)} uppercase font-black text-[10px]">${n.status || (n.readStatus === 'read' ? 'lida' : 'nova')}</span>
         </div>
-      </a>
-    `).join('');
+      </a>`;
+    }).join('');
   }
 
   $('btn-refresh').onclick = loadNotifications;

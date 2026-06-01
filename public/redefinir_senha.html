@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redefinir Senha | ARIANA MÓVEIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            'primary-blue': '#2E6DA4',
+            'dark-bg': '#1D2B3A',
+            'secondary-light-blue': '#56B5FF',
+            'text-dark': '#333333',
+            'fundo': '#f8f8f8',
+            'error-red': '#D63B3B'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-fundo min-h-screen font-sans text-text-dark">
+  <header class="bg-[#2E6DA4] py-10 shadow-lg mb-8">
+    <div class="max-w-md mx-auto text-center">
+      <a href="index.html" class="text-4xl font-black tracking-tighter text-white">
+        ARIANA<span class="text-blue-100 font-light">MÓVEIS</span>
+      </a>
+      <div class="flex items-center justify-center gap-2 mt-2">
+        <span class="h-px w-8 bg-yellow-400"></span>
+        <p class="text-[10px] uppercase tracking-[0.4em] text-blue-50 font-bold">Segurança da conta</p>
+        <span class="h-px w-8 bg-yellow-400"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex justify-center items-start py-10 px-4">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-xl overflow-hidden border border-gray-100">
+      <div id="message-container" class="fixed top-20 right-5 z-50 w-80"></div>
+      <div class="p-8">
+        <h1 class="text-3xl font-bold text-center text-primary-blue mb-3">Criar nova senha</h1>
+        <p class="text-center text-sm text-gray-600 mb-6">Digite sua nova senha para recuperar o acesso à sua conta.</p>
+
+        <form id="reset-form" class="space-y-5">
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700">Nova senha</label>
+            <input type="password" id="password" minlength="6" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" placeholder="Mínimo de 6 caracteres">
+          </div>
+          <div>
+            <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirmar nova senha</label>
+            <input type="password" id="confirm-password" minlength="6" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue" placeholder="Repita a senha">
+          </div>
+          <button type="submit" id="reset-btn" class="w-full py-3 px-4 rounded-md shadow-sm text-lg font-medium text-white bg-primary-blue hover:bg-dark-bg transition-colors">
+            Salvar nova senha
+          </button>
+        </form>
+
+        <div class="mt-6 text-center text-sm">
+          <a href="login_cadastro.html" class="text-primary-blue font-bold hover:underline">Voltar para o login</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    (function () {
+      const API_BASE =
+        window.API_BASE ||
+        localStorage.getItem("API_BASE") ||
+        "https://ariana-backend.onrender.com/api";
+
+      window.API_BASE = API_BASE;
+      try {
+        localStorage.setItem("API_BASE", API_BASE);
+        localStorage.setItem("API_BASE_URL", API_BASE);
+      } catch (_) {}
+    })();
+
+    function showMessage(message, type = 'info') {
+      const container = document.getElementById('message-container');
+      if (!container) return alert(message);
+      const colors = {
+        success: 'bg-green-500 border-green-700',
+        error: 'bg-error-red border-red-700',
+        info: 'bg-blue-500 border-blue-700',
+        loading: 'bg-yellow-500 border-yellow-700'
+      };
+      const icons = {
+        success: 'fas fa-check-circle',
+        error: 'fas fa-exclamation-triangle',
+        info: 'fas fa-info-circle',
+        loading: 'fas fa-spinner fa-spin'
+      };
+      container.innerHTML = '';
+      const toast = document.createElement('div');
+      toast.className = `p-4 mb-2 rounded-lg shadow-xl text-white font-semibold flex items-center border-l-4 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<i class="${icons[type] || icons.info} mr-3"></i> ${message}`;
+      container.appendChild(toast);
+    }
+
+    async function apiPost(path, body) {
+      const res = await fetch(window.API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || `Erro ${res.status}`);
+      return data;
+    }
+
+    document.getElementById('reset-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token') || '';
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+      const btn = document.getElementById('reset-btn');
+
+      if (!token) {
+        showMessage('Link inválido. Solicite uma nova recuperação de senha.', 'error');
+        return;
+      }
+      if (password.length < 6) {
+        showMessage('A senha deve ter no mínimo 6 caracteres.', 'error');
+        return;
+      }
+      if (password !== confirmPassword) {
+        showMessage('As senhas não conferem.', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+      showMessage('Atualizando sua senha...', 'loading');
+
+      try {
+        await apiPost('/auth/reset-password', { token, password });
+        showMessage('Senha redefinida com sucesso. Você já pode entrar.', 'success');
+        setTimeout(() => { window.location.href = 'login_cadastro.html'; }, 1500);
+      } catch (error) {
+        showMessage(error.message || 'Não foi possível redefinir a senha.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Salvar nova senha';
+      }
+    });
+
+    if (!(new URLSearchParams(window.location.search)).get('token')) {
+      showMessage('Token não encontrado no link. Solicite a recuperação novamente.', 'error');
+    }
+  </script>
+</body>
+</html>

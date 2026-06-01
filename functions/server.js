@@ -21,6 +21,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
+import { OAuth2Client } from 'google-auth-library';
 import { generateProductPosterBuffer } from './poster-generator.js';
 
 
@@ -35,6 +37,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const MONGODB_DB = process.env.MONGODB_DB || 'ariana_moveis_db';
 const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+const FRONTEND_URL = (process.env.FRONTEND_URL || process.env.SITE_URL || 'https://arianamoveis.com.br').replace(/\/+$/, '');
+const RESET_PASSWORD_URL = (process.env.RESET_PASSWORD_URL || `${FRONTEND_URL}/redefinir_senha.html`).trim();
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+const EMAIL_HOST = String(process.env.EMAIL_HOST || '').trim();
+const EMAIL_PORT = Number(process.env.EMAIL_PORT || 587);
+const EMAIL_SECURE = String(process.env.EMAIL_SECURE || '').toLowerCase() === 'true' || EMAIL_PORT === 465;
+const EMAIL_USER = String(process.env.EMAIL_USER || '').trim();
+const EMAIL_PASS = String(process.env.EMAIL_PASS || '').trim();
+const EMAIL_FROM = String(process.env.EMAIL_FROM || EMAIL_USER || 'Ariana Móveis <no-reply@arianamoveis.com.br>').trim();
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 const MAX_DISPATCH_ATTEMPTS = Number(process.env.MAX_DISPATCH_ATTEMPTS || 5);
 const DISPATCH_RETRY_BASE_MS = Number(process.env.DISPATCH_RETRY_BASE_MS || 5 * 60 * 1000);
 const DEFAULT_CURRENCY = 'BRL';
@@ -524,7 +536,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 const baseOptions = { timestamps: true, versionKey: false };
-const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin', 'staff'] }, permissions: { type: [String], default: [] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true } }, baseOptions);
+const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin', 'staff'] }, permissions: { type: [String], default: [] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true }, emailVerified: { type: Boolean, default: false }, googleId: { type: String, index: true, sparse: true }, authProvider: { type: String, default: 'password' }, resetPasswordTokenHash: { type: String, default: '' }, resetPasswordExpiresAt: { type: Date, default: null } }, baseOptions);
 const sellerSchema = new mongoose.Schema({ sellerId: { type: String, index: true, unique: true }, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, displayName: String, storeName: String, email: String, phone: String, document: String, status: { type: String, default: 'pending' }, onboardingCompleted: { type: Boolean, default: false }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const categorySchema = new mongoose.Schema({ name: { type: String, required: true }, slug: String, parentId: { type: String, default: null }, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, image: String }, baseOptions);
 const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
@@ -541,7 +553,7 @@ const manufacturerIntegrationSchema = new mongoose.Schema({ manufacturer: { type
 const manufacturerDispatchQueueSchema = new mongoose.Schema({ queueId: { type: String, unique: true, index: true }, orderId: { type: String, required: true, index: true }, manufacturer: { type: String, required: true, index: true }, payload: mongoose.Schema.Types.Mixed, status: { type: String, default: 'pending', index: true }, attempts: { type: Number, default: 0 }, maxAttempts: { type: Number, default: MAX_DISPATCH_ATTEMPTS }, nextAttemptAt: { type: Date, default: now, index: true }, lastAttemptAt: Date, lastError: String, lastResponse: mongoose.Schema.Types.Mixed, deadLetter: { type: Boolean, default: false } }, baseOptions);
 const operationalAlertSchema = new mongoose.Schema({ alertId: { type: String, unique: true, index: true }, type: { type: String, index: true }, severity: { type: String, default: 'medium' }, status: { type: String, default: 'open', index: true }, title: String, message: String, manufacturer: String, orderId: String, queueId: String, entityKey: String, count: { type: Number, default: 1 }, metadata: mongoose.Schema.Types.Mixed, buildId: String, firstSeenAt: Date, lastSeenAt: Date, resolvedAt: Date }, baseOptions);
 const whatsappWebhookSchema = new mongoose.Schema({ event: String, remoteJid: String, number: String, pushName: String, fromMe: Boolean, text: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
-const notificationSchema = new mongoose.Schema({ type: String, title: String, message: String, status: { type: String, default: 'unread' }, relatedId: String, severity: { type: String, default: 'info' } }, baseOptions);
+const notificationSchema = new mongoose.Schema({ type: String, title: String, message: String, status: { type: String, default: 'unread' }, relatedId: String, severity: { type: String, default: 'info' }, audience: { type: String, default: 'admin', index: true }, sellerId: { type: String, default: '', index: true }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
 
 const User = mongoose.model('User', userSchema);
@@ -573,12 +585,91 @@ async function createAdminNotification(data = {}) {
       message,
       status: data.status || 'unread',
       relatedId: data.relatedId ? String(data.relatedId) : '',
-      severity: data.severity || 'info'
+      severity: data.severity || 'info',
+      audience: data.audience || 'admin',
+      sellerId: data.sellerId ? String(data.sellerId) : '',
+      metadata: data.metadata || null
     });
   } catch (error) {
     console.error('Erro ao criar notificação administrativa:', error.message || error);
     return null;
   }
+}
+
+async function createSellerNotification(data = {}) {
+  try {
+    const sellerId = String(data.sellerId || '').trim();
+    const title = String(data.title || 'Notificação').trim();
+    const message = String(data.message || '').trim();
+    if (!sellerId || (!title && !message)) return null;
+
+    return await Notification.create({
+      type: String(data.type || 'seller_system').trim(),
+      title,
+      message,
+      status: data.status || 'unread',
+      relatedId: data.relatedId ? String(data.relatedId) : '',
+      severity: data.severity || 'info',
+      audience: 'seller',
+      sellerId,
+      metadata: data.metadata || null
+    });
+  } catch (error) {
+    console.error('Erro ao criar notificação do seller:', error.message || error);
+    return null;
+  }
+}
+
+function extractSellerIdsFromOrder(order = {}) {
+  const obj = toJSON(order) || order || {};
+  const ids = new Set();
+
+  ensureArray(obj.sellerIds).forEach((id) => {
+    const value = String(id || '').trim();
+    if (value) ids.add(value);
+  });
+
+  ensureArray(obj.items).forEach((item) => {
+    const value = String(item?.sellerId || item?.seller_id || '').trim();
+    if (value) ids.add(value);
+  });
+
+  if (obj.manufacturer) ids.add(String(obj.manufacturer).trim());
+
+  return Array.from(ids).filter(Boolean);
+}
+
+async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sellerIds = extractSellerIdsFromOrder(order);
+  if (!sellerIds.length) return [];
+
+  const orderId = String(order._id || order.id || data.orderId || '').trim();
+  const orderShort = orderId ? orderId.slice(-8).toUpperCase() : '---';
+  const title = data.title || '📦 Pedido atualizado';
+  const message = data.message || `Pedido #${orderShort} atualizado para ${order.statusLabel || order.status || 'Atualizado'}`;
+
+  const results = [];
+  for (const sellerId of sellerIds) {
+    const doc = await createSellerNotification({
+      sellerId,
+      type: data.type || 'seller_order_updated',
+      title,
+      message,
+      relatedId: orderId,
+      severity: data.severity || 'info',
+      metadata: {
+        orderId,
+        status: order.status || '',
+        statusLabel: order.statusLabel || '',
+        trackingCode: order.trackingCode || '',
+        origin: data.origin || '',
+        total: order.total || 0
+      }
+    });
+    if (doc) results.push(doc);
+  }
+  return results;
 }
 
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
@@ -1283,6 +1374,220 @@ async function createPagarmeOrder(payload) { const settings = await getPaymentsS
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'Ariana Móveis Enterprise Mongo API', buildId: BUILD_ID }));
 app.get('/health', (_req, res) => res.json({ ok: true, mongo: mongoose.connection.readyState === 1 ? 'connected' : `state_${mongoose.connection.readyState}`, buildId: BUILD_ID, uptime: process.uptime(), time: new Date().toISOString() }));
+
+function isEmailConfigured() {
+  return Boolean(EMAIL_HOST && EMAIL_USER && EMAIL_PASS);
+}
+
+function getMailTransporter() {
+  if (!isEmailConfigured()) return null;
+  return nodemailer.createTransport({
+    host: EMAIL_HOST,
+    port: EMAIL_PORT,
+    secure: EMAIL_SECURE,
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+  });
+}
+
+function buildResetPasswordUrl(token = '') {
+  const base = RESET_PASSWORD_URL || `${FRONTEND_URL}/redefinir_senha.html`;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}token=${encodeURIComponent(token)}`;
+}
+
+async function sendPasswordResetEmail(user, resetUrl) {
+  const transporter = getMailTransporter();
+  const name = String(user?.name || user?.email || 'cliente').trim();
+
+  const subject = 'Redefinição de senha - Ariana Móveis';
+  const text = `Olá, ${name}!\n\nRecebemos uma solicitação para redefinir sua senha na Ariana Móveis.\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 1 hora:\n${resetUrl}\n\nSe você não solicitou essa alteração, ignore este e-mail.`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+      <h2 style="color:#2E6DA4">Redefinição de senha</h2>
+      <p>Olá, <strong>${name}</strong>!</p>
+      <p>Recebemos uma solicitação para redefinir sua senha na Ariana Móveis.</p>
+      <p>O link abaixo expira em <strong>1 hora</strong>:</p>
+      <p><a href="${resetUrl}" style="display:inline-block;background:#2E6DA4;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Criar nova senha</a></p>
+      <p>Se o botão não funcionar, copie e cole este link no navegador:</p>
+      <p style="word-break:break-all;color:#374151">${resetUrl}</p>
+      <p style="font-size:12px;color:#6b7280">Se você não solicitou essa alteração, ignore este e-mail.</p>
+    </div>`;
+
+  if (!transporter) {
+    console.warn('[auth/forgot-password] SMTP não configurado. Link de redefinição:', resetUrl);
+    return { ok: false, skipped: true, reason: 'email_not_configured' };
+  }
+
+  await transporter.sendMail({
+    from: EMAIL_FROM,
+    to: user.email,
+    subject,
+    text,
+    html
+  });
+  return { ok: true };
+}
+
+function normalizePublicUserForAuth(user) {
+  const obj = toJSON(user) || {};
+  delete obj.passwordHash;
+  delete obj.resetPasswordTokenHash;
+  delete obj.resetPasswordExpiresAt;
+  return obj;
+}
+
+app.get('/api/auth/google-config', (_req, res) => {
+  return res.json({ ok: true, enabled: Boolean(GOOGLE_CLIENT_ID), clientId: GOOGLE_CLIENT_ID || '' });
+});
+
+app.post('/api/auth/google-login', async (req, res) => {
+  try {
+    if (!GOOGLE_CLIENT_ID || !googleClient) {
+      return res.status(500).json({ ok: false, error: 'Login com Google não configurado no servidor.' });
+    }
+
+    const idToken = String(req.body?.credential || req.body?.idToken || req.body?.token || '').trim();
+    if (!idToken) return res.status(400).json({ ok: false, error: 'Token do Google ausente.' });
+
+    const ticket = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload() || {};
+    const email = String(payload.email || '').trim().toLowerCase();
+    const googleId = String(payload.sub || '').trim();
+    const name = String(payload.name || payload.given_name || (email ? email.split('@')[0] : 'Cliente')).trim();
+
+    if (!email || !googleId) return res.status(401).json({ ok: false, error: 'Conta Google inválida.' });
+
+    let user = await User.findOne({ $or: [{ email }, { googleId }] });
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        googleId,
+        emailVerified: payload.email_verified === true,
+        authProvider: 'google',
+        role: 'customer',
+        isActive: true
+      });
+    } else {
+      let changed = false;
+      if (!user.googleId) { user.googleId = googleId; changed = true; }
+      if (!user.name && name) { user.name = name; changed = true; }
+      if (payload.email_verified === true && user.emailVerified !== true) { user.emailVerified = true; changed = true; }
+      if (user.authProvider !== 'google') { user.authProvider = user.passwordHash ? 'password_google' : 'google'; changed = true; }
+      if (changed) await user.save();
+    }
+
+    if (user.isActive === false) return res.status(403).json({ ok: false, error: 'Usuário desativado.' });
+
+    const token = signToken(user);
+    return res.json({ ok: true, token, user: normalizePublicUserForAuth(user) });
+  } catch (error) {
+    console.error('Erro em /api/auth/google-login:', error);
+    return res.status(401).json({ ok: false, error: 'Não foi possível validar o login com Google.' });
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ ok: false, error: 'Informe o e-mail cadastrado.' });
+
+    const user = await User.findOne({ email });
+
+    // Resposta neutra para não revelar se o e-mail existe ou não.
+    const neutralResponse = {
+      ok: true,
+      message: 'Se este e-mail estiver cadastrado, enviaremos um link para redefinir a senha.'
+    };
+
+    if (!user) return res.json(neutralResponse);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await user.save();
+
+    const resetUrl = buildResetPasswordUrl(token);
+    const emailResult = await sendPasswordResetEmail(user, resetUrl);
+
+    await writeAuditLog({
+      scope: 'auth',
+      eventType: 'password_reset_requested',
+      status: 'success',
+      metadata: { userId: String(user._id), emailConfigured: isEmailConfigured(), emailSent: emailResult?.ok === true }
+    }).catch(() => null);
+
+    return res.json({
+      ...neutralResponse,
+      emailSent: emailResult?.ok === true,
+      emailConfigured: isEmailConfigured(),
+      debugResetUrl: String(process.env.ALLOW_DEBUG_RESET_LINK || '').toLowerCase() === 'true' ? resetUrl : undefined
+    });
+  } catch (error) {
+    console.error('Erro em /api/auth/forgot-password:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao solicitar recuperação de senha.' });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    const password = String(req.body?.password || req.body?.newPassword || '');
+
+    if (!token) return res.status(400).json({ ok: false, error: 'Token de redefinição ausente.' });
+    if (!password || password.length < 6) return res.status(400).json({ ok: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' });
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpiresAt: { $gt: new Date() }
+    });
+
+    if (!user) return res.status(400).json({ ok: false, error: 'Link inválido ou expirado. Solicite uma nova recuperação de senha.' });
+
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.resetPasswordTokenHash = '';
+    user.resetPasswordExpiresAt = null;
+    if (!user.authProvider || user.authProvider === 'google') user.authProvider = user.googleId ? 'password_google' : 'password';
+    await user.save();
+
+    await writeAuditLog({
+      scope: 'auth',
+      eventType: 'password_reset_completed',
+      status: 'success',
+      metadata: { userId: String(user._id) }
+    }).catch(() => null);
+
+    return res.json({ ok: true, message: 'Senha redefinida com sucesso.' });
+  } catch (error) {
+    console.error('Erro em /api/auth/reset-password:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao redefinir senha.' });
+  }
+});
+
+app.post('/api/auth/change-password', authRequired, async (req, res) => {
+  try {
+    const currentPassword = String(req.body?.currentPassword || req.body?.current_password || '');
+    const newPassword = String(req.body?.newPassword || req.body?.password || '');
+
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ ok: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' });
+
+    const storedHash = String(req.user.passwordHash || '');
+    if (storedHash) {
+      const valid = await bcrypt.compare(currentPassword, storedHash).catch(() => false);
+      if (!valid) return res.status(401).json({ ok: false, error: 'Senha atual inválida.' });
+    }
+
+    req.user.passwordHash = await bcrypt.hash(newPassword, 10);
+    if (!req.user.authProvider || req.user.authProvider === 'google') req.user.authProvider = req.user.googleId ? 'password_google' : 'password';
+    await req.user.save();
+    return res.json({ ok: true, message: 'Senha atualizada com sucesso.' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Erro ao atualizar senha.' });
+  }
+});
+
 app.post('/api/auth/register', async (req, res) => { try { const body = req.body || {}; const email = String(body.email || '').trim().toLowerCase(); const password = String(body.password || ''); const name = String(body.name || '').trim(); if (!email || !password || !name) return res.status(400).json({ ok: false, error: 'Nome, e-mail e senha são obrigatórios' }); const existing = await User.findOne({ email }); if (existing) return res.status(409).json({ ok: false, error: 'E-mail já cadastrado' }); const passwordHash = await bcrypt.hash(password, 10); const user = await User.create({ name, email, passwordHash, cpf: body.cpf || '', phone: body.phone || '', role: body.role === 'seller' ? 'seller' : 'customer', city: body.city || '', uf: body.uf || '' }); if (user.role === 'seller') { const sellerId = uid('seller'); await Seller.create({ sellerId, userId: user._id, displayName: name, storeName: body.storeName || name, email, phone: body.phone || '', document: body.cpf || '', status: 'pending' }); user.sellerId = sellerId; await user.save(); } const token = signToken(user); return res.json({ ok: true, token, user: toJSON(user) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao registrar usuário' }); } });
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -1366,10 +1671,44 @@ app.post('/api/seller/auth/login',async(req,res)=>{
   }catch(e){return res.status(500).json({ok:false,error:e.message||'Erro no login seller'});}
 });
 app.get('/api/seller/auth/me',sellerAuthRequired,(req,res)=>res.json({ok:true,seller:sellerProfile(req.seller,req.user),user:toJSON(req.user)}));
+app.get('/api/seller/notifications', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    const rows = await Notification.find({ audience: 'seller', sellerId: sid }).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 80), 200));
+    return res.json(rows.map(toJSON));
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificações do seller' });
+  }
+});
+app.patch('/api/seller/notifications/:id', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const sid = String(req.sellerId || '').trim();
+    const doc = await Notification.findOneAndUpdate(
+      { _id: oid, audience: 'seller', sellerId: sid },
+      { $set: { status: req.body?.status || 'read' } },
+      { new: true }
+    );
+    if (!doc) return res.status(404).json({ ok: false, error: 'Notificação não encontrada' });
+    return res.json({ ok: true, notification: toJSON(doc) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar notificação do seller' });
+  }
+});
+app.post('/api/seller/notifications/mark-read', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    await Notification.updateMany({ audience: 'seller', sellerId: sid, status: { $ne: 'read' } }, { $set: { status: 'read' } });
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar notificações como lidas' });
+  }
+});
 app.get('/api/seller/orders',sellerAuthRequired,async(req,res)=>{try{const sid=req.sellerId; const rows=await Order.find({$or:[{sellerIds:sid},{'items.sellerId':sid}]}).sort({createdAt:-1}).limit(500); return res.json(rows.map(toJSON));}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao listar pedidos'});}});
 app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
-app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
-app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
+app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(before).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); await createSellerOrderNotifications(order,{type:'seller_order_updated',title:'📦 Pedido atualizado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel||order.status||'Atualizado'}`,severity:'info',origin:'seller_status_route'}); await createAdminNotification({type:'seller_order_updated',title:'🏭 Seller atualizou pedido',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} atualizou o pedido ${order._id} para ${order.statusLabel||order.status||'Atualizado'}`,relatedId:String(order._id),severity:'info',metadata:{sellerId:sid,origin:'seller_status_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
+app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const beforeObj=toJSON(before); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(beforeObj).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=before; order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); const afterObj=toJSON(order); await createSellerOrderNotifications(order,{type:'seller_order_shipped',title:'🚚 Pedido marcado como enviado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,severity:'success',origin:'seller_ship_route'}); await createAdminNotification({type:'seller_order_shipped',title:'🚚 Seller marcou pedido como enviado',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} marcou o pedido ${order._id} como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,relatedId:String(order._id),severity:'success',metadata:{sellerId:sid,origin:'seller_ship_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route_admin'); return res.json({ok:true,order:afterObj,whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
 
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
@@ -1946,6 +2285,14 @@ app.post('/api/orders', async (req, res) => {
       severity: 'success'
     });
 
+    await createSellerOrderNotifications(order, {
+      type: 'seller_order_created',
+      title: '🛒 Nova venda recebida',
+      message: `Pedido #${String(order._id).slice(-8).toUpperCase()} recebido - ${order.customerName || 'Cliente'} - Total ${formatMoneyBRL(order.total || 0)}`,
+      severity: 'success',
+      origin: 'api_orders_create'
+    });
+
     const adminWhatsapp = await waNotifyAdminNewOrder(order, 'api_orders_create');
     return res.json({ ok: true, order: toJSON(order), adminWhatsapp });
   } catch (error) {
@@ -2000,6 +2347,13 @@ app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
         relatedId: String(after._id),
         severity: 'info'
       });
+      await createSellerOrderNotifications(after, {
+        type: 'seller_order_updated',
+        title: '📦 Pedido atualizado',
+        message: `Pedido #${String(after._id).slice(-8).toUpperCase()} mudou para ${after.statusLabel || after.status || 'Atualizado'}${after.trackingCode ? ` - Rastreio: ${after.trackingCode}` : ''}`,
+        severity: 'info',
+        origin: 'status_route'
+      });
     }
 
     const notifyResult = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), 'status_route');
@@ -2016,7 +2370,7 @@ app.post('/api/contact', async (req, res) => res.json({ ok: true, contact: toJSO
 app.post('/api/denuncias', async (req, res) => res.json({ ok: true, denuncia: toJSON(await Denuncia.create({ userId: normalizeObjectId(req.body?.userId) || null, productId: req.body?.productId || null, sellerId: req.body?.sellerId || null, motivo: req.body?.motivo || '', descricao: req.body?.descricao || '', status: 'nova', nome: req.body?.nome || '', email: req.body?.email || '' })) }));
 app.get('/api/admin/stats', adminRequired, async (_req, res) => { const [totalPedidos, totalClientes, totalProdutos] = await Promise.all([Order.countDocuments(), User.countDocuments({ role: 'customer' }), Product.countDocuments()]); const faturamentoAgg = await Order.aggregate([{ $match: { status: { $in: ['pago', 'enviado', 'entregue'] } } }, { $group: { _id: null, total: { $sum: '$total' } } }]); const pendentes = await Order.countDocuments({ status: 'pendente' }); return res.json({ faturamentoTotal: faturamentoAgg[0]?.total || 0, pedidosPendentes: pendentes, totalClientes, totalPedidos, totalProdutos }); });
 app.get('/api/admin/orders', adminRequired, async (req, res) => res.json((await Order.find().sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 10), 100))).map(toJSON)));
-app.get('/api/admin/notifications', adminRequired, async (_req, res) => res.json((await Notification.find().sort({ createdAt: -1 }).limit(50)).map(toJSON)));
+app.get('/api/admin/notifications', adminRequired, async (_req, res) => res.json((await Notification.find({ $or: [{ audience: { $exists: false } }, { audience: '' }, { audience: 'admin' }, { audience: 'all' }] }).sort({ createdAt: -1 }).limit(50)).map(toJSON)));
 app.get('/api/admin/alerts', adminRequired, async (_req, res) => res.json((await OperationalAlert.find().sort({ updatedAt: -1 }).limit(100)).map(toJSON)));
 app.post('/api/admin/alerts/scan', adminRequired, async (_req, res) => { const results = await scanOperationalAlerts(); return res.json({ ok: true, count: results.length, alerts: results.map(toJSON) }); });
 app.get('/api/admin/audit-logs', adminRequired, async (req, res) => { const limit = Math.min(Number(req.query.limit || 100), 500); const query = {}; if (req.query.scope) query.scope = String(req.query.scope); if (req.query.orderId) query.orderId = String(req.query.orderId); if (req.query.manufacturer) query.manufacturer = String(req.query.manufacturer); return res.json((await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(limit)).map(toJSON)); });
@@ -2373,6 +2727,13 @@ async function updateOrderFromMercadoPagoPayment(mpData = {}, fallbackOrderId = 
     message: `Pedido ${after._id} - ${mapped.statusLabel} - ${formatMoneyBRL(after.total || mpData?.transaction_amount || 0)}`,
     relatedId: String(after._id),
     severity: mpData?.status === 'approved' ? 'success' : 'info'
+  });
+  await createSellerOrderNotifications(after, {
+    type: 'seller_payment_updated',
+    title: '💳 Pagamento atualizado',
+    message: `Pedido #${String(after._id).slice(-8).toUpperCase()} - ${mapped.statusLabel} - ${formatMoneyBRL(after.total || mpData?.transaction_amount || 0)}`,
+    severity: mpData?.status === 'approved' ? 'success' : 'info',
+    origin
   });
 
   const whatsapp = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), origin);
@@ -3501,6 +3862,13 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
           message: `Pedido ${afterObj.id || afterObj._id} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
           relatedId: String(afterObj.id || afterObj._id),
           severity: statusChanged ? 'info' : 'success'
+        });
+        await createSellerOrderNotifications(afterObj, {
+          type: 'seller_order_updated',
+          title: '📦 Pedido atualizado pela Ariana Móveis',
+          message: `Pedido #${String(afterObj.id || afterObj._id).slice(-8).toUpperCase()} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
+          severity: statusChanged ? 'info' : 'success',
+          origin: 'admin_generic_orders_route'
         });
       }
 

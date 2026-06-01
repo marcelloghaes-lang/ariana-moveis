@@ -694,8 +694,70 @@ async function handleForgotPassword(e) {
   }
 }
 
-function handleGoogleLogin() {
-  showMessage('Login com Google não está configurado neste backend.', 'info');
+function loadGoogleIdentityScript() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) return resolve();
+    const existing = document.querySelector('script[data-google-identity="1"]');
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', reject, { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = '1';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Não foi possível carregar o Google Login.'));
+    document.head.appendChild(script);
+  });
+}
+
+async function handleGoogleLogin() {
+  const redirectUrl = getRedirectUrl();
+  showMessage('Abrindo login com Google...', 'loading');
+
+  try {
+    const config = await fetch(window.API_BASE + '/auth/google-config').then(readJsonSafe);
+    if (!config?.enabled || !config?.clientId) {
+      showMessage('Login com Google ainda não está configurado no servidor.', 'info');
+      return;
+    }
+
+    await loadGoogleIdentityScript();
+
+    window.google.accounts.id.initialize({
+      client_id: config.clientId,
+      callback: async (response) => {
+        try {
+          showMessage('Validando conta Google...', 'loading');
+          const data = await apiPost('/auth/google-login', { credential: response.credential });
+          const token = data.token || '';
+          const user = persistLocalUser(data.user || {}, token);
+          showMessage(`Bem-vindo, ${user.name || user.nome || user.email || 'Cliente'}!`, 'success');
+          setTimeout(() => {
+            sessionStorage.removeItem('login_redirect_done');
+            sessionStorage.removeItem('post_login_redirect');
+            window.location.href = redirectUrl;
+          }, 900);
+        } catch (error) {
+          showMessage(error.message || 'Erro ao entrar com Google.', 'error');
+        }
+      }
+    });
+
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed && notification.isNotDisplayed()) {
+        showMessage('Não foi possível abrir o login Google. Verifique o popup ou use e-mail e senha.', 'info');
+      }
+      if (notification.isSkippedMoment && notification.isSkippedMoment()) {
+        showMessage('Login Google cancelado. Você pode entrar com e-mail e senha.', 'info');
+      }
+    });
+  } catch (error) {
+    showMessage(error.message || 'Não foi possível iniciar o login com Google.', 'error');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
