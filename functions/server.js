@@ -788,7 +788,8 @@ function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
     `Valor total: ${formatMoneyBRL(order.total || 0)}`,
     trackingCode ? `Rastreio: ${trackingCode}` : '',
     painelUrl ? `Painel: ${painelUrl}` : ''
-].filter(Boolean).join('\n');
+  ].filter(Boolean).join('
+');
 }
 
 async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, origin = 'admin_order_status_update') {
