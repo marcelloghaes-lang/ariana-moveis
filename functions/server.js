@@ -2101,8 +2101,205 @@ app.post('/api/payments/mp/card', async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' });
   }
 });
-app.post('/api/payments/mp/boleto', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: Number(body.amount || body.total || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'bolbradesco', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_boleto_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) return res.status(response.status).json(normalizeMercadoPagoPaymentResponse(response.data)); return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar boleto', details: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar boleto no Mercado Pago' }); } });
-app.post('/api/webhooks/mercadopago', async (req, res) => { try { const payload = req.body || {}; const event = await PaymentEvent.create({ provider: 'mercadopago', eventType: payload.type || payload.action || 'unknown', externalId: payload.data?.id ? String(payload.data.id) : null, orderId: payload.data?.metadata?.orderId || payload.orderId || null, payload }); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_webhook_received', orderId: event.orderId || null, status: 'received', request: payload, metadata: { provider: 'mercadopago' } }); return res.json({ ok: true }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Mercado Pago' }); } });
+
+async function getMercadoPagoPaymentById(paymentId) {
+  const id = String(paymentId || '').trim();
+  if (!id) return null;
+  const headers = await buildMercadoPagoHeaders();
+  const response = await axios.get(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(id)}`, {
+    headers,
+    timeout: 30000,
+    validateStatus: () => true
+  });
+  if (response.status >= 200 && response.status < 300) return response.data || null;
+  await writeAuditLog({
+    scope: 'payments',
+    eventType: 'mercadopago_payment_lookup_error',
+    status: 'error',
+    statusCode: response.status,
+    request: { paymentId: id },
+    response: response.data,
+    metadata: { provider: 'mercadopago' }
+  });
+  return null;
+}
+
+function resolveOrderIdFromMpPayment(mpData = {}, fallbackOrderId = '') {
+  return String(
+    fallbackOrderId ||
+    mpData?.metadata?.orderId ||
+    mpData?.metadata?.order_id ||
+    mpData?.external_reference ||
+    ''
+  ).trim();
+}
+
+function orderStatusFromMercadoPago(mpStatus = '', paymentMethod = '') {
+  const status = String(mpStatus || '').toLowerCase();
+  const method = String(paymentMethod || '').toLowerCase();
+  if (status === 'approved') return { status: 'pago', statusLabel: 'Pagamento aprovado' };
+  if (['pending', 'in_process', 'authorized'].includes(status)) {
+    if (method === 'bolbradesco') return { status: 'aguardando_pagamento', statusLabel: 'Aguardando pagamento do boleto' };
+    if (method === 'pix') return { status: 'aguardando_pagamento', statusLabel: 'Aguardando pagamento Pix' };
+    return { status: 'aguardando_pagamento', statusLabel: 'Aguardando pagamento' };
+  }
+  if (['rejected', 'cancelled'].includes(status)) return { status: 'recusado', statusLabel: 'Pagamento recusado/cancelado' };
+  if (['refunded', 'charged_back'].includes(status)) return { status: 'estornado', statusLabel: 'Pagamento estornado/contestato' };
+  return { status: 'pendente', statusLabel: 'Pagamento pendente' };
+}
+
+async function updateOrderFromMercadoPagoPayment(mpData = {}, fallbackOrderId = '', origin = 'mercadopago') {
+  const orderId = resolveOrderIdFromMpPayment(mpData, fallbackOrderId);
+  const oid = normalizeObjectId(orderId);
+  if (!oid) return { skipped: true, reason: 'missing_or_invalid_order_id', orderId };
+
+  const before = await Order.findById(oid);
+  if (!before) return { skipped: true, reason: 'order_not_found', orderId };
+
+  const method = String(mpData?.payment_method_id || '').trim();
+  const mapped = orderStatusFromMercadoPago(mpData?.status, method);
+  const normalized = normalizeMercadoPagoPaymentResponse(mpData || {});
+
+  const patch = {
+    status: mapped.status,
+    statusLabel: mapped.statusLabel,
+    payment: {
+      ...(before.payment || {}),
+      provider: 'mercadopago',
+      method: method === 'bolbradesco' ? 'boleto' : (method || before.payment?.method || ''),
+      paymentId: mpData?.id ? String(mpData.id) : (before.payment?.paymentId || ''),
+      mercadoPagoId: mpData?.id ? String(mpData.id) : (before.payment?.mercadoPagoId || ''),
+      status: mpData?.status || '',
+      statusDetail: mpData?.status_detail || '',
+      boletoUrl: normalized.ticketUrl || before.payment?.boletoUrl || '',
+      ticketUrl: normalized.ticketUrl || before.payment?.ticketUrl || '',
+      linhaDigitavel: normalized.linhaDigitavel || before.payment?.linhaDigitavel || '',
+      barcode: normalized.barcode || before.payment?.barcode || '',
+      qrCode: normalized.qrCode || before.payment?.qrCode || '',
+      updatedAt: now()
+    }
+  };
+
+  const after = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
+
+  await createAdminNotification({
+    type: 'payment_updated',
+    title: '💳 Pagamento atualizado',
+    message: `Pedido ${after._id} - ${mapped.statusLabel} - ${formatMoneyBRL(after.total || mpData?.transaction_amount || 0)}`,
+    relatedId: String(after._id),
+    severity: mpData?.status === 'approved' ? 'success' : 'info'
+  });
+
+  const whatsapp = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), origin);
+
+  await writeAuditLog({
+    scope: 'payments',
+    eventType: 'order_updated_from_mercadopago',
+    orderId: String(after._id),
+    status: 'success',
+    changedKeys: changedKeys(toJSON(before), toJSON(after)),
+    request: { origin, fallbackOrderId },
+    response: { paymentId: mpData?.id || null, mpStatus: mpData?.status || null, orderStatus: after.status },
+    metadata: { provider: 'mercadopago', whatsapp }
+  });
+
+  return { ok: true, order: toJSON(after), whatsapp };
+}
+
+app.post('/api/payments/mp/boleto', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const orderId = body.orderId || body.order_id || null;
+    const payload = {
+      transaction_amount: Number(body.amount || body.total || 0),
+      description: body.description || `Pedido Ariana Móveis`,
+      payment_method_id: 'bolbradesco',
+      payer: buildMercadoPagoPayer(body),
+      metadata: { orderId },
+      external_reference: orderId ? String(orderId) : undefined,
+      notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
+    };
+
+    const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
+    const mpData = response.data || {};
+
+    let orderUpdate = null;
+    let adminWhatsapp = null;
+
+    if (response.status >= 200 && response.status < 300) {
+      orderUpdate = await updateOrderFromMercadoPagoPayment(mpData, orderId, 'mercadopago_boleto_created');
+
+      const updatedOrder = orderUpdate?.order?._id ? await Order.findById(orderUpdate.order._id) : null;
+      if (updatedOrder) {
+        adminWhatsapp = await waNotifyAdminNewOrder(updatedOrder, 'mercadopago_boleto_created');
+      }
+    }
+
+    await writeAuditLog({
+      scope: 'payments',
+      eventType: 'mercadopago_boleto_created',
+      orderId: orderId || null,
+      status: response.status >= 200 && response.status < 300 ? 'success' : 'error',
+      statusCode: response.status,
+      request: payload,
+      response: mpData,
+      metadata: { provider: 'mercadopago', idempotencyKey, orderUpdate, adminWhatsapp }
+    });
+
+    if (response.status >= 200 && response.status < 300) {
+      return res.status(response.status).json({
+        ...normalizeMercadoPagoPaymentResponse(mpData),
+        orderUpdate,
+        adminWhatsapp
+      });
+    }
+
+    return res.status(response.status).json({
+      ok: false,
+      error: mpData?.message || mpData?.cause?.[0]?.description || 'Erro ao criar boleto',
+      details: mpData
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar boleto no Mercado Pago' });
+  }
+});
+
+app.post('/api/webhooks/mercadopago', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const paymentId = payload.data?.id ? String(payload.data.id) : (payload.id ? String(payload.id) : '');
+    const mpData = paymentId ? await getMercadoPagoPaymentById(paymentId) : null;
+    const orderId = resolveOrderIdFromMpPayment(mpData || {}, payload.orderId || payload.external_reference || '');
+
+    const event = await PaymentEvent.create({
+      provider: 'mercadopago',
+      eventType: payload.type || payload.action || 'unknown',
+      externalId: paymentId || null,
+      orderId: orderId || null,
+      payload
+    });
+
+    let orderUpdate = null;
+    if (mpData) {
+      orderUpdate = await updateOrderFromMercadoPagoPayment(mpData, orderId, 'mercadopago_webhook');
+    }
+
+    await writeAuditLog({
+      scope: 'payments',
+      eventType: 'mercadopago_webhook_received',
+      orderId: orderId || event.orderId || null,
+      status: 'received',
+      request: payload,
+      response: mpData || null,
+      metadata: { provider: 'mercadopago', orderUpdate }
+    });
+
+    return res.json({ ok: true, received: true, orderUpdate });
+  } catch (error) {
+    console.error('Erro ao processar webhook do Mercado Pago:', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Mercado Pago' });
+  }
+});
 app.post('/api/payments/pagarme/order', async (req, res) => { try { const payload = req.body || {}; const response = await createPagarmeOrder(payload); await writeAuditLog({ scope: 'payments', eventType: 'pagarme_order_created', orderId: payload.metadata?.orderId || payload.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'pagarme' } }); return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, data: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pedido no Pagar.me' }); } });
 app.post('/api/webhooks/pagarme', async (req, res) => { try { const payload = req.body || {}; const event = await PaymentEvent.create({ provider: 'pagarme', eventType: payload.type || payload.event || 'unknown', externalId: payload.id ? String(payload.id) : null, orderId: payload.data?.metadata?.orderId || payload.orderId || null, payload }); await writeAuditLog({ scope: 'payments', eventType: 'pagarme_webhook_received', orderId: event.orderId || null, status: 'received', request: payload, metadata: { provider: 'pagarme' } }); return res.json({ ok: true }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Pagar.me' }); } });
 app.get('/api/admin/runtime', adminRequired, async (_req, res) => { const whatsapp = await getWhatsappSettings(); const shipping = await getShippingSettings(); const payments = await getPaymentsSettings(); return res.json({ ok: true, buildId: BUILD_ID, runtime: { nodeEnv: process.env.NODE_ENV || 'development', port: PORT, appBaseUrl: APP_BASE_URL || null, contaboPublicUrl: process.env.CONTABO_PUBLIC_URL || null, evolutionApiUrl: whatsapp.apiUrl || null, evolutionInstance: whatsapp.instanceName || null, mongoDb: MONGODB_DB }, integrations: { whatsapp: redactWhatsappSettings(whatsapp), shipping, payments: redact(payments) } }); });
