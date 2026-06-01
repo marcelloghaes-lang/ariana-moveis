@@ -1504,9 +1504,15 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    user.resetPasswordTokenHash = tokenHash;
-    user.resetPasswordExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
-    await user.save();
+    await User.updateOne(
+  { _id: user._id },
+  {
+    $set: {
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    }
+  }
+);
 
     const resetUrl = buildResetPasswordUrl(token);
     const emailResult = await sendPasswordResetEmail(user, resetUrl);
@@ -1546,11 +1552,19 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
     if (!user) return res.status(400).json({ ok: false, error: 'Link inválido ou expirado. Solicite uma nova recuperação de senha.' });
 
-    user.passwordHash = await bcrypt.hash(password, 10);
-    user.resetPasswordTokenHash = '';
-    user.resetPasswordExpiresAt = null;
-    if (!user.authProvider || user.authProvider === 'google') user.authProvider = user.googleId ? 'password_google' : 'password';
-    await user.save();
+   await User.updateOne(
+  { _id: user._id },
+  {
+    $set: {
+      passwordHash: await bcrypt.hash(password, 10),
+      authProvider: user.googleId ? 'password_google' : 'password'
+    },
+    $unset: {
+      resetPasswordTokenHash: '',
+      resetPasswordExpiresAt: ''
+    }
+  }
+);
 
     await writeAuditLog({
       scope: 'auth',
