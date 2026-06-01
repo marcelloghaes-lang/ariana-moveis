@@ -986,7 +986,41 @@ async function renderOrdersView(){
   box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><h2 class="text-2xl font-bold text-text-dark mb-4">Pedidos</h2><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Total</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${allOrdersCache.map(o=>`<tr class="border-t" data-order-id="${escHtml(String(o.id||o._id||''))}"><td class="px-4 py-3 text-sm">${escHtml(String(o.id||o._id||''))}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||o.nomeCliente||'—')}</td><td class="px-4 py-3 text-sm">${formatDateTime(o.createdAt)}</td><td class="px-4 py-3 text-sm">${formatCurrency(o.total||0)}</td><td class="px-4 py-3 text-sm">${escHtml(o.status||'—')}</td><td class="px-4 py-3 text-sm"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.openOrderModal('${escHtml(String(o.id||o._id||''))}')">Ver / Atualizar</button></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum pedido.</td></tr>'}</tbody></table></div></div>`;
 }
 window.openOrderModal = function(id){ const order=allOrdersCache.find(o=>String(o.id||o._id)===String(id)); if(!order) return; document.getElementById('modal-order-id').textContent=`#${id}`; document.getElementById('modal-order-doc-id').value=id; document.getElementById('update-status').value=order.status||'Aguardando Pagamento'; document.getElementById('update-tracking-code').value=order.trackingCode||''; document.getElementById('modal-content-details').innerHTML=`<div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><div class="text-sm text-gray-500">Cliente</div><div class="font-semibold">${escHtml(order.customerName||'—')}</div></div><div><div class="text-sm text-gray-500">Total</div><div class="font-semibold">${formatCurrency(order.total||0)}</div></div><div><div class="text-sm text-gray-500">Status atual</div><div class="font-semibold">${escHtml(order.status||'—')}</div></div><div><div class="text-sm text-gray-500">Criado em</div><div class="font-semibold">${formatDateTime(order.createdAt)}</div></div></div><div class="mt-4"><div class="text-sm text-gray-500 mb-2">Itens</div><div class="space-y-2">${(order.items||[]).map(i=>`<div class="border rounded-lg p-3"><div class="font-medium">${escHtml(i.name||'Item')}</div><div class="text-sm text-gray-500">Qtd: ${Number(i.qty||i.quantity||1)} · ${formatCurrency(i.unitPrice||i.price||0)}</div></div>`).join('') || '<div class="text-sm text-gray-500">Sem itens.</div>'}</div></div>`; const modal=document.getElementById('order-detail-modal'); modal.classList.remove('hidden'); modal.classList.add('flex'); }
-window.handleOrderUpdate = async function(){ try{ const id=document.getElementById('modal-order-doc-id').value; const status=document.getElementById('update-status').value; const trackingCode=document.getElementById('update-tracking-code').value.trim(); await apiRequest(`/admin/orders/${encodeURIComponent(id)}`,{method:'PATCH',headers:buildHeadersAuth(),body:JSON.stringify({status, statusLabel:status, trackingCode, updatedAt:nowISO()})}); closeModal('order-detail-modal'); await loadOrders(); await renderOrdersView(); await loadDashboardSafe(); displayMessage('Pedido atualizado com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
+window.handleOrderUpdate = async function(){
+  try{
+    const id=document.getElementById('modal-order-doc-id').value;
+    const status=document.getElementById('update-status').value;
+    const trackingCode=document.getElementById('update-tracking-code').value.trim();
+
+    const result = await apiRequest(`/admin/orders/${encodeURIComponent(id)}`,{
+      method:'PATCH',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({status, statusLabel:status, trackingCode, updatedAt:nowISO()})
+    });
+
+    console.log('[PEDIDO ATUALIZADO / WHATSAPP]', result);
+
+    closeModal('order-detail-modal');
+    await loadOrders();
+    await renderOrdersView();
+    await loadDashboardSafe();
+
+    const waAdminOk = result?.adminWhatsapp?.ok === true || Array.isArray(result?.adminWhatsapp?.results) && result.adminWhatsapp.results.some(x=>x.ok);
+    const waClientOk = result?.whatsapp?.ok === true;
+    const adminReason = result?.adminWhatsapp?.reason || result?.adminWhatsapp?.error || '';
+    const clientReason = result?.whatsapp?.reason || result?.whatsapp?.error || '';
+
+    if(waAdminOk || waClientOk) {
+      displayMessage('Pedido atualizado e WhatsApp disparado!', 'success');
+    } else if(adminReason || clientReason) {
+      displayMessage(`Pedido atualizado. WhatsApp não enviado: ${adminReason || clientReason}`, 'info');
+    } else {
+      displayMessage('Pedido atualizado com sucesso!', 'success');
+    }
+  }catch(e){
+    displayMessage(e.message,'error');
+  }
+}
 async function renderUsersView(){ await loadUsers(); const box=document.getElementById('users-content'); box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><h2 class="text-2xl font-bold text-text-dark mb-4">Usuários</h2><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Nome</th><th class="px-4 py-3 text-xs uppercase text-gray-500">E-mail</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Perfil</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${allUsersCache.map(u=>`<tr class="border-t"><td class="px-4 py-3 text-sm">${escHtml(u.name||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(u.email||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(u.role||'customer')}</td><td class="px-4 py-3 text-sm">${u.isActive===false?'<span class="px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold">Inativo</span>':'<span class="px-2 py-1 rounded-full bg-green-50 text-green-600 text-xs font-semibold">Ativo</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum usuário.</td></tr>'}</tbody></table></div></div>`; }
 async function renderAtendimentosView(){
   const data = await apiRequest('/admin/atendimentos?sortBy=createdAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
