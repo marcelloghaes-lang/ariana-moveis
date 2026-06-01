@@ -765,6 +765,67 @@ async function waNotifyAdminNewOrder(orderDoc = {}, origin = 'order_created') {
     return { ok: false, error: error.message || String(error) };
   }
 }
+
+
+function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
+  const order = toJSON(after) || after || {};
+  const previousStatus = String(before?.statusLabel || before?.status || '---').trim();
+  const nextStatus = String(order.statusLabel || order.status || 'Atualizado').trim();
+  const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente não informado').trim();
+  const customerPhone = String(order.customerPhone || order.shippingAddress?.phone || '').trim();
+  const trackingCode = String(order.trackingCode || '').trim();
+  const orderShort = String(order._id || order.id || orderId || '').slice(-8).toUpperCase() || '---';
+  const painelUrl = process.env.ADMIN_PANEL_URL || process.env.APP_ADMIN_URL || process.env.APP_BASE_URL || '';
+
+  return [
+    '📦 *PEDIDO ATUALIZADO*',
+    '',
+    `Pedido: #${orderShort}`,
+    `Cliente: ${customerName}`,
+    customerPhone ? `Telefone: ${customerPhone}` : 'Telefone: não informado',
+    `Status anterior: ${previousStatus}`,
+    `Novo status: ${nextStatus}`,
+    `Valor total: ${formatMoneyBRL(order.total || 0)}`,
+    trackingCode ? `Rastreio: ${trackingCode}` : '',
+    painelUrl ? `Painel: ${painelUrl}` : ''
+  ].filter(Boolean).join('
+');
+}
+
+async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, origin = 'admin_order_status_update') {
+  try {
+    const settings = await getWhatsappSettings();
+    const targets = parseAdminNotifyNumbers(settings);
+    if (!settings.enabled) return { skipped: true, reason: 'integration_disabled' };
+    if (!targets.length) return { skipped: true, reason: 'missing_admin_notify_numbers' };
+
+    const text = buildAdminOrderStatusMessage(orderId, before, after);
+    const results = [];
+    for (const number of targets) {
+      try {
+        const sent = await waSendTextMessage({ number, text, settings });
+        results.push({ number, ok: true, status: sent.status, data: sent.data || null });
+      } catch (error) {
+        results.push({ number, ok: false, error: error.message || String(error) });
+      }
+    }
+
+    await writeAuditLog({
+      scope: 'whatsapp_evolution',
+      eventType: 'admin_order_status_whatsapp_sent',
+      orderId: String(orderId || after?._id || after?.id || ''),
+      status: results.some((row) => row.ok) ? 'success' : 'error',
+      request: { origin, numbers: targets, text },
+      response: results,
+      metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl }
+    });
+
+    return { ok: results.some((row) => row.ok), results };
+  } catch (error) {
+    console.error('Erro ao notificar atualização do pedido para admin por WhatsApp:', error.message || error);
+    return { ok: false, error: error.message || String(error) };
+  }
+}
 async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 'image', fileName = '', settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); if (!String(mediaUrl || '').trim()) throw new Error('URL da mídia não informada.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendMedia/${encodeURIComponent(cfg.instanceName)}`; const payload = { number: normalizedNumber, mediatype: String(mediaType || 'image').trim().toLowerCase(), media: String(mediaUrl || '').trim(), caption: String(caption || '').trim(), fileName: String(fileName || '').trim() || undefined, delay: Number(delay || 0) || 0 }; const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status, payload: redact(payload) }; }
 async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('Configuração incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
 function waParseIncomingWebhook(body = {}) { const payload = body?.data || body?.message || body || {}; const key = payload?.key || body?.key || {}; const message = payload?.message || body?.message || {}; const text = message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || body?.text || ''; const remoteJid = key?.remoteJid || payload?.key?.remoteJid || body?.remoteJid || ''; const number = cleanPhone(String(remoteJid).split('@')[0] || body?.from || ''); const pushName = payload?.pushName || body?.pushName || body?.sender?.pushName || null; const fromMe = key?.fromMe === true || body?.fromMe === true; const event = String(body?.event || body?.type || '').trim() || null; return { event, remoteJid, number, pushName, fromMe, text: String(text || '').trim(), raw: body }; }
@@ -1184,7 +1245,7 @@ app.post('/api/seller/auth/login',async(req,res)=>{
 app.get('/api/seller/auth/me',sellerAuthRequired,(req,res)=>res.json({ok:true,seller:sellerProfile(req.seller,req.user),user:toJSON(req.user)}));
 app.get('/api/seller/orders',sellerAuthRequired,async(req,res)=>{try{const sid=req.sellerId; const rows=await Order.find({$or:[{sellerIds:sid},{'items.sellerId':sid}]}).sort({createdAt:-1}).limit(500); return res.json(rows.map(toJSON));}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao listar pedidos'});}});
 app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
-app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
+app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
 app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
 
 app.get('/api/seller/:sellerId', async (req, res) => {
@@ -1819,7 +1880,8 @@ app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
     }
 
     const notifyResult = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), 'status_route');
-    return res.json({ ok: true, order: toJSON(after), whatsapp: notifyResult });
+    const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(after._id), toJSON(before), toJSON(after), 'status_route_admin');
+    return res.json({ ok: true, order: toJSON(after), whatsapp: notifyResult, adminWhatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do pedido' });
   }
