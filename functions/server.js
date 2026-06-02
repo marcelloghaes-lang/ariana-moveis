@@ -938,6 +938,9 @@ async function waPersistWebhook(body = {}) { const parsed = waParseIncomingWebho
 async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, origin = 'route') {
   const prevStatus = String(before?.status || '').trim();
   const nextStatus = String(after?.status || '').trim();
+  const prevTracking = String(before?.trackingCode || before?.tracking_code || '').trim();
+  const nextTracking = String(after?.trackingCode || after?.tracking_code || '').trim();
+  const nextStatusLabel = String(after?.statusLabel || '').trim();
 
   console.log('[WHATSAPP STATUS CLIENTE] INICIO', {
     orderId,
@@ -949,8 +952,15 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
     userId: after?.userId || ''
   });
 
-  if (!nextStatus) return { skipped: true, reason: 'missing_status' };
-  if (prevStatus === nextStatus && String(before?.trackingCode || '') === String(after?.trackingCode || '')) {
+  if (!nextStatus && !nextStatusLabel && !nextTracking) {
+    return { skipped: true, reason: 'missing_status' };
+  }
+
+  if (
+    prevStatus === nextStatus &&
+    String(before?.statusLabel || '') === String(after?.statusLabel || '') &&
+    prevTracking === nextTracking
+  ) {
     return { skipped: true, reason: 'status_unchanged' };
   }
 
@@ -960,7 +970,6 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
 
   let number = extractOrderPhone(after, settings.defaultCountryCode || '55');
 
-  // Se o pedido não trouxe telefone, tenta buscar pelo usuário vinculado ao pedido.
   if (!number && after?.userId) {
     try {
       const user = await User.findById(after.userId);
@@ -986,28 +995,50 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
   }
 
   const text = buildOrderStatusMessage(orderId, after, settings);
-  const trackingCodeForKey = String(after?.trackingCode || after?.tracking_code || '').trim();
-  const notificationKey = `${nextStatus}|${trackingCodeForKey}|${number}|${crypto.createHash('sha256').update(text).digest('hex')}`;
 
-  // Proteção contra envio duplicado: se duas rotas chamarem a notificação quase ao mesmo tempo,
-  // só a primeira consegue gravar esta trava no pedido. A segunda é ignorada.
+  // Chave simples e forte: evita duplicidade mesmo quando duas rotas disparam a mesma atualização.
+  // Não depende do texto completo, nem da origem, para não falhar quando uma rota muda pequenos detalhes.
+  const statusForKey = String(nextStatus || nextStatusLabel || 'status').trim().toLowerCase();
+  const labelForKey = String(nextStatusLabel || '').trim().toLowerCase();
+  const trackingForKey = String(nextTracking || '').trim().toLowerCase();
+  const customerNotificationKey = `${String(orderId)}|${number}|${statusForKey}|${labelForKey}|${trackingForKey}`;
+
+  // Se essa mesma atualização já foi enviada recentemente, não envia de novo.
+  const currentOrder = await Order.findById(orderId).lean().catch(() => null);
+  const currentWa = currentOrder?.whatsappNotification || {};
+  if (
+    currentWa.customerLastNotificationKey === customerNotificationKey ||
+    currentWa.lastNotificationKey === customerNotificationKey ||
+    currentWa.sendingKey === customerNotificationKey ||
+    currentWa.customerSendingKey === customerNotificationKey
+  ) {
+    console.log('[WHATSAPP STATUS CLIENTE] DUPLICADO IGNORADO POR HISTORICO', {
+      orderId,
+      number,
+      origin,
+      customerNotificationKey
+    });
+    return { skipped: true, reason: 'duplicate_notification', number, customerNotificationKey };
+  }
+
+  // Trava atômica no MongoDB: só uma chamada consegue marcar esta chave como "em envio".
   const lockDoc = await Order.findOneAndUpdate(
     {
       _id: orderId,
       $and: [
         { $or: [
-          { 'whatsappNotification.lastNotificationKey': { $ne: notificationKey } },
-          { 'whatsappNotification.lastNotificationKey': { $exists: false } }
+          { 'whatsappNotification.customerLastNotificationKey': { $ne: customerNotificationKey } },
+          { 'whatsappNotification.customerLastNotificationKey': { $exists: false } }
         ] },
         { $or: [
-          { 'whatsappNotification.sendingKey': { $ne: notificationKey } },
-          { 'whatsappNotification.sendingKey': { $exists: false } }
+          { 'whatsappNotification.customerSendingKey': { $ne: customerNotificationKey } },
+          { 'whatsappNotification.customerSendingKey': { $exists: false } }
         ] }
       ]
     },
     {
       $set: {
-        'whatsappNotification.sendingKey': notificationKey,
+        'whatsappNotification.customerSendingKey': customerNotificationKey,
         'whatsappNotification.lastAttemptAt': now(),
         'whatsappNotification.lastPhone': number,
         'whatsappNotification.origin': origin
@@ -1017,8 +1048,13 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
   ).catch(() => null);
 
   if (!lockDoc) {
-    console.log('[WHATSAPP STATUS CLIENTE] DUPLICADO IGNORADO', { orderId, number, origin, notificationKey });
-    return { skipped: true, reason: 'duplicate_notification', number, notificationKey };
+    console.log('[WHATSAPP STATUS CLIENTE] DUPLICADO IGNORADO POR LOCK', {
+      orderId,
+      number,
+      origin,
+      customerNotificationKey
+    });
+    return { skipped: true, reason: 'duplicate_notification', number, customerNotificationKey };
   }
 
   try {
@@ -1027,8 +1063,11 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
     await Order.findByIdAndUpdate(orderId, {
       $set: {
         'whatsappNotification.lastAttemptAt': now(),
+        'whatsappNotification.lastSentAt': now(),
         'whatsappNotification.lastStatusNotified': nextStatus,
-        'whatsappNotification.lastNotificationKey': notificationKey,
+        'whatsappNotification.lastTrackingNotified': nextTracking,
+        'whatsappNotification.customerLastNotificationKey': customerNotificationKey,
+        'whatsappNotification.lastNotificationKey': customerNotificationKey,
         'whatsappNotification.lastMessage': text,
         'whatsappNotification.lastPhone': number,
         'whatsappNotification.lastError': null,
@@ -1036,6 +1075,7 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
         'whatsappNotification.origin': origin
       },
       $unset: {
+        'whatsappNotification.customerSendingKey': '',
         'whatsappNotification.sendingKey': ''
       }
     }).catch(() => null);
@@ -1045,13 +1085,13 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
       eventType: 'order_status_whatsapp_sent',
       orderId: String(orderId),
       status: 'success',
-      request: { number, text, origin },
+      request: { number, text, origin, customerNotificationKey },
       response: sent.data || null,
       metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl }
     }).catch(() => null);
 
-    console.log('[WHATSAPP STATUS CLIENTE] ENVIADO', { orderId, number, status: sent.status });
-    return { ok: true, number, text, sent };
+    console.log('[WHATSAPP STATUS CLIENTE] ENVIADO', { orderId, number, status: sent.status, customerNotificationKey });
+    return { ok: true, number, text, sent, customerNotificationKey };
   } catch (error) {
     await Order.findByIdAndUpdate(orderId, {
       $set: {
@@ -1061,6 +1101,7 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
         'whatsappNotification.origin': origin
       },
       $unset: {
+        'whatsappNotification.customerSendingKey': '',
         'whatsappNotification.sendingKey': ''
       }
     }).catch(() => null);
@@ -1070,7 +1111,7 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
       eventType: 'order_status_whatsapp_error',
       orderId: String(orderId),
       status: 'error',
-      request: { number, text, origin },
+      request: { number, text, origin, customerNotificationKey },
       response: { error: error.message || String(error) },
       metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl }
     }).catch(() => null);
