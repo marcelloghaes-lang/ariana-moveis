@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recuperar senha | Seller - ARIANA MÓVEIS</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    :root{--primary:#2E6DA4;--dark:#0f172a;--bg:#f5f7fa;--danger:#dc2626;--success:#16a34a}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;color:var(--dark)}
+    .card{width:100%;max-width:480px;background:#fff;border:1px solid #e5e7eb;border-radius:22px;box-shadow:0 14px 35px rgba(15,23,42,.08);padding:32px}
+    h1{text-align:center;color:var(--primary);margin:0 0 24px;font-size:28px}
+    h2{margin:0 0 10px;font-size:24px}
+    p{color:#475569;line-height:1.45;margin:0 0 24px}
+    label{display:block;font-weight:800;font-size:14px;margin-bottom:8px}
+    input{width:100%;padding:15px 16px;border:1px solid #cbd5e1;border-radius:16px;font-size:16px;outline:none}
+    input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(46,109,164,.14)}
+    button{width:100%;margin-top:16px;border:0;border-radius:16px;background:var(--primary);color:#fff;font-size:16px;font-weight:900;padding:15px;cursor:pointer}
+    button:disabled{opacity:.7;cursor:not-allowed}
+    .links{margin-top:18px;display:flex;justify-content:space-between;gap:12px;font-size:14px}
+    a{color:var(--primary);font-weight:800;text-decoration:none}
+    .msg{display:none;margin-top:16px;padding:14px;border-radius:14px;font-weight:700;font-size:14px}
+    .ok{display:block;background:#dcfce7;color:#166534}
+    .err{display:block;background:#fee2e2;color:#991b1b}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>ARIANA MÓVEIS</h1>
+    <h2>Recuperar senha do Seller</h2>
+    <p>Informe o e-mail cadastrado no painel do vendedor. Se o e-mail existir, enviaremos um link de redefinição.</p>
+
+    <form id="recoverForm">
+      <label for="email">Seu e-mail cadastrado</label>
+      <input id="email" type="email" required placeholder="seu@email.com" autocomplete="email">
+      <button id="btnSubmit" type="submit">Enviar link de recuperação</button>
+      <div id="message" class="msg"></div>
+    </form>
+
+    <div class="links">
+      <a href="seller_login.html">Voltar ao login</a>
+      <a href="seller_cadastro.html">Criar solicitação</a>
+    </div>
+  </main>
+
+<script>
+(function(){
+  const API_BASE = "https://ariana-backend.onrender.com/api";
+  const form = document.getElementById("recoverForm");
+  const email = document.getElementById("email");
+  const btn = document.getElementById("btnSubmit");
+  const msg = document.getElementById("message");
+
+  function showMessage(text, ok){
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+  }
+
+  form.addEventListener("submit", async function(e){
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    try {
+      const res = await fetch(API_BASE + "/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ email: email.value.trim() })
+      });
+
+      const data = await res.json().catch(function(){ return {}; });
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Erro ao solicitar recuperação de senha.");
+      }
+
+      showMessage("Se este e-mail estiver cadastrado, o link de recuperação será enviado.", true);
+    } catch (err) {
+      showMessage(err.message || "Servidor indisponível no momento.", false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Enviar link de recuperação";
+    }
+  });
+})();
+</script>
+</body>
+</html>
