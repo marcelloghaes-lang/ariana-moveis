@@ -3935,9 +3935,10 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
         ? await waMaybeNotifyOrderStatusChange(String(afterObj.id || afterObj._id), beforeObj, afterObj, 'admin_generic_orders_route_customer')
         : { skipped: true, reason: 'no_status_or_tracking_change' };
 
-      const adminWhatsapp = (statusChanged || trackingChanged)
-        ? await waNotifyAdminOrderStatusChange(String(afterObj.id || afterObj._id), beforeObj, afterObj, 'admin_generic_orders_route_admin')
-        : { skipped: true, reason: 'no_status_or_tracking_change' };
+     const adminWhatsapp = {
+  skipped: true,
+  reason: 'admin_notification_disabled'
+};
 
       return res.json({ ok: true, order: afterObj, whatsapp: customerWhatsapp, adminWhatsapp });
     }
