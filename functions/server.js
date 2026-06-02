@@ -986,22 +986,57 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
   }
 
   const text = buildOrderStatusMessage(orderId, after, settings);
+  const trackingCodeForKey = String(after?.trackingCode || after?.tracking_code || '').trim();
+  const notificationKey = `${nextStatus}|${trackingCodeForKey}|${number}|${crypto.createHash('sha256').update(text).digest('hex')}`;
+
+  // Proteção contra envio duplicado: se duas rotas chamarem a notificação quase ao mesmo tempo,
+  // só a primeira consegue gravar esta trava no pedido. A segunda é ignorada.
+  const lockDoc = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      $and: [
+        { $or: [
+          { 'whatsappNotification.lastNotificationKey': { $ne: notificationKey } },
+          { 'whatsappNotification.lastNotificationKey': { $exists: false } }
+        ] },
+        { $or: [
+          { 'whatsappNotification.sendingKey': { $ne: notificationKey } },
+          { 'whatsappNotification.sendingKey': { $exists: false } }
+        ] }
+      ]
+    },
+    {
+      $set: {
+        'whatsappNotification.sendingKey': notificationKey,
+        'whatsappNotification.lastAttemptAt': now(),
+        'whatsappNotification.lastPhone': number,
+        'whatsappNotification.origin': origin
+      }
+    },
+    { new: true }
+  ).catch(() => null);
+
+  if (!lockDoc) {
+    console.log('[WHATSAPP STATUS CLIENTE] DUPLICADO IGNORADO', { orderId, number, origin, notificationKey });
+    return { skipped: true, reason: 'duplicate_notification', number, notificationKey };
+  }
 
   try {
     const sent = await waSendTextMessage({ number, text, settings });
 
     await Order.findByIdAndUpdate(orderId, {
       $set: {
-        whatsappNotification: {
-          ...(after.whatsappNotification || {}),
-          lastAttemptAt: now(),
-          lastStatusNotified: nextStatus,
-          lastMessage: text,
-          lastPhone: number,
-          lastError: null,
-          lastResponse: redact(sent.data || null),
-          origin
-        }
+        'whatsappNotification.lastAttemptAt': now(),
+        'whatsappNotification.lastStatusNotified': nextStatus,
+        'whatsappNotification.lastNotificationKey': notificationKey,
+        'whatsappNotification.lastMessage': text,
+        'whatsappNotification.lastPhone': number,
+        'whatsappNotification.lastError': null,
+        'whatsappNotification.lastResponse': redact(sent.data || null),
+        'whatsappNotification.origin': origin
+      },
+      $unset: {
+        'whatsappNotification.sendingKey': ''
       }
     }).catch(() => null);
 
@@ -1020,13 +1055,13 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
   } catch (error) {
     await Order.findByIdAndUpdate(orderId, {
       $set: {
-        whatsappNotification: {
-          ...(after.whatsappNotification || {}),
-          lastAttemptAt: now(),
-          lastStatusNotified: null,
-          lastError: error.message || String(error),
-          origin
-        }
+        'whatsappNotification.lastAttemptAt': now(),
+        'whatsappNotification.lastStatusNotified': null,
+        'whatsappNotification.lastError': error.message || String(error),
+        'whatsappNotification.origin': origin
+      },
+      $unset: {
+        'whatsappNotification.sendingKey': ''
       }
     }).catch(() => null);
 
