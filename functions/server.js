@@ -723,7 +723,8 @@ function parseBannerInput(body = {}) {
 }
 
 const WHATSAPP_EVOLUTION_DEFAULT_API_URL = process.env.EVOLUTION_API_URL || 'http://167.86.108.75:8082';
-const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE = process.env.EVOLUTION_INSTANCE || 'Ariana_SAC';
+const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE =
+  process.env.EVOLUTION_INSTANCE || 'Ariana_Notificacoes';
 const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
 const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
 const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
