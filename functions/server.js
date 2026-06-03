@@ -2569,30 +2569,162 @@ app.post('/shipping/logistics/quote', async (req, res) => {
 app.get('/api/admin/shipping/rules', adminRequired, async (_req, res) => res.json({ ok: true, settings: await getShippingSettings() }));
 app.post('/api/admin/shipping/rules', adminRequired, async (req, res) => res.json({ ok: true, settings: await saveShippingSettings(req.body || {}, String(req.user._id)) }));
 
+function normalizeMercadoPagoAddress(input = {}) {
+  const src = (input && typeof input === 'object') ? input : {};
+  const out = {
+    zip_code: String(src.zip_code || src.zip || src.cep || src.zipCode || '').replace(/\D/g, ''),
+    street_name: String(src.street_name || src.street || src.logradouro || src.rua || src.address || src.endereco || '').trim(),
+    street_number: String(src.street_number || src.number || src.numero || src.n || 'S/N').trim(),
+    neighborhood: String(src.neighborhood || src.bairro || '').trim(),
+    city: String(src.city || src.city_name || src.cidade || '').trim(),
+    federal_unit: String(src.federal_unit || src.state || src.uf || src.state_name || '').trim().toUpperCase().slice(0, 2)
+  };
+
+  Object.keys(out).forEach((key) => {
+    if (!out[key]) delete out[key];
+  });
+
+  return out;
+}
+
+function pickMercadoPagoAddress(body = {}) {
+  const payer = body.payer || {};
+  const candidates = [
+    payer.address,
+    body.address,
+    body.customer?.address,
+    body.shippingAddress,
+    body.receiver_address,
+    body.receiverAddress
+  ];
+
+  for (const item of candidates) {
+    const normalized = normalizeMercadoPagoAddress(item || {});
+    if (Object.keys(normalized).length) return normalized;
+  }
+
+  return {};
+}
+
+function buildMercadoPagoPhone(body = {}) {
+  const payer = body.payer || {};
+  const existingPhone = payer.phone && typeof payer.phone === 'object' ? { ...payer.phone } : {};
+  const rawPhone = String(
+    body.phone ||
+    body.customer?.phone ||
+    payer.phone?.number ||
+    payer.phone ||
+    ''
+  ).replace(/\D/g, '');
+
+  if (!rawPhone && Object.keys(existingPhone).length) return existingPhone;
+  if (!rawPhone) return null;
+
+  const withoutCountry = rawPhone.startsWith('55') && rawPhone.length > 11 ? rawPhone.slice(2) : rawPhone;
+  return {
+    area_code: withoutCountry.length >= 10 ? withoutCountry.slice(0, 2) : '',
+    number: withoutCountry.length >= 10 ? withoutCountry.slice(2) : withoutCountry
+  };
+}
+
 function buildMercadoPagoPayer(body = {}) {
   const payer = body.payer || {};
-  const cpf = String(body.cpf || body.document || (payer.identification && payer.identification.number) || '').replace(/\D/g, '');
+  const cpf = String(
+    body.cpf ||
+    body.document ||
+    body.customer?.cpf ||
+    body.customer?.document ||
+    (payer.identification && payer.identification.number) ||
+    ''
+  ).replace(/\D/g, '');
+
   const firstName = String(body.first_name || body.firstName || payer.first_name || payer.firstName || 'Cliente').trim();
   const lastName = String(body.last_name || body.lastName || payer.last_name || payer.lastName || 'Ariana').trim();
-  const email = String(body.email || payer.email || 'cliente@arianamoveis.com').trim();
-  const payerAddress = (payer && typeof payer.address === 'object' && payer.address) ? { ...payer.address } : {};
 
-  delete payerAddress.apartment;
-  delete payerAddress.complement;
-  delete payerAddress.complemento;
-  delete payerAddress.city_name;
-  delete payerAddress.state_name;
+  const fallbackEmail = body.orderId
+    ? `cliente_${String(body.orderId).replace(/[^a-zA-Z0-9]/g, '').slice(-12)}@arianamoveis.com.br`
+    : 'cliente@arianamoveis.com.br';
 
-  const out = { ...payer, email, first_name: firstName, last_name: lastName };
+  const email = String(
+    body.email ||
+    body.customer?.email ||
+    payer.email ||
+    fallbackEmail
+  ).trim().toLowerCase();
+
+  const address = pickMercadoPagoAddress(body);
+  const phone = buildMercadoPagoPhone(body);
+
+  const out = {
+    ...payer,
+    email,
+    first_name: firstName,
+    last_name: lastName
+  };
+
   // Evita HTTP 400 do Mercado Pago por campos extras dentro de payer.
   delete out.date_of_birth;
   delete out.birthDate;
   delete out.birth_date;
   delete out.customer;
-  if (Object.keys(payerAddress).length) out.address = payerAddress;
+  delete out.receiver_address;
+  delete out.receiverAddress;
+
+  if (Object.keys(address).length) out.address = address;
   else delete out.address;
-  if (cpf) out.identification = { type: ((body.identification && body.identification.type) || (payer.identification && payer.identification.type) || 'CPF'), number: cpf };
+
+  if (phone && Object.keys(phone).length) out.phone = phone;
+
+  if (cpf) {
+    out.identification = {
+      type: ((body.identification && body.identification.type) || (payer.identification && payer.identification.type) || 'CPF'),
+      number: cpf
+    };
+  }
+
   return out;
+}
+
+function buildMercadoPagoAdditionalInfo(body = {}) {
+  const customer = body.customer || {};
+  const payer = buildMercadoPagoPayer(body);
+  const receiverAddress = normalizeMercadoPagoAddress(body.receiver_address || body.receiverAddress || body.address || {});
+  const additionalInfo = {
+    payer: {
+      first_name: payer.first_name,
+      last_name: payer.last_name,
+      phone: payer.phone,
+      address: payer.address
+    },
+    shipments: Object.keys(receiverAddress).length ? {
+      receiver_address: {
+        zip_code: receiverAddress.zip_code || '',
+        street_name: receiverAddress.street_name || '',
+        street_number: receiverAddress.street_number || 'S/N',
+        floor: String(body.receiver_address?.floor || ''),
+        apartment: String(body.receiver_address?.apartment || ''),
+        city_name: String(body.receiver_address?.city_name || receiverAddress.city || ''),
+        state_name: String(body.receiver_address?.state_name || receiverAddress.federal_unit || '')
+      }
+    } : undefined
+  };
+
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (items.length) {
+    additionalInfo.items = items.slice(0, 50).map((item) => ({
+      id: String(item.productId || item.id || item.sku || '').slice(0, 256),
+      title: String(item.name || item.title || 'Produto Ariana Móveis').slice(0, 256),
+      description: String(item.description || item.name || item.title || 'Produto Ariana Móveis').slice(0, 256),
+      quantity: Number(item.qty || item.quantity || 1) || 1,
+      unit_price: Number(item.unitPrice || item.price || item.totalPrice || 0) || 0
+    }));
+  }
+
+  Object.keys(additionalInfo).forEach((key) => {
+    if (additionalInfo[key] === undefined || additionalInfo[key] === null) delete additionalInfo[key];
+  });
+
+  return additionalInfo;
 }
 
 function normalizeMercadoPagoPaymentResponse(data = {}) {
@@ -2665,8 +2797,23 @@ app.post('/api/payments/mp/credit', async (req, res) => {
       issuer_id: body.issuer_id,
       payer: buildMercadoPagoPayer(body),
       metadata: { orderId: body.orderId || null, paymentMethod: 'card', birthDate: body.birthDate || body.customer?.birthDate || null, phone: body.phone || body.customer?.phone || null },
+      external_reference: body.orderId ? String(body.orderId) : undefined,
+      binary_mode: false,
+      additional_info: buildMercadoPagoAdditionalInfo(body),
       notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
     };
+    console.log('[MP CREDIT REQUEST]', JSON.stringify({
+      amount: payload.transaction_amount,
+      payment_method_id: payload.payment_method_id,
+      installments: payload.installments,
+      hasToken: Boolean(payload.token),
+      hasCpf: Boolean(payload.payer?.identification?.number),
+      hasEmail: Boolean(payload.payer?.email),
+      hasPhone: Boolean(payload.payer?.phone?.number),
+      hasAddress: Boolean(payload.payer?.address && Object.keys(payload.payer.address).length),
+      hasReceiverAddress: Boolean(payload.additional_info?.shipments?.receiver_address)
+    }, null, 2));
+
     const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
     const mpData = response.data || {};
     console.log(
@@ -2735,6 +2882,9 @@ app.post('/api/payments/mp/card', async (req, res) => {
       issuer_id: body.issuer_id,
       payer: buildMercadoPagoPayer(body),
       metadata: { orderId: body.orderId || null, paymentMethod: 'card', birthDate: body.birthDate || body.customer?.birthDate || null, phone: body.phone || body.customer?.phone || null },
+      external_reference: body.orderId ? String(body.orderId) : undefined,
+      binary_mode: false,
+      additional_info: buildMercadoPagoAdditionalInfo(body),
       notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
     };
     const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
