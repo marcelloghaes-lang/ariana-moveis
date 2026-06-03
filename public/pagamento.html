@@ -669,7 +669,7 @@
       }
     }
 
-    async function doPayCard(formData)  {}
+    async function doPayCard(formData) {
       try {
         const customer = validateCardCustomerData();
         document.getElementById("form-checkout__cardholderEmail").value = customer.email;
@@ -746,20 +746,20 @@
         const mpStatus = getMpStatus(result) || "pending";
         mergeAndCachePayment("card", result, mpStatus);
         throw new Error(`${getMpStatusMessage(result)} Status: ${mpStatus}`);
+      } catch (e) {
+        console.error("ERRO CARTAO COMPLETO:", e);
+
+        let msg =
+          e?.details?.cause?.[0]?.description ||
+          e?.details?.message ||
+          e?.statusDetail ||
+          e?.message ||
+          "Falha no pagamento.";
+
+        setAlert("error", "Erro no cartão: " + msg);
+        disablePayments(false);
       }
-      catch (e) {
-  console.error("ERRO CARTAO COMPLETO:", e);
-
-  let msg =
-    e?.details?.cause?.[0]?.description ||
-    e?.details?.message ||
-    e?.statusDetail ||
-    e?.message ||
-    "Falha no pagamento.";
-
-  setAlert("error", "Erro no cartão: " + msg);
-  disablePayments(false);
-}
+    }
 
     async function generatePix() {
       try {
