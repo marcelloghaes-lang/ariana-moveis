@@ -680,14 +680,46 @@
         disablePayments(true);
 
         const payer = getMpPayerStrict();
+
+        const cardToken = String(formData?.token || "").trim();
+        const issuerId = String(formData?.issuerId || formData?.issuer_id || "").trim();
+        const paymentMethodId = String(formData?.paymentMethodId || formData?.payment_method_id || "").trim();
+        const installments = Number(formData?.installments || 1) || 1;
+        const amount = Number(orderData?.totals?.grandTotal || formData?.amount || 0) || 0;
+
+        console.log("[CARD FORM DATA]", {
+          hasToken: !!cardToken,
+          issuerId,
+          paymentMethodId,
+          installments,
+          amount,
+          emailOk: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email || ""),
+          cpfOk: String(customer.cpf || "").replace(/\D/g, "").length === 11,
+          birthDateOk: !!customer.birthDate,
+          phoneOk: String(customer.phone || "").replace(/\D/g, "").length >= 10
+        });
+
+        if (!amount || amount <= 0) {
+          throw new Error("Total do pedido inválido para pagamento no cartão.");
+        }
+        if (!cardToken) {
+          throw new Error("O Mercado Pago não gerou o token do cartão. Confira número, validade, CVV e tente novamente.");
+        }
+        if (!paymentMethodId) {
+          throw new Error("A bandeira do cartão não foi identificada pelo Mercado Pago.");
+        }
+        if (!issuerId) {
+          throw new Error("O banco emissor do cartão não foi identificado pelo Mercado Pago.");
+        }
+
         const result = await apiFetch("/payments/mp/credit", {
           method: "POST",
           body: JSON.stringify({
-            token: formData.token,
-            issuer_id: formData.issuerId || formData.issuer_id,
-            payment_method_id: formData.paymentMethodId || formData.payment_method_id,
-            amount: Number(orderData?.totals?.grandTotal || formData.amount || 0),
-            installments: Number(formData.installments || 1),
+            token: cardToken,
+            issuer_id: issuerId,
+            payment_method_id: paymentMethodId,
+            amount,
+            installments,
             orderId: orderId,
             email: customer.email,
             cpf: customer.cpf,
