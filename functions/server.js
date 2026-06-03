@@ -2669,6 +2669,16 @@ app.post('/api/payments/mp/credit', async (req, res) => {
     };
     const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
     const mpData = response.data || {};
+    console.log(
+  '[MP CREDIT RESPONSE]',
+  JSON.stringify({
+    status: response.status,
+    status_mp: mpData?.status,
+    status_detail: mpData?.status_detail,
+    message: mpData?.message,
+    cause: mpData?.cause
+  }, null, 2)
+);
     const approved = mpData?.status === 'approved';
 
     const updatedOrder = await updateOrderPaymentFromMercadoPago(body.orderId, 'card', mpData, {
