@@ -809,6 +809,7 @@ function formatOrderItemsForWhatsapp(items = []) {
 
 function buildAdminNewOrderMessage(orderDoc = {}) {
   const order = toJSON(orderDoc) || orderDoc || {};
+
   const orderId = String(order._id || order.id || '').slice(-8).toUpperCase() || '---';
   const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente não informado').trim();
   const customerPhone = String(order.customerPhone || order.shippingAddress?.phone || '').trim();
@@ -816,7 +817,6 @@ function buildAdminNewOrderMessage(orderDoc = {}) {
   const address = order.shippingAddress || {};
   const cidadeUf = [address.cidade || address.city, address.uf || address.state].filter(Boolean).join('/');
   const prazo = order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || (order.shipping?.deadlineDays ? `${order.shipping.deadlineDays} dia(s) úteis` : 'Não informado');
-  const painelUrl = process.env.ADMIN_PANEL_URL || process.env.APP_ADMIN_URL || process.env.APP_BASE_URL || '';
 
   return [
     '🛒 *NOVA VENDA REALIZADA*',
@@ -831,10 +831,9 @@ function buildAdminNewOrderMessage(orderDoc = {}) {
     cidadeUf ? `Cidade: ${cidadeUf}` : '',
     '',
     '*Itens:*',
-    formatOrderItemsForWhatsapp(order.items || []),
-    painelUrl ? `
-Painel: ${painelUrl}` : ''
-  ].filter((line) => line !== '').join('\n');
+    formatOrderItemsForWhatsapp(order.items || [])
+  ].filter((line) => line !== '').join('
+');
 }
 
 async function waNotifyAdminNewOrder(orderDoc = {}, origin = 'order_created') {
@@ -875,13 +874,13 @@ async function waNotifyAdminNewOrder(orderDoc = {}, origin = 'order_created') {
 
 function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
   const order = toJSON(after) || after || {};
+
   const previousStatus = String(before?.statusLabel || before?.status || '---').trim();
   const nextStatus = String(order.statusLabel || order.status || 'Atualizado').trim();
   const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente não informado').trim();
   const customerPhone = String(order.customerPhone || order.shippingAddress?.phone || '').trim();
   const trackingCode = String(order.trackingCode || '').trim();
   const orderShort = String(order._id || order.id || orderId || '').slice(-8).toUpperCase() || '---';
-  const painelUrl = process.env.ADMIN_PANEL_URL || process.env.APP_ADMIN_URL || process.env.APP_BASE_URL || '';
 
   return [
     '📦 *PEDIDO ATUALIZADO*',
@@ -892,9 +891,9 @@ function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
     `Status anterior: ${previousStatus}`,
     `Novo status: ${nextStatus}`,
     `Valor total: ${formatMoneyBRL(order.total || 0)}`,
-    trackingCode ? `Rastreio: ${trackingCode}` : '',
-    painelUrl ? `Painel: ${painelUrl}` : ''
-  ].filter(Boolean).join('\n');
+    trackingCode ? `Rastreio: ${trackingCode}` : ''
+  ].filter(Boolean).join('
+');
 }
 
 async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, origin = 'admin_order_status_update') {
