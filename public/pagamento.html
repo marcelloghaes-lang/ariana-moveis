@@ -843,7 +843,7 @@
             document.getElementById("pix-qr-img").src = data.qrCodeImage;
           }
           document.getElementById("pix-code-input").value = data.qrCode || data.qr_code || "";
-          clearCheckoutCartOnlyAfterSuccess();
+          // Pix gerado ainda não significa pagamento aprovado. Mantém o carrinho se o cliente voltar.
           setAlert("success", "Pix gerado com sucesso.");
         } else {
           throw new Error(data?.error || "Falha ao gerar QR Code.");
@@ -891,7 +891,7 @@
             localStorage.setItem("arianaLastOrderId", String(orderId || ""));
             localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
           } catch (_) {}
-          clearCheckoutCartOnlyAfterSuccess();
+          // Boleto gerado ainda fica pendente até compensar. Mantém o carrinho se o cliente voltar.
           setAlert("success", "Boleto gerado com sucesso!");
           window.open(data.ticketUrl || data.ticket_url, "_blank");
         } else {

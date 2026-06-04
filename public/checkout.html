@@ -1576,9 +1576,14 @@ async function quoteShippingForSelectedAddress(addrObj) {
           throw new Error("Pedido criado sem ID retornado pela API.");
         }
 
+        // Não apagamos o carrinho aqui.
+        // Antes, o carrinho era removido assim que o pedido era criado; se o cliente voltasse
+        // para a loja/início antes de pagar, parecia que o produto tinha sumido sozinho.
+        // Agora só guardamos uma cópia de segurança e a limpeza fica para pagamento aprovado/confirmado.
         try {
-          localStorage.removeItem("arianaMoveisCart");
-          localStorage.removeItem("ariana_moveis_cart");
+          localStorage.setItem("arianaCheckoutPendingCart", JSON.stringify(cart || []));
+          localStorage.setItem("arianaMoveisCart", JSON.stringify(cart || []));
+          localStorage.setItem("ariana_moveis_cart", JSON.stringify(cart || []));
         } catch (_) {}
 
         try { localStorage.setItem("arianaLastOrderGateway", "mercadopago"); } catch (_) {}
