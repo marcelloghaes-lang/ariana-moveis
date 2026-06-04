@@ -346,7 +346,9 @@
       const data = getCardCustomerData();
       if (!data.name || data.name.split(/\s+/).length < 2) throw new Error("Informe o nome completo do titular do cartão.");
       if (!data.cpf || data.cpf.length !== 11) throw new Error("Informe um CPF válido do titular do cartão.");
-      if (!data.birthDate) throw new Error("Informe uma data de nascimento válida no formato DD/MM/AAAA.");
+      const birthRaw = getInputValue("customerBirthDate");
+      if (birthRaw && !data.birthDate) throw new Error("Data de nascimento inválida. Use DD/MM/AAAA, exemplo: 15/08/1990.");
+      // Data de nascimento fica opcional para não bloquear o pagamento quando o cadastro não tiver esse dado.
       if (!data.phone || data.phone.length < 10) throw new Error("Informe um telefone válido do titular do cartão.");
       if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) throw new Error("Informe um e-mail válido do titular do cartão.");
       return data;
@@ -393,14 +395,24 @@
     }
 
     function getMpStatusMessage(result) {
-      return (
-        result?.error ||
-        result?.details?.message ||
-        result?.data?.status_detail ||
-        result?.raw?.status_detail ||
-        result?.statusDetail ||
-        "Transação não aprovada."
-      );
+      const candidates = [
+        result?.message,
+        result?.error,
+        result?.status_detail,
+        result?.statusDetail,
+        result?.details?.message,
+        result?.data?.message,
+        result?.data?.status_detail,
+        result?.raw?.message,
+        result?.raw?.status_detail,
+        result?.gateway_response?.errors?.[0]?.message,
+        result?.last_transaction?.gateway_response?.errors?.[0]?.message,
+        result?.last_transaction?.acquirer_message,
+        result?.last_transaction?.gateway_response?.raw_data?.message,
+        result?.payment?.last_transaction?.gateway_response?.errors?.[0]?.message,
+        result?.payment?.last_transaction?.acquirer_message
+      ].filter(Boolean);
+      return candidates[0] || "Transação não aprovada pelo Pagar.me.";
     }
 
     function mergeAndCachePayment(method, result, statusOverride) {
@@ -456,11 +468,7 @@
       }
 
       if (!res.ok) {
-        console.error("ERRO NA API:", {
-          url,
-          status: res.status,
-          response: data
-        });
+        console.error("[API ERROR]", { url, status: res.status, data });
         const details = data && (
           data.message ||
           data.error ||
@@ -469,10 +477,16 @@
           data.details?.message ||
           data.details?.cause?.[0]?.description ||
           data.response?.message ||
-          data.response?.errors?.[0]?.message ||
-          data.errors?.[0]?.message
+          data.gateway_response?.errors?.[0]?.message ||
+          data.last_transaction?.gateway_response?.errors?.[0]?.message ||
+          data.last_transaction?.acquirer_message ||
+          data.last_transaction?.gateway_response?.raw_data?.message
         );
-        throw new Error(details || `Erro HTTP ${res.status}`);
+        const err = new Error(details || `Erro HTTP ${res.status}`);
+        err.status = res.status;
+        err.response = data;
+        err.url = url;
+        throw err;
       }
 
       return data;
@@ -716,10 +730,6 @@
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        console.error("ERRO AO TOKENIZAR CARTÃO PAGARME:", {
-          status: res.status,
-          response: data
-        });
         const message = data?.message || data?.errors?.[0]?.message || data?.error || `Erro ao tokenizar cartão (${res.status})`;
         throw new Error(message);
       }
@@ -760,8 +770,7 @@
 
     async function doPayCard(_formData) {
       try {
-        alert("ENTROU NO PAGAMENTO COM CARTÃO");
-console.log("ENTROU NO doPayCard");
+        console.log("[PAGARME] Entrou no doPayCard");
         const customer = validateCardCustomerData();
         setAlert("loading", "Validando cartão com segurança pelo Pagar.me...");
         disablePayments(true);
@@ -782,13 +791,11 @@ console.log("ENTROU NO doPayCard");
           throw new Error("Total do pedido inválido para pagamento no cartão.");
         }
 
-        console.log("INICIANDO TOKENIZAÇÃO PAGARME...");
+        console.log("[PAGARME] Iniciando tokenização...");
         const cardToken = await createPagarmeCardToken();
-        console.log("TOKEN PAGARME CRIADO:", !!cardToken, String(cardToken || "").slice(0, 10) + "...");
+        console.log("[PAGARME] Token criado:", !!cardToken, String(cardToken || "").slice(0, 10) + "...");
 
-        console.log("ENVIANDO PARA:", `${API_BASE}/payments/pagarme/credit`);
-        alert("Vou enviar para Pagar.me");
-
+        console.log("[PAGARME] Enviando para:", `${API_BASE}/payments/pagarme/credit`);
         const result = await apiFetch("/payments/pagarme/credit", {
           method: "POST",
           body: JSON.stringify({
@@ -807,6 +814,8 @@ console.log("ENTROU NO doPayCard");
           })
         });
 
+        console.log("[PAGARME CREDIT FULL RESPONSE]", result);
+
         if (isMpApproved(result)) {
           mergeAndCachePayment("card", result, "approved");
           clearCheckoutCartOnlyAfterSuccess();
@@ -819,11 +828,20 @@ console.log("ENTROU NO doPayCard");
 
         const status = getMpStatus(result) || "pending";
         mergeAndCachePayment("card", result, status);
-        throw new Error(`${getMpStatusMessage(result)} Status: ${status}`);
+        console.error("[PAGARME REJECTED DETAILS]", result);
+        const reason = getMpStatusMessage(result);
+        throw new Error(`${reason} Status: ${status}`);
       } catch (e) {
         console.error("ERRO CARTAO PAGARME:", e);
+        if (e?.response) console.error("[PAGARME ERROR RESPONSE]", e.response);
 
         const msg =
+          e?.response?.message ||
+          e?.response?.error ||
+          e?.response?.status_detail ||
+          e?.response?.details?.message ||
+          e?.response?.last_transaction?.gateway_response?.errors?.[0]?.message ||
+          e?.response?.last_transaction?.acquirer_message ||
           e?.details?.errors?.[0]?.message ||
           e?.details?.message ||
           e?.statusDetail ||
