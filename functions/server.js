@@ -1509,6 +1509,94 @@ function buildPagarmeItems(body = {}, order = null) {
   }];
 }
 
+
+function pickPagarmeAddressValue(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+  }
+  return '';
+}
+
+function buildPagarmeBillingAddress(body = {}, order = null) {
+  const bodyAddress = body.billing_address || body.billingAddress || body.address || body.shippingAddress || {};
+  const receiverAddress = body.receiver_address || body.receiverAddress || {};
+  const orderAddress = order?.shippingAddress || order?.address || {};
+
+  const zip = cleanPhone(pickPagarmeAddressValue(
+    bodyAddress.zip_code, bodyAddress.zipCode, bodyAddress.zip, bodyAddress.cep,
+    receiverAddress.zip_code, receiverAddress.zipCode, receiverAddress.zip, receiverAddress.cep,
+    orderAddress.zip_code, orderAddress.zipCode, orderAddress.zip, orderAddress.cep,
+    '39740000'
+  )).slice(0, 8) || '39740000';
+
+  const street = pickPagarmeAddressValue(
+    bodyAddress.street_name, bodyAddress.street, bodyAddress.logradouro, bodyAddress.rua, bodyAddress.address,
+    receiverAddress.street_name, receiverAddress.street, receiverAddress.logradouro, receiverAddress.rua, receiverAddress.address,
+    orderAddress.street_name, orderAddress.street, orderAddress.logradouro, orderAddress.rua, orderAddress.address,
+    'Olegario de Andrade'
+  );
+
+  const number = pickPagarmeAddressValue(
+    bodyAddress.street_number, bodyAddress.number, bodyAddress.numero,
+    receiverAddress.street_number, receiverAddress.number, receiverAddress.numero,
+    orderAddress.street_number, orderAddress.number, orderAddress.numero,
+    '54'
+  );
+
+  const neighborhood = pickPagarmeAddressValue(
+    bodyAddress.neighborhood, bodyAddress.bairro,
+    receiverAddress.neighborhood, receiverAddress.bairro,
+    orderAddress.neighborhood, orderAddress.bairro,
+    'Amazonas'
+  );
+
+  const city = pickPagarmeAddressValue(
+    bodyAddress.city, bodyAddress.city_name, bodyAddress.cidade,
+    receiverAddress.city, receiverAddress.city_name, receiverAddress.cidade,
+    orderAddress.city, orderAddress.city_name, orderAddress.cidade,
+    'Guanhaes'
+  );
+
+  const state = pickPagarmeAddressValue(
+    bodyAddress.state, bodyAddress.federal_unit, bodyAddress.uf,
+    receiverAddress.state, receiverAddress.federal_unit, receiverAddress.uf,
+    orderAddress.state, orderAddress.federal_unit, orderAddress.uf,
+    'MG'
+  ).toUpperCase().slice(0, 2) || 'MG';
+
+  const complement = pickPagarmeAddressValue(
+    bodyAddress.line_2, bodyAddress.complement, bodyAddress.complemento, bodyAddress.apartment,
+    receiverAddress.line_2, receiverAddress.complement, receiverAddress.complemento, receiverAddress.apartment,
+    orderAddress.line_2, orderAddress.complement, orderAddress.complemento, orderAddress.apartment
+  );
+
+  return {
+    line_1: `${number || 'S/N'}, ${street || 'Endereco'}, ${neighborhood || 'Bairro'}`.slice(0, 256),
+    ...(complement ? { line_2: String(complement).slice(0, 128) } : {}),
+    zip_code: zip,
+    city: String(city || 'Guanhaes').slice(0, 64),
+    state,
+    country: 'BR'
+  };
+}
+
+function getPagarmeGatewayMessage(pagarmeData = {}) {
+  const charge = getPagarmeCharge(pagarmeData) || {};
+  const tx = getPagarmeTransaction(pagarmeData) || {};
+  const gatewayErrors = Array.isArray(tx.gateway_response?.errors)
+    ? tx.gateway_response.errors.map((item) => item?.message || item?.code || '').filter(Boolean).join(' | ')
+    : '';
+  return String(
+    tx.acquirer_message ||
+    gatewayErrors ||
+    tx.gateway_response?.message ||
+    tx.message ||
+    charge.status ||
+    pagarmeData.status ||
+    ''
+  );
+}
+
 function getPagarmeCharge(responseData = {}) {
   const charges = Array.isArray(responseData.charges) ? responseData.charges : [];
   return charges[0] || null;
@@ -1551,7 +1639,7 @@ async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = 
         paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
         orderId: String(pagarmeData.id || ''),
         status,
-        statusDetail: String(tx.acquirer_message || tx.gateway_response?.message || tx.message || charge.status || pagarmeData.status || ''),
+        statusDetail: getPagarmeGatewayMessage(pagarmeData),
         installments: extra.installments || undefined,
         amount: centsToMoney(charge.amount || tx.amount || 0),
         raw: redact(pagarmeData || {})
@@ -1572,6 +1660,7 @@ function buildPagarmeCreditPayload(body = {}, order = null) {
   const amount = moneyToCents(body.amount || body.total || order?.total || 0);
   if (!amount) throw new Error('Total inválido para cartão Pagar.me.');
   const installments = Math.max(1, Math.min(Number(body.installments || 1) || 1, 12));
+  const billingAddress = buildPagarmeBillingAddress(body, order);
 
   return {
     code: String(body.orderId || order?._id || uid('order')).slice(0, 52),
@@ -1584,7 +1673,12 @@ function buildPagarmeCreditPayload(body = {}, order = null) {
         installments,
         statement_descriptor: sanitizePagarmeStatementDescriptor(process.env.PAGARME_STATEMENT_DESCRIPTOR || 'ARIANAMOVEIS'),
         operation_type: 'auth_and_capture',
-        card_token: cardToken
+        card_token: cardToken,
+        // IMPORTANTE: o token do cartão não leva o endereço de cobrança.
+        // Com antifraude/gateway ativo, o Pagar.me exige billing_address na cobrança.
+        // Mantemos em billing_address e também em card.billing_address para compatibilidade da API/gateway.
+        billing_address: billingAddress,
+        card: { billing_address: billingAddress }
       }
     }],
     metadata: {
@@ -3360,7 +3454,7 @@ app.post('/api/payments/pagarme/credit', async (req, res) => {
       ok: response.status >= 200 && response.status < 300,
       approved,
       status: normalizedStatus,
-      statusDetail: String(tx.acquirer_message || tx.gateway_response?.message || tx.message || charge.status || pagarmeData.status || ''),
+      statusDetail: getPagarmeGatewayMessage(pagarmeData),
       id: String(charge.id || tx.id || pagarmeData.id || ''),
       paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
       paymentMethod: 'card',

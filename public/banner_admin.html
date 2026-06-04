@@ -436,6 +436,8 @@ const msg = document.getElementById('msg');
       for (const base of bases) {
         try {
           const url = `${base}${path}`;
+          console.log("ENVIANDO PARA:", `${API_BASE}/payments/pagarme/credit`);
+alert("Vou enviar para Pagar.me");
           const res = await fetch(url, init);
 
           // Se estiver testando local e a rota não existir no localhost,
