@@ -834,12 +834,40 @@ async function quoteShippingForSelectedAddress(addrObj) {
   return quoteShippingForCep(cep);
 }
 
+    function getCurrentPaymentDiscount() {
+      const method = selectedPayCode || document.querySelector('input[name="pay"]:checked')?.value || 'pix';
+      const percent = (method === 'pix' || method === 'boleto') ? getDiscountPercentFor(method) : 0;
+      return { method, percent, factor: (100 - percent) / 100 };
+    }
+
+    function upsertDiscountLine(containerEl, discountValue, percent, method) {
+      if (!containerEl) return;
+      let line = containerEl.querySelector('.discount-line-auto');
+      if (!line) {
+        line = document.createElement('div');
+        line.className = 'totals-row discount-line-auto';
+        const totalLine = containerEl.querySelector('.totals-row.total');
+        containerEl.insertBefore(line, totalLine || null);
+      }
+      if (discountValue > 0) {
+        const label = method === 'boleto' ? 'Desconto no boleto' : 'Desconto no Pix';
+        line.style.display = '';
+        line.innerHTML = `<span>${label} (${percent}% OFF)</span><strong style="color:#00a650;">- ${brl(discountValue)}</strong>`;
+      } else {
+        line.style.display = 'none';
+        line.innerHTML = '';
+      }
+    }
+
     function updateTotalsUI() {
       const products = computeCartTotal();
       const ship = Number(shippingQuote?.effectivePrice ?? shippingQuote?.price ?? 0) || 0;
       const defs = settingsShipping || normalizeShippingDefaults({});
       const shippingFinal = (defs.freeShippingAbove > 0 && products >= defs.freeShippingAbove) ? 0 : ship;
-      const grand = products + shippingFinal;
+      const grandOriginal = products + shippingFinal;
+      const discountInfo = getCurrentPaymentDiscount();
+      const discountValue = discountInfo.percent > 0 ? grandOriginal * (discountInfo.percent / 100) : 0;
+      const grand = Math.max(0, grandOriginal - discountValue);
 
       const productsEls = [
         document.getElementById('products-total-main'),
@@ -856,6 +884,12 @@ async function quoteShippingForSelectedAddress(addrObj) {
         el.textContent = shippingQuote ? (shippingFinal === 0 ? 'Grátis' : `${(shippingQuote.name || 'Frete')}: ${brl(shippingFinal)}`) : 'A calcular';
       });
 
+      document.querySelectorAll('.totals-grid').forEach((grid) => {
+        if (grid.querySelector('.totals-row.total')) {
+          upsertDiscountLine(grid, discountValue, discountInfo.percent, discountInfo.method);
+        }
+      });
+
       const totalEls = [
         document.getElementById('total-geral-main'),
         document.getElementById('total-geral-side'),
@@ -863,9 +897,17 @@ async function quoteShippingForSelectedAddress(addrObj) {
       ];
       totalEls.forEach(el => { if (el) el.textContent = brl(grand); });
 
-      try { atualizarVisualPagamentos(grand); } catch (_) {}
+      try { atualizarVisualPagamentos(grandOriginal); } catch (_) {}
 
-      return { products, shipping: shippingFinal, grandTotal: grand };
+      return {
+        products,
+        shipping: shippingFinal,
+        grandTotalOriginal: grandOriginal,
+        discountPercent: discountInfo.percent,
+        discountValue,
+        grandTotal: grand,
+        paymentMethod: discountInfo.method
+      };
     }
 
     function atualizarVisualPagamentos(totalCheio) {
@@ -890,7 +932,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
                 <div class="pay-title">Pix</div>
                 <div class="pay-desc">Aprovação rápida</div>
               </div>
-              <div style="color:${mlGreen};font-weight:800;">${formatadoPix} ${descPix > 0 ? `<small>(${descPix}% OFF)</small>` : ``}</div>
+              <div style="color:${mlGreen};font-weight:800;">${formatadoBoleto} ${descBoleto > 0 ? `<small>(${descBoleto}% OFF)</small>` : ``}</div>
             </div>
           `;
         }
@@ -1434,13 +1476,8 @@ async function quoteShippingForSelectedAddress(addrObj) {
         selectedPayCode = paySelected;
         selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : 'Cartão de Crédito');
 
-        let valorFinal = totalsComputed.grandTotal;
-        const desc = getDiscountPercentFor(paySelected);
-        const fator = getDiscountFactorFor(paySelected);
-
-        if ((paySelected === 'pix' || paySelected === 'boleto') && desc > 0) {
-          valorFinal = totalsComputed.grandTotal * fator;
-        }
+        const desc = totalsComputed.discountPercent || getDiscountPercentFor(paySelected);
+        const valorFinal = totalsComputed.grandTotal;
 
         const addrN = normalizeAddress(selectedAddrObj);
         if (!addrN.number) addrN.number = "S/N";
@@ -1511,9 +1548,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
           totals: {
             products: totalsComputed.products,
             shipping: totalsComputed.shipping,
-            grandTotalOriginal: totalsComputed.grandTotal,
+            grandTotalOriginal: totalsComputed.grandTotalOriginal || totalsComputed.grandTotal,
             grandTotal: valorFinal,
-            discountApplied: (valorFinal < totalsComputed.grandTotal) ? `${getDiscountPercentFor(paySelected)}%` : '0%',
+            discountValue: totalsComputed.discountValue || 0,
+            discountApplied: (totalsComputed.discountValue > 0) ? `${desc}%` : '0%',
             paymentMethod: selectedPayCode
           },
           shipping: shippingToSave,
@@ -1575,6 +1613,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           selectedPayCode = e.target.value;
           selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
           updatePayMethodClasses();
+          updateTotalsUI();
         });
       });
     }

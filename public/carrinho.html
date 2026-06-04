@@ -860,21 +860,26 @@
         }
       }
 
-      document.getElementById('desconto').textContent = `- ${window.formatPrice(0)}`;
+      const pixEnabled = !!(paymentSettings && paymentSettings.pix && paymentSettings.pix.enabled);
+      const pixDiscountPercent = pixEnabled ? Number(paymentSettings.pix.discountPercent || 0) : 0;
+      const boletoEnabled = !!(paymentSettings && paymentSettings.boleto && paymentSettings.boleto.enabled);
+      const boletoDiscountPercent = boletoEnabled ? Number(paymentSettings.boleto.discountPercent || 0) : 0;
+
+      const calcDiscountValue = (percent) => totalGeral * (Number(percent || 0) / 100);
+      const calcDiscounted = (percent) => {
+        const fator = (100 - Number(percent || 0)) / 100;
+        return totalGeral * (Number.isFinite(fator) ? fator : 1);
+      };
+
+      const descontoEl = document.getElementById('desconto');
+      if (descontoEl) {
+        const bestPercent = Math.max(pixDiscountPercent, boletoDiscountPercent);
+        descontoEl.textContent = bestPercent > 0 ? `Até - ${window.formatPrice(calcDiscountValue(bestPercent))}` : `- ${window.formatPrice(0)}`;
+      }
 
       const totalEl = document.getElementById('total-price');
       if (totalEl) {
         totalEl.textContent = window.formatPrice(totalGeral);
-
-        const pixEnabled = !!(paymentSettings && paymentSettings.pix && paymentSettings.pix.enabled);
-        const pixDiscountPercent = pixEnabled ? Number(paymentSettings.pix.discountPercent || 0) : 0;
-        const boletoEnabled = !!(paymentSettings && paymentSettings.boleto && paymentSettings.boleto.enabled);
-        const boletoDiscountPercent = boletoEnabled ? Number(paymentSettings.boleto.discountPercent || 0) : 0;
-
-        const calcDiscounted = (percent) => {
-          const fator = (100 - Number(percent || 0)) / 100;
-          return totalGeral * (Number.isFinite(fator) ? fator : 1);
-        };
 
         let pixPromo = document.getElementById('pix-incentive');
         if (!pixPromo) {

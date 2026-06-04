@@ -509,6 +509,12 @@
         customer: data.customer || {},
         address: data.shippingAddress || data.address || data.deliveryAddress || data.customer?.address || null,
         totals: {
+          ...(totals || {}),
+          products: Number(totals.products ?? data.subtotal ?? 0) || 0,
+          shipping: Number(totals.shipping ?? data.shippingCost ?? 0) || 0,
+          grandTotalOriginal: Number(totals.grandTotalOriginal ?? totals.totalOriginal ?? data.totalOriginal ?? 0) || 0,
+          discountValue: Number(totals.discountValue ?? data.discountValue ?? 0) || 0,
+          discountApplied: totals.discountApplied ?? data.discountApplied ?? '',
           grandTotal: Number(
             totals.grandTotal ??
             totals.total ??
@@ -957,9 +963,23 @@
     function renderResumo() {
       if (!orderData) return;
       document.getElementById("order-summary").classList.remove("hidden");
-      document.getElementById("summary-total").innerText =
-        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
-          .format(Number(orderData?.totals?.grandTotal || 0));
+      const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+      const totalEl = document.getElementById("summary-total");
+      if (totalEl) totalEl.innerText = fmt.format(Number(orderData?.totals?.grandTotal || 0));
+
+      const box = document.getElementById("order-summary");
+      if (box && !document.getElementById("summary-discount-info")) {
+        const original = Number(orderData?.totals?.grandTotalOriginal || 0);
+        const discount = Number(orderData?.totals?.discountValue || 0);
+        const applied = String(orderData?.totals?.discountApplied || "");
+        if (discount > 0 && original > 0) {
+          const info = document.createElement("div");
+          info.id = "summary-discount-info";
+          info.className = "mt-3 text-sm text-green-600 font-bold text-right";
+          info.innerHTML = `Desconto aplicado ${applied ? `(${applied})` : ``}: - ${fmt.format(discount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
+          box.insertBefore(info, totalEl?.parentElement || null);
+        }
+      }
       disablePayments(false);
     }
 
