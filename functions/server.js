@@ -1624,22 +1624,15 @@ async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = 
   try {
     const oid = normalizeObjectId(orderId);
     if (!oid) return null;
-
-    const before = await Order.findById(oid);
-    if (!before) return null;
-
-    const beforeObj = toJSON(before);
     const status = getPagarmeStatus(pagarmeData);
     const approved = status === 'approved';
     const charge = getPagarmeCharge(pagarmeData) || {};
     const tx = getPagarmeTransaction(pagarmeData) || {};
-    const origin = String(extra.origin || (approved ? 'pagarme_card_approved' : 'pagarme_card_updated'));
 
     const patch = {
       status: approved ? 'pago' : (status === 'rejected' ? 'pagamento_recusado' : 'pending_payment'),
       statusLabel: approved ? 'Pagamento aprovado' : (status === 'rejected' ? 'Pagamento recusado' : 'Aguardando confirmação do pagamento'),
       payment: {
-        ...(before.payment || {}),
         provider: 'pagarme',
         method: 'card',
         type: 'credit_card',
@@ -1647,33 +1640,13 @@ async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = 
         orderId: String(pagarmeData.id || ''),
         status,
         statusDetail: getPagarmeGatewayMessage(pagarmeData),
-        installments: extra.installments || before.payment?.installments || undefined,
-        amount: centsToMoney(charge.amount || tx.amount || moneyToCents(before.total || 0)),
+        installments: extra.installments || undefined,
+        amount: centsToMoney(charge.amount || tx.amount || 0),
         raw: redact(pagarmeData || {})
       }
     };
-
     const updated = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
-    if (!updated) return null;
-
-    const afterObj = toJSON(updated);
-
-    if (approved) {
-      const saleNotification = await notifySaleAfterPaymentApproved(updated, origin);
-      const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(updated._id), beforeObj, afterObj, `${origin}_customer`);
-      const adminStatusWhatsapp = await waNotifyAdminOrderStatusChange(String(updated._id), beforeObj, afterObj, `${origin}_admin_status`);
-
-      await writeAuditLog({
-        scope: 'payments',
-        eventType: 'pagarme_card_approved_notifications',
-        orderId: String(updated._id),
-        status: 'success',
-        request: { origin },
-        response: { saleNotification, customerWhatsapp, adminStatusWhatsapp },
-        metadata: { provider: 'pagarme', paymentMethod: 'card' }
-      }).catch(() => null);
-    }
-
+    if (approved) await notifySaleAfterPaymentApproved(updated, 'pagarme_card_approved');
     return updated;
   } catch (error) {
     console.error('Erro ao atualizar pedido com pagamento Pagar.me:', error.message || error);
@@ -2690,6 +2663,20 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 app.get('/api/orders/me', authRequired, async (req, res) => res.json((await Order.find({ userId: req.user._id }).sort({ createdAt: -1 })).map(toJSON)));
+app.get('/api/pedidos/meus', authRequired, async (req, res) => res.json((await Order.find({ userId: req.user._id }).sort({ createdAt: -1 })).map(toJSON)));
+app.get('/api/users/:id/pedidos', authRequired, async (req, res) => {
+  try {
+    const requestedId = String(req.params.id || '').trim();
+    const currentId = String(req.user._id || '').trim();
+    if (req.user.role === 'customer' && requestedId && requestedId !== currentId) {
+      return res.status(403).json({ ok: false, error: 'Sem permissão' });
+    }
+    const userObjectId = normalizeObjectId(requestedId) || req.user._id;
+    return res.json((await Order.find({ userId: userObjectId }).sort({ createdAt: -1 })).map(toJSON));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar pedidos' });
+  }
+});
 app.get('/api/orders/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const row = await Order.findById(oid); if (!row) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); if (req.user.role === 'customer' && String(row.userId || '') !== String(req.user._id)) return res.status(403).json({ ok: false, error: 'Sem permissão' }); return res.json(toJSON(row)); });
 app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
   try {
@@ -2749,17 +2736,6 @@ app.post('/api/denuncias', async (req, res) => res.json({ ok: true, denuncia: to
 app.get('/api/admin/stats', adminRequired, async (_req, res) => { const [totalPedidos, totalClientes, totalProdutos] = await Promise.all([Order.countDocuments(), User.countDocuments({ role: 'customer' }), Product.countDocuments()]); const faturamentoAgg = await Order.aggregate([{ $match: { status: { $in: ['pago', 'enviado', 'entregue'] } } }, { $group: { _id: null, total: { $sum: '$total' } } }]); const pendentes = await Order.countDocuments({ status: 'pendente' }); return res.json({ faturamentoTotal: faturamentoAgg[0]?.total || 0, pedidosPendentes: pendentes, totalClientes, totalPedidos, totalProdutos }); });
 app.get('/api/admin/orders', adminRequired, async (req, res) => res.json((await Order.find().sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 10), 100))).map(toJSON)));
 app.get('/api/admin/notifications', adminRequired, async (_req, res) => res.json((await Notification.find({ $or: [{ audience: { $exists: false } }, { audience: '' }, { audience: 'admin' }, { audience: 'all' }] }).sort({ createdAt: -1 }).limit(50)).map(toJSON)));
-app.patch('/api/admin/notifications/:id', adminRequired, async (req, res) => {
-  try {
-    const id = normalizeObjectId(req.params.id);
-    if (!id) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const doc = await Notification.findByIdAndUpdate(id, { $set: { status: req.body?.status || 'read' } }, { new: true });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Notificação não encontrada' });
-    return res.json({ ok: true, notification: toJSON(doc) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar notificação' });
-  }
-});
 app.get('/api/admin/alerts', adminRequired, async (_req, res) => res.json((await OperationalAlert.find().sort({ updatedAt: -1 }).limit(100)).map(toJSON)));
 app.post('/api/admin/alerts/scan', adminRequired, async (_req, res) => { const results = await scanOperationalAlerts(); return res.json({ ok: true, count: results.length, alerts: results.map(toJSON) }); });
 app.get('/api/admin/audit-logs', adminRequired, async (req, res) => { const limit = Math.min(Number(req.query.limit || 100), 500); const query = {}; if (req.query.scope) query.scope = String(req.query.scope); if (req.query.orderId) query.orderId = String(req.query.orderId); if (req.query.manufacturer) query.manufacturer = String(req.query.manufacturer); return res.json((await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(limit)).map(toJSON)); });
@@ -4576,10 +4552,9 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
         ? await waMaybeNotifyOrderStatusChange(String(afterObj.id || afterObj._id), beforeObj, afterObj, 'admin_generic_orders_route_customer')
         : { skipped: true, reason: 'no_status_or_tracking_change' };
 
-     const adminWhatsapp = {
-  skipped: true,
-  reason: 'admin_notification_disabled'
-};
+      const adminWhatsapp = (statusChanged || trackingChanged)
+        ? await waNotifyAdminOrderStatusChange(String(afterObj.id || afterObj._id), beforeObj, afterObj, 'admin_generic_orders_route_admin')
+        : { skipped: true, reason: 'no_status_or_tracking_change' };
 
       return res.json({ ok: true, order: afterObj, whatsapp: customerWhatsapp, adminWhatsapp });
     }

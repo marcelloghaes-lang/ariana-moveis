@@ -160,8 +160,10 @@
 
         function getAuthToken() {
             return (
-                localStorage.getItem('token') ||
+                localStorage.getItem('userToken') ||
                 localStorage.getItem('authToken') ||
+                localStorage.getItem('token') ||
+                localStorage.getItem('customerToken') ||
                 localStorage.getItem('accessToken') ||
                 ''
             );
@@ -280,13 +282,33 @@
             });
         };
         
+        function normalizeOrderStatus(order = {}) {
+            const raw = String(order.statusLabel || order.status || 'Pendente').trim();
+            const lower = raw.toLowerCase();
+            if (lower.includes('pagamento') && (lower.includes('confirm') || lower.includes('aprov'))) return 'Pagamento Confirmado';
+            if (lower === 'pago' || lower === 'paid' || lower === 'approved') return 'Pagamento Confirmado';
+            if (lower.includes('separa') || lower.includes('prepara') || lower.includes('process')) return 'Em Separação';
+            if (lower.includes('transporte') || lower.includes('enviado') || lower.includes('shipped')) return 'Em Transporte';
+            if (lower.includes('entreg')) return 'Entregue';
+            if (lower.includes('cancel')) return 'Cancelado';
+            if (lower.includes('aguard') || lower.includes('pend')) return 'Aguardando Pagamento';
+            return raw;
+        }
+
+        function statusCssName(status) {
+            return 'status-' + String(status || 'Pendente')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+        }
+
         const createOrderCardHtml = (order) => {
             const rawOrderId = order.orderId || order._id || order.id || 'N/A';
             const displayOrderId = String(rawOrderId).substring(0, 8).toUpperCase();
-            const rawStatus = order.status || 'Pendente';
-            const statusClass = `status-${String(rawStatus).replace(/\s/g, '-')}`;
+            const rawStatus = normalizeOrderStatus(order);
+            const statusClass = statusCssName(rawStatus);
             const itens = order.itens || order.items || [];
-            const endereco = order.endereco || order.address || {};
+            const endereco = order.shippingAddress || order.endereco || order.address || {};
 
             return `
                 <div class="bg-white rounded-xl shadow-lg border border-gray-100 transition-all duration-300 hover:shadow-xl">
@@ -301,7 +323,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <h3 class="font-semibold text-primary-blue mb-2">Entrega</h3>
-                                <p class="text-sm">${endereco.rua || endereco.street || 'N/A'}, ${endereco.numero || endereco.number || 'S/N'}</p>
+                                <p class="text-sm">${endereco.rua || endereco.street || endereco.logradouro || 'N/A'}, ${endereco.numero || endereco.number || endereco.numero || 'S/N'}</p>
                             </div>
                             <div>
                                 <h3 class="font-semibold text-primary-blue mb-2">Pagamento</h3>
@@ -330,10 +352,15 @@
                 let orders = [];
 
                 try {
-                    orders = await apiFetch('/pedidos/meus');
+                    orders = await apiFetch('/orders/me');
                 } catch (e1) {
-                    console.warn('Falha em /pedidos/meus, tentando rota alternativa:', e1);
-                    orders = await apiFetch(`/users/${encodeURIComponent(currentUserId)}/pedidos`);
+                    console.warn('Falha em /orders/me, tentando rota alternativa:', e1);
+                    try {
+                        orders = await apiFetch('/pedidos/meus');
+                    } catch (e2) {
+                        console.warn('Falha em /pedidos/meus, tentando rota alternativa:', e2);
+                        orders = await apiFetch(`/users/${encodeURIComponent(currentUserId)}/pedidos`);
+                    }
                 }
 
                 if (!Array.isArray(orders)) {
@@ -367,6 +394,7 @@
                 if (userId) {
                     if (contentContainer) contentContainer.style.display = 'block';
                     await carregarPedidos(userId);
+                    setInterval(() => carregarPedidos(userId), 30000);
                 } else {
                     loadingArea.innerHTML = `<p class="text-error-red font-bold">Acesso Negado. Redirecionando...</p>`;
                     setTimeout(() => window.location.href = 'login_cadastro.html', 2000);
