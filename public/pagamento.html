@@ -135,7 +135,7 @@
               </div>
               <div>
                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Data de Nascimento</label>
-                <input type="date" id="customerBirthDate" class="mp-input h-12" autocomplete="bday" />
+                <input type="text" id="customerBirthDate" maxlength="10" placeholder="DD/MM/AAAA" class="mp-input h-12" autocomplete="bday" inputmode="numeric" />
               </div>
             </div>
 
@@ -271,6 +271,44 @@
         .replace(/(\d{5})(\d)/, "$1-$2");
     }
 
+    function maskBirthDateValue(value) {
+      const d = digitsOnly(value).slice(0, 8);
+      return d
+        .replace(/^(\d{2})(\d)/, "$1/$2")
+        .replace(/^(\d{2})\/(\d{2})(\d)/, "$1/$2/$3");
+    }
+
+    function formatBirthDateForInput(value) {
+      const raw = String(value || "").trim();
+      const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+      return maskBirthDateValue(raw);
+    }
+
+    function normalizeBirthDateForApi(value) {
+      const raw = String(value || "").trim();
+      const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) return raw;
+
+      const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!br) return "";
+
+      const day = Number(br[1]);
+      const month = Number(br[2]);
+      const year = Number(br[3]);
+      const currentYear = new Date().getFullYear();
+      const dt = new Date(year, month - 1, day);
+      const isValid =
+        dt.getFullYear() === year &&
+        dt.getMonth() === month - 1 &&
+        dt.getDate() === day &&
+        year >= 1900 &&
+        year <= currentYear;
+
+      if (!isValid) return "";
+      return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+
     function getCardCustomerData() {
       const profileCpf = digitsOnly(pick(customerProfile?.cpf, customerProfile?.document, orderData?.customer?.cpf, orderData?.cpf));
       const profileEmail = pick(customerProfile?.email, orderData?.customer?.email, currentUser?.email);
@@ -279,7 +317,7 @@
       return {
         name: fullName,
         cpf: digitsOnly(pick(getInputValue("customerCpf"), profileCpf)),
-        birthDate: getInputValue("customerBirthDate"),
+        birthDate: normalizeBirthDateForApi(getInputValue("customerBirthDate")),
         phone: digitsOnly(pick(getInputValue("customerPhone"), profilePhone)),
         email: pick(getInputValue("customerEmail"), profileEmail)
       };
@@ -294,14 +332,14 @@
       if (cpfEl && !cpfEl.value && data.cpf) cpfEl.value = maskCpfValue(data.cpf);
       if (phoneEl && !phoneEl.value && data.phone) phoneEl.value = maskPhoneValue(data.phone);
       if (emailEl && !emailEl.value && data.email) emailEl.value = data.email;
-      if (birthEl && !birthEl.value) birthEl.value = pick(customerProfile?.birthDate, customerProfile?.birth_date, customerProfile?.dataNascimento, orderData?.customer?.birthDate, orderData?.customer?.birth_date);
+      if (birthEl && !birthEl.value) birthEl.value = formatBirthDateForInput(pick(customerProfile?.birthDate, customerProfile?.birth_date, customerProfile?.dataNascimento, orderData?.customer?.birthDate, orderData?.customer?.birth_date));
     }
 
     function validateCardCustomerData() {
       const data = getCardCustomerData();
       if (!data.name || data.name.split(/\s+/).length < 2) throw new Error("Informe o nome completo do titular do cartão.");
       if (!data.cpf || data.cpf.length !== 11) throw new Error("Informe um CPF válido do titular do cartão.");
-      if (!data.birthDate) throw new Error("Informe a data de nascimento do titular do cartão.");
+      if (!data.birthDate) throw new Error("Informe uma data de nascimento válida no formato DD/MM/AAAA.");
       if (!data.phone || data.phone.length < 10) throw new Error("Informe um telefone válido do titular do cartão.");
       if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) throw new Error("Informe um e-mail válido do titular do cartão.");
       return data;
@@ -1060,6 +1098,8 @@
         bindChoice();
         document.getElementById("customerCpf")?.addEventListener("input", (e) => { e.target.value = maskCpfValue(e.target.value); });
         document.getElementById("customerPhone")?.addEventListener("input", (e) => { e.target.value = maskPhoneValue(e.target.value); });
+        document.getElementById("customerBirthDate")?.addEventListener("input", (e) => { e.target.value = maskBirthDateValue(e.target.value); });
+        document.getElementById("customerBirthDate")?.addEventListener("blur", (e) => { e.target.value = formatBirthDateForInput(e.target.value); });
         document.getElementById("customerEmail")?.addEventListener("blur", (e) => { e.target.value = String(e.target.value || "").trim().toLowerCase(); });
         document.getElementById("btn-generate-boleto").addEventListener("click", generateBoleto);
         document.getElementById("btn-copy-pix").addEventListener("click", async () => {
