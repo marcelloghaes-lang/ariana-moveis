@@ -832,8 +832,7 @@ function buildAdminNewOrderMessage(orderDoc = {}) {
     '',
     '*Itens:*',
     formatOrderItemsForWhatsapp(order.items || [])
-  ].filter((line) => line !== '').join('
-');
+  ].filter((line) => line !== '').join('\n');
 }
 
 async function waNotifyAdminNewOrder(orderDoc = {}, origin = 'order_created') {
@@ -892,8 +891,7 @@ function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
     `Novo status: ${nextStatus}`,
     `Valor total: ${formatMoneyBRL(order.total || 0)}`,
     trackingCode ? `Rastreio: ${trackingCode}` : ''
-  ].filter(Boolean).join('
-');
+  ].filter(Boolean).join('\n');
 }
 
 async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, origin = 'admin_order_status_update') {
