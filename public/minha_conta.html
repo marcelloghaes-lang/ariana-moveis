@@ -168,7 +168,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">Data de nascimento <span class="text-error-red">*</span></label>
-              <input type="date" id="profile-birthdate" required class="w-full border p-3 rounded-md">
+              <input type="text" id="profile-birthdate" required inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" class="w-full border p-3 rounded-md">
             </div>
           </div>
 
@@ -389,6 +389,36 @@ function formatBRPhone(value) {
   return out.trim();
 }
 
+function formatBirthDateBR(value) {
+  const raw = String(value || "").trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  const d = onlyDigits(raw).slice(0, 8);
+  let out = d.slice(0, 2);
+  if (d.length > 2) out += "/" + d.slice(2, 4);
+  if (d.length > 4) out += "/" + d.slice(4, 8);
+  return out;
+}
+
+function normalizeBirthDateBR(value) {
+  const raw = String(value || "").trim();
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!br) return "";
+  const day = Number(br[1]);
+  const month = Number(br[2]);
+  const year = Number(br[3]);
+  const currentYear = new Date().getFullYear();
+  const dt = new Date(year, month - 1, day);
+  const valid =
+    dt.getFullYear() === year &&
+    dt.getMonth() === month - 1 &&
+    dt.getDate() === day &&
+    year >= 1900 &&
+    year <= currentYear;
+  if (!valid) return "";
+  return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${String(year).padStart(4, "0")}`;
+}
+
 function formatCEP(value) {
   const v = onlyDigits(value).slice(0, 8);
   const p1 = v.slice(0, 5);
@@ -545,7 +575,7 @@ async function loadProfile() {
   document.getElementById('profile-email').value = currentProfile.email || "";
   document.getElementById('profile-phone').value = currentProfile.phone ? formatBRPhone(currentProfile.phone) : "";
   document.getElementById('profile-cpf').value = currentProfile.cpf ? formatCPF(currentProfile.cpf) : "";
-  document.getElementById('profile-birthdate').value = currentProfile.birthdate || "";
+  document.getElementById('profile-birthdate').value = currentProfile.birthdate ? formatBirthDateBR(currentProfile.birthdate) : "";
 }
 
 function applyProfileLocks() {
@@ -789,7 +819,7 @@ async function saveProfile(e) {
     name: document.getElementById('profile-name').value.trim(),
     phone: document.getElementById('profile-phone').value.trim(),
     cpf: onlyDigits(document.getElementById('profile-cpf').value),
-    birthdate: document.getElementById('profile-birthdate').value
+    birthdate: normalizeBirthDateBR(document.getElementById('profile-birthdate').value)
   };
 
   if (!payload.name) {
@@ -801,7 +831,7 @@ async function saveProfile(e) {
     return;
   }
   if (!payload.birthdate) {
-    displayMessage("Informe a data de nascimento.", "error");
+    displayMessage("Informe a data de nascimento no formato DD/MM/AAAA.", "error");
     return;
   }
 
@@ -814,7 +844,7 @@ async function saveProfile(e) {
     document.getElementById('profile-name').value = currentProfile.name || payload.name || "";
     document.getElementById('profile-phone').value = currentProfile.phone ? formatBRPhone(currentProfile.phone) : formatBRPhone(payload.phone);
     document.getElementById('profile-cpf').value = currentProfile.cpf ? formatCPF(currentProfile.cpf) : formatCPF(payload.cpf);
-    document.getElementById('profile-birthdate').value = currentProfile.birthdate || currentProfile.birthDate || payload.birthdate || "";
+    document.getElementById('profile-birthdate').value = formatBirthDateBR(currentProfile.birthdate || currentProfile.birthDate || payload.birthdate || "");
 
     displayMessage("Cadastro atualizado!", "success");
 
@@ -872,6 +902,16 @@ function bindEvents() {
   const cpfInput = document.getElementById('profile-cpf');
   if (cpfInput) {
     cpfInput.oninput = (e) => e.target.value = formatCPF(e.target.value);
+  }
+
+  const birthInput = document.getElementById('profile-birthdate');
+  if (birthInput) {
+    birthInput.setAttribute('type', 'text');
+    birthInput.setAttribute('inputmode', 'numeric');
+    birthInput.setAttribute('maxlength', '10');
+    birthInput.setAttribute('placeholder', 'DD/MM/AAAA');
+    birthInput.oninput = (e) => e.target.value = formatBirthDateBR(e.target.value);
+    birthInput.onblur = (e) => e.target.value = normalizeBirthDateBR(e.target.value) || formatBirthDateBR(e.target.value);
   }
 
   const cepInput = document.getElementById('address-cep');
