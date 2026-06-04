@@ -456,6 +456,11 @@
       }
 
       if (!res.ok) {
+        console.error("ERRO NA API:", {
+          url,
+          status: res.status,
+          response: data
+        });
         const details = data && (
           data.message ||
           data.error ||
@@ -463,7 +468,9 @@
           data.statusDetail ||
           data.details?.message ||
           data.details?.cause?.[0]?.description ||
-          data.response?.message
+          data.response?.message ||
+          data.response?.errors?.[0]?.message ||
+          data.errors?.[0]?.message
         );
         throw new Error(details || `Erro HTTP ${res.status}`);
       }
@@ -709,6 +716,10 @@
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
+        console.error("ERRO AO TOKENIZAR CARTÃO PAGARME:", {
+          status: res.status,
+          response: data
+        });
         const message = data?.message || data?.errors?.[0]?.message || data?.error || `Erro ao tokenizar cartão (${res.status})`;
         throw new Error(message);
       }
@@ -749,6 +760,8 @@
 
     async function doPayCard(_formData) {
       try {
+        alert("ENTROU NO PAGAMENTO COM CARTÃO");
+console.log("ENTROU NO doPayCard");
         const customer = validateCardCustomerData();
         setAlert("loading", "Validando cartão com segurança pelo Pagar.me...");
         disablePayments(true);
@@ -769,7 +782,12 @@
           throw new Error("Total do pedido inválido para pagamento no cartão.");
         }
 
+        console.log("INICIANDO TOKENIZAÇÃO PAGARME...");
         const cardToken = await createPagarmeCardToken();
+        console.log("TOKEN PAGARME CRIADO:", !!cardToken, String(cardToken || "").slice(0, 10) + "...");
+
+        console.log("ENVIANDO PARA:", `${API_BASE}/payments/pagarme/credit`);
+        alert("Vou enviar para Pagar.me");
 
         const result = await apiFetch("/payments/pagarme/credit", {
           method: "POST",
