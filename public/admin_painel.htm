@@ -377,7 +377,7 @@ async function bootAuthed(targetView='dashboard'){
   }
   await Promise.allSettled([loadCategories(), loadProducts(), loadOrders(), loadUsers(), loadNotifications(), loadTelefones()]);
   await window.changeView(targetView || currentView || 'dashboard', true);
-  startPoller(async()=>{ if(currentView==='dashboard') await renderDashboardView(); await loadNotifications(); }, 20000);
+  startPoller(async()=>{ await loadNotifications(); if(currentView==='dashboard') await renderDashboardView(); if(currentView==='orders') await loadOrders().then(()=>renderOrdersView()).catch(()=>{}); }, 5000);
 }
 document.addEventListener('submit', function(ev){
   const form = ev && ev.target;
