@@ -135,6 +135,15 @@
               <span>Desconto:</span>
               <span id="desconto" class="text-red-500">- R$ 0,00</span>
             </div>
+
+            <div class="rounded-xl bg-gray-50 border border-gray-200 p-3">
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Cupom de desconto</label>
+              <div class="flex gap-2">
+                <input id="coupon-code" placeholder="Digite seu cupom" class="flex-1 border rounded-md px-3 py-2 text-sm text-gray-700 uppercase" autocomplete="off" />
+                <button id="btn-aplicar-cupom" type="button" class="text-xs font-bold text-primary-blue border border-primary-blue px-3 py-2 rounded-md hover:bg-primary-blue hover:text-white transition">Aplicar</button>
+              </div>
+              <div id="coupon-message" class="text-xs mt-2 text-gray-500"></div>
+            </div>
           </div>
 
           <div class="flex justify-between text-xl font-extrabold text-primary-blue mb-6">
@@ -726,6 +735,18 @@
       }
 
       if (container) container.innerHTML = '';
+      const couponInput = document.getElementById('coupon-code');
+      const couponButton = document.getElementById('btn-aplicar-cupom');
+      try { if (couponInput) couponInput.value = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || ''); } catch (_) {}
+      const applyCoupon = () => {
+        const code = normalizeCouponCode(couponInput?.value || '');
+        if (code) localStorage.setItem('ariana_applied_coupon', code);
+        else localStorage.removeItem('ariana_applied_coupon');
+        recalculateTotals();
+      };
+      if (couponButton) couponButton.addEventListener('click', applyCoupon);
+      if (couponInput) couponInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } });
+
       renderCart();
       try { await enrichCartWithShippingDefaults(); } catch (_) {}
     }
@@ -807,6 +828,33 @@
       saveCartItems();
     }
 
+    function normalizeCouponCode(value) {
+      return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    }
+
+    function getCouponRules() {
+      try {
+        const custom = JSON.parse(localStorage.getItem('ariana_coupon_rules') || '{}');
+        return custom && typeof custom === 'object' ? custom : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function getAppliedCoupon(baseValue) {
+      const code = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || '');
+      const rules = getCouponRules();
+      const rule = code ? rules[code] : null;
+      if (!code || !rule || rule.enabled === false) return { code, valid: false, value: 0, message: code ? 'Cupom inválido ou expirado.' : '' };
+      const percent = Number(rule.percent || rule.discountPercent || 0);
+      const fixed = Number(rule.fixed || rule.value || 0);
+      let value = 0;
+      if (Number.isFinite(percent) && percent > 0) value += Number(baseValue || 0) * Math.min(percent, 90) / 100;
+      if (Number.isFinite(fixed) && fixed > 0) value += fixed;
+      value = Math.min(Number(baseValue || 0), Math.max(0, value));
+      return { code, valid: value > 0, value, message: value > 0 ? `Cupom ${code} aplicado.` : 'Cupom sem desconto configurado.' };
+    }
+
     async function recalculateTotals() {
       let totalItemsPrice = cartItems.reduce((sum, item) => {
         return sum + ((Number(item.price) || 0) * (parseInt(item.quantity || 1, 10) || 1));
@@ -860,11 +908,17 @@
         }
       }
 
-      const pixEnabled = !!(paymentSettings && paymentSettings.pix && paymentSettings.pix.enabled);
-      const pixDiscountPercent = pixEnabled ? Number(paymentSettings.pix.discountPercent || 0) : 0;
-      const boletoEnabled = !!(paymentSettings && paymentSettings.boleto && paymentSettings.boleto.enabled);
-      const boletoDiscountPercent = boletoEnabled ? Number(paymentSettings.boleto.discountPercent || 0) : 0;
+      const getPercent = (method) => {
+        const p = paymentSettings || {};
+        const obj = method === 'boleto' ? (p.boleto || {}) : (p.pix || {});
+        if (obj && obj.enabled === false) return 0;
+        const raw = Number(obj?.discountPercent ?? obj?.descontoPercent ?? obj?.descontoPix ?? 0);
+        return Number.isFinite(raw) && raw > 0 ? raw : 17;
+      };
+      const pixDiscountPercent = getPercent('pix');
+      const boletoDiscountPercent = getPercent('boleto');
 
+      const coupon = getAppliedCoupon(totalGeral);
       const calcDiscountValue = (percent) => totalGeral * (Number(percent || 0) / 100);
       const calcDiscounted = (percent) => {
         const fator = (100 - Number(percent || 0)) / 100;
@@ -874,7 +928,8 @@
       const descontoEl = document.getElementById('desconto');
       if (descontoEl) {
         const bestPercent = Math.max(pixDiscountPercent, boletoDiscountPercent);
-        descontoEl.textContent = bestPercent > 0 ? `Até - ${window.formatPrice(calcDiscountValue(bestPercent))}` : `- ${window.formatPrice(0)}`;
+        const bestPaymentDiscount = calcDiscountValue(bestPercent);
+        descontoEl.textContent = (bestPaymentDiscount + coupon.value) > 0 ? `Até - ${window.formatPrice(bestPaymentDiscount + coupon.value)}` : `- ${window.formatPrice(0)}`;
       }
 
       const totalEl = document.getElementById('total-price');
@@ -891,10 +946,10 @@
 
         const lines = [];
         if (pixDiscountPercent > 0) {
-          lines.push(`No PIX: <span class="text-lg">${window.formatPrice(calcDiscounted(pixDiscountPercent))}</span> <span class="text-xs" style="color:#00a650">(${pixDiscountPercent}% OFF)</span>`);
+          lines.push(`No PIX: <span class="text-lg">${window.formatPrice(Math.max(0, calcDiscounted(pixDiscountPercent) - coupon.value))}</span> <span class="text-xs" style="color:#00a650">(${pixDiscountPercent}% OFF)</span>`);
         }
         if (boletoDiscountPercent > 0) {
-          lines.push(`No boleto: <span class="text-lg">${window.formatPrice(calcDiscounted(boletoDiscountPercent))}</span> <span class="text-xs" style="color:#00a650">(${boletoDiscountPercent}% OFF)</span>`);
+          lines.push(`No boleto: <span class="text-lg">${window.formatPrice(Math.max(0, calcDiscounted(boletoDiscountPercent) - coupon.value))}</span> <span class="text-xs" style="color:#00a650">(${boletoDiscountPercent}% OFF)</span>`);
         }
 
         if (lines.length) {
@@ -904,6 +959,14 @@
           pixPromo.innerHTML = '';
           pixPromo.classList.add('hidden');
         }
+      }
+
+      const couponInput = document.getElementById('coupon-code');
+      const couponMsg = document.getElementById('coupon-message');
+      if (couponInput && !couponInput.value) couponInput.value = coupon.code || '';
+      if (couponMsg) {
+        couponMsg.textContent = coupon.message || 'Digite um cupom válido da Ariana Móveis.';
+        couponMsg.className = 'text-xs mt-2 ' + (coupon.valid ? 'text-green-600 font-semibold' : 'text-gray-500');
       }
     }
 

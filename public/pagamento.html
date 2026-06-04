@@ -176,8 +176,12 @@
 
       <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 text-center space-y-6">
         <div id="pix-loading" class="flex flex-col items-center py-8">
-          <div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-          <p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>
+          <div class="w-20 h-20 bg-teal-50 rounded-full flex items-center justify-center mx-auto text-teal-600 mb-4">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+          </div>
+          <h3 class="text-lg font-bold">Pix</h3>
+          <p class="text-slate-500 text-sm max-w-sm mx-auto">Clique no botão abaixo para gerar o QR Code Pix oficial deste pedido.</p>
+          <button id="btn-generate-pix" class="btn-primary max-w-sm mx-auto" type="button">Gerar Pix Agora</button>
         </div>
 
         <div id="pix-content" class="hidden space-y-6">
@@ -211,9 +215,19 @@
     </div>
 
     <div id="order-summary" class="mt-8 pt-8 border-t border-slate-200 hidden">
-      <div class="flex items-center justify-between text-slate-500 mb-2">
-        <span class="text-sm">Total do Pedido</span>
-        <span id="summary-total" class="text-xl font-black text-slate-900">R$ 0,00</span>
+      <div class="space-y-2 text-sm">
+        <div class="flex items-center justify-between text-slate-500">
+          <span>Valor original</span>
+          <span id="summary-original">R$ 0,00</span>
+        </div>
+        <div class="flex items-center justify-between text-green-600 font-bold hidden" id="summary-discount-row">
+          <span id="summary-discount-label">Desconto</span>
+          <span id="summary-discount">- R$ 0,00</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-900 pt-2 border-t border-slate-200">
+          <span class="text-sm font-bold">Total a pagar</span>
+          <span id="summary-total" class="text-xl font-black text-slate-900">R$ 0,00</span>
+        </div>
       </div>
     </div>
   </div>
@@ -729,7 +743,7 @@
         const issuerId = String(formData?.issuerId || formData?.issuer_id || "").trim();
         const paymentMethodId = String(formData?.paymentMethodId || formData?.payment_method_id || "").trim();
         const installments = Number(formData?.installments || 1) || 1;
-        const amount = Number(orderData?.totals?.grandTotal || formData?.amount || 0) || 0;
+        const amount = Number(getTotalForSelectedMethod("card") || formData?.amount || 0) || 0;
 
         console.log("[CARD FORM DATA]", {
           hasToken: !!cardToken,
@@ -808,11 +822,15 @@
     async function generatePix() {
       try {
         setAlert("loading", "Gerando seu QR Code Pix...");
+        const pixLoading = document.getElementById("pix-loading");
+        if (pixLoading) {
+          pixLoading.innerHTML = '<div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto"></div><p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>';
+        }
         const data = await apiFetch("/payments/mp/pix", {
           method: "POST",
           body: JSON.stringify({
             orderId: orderId,
-            amount: orderData.totals.grandTotal,
+            amount: getTotalForSelectedMethod("pix"),
             email: getMpPayerStrict().email || "",
             cpf: getMpPayerStrict().identification?.number || "",
             payer: getMpPayerStrict(),
@@ -866,7 +884,7 @@
           method: "POST",
           body: JSON.stringify({
             orderId: orderId,
-            amount: orderData.totals.grandTotal,
+            amount: getTotalForSelectedMethod("boleto"),
             email: payer.email || "",
             cpf: payer.identification?.number || "",
             firstName: parts.firstName,
@@ -960,26 +978,53 @@
       throw lastError || new Error("Pedido não encontrado.");
     }
 
+
+    function getTotalForSelectedMethod(method) {
+      const normalized = method === "card" ? "card" : (method === "boleto" ? "boleto" : "pix");
+      const totals = orderData?.totals || {};
+      const grand = Number(totals.grandTotal || 0) || 0;
+      const original = Number(totals.grandTotalOriginal || totals.totalOriginal || 0) || 0;
+      const discount = Number(totals.discountValue || 0) || 0;
+      const applied = String(totals.discountApplied || totals.paymentMethod || orderData?.paymentMethod || "").toLowerCase();
+
+      // Cartão não pode herdar desconto de Pix/Boleto. Se o pedido veio salvo com desconto,
+      // usa o total original/cheio para cartão.
+      if (normalized === "card") {
+        if (original > 0 && (discount > 0 || original > grand)) return original;
+        return grand;
+      }
+      return grand;
+    }
+
+    function updateResumoForSelectedMethod(method) {
+      if (!orderData) return;
+      const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+      const normalized = method === "card" ? "card" : (method === "boleto" ? "boleto" : "pix");
+      const total = getTotalForSelectedMethod(normalized);
+      const totalEl = document.getElementById("summary-total");
+      if (totalEl) totalEl.innerText = fmt.format(total);
+
+      const oldInfo = document.getElementById("summary-discount-info");
+      if (oldInfo) oldInfo.remove();
+
+      const original = Number(orderData?.totals?.grandTotalOriginal || 0);
+      const discount = Number(orderData?.totals?.discountValue || 0);
+      const applied = String(orderData?.totals?.discountApplied || "");
+      const box = document.getElementById("order-summary");
+      if (box && normalized !== "card" && discount > 0 && original > 0) {
+        const info = document.createElement("div");
+        info.id = "summary-discount-info";
+        info.className = "mt-3 text-sm text-green-600 font-bold text-right";
+        info.innerHTML = `Desconto aplicado ${applied ? `(${applied})` : ``}: - ${fmt.format(discount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
+        box.insertBefore(info, totalEl?.parentElement || null);
+      }
+    }
+
     function renderResumo() {
       if (!orderData) return;
       document.getElementById("order-summary").classList.remove("hidden");
       const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-      const totalEl = document.getElementById("summary-total");
-      if (totalEl) totalEl.innerText = fmt.format(Number(orderData?.totals?.grandTotal || 0));
-
-      const box = document.getElementById("order-summary");
-      if (box && !document.getElementById("summary-discount-info")) {
-        const original = Number(orderData?.totals?.grandTotalOriginal || 0);
-        const discount = Number(orderData?.totals?.discountValue || 0);
-        const applied = String(orderData?.totals?.discountApplied || "");
-        if (discount > 0 && original > 0) {
-          const info = document.createElement("div");
-          info.id = "summary-discount-info";
-          info.className = "mt-3 text-sm text-green-600 font-bold text-right";
-          info.innerHTML = `Desconto aplicado ${applied ? `(${applied})` : ``}: - ${fmt.format(discount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
-          box.insertBefore(info, totalEl?.parentElement || null);
-        }
-      }
+      updateResumoForSelectedMethod(selectedMethod || "pix");
       disablePayments(false);
     }
 
@@ -1002,6 +1047,7 @@
         "pix";
 
       selectedMethod = normalized;
+      updateResumoForSelectedMethod(normalized);
 
       document.querySelectorAll(".btn-choice").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.method === normalized);
@@ -1054,7 +1100,6 @@
         showPanel("panel-pix");
         document.getElementById("pix-loading").classList.remove("hidden");
         document.getElementById("pix-content").classList.add("hidden");
-        await generatePix();
       } else if (method === "boleto") {
         selectedMethod = "boleto";
         showPanel("panel-boleto");
@@ -1106,7 +1151,6 @@
           showPanel("panel-pix");
           document.getElementById("pix-loading").classList.remove("hidden");
           document.getElementById("pix-content").classList.add("hidden");
-          await generatePix();
         } else if (method === "boleto") {
           showPanel("panel-boleto");
         }
@@ -1121,7 +1165,8 @@
         document.getElementById("customerBirthDate")?.addEventListener("input", (e) => { e.target.value = maskBirthDateValue(e.target.value); });
         document.getElementById("customerBirthDate")?.addEventListener("blur", (e) => { e.target.value = formatBirthDateForInput(e.target.value); });
         document.getElementById("customerEmail")?.addEventListener("blur", (e) => { e.target.value = String(e.target.value || "").trim().toLowerCase(); });
-        document.getElementById("btn-generate-boleto").addEventListener("click", generateBoleto);
+        document.getElementById("btn-generate-boleto")?.addEventListener("click", generateBoleto);
+        document.getElementById("btn-generate-pix")?.addEventListener("click", generatePix);
         document.getElementById("btn-copy-pix").addEventListener("click", async () => {
           const input = document.getElementById("pix-code-input");
           try {
@@ -1137,7 +1182,7 @@
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
-        // Não abrir PIX/cartão automaticamente. O cliente precisa escolher a forma de pagamento nesta tela.
+        await tryAutoOpenMethod();
         startPolling();
       } catch (e) {
         console.error(e);

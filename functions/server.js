@@ -2401,25 +2401,10 @@ app.post('/api/orders', async (req, res) => {
       manufacturer: body.manufacturer || sellerIds[0] || ''
     });
 
-    if (body.enqueueManufacturer !== false) await enqueueManufacturerDispatch(order);
-    await createAdminNotification({
-      type: 'order_created',
-      title: '🛒 Nova venda recebida',
-      message: `Pedido ${order._id} - ${order.customerName || 'Cliente'} - Total ${formatMoneyBRL(order.total || 0)}`,
-      relatedId: String(order._id),
-      severity: 'success'
-    });
-
-    await createSellerOrderNotifications(order, {
-      type: 'seller_order_created',
-      title: '🛒 Nova venda recebida',
-      message: `Pedido #${String(order._id).slice(-8).toUpperCase()} recebido - ${order.customerName || 'Cliente'} - Total ${formatMoneyBRL(order.total || 0)}`,
-      severity: 'success',
-      origin: 'api_orders_create'
-    });
-
-    const adminWhatsapp = await waNotifyAdminNewOrder(order, 'api_orders_create');
-    return res.json({ ok: true, order: toJSON(order), adminWhatsapp });
+    // Pedido criado no checkout ainda NÃO é venda concluída.
+    // Não notifica admin/seller/WhatsApp e não envia ao fabricante antes do pagamento aprovado.
+    // A notificação de "Nova venda recebida" fica centralizada no helper notifySaleAfterPaymentApproved().
+    return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { skipped: true, reason: 'waiting_payment_approval' } });
   } catch (error) {
     if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
       for (const row of reservedStock.reverse()) {
@@ -2765,6 +2750,55 @@ function normalizeMercadoPagoPaymentResponse(data = {}) {
 }
 
 
+
+async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approved') {
+  try {
+    if (!orderDoc) return { skipped: true, reason: 'missing_order' };
+    const oid = orderDoc._id || orderDoc.id;
+    const fresh = await Order.findById(oid);
+    if (!fresh) return { skipped: true, reason: 'order_not_found' };
+
+    if (fresh.payment?.adminSaleNotifiedAt) {
+      return { skipped: true, reason: 'already_notified' };
+    }
+
+    await Order.findByIdAndUpdate(fresh._id, {
+      $set: {
+        'payment.adminSaleNotifiedAt': now(),
+        'payment.adminSaleNotificationOrigin': origin
+      }
+    });
+
+    const updated = await Order.findById(fresh._id);
+
+    await createAdminNotification({
+      type: 'order_paid',
+      title: '🛒 Nova venda recebida',
+      message: `Pedido ${updated._id} - ${updated.customerName || 'Cliente'} - Total ${formatMoneyBRL(updated.total || 0)}`,
+      relatedId: String(updated._id),
+      severity: 'success',
+      metadata: { origin, paymentStatus: updated.payment?.status || '', paymentMethod: updated.payment?.method || '' }
+    });
+
+    await createSellerOrderNotifications(updated, {
+      type: 'seller_order_paid',
+      title: '🛒 Nova venda recebida',
+      message: `Pedido #${String(updated._id).slice(-8).toUpperCase()} pago - ${updated.customerName || 'Cliente'} - Total ${formatMoneyBRL(updated.total || 0)}`,
+      severity: 'success',
+      origin
+    });
+
+    let queue = { skipped: true, reason: 'enqueue_disabled' };
+    try { queue = await enqueueManufacturerDispatch(updated); } catch (e) { queue = { ok: false, error: e.message || String(e) }; }
+
+    const adminWhatsapp = await waNotifyAdminNewOrder(updated, origin);
+    return { ok: true, adminWhatsapp, queue };
+  } catch (error) {
+    console.error('Erro ao notificar venda aprovada:', error.message || error);
+    return { ok: false, error: error.message || String(error) };
+  }
+}
+
 async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, extra = {}) {
   try {
     const oid = normalizeObjectId(orderId);
@@ -2788,7 +2822,9 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
         raw: redact(mpData || {})
       }
     };
-    return await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
+    const updated = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
+    if (approved) await notifySaleAfterPaymentApproved(updated, `mercadopago_${method}_approved`);
+    return updated;
   } catch (error) {
     console.error('Erro ao atualizar pedido com pagamento Mercado Pago:', error.message || error);
     return null;
@@ -3019,20 +3055,10 @@ async function updateOrderFromMercadoPagoPayment(mpData = {}, fallbackOrderId = 
 
   const after = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
 
-  await createAdminNotification({
-    type: 'payment_updated',
-    title: '💳 Pagamento atualizado',
-    message: `Pedido ${after._id} - ${mapped.statusLabel} - ${formatMoneyBRL(after.total || mpData?.transaction_amount || 0)}`,
-    relatedId: String(after._id),
-    severity: mpData?.status === 'approved' ? 'success' : 'info'
-  });
-  await createSellerOrderNotifications(after, {
-    type: 'seller_payment_updated',
-    title: '💳 Pagamento atualizado',
-    message: `Pedido #${String(after._id).slice(-8).toUpperCase()} - ${mapped.statusLabel} - ${formatMoneyBRL(after.total || mpData?.transaction_amount || 0)}`,
-    severity: mpData?.status === 'approved' ? 'success' : 'info',
-    origin
-  });
+  let saleNotification = null;
+  if (String(mpData?.status || '').toLowerCase() === 'approved') {
+    saleNotification = await notifySaleAfterPaymentApproved(after, origin);
+  }
 
   const whatsapp = await waMaybeNotifyOrderStatusChange(String(after._id), toJSON(before), toJSON(after), origin);
 
@@ -3044,7 +3070,7 @@ async function updateOrderFromMercadoPagoPayment(mpData = {}, fallbackOrderId = 
     changedKeys: changedKeys(toJSON(before), toJSON(after)),
     request: { origin, fallbackOrderId },
     response: { paymentId: mpData?.id || null, mpStatus: mpData?.status || null, orderStatus: after.status },
-    metadata: { provider: 'mercadopago', whatsapp }
+    metadata: { provider: 'mercadopago', whatsapp, saleNotification }
   });
 
   return { ok: true, order: toJSON(after), whatsapp };
@@ -3073,10 +3099,8 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
     if (response.status >= 200 && response.status < 300) {
       orderUpdate = await updateOrderFromMercadoPagoPayment(mpData, orderId, 'mercadopago_boleto_created');
 
-      const updatedOrder = orderUpdate?.order?._id ? await Order.findById(orderUpdate.order._id) : null;
-      if (updatedOrder) {
-        adminWhatsapp = await waNotifyAdminNewOrder(updatedOrder, 'mercadopago_boleto_created');
-      }
+      // Boleto criado ainda não é venda concluída. Só notifica quando o webhook confirmar pagamento aprovado.
+      adminWhatsapp = { skipped: true, reason: 'waiting_boleto_payment_approval' };
     }
 
     await writeAuditLog({
