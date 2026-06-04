@@ -2686,28 +2686,41 @@ function buildMercadoPagoPayer(body = {}) {
 }
 
 function buildMercadoPagoAdditionalInfo(body = {}) {
-  const customer = body.customer || {};
   const payer = buildMercadoPagoPayer(body);
   const receiverAddress = normalizeMercadoPagoAddress(body.receiver_address || body.receiverAddress || body.address || {});
+  const payerPhone = payer.phone && typeof payer.phone === 'object'
+    ? {
+        area_code: String(payer.phone.area_code || ''),
+        number: String(payer.phone.number || '')
+      }
+    : undefined;
+
   const additionalInfo = {
     payer: {
       first_name: payer.first_name,
       last_name: payer.last_name,
-      phone: payer.phone,
-      address: payer.address
+      phone: payerPhone
     },
     shipments: Object.keys(receiverAddress).length ? {
       receiver_address: {
-        zip_code: receiverAddress.zip_code || '',
-        street_name: receiverAddress.street_name || '',
-        street_number: receiverAddress.street_number || 'S/N',
+        zip_code: String(receiverAddress.zip_code || ''),
+        street_name: String(receiverAddress.street_name || ''),
+        street_number: String(receiverAddress.street_number || 'S/N'),
         floor: String(body.receiver_address?.floor || ''),
         apartment: String(body.receiver_address?.apartment || ''),
-        city_name: String(body.receiver_address?.city_name || receiverAddress.city || ''),
-        state_name: String(body.receiver_address?.state_name || receiverAddress.federal_unit || '')
+        city_name: String(body.receiver_address?.city_name || receiverAddress.city_name || ''),
+        state_name: String(body.receiver_address?.state_name || receiverAddress.state_name || '')
       }
     } : undefined
   };
+
+  // A API /v1/payments do Mercado Pago rejeita campos como
+  // additional_info.payer.address.city, federal_unit e neighborhood.
+  // Por isso o endereço completo fica apenas no campo principal `payer.address`
+  // e, dentro de additional_info, mantemos somente nome/telefone e envio.
+  if (!additionalInfo.payer.phone || !additionalInfo.payer.phone.number) {
+    delete additionalInfo.payer.phone;
+  }
 
   const items = Array.isArray(body.items) ? body.items : [];
   if (items.length) {
