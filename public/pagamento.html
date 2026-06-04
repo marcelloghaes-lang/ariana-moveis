@@ -57,7 +57,7 @@
 
     <div id="alert-box" class="hidden mb-6 p-4 rounded-xl text-sm font-medium border"></div>
 
-    <div id="section-choice" class="space-y-4">
+    <div id="section-choice" class="hidden space-y-4">
       <p class="text-slate-500 mb-4 font-medium">Como deseja pagar?</p>
 
       <button class="btn-choice group" data-method="pix" type="button">
@@ -1089,21 +1089,29 @@
         ""
       ).trim().toLowerCase();
 
-      if (!method) return;
+      if (!method) return false;
 
       if (method === "card") {
         selectedMethod = "card";
         showPanel("panel-card");
+        updateResumoForSelectedMethod("card");
         await mountCardFormSafe();
+        return true;
       } else if (method === "pix") {
         selectedMethod = "pix";
         showPanel("panel-pix");
+        updateResumoForSelectedMethod("pix");
         document.getElementById("pix-loading").classList.remove("hidden");
         document.getElementById("pix-content").classList.add("hidden");
+        return true;
       } else if (method === "boleto") {
         selectedMethod = "boleto";
         showPanel("panel-boleto");
+        updateResumoForSelectedMethod("boleto");
+        return true;
       }
+
+      return false;
     }
 
     function clearCheckoutCartOnlyAfterSuccess() {
@@ -1182,7 +1190,10 @@
         await loadCurrentUser();
         await loadProfile();
         await loadOrder();
-        await tryAutoOpenMethod();
+        const openedByMethod = await tryAutoOpenMethod();
+        if (!openedByMethod) {
+          showChoice();
+        }
         startPolling();
       } catch (e) {
         console.error(e);

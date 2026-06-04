@@ -237,6 +237,14 @@
             <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
             <input class="field" data-field="imageUrl" data-banner="index_main" placeholder="https://..." />
 
+            <div class="mt-2 flex items-center gap-2">
+              <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="index_main" />
+              <button type="button" class="btn btn-secondary btn-upload" data-banner="index_main">
+                <i class="fa-solid fa-upload mr-2"></i>Carregar
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+
             <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
             <input class="field" data-field="linkUrl" data-banner="index_main" placeholder="categoria.html?name=..." />
 
@@ -423,11 +431,20 @@ const msg = document.getElementById('msg');
     async function fetchWithApiFallback(path, init = {}) {
       const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
       let lastError = null;
+      let lastResponse = null;
 
       for (const base of bases) {
         try {
           const url = `${base}${path}`;
           const res = await fetch(url, init);
+
+          // Se estiver testando local e a rota não existir no localhost,
+          // tenta a mesma rota no Render antes de desistir.
+          if (!res.ok && [404, 405, 502, 503, 504].includes(res.status) && base !== bases[bases.length - 1]) {
+            lastResponse = res;
+            continue;
+          }
+
           window.API_BASE = base;
           window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
           try {
@@ -441,6 +458,7 @@ const msg = document.getElementById('msg');
         }
       }
 
+      if (lastResponse) return lastResponse;
       throw lastError || new Error('Nenhuma API disponível no momento.');
     }
 
@@ -974,8 +992,8 @@ const msg = document.getElementById('msg');
       if(field === 'active') setChip(id, el.value === 'true');
     });
 
-    document.getElementById('btn-reload').addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); loadAll(); });
-    document.getElementById('btn-save-all').addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); saveAll(); });
+    // Recarregar é ligado no bloco de blindagem no final para evitar clique duplicado.
+    // Salvar tudo é ligado no bloco de blindagem no final para evitar clique duplicado.
 
     const authPill = document.getElementById('auth-pill');
     const authEmail = document.getElementById('auth-email');
