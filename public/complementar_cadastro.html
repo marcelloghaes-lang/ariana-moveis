@@ -32,15 +32,15 @@
             <form id="form-pending-data" class="space-y-4">
                 <div>
                     <label for="pending-cpf" class="block text-sm font-medium text-text-dark">CPF <span class="text-red-500">*</span></label>
-                    <input type="text" id="pending-cpf" required class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="000.000.000-00">
+                    <input type="text" id="pending-cpf" required inputmode="numeric" maxlength="14" autocomplete="off" class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="000.000.000-00">
                 </div>
                 <div>
                     <label for="pending-phone" class="block text-sm font-medium text-text-dark">Telefone de Contato <span class="text-red-500">*</span></label>
-                    <input type="text" id="pending-phone" required class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="(31) 90000-0000">
+                    <input type="text" id="pending-phone" required inputmode="tel" maxlength="15" autocomplete="tel" class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="(31) 90000-0000">
                 </div>
                 <div>
                     <label for="pending-birthdate" class="block text-sm font-medium text-text-dark">Data de Nascimento <span class="text-red-500">*</span></label>
-                    <input type="text" id="pending-birthdate" required class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="DD/MM/AAAA">
+                    <input type="text" id="pending-birthdate" required inputmode="numeric" maxlength="10" autocomplete="bday" class="mt-1 block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue" placeholder="DD/MM/AAAA">
                 </div>
 
                 <button type="submit" id="pending-data-btn" class="w-full bg-secondary-light-blue text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-blue transition-colors shadow-lg">
@@ -218,12 +218,27 @@
                 return;
             }
 
-            const newCpf = document.getElementById('pending-cpf').value.trim();
-            const newPhone = document.getElementById('pending-phone').value.trim();
-            const newBirthdate = document.getElementById('pending-birthdate').value.trim();
+            const newCpf = maskCpfValue(document.getElementById('pending-cpf').value.trim());
+            const newPhone = maskPhoneValue(document.getElementById('pending-phone').value.trim());
+            const newBirthdate = maskBirthDateValue(document.getElementById('pending-birthdate').value.trim());
 
             if (!newCpf || !newPhone || !newBirthdate) {
                 window.displayMessage('Todos os campos (CPF, Telefone e Data de Nascimento) são obrigatórios.', 'error');
+                return;
+            }
+
+            if (digitsOnly(newCpf).length !== 11) {
+                window.displayMessage('Informe um CPF válido.', 'error');
+                return;
+            }
+
+            if (digitsOnly(newPhone).length < 10) {
+                window.displayMessage('Informe um telefone válido.', 'error');
+                return;
+            }
+
+            if (!isValidBirthDateBR(newBirthdate)) {
+                window.displayMessage('Informe a data de nascimento no formato DD/MM/AAAA.', 'error');
                 return;
             }
 
@@ -251,6 +266,93 @@
             }
         }
 
+
+        function digitsOnly(value) {
+            return String(value || '').replace(/\D+/g, '');
+        }
+
+        function maskCpfValue(value) {
+            const d = digitsOnly(value).slice(0, 11);
+            return d
+                .replace(/^(\d{3})(\d)/, '$1.$2')
+                .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+                .replace(/\.(\d{3})(\d)/, '.$1-$2');
+        }
+
+        function maskPhoneValue(value) {
+            const d = digitsOnly(value).slice(0, 11);
+            if (d.length <= 10) {
+                return d
+                    .replace(/^(\d{2})(\d)/, '($1) $2')
+                    .replace(/(\d{4})(\d)/, '$1-$2');
+            }
+            return d
+                .replace(/^(\d{2})(\d)/, '($1) $2')
+                .replace(/(\d{5})(\d)/, '$1-$2');
+        }
+
+        function maskBirthDateValue(value) {
+            const d = digitsOnly(value).slice(0, 8);
+            return d
+                .replace(/^(\d{2})(\d)/, '$1/$2')
+                .replace(/^(\d{2})\/(\d{2})(\d)/, '$1/$2/$3');
+        }
+
+        function isValidBirthDateBR(value) {
+            const match = String(value || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (!match) return false;
+            const day = Number(match[1]);
+            const month = Number(match[2]);
+            const year = Number(match[3]);
+            const currentYear = new Date().getFullYear();
+            const dt = new Date(year, month - 1, day);
+            return (
+                dt.getFullYear() === year &&
+                dt.getMonth() === month - 1 &&
+                dt.getDate() === day &&
+                year >= 1900 &&
+                year <= currentYear
+            );
+        }
+
+        function bindInputMasks() {
+            const cpf = document.getElementById('pending-cpf');
+            const phone = document.getElementById('pending-phone');
+            const birth = document.getElementById('pending-birthdate');
+
+            if (cpf) {
+                cpf.setAttribute('type', 'text');
+                cpf.setAttribute('inputmode', 'numeric');
+                cpf.setAttribute('maxlength', '14');
+                cpf.addEventListener('input', (e) => {
+                    e.target.value = maskCpfValue(e.target.value);
+                });
+            }
+
+            if (phone) {
+                phone.setAttribute('type', 'text');
+                phone.setAttribute('inputmode', 'tel');
+                phone.setAttribute('maxlength', '15');
+                phone.addEventListener('input', (e) => {
+                    e.target.value = maskPhoneValue(e.target.value);
+                });
+            }
+
+            if (birth) {
+                // Mantém como texto para NÃO abrir calendário no celular.
+                birth.setAttribute('type', 'text');
+                birth.setAttribute('inputmode', 'numeric');
+                birth.setAttribute('maxlength', '10');
+                birth.setAttribute('placeholder', 'DD/MM/AAAA');
+                birth.addEventListener('input', (e) => {
+                    e.target.value = maskBirthDateValue(e.target.value);
+                });
+                birth.addEventListener('blur', (e) => {
+                    e.target.value = maskBirthDateValue(e.target.value);
+                });
+            }
+        }
+
         function handleLogout() {
             try {
                 window.displayMessage('Saindo...', 'loading');
@@ -268,6 +370,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            bindInputMasks();
             handleAuthChange();
             document.getElementById('form-pending-data').addEventListener('submit', handlePendingDataSubmit);
             document.getElementById('logout-pending-btn').addEventListener('click', handleLogout);

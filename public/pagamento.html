@@ -777,18 +777,8 @@
       }
     }
 
-    function showPagarmeDebugOnScreen(title, payload) {
-      try {
-        let box = document.getElementById("pagarme-debug-box");
-        if (!box) {
-          box = document.createElement("pre");
-          box.id = "pagarme-debug-box";
-          box.style.cssText = "white-space:pre-wrap;word-break:break-word;background:#111827;color:#f9fafb;padding:14px;border-radius:14px;margin-top:16px;font-size:12px;line-height:1.4;max-height:420px;overflow:auto;";
-          const alertBox = document.getElementById("alert-box");
-          if (alertBox && alertBox.parentNode) alertBox.parentNode.insertBefore(box, alertBox.nextSibling);
-        }
-        box.textContent = title + "\n" + safeJsonStringify(payload);
-      } catch (_) {}
+    function showPagarmeDebugOnScreen(_title, _payload) {
+      // Desativado: não exibe JSON técnico para o cliente.
     }
 
     function extractPagarmeReason(result) {
@@ -801,17 +791,22 @@
                  {};
       const gatewayErrors = tx?.gateway_response?.errors || tx?.gateway_response?.error || [];
       const firstGatewayError = Array.isArray(gatewayErrors) ? gatewayErrors[0] : gatewayErrors;
+      const antifraud = tx?.antifraud_response || {};
+      const antifraudStatus = String(antifraud?.status || "").toLowerCase();
+      if (antifraudStatus === "reproved" || antifraudStatus === "rejected") {
+        return "Pagamento não aprovado na análise de segurança do Pagar.me.";
+      }
       return (
         firstGatewayError?.message ||
         firstGatewayError?.description ||
-        tx?.acquirer_message ||
         tx?.gateway_response?.message ||
-        tx?.gateway_response?.code ||
         result?.data?.status_detail ||
         result?.raw?.status_detail ||
         result?.statusDetail ||
         result?.message ||
         result?.error ||
+        tx?.acquirer_message ||
+        tx?.gateway_response?.code ||
         getMpStatusMessage(result) ||
         "Pagamento recusado pelo emissor/processador."
       );
@@ -866,8 +861,6 @@
         window.__PAGARME_LAST_RESPONSE = result;
         console.log("[PAGARME CREDIT FULL RESPONSE]", result);
         console.log("[PAGARME CREDIT FULL RESPONSE JSON]", safeJsonStringify(result));
-        showPagarmeDebugOnScreen("RESPOSTA COMPLETA DO PAGAR.ME / BACKEND:", result);
-
         if (isMpApproved(result)) {
           mergeAndCachePayment("card", result, "approved");
           clearCheckoutCartOnlyAfterSuccess();
@@ -882,7 +875,6 @@
         mergeAndCachePayment("card", result, status);
         console.error("[PAGARME REJECTED DETAILS]", result);
         console.error("[PAGARME REJECTED DETAILS JSON]", safeJsonStringify(result));
-        showPagarmeDebugOnScreen("PAGAMENTO RECUSADO - DETALHES:", result);
         const reason = extractPagarmeReason(result);
         throw new Error(`${reason} Status: ${status}`);
       } catch (e) {
@@ -890,7 +882,6 @@
         if (e?.response) {
           console.error("[PAGARME ERROR RESPONSE]", e.response);
           console.error("[PAGARME ERROR RESPONSE JSON]", safeJsonStringify(e.response));
-          showPagarmeDebugOnScreen("ERRO COMPLETO DO PAGAR.ME / BACKEND:", e.response);
         }
 
         const msg =
