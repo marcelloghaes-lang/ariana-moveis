@@ -8,7 +8,6 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="js/api-config.js"></script>
-  <script src="https://sdk.mercadopago.com/js/v2"></script>
 
   <style>
     .mp-input{
@@ -77,7 +76,7 @@
         </div>
         <div class="flex-1">
           <div class="font-bold">Cartão de Crédito</div>
-          <div class="text-xs text-slate-500">Parcele em até 12x</div>
+          <div class="text-xs text-slate-500">Processado pelo Pagar.me</div>
         </div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
@@ -111,16 +110,16 @@
           <div class="grid grid-cols-1 gap-4">
             <div>
               <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Número do Cartão</label>
-              <div id="form-checkout__cardNumber" class="mp-input h-12"></div>
+              <input type="text" id="form-checkout__cardNumber" class="mp-input h-12" placeholder="0000 0000 0000 0000" autocomplete="cc-number" inputmode="numeric" maxlength="23" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Vencimento</label>
-                <div id="form-checkout__expirationDate" class="mp-input h-12"></div>
+                <input type="text" id="form-checkout__expirationDate" class="mp-input h-12" placeholder="MM/AA" autocomplete="cc-exp" inputmode="numeric" maxlength="5" />
               </div>
               <div>
                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">CVV</label>
-                <div id="form-checkout__securityCode" class="mp-input h-12"></div>
+                <input type="text" id="form-checkout__securityCode" class="mp-input h-12" placeholder="123" autocomplete="cc-csc" inputmode="numeric" maxlength="4" />
               </div>
             </div>
             <div>
@@ -150,15 +149,9 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Banco Emissor</label>
-                <select id="form-checkout__issuer" class="mp-input h-12"></select>
-              </div>
-              <div>
-                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
-                <select id="form-checkout__installments" class="mp-input h-12"></select>
-              </div>
+            <div>
+              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
+              <select id="form-checkout__installments" class="mp-input h-12"></select>
             </div>
             <select id="form-checkout__identificationType" class="hidden"></select>
             <input type="text" id="form-checkout__identificationNumber" class="hidden" />
@@ -406,7 +399,7 @@
         result?.data?.status_detail ||
         result?.raw?.status_detail ||
         result?.statusDetail ||
-        "Transação não aprovada pelo Mercado Pago."
+        "Transação não aprovada."
       );
     }
 
@@ -420,7 +413,7 @@
         status: mpStatus === "approved" ? "approved" : (orderData?.status || "pending_payment"),
         payment: {
           ...(orderData?.payment || {}),
-          provider: "mercadopago",
+          provider: result?.provider || (method === "card" ? "pagarme" : "mercadopago"),
           method,
           type: method === "card" ? "credit_card" : method,
           paymentId: result?.id || result?.paymentId || result?.data?.id || result?.raw?.id || "",
@@ -659,96 +652,111 @@
       }
       return publicKey;
     }
+    async function getPagarmePublicKey() {
+      const data = await apiFetch("/payments/pagarme/public-key");
+      const publicKey = data?.publicKey || data?.public_key || data?.key || "";
+      const endpoint = data?.endpoint || "https://api.pagar.me/core/v5";
+      if (!publicKey) throw new Error("Pagar.me Public Key não configurada no servidor.");
+      return { publicKey, endpoint };
+    }
+
+    function maskCardNumberValue(value) {
+      return digitsOnly(value).slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
+    }
+
+    function maskCardExpValue(value) {
+      const d = digitsOnly(value).slice(0, 4);
+      return d.replace(/^(\d{2})(\d)/, "$1/$2");
+    }
+
+    function parseCardExpiration(value) {
+      const d = digitsOnly(value);
+      if (d.length < 4) throw new Error("Informe a validade do cartão no formato MM/AA.");
+      const month = Number(d.slice(0, 2));
+      let year = Number(d.slice(2, 4));
+      if (!month || month < 1 || month > 12) throw new Error("Mês de validade do cartão inválido.");
+      year = 2000 + year;
+      const now = new Date();
+      const expDate = new Date(year, month, 0, 23, 59, 59);
+      if (expDate < now) throw new Error("Cartão vencido. Confira a validade.");
+      return { exp_month: month, exp_year: year };
+    }
+
+    function getPagarmeCardData() {
+      const expiration = parseCardExpiration(getInputValue("form-checkout__expirationDate"));
+      const number = digitsOnly(getInputValue("form-checkout__cardNumber"));
+      const cvv = digitsOnly(getInputValue("form-checkout__securityCode"));
+      const holderName = String(getInputValue("form-checkout__cardholderName") || getOrderFullName()).trim();
+      if (number.length < 13) throw new Error("Informe um número de cartão válido.");
+      if (!holderName || holderName.split(/\s+/).length < 2) throw new Error("Informe o nome completo impresso no cartão.");
+      if (cvv.length < 3) throw new Error("Informe o CVV do cartão.");
+      return {
+        number,
+        holder_name: holderName,
+        exp_month: expiration.exp_month,
+        exp_year: expiration.exp_year,
+        cvv
+      };
+    }
+
+    async function createPagarmeCardToken() {
+      const { publicKey, endpoint } = await getPagarmePublicKey();
+      const card = getPagarmeCardData();
+      const res = await fetch(`${String(endpoint).replace(/\/+$/, "")}/tokens?appId=${encodeURIComponent(publicKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "card", card })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message = data?.message || data?.errors?.[0]?.message || data?.error || `Erro ao tokenizar cartão (${res.status})`;
+        throw new Error(message);
+      }
+      const token = data?.id || data?.token || data?.card_token || "";
+      if (!token) throw new Error("Pagar.me não retornou token do cartão.");
+      return token;
+    }
+
 
     function unmountCardForm() {
-      if (cardForm) {
-        try { cardForm.unmount(); } catch (_) {}
-        cardForm = null;
-      }
+      cardForm = null;
     }
 
     async function mountCardFormSafe() {
       try {
-        if (!orderData?.totals?.grandTotal) {
+        if (!orderData?.totals?.grandTotal && !getTotalForSelectedMethod("card")) {
           throw new Error("Total do pedido inválido.");
         }
-
-        if (!mp) {
-          const publicKey = await getMpPublicKey();
-          mp = new MercadoPago(publicKey, { locale: "pt-BR" });
-        }
-
-        if (cardForm) unmountCardForm();
-
-        cardForm = mp.cardForm({
-          amount: String(orderData.totals.grandTotal),
-          iframe: true,
-          form: {
-            id: "form-checkout",
-            cardNumber: { id: "form-checkout__cardNumber", placeholder: "0000 0000 0000 0000" },
-            expirationDate: { id: "form-checkout__expirationDate", placeholder: "MM/AA" },
-            securityCode: { id: "form-checkout__securityCode", placeholder: "123" },
-            cardholderName: { id: "form-checkout__cardholderName" },
-            issuer: { id: "form-checkout__issuer" },
-            installments: { id: "form-checkout__installments" },
-            identificationType: { id: "form-checkout__identificationType" },
-            identificationNumber: { id: "form-checkout__identificationNumber" },
-            cardholderEmail: { id: "form-checkout__cardholderEmail" }
-          },
-          callbacks: {
-            onFormMounted: (error) => {
-              if (error) {
-                console.warn("Erro ao montar formulário", error);
-                return;
-              }
-
-              if (!document.getElementById("form-checkout__cardholderName").value) {
-                document.getElementById("form-checkout__cardholderName").value = getOrderFullName();
-              }
-              fillCustomerFieldsFromOrder();
-              const payer = getMpPayerStrict();
-              document.getElementById("form-checkout__cardholderEmail").value = payer.email || "";
-              document.getElementById("form-checkout__identificationType").value = "CPF";
-              document.getElementById("form-checkout__identificationNumber").value = payer.identification?.number || "";
-            },
-            onSubmit: (event) => {
-              event.preventDefault();
-              const formData = cardForm.getCardFormData();
-              doPayCard(formData);
-            },
-            onIdentificationTypesReceived: (error) => {
-              if (error) console.warn("Erro identificação", error);
-            }
+        fillCustomerFieldsFromOrder();
+        const holder = document.getElementById("form-checkout__cardholderName");
+        if (holder && !holder.value) holder.value = getOrderFullName();
+        const installmentsEl = document.getElementById("form-checkout__installments");
+        if (installmentsEl && !installmentsEl.options.length) {
+          const amount = Number(getTotalForSelectedMethod("card") || 0);
+          const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+          for (let i = 1; i <= 12; i++) {
+            const opt = document.createElement("option");
+            opt.value = String(i);
+            opt.textContent = `${i}x de ${fmt.format(amount / i)} sem juros`;
+            installmentsEl.appendChild(opt);
           }
-        });
+        }
       } catch (err) {
-        console.error("Falha crítica no SDK:", err);
+        console.error("Falha ao iniciar formulário Pagar.me:", err);
         setAlert("error", err.message || "Falha ao iniciar o cartão.");
       }
     }
 
-    async function doPayCard(formData) {
+    async function doPayCard(_formData) {
       try {
         const customer = validateCardCustomerData();
-        document.getElementById("form-checkout__cardholderEmail").value = customer.email;
-        document.getElementById("form-checkout__identificationType").value = "CPF";
-        document.getElementById("form-checkout__identificationNumber").value = customer.cpf;
-
-        setAlert("loading", "Validando cartão junto ao Mercado Pago...");
+        setAlert("loading", "Validando cartão com segurança pelo Pagar.me...");
         disablePayments(true);
 
-        const payer = getMpPayerStrict();
+        const installments = Number(getInputValue("form-checkout__installments") || 1) || 1;
+        const amount = Number(getTotalForSelectedMethod("card") || 0) || 0;
 
-        const cardToken = String(formData?.token || "").trim();
-        const issuerId = String(formData?.issuerId || formData?.issuer_id || "").trim();
-        const paymentMethodId = String(formData?.paymentMethodId || formData?.payment_method_id || "").trim();
-        const installments = Number(formData?.installments || 1) || 1;
-        const amount = Number(getTotalForSelectedMethod("card") || formData?.amount || 0) || 0;
-
-        console.log("[CARD FORM DATA]", {
-          hasToken: !!cardToken,
-          issuerId,
-          paymentMethodId,
+        console.log("[PAGARME CARD FORM DATA]", {
           installments,
           amount,
           emailOk: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email || ""),
@@ -760,31 +768,21 @@
         if (!amount || amount <= 0) {
           throw new Error("Total do pedido inválido para pagamento no cartão.");
         }
-        if (!cardToken) {
-          throw new Error("O Mercado Pago não gerou o token do cartão. Confira número, validade, CVV e tente novamente.");
-        }
-        if (!paymentMethodId) {
-          throw new Error("A bandeira do cartão não foi identificada pelo Mercado Pago.");
-        }
-        if (!issuerId) {
-          throw new Error("O banco emissor do cartão não foi identificado pelo Mercado Pago.");
-        }
 
-        const result = await apiFetch("/payments/mp/credit", {
+        const cardToken = await createPagarmeCardToken();
+
+        const result = await apiFetch("/payments/pagarme/credit", {
           method: "POST",
           body: JSON.stringify({
-            token: cardToken,
-            issuer_id: issuerId,
-            payment_method_id: paymentMethodId,
+            card_token: cardToken,
             amount,
             installments,
-            orderId: orderId,
+            orderId,
             email: customer.email,
             cpf: customer.cpf,
             birthDate: customer.birthDate,
             phone: customer.phone,
-            customer: customer,
-            payer: payer,
+            customer,
             address: toMpAddress(getBestAddress()),
             receiver_address: getMpReceiverAddressFromOrder(),
             paymentMethod: "card"
@@ -801,14 +799,14 @@
           return;
         }
 
-        const mpStatus = getMpStatus(result) || "pending";
-        mergeAndCachePayment("card", result, mpStatus);
-        throw new Error(`${getMpStatusMessage(result)} Status: ${mpStatus}`);
+        const status = getMpStatus(result) || "pending";
+        mergeAndCachePayment("card", result, status);
+        throw new Error(`${getMpStatusMessage(result)} Status: ${status}`);
       } catch (e) {
-        console.error("ERRO CARTAO COMPLETO:", e);
+        console.error("ERRO CARTAO PAGARME:", e);
 
-        let msg =
-          e?.details?.cause?.[0]?.description ||
+        const msg =
+          e?.details?.errors?.[0]?.message ||
           e?.details?.message ||
           e?.statusDetail ||
           e?.message ||
@@ -1173,6 +1171,13 @@
         document.getElementById("customerBirthDate")?.addEventListener("input", (e) => { e.target.value = maskBirthDateValue(e.target.value); });
         document.getElementById("customerBirthDate")?.addEventListener("blur", (e) => { e.target.value = formatBirthDateForInput(e.target.value); });
         document.getElementById("customerEmail")?.addEventListener("blur", (e) => { e.target.value = String(e.target.value || "").trim().toLowerCase(); });
+        document.getElementById("form-checkout__cardNumber")?.addEventListener("input", (e) => { e.target.value = maskCardNumberValue(e.target.value); });
+        document.getElementById("form-checkout__expirationDate")?.addEventListener("input", (e) => { e.target.value = maskCardExpValue(e.target.value); });
+        document.getElementById("form-checkout__securityCode")?.addEventListener("input", (e) => { e.target.value = digitsOnly(e.target.value).slice(0, 4); });
+        document.getElementById("form-checkout")?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          doPayCard(null);
+        });
         document.getElementById("btn-generate-boleto")?.addEventListener("click", generateBoleto);
         document.getElementById("btn-generate-pix")?.addEventListener("click", generatePix);
         document.getElementById("btn-copy-pix").addEventListener("click", async () => {

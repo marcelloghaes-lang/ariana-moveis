@@ -180,6 +180,29 @@ footer, .site-footer, .footer, .footer-wrap {
   max-width: 100% !important;
 }
 
+
+/* ===== CORREÇÃO: banners sem zoom ao passar o mouse ===== */
+#mini-banners-section .banner-frame img,
+#hero-banners-section .banner-frame img,
+#home-cards-section img,
+#secondary-banner-1-section .banner-frame img,
+#secondary-banner-2-section .banner-frame img,
+#index-duo-banners-section .banner-frame img,
+#footer-banner-section .banner-frame img {
+  transform: none !important;
+  transition-property: opacity, box-shadow, filter !important;
+}
+
+#mini-banners-section .group:hover img,
+#hero-banners-section .group:hover img,
+#home-cards-section .group:hover img,
+#secondary-banner-1-section .group:hover img,
+#secondary-banner-2-section .group:hover img,
+#index-duo-banners-section .group:hover img,
+#footer-banner-section .group:hover img {
+  transform: none !important;
+}
+
 </style>
 
 <!-- === Layout clamp (padronizar visual no desktop) === -->
@@ -274,7 +297,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           <img id="mini_banner_1_image"
                src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+1"
                alt="Mini Banner 1"
-               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               class="banner-img banner-fit-cover"
                loading="lazy"
                onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
           <p id="mini_banner_1_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
@@ -284,7 +307,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           <img id="mini_banner_2_image"
                src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+2"
                alt="Mini Banner 2"
-               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               class="banner-img banner-fit-cover"
                loading="lazy"
                onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
           <p id="mini_banner_2_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
@@ -294,7 +317,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           <img id="mini_banner_3_image"
                src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+3"
                alt="Mini Banner 3"
-               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               class="banner-img banner-fit-cover"
                loading="lazy"
                onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
           <p id="mini_banner_3_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
@@ -304,7 +327,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           <img id="mini_banner_4_image"
                src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+4"
                alt="Mini Banner 4"
-               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               class="banner-img banner-fit-cover"
                loading="lazy"
                onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
           <p id="mini_banner_4_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
@@ -314,7 +337,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
           <img id="mini_banner_5_image"
                src="https://placehold.co/800x450/CCCCCC/333333?text=Mini+Banner+5"
                alt="Mini Banner 5"
-               class="banner-img banner-fit-cover transition-transform duration-500 group-hover:scale-[1.02]"
+               class="banner-img banner-fit-cover"
                loading="lazy"
                onerror="this.src='https://placehold.co/800x450/FF0000/FFFFFF?text=ERRO'">
           <p id="mini_banner_5_status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-[11px] font-semibold shadow"></p>
@@ -402,7 +425,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <img id="home_card_1_image"
                  src="https://placehold.co/800x800/2E6DA4/ffffff?text=Carregando+Card+1"
                  alt="Card de destaque 1"
-                 class="w-full h-full object-contain bg-white transition-transform duration-500 group-hover:scale-[1.02]"
+                 class="w-full h-full object-contain bg-white"
                  loading="lazy">
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
@@ -417,7 +440,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <img id="home_card_2_image"
                  src="https://placehold.co/800x800/56B5FF/1D2B3A?text=Carregando+Card+2"
                  alt="Card de destaque 2"
-                 class="w-full h-full object-contain bg-white transition-transform duration-500 group-hover:scale-[1.02]"
+                 class="w-full h-full object-contain bg-white"
                  loading="lazy">
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
@@ -432,7 +455,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <img id="home_card_3_image"
                  src="https://placehold.co/800x800/1D2B3A/ffffff?text=Carregando+Card+3"
                  alt="Card de destaque 3"
-                 class="w-full h-full object-contain bg-white transition-transform duration-500 group-hover:scale-[1.02]"
+                 class="w-full h-full object-contain bg-white"
                  loading="lazy">
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
@@ -451,7 +474,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         <img id="secondary-banner-1-image"
              src="https://placehold.co/1600x400/56B5FF/1D2B3A?text=Queridinhos+da+Internet"
              alt="Banner Queridinhos da Internet"
-             class="banner-img banner-fit-contain transition-transform duration-500 group-hover:scale-[1.01]"
+             class="banner-img banner-fit-contain"
              loading="lazy"
              onerror="this.src='https://placehold.co/1600x400/FF5733/FFFFFF?text=ERRO+AO+CARREGAR+IMAGEM'">
         <p id="secondary-banner-1-status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow"></p>
@@ -524,7 +547,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         <img id="secondary-banner-2-image"
              src="https://placehold.co/1600x400/2E6DA4/ffffff?text=Promoção+Exclusiva"
              alt="Banner Promoção Exclusiva"
-             class="banner-img banner-fit-contain transition-transform duration-500 group-hover:scale-[1.01]"
+             class="banner-img banner-fit-contain"
              loading="lazy"
              onerror="this.src='https://placehold.co/1600x400/3498DB/FFFFFF?text=ERRO+AO+CARREGAR+IMAGEM'">
         <p id="secondary-banner-2-status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow"></p>
@@ -552,7 +575,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
         <img id="footer-banner-image"
              src="https://placehold.co/1600x400/1D2B3A/ffffff?text=Carregando+Banner+Extra"
              alt="Banner Extra"
-             class="banner-img banner-fit-contain transition-transform duration-500 group-hover:scale-[1.01]"
+             class="banner-img banner-fit-contain"
              loading="lazy">
         <p id="footer-banner-status" class="absolute bottom-2 left-2 text-white bg-dark-bg/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow"></p>
       </a>

@@ -727,7 +727,7 @@ const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE =
   process.env.EVOLUTION_INSTANCE || 'Ariana_Notificacoes';
 const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
 const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
-const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
+const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', publicKey: process.env.PAGARME_PUBLIC_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
 const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
 
@@ -1448,6 +1448,153 @@ async function calculateShipping(body = {}) {
 async function buildMercadoPagoHeaders() { const settings = await getPaymentsSettings(); const accessToken = settings.mercadopago?.accessToken || process.env.MP_ACCESS_TOKEN || ''; if (!accessToken) throw new Error('Mercado Pago access token não configurado.'); return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }; }
 async function createMercadoPagoPayment(payload) { const headers = await buildMercadoPagoHeaders(); const idempotencyKey = uid('mp'); const response = await axios.post('https://api.mercadopago.com/v1/payments', payload, { headers: { ...headers, 'X-Idempotency-Key': idempotencyKey }, timeout: 30000, validateStatus: () => true }); return { response, idempotencyKey }; }
 async function createPagarmeOrder(payload) { const settings = await getPaymentsSettings(); const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || ''; const endpoint = settings.pagarme?.endpoint || 'https://api.pagar.me/core/v5'; if (!apiKey) throw new Error('Pagar.me API key não configurada.'); return axios.post(`${endpoint}/orders`, payload, { auth: { username: apiKey, password: '' }, headers: { 'Content-Type': 'application/json' }, timeout: 30000, validateStatus: () => true }); }
+
+function moneyToCents(value = 0) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100);
+}
+
+function centsToMoney(value = 0) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n) / 100;
+}
+
+function splitPhoneBR(value = '') {
+  const digits = cleanPhone(value || '');
+  let local = digits;
+  if (local.startsWith('55') && local.length >= 12) local = local.slice(2);
+  const areaCode = local.length >= 10 ? local.slice(0, 2) : '';
+  const number = local.length >= 10 ? local.slice(2) : local;
+  return { country_code: '55', area_code: areaCode || '33', number: number || '999999999' };
+}
+
+function sanitizePagarmeStatementDescriptor(value = 'ARIANAMOVEIS') {
+  return String(value || 'ARIANAMOVEIS')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .replace(/\s+/g, '')
+    .slice(0, 13) || 'ARIANAMOVEIS';
+}
+
+function buildPagarmeCustomer(body = {}, order = null) {
+  const customer = body.customer || {};
+  const shippingAddress = order?.shippingAddress || body.address || body.shippingAddress || {};
+  const name = String(customer.name || body.name || order?.customerName || 'Cliente Ariana Moveis').trim();
+  const email = String(customer.email || body.email || order?.customerEmail || 'cliente@arianamoveis.com.br').trim().toLowerCase();
+  const document = cleanPhone(customer.cpf || customer.document || body.cpf || order?.cpf || '');
+  const phoneRaw = customer.phone || body.phone || order?.customerPhone || shippingAddress?.phone || '';
+  const phone = splitPhoneBR(phoneRaw);
+
+  return {
+    name,
+    email,
+    document,
+    type: 'individual',
+    phones: {
+      mobile_phone: phone
+    }
+  };
+}
+
+function buildPagarmeItems(body = {}, order = null) {
+  const amount = moneyToCents(body.amount || body.total || order?.total || 0);
+  const fallbackDescription = body.description || `Pedido Ariana Moveis ${String(body.orderId || order?._id || '').slice(-8)}`;
+  return [{
+    amount,
+    description: String(fallbackDescription || 'Pedido Ariana Moveis').slice(0, 120),
+    quantity: 1,
+    code: String(body.orderId || order?._id || uid('order')).slice(0, 52)
+  }];
+}
+
+function getPagarmeCharge(responseData = {}) {
+  const charges = Array.isArray(responseData.charges) ? responseData.charges : [];
+  return charges[0] || null;
+}
+
+function getPagarmeTransaction(responseData = {}) {
+  const charge = getPagarmeCharge(responseData) || {};
+  const txs = Array.isArray(charge.last_transaction) ? charge.last_transaction : null;
+  if (Array.isArray(txs)) return txs[0] || null;
+  return charge.last_transaction || null;
+}
+
+function getPagarmeStatus(responseData = {}) {
+  const charge = getPagarmeCharge(responseData) || {};
+  const tx = getPagarmeTransaction(responseData) || {};
+  const orderStatus = String(responseData.status || '').toLowerCase();
+  const chargeStatus = String(charge.status || '').toLowerCase();
+  const txStatus = String(tx.status || '').toLowerCase();
+  if (orderStatus === 'paid' || chargeStatus === 'paid' || txStatus === 'captured' || txStatus === 'authorized') return 'approved';
+  if (orderStatus === 'failed' || chargeStatus === 'failed' || txStatus === 'not_authorized' || txStatus === 'failed' || txStatus === 'with_error') return 'rejected';
+  return orderStatus || chargeStatus || txStatus || 'pending';
+}
+
+async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = {}) {
+  try {
+    const oid = normalizeObjectId(orderId);
+    if (!oid) return null;
+    const status = getPagarmeStatus(pagarmeData);
+    const approved = status === 'approved';
+    const charge = getPagarmeCharge(pagarmeData) || {};
+    const tx = getPagarmeTransaction(pagarmeData) || {};
+
+    const patch = {
+      status: approved ? 'pago' : (status === 'rejected' ? 'pagamento_recusado' : 'pending_payment'),
+      statusLabel: approved ? 'Pagamento aprovado' : (status === 'rejected' ? 'Pagamento recusado' : 'Aguardando confirmação do pagamento'),
+      payment: {
+        provider: 'pagarme',
+        method: 'card',
+        type: 'credit_card',
+        paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
+        orderId: String(pagarmeData.id || ''),
+        status,
+        statusDetail: String(tx.acquirer_message || tx.gateway_response?.message || tx.message || charge.status || pagarmeData.status || ''),
+        installments: extra.installments || undefined,
+        amount: centsToMoney(charge.amount || tx.amount || 0),
+        raw: redact(pagarmeData || {})
+      }
+    };
+    const updated = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
+    if (approved) await notifySaleAfterPaymentApproved(updated, 'pagarme_card_approved');
+    return updated;
+  } catch (error) {
+    console.error('Erro ao atualizar pedido com pagamento Pagar.me:', error.message || error);
+    return null;
+  }
+}
+
+function buildPagarmeCreditPayload(body = {}, order = null) {
+  const cardToken = String(body.card_token || body.cardToken || body.token || '').trim();
+  if (!cardToken) throw new Error('Token do cartão Pagar.me ausente.');
+  const amount = moneyToCents(body.amount || body.total || order?.total || 0);
+  if (!amount) throw new Error('Total inválido para cartão Pagar.me.');
+  const installments = Math.max(1, Math.min(Number(body.installments || 1) || 1, 12));
+
+  return {
+    code: String(body.orderId || order?._id || uid('order')).slice(0, 52),
+    closed: true,
+    customer: buildPagarmeCustomer(body, order),
+    items: buildPagarmeItems({ ...body, amount: centsToMoney(amount) }, order),
+    payments: [{
+      payment_method: 'credit_card',
+      credit_card: {
+        installments,
+        statement_descriptor: sanitizePagarmeStatementDescriptor(process.env.PAGARME_STATEMENT_DESCRIPTOR || 'ARIANAMOVEIS'),
+        operation_type: 'auth_and_capture',
+        card_token: cardToken
+      }
+    }],
+    metadata: {
+      orderId: String(body.orderId || order?._id || ''),
+      provider: 'pagarme',
+      paymentMethod: 'card'
+    }
+  };
+}
+
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'Ariana Móveis Enterprise Mongo API', buildId: BUILD_ID }));
 app.get('/health', (_req, res) => res.json({ ok: true, mongo: mongoose.connection.readyState === 1 ? 'connected' : `state_${mongoose.connection.readyState}`, buildId: BUILD_ID, uptime: process.uptime(), time: new Date().toISOString() }));
@@ -3168,8 +3315,96 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Mercado Pago' });
   }
 });
+
+app.get('/api/payments/pagarme/public-key', async (_req, res) => {
+  try {
+    const settings = await getPaymentsSettings();
+    const publicKey = settings.pagarme?.publicKey || process.env.PAGARME_PUBLIC_KEY || '';
+    if (!publicKey) return res.status(500).json({ ok: false, error: 'Pagar.me public key não configurada.' });
+    return res.json({ ok: true, publicKey, endpoint: settings.pagarme?.endpoint || process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao obter public key Pagar.me.' });
+  }
+});
+
+app.post('/api/payments/pagarme/credit', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const orderId = body.orderId || body.order_id || null;
+    const order = normalizeObjectId(orderId) ? await Order.findById(orderId) : null;
+    const payload = buildPagarmeCreditPayload(body, order);
+
+    const response = await createPagarmeOrder(payload);
+    const pagarmeData = response.data || {};
+    const normalizedStatus = getPagarmeStatus(pagarmeData);
+    const approved = normalizedStatus === 'approved';
+    const charge = getPagarmeCharge(pagarmeData) || {};
+    const tx = getPagarmeTransaction(pagarmeData) || {};
+
+    const updatedOrder = response.status >= 200 && response.status < 300
+      ? await updateOrderPaymentFromPagarme(orderId, pagarmeData, { installments: Number(body.installments || 1) || 1 })
+      : null;
+
+    await writeAuditLog({
+      scope: 'payments',
+      eventType: 'pagarme_card_created',
+      orderId: orderId || null,
+      status: response.status >= 200 && response.status < 300 ? 'success' : 'error',
+      statusCode: response.status,
+      request: payload,
+      response: pagarmeData,
+      metadata: { provider: 'pagarme', orderUpdated: !!updatedOrder }
+    });
+
+    return res.status(response.status).json({
+      ok: response.status >= 200 && response.status < 300,
+      approved,
+      status: normalizedStatus,
+      statusDetail: String(tx.acquirer_message || tx.gateway_response?.message || tx.message || charge.status || pagarmeData.status || ''),
+      id: String(charge.id || tx.id || pagarmeData.id || ''),
+      paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
+      paymentMethod: 'card',
+      method: 'card',
+      provider: 'pagarme',
+      data: pagarmeData,
+      raw: pagarmeData,
+      order: updatedOrder ? toJSON(updatedOrder) : null
+    });
+  } catch (error) {
+    const status = error?.response?.status || 500;
+    const details = error?.response?.data || null;
+    return res.status(status).json({
+      ok: false,
+      provider: 'pagarme',
+      error: details?.message || details?.errors?.[0]?.message || error.message || 'Erro ao criar pagamento cartão no Pagar.me',
+      details
+    });
+  }
+});
+
 app.post('/api/payments/pagarme/order', async (req, res) => { try { const payload = req.body || {}; const response = await createPagarmeOrder(payload); await writeAuditLog({ scope: 'payments', eventType: 'pagarme_order_created', orderId: payload.metadata?.orderId || payload.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'pagarme' } }); return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, data: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pedido no Pagar.me' }); } });
-app.post('/api/webhooks/pagarme', async (req, res) => { try { const payload = req.body || {}; const event = await PaymentEvent.create({ provider: 'pagarme', eventType: payload.type || payload.event || 'unknown', externalId: payload.id ? String(payload.id) : null, orderId: payload.data?.metadata?.orderId || payload.orderId || null, payload }); await writeAuditLog({ scope: 'payments', eventType: 'pagarme_webhook_received', orderId: event.orderId || null, status: 'received', request: payload, metadata: { provider: 'pagarme' } }); return res.json({ ok: true }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Pagar.me' }); } });
+app.post('/api/webhooks/pagarme', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const data = payload.data || payload;
+    const orderId = data?.metadata?.orderId || data?.order?.metadata?.orderId || payload.orderId || null;
+    const event = await PaymentEvent.create({
+      provider: 'pagarme',
+      eventType: payload.type || payload.event || 'unknown',
+      externalId: payload.id ? String(payload.id) : (data.id ? String(data.id) : null),
+      orderId,
+      payload
+    });
+    let orderUpdate = null;
+    if (orderId && (data.status || data.charges || data.amount)) {
+      orderUpdate = await updateOrderPaymentFromPagarme(orderId, data, { origin: 'pagarme_webhook' });
+    }
+    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_webhook_received', orderId: event.orderId || null, status: 'received', request: payload, metadata: { provider: 'pagarme', orderUpdate } });
+    return res.json({ ok: true, orderUpdate });
+  } catch (_error) {
+    return res.status(500).json({ ok: false, error: 'Erro ao processar webhook do Pagar.me' });
+  }
+});
 app.get('/api/admin/runtime', adminRequired, async (_req, res) => { const whatsapp = await getWhatsappSettings(); const shipping = await getShippingSettings(); const payments = await getPaymentsSettings(); return res.json({ ok: true, buildId: BUILD_ID, runtime: { nodeEnv: process.env.NODE_ENV || 'development', port: PORT, appBaseUrl: APP_BASE_URL || null, contaboPublicUrl: process.env.CONTABO_PUBLIC_URL || null, evolutionApiUrl: whatsapp.apiUrl || null, evolutionInstance: whatsapp.instanceName || null, mongoDb: MONGODB_DB }, integrations: { whatsapp: redactWhatsappSettings(whatsapp), shipping, payments: redact(payments) } }); });
 app.use((error, _req, res, _next) => { console.error('❌ Erro não tratado:', error); return res.status(500).json({ ok: false, error: error.message || 'Erro interno' }); });
 
