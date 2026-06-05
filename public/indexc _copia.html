@@ -97,7 +97,7 @@
   
     /* ===== hero e mini-banners ===== */
     #hero-banners-section .hero-main-expanded{grid-column:1 / -1 !important;}
-    #hero-banners-section .hero-main-expanded.banner-4x1{aspect-ratio:4 / 1;}
+    #hero-banners-section .hero-main-expanded.banner-4x1{aspect-ratio:24 / 7;}
     #hero-banners-section .hero-side-hidden{display:none !important;}
 
     #mini-banners-carousel.is-carousel{
@@ -151,29 +151,19 @@ body { margin: 0; }
   margin-right: calc(50% - 50vw);
 }
 
-/* Imagens de banner sem corte */
+/* Imagens de banner sempre preenchendo o card */
 .banner-frame, .mini-card, .hero-banner, .deal-banner { overflow: hidden; }
-
-/* Por padrão, banner principal fica inteiro dentro do card */
-.banner-frame img, .hero-banner img, .deal-banner img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center center;
-  display: block;
-  background: transparent;
-}
-
-/* Mini cards pequenos podem continuar preenchendo */
-.mini-card img {
+.banner-frame img, .mini-card img, .hero-banner img, .deal-banner img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-/* Mantém contain de verdade para não cortar topo/laterais */
-.banner-fit-contain{ object-fit: contain !important; }
+
+
+  /* Evita "sobras" dentro do banner (contain vira cover nos banners) */
+.banner-fit-contain{ object-fit: cover !important; }
 /* Mini-banners no mobile: evita ficar "tudo junto" / desorganizado */
 @media (max-width: 768px) {
   .mini-banners { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
@@ -211,81 +201,6 @@ footer, .site-footer, .footer, .footer-wrap {
 #index-duo-banners-section .group:hover img,
 #footer-banner-section .group:hover img {
   transform: none !important;
-}
-
-
-/* ===== CORREÇÃO FINAL DO BANNER PRINCIPAL: não cortar geladeira/produtos ===== */
-#hero-banners-section #banner-link,
-#hero-banners-section .banner-4x1,
-#hero-banners-section .hero-main-expanded.banner-4x1{
-  aspect-ratio: 4 / 1 !important;
-  height: auto !important;
-}
-
-#hero-banners-section #main-banner-image{
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
-  object-position: center center !important;
-  display: block !important;
-  background: transparent !important;
-  transform: none !important;
-}
-
-
-/* ===== CORREÇÃO FINAL DEFINITIVA: remove laterais desfocadas e evita corte só no banner principal ===== */
-
-/* Remove o fundo blur que estava criando aquelas faixas cinzas/desfocadas nas laterais */
-.banner-frame::before,
-.banner-frame::after{
-  display: none !important;
-  content: none !important;
-  background: none !important;
-}
-
-/* Todos os banners comuns voltam a preencher o card normalmente */
-.banner-frame img,
-.mini-card img,
-.hero-banner img,
-.deal-banner img,
-#mini-banners-section .banner-frame img,
-#secondary-banner-1-section .banner-frame img,
-#secondary-banner-2-section .banner-frame img,
-#index-duo-banners-section .banner-frame img,
-#footer-banner-section .banner-frame img{
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  object-position: center center !important;
-  display: block !important;
-  background: transparent !important;
-  transform: none !important;
-}
-
-/* O banner principal fica inteiro para não cortar a geladeira/produtos */
-#hero-banners-section #banner-link,
-#hero-banners-section .hero-main-expanded.banner-4x1{
-  aspect-ratio: 4 / 1 !important;
-  height: auto !important;
-  overflow: hidden !important;
-  background: #0047AB !important;
-}
-
-#hero-banners-section #main-banner-image{
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
-  object-position: center center !important;
-  display: block !important;
-  background: #0047AB !important;
-  transform: none !important;
-}
-
-/* Garante que classes antigas não forcem contain nos banners de baixo */
-#secondary-banner-1-section .banner-fit-contain,
-#secondary-banner-2-section .banner-fit-contain,
-#footer-banner-section .banner-fit-contain{
-  object-fit: cover !important;
 }
 
 </style>
@@ -1915,116 +1830,6 @@ window.addEventListener('load', () => {
 <script src="marketplace-core_global_payments.js"></script>
 
  <script src="js/layout-fit.js" defer></script>
-
-
-
-<!-- ===== FIX CARROSSEL MINI-BANNERS: reinicia depois que banners carregam ===== -->
-<script>
-(function(){
-  function bootMiniBannersCarousel(){
-    const wrap = document.getElementById('mini-banners-carousel');
-    const section = document.getElementById('mini-banners-section');
-    if (!wrap || (section && section.classList.contains('hidden'))) return false;
-
-    if (wrap.__miniTimer) {
-      clearInterval(wrap.__miniTimer);
-      wrap.__miniTimer = null;
-    }
-    if (wrap.__miniResumeTimer) {
-      clearTimeout(wrap.__miniResumeTimer);
-      wrap.__miniResumeTimer = null;
-    }
-
-    Array.from(wrap.querySelectorAll(':scope > a[data-clone="true"]')).forEach(node => node.remove());
-
-    const baseCards = Array.from(wrap.querySelectorAll(':scope > a')).filter(el => {
-      return !el.classList.contains('hidden') && el.querySelector('img');
-    });
-
-    if (baseCards.length <= 1) return false;
-
-    wrap.classList.remove('grid', 'grid-cols-2', 'sm:grid-cols-3', 'lg:grid-cols-5');
-    wrap.classList.add('is-carousel');
-
-    const clonesNeeded = Math.max(baseCards.length * 2, 8);
-    for (let i = 0; i < clonesNeeded; i++) {
-      const clone = baseCards[i % baseCards.length].cloneNode(true);
-      clone.dataset.clone = 'true';
-      clone.removeAttribute('id');
-      clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-      wrap.appendChild(clone);
-    }
-
-    const getCards = () => Array.from(wrap.querySelectorAll(':scope > a'));
-    let currentIndex = 0;
-
-    const scrollToIndex = (index, behavior = 'smooth') => {
-      const cards = getCards();
-      const card = cards[index];
-      if (!card) return;
-      wrap.scrollTo({ left: card.offsetLeft, behavior });
-    };
-
-    const start = () => {
-      if (wrap.__miniTimer) clearInterval(wrap.__miniTimer);
-      wrap.__miniTimer = setInterval(() => {
-        if (document.hidden) return;
-        currentIndex += 1;
-        scrollToIndex(currentIndex);
-        if (currentIndex >= baseCards.length) {
-          setTimeout(() => {
-            currentIndex = 0;
-            scrollToIndex(0, 'auto');
-          }, 450);
-        }
-      }, window.innerWidth <= 767 ? 3200 : 2800);
-    };
-
-    const pause = () => {
-      if (wrap.__miniTimer) clearInterval(wrap.__miniTimer);
-      if (wrap.__miniResumeTimer) clearTimeout(wrap.__miniResumeTimer);
-      wrap.__miniResumeTimer = setTimeout(start, 5000);
-    };
-
-    if (!wrap.__miniListenersAttached) {
-      wrap.addEventListener('mouseenter', () => { if (wrap.__miniTimer) clearInterval(wrap.__miniTimer); });
-      wrap.addEventListener('mouseleave', start);
-      wrap.addEventListener('touchstart', pause, { passive: true });
-      wrap.addEventListener('wheel', pause, { passive: true });
-      window.addEventListener('resize', () => {
-        currentIndex = 0;
-        scrollToIndex(0, 'auto');
-        start();
-      });
-      wrap.__miniListenersAttached = true;
-    }
-
-    scrollToIndex(0, 'auto');
-    start();
-    return true;
-  }
-
-  window.initMiniBannersCarousel = bootMiniBannersCarousel;
-
-  function tryBootMiniBanners(){
-    let tries = 0;
-    const tick = () => {
-      tries += 1;
-      bootMiniBannersCarousel();
-      if (tries >= 10) clearInterval(timer);
-    };
-    const timer = setInterval(tick, 700);
-    tick();
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tryBootMiniBanners);
-  } else {
-    tryBootMiniBanners();
-  }
-  window.addEventListener('load', () => setTimeout(tryBootMiniBanners, 500));
-})();
-</script>
 
 </body>
 </html>
