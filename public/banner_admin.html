@@ -429,23 +429,19 @@ const msg = document.getElementById('msg');
       return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
     }
     async function fetchWithApiFallback(path, init = {}) {
-      const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
-      let lastError = null;
-      let lastResponse = null;
+  const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
+  let lastError = null;
+  let lastResponse = null;
 
-      for (const base of bases) {
-        try {
-          const url = `${base}${path}`;
-          console.log("ENVIANDO PARA:", `${API_BASE}/payments/pagarme/credit`);
-alert("Vou enviar para Pagar.me");
-          const res = await fetch(url, init);
+  for (const base of bases) {
+    try {
+      const url = `${base}${path}`;
+      const res = await fetch(url, init);
 
-          // Se estiver testando local e a rota não existir no localhost,
-          // tenta a mesma rota no Render antes de desistir.
-          if (!res.ok && [404, 405, 502, 503, 504].includes(res.status) && base !== bases[bases.length - 1]) {
-            lastResponse = res;
-            continue;
-          }
+      if (!res.ok && [404, 405, 502, 503, 504].includes(res.status) && base !== bases[bases.length - 1]) {
+        lastResponse = res;
+        continue;
+      }
 
           window.API_BASE = base;
           window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
