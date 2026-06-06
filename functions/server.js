@@ -729,7 +729,7 @@ const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL
 const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
 const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', publicKey: process.env.PAGARME_PUBLIC_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
-const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
+const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
 
 async function getSetting(key, fallback = null) { const doc = await Setting.findOne({ key }); return doc ? doc.value : fallback; }
 async function setSetting(key, value, updatedBy = 'system') { const doc = await Setting.findOneAndUpdate({ key }, { $set: { value, updatedBy } }, { upsert: true, new: true }); return doc.value; }
@@ -751,7 +751,13 @@ async function getWhatsappSettings() {
 async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
 async function getPaymentsSettings() { const value = await getSetting('payments', DEFAULT_PAYMENTS_SETTINGS); return { mercadopago: { ...DEFAULT_PAYMENTS_SETTINGS.mercadopago, ...(value?.mercadopago || {}) }, pagarme: { ...DEFAULT_PAYMENTS_SETTINGS.pagarme, ...(value?.pagarme || {}) } }; }
 async function saveShippingSettings(data, updatedBy = 'system') { const current = await getShippingSettings(); const incoming = data || {}; const merged = { ...current, ...incoming, correios: { ...(current.correios || {}), ...((incoming && incoming.correios) || {}) }, businessRules: { ...(current.businessRules || {}), ...((incoming && incoming.businessRules) || {}), arianaMoveis: { ...((current.businessRules || {}).arianaMoveis || {}), ...(((incoming && incoming.businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((current.businessRules || {}).snDigital || {}), ...(((incoming && incoming.businessRules) || {}).snDigital || {}) }, rodocap: { ...((current.businessRules || {}).rodocap || {}), ...(((incoming && incoming.businessRules) || {}).rodocap || {}), allowedCities: Array.isArray((((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities) && (((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities.length ? (((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities : (((current.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(current.carriers || {}), ...((incoming && incoming.carriers) || {}), correios: { ...((current.carriers || {}).correios || {}), ...(((incoming && incoming.carriers) || {}).correios || {}), enabled: ((incoming && incoming.correios && incoming.correios.enabled !== undefined) ? incoming.correios.enabled : ((((incoming && incoming.carriers) || {}).correios || {}).enabled ?? ((current.carriers || {}).correios || {}).enabled)), maxWeightKg: Number((((incoming && incoming.correios) || {}).maxWeightKg) || ((((incoming && incoming.carriers) || {}).correios || {}).maxWeightKg) || (((current.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((((incoming && incoming.correios) || {}).maxDimensionCm) || ((((incoming && incoming.carriers) || {}).correios || {}).maxDimensionCm) || (((current.carriers || {}).correios || {}).maxDimensionCm) || 100) } } }; await setSetting('shipping', merged, updatedBy); return merged; }
-async function getShippingSettings() { const value = await getSetting('shipping', DEFAULT_SHIPPING_SETTINGS); const merged = { ...DEFAULT_SHIPPING_SETTINGS, ...(value || {}), correios: { ...(DEFAULT_SHIPPING_SETTINGS.correios || {}), ...(((value || {}).correios) || {}) }, businessRules: { ...(DEFAULT_SHIPPING_SETTINGS.businessRules || {}), ...(((value || {}).businessRules) || {}), arianaMoveis: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).arianaMoveis || {}), ...((((value || {}).businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).snDigital || {}), ...((((value || {}).businessRules) || {}).snDigital || {}) }, rodocap: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}), ...((((value || {}).businessRules) || {}).rodocap || {}), allowedCities: Array.isArray(((((value || {}).businessRules) || {}).rodocap || {}).allowedCities) && ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities.length ? ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities : (((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(DEFAULT_SHIPPING_SETTINGS.carriers || {}), ...(((value || {}).carriers) || {}) } }; merged.carriers = merged.carriers || {}; merged.carriers.correios = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.correios || {}), ...((merged.carriers || {}).correios || {}), enabled: merged.correios.enabled !== undefined ? merged.correios.enabled : ((merged.carriers || {}).correios || {}).enabled, maxWeightKg: Number((merged.correios.maxWeightKg !== undefined ? merged.correios.maxWeightKg : ((merged.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((merged.correios.maxDimensionCm !== undefined ? merged.correios.maxDimensionCm : ((merged.carriers || {}).correios || {}).maxDimensionCm) || 100) }; return merged; }
+async function getShippingSettings() { const value = await getSetting('shipping', DEFAULT_SHIPPING_SETTINGS); const merged = { ...DEFAULT_SHIPPING_SETTINGS, ...(value || {}), correios: { ...(DEFAULT_SHIPPING_SETTINGS.correios || {}), ...(((value || {}).correios) || {}) }, businessRules: { ...(DEFAULT_SHIPPING_SETTINGS.businessRules || {}), ...(((value || {}).businessRules) || {}), arianaMoveis: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).arianaMoveis || {}), ...((((value || {}).businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).snDigital || {}), ...((((value || {}).businessRules) || {}).snDigital || {}) }, rodocap: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}), ...((((value || {}).businessRules) || {}).rodocap || {}), allowedCities: Array.isArray(((((value || {}).businessRules) || {}).rodocap || {}).allowedCities) && ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities.length ? ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities : (((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(DEFAULT_SHIPPING_SETTINGS.carriers || {}), ...(((value || {}).carriers) || {}) } }; merged.carriers = merged.carriers || {}; merged.carriers.correios = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.correios || {}), ...((merged.carriers || {}).correios || {}), enabled: merged.correios.enabled !== undefined ? merged.correios.enabled : ((merged.carriers || {}).correios || {}).enabled, maxWeightKg: Number((merged.correios.maxWeightKg !== undefined ? merged.correios.maxWeightKg : ((merged.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((merged.correios.maxDimensionCm !== undefined ? merged.correios.maxDimensionCm : ((merged.carriers || {}).correios || {}).maxDimensionCm) || 100) };
+merged.carriers.frenet = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.frenet || {}), ...((merged.carriers || {}).frenet || {}) };
+merged.carriers.frenet.enabled = String(process.env.FRENET_ENABLED || (merged.carriers.frenet.enabled === false ? 'false' : '')).toLowerCase() === 'false' ? false : (merged.carriers.frenet.enabled !== false);
+merged.carriers.frenet.token = String(process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || merged.carriers.frenet.token || '').trim();
+merged.carriers.frenet.apiUrl = String(process.env.FRENET_API_URL || merged.carriers.frenet.apiUrl || 'https://api.frenet.com.br').replace(/\/+$/, '');
+merged.carriers.frenet.origemCep = String(process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || merged.carriers.frenet.origemCep || merged.correios.origemCep || '').trim();
+return merged; }
 
 
 app.get('/api/settings/payments', async (_req, res) => {
@@ -1281,6 +1287,129 @@ function getSellerContext(body = {}) {
 async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
 async function resolveDestinationLocation(body = {}) { const cep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const explicitCity = body.cidade || body.city || body.destinationCity || body.shippingAddress?.cidade || body.shippingAddress?.city || ''; const explicitState = body.uf || body.state || body.destinationState || body.shippingAddress?.uf || body.shippingAddress?.state || ''; if (explicitCity) return { cep, city: String(explicitCity).trim(), state: String(explicitState || '').trim(), source: 'request' }; const viaCep = await lookupCepInfo(cep); if (viaCep) return { ...viaCep, source: 'viacep' }; return { cep, city: '', state: '', source: cep ? 'cep_only' : 'unknown' }; }
 function isRodocapCityAllowed(city = '', rodocapRule = {}) { const normalizedCity = normalizeShippingText(city); if (!normalizedCity) return false; const allowed = Array.isArray(rodocapRule.allowedCities) ? rodocapRule.allowedCities : []; return allowed.map(normalizeShippingText).includes(normalizedCity); }
+
+function normalizeFrenetNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function buildFrenetItems(body = {}, settings = {}) {
+  const defaults = settings?.correios || {};
+  const items = Array.isArray(body.items) && body.items.length ? body.items : [{
+    qty: body.quantity || body.qty || 1,
+    sku: body.sku || body.productId || '',
+    category: body.category || body.categoria || '',
+    weightKg: body.weightKg || body.pesoKg || body.weight,
+    height: body.altura || body.alturaCm || body.height,
+    length: body.comprimento || body.comprimentoCm || body.length,
+    width: body.largura || body.larguraCm || body.width
+  }];
+
+  return items.map((item) => {
+    const qty = normalizeFrenetNumber(item.quantity || item.qty || item.quantidade, 1);
+    const weight = normalizeFrenetNumber(item.weightKg || item.pesoKg || item.weight || item.peso, Number(defaults.pesoKgPadrao || 1));
+    const height = Math.max(1, Math.ceil(normalizeFrenetNumber(item.altura || item.alturaCm || item.height || item.dimensions?.altura, Number(defaults.alturaCmPadrao || 10))));
+    const length = Math.max(1, Math.ceil(normalizeFrenetNumber(item.comprimento || item.comprimentoCm || item.length || item.dimensions?.comprimento, Number(defaults.comprimentoCmPadrao || 20))));
+    const width = Math.max(1, Math.ceil(normalizeFrenetNumber(item.largura || item.larguraCm || item.width || item.dimensions?.largura, Number(defaults.larguraCmPadrao || 15))));
+
+    const out = {
+      Height: height,
+      Length: length,
+      Quantity: qty,
+      Weight: weight,
+      Width: width
+    };
+
+    const sku = String(item.sku || item.SKU || item.productId || item.id || '').trim();
+    const category = String(item.category || item.categoria || item.categoryName || '').trim();
+    if (sku) out.SKU = sku;
+    if (category) out.Category = category;
+    return out;
+  });
+}
+
+function normalizeFrenetQuote(row = {}) {
+  const serviceCode = String(row.ServiceCode || row.serviceCode || row.Code || row.code || '').trim();
+  const carrier = String(row.Carrier || row.carrier || '').trim();
+  const serviceDescription = String(row.ServiceDescription || row.serviceDescription || row.Description || row.description || carrier || 'Frenet').trim();
+  const price = Number(row.ShippingPrice ?? row.shippingPrice ?? row.Price ?? row.price ?? row.OriginalShippingPrice ?? 0);
+  const deliveryTime = Number(row.DeliveryTime ?? row.deliveryTime ?? row.OriginalDeliveryTime ?? 0);
+  const error = row.Error === true || String(row.Error || row.error || '').toLowerCase() === 'true';
+  const message = String(row.Msg || row.Message || row.message || row.ErrorMessage || '').trim();
+
+  return {
+    service: serviceCode || sanitizeIdPart(`${carrier}_${serviceDescription}`),
+    label: carrier ? `${carrier} - ${serviceDescription}` : serviceDescription,
+    name: carrier ? `${carrier} - ${serviceDescription}` : serviceDescription,
+    price,
+    prazo: deliveryTime > 0 ? `${deliveryTime} dia(s) úteis` : 'sob consulta',
+    deadlineDays: deliveryTime > 0 ? deliveryTime : null,
+    provider: 'frenet',
+    raw: row,
+    unavailable: error || !Number.isFinite(price) || price <= 0,
+    error: message || (error ? 'Serviço indisponível na Frenet.' : '')
+  };
+}
+
+async function quoteFrenet(body = {}, settings = null) {
+  const shippingSettings = settings || await getShippingSettings();
+  const cfg = shippingSettings?.carriers?.frenet || {};
+  const token = String(cfg.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim();
+  if (!cfg.enabled) return { ok: true, quotes: [], skipped: true, reason: 'frenet_disabled' };
+  if (!token) throw new Error('FRENET_TOKEN não configurado.');
+
+  const sellerCep = normalizeCepValue(cfg.origemCep || process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || shippingSettings?.correios?.origemCep || '');
+  const recipientCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
+  if (!sellerCep) throw new Error('CEP de origem da Frenet não configurado.');
+  if (!recipientCep) throw new Error('CEP de destino inválido para cotação Frenet.');
+
+  const invoiceValue = Number(body.productPrice || body.price || body.valorNota || body.invoiceValue || body.subtotal || body.total || 0);
+  const payload = {
+    SellerCEP: sellerCep,
+    RecipientCEP: recipientCep,
+    ShipmentInvoiceValue: Number.isFinite(invoiceValue) && invoiceValue > 0 ? invoiceValue : 1,
+    ShippingServiceCode: body.shippingServiceCode || body.serviceCode || null,
+    ShippingItemArray: buildFrenetItems(body, shippingSettings),
+    RecipientCountry: 'BR'
+  };
+
+  const apiUrl = String(cfg.apiUrl || process.env.FRENET_API_URL || 'https://api.frenet.com.br').replace(/\/+$/, '');
+  const response = await axios.post(`${apiUrl}/shipping/quote`, payload, {
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      token
+    },
+    timeout: Number(process.env.FRENET_TIMEOUT_MS || 30000),
+    validateStatus: () => true
+  });
+
+  const data = response.data || {};
+  if (response.status < 200 || response.status >= 300) {
+    const message = data?.Message || data?.message || data?.error || `Frenet HTTP ${response.status}`;
+    throw new Error(String(message));
+  }
+
+  const rows =
+    data.ShippingSevicesArray ||
+    data.ShippingServicesArray ||
+    data.shippingServicesArray ||
+    data.shippingSevicesArray ||
+    data.Services ||
+    data.services ||
+    [];
+
+  const normalized = Array.isArray(rows) ? rows.map(normalizeFrenetQuote) : [];
+  return {
+    ok: true,
+    quotes: normalized.filter((q) => !q.unavailable && Number.isFinite(q.price) && q.price > 0),
+    errors: normalized.filter((q) => q.unavailable),
+    raw: data,
+    payload: { ...payload, token: '[redacted]' }
+  };
+}
+
+
 async function calculateShipping(body = {}) {
   const settings = await getShippingSettings();
   const businessRules = settings.businessRules || {};
@@ -1365,6 +1494,50 @@ async function calculateShipping(body = {}) {
     }
   }
 
+  const frenet = settings.carriers?.frenet || {};
+  const correiosMaxWeightKgForFrenet = Number(settings.carriers?.correios?.maxWeightKg || 30);
+  const correiosMaxDimensionCmForFrenet = Number(settings.carriers?.correios?.maxDimensionCm || 100);
+  const needsFrenetByCorreiosLimit =
+    (Number(weightKg || 0) > correiosMaxWeightKgForFrenet) ||
+    (Number(maxDimensionCm || 0) > correiosMaxDimensionCmForFrenet);
+
+  const frenetAllowed =
+    !hasArianaFree &&
+    needsFrenetByCorreiosLimit &&
+    frenet.enabled !== false &&
+    String(frenet.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim() &&
+    destinationCep;
+
+  if (frenetAllowed) {
+    try {
+      const quoted = await quoteFrenet(body, settings);
+      if (Array.isArray(quoted.quotes)) {
+        options.push(...quoted.quotes.map((q) => ({
+          service: q.service,
+          label: q.label || q.name || 'Frenet',
+          name: q.name || q.label || 'Frenet',
+          price: Number(q.price),
+          prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s) úteis` : 'sob consulta'),
+          deadlineDays: q.deadlineDays || parsePrazoToDeadlineDays(q.prazo || ''),
+          provider: 'frenet',
+          raw: q.raw || null
+        })).filter((q) => Number.isFinite(q.price) && q.price > 0));
+      }
+      if (Array.isArray(quoted.errors) && quoted.errors.length && process.env.FRENET_DEBUG === 'true') {
+        options.push(...quoted.errors.slice(0, 3).map((q) => ({
+          service: q.service || 'frenet_unavailable',
+          label: q.label || 'Frenet',
+          unavailable: true,
+          provider: 'frenet',
+          error: q.error || 'Serviço indisponível na Frenet.',
+          raw: q.raw || null
+        })));
+      }
+    } catch (error) {
+      options.push({ service: 'frenet_error', label: 'Frenet', unavailable: true, provider: 'frenet', error: error.message || 'Erro ao cotar Frenet.' });
+    }
+  }
+
   const correios = settings.carriers?.correios || {};
   const correiosAllowed = !hasArianaFree && correios.enabled && weightKg > 0 && weightKg <= Number(correios.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(correios.maxDimensionCm || 100);
   if (correiosAllowed) {
@@ -1438,7 +1611,7 @@ async function calculateShipping(body = {}) {
       montagemPercent: settings.montagemPercent,
       correios: settings.correios || {},
       businessRules: settings.businessRules || {},
-      carriers: settings.carriers || {}
+      carriers: settings.carriers || {}, frenet: settings.carriers?.frenet ? { ...settings.carriers.frenet, token: settings.carriers.frenet.token ? '[redacted]' : '' } : {}
     }
   };
 }
