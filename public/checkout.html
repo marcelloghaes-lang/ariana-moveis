@@ -732,9 +732,16 @@ async function quoteShippingForCep(cepDestino) {
     valorNota: subtotal,
     pesoKg: pkg.pesoKg,
     weightKg: pkg.pesoKg,
+    weight: pkg.pesoKg,
     alturaCm: pkg.alturaCm,
+    heightCm: pkg.alturaCm,
+    height: pkg.alturaCm,
     larguraCm: pkg.larguraCm,
+    widthCm: pkg.larguraCm,
+    width: pkg.larguraCm,
     comprimentoCm: pkg.comprimentoCm,
+    lengthCm: pkg.comprimentoCm,
+    length: pkg.comprimentoCm,
     isArianaOrder: isArianaOrderFromCartItems(cart),
     items: (Array.isArray(cart) ? cart : []).map((it) => ({
       id: it.id || it.productId || null,
@@ -746,18 +753,24 @@ async function quoteShippingForCep(cepDestino) {
       qty: safeNumber(it.quantity ?? 1),
       unitPrice: safeNumber(it.price ?? 0),
       totalPrice: safeNumber(it.price ?? 0) * safeNumber(it.quantity ?? 1),
-      pesoKg: safeNumber(it.pesoKg ?? it.weightKg ?? 0),
-      alturaCm: safeNumber(it.alturaCm ?? it.heightCm ?? 0),
-      larguraCm: safeNumber(it.larguraCm ?? it.widthCm ?? 0),
-      comprimentoCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? 0),
+      pesoKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
+      weightKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
+      weight: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
+      alturaCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.height ?? 0),
+      heightCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.height ?? 0),
+      height: safeNumber(it.alturaCm ?? it.heightCm ?? it.height ?? 0),
+      larguraCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.width ?? 0),
+      widthCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.width ?? 0),
+      width: safeNumber(it.larguraCm ?? it.widthCm ?? it.width ?? 0),
+      comprimentoCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.length ?? 0),
+      lengthCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.length ?? 0),
+      length: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.length ?? 0),
     }))
   };
 
+  // Usa somente a rota unificada do backend para cotar Frenet/Correios corretamente.
   const endpoints = [
     `${getApiBaseUrl()}/shipping/quote`,
-    `${getApiBaseUrl()}/shipping/calculate`,
-    `${getApiBaseUrl()}/shipping/logistics/quote`,
-    `${getApiBaseUrl()}/shipping/correios/quote`,
   ];
 
   let best = null;

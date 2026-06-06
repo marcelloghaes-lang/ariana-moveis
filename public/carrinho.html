@@ -371,10 +371,18 @@
           qty,
           unitPrice: Number(it.price || 0) || 0,
           totalPrice: (Number(it.price || 0) || 0) * qty,
-          pesoKg: Number(it.pesoKg || 0) || 0,
-          alturaCm: Number(it.alturaCm || 0) || 0,
-          larguraCm: Number(it.larguraCm || 0) || 0,
-          comprimentoCm: Number(it.comprimentoCm || 0) || 0,
+          pesoKg: Number(it.pesoKg || it.weightKg || it.weight || 0) || 0,
+          weightKg: Number(it.pesoKg || it.weightKg || it.weight || 0) || 0,
+          weight: Number(it.pesoKg || it.weightKg || it.weight || 0) || 0,
+          alturaCm: Number(it.alturaCm || it.heightCm || it.height || 0) || 0,
+          heightCm: Number(it.alturaCm || it.heightCm || it.height || 0) || 0,
+          height: Number(it.alturaCm || it.heightCm || it.height || 0) || 0,
+          larguraCm: Number(it.larguraCm || it.widthCm || it.width || 0) || 0,
+          widthCm: Number(it.larguraCm || it.widthCm || it.width || 0) || 0,
+          width: Number(it.larguraCm || it.widthCm || it.width || 0) || 0,
+          comprimentoCm: Number(it.comprimentoCm || it.lengthCm || it.length || 0) || 0,
+          lengthCm: Number(it.comprimentoCm || it.lengthCm || it.length || 0) || 0,
+          length: Number(it.comprimentoCm || it.lengthCm || it.length || 0) || 0,
           dimensions: {
             altura: Number(it.alturaCm || 0) || 0,
             largura: Number(it.larguraCm || 0) || 0,
@@ -466,12 +474,16 @@
         valorNota: subtotal,
         pesoKg: pkg.pesoKg,
         weightKg: pkg.pesoKg,
+        weight: pkg.pesoKg,
         comprimentoCm: pkg.comprimentoCm,
         lengthCm: pkg.comprimentoCm,
+        length: pkg.comprimentoCm,
         larguraCm: pkg.larguraCm,
         widthCm: pkg.larguraCm,
+        width: pkg.larguraCm,
         alturaCm: pkg.alturaCm,
         heightCm: pkg.alturaCm,
+        height: pkg.alturaCm,
         items: buildShippingItemsPayload(),
         isArianaOrder: isArianaOrderFromCartItems(cartItems)
       };
@@ -483,11 +495,9 @@
       let usedEndpoint = '';
       let lastError = '';
 
+      // Usa somente a rota unificada do backend para não cair nas rotas antigas dos Correios/Rodocap.
       const endpoints = [
-        `${apiBase}/shipping/quote`,
-        `${apiBase}/shipping/calculate`,
-        `${apiBase}/shipping/logistics/quote`,
-        `${apiBase}/shipping/correios/quote`
+        `${apiBase}/shipping/quote`
       ];
 
       for (const endpoint of endpoints) {

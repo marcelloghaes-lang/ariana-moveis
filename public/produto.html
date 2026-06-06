@@ -1919,6 +1919,7 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
         cep,
         pesoKg: ship.pesoKg,
         weightKg: ship.pesoKg,
+        weight: ship.pesoKg,
         productPrice: unitPrice * qty,
         invoiceValue: unitPrice * qty,
         valorNota: unitPrice * qty,
@@ -1938,20 +1939,43 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
             unitPrice,
             totalPrice: unitPrice * qty,
             pesoKg: ship.pesoKg,
+            weightKg: ship.pesoKg,
+            weight: ship.pesoKg,
             comprimentoCm: ship.comprimento || null,
+            lengthCm: ship.comprimento || null,
+            length: ship.comprimento || null,
             larguraCm: ship.largura || null,
+            widthCm: ship.largura || null,
+            width: ship.largura || null,
             alturaCm: ship.altura || null,
+            heightCm: ship.altura || null,
+            height: ship.altura || null,
         }],
     };
-    if (ship.comprimento) payload.comprimento = ship.comprimento;
-    if (ship.largura) payload.largura = ship.largura;
-    if (ship.altura) payload.altura = ship.altura;
+    if (ship.comprimento) {
+        payload.comprimento = ship.comprimento;
+        payload.comprimentoCm = ship.comprimento;
+        payload.length = ship.comprimento;
+        payload.lengthCm = ship.comprimento;
+    }
+    if (ship.largura) {
+        payload.largura = ship.largura;
+        payload.larguraCm = ship.largura;
+        payload.width = ship.largura;
+        payload.widthCm = ship.largura;
+    }
+    if (ship.altura) {
+        payload.altura = ship.altura;
+        payload.alturaCm = ship.altura;
+        payload.height = ship.altura;
+        payload.heightCm = ship.altura;
+    }
 
+    // Usa somente a rota unificada do backend.
+    // Ela decide sozinha: Correios até 30kg/100cm e Frenet acima desses limites.
+    // Não chama mais rotas antigas para evitar aparecer apenas erro dos Correios.
     const endpoints = [
         `${apiBase}/shipping/quote`,
-        `${apiBase}/shipping/calculate`,
-        `${apiBase}/shipping/logistics/quote`,
-        `${apiBase}/shipping/correios/quote`,
     ];
 
     let mergedQuotes = [];
