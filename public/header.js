@@ -533,35 +533,19 @@ function getLoggedUserCity() {
 
 
 function getLoggedUserCityUF() {
-  const keys = [
-    'headerCityUF',
-    'selectedAddress',
-    'enderecoSelecionado',
-    'checkoutAddress',
-    'enderecoEntrega',
-    'userAddress',
-    'address',
-    'endereco',
-    'clienteEndereco',
-    'clienteLogado',
-    'usuarioLogado',
-    'loggedUser',
-    'currentUser',
-    'userData',
-    'userProfile',
-    'userInfo',
-    'perfilUsuario',
-    'ariana_user',
-    'arianaUser',
-    'user',
-    'cliente'
-  ];
-
   const cleanText = (value) => {
     const txt = String(value || '').trim();
     if (!txt) return '';
     if (/^(minha conta|defina seu endereço|defina seu endereco|null|undefined)$/i.test(txt)) return '';
     return txt;
+  };
+
+  const normalizeCityUF = (city, uf) => {
+    const c = cleanText(city);
+    const u = cleanText(uf).toUpperCase().slice(0, 2);
+    if (c && u) return `${c} - ${u}`;
+    if (c) return c;
+    return '';
   };
 
   const pickFromObject = (obj) => {
@@ -570,14 +554,14 @@ function getLoggedUserCityUF() {
     if (typeof obj === 'string') {
       const txt = cleanText(obj);
       if (!txt) return '';
-      if (txt.includes('{') || txt.includes('[')) {
+      if ((txt.startsWith('{') && txt.endsWith('}')) || (txt.startsWith('[') && txt.endsWith(']'))) {
         try { return pickFromObject(JSON.parse(txt)); } catch (_) {}
       }
       return txt;
     }
 
     if (Array.isArray(obj)) {
-      const preferred = obj.find(a => a && (a.isDefault || a.default || a.principal || a.selected));
+      const preferred = obj.find(a => a && (a.isDefault || a.default || a.principal || a.selected || a.isPrimary || a.primary || a.main));
       const foundPreferred = pickFromObject(preferred);
       if (foundPreferred) return foundPreferred;
       for (const item of obj) {
@@ -589,32 +573,17 @@ function getLoggedUserCityUF() {
 
     if (typeof obj !== 'object') return '';
 
-    const city = cleanText(
-      obj.city ??
-      obj.cidade ??
-      obj.localidade ??
-      obj.municipio ??
-      obj.município ??
-      obj.cityName ??
-      obj.nomeCidade ??
-      obj.town ??
-      ''
-    );
+    // Formato salvo pela minha_conta.html: ariana_checkout_address = { id, raw }
+    if (obj.raw && typeof obj.raw === 'object') {
+      const foundRaw = pickFromObject(obj.raw);
+      if (foundRaw) return foundRaw;
+    }
 
-    const uf = cleanText(
-      obj.uf ??
-      obj.UF ??
-      obj.state ??
-      obj.estado ??
-      obj.federal_unit ??
-      obj.ufSigla ??
-      obj.siglaUf ??
-      obj.province ??
-      ''
+    const direct = normalizeCityUF(
+      obj.city || obj.cidade || obj.localidade || obj.municipio || obj['município'] || obj.cityName || obj.nomeCidade || obj.town,
+      obj.uf || obj.UF || obj.state || obj.estado || obj.federal_unit || obj.ufSigla || obj.siglaUf || obj.province
     );
-
-    if (city && uf) return `${city} - ${uf}`;
-    if (city) return city;
+    if (direct) return direct;
 
     const nested = [
       obj.address,
@@ -631,7 +600,8 @@ function getLoggedUserCityUF() {
       obj.user,
       obj.usuario,
       obj.cliente,
-      obj.data
+      obj.data,
+      obj.item
     ].filter(Boolean);
 
     for (const item of nested) {
@@ -657,23 +627,51 @@ function getLoggedUserCityUF() {
     return '';
   };
 
-  for (const key of keys) {
-    try {
-      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
-      if (!raw) continue;
-
-      let data = null;
-      try { data = JSON.parse(raw); } catch (_) { data = raw; }
-
-      const found = pickFromObject(data);
-      if (found) return found;
-    } catch (_) {}
-  }
-
   try {
     const cached = cleanText(window.__HEADER_CITY_UF__);
     if (cached) return cached;
   } catch (_) {}
+
+  const keys = [
+    'headerCityUF',
+    'ariana_checkout_address',
+    'selectedAddress',
+    'enderecoSelecionado',
+    'checkoutAddress',
+    'enderecoEntrega',
+    'userAddress',
+    'address',
+    'endereco',
+    'clienteEndereco',
+    'clienteLogado',
+    'usuarioLogado',
+    'loggedUser',
+    'currentUser',
+    'userData',
+    'userProfile',
+    'userInfo',
+    'perfilUsuario',
+    'ariana_user',
+    'arianaUser',
+    'user',
+    'cliente'
+  ];
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) continue;
+      let data = null;
+      try { data = JSON.parse(raw); } catch (_) { data = raw; }
+      const found = pickFromObject(data);
+      if (found) {
+        window.__HEADER_CITY_UF__ = found;
+        try { localStorage.setItem('headerCityUF', found); } catch (_) {}
+        try { sessionStorage.setItem('headerCityUF', found); } catch (_) {}
+        return found;
+      }
+    } catch (_) {}
+  }
 
   return '';
 }
@@ -733,9 +731,13 @@ async function fetchHeaderDefaultAddressFromApi() {
     const token =
       localStorage.getItem('token') ||
       localStorage.getItem('authToken') ||
+      localStorage.getItem('userToken') ||
+      localStorage.getItem('customerToken') ||
       localStorage.getItem('customer_token') ||
       localStorage.getItem('cliente_token') ||
       localStorage.getItem('user_token') ||
+      localStorage.getItem('clienteToken') ||
+      localStorage.getItem('accessToken') ||
       '';
 
     const userId = getLoggedUserIdForHeader();
@@ -744,9 +746,12 @@ async function fetchHeaderDefaultAddressFromApi() {
 
     const urls = [];
     if (token) {
+      // Mesma rota usada em minha_conta.html para listar endereços do cliente
+      urls.push(`${HEADER_API_BASE}/addresses`);
       urls.push(`${HEADER_API_BASE}/users/me/addresses`);
       urls.push(`${HEADER_API_BASE}/addresses/me`);
       urls.push(`${HEADER_API_BASE}/users/me`);
+      urls.push(`${HEADER_API_BASE}/me`);
     }
     if (userId) {
       urls.push(`${HEADER_API_BASE}/users/${encodeURIComponent(userId)}/addresses`);
@@ -771,17 +776,30 @@ async function fetchHeaderDefaultAddressFromApi() {
         if (data.user) candidates.push(data.user);
         candidates.push(data);
 
-        const preferred = candidates.find(a => a && (a.isDefault || a.default || a.principal || a.selected)) || candidates[0];
-        const cityUF = (function pick(obj) {
+        const preferred = candidates.find(a => a && (a.isDefault || a.default || a.principal || a.selected || a.isPrimary || a.primary || a.main)) || candidates[0];
+        const pickCityUF = function pick(obj) {
           if (!obj || typeof obj !== 'object') return '';
-          const city = String(obj.city || obj.cidade || obj.localidade || obj.municipio || '').trim();
-          const uf = String(obj.uf || obj.UF || obj.state || obj.estado || '').trim();
+          const city = String(obj.city || obj.cidade || obj.localidade || obj.municipio || obj['município'] || '').trim();
+          const uf = String(obj.uf || obj.UF || obj.state || obj.estado || '').trim().toUpperCase().slice(0, 2);
           if (city && uf) return `${city} - ${uf}`;
           if (city) return city;
-          const nested = obj.address || obj.endereco || obj.shippingAddress || obj.defaultAddress;
+          const nested = obj.raw || obj.address || obj.endereco || obj.shippingAddress || obj.defaultAddress || obj.primaryAddress || obj.user || obj.data || obj.item;
           if (nested && typeof nested === 'object') return pick(nested);
+          const arr = obj.addresses || obj.enderecos || obj.items || obj.results;
+          if (Array.isArray(arr)) {
+            const pref = arr.find(a => a && (a.isDefault || a.default || a.principal || a.selected || a.isPrimary || a.primary || a.main)) || arr[0];
+            return pick(pref);
+          }
           return '';
-        })(preferred);
+        };
+
+        let cityUF = pickCityUF(preferred);
+        if (!cityUF) {
+          for (const candidate of candidates) {
+            cityUF = pickCityUF(candidate);
+            if (cityUF) break;
+          }
+        }
 
         if (cityUF) {
           localStorage.setItem('headerCityUF', cityUF);
@@ -813,6 +831,24 @@ function updateHeaderCityDisplay() {
   if (legacyEl) legacyEl.textContent = text;
   if (sub) sub.textContent = text;
   if (accountBtn) accountBtn.setAttribute('data-cityuf', text);
+
+  // Se ainda não achou cidade/UF, busca no backend em segundo plano.
+  // Isso corrige páginas como index.html, onde o cliente já está logado,
+  // mas o endereço ainda não foi copiado para o localStorage desta aba.
+  if (!cityUF && typeof fetchHeaderDefaultAddressFromApi === 'function' && isUserLoggedIn() && !window.__HEADER_FETCHING_CITY__) {
+    window.__HEADER_FETCHING_CITY__ = true;
+    fetchHeaderDefaultAddressFromApi()
+      .then((found) => {
+        if (found) {
+          window.__HEADER_CITY_UF__ = found;
+          if (legacyEl) legacyEl.textContent = found;
+          if (sub) sub.textContent = found;
+          if (accountBtn) accountBtn.setAttribute('data-cityuf', found);
+          if (typeof window.renderAccountPopover === 'function') window.renderAccountPopover();
+        }
+      })
+      .finally(() => { window.__HEADER_FETCHING_CITY__ = false; });
+  }
 }
 
 function atualizarUsuarioHeader() {

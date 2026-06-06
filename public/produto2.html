@@ -420,98 +420,106 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             transition: transform 150ms ease;
         }
 
-/* ✅ LAYOUT DETALHE DO PRODUTO
-   Colunas 1 e 2 ficam em um bloco próprio; descrição/ficha técnica fica logo abaixo delas,
-   ocupando somente esse espaço. Nada de sticky/transform/JS de rolagem. */
+/* ✅ FIX DEFINITIVO DAS COLUNAS LATERAIS (DESKTOP)
+   A coluna da imagem e a coluna de compra/frete acompanham a rolagem da descrição
+   sem depender de position: sticky, porque o header/CSS do Tailwind pode quebrar sticky. */
 @media (min-width: 1024px) {
-  #product-details-container,
-  .product-main-cols {
+  #product-details-container {
     align-items: flex-start !important;
+    position: relative !important;
     overflow: visible !important;
   }
 
   .product-left-col,
-  .product-middle-col,
   .product-right-col {
     position: relative !important;
     top: auto !important;
     bottom: auto !important;
-    transform: none !important;
-    transition: none !important;
-    will-change: auto !important;
     height: auto !important;
     min-height: 0 !important;
     align-self: flex-start !important;
+    will-change: transform;
+    z-index: 4;
+  }
+
+  .product-left-col .image-flex-container,
+  #main-product-image,
+  #thumbnail-gallery,
+  .product-right-col > * {
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
   }
 }
 
 @media (max-width: 1023px) {
   .product-left-col,
-  .product-middle-col,
   .product-right-col {
-    position: static !important;
-    top: auto !important;
     transform: none !important;
   }
 }
 
-#product-description-full-section {
-  grid-column: 1 / -1;
-  margin-top: 8px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.04);
-  padding: 24px;
-}
 
-#product-description-full-section .section-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #1f2937;
-  margin-bottom: 18px;
-}
-
-#product-description-full-section .accordion-container {
-  border: 0;
-  border-radius: 0;
-}
-
-#product-description-full-section .accordion-title {
-  background: #ffffff;
-  padding: 14px 0;
-}
-
-#product-description-full-section .accordion-content.open {
-  max-height: none !important;
-  overflow: visible !important;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* --- DESCRIÇÃO COMPLETA ABAIXO DO PRODUTO --- */
+/* --- DESCRIÇÃO RESUMIDA COM VER MAIS --- */
 .description-preview {
     position: relative;
-    max-height: none !important;
-    overflow: visible !important;
-    transition: none !important;
+    max-height: 210px;
+    overflow: hidden;
+    transition: max-height 0.35s ease;
 }
 
 .description-preview.is-expanded {
-    max-height: none !important;
-    overflow: visible !important;
+    max-height: 4000px;
 }
 
 .description-preview:not(.is-expanded)::after {
-    display: none !important;
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 72px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1));
+    pointer-events: none;
 }
 
 .description-toggle-wrap {
-    display: none !important;
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-start;
 }
 
 .description-toggle-btn {
-    display: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    color: #2E6DA4;
+    border: 1px solid #2E6DA4;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.description-toggle-btn:hover {
+    background: #2E6DA4;
+    color: #ffffff;
+}
+
+
+/* Anti-tremedeira das colunas laterais */
+@media (min-width: 1024px) {
+  .product-left-col,
+  .product-right-col {
+    transition: none !important;
+    backface-visibility: hidden;
+    transform-style: preserve-3d;
+  }
 }
 
 </style>
@@ -531,9 +539,8 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 <p class="text-lg text-text-dark font-semibold">Carregando detalhes do produto...</p>
 </div>
 
-<div id="product-details-container" class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start" style="display:none;">
+<div id="product-details-container" class="grid grid-cols-1 lg:grid-cols-3 gap-8" style="display:none;">
 
-  <div class="lg:col-span-2 product-main-cols grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
   <div class="lg:col-span-1 self-start product-left-col flex flex-col items-start">
     <div class="w-full h-auto bg-white p-6 rounded-lg shadow-md mb-4 flex items-center justify-center image-flex-container border border-gray-200" onclick="window.openLightbox(0)">
       <img id="main-product-image" src="https://placehold.co/500x500/cccccc/333333?text=Carregando" alt="Imagem principal do produto" class="max-w-full max-h-full object-contain cursor-zoom-in" loading="lazy">
@@ -541,7 +548,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
   <div id="thumbnail-gallery" class="flex space-x-2 overflow-x-auto pb-2 w-full justify-start"></div>
 </div>
 
-<div class="lg:col-span-1 space-y-6 product-middle-col">
+<div class="lg:col-span-1 space-y-6">
   <div class="bg-white p-6 border border-gray-200 rounded-lg shadow-sm space-y-4 relative">
     <button id="btn-toggle-favorite" class="absolute top-4 right-4 text-2xl text-gray-300 hover:text-red-500 transition-colors">
     <i class="fas fa-heart"></i>
@@ -601,23 +608,13 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 
 </div>
 
-<div id="variation-options" class="bg-white p-6 space-y-4 border border-gray-200 rounded-lg shadow-sm" style="display:none;">
-<p class="font-semibold text-text-dark">Cor/Modelo:</p>
-<div id="color-options" class="flex flex-wrap gap-2"></div>
-</div>
-</div>
-
-
-
-<section id="product-description-full-section" class="product-description-full-section">
-  <h2 class="section-title">Descrição e ficha técnica</h2>
-  <div id="product-description-accordion-container" class="accordion-container">
+<div id="product-description-accordion-container" class="accordion-container">
   <div class="accordion-item">
-    <div class="accordion-title" onclick="window.toggleAccordion(this)" aria-expanded="false">
-    <span>Descrição completa</span>
+    <div class="accordion-title" onclick="window.toggleAccordion(this)" aria-expanded="true">
+    <span>Descrição Completa</span>
   <i class="fas fa-chevron-down accordion-icon"></i>
 </div>
-<div id="content-description" class="accordion-content">
+<div id="content-description" class="accordion-content open">
 <div id="product-description-preview" class="description-preview is-collapsed">
 <div id="product-description" class="prose max-w-none text-gray-700"></div>
 </div>
@@ -639,9 +636,12 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 </div>
 </div>
 </div>
-</section>
 
-  </div>
+<div id="variation-options" class="bg-white p-6 space-y-4 border border-gray-200 rounded-lg shadow-sm" style="display:none;">
+<p class="font-semibold text-text-dark">Cor/Modelo:</p>
+<div id="color-options" class="flex flex-wrap gap-2"></div>
+</div>
+</div>
 
 <div class="lg:col-span-1 space-y-6 product-right-col">
   <div class="bg-gray-50 p-4 rounded-lg shadow-inner border border-gray-200 space-y-4">
@@ -668,20 +668,6 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 </div>
 </div>
 
-<div class="bg-white p-4 space-y-3 border border-gray-200 rounded-lg shadow-sm">
-  <h3 class="text-xl font-bold text-text-dark flex items-center mb-3">
-  <i class="fas fa-truck text-primary-blue mr-3"></i> Frete
-</h3>
-<div class="flex space-x-2">
-  <input type="text" id="cep-input" placeholder="00000-000" maxlength="9" class="flex-grow p-2 border border-gray-300 rounded focus:ring-primary-blue focus:border-primary-blue text-sm">
-<button id="calculate-shipping-btn" class="bg-primary-blue text-white px-4 py-2 rounded-lg font-semibold hover:bg-dark-bg transition-colors text-sm">Calcular</button>
-</div>
-<div id="shipping-result" class="mt-3 text-sm">
-<p class="text-gray-500">Insira seu CEP para calcular o prazo e o valor.</p>
-</div>
-<p class="text-xs text-gray-400 mt-2">Valor de Frete: <span id="frete-price">A calcular</span></p>
-</div>
-
 <div class="bg-white p-6 space-y-4 border border-gray-200 rounded-lg shadow-sm">
   <div class="flex items-center space-x-4">
   <span class="font-semibold text-text-dark text-sm">Quantidade:</span>
@@ -700,7 +686,26 @@ Adicionar ao Carrinho
 </button>
 </div>
 
+<div class="bg-white p-4 space-y-3 border border-gray-200 rounded-lg shadow-sm">
+  <h3 class="text-xl font-bold text-text-dark flex items-center mb-3">
+  <i class="fas fa-truck text-primary-blue mr-3"></i> Frete
+</h3>
+<div class="flex space-x-2">
+  <input type="text" id="cep-input" placeholder="00000-000" maxlength="9" class="flex-grow p-2 border border-gray-300 rounded focus:ring-primary-blue focus:border-primary-blue text-sm">
+<button id="calculate-shipping-btn" class="bg-primary-blue text-white px-4 py-2 rounded-lg font-semibold hover:bg-dark-bg transition-colors text-sm">Calcular</button>
+</div>
+<div id="shipping-result" class="mt-3 text-sm">
+<p class="text-gray-500">Insira seu CEP para calcular o prazo e o valor.</p>
+</div>
+<p class="text-xs text-gray-400 mt-2">Valor de Frete: <span id="frete-price">A calcular</span></p>
+</div>
+
 <div class="space-y-3">
+  <a id="whatsapp-product-link" href="https://wa.me/5531985147119?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20produto%3A%20" target="_blank" class="w-full flex items-center justify-center space-x-3 p-4 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition-colors">
+  <i class="fab fa-whatsapp text-2xl"></i>
+<span>Fale com a Loja (WhatsApp)</span>
+</a>
+
 <a href="politica_entrega.html" class="flex items-start space-x-3 p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
 <i class="fas fa-shield-alt text-xl text-primary-blue pt-1"></i>
 <div>
@@ -718,11 +723,6 @@ Adicionar ao Carrinho
 </div>
 <i class="fas fa-chevron-right text-sm text-gray-400 ml-auto pt-1"></i>
 </a>
-
-  <a id="whatsapp-product-link" href="https://wa.me/5531985147119?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20produto%3A%20" target="_blank" class="w-full flex items-center justify-center space-x-3 p-4 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition-colors">
-  <i class="fab fa-whatsapp text-2xl"></i>
-<span>Fale com a Loja (WhatsApp)</span>
-</a>
 </div>
 
 <div class="text-center pt-4">
@@ -732,10 +732,6 @@ Adicionar ao Carrinho
 </div>
 </div>
 </div>
-</div>
-
-
-
 
 <div class="mt-12">
 <h2 class="text-2xl font-bold text-primary-blue mb-6 border-b pb-2">Quem Viu Este Produto, Viu Também</h2>
@@ -2263,6 +2259,7 @@ function renderShippingQuotes(result, cep) {
             loadCartAndCounter();
             if (COST_SAFE_FLAGS.enableProductRecommendations) { window.loadProductDetailBanners(); }
             try { await loadProductDetails(); } catch (e) { console.error('[produto] erro ao carregar detalhes:', e); }
+            try { if (typeof window.__fixProductSideColumns === 'function') window.__fixProductSideColumns(); } catch(_) {}
         });
     </script>
     <script src="./header.js"></script>
@@ -2293,7 +2290,122 @@ function renderShippingQuotes(result, cep) {
 </script>
 
 
+<script>
+/* =========================================================
+   FIX FINAL: COLUNAS LATERAIS ACOMPANHAM A DESCRIÇÃO SEM QUICAR
+   - Não usa position: sticky/fixed.
+   - Não usa transition, para não tremer.
+   - Não observa alteração de style, para não criar loop de movimento.
+   - Move coluna 1 e coluna 3 com o MESMO cálculo.
+========================================================= */
+(function(){
+  let ticking = false;
+  let lastLeftMove = null;
+  let lastRightMove = null;
 
+  function isDesktop(){
+    return window.innerWidth >= 1024;
+  }
+
+  function resetColumn(el, side){
+    if (!el) return;
+    el.style.transform = '';
+    if (side === 'left') lastLeftMove = null;
+    if (side === 'right') lastRightMove = null;
+  }
+
+  function getSafeTopOffset(){
+    // Valor fixo evita variação do header durante a rolagem.
+    // Se aumentar muito, parece que a coluna "bate" no topo.
+    return 18;
+  }
+
+  function calcMove(el, grid){
+    if (!el || !grid || !isDesktop()) return 0;
+
+    const gridTop = grid.getBoundingClientRect().top + window.pageYOffset;
+    const gridHeight = grid.scrollHeight || grid.offsetHeight || 0;
+    const colHeight = el.offsetHeight || 0;
+
+    if (!gridHeight || !colHeight || gridHeight <= colHeight) return 0;
+
+    const topOffset = getSafeTopOffset();
+    const scrollInsideGrid = window.pageYOffset + topOffset - gridTop;
+    const maxMove = Math.max(0, gridHeight - colHeight);
+
+    return Math.max(0, Math.min(scrollInsideGrid, maxMove));
+  }
+
+  function applyMove(el, move, side){
+    if (!el) return;
+
+    // Duas casas deixam o movimento suave, sem arredondar seco.
+    const cleanMove = Math.round(move * 100) / 100;
+    const last = side === 'left' ? lastLeftMove : lastRightMove;
+
+    // Evita reescrever style a cada pixel mínimo e evita tremedeira.
+    if (last !== null && Math.abs(last - cleanMove) < 0.5) return;
+
+    if (cleanMove <= 0) {
+      el.style.transform = '';
+    } else {
+      el.style.transform = `translate3d(0, ${cleanMove}px, 0)`;
+    }
+
+    if (side === 'left') lastLeftMove = cleanMove;
+    if (side === 'right') lastRightMove = cleanMove;
+  }
+
+  function updateProductSideColumns(){
+    const grid = document.getElementById('product-details-container');
+    if (!grid || grid.style.display === 'none') return;
+
+    const left = grid.querySelector('.product-left-col');
+    const right = grid.querySelector('.product-right-col') || grid.children[2];
+
+    if (!isDesktop()) {
+      resetColumn(left, 'left');
+      resetColumn(right, 'right');
+      return;
+    }
+
+    const leftMove = calcMove(left, grid);
+    const rightMove = calcMove(right, grid);
+
+    applyMove(left, leftMove, 'left');
+    applyMove(right, rightMove, 'right');
+  }
+
+  function schedule(){
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(function(){
+      ticking = false;
+      updateProductSideColumns();
+    });
+  }
+
+  window.__fixProductSideColumns = updateProductSideColumns;
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  window.addEventListener('load', schedule);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    schedule();
+    setTimeout(schedule, 300);
+    setTimeout(schedule, 900);
+    setTimeout(schedule, 1800);
+
+    const grid = document.getElementById('product-details-container');
+    if (grid && 'MutationObserver' in window) {
+      const obs = new MutationObserver(schedule);
+      // Importante: NÃO observar attributes, porque o próprio transform muda style
+      // e isso criava loop visual/tremedeira.
+      obs.observe(grid, { childList: true, subtree: true });
+    }
+  });
+})();
+</script>
 
 <script src="js/layout-fit.js" defer></script>
 

@@ -307,12 +307,21 @@
 <script src="js/header_auth_fix.js" defer></script>
 
 <script>
-// CORREÇÃO CRÍTICA DE URL: Sincroniza com o seu server.js
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+// CORREÇÃO CRÍTICA DE URL: usa sempre o backend atual da Ariana Móveis
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem('API_BASE') ||
+  ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:3000/api'
-    : 'https://ariana-move-mongo.onrender.com/api';
+    : 'https://ariana-backend.onrender.com/api');
 
 const API_ORIGIN = String(API_BASE).replace(/\/api\/?$/i, "");
+try {
+  window.API_BASE = API_BASE;
+  window.API_ORIGIN = API_ORIGIN;
+  localStorage.setItem('API_BASE', API_BASE);
+  localStorage.setItem('API_BASE_URL', API_BASE);
+} catch (_) {}
 
 
 let currentUser = null;
@@ -483,6 +492,31 @@ function saveCheckoutAddressSelection(addr) {
       raw: addr
     }));
   } catch (_) {}
+}
+
+function syncHeaderCityUFFromAddress(addr) {
+  if (!addr || typeof addr !== 'object') return '';
+
+  const city = String(addr.cidade || addr.city || addr.localidade || addr.municipio || '').trim();
+  const uf = String(addr.uf || addr.UF || addr.state || addr.estado || '').trim().toUpperCase().slice(0, 2);
+  const cityUF = city && uf ? `${city} - ${uf}` : city;
+
+  if (!cityUF) return '';
+
+  try { localStorage.setItem('headerCityUF', cityUF); } catch (_) {}
+  try { sessionStorage.setItem('headerCityUF', cityUF); } catch (_) {}
+  try { localStorage.setItem('selectedAddress', JSON.stringify(addr)); } catch (_) {}
+  try { sessionStorage.setItem('selectedAddress', JSON.stringify(addr)); } catch (_) {}
+
+  window.__HEADER_CITY_UF__ = cityUF;
+
+  try { window.dispatchEvent(new Event('user:updated')); } catch (_) {}
+  try {
+    if (typeof window.refreshHeaderUser === 'function') window.refreshHeaderUser();
+    if (typeof window.renderAccountPopover === 'function') window.renderAccountPopover();
+  } catch (_) {}
+
+  return cityUF;
 }
 
 async function setPrimaryAddress(addr) {
@@ -663,6 +697,14 @@ async function loadAddresses() {
     const addrs = await apiGet(`/addresses`);
     currentAddresses = Array.isArray(addrs) ? addrs : (addrs.items || addrs.addresses || []);
 
+    const principalAddress =
+      currentAddresses.find(a => a && (a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main)) ||
+      currentAddresses[0];
+
+    if (principalAddress) {
+      syncHeaderCityUFFromAddress(principalAddress);
+    }
+
     if (!currentAddresses.length) {
       list.innerHTML = "<p class='text-gray-400 italic'>Nenhum endereço cadastrado.</p>";
       applyProfileLocks();
@@ -699,6 +741,7 @@ window.chooseAddressForCheckout = function(id) {
   const addr = currentAddresses.find(a => String(a._id || a.id || '') === String(id));
   if (!addr) return;
   saveCheckoutAddressSelection(addr);
+  syncHeaderCityUFFromAddress(addr);
   displayMessage('Endereço selecionado para o checkout.', 'success');
   document.querySelectorAll('.address-card').forEach(card => card.classList.toggle('selected', card.dataset.addressId === String(id)));
   if (getCheckoutMode()) {
@@ -711,7 +754,9 @@ window.makePrimaryAddress = async function(id) {
   if (!addr) return;
   try {
     await setPrimaryAddress(addr);
-    saveCheckoutAddressSelection({ ...addr, isDefault: true, default: true, principal: true, main: true });
+    const primaryAddr = { ...addr, isDefault: true, default: true, principal: true, main: true };
+    saveCheckoutAddressSelection(primaryAddr);
+    syncHeaderCityUFFromAddress(primaryAddr);
     displayMessage('Endereço principal atualizado.', 'success');
     await loadAddresses();
   } catch (e) {
@@ -872,7 +917,10 @@ async function saveAddress(e) {
   try {
     const saved = await apiPost(`/addresses`, newAddr);
     const addrSaved = saved?.item || saved?.address || saved;
-    if (addrSaved && getCheckoutMode()) saveCheckoutAddressSelection(addrSaved);
+    if (addrSaved) {
+      saveCheckoutAddressSelection(addrSaved);
+      syncHeaderCityUFFromAddress(addrSaved);
+    }
     document.getElementById('modal-endereco').classList.add('hidden');
     document.getElementById('form-address').reset();
     displayMessage("Endereço salvo!");
