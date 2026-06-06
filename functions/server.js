@@ -1468,7 +1468,7 @@ async function calculateShipping(body = {}) {
       deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
-  if (usesArianaLogistics && rodocapRule.enabled !== false && !hasArianaFree && distanceKm > Number(rodocapRule.minKmExclusive || 70)) {
+  if (usesArianaLogistics && String(process.env.RODOCAP_ENABLED || 'false').toLowerCase() === 'true' && rodocapRule.enabled !== false && !hasArianaFree && distanceKm > Number(rodocapRule.minKmExclusive || 70)) {
     const allowedCity = isRodocapCityAllowed(location.city, rodocapRule);
     if (allowedCity) {
       const rodocapPrice = Number((productPrice * Number(rodocapRule.percentOfInvoice || 0.12)).toFixed(2));
