@@ -1,4 +1,9 @@
 RewriteEngine On
 
-RewriteCond %{THE_REQUEST} /index\.html [NC]
+# Força domínio principal .com.br
+RewriteCond %{HTTP_HOST} ^(www\.)?arianamoveis\.site$ [NC]
+RewriteRule ^(.*)$ https://arianamoveis.com.br/$1 [R=301,L]
+
+# Força /index.html para /
+RewriteCond %{THE_REQUEST} \s/index\.html[\s?] [NC]
 RewriteRule ^index\.html$ https://arianamoveis.com.br/ [R=301,L]
