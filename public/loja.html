@@ -307,6 +307,42 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 })();
 </script>
 
+  <!-- Canonical SEO Ariana Móveis -->
+  <link rel="canonical" id="canonical-url" href="https://arianamoveis.com.br/loja.html">
+
+  <script>
+  function updateCanonicalUrl() {
+    try {
+      let canonical = document.querySelector('link[rel="canonical"]');
+      if (!canonical) {
+        canonical = document.createElement('link');
+        canonical.rel = 'canonical';
+        canonical.id = 'canonical-url';
+        document.head.appendChild(canonical);
+      }
+
+      const params = new URLSearchParams(window.location.search || '');
+      const origin = 'https://arianamoveis.com.br';
+      const path = window.location.pathname || '/loja.html';
+      let cleanUrl = origin + path;
+
+      if (params.get('sellerId')) {
+        cleanUrl += '?sellerId=' + encodeURIComponent(params.get('sellerId'));
+      } else if (params.get('slug')) {
+        cleanUrl += '?slug=' + encodeURIComponent(params.get('slug'));
+      } else if (params.get('id')) {
+        cleanUrl += '?id=' + encodeURIComponent(params.get('id'));
+      }
+
+      canonical.href = cleanUrl;
+      return cleanUrl;
+    } catch (_e) {
+      return '';
+    }
+  }
+  updateCanonicalUrl();
+  </script>
+
 </head>
 
 <body id="pageApp">
@@ -654,6 +690,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
     }
 
     function updateSeoForStore(storeName, storeDescription, logoUrl = "") {
+      const canonicalUrl = (typeof updateCanonicalUrl === "function") ? updateCanonicalUrl() : (window.location.href || "").split("#")[0];
       const name = sanitizeText(storeName || "Loja Parceira");
       const desc = excerptText(
         storeDescription || "Conheça a vitrine da loja parceira no marketplace Ariana Móveis.",
@@ -662,14 +699,26 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 
       document.title = `${name} | Ariana Móveis Marketplace`;
 
+      const h1 = document.getElementById("store-name");
+      if (h1) h1.textContent = name;
+
       const setMeta = (selector, value, attr = "content") => {
-        const el = document.querySelector(selector);
-        if (el) el.setAttribute(attr, value);
+        let el = document.querySelector(selector);
+        if (!el) {
+          el = document.createElement("meta");
+          const nameMatch = selector.match(/meta\[name=["']([^"']+)["']\]/);
+          const propMatch = selector.match(/meta\[property=["']([^"']+)["']\]/);
+          if (nameMatch) el.setAttribute("name", nameMatch[1]);
+          if (propMatch) el.setAttribute("property", propMatch[1]);
+          document.head.appendChild(el);
+        }
+        el.setAttribute(attr, value);
       };
 
       setMeta('meta[name="description"]', desc);
       setMeta('meta[property="og:title"]', `${name} | Ariana Móveis Marketplace`);
       setMeta('meta[property="og:description"]', desc);
+      setMeta('meta[property="og:url"]', canonicalUrl || window.location.href);
 
       if (logoUrl && /^https?:/i.test(logoUrl)) {
         setMeta('meta[property="og:image"]', logoUrl);
@@ -682,7 +731,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
           "@type": "Store",
           "name": name,
           "description": desc,
-          "url": window.location.href,
+          "url": canonicalUrl || window.location.href,
           "image": logoUrl || undefined
         });
       }

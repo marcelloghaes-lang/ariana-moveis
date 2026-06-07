@@ -21,6 +21,155 @@ try {
 const HEADER_API_BASE = window.API_BASE;
 const HEADER_API_ORIGIN = window.API_ORIGIN;
 
+// =========================================================
+// SEO / GOOGLE SEARCH CONSOLE - URL CANÔNICA ARIANA MÓVEIS
+// Resolve aviso: "Cópia sem página canônica selecionada pelo usuário"
+// =========================================================
+(function setupArianaCanonicalSEO() {
+  if (window.__ARIANA_CANONICAL_SEO_INSTALLED__) return;
+  window.__ARIANA_CANONICAL_SEO_INSTALLED__ = true;
+
+  const SITE_ORIGIN = "https://arianamoveis.com.br";
+
+  function cleanPath(pathname) {
+    let path = String(pathname || "/").trim() || "/";
+    path = path.replace(/\\/g, "/");
+    path = path.replace(/\/+/g, "/");
+
+    // Remove /public quando estiver testando local: 127.0.0.1:5500/public/index.html
+    path = path.replace(/^\/public\//i, "/");
+
+    if (path === "/index.html" || path === "/index.htm") return "/";
+    if (path.endsWith("/index.html")) path = path.replace(/\/index\.html$/i, "/");
+    if (path.length > 1) path = path.replace(/\/+$/g, "");
+    return path || "/";
+  }
+
+  function pageFileName(path) {
+    const clean = cleanPath(path);
+    if (clean === "/") return "index.html";
+    const last = clean.split("/").pop() || "index.html";
+    return last.toLowerCase();
+  }
+
+  function setOrCreateLink(rel, href) {
+    let el = document.querySelector(`link[rel="${rel}"]`);
+    if (!el) {
+      el = document.createElement("link");
+      el.setAttribute("rel", rel);
+      document.head.appendChild(el);
+    }
+    el.setAttribute("href", href);
+    return el;
+  }
+
+  function setOrCreateMeta(name, content) {
+    let el = document.querySelector(`meta[name="${name}"]`);
+    if (!el) {
+      el = document.createElement("meta");
+      el.setAttribute("name", name);
+      document.head.appendChild(el);
+    }
+    el.setAttribute("content", content);
+    return el;
+  }
+
+  function removeTrackingParams(url) {
+    const allowed = new URLSearchParams();
+    const params = new URLSearchParams(window.location.search || "");
+    const file = pageFileName(window.location.pathname);
+
+    // Produto: mantém somente ID do produto. Remove method, ads, origem, utm, fbclid etc.
+    if (file === "produto.html") {
+      const id = params.get("id") || params.get("_id") || params.get("productId") || params.get("produtoId");
+      if (id) allowed.set("id", id);
+    }
+
+    // Categoria: mantém apenas o identificador principal da categoria.
+    if (file === "categoria.html") {
+      const id = params.get("id");
+      const slug = params.get("slug");
+      const category = params.get("category");
+      const name = params.get("name");
+      if (id) allowed.set("id", id);
+      else if (slug) allowed.set("slug", slug);
+      else if (category) allowed.set("category", category);
+      else if (name) allowed.set("name", name);
+    }
+
+    // Loja do seller: mantém slug ou sellerId.
+    if (file === "loja.html") {
+      const slug = params.get("slug");
+      const sellerId = params.get("sellerId") || params.get("seller_id");
+      if (slug) allowed.set("slug", slug);
+      else if (sellerId) allowed.set("sellerId", sellerId);
+    }
+
+    url.search = allowed.toString();
+    return url;
+  }
+
+  function shouldNoIndex(file) {
+    return [
+      "admin_painel.html",
+      "admin_login.html",
+      "admin_pagamentos_global.html",
+      "banner_admin.html",
+      "checkout.html",
+      "pagamento.html",
+      "pedido_confirmado.html",
+      "detalhes_pedido.html",
+      "minha_conta.html",
+      "meus_pedidos.html",
+      "meus_favoritos.html",
+      "login_cadastro.html",
+      "redefinir_senha.html",
+      "carrinho.html",
+      "seller_dashboard.html",
+      "seller_login.html",
+      "seller_cadastro.html",
+      "seller_configuracoes.html",
+      "seller_produto_editar.html",
+      "seller_produto_novo.html",
+      "seller_pedidos.html",
+      "seller_vendas.html"
+    ].includes(file);
+  }
+
+  window.setArianaCanonicalSEO = function setArianaCanonicalSEO() {
+    try {
+      const path = cleanPath(window.location.pathname);
+      const file = pageFileName(path);
+      const canonical = removeTrackingParams(new URL(path, SITE_ORIGIN));
+
+      setOrCreateLink("canonical", canonical.href);
+
+      // Páginas de conta, checkout, pagamento, admin e seller não devem entrar no índice do Google.
+      if (shouldNoIndex(file)) {
+        setOrCreateMeta("robots", "noindex, nofollow");
+        setOrCreateMeta("googlebot", "noindex, nofollow");
+      } else {
+        setOrCreateMeta("robots", "index, follow");
+      }
+
+      // Ajuda compartilhamento e evita URLs locais em testes.
+      setOrCreateMeta("og:url", canonical.href).setAttribute("property", "og:url");
+
+      return canonical.href;
+    } catch (e) {
+      console.warn("[SEO] Falha ao definir canonical:", e);
+      return "";
+    }
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", window.setArianaCanonicalSEO);
+  } else {
+    window.setArianaCanonicalSEO();
+  }
+})();
+
+
 // --- RESTO DO CÓDIGO ---
 function escapeHtml(str) {
   return String(str ?? '')
@@ -1242,6 +1391,7 @@ function carregarHeader() {
   `;
 
   document.body.insertAdjacentHTML('afterbegin', headerHTML);
+  try { if (typeof window.setArianaCanonicalSEO === 'function') window.setArianaCanonicalSEO(); } catch (_) {}
   configurarEventosHeader();
   setupSearchListeners();
 
