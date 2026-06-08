@@ -4,44 +4,431 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     <title>Quem Somos | Ariana Móveis</title>
+    <meta name="description" content="Conheça a Ariana Móveis, marketplace de móveis, eletrodomésticos, eletrônicos, tecnologia e produtos para casa com compra segura e atendimento próximo.">
+    <link rel="canonical" href="https://arianamoveis.com.br/quem_somos.html">
+    <meta property="og:title" content="Quem Somos | Ariana Móveis">
+    <meta property="og:description" content="Ariana Móveis: marketplace completo para sua casa, com variedade, segurança e atendimento próximo.">
+    <meta property="og:url" content="https://arianamoveis.com.br/quem_somos.html">
+    <meta name="robots" content="index,follow,max-image-preview:large">
 
     <link rel="icon" type="image/png" href="./favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind.min.css">
-
     <script src="js/api-config.js"></script>
 
     <style>
         :root {
-            --primary-blue: #2E6DA4;
-            --dark-bg: #1D2B3A;
-            --site-bg: #F9FAFB;
+            --am-blue: #2E6DA4;
+            --am-blue-dark: #0F3E6D;
+            --am-navy: #1D2B3A;
+            --am-bg: #F3F7FB;
+            --am-card: #FFFFFF;
+            --am-text: #172033;
+            --am-muted: #64748B;
         }
+
+        * { box-sizing: border-box; }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--site-bg);
-            color: var(--dark-bg);
+            background: var(--am-bg);
+            color: var(--am-text);
+            overflow-x: hidden;
         }
 
-        .mobile-hero {
+        .am-shell {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+        }
+
+        .am-hero {
+            position: relative;
+            overflow: hidden;
             background:
-                linear-gradient(rgba(29, 43, 58, 0.9), rgba(46, 109, 164, 0.8)),
-                url('https://images.unsplash.com/photo-1524758631624-e2822e304c36?q=80&w=1000&auto=format&fit=crop');
+                radial-gradient(circle at 15% 20%, rgba(86, 181, 255, .28), transparent 28%),
+                linear-gradient(135deg, #0F3E6D 0%, #2E6DA4 46%, #1D2B3A 100%);
+            color: #fff;
+            padding: 74px 0 96px;
+        }
+
+        .am-hero::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px);
+            background-size: 54px 54px;
+            opacity: .28;
+            pointer-events: none;
+        }
+
+        .am-hero-inner {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 1.05fr .95fr;
+            gap: 42px;
+            align-items: center;
+        }
+
+        .am-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 14px;
+            border: 1px solid rgba(255,255,255,.24);
+            background: rgba(255,255,255,.12);
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            backdrop-filter: blur(10px);
+        }
+
+        .am-hero h1 {
+            margin: 22px 0 18px;
+            font-size: clamp(38px, 6vw, 72px);
+            line-height: .96;
+            font-weight: 950;
+            letter-spacing: -.06em;
+        }
+
+        .am-hero p {
+            max-width: 630px;
+            font-size: clamp(17px, 2vw, 22px);
+            line-height: 1.65;
+            color: rgba(255,255,255,.86);
+        }
+
+        .am-hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 30px;
+        }
+
+        .am-btn-primary,
+        .am-btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 0 20px;
+            border-radius: 14px;
+            font-weight: 900;
+            text-decoration: none;
+            transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+        }
+
+        .am-btn-primary {
+            background: #fff;
+            color: var(--am-blue-dark);
+            box-shadow: 0 18px 40px rgba(0,0,0,.22);
+        }
+
+        .am-btn-secondary {
+            background: rgba(255,255,255,.11);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,.22);
+        }
+
+        .am-btn-primary:hover,
+        .am-btn-secondary:hover { transform: translateY(-2px); }
+
+        .am-hero-card {
+            position: relative;
+            border-radius: 34px;
+            padding: 26px;
+            background: rgba(255,255,255,.14);
+            border: 1px solid rgba(255,255,255,.22);
+            box-shadow: 0 30px 80px rgba(0,0,0,.24);
+            backdrop-filter: blur(12px);
+        }
+
+        .am-hero-card-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .am-mini-stat {
+            background: rgba(255,255,255,.94);
+            color: var(--am-navy);
+            border-radius: 22px;
+            padding: 22px;
+            min-height: 142px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .am-mini-stat i {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: var(--am-blue);
+            font-size: 18px;
+        }
+
+        .am-mini-stat strong {
+            display: block;
+            font-size: 20px;
+            font-weight: 950;
+            letter-spacing: -.03em;
+        }
+
+        .am-mini-stat span {
+            display: block;
+            margin-top: 4px;
+            font-size: 13px;
+            color: var(--am-muted);
+            line-height: 1.45;
+            font-weight: 600;
+        }
+
+        .am-overlap {
+            margin-top: -52px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .am-trust-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .am-trust-item {
+            background: #fff;
+            border: 1px solid #E2E8F0;
+            border-radius: 22px;
+            padding: 22px;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, .08);
+        }
+
+        .am-trust-item i {
+            color: var(--am-blue);
+            font-size: 24px;
+            margin-bottom: 14px;
+        }
+
+        .am-trust-item h3 {
+            font-size: 16px;
+            font-weight: 950;
+            margin-bottom: 6px;
+        }
+
+        .am-trust-item p {
+            color: var(--am-muted);
+            font-size: 13px;
+            line-height: 1.55;
+            font-weight: 500;
+        }
+
+        .am-section {
+            padding: 64px 0;
+        }
+
+        .am-section-title {
+            max-width: 760px;
+            margin-bottom: 34px;
+        }
+
+        .am-section-title small {
+            color: var(--am-blue);
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            font-size: 12px;
+            font-weight: 950;
+        }
+
+        .am-section-title h2 {
+            margin-top: 8px;
+            font-size: clamp(28px, 4vw, 46px);
+            line-height: 1.08;
+            letter-spacing: -.05em;
+            font-weight: 950;
+            color: var(--am-navy);
+        }
+
+        .am-section-title p {
+            margin-top: 16px;
+            font-size: 17px;
+            line-height: 1.7;
+            color: var(--am-muted);
+        }
+
+        .am-story-card {
+            display: grid;
+            grid-template-columns: .95fr 1.05fr;
+            gap: 34px;
+            align-items: stretch;
+            background: #fff;
+            border: 1px solid #E2E8F0;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, .08);
+        }
+
+        .am-story-visual {
+            min-height: 420px;
+            padding: 34px;
+            background:
+                linear-gradient(rgba(15,62,109,.74), rgba(29,43,58,.82)),
+                url('https://images.unsplash.com/photo-1555041469-a586c61ea9bc?q=80&w=1200&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            color: #fff;
         }
 
-        .glass-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 2rem;
-            box-shadow: 0 20px 40px rgba(15, 23, 42, .08);
+        .am-story-visual strong {
+            display: block;
+            font-size: 34px;
+            line-height: 1.05;
+            letter-spacing: -.05em;
+            font-weight: 950;
         }
 
-        .text-gradient {
-            color: #2E6DA4;
+        .am-story-visual span {
+            display: block;
+            margin-top: 12px;
+            color: rgba(255,255,255,.78);
+            line-height: 1.6;
+            font-weight: 600;
+        }
+
+        .am-story-content {
+            padding: 44px 44px 44px 10px;
+            color: #334155;
+            font-size: 17px;
+            line-height: 1.8;
+        }
+
+        .am-story-content p + p { margin-top: 18px; }
+        .am-story-content strong { color: var(--am-navy); }
+
+        .am-quote {
+            margin-top: 26px;
+            padding: 24px;
+            border-left: 6px solid var(--am-blue);
+            background: #EFF6FF;
+            border-radius: 0 20px 20px 0;
+            color: var(--am-blue-dark);
+            font-weight: 900;
+            font-size: 18px;
+            line-height: 1.55;
+            font-style: italic;
+        }
+
+        .am-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 22px;
+        }
+
+        .am-feature-card {
+            background: #fff;
+            border: 1px solid #E2E8F0;
+            border-radius: 28px;
+            padding: 30px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, .06);
+        }
+
+        .am-feature-card .icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #EAF4FF;
+            color: var(--am-blue);
+            font-size: 22px;
+            margin-bottom: 18px;
+        }
+
+        .am-feature-card h3 {
+            font-size: 22px;
+            font-weight: 950;
+            letter-spacing: -.03em;
+            margin-bottom: 10px;
+            color: var(--am-navy);
+        }
+
+        .am-feature-card p {
+            color: var(--am-muted);
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        .am-cta {
+            margin: 20px 0 72px;
+            background: linear-gradient(135deg, var(--am-navy), var(--am-blue));
+            color: #fff;
+            border-radius: 34px;
+            padding: 42px;
+            display: flex;
+            gap: 28px;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 28px 70px rgba(15, 62, 109, .22);
+        }
+
+        .am-cta h2 {
+            font-size: clamp(26px, 4vw, 42px);
+            line-height: 1.1;
+            letter-spacing: -.05em;
+            font-weight: 950;
+            margin-bottom: 10px;
+        }
+
+        .am-cta p {
+            color: rgba(255,255,255,.78);
+            line-height: 1.65;
+            font-size: 16px;
+            max-width: 680px;
+        }
+
+        .am-cta a {
+            flex: 0 0 auto;
+        }
+
+        @media (max-width: 900px) {
+            .am-hero { padding: 44px 0 72px; }
+            .am-hero-inner,
+            .am-story-card,
+            .am-grid-2 { grid-template-columns: 1fr; }
+            .am-hero-card-grid,
+            .am-trust-strip { grid-template-columns: repeat(2, 1fr); }
+            .am-story-content { padding: 30px; }
+            .am-story-visual { min-height: 320px; }
+            .am-cta { flex-direction: column; align-items: flex-start; }
+            .am-cta a { width: 100%; }
+        }
+
+        @media (max-width: 560px) {
+            .am-shell { width: min(100% - 24px, 1180px); }
+            .am-hero-card-grid,
+            .am-trust-strip { grid-template-columns: 1fr; }
+            .am-hero-actions { flex-direction: column; }
+            .am-btn-primary,
+            .am-btn-secondary { width: 100%; }
+            .am-story-card,
+            .am-feature-card,
+            .am-cta { border-radius: 24px; }
+            .am-story-content { padding: 24px; font-size: 15px; }
+            .am-section { padding: 46px 0; }
         }
 
         #main-footer, #main-footer * {
@@ -50,111 +437,153 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col bg-fundo-claro">
+<body class="min-h-screen flex flex-col">
 
     <header id="main-header"></header>
 
-    <div class="block md:hidden">
-        <section class="mobile-hero pt-16 pb-12 px-6 text-center text-white">
-            <h1 class="text-3xl font-black italic mb-2">QUEM SOMOS</h1>
-            <p class="text-sm opacity-80 uppercase tracking-widest">Ariana Móveis & Marketplace</p>
-        </section>
-
-        <main class="px-4 -mt-8 pb-12">
-            <div class="bg-white rounded-3xl shadow-xl p-6 mb-6">
-                <h2 class="text-2xl font-black text-[#2E6DA4] mb-4 italic">Sua casa, <br>nossa tecnologia.</h2>
-                <p class="text-gray-600 leading-relaxed mb-4 text-sm">
-                    A Ariana Móveis evoluiu. Hoje somos um marketplace robusto que une a tradição dos móveis com o que há de mais moderno em eletro e tecnologia.
-                </p>
-                <div class="bg-blue-50 border-l-4 border-[#2E6DA4] p-4 italic text-[#2E6DA4] text-sm rounded-r-xl">
-                    "Entregamos o conforto e a facilidade que a vida moderna exige."
-                </div>
-            </div>
-
-            <div class="space-y-4">
-                <div class="flex items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="w-12 h-12 bg-blue-100 text-[#2E6DA4] rounded-xl flex items-center justify-center mr-4">
-                        <i class="fas fa-mobile-alt"></i>
-                    </div>
-                    <div>
-                        <h4 class="font-bold text-sm">Tecnologia</h4>
-                        <p class="text-xs text-gray-500">As melhores marcas mundiais.</p>
-                    </div>
-                </div>
-
-                <div class="flex items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="w-12 h-12 bg-blue-100 text-[#2E6DA4] rounded-xl flex items-center justify-center mr-4">
-                        <i class="fas fa-couch"></i>
-                    </div>
-                    <div>
-                        <h4 class="font-bold text-sm">Móveis & Eletro</h4>
-                        <p class="text-xs text-gray-500">Design para cada ambiente.</p>
-                    </div>
-                </div>
-
-                <div class="flex items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <div class="w-12 h-12 bg-blue-100 text-[#2E6DA4] rounded-xl flex items-center justify-center mr-4">
-                        <i class="fas fa-truck-loading"></i>
-                    </div>
-                    <div>
-                        <h4 class="font-bold text-sm">Entrega Garantida</h4>
-                        <p class="text-xs text-gray-500">Sua compra segura conosco.</p>
-                    </div>
-                </div>
-            </div>
-
-            <a href="index.html" class="block w-full bg-[#1D2B3A] text-white text-center py-4 rounded-2xl font-bold mt-8 shadow-lg">
-                <i class="fas fa-shopping-cart mr-2"></i> IR PARA A LOJA
-            </a>
-        </main>
-    </div>
-
-    <div class="hidden md:block flex-1">
-        <section class="bg-[#1D2B3A] text-white py-24 px-6 text-center">
-            <h1 class="text-7xl font-black italic tracking-tighter mb-4">ARIANA MÓVEIS</h1>
-            <p class="text-2xl font-light opacity-70">O site completo para o seu lar.</p>
-        </section>
-
-        <main class="max-w-6xl mx-auto px-12 -mt-12 pb-24">
-            <div class="grid grid-cols-3 gap-8 mb-16">
-                <div class="bg-white p-10 rounded-[2rem] shadow-xl text-center">
-                    <i class="fas fa-mobile-alt text-4xl text-[#2E6DA4] mb-6"></i>
-                    <h3 class="font-bold text-xl">Tecnologia</h3>
-                </div>
-                <div class="bg-white p-10 rounded-[2rem] shadow-xl text-center border-t-8 border-[#2E6DA4]">
-                    <i class="fas fa-couch text-4xl text-[#2E6DA4] mb-6"></i>
-                    <h3 class="font-bold text-xl">Móveis</h3>
-                </div>
-                <div class="bg-white p-10 rounded-[2rem] shadow-xl text-center">
-                    <i class="fas fa-shield-alt text-4xl text-[#2E6DA4] mb-6"></i>
-                    <h3 class="font-bold text-xl">Segurança</h3>
-                </div>
-            </div>
-
-            <div class="glass-card p-8 md:p-20 mb-20">
-                <div class="max-w-3xl mx-auto text-gray-600 text-lg leading-relaxed">
-                    <h2 class="text-3xl md:text-4xl font-black mb-10 text-gradient italic">O que é a Ariana Móveis?</h2>
-
-                    <p class="mb-6">
-                        A <strong>Ariana Móveis</strong> nasceu da vontade de oferecer uma experiência de compra completa e segura. Evoluímos de uma loja especializada para um <strong>Marketplace robusto</strong>, onde a curadoria técnica é o nosso maior diferencial.
-                    </p>
-
-                    <p class="mb-6">
-                        Hoje, nossa plataforma reúne o que há de melhor em <strong>Eletrodomésticos, Eletroeletrônicos, Informática e Celulares</strong>, além da nossa tradicional linha de mobiliário. Nosso objetivo é que você encontre tudo para o seu dia a dia — do lazer ao trabalho — em um ambiente digital intuitivo e extremamente confiável.
-                    </p>
-
-                    <div class="bg-blue-50 border-l-8 border-[#2E6DA4] p-8 my-12 rounded-r-2xl italic text-[#2E6DA4] font-semibold text-xl">
-                        "Não entregamos apenas produtos. Entregamos tecnologia, conforto e a facilidade que a sua vida moderna exige."
-                    </div>
-
-                    <h2 class="text-3xl font-black pt-8 mb-8 text-gradient italic">Variedade com Responsabilidade</h2>
+    <main class="flex-1">
+        <section class="am-hero">
+            <div class="am-shell am-hero-inner">
+                <div>
+                    <span class="am-kicker"><i class="fas fa-store"></i> Ariana Móveis Marketplace</span>
+                    <h1>O site completo para sua casa.</h1>
                     <p>
-                        Ao comprar conosco, você tem a certeza de estar adquirindo itens de parceiros homologados. Seja um smartphone de última geração ou um conjunto de jantar, cada produto passa por um filtro de qualidade para garantir que sua única preocupação seja aproveitar a nova aquisição.
+                        Unimos móveis, eletrodomésticos, tecnologia e atendimento próximo em uma experiência de compra segura, moderna e preparada para o dia a dia da sua família.
                     </p>
+                    <div class="am-hero-actions">
+                        <a class="am-btn-primary" href="todos_produtos.html"><i class="fas fa-shopping-cart"></i> Ver produtos</a>
+                        <a class="am-btn-secondary" href="contato.html"><i class="fas fa-headset"></i> Falar com a loja</a>
+                    </div>
+                </div>
+
+                <div class="am-hero-card" aria-label="Diferenciais Ariana Móveis">
+                    <div class="am-hero-card-grid">
+                        <div class="am-mini-stat">
+                            <i class="fas fa-couch"></i>
+                            <div><strong>Móveis</strong><span>Produtos para organizar, decorar e transformar ambientes.</span></div>
+                        </div>
+                        <div class="am-mini-stat">
+                            <i class="fas fa-tv"></i>
+                            <div><strong>Eletro</strong><span>Grandes categorias para facilitar a rotina da casa.</span></div>
+                        </div>
+                        <div class="am-mini-stat">
+                            <i class="fas fa-mobile-alt"></i>
+                            <div><strong>Tecnologia</strong><span>Eletrônicos, informática e celulares em um só lugar.</span></div>
+                        </div>
+                        <div class="am-mini-stat">
+                            <i class="fas fa-shield-alt"></i>
+                            <div><strong>Segurança</strong><span>Compra protegida, atendimento e acompanhamento do pedido.</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </main>
-    </div>
+        </section>
+
+        <section class="am-overlap">
+            <div class="am-shell am-trust-strip">
+                <article class="am-trust-item">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>Compra simples</h3>
+                    <p>Uma navegação clara para encontrar produtos, comparar opções e comprar com praticidade.</p>
+                </article>
+                <article class="am-trust-item">
+                    <i class="fas fa-truck"></i>
+                    <h3>Entrega acompanhada</h3>
+                    <p>Pedido acompanhado com atenção desde a confirmação até a etapa de entrega.</p>
+                </article>
+                <article class="am-trust-item">
+                    <i class="fas fa-user-shield"></i>
+                    <h3>Ambiente seguro</h3>
+                    <p>Processos pensados para proteger dados, pagamentos e a experiência do cliente.</p>
+                </article>
+                <article class="am-trust-item">
+                    <i class="fas fa-handshake"></i>
+                    <h3>Atendimento próximo</h3>
+                    <p>Uma loja com presença local e atendimento humano para ajudar quando você precisar.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="am-section">
+            <div class="am-shell">
+                <div class="am-section-title">
+                    <small>Quem somos</small>
+                    <h2>Ariana Móveis: tradição, tecnologia e marketplace em evolução.</h2>
+                    <p>
+                        A marca cresceu para atender melhor quem busca variedade, segurança e uma compra completa em um único ambiente digital.
+                    </p>
+                </div>
+
+                <div class="am-story-card">
+                    <div class="am-story-visual">
+                        <strong>Feita para você.</strong>
+                        <span>Do móvel para sua casa ao eletrodoméstico essencial, nossa missão é facilitar sua escolha.</span>
+                    </div>
+                    <div class="am-story-content">
+                        <p>
+                            A <strong>Ariana Móveis</strong> nasceu da vontade de oferecer uma experiência de compra completa e segura. Evoluímos de uma loja especializada para um <strong>marketplace robusto</strong>, onde a curadoria técnica e o atendimento próximo são diferenciais importantes.
+                        </p>
+                        <p>
+                            Hoje, nossa plataforma reúne o que há de melhor em <strong>móveis, eletrodomésticos, eletroeletrônicos, informática e celulares</strong>, além da nossa tradicional linha para o lar. Nosso objetivo é que você encontre tudo para o dia a dia em um ambiente intuitivo, confiável e organizado.
+                        </p>
+                        <div class="am-quote">
+                            “Não entregamos apenas produtos. Entregamos tecnologia, conforto e a facilidade que a vida moderna exige.”
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="am-section" style="padding-top:0;">
+            <div class="am-shell">
+                <div class="am-section-title">
+                    <small>Nossos pilares</small>
+                    <h2>O que guia a experiência Ariana Móveis.</h2>
+                </div>
+
+                <div class="am-grid-2">
+                    <article class="am-feature-card">
+                        <div class="icon"><i class="fas fa-layer-group"></i></div>
+                        <h3>Variedade com responsabilidade</h3>
+                        <p>
+                            Trabalhamos para reunir categorias importantes em um só lugar, mantendo uma apresentação clara dos produtos e parceiros para facilitar sua decisão de compra.
+                        </p>
+                    </article>
+                    <article class="am-feature-card">
+                        <div class="icon"><i class="fas fa-lock"></i></div>
+                        <h3>Segurança em cada etapa</h3>
+                        <p>
+                            A jornada de compra é pensada para oferecer confiança, desde a escolha do produto até pagamento, acompanhamento e suporte pós-venda.
+                        </p>
+                    </article>
+                    <article class="am-feature-card">
+                        <div class="icon"><i class="fas fa-comments"></i></div>
+                        <h3>Atendimento humano</h3>
+                        <p>
+                            Mesmo com uma plataforma digital, nosso compromisso é manter proximidade com o cliente e oferecer suporte claro sempre que necessário.
+                        </p>
+                    </article>
+                    <article class="am-feature-card">
+                        <div class="icon"><i class="fas fa-home"></i></div>
+                        <h3>Produtos para a vida real</h3>
+                        <p>
+                            Nosso foco é oferecer soluções úteis para casa, trabalho, lazer e rotina, com produtos que realmente fazem diferença no dia a dia.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="am-shell">
+            <div class="am-cta">
+                <div>
+                    <h2>Pronto para encontrar sua próxima compra?</h2>
+                    <p>Explore ofertas, móveis, eletrodomésticos, tecnologia e produtos selecionados para transformar sua casa com mais praticidade.</p>
+                </div>
+                <a class="am-btn-primary" href="todos_produtos.html"><i class="fas fa-arrow-right"></i> Ir para a loja</a>
+            </div>
+        </section>
+    </main>
 
     <footer id="main-footer"></footer>
 
