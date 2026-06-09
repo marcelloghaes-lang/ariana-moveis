@@ -1206,7 +1206,7 @@ function carregarHeader() {
       <div class="max-w-[1440px] mx-auto px-3 sm:px-6 flex items-center gap-3 sm:gap-6 md:gap-10">
 
         <div class="flex items-center flex-shrink-0 min-w-0 md:min-w-[260px] pr-2 gap-3">
-          <a href="index.html" class="relative group flex items-center">
+          <a href="/" class="relative group flex items-center">
             <img 
               src="assets/imagens/avatar-ariana.png"
               alt="Ariana Móveis"
@@ -1222,7 +1222,7 @@ function carregarHeader() {
             </span>
           </a>
 
-          <a href="index.html"
+          <a href="/"
             class="flex flex-col justify-center gap-1 hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
             <div class="flex items-baseline gap-2 text-2xl md:text-4xl font-black tracking-tighter italic">
               <span class="ariana-logo-gradient">ARIANA</span>
@@ -1374,7 +1374,7 @@ function carregarHeader() {
         </div>
         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b pb-2">Menu de Navegação</p>
         <ul class="flex flex-col space-y-2 font-bold text-gray-800">
-          <li><a href="index.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-home text-primary-blue w-6"></i> Início</a></li>
+          <li><a href="/" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-home text-primary-blue w-6"></i> Início</a></li>
           <li><a href="todos_produtos.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-shopping-bag text-primary-blue w-6"></i> Produtos</a></li>
           <li><a href="ofertas.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-fire text-red-500 w-6"></i> Ofertas</a></li>
           <li><a href="contato.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-headset text-primary-blue w-6"></i> Atendimento</a></li>
