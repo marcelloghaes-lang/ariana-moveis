@@ -1,459 +1,342 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro | Seller</title>
-    <!-- BUILD: admin_painel_fix_v3 -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seja um vendedor | Ariana Móveis</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="canonical" href="https://arianamoveis.com.br/seller_cadastro.html">
 
-   <link rel="manifest" href="/manifest-admin.webmanifest">
-<meta name="theme-color" content="#0b1220">
-<link rel="icon" href="/favicon.ico">
-<link rel="apple-touch-icon" href="/icons/icon-admin-192.png">
+  <link rel="manifest" href="/manifest-seller.webmanifest">
+  <meta name="theme-color" content="#2E6DA4">
+  <link rel="icon" href="/favicon.ico">
 
-<script>console.log('ADMIN_PAINEL_FIX_V3 carregado');</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
-<style>
-
-        /* Estilos Gerais da Seção de Produto */
-.product-section {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.product-section h2 {
-    font-size: 1.4em;
-    color: #333;
-    margin-bottom: 10px;
-}
-
-.product-section p {
-    color: #666;
-    margin-bottom: 20px;
-}
-
-/* Estilo para a Grid de Dimensões (Layout 4 Colunas) */
-.dimensions-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 15px; /* Espaçamento entre as colunas */
-    margin-bottom: 20px;
-}
-
-/* Garante que o input de file do CORA/CIELO não seja visível */
-.file-upload-cora input[type="file"] {
-    display: none;
-}
-
-/* Estilos de Animação */
-.animate-fade { animation: fade-in 0.3s ease-out; }
-@keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-/* Estilos de Cores */
-.bg-primary-blue { background-color: #2E6DA4; }
-.hover\:bg-secondary-light-blue:hover { background-color: #56B5FF; }
-.text-primary-blue { color: #2E6DA4; }
-.bg-dark-bg { background-color: #1D2B3A; }
-.text-dark { color: #333333; }
-.bg-fundo-claro { background-color: #F5F7FA; }
-.bg-dark-gray-bg { background-color: #222222; }
-.bg-error-red { background-color: #ef4444; }
-.bg-success-green { background-color: #10b981; }
-.text-error-red { color: #ef4444; }
-.text-success-green { color: #10b981; }
-
-/* Estilos de Toast */
-#toast-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 50; /* Garante que fique acima de tudo */
-}
-.toast {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-    transition: opacity 0.3s ease-out;
-}
-
-/* Estilos para o Modal de Visualização de Imagens */
-#image-modal-overlay {
-    background-color: rgba(0, 0, 0, 0.7);
-}
-#image-modal-content {
-    max-height: 90vh;
-    max-width: 90vw;
-}
-
-    </style>
+  <style>
+    :root{
+      --primary-blue:#2E6DA4;
+      --secondary-blue:#56B5FF;
+      --dark:#102033;
+      --soft:#F5F7FA;
+    }
+    body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f3f6fb;color:#102033;}
+    .bg-primary-blue{background-color:var(--primary-blue)}
+    .text-primary-blue{color:var(--primary-blue)}
+    .border-primary-blue{border-color:var(--primary-blue)}
+    .shadow-soft{box-shadow:0 20px 55px rgba(15,38,74,.10)}
+    .seller-input{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:14px 14px 14px 44px;font-size:14px;outline:none;background:#fff;transition:.18s ease;}
+    .seller-input:focus{border-color:var(--primary-blue);box-shadow:0 0 0 4px rgba(46,109,164,.14)}
+    .input-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#8aa0ba;}
+    .step-card{border:1px solid #e3eaf3;background:#fff;border-radius:18px;padding:18px;}
+    .toast{box-shadow:0 14px 32px rgba(15,23,42,.18);transition:opacity .3s ease-out, transform .3s ease-out;}
+    .seller-hero{background:linear-gradient(180deg,#ffffff 0%,#f7f9fc 100%);}
+    .seller-kicker{background:#eef6ff;border:1px solid #d8e9fb;color:var(--primary-blue);}
+    .seller-benefit{background:#ffffff;border:1px solid #e3eaf3;color:#102033;box-shadow:0 12px 30px rgba(15,38,74,.07);}
+    .seller-benefit i{color:var(--primary-blue);}
+    .seller-benefit small{color:#64748b;}
+    .seller-form-card{background:#ffffff;border:1px solid #e3eaf3;}
+  </style>
 </head>
-<body class="bg-fundo-claro min-h-screen flex">
-  <div id="toast-container" class="space-y-3">
+<body class="min-h-screen">
+  <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3"></div>
+
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-5 py-5 flex items-center justify-between gap-4">
+      <a href="/" class="flex items-center gap-3 text-decoration-none">
+        <div class="w-12 h-12 rounded-2xl bg-primary-blue text-white flex items-center justify-center shadow-soft">
+          <i class="fas fa-store text-xl"></i>
         </div>
-  <div id="image-modal-overlay" class="fixed inset-0 hidden items-center justify-center z-40">
-        <div id="image-modal-content" class="relative bg-white rounded-lg p-4 max-w-xl mx-auto">
-            <button onclick="closeImageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
-            <img id="modal-image" src="" alt="Imagem Ampliada" class="w-full h-auto max-h-96 object-contain">
-            <p id="modal-image-name" class="text-center mt-2 text-sm text-gray-600"></p>
+        <div class="leading-tight">
+          <div class="text-2xl font-black italic text-primary-blue tracking-tight">ARIANA <span class="text-sky-500">MÓVEIS</span></div>
+          <div class="text-[11px] uppercase tracking-[0.24em] font-black text-slate-500">Marketplace</div>
         </div>
+      </a>
+
+      <div class="hidden md:flex items-center gap-4 text-sm font-bold text-slate-600">
+        <a href="/" class="hover:text-primary-blue">Início</a>
+        <a href="quem_somos.html" class="hover:text-primary-blue">Quem somos</a>
+        <a href="seller_login.html" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-primary-blue">Entrar como seller</a>
+      </div>
     </div>
-  <aside id="sidebar" class="hidden bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
-        <a href="#" class="text-white flex items-center space-x-2 px-4">
-            <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
-        </a>
+  </header>
 
-        <nav class="flex flex-col space-y-2">
-            <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
-            <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
-            <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
-            <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
-            <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
-            <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
-            <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
-            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
-            <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
-            <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
-            <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
-            <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
-        </nav>
-    </aside>
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <header id="seller-header" class="hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden">
-                <i class="fas fa-bars text-xl"></i>
-            </button>
-            <h1 id="view-title" class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
-            <div id="user-info" class="relative flex items-center space-x-4">
-                <button id="notif-btn" class="relative text-gray-600 hover:text-primary-blue focus:outline-none" title="Notificações">
-                    <i class="fas fa-bell text-xl"></i>
-                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-error-red text-white text-[10px] leading-[14px] px-1.5 rounded-full">0</span>
-                </button>
-                <div id="notif-dropdown" class="hidden absolute right-6 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
-                    <div class="p-3 border-b flex items-center justify-between">
-                        <span class="font-semibold text-gray-800">Notificações</span>
-                        <button id="notif-mark-read" class="text-sm text-primary-blue hover:underline">Marcar como lidas</button>
-                    </div>
-                    <div id="notif-list" class="max-h-80 overflow-y-auto">
-                        <div class="p-4 text-sm text-gray-500">Sem notificações.</div>
-                    </div>
-                </div>
-<span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
-                <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
-            </div>
-        </header>
-    <main id="seller-main" class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
-<div class="grid lg:grid-cols-2 gap-8 items-start">
-
-      <!-- Left info -->
-      <section class="order-2 lg:order-1">
-        <div class="bg-white rounded-2xl shadow-soft p-7 border border-slate-100">
-          <h1 class="text-2xl sm:text-3xl font-black text-slate-900">
-            Criar conta de Seller
-          </h1>
-          <p class="mt-3 text-slate-600 leading-relaxed">
-            Este formulário cria o usuário no <b>MongoDB / Ariana Seller</b> e também cria o documento
-            em <b>MongoDB → sellers</b> com <b>active:true</b>.
+  <main>
+    <section class="relative overflow-hidden seller-hero text-slate-900">
+      <div class="absolute inset-0 opacity-70" style="background:radial-gradient(circle at 18% 15%,rgba(86,181,255,.20) 0,transparent 30%),radial-gradient(circle at 82% 5%,rgba(46,109,164,.10) 0,transparent 26%);"></div>
+      <div class="relative max-w-7xl mx-auto px-5 py-12 lg:py-16 grid lg:grid-cols-[1.05fr_.95fr] gap-8 items-center">
+        <div>
+          <p class="inline-flex items-center gap-2 px-4 py-2 rounded-full seller-kicker text-xs font-black uppercase tracking-[0.18em]">
+            <i class="fas fa-handshake"></i> Venda na Ariana Móveis
           </p>
-
-          <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <div class="font-black mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Importante</div>
-            Em produção, esse cadastro deve ser restrito (admin). Se suas regras estiverem abertas, qualquer pessoa
-            poderia se cadastrar como seller.
-          </div>
-
-          <div class="mt-6 grid sm:grid-cols-2 gap-3">
-            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-secondary-light-blue text-primary-blue flex items-center justify-center">
-                  <i class="fa-solid fa-user-check"></i>
-                </div>
-                <div>
-                  <div class="font-extrabold">Auth</div>
-                  <div class="text-xs text-slate-600">Email/Senha</div>
-                </div>
-              </div>
+          <h1 class="mt-6 text-4xl lg:text-5xl font-black leading-tight tracking-tight text-slate-950">
+            Cadastre sua loja para vender em nosso marketplace.
+          </h1>
+          <p class="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl">
+            Envie sua solicitação de parceria. Nossa equipe analisará os dados e entrará em contato para liberar seu acesso ao painel do vendedor.
+          </p>
+          <div class="mt-8 grid sm:grid-cols-3 gap-3 max-w-3xl">
+            <div class="rounded-2xl seller-benefit p-4">
+              <i class="fas fa-shield-alt text-xl"></i>
+              <div class="mt-2 font-black">Análise segura</div>
+              <div class="text-sm text-slate-500">Aprovação feita pela equipe Ariana.</div>
             </div>
-            <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-secondary-light-blue text-primary-blue flex items-center justify-center">
-                  <i class="fa-solid fa-database"></i>
-                </div>
-                <div>
-                  <div class="font-extrabold">MongoDB</div>
-                  <div class="text-xs text-slate-600">sellers/{uid}</div>
-                </div>
-              </div>
+            <div class="rounded-2xl seller-benefit p-4">
+              <i class="fas fa-box-open text-xl"></i>
+              <div class="mt-2 font-black">Venda seus produtos</div>
+              <div class="text-sm text-slate-500">Cadastre seu catálogo após aprovação.</div>
             </div>
-          </div>
-
-          <div class="mt-6 text-xs text-slate-500">
-            Dica: depois do cadastro, você já pode logar em <b>seller_login.html</b>.
+            <div class="rounded-2xl seller-benefit p-4">
+              <i class="fas fa-chart-line text-xl"></i>
+              <div class="mt-2 font-black">Cresça conosco</div>
+              <div class="text-sm text-slate-500">Acompanhe pedidos e resultados.</div>
+            </div>
           </div>
         </div>
-      </section>
 
-      <!-- Form -->
-      <section class="order-1 lg:order-2">
-        <div class="bg-white rounded-2xl shadow-soft border border-slate-100 overflow-hidden">
-          <div class="p-7">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <h2 class="text-xl sm:text-2xl font-black text-slate-900">Dados do Seller</h2>
-                <p class="text-sm text-slate-600 mt-1">Preencha e crie sua conta.</p>
-              </div>
-              <div class="w-12 h-12 rounded-2xl bg-secondary-light-blue text-primary-blue flex items-center justify-center">
-                <i class="fa-solid fa-user-plus text-lg"></i>
-              </div>
+        <div class="seller-form-card text-slate-900 rounded-[28px] shadow-soft p-6 sm:p-8">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-2xl sm:text-3xl font-black tracking-tight">Solicitação de parceria</h2>
+              <p class="mt-2 text-sm text-slate-600">Preencha os dados abaixo para iniciar sua análise.</p>
             </div>
+            <div class="w-12 h-12 rounded-2xl bg-sky-50 text-primary-blue flex items-center justify-center">
+              <i class="fas fa-user-plus text-lg"></i>
+            </div>
+          </div>
 
-            <form id="signup-form" class="mt-6 space-y-4">
-              <div>
-                <label class="block text-xs font-extrabold text-slate-700">Nome do Seller</label>
-                <div class="mt-1 relative">
-                  <i class="fa-solid fa-id-card absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                  <input id="name" type="text"
-                         class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
-                         placeholder="Ex: Sirlandio Marcelo" required />
+          <form id="signup-form" class="mt-7 space-y-5">
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label for="name" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Nome completo do responsável</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-id-card input-icon"></i>
+                  <input id="name" type="text" class="seller-input" placeholder="Ex: João da Silva" required autocomplete="name">
+                </div>
+              </div>
+
+              <div class="sm:col-span-2">
+                <label for="factoryName" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Nome da loja / razão social</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-store input-icon"></i>
+                  <input id="factoryName" type="text" class="seller-input" placeholder="Ex: Eletro Minas Comércio" required autocomplete="organization">
                 </div>
               </div>
 
               <div>
-                <label class="block text-xs font-extrabold text-slate-700">Nome da Loja / Razão</label>
-                <div class="mt-1 relative">
-                  <i class="fa-solid fa-shop absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                  <input id="factoryName" type="text"
-                         class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
-                         placeholder="Ex: ARIANA MOVEIS" required />
-                </div>
-              </div>
-
-              <div class="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-extrabold text-slate-700">E-mail</label>
-                  <div class="mt-1 relative">
-                    <i class="fa-solid fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input id="email" type="email" autocomplete="username"
-                           class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
-                           placeholder="seller@exemplo.com" required />
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block text-xs font-extrabold text-slate-700">Telefone</label>
-                  <div class="mt-1 relative">
-                    <i class="fa-solid fa-phone absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input id="phone" type="text"
-                           class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
-                           placeholder="Ex: 31985147119" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-extrabold text-slate-700">CPF/CNPJ</label>
-                  <div class="mt-1 relative">
-                    <i class="fa-solid fa-file-invoice absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input id="cpfCnpj" type="text"
-                           class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
-                           placeholder="Ex: 48.126.915/0001-74" required />
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block text-xs font-extrabold text-slate-700">Status inicial</label>
-                  <select id="status"
-                    class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue bg-white">
-                    <option value="aprovado">aprovado</option>
-                    <option value="pendente">pendente</option>
-                    <option value="reprovado">reprovado</option>
-                    <option value="bloqueado">bloqueado</option>
-                  </select>
+                <label for="email" class="block text-xs font-black text-slate-700 uppercase tracking-wide">E-mail profissional</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-envelope input-icon"></i>
+                  <input id="email" type="email" class="seller-input" placeholder="contato@sualoja.com.br" required autocomplete="email">
                 </div>
               </div>
 
               <div>
-                <label class="block text-xs font-extrabold text-slate-700">Senha</label>
-                <div class="mt-1 relative">
-                  <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                  <input id="password" type="password" autocomplete="new-password"
-                         class="w-full rounded-xl border border-slate-200 pl-10 pr-10 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-blue/20 focus:border-primary-blue"
-                         placeholder="Mínimo 6 caracteres" required />
-                  <button type="button" id="togglePass"
-                          class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                          aria-label="Mostrar/ocultar senha">
-                    <i class="fa-solid fa-eye"></i>
+                <label for="phone" class="block text-xs font-black text-slate-700 uppercase tracking-wide">WhatsApp / telefone</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-phone-alt input-icon"></i>
+                  <input id="phone" type="tel" class="seller-input" placeholder="(31) 99999-9999" required autocomplete="tel">
+                </div>
+              </div>
+
+              <div class="sm:col-span-2">
+                <label for="cpfCnpj" class="block text-xs font-black text-slate-700 uppercase tracking-wide">CPF ou CNPJ</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-file-invoice input-icon"></i>
+                  <input id="cpfCnpj" type="text" class="seller-input" placeholder="123.456.789-00 ou 12.345.678/0001-99" required>
+                </div>
+              </div>
+
+              <div>
+                <label for="password" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Senha de acesso</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-lock input-icon"></i>
+                  <input id="password" type="password" class="seller-input pr-12" placeholder="Mínimo 6 caracteres" required autocomplete="new-password">
+                  <button type="button" id="togglePass" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700" aria-label="Mostrar ou ocultar senha">
+                    <i class="fas fa-eye"></i>
                   </button>
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
-                <input id="active" type="checkbox" class="w-4 h-4" checked>
-                <label for="active" class="text-sm text-slate-700">
-                  Ativo (<span class="text-slate-500">active: true</span>)
-                </label>
+              <div>
+                <label for="confirmPassword" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Confirmar senha</label>
+                <div class="mt-2 relative">
+                  <i class="fas fa-lock input-icon"></i>
+                  <input id="confirmPassword" type="password" class="seller-input" placeholder="Repita a senha" required autocomplete="new-password">
+                </div>
               </div>
+            </div>
 
-              <div id="alert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
+            <label class="flex items-start gap-3 rounded-2xl bg-slate-50 border border-slate-200 p-4 cursor-pointer">
+              <input id="terms" type="checkbox" class="mt-1 w-4 h-4" required>
+              <span class="text-sm text-slate-600 leading-relaxed">
+                Declaro que as informações enviadas são verdadeiras e estou ciente de que a conta passará por análise antes da liberação.
+              </span>
+            </label>
 
-              <button id="btnSubmit" type="submit"
-                      class="w-full rounded-xl bg-primary-blue text-white font-extrabold py-3 hover:opacity-95 active:opacity-90 transition flex items-center justify-center gap-2">
-                <span id="btnText">Criar conta</span>
-                <span id="btnSpinner" class="hidden">
-                  <i class="fa-solid fa-circle-notch fa-spin"></i>
-                </span>
-              </button>
+            <div id="alert" class="hidden rounded-2xl border px-4 py-3 text-sm font-semibold"></div>
 
-              <div class="text-xs text-slate-500">
-                Ao criar a conta, será criado o documento em <b>sellers/{uid}</b> com <b>accountType: "seller"</b>.
-              </div>
-            </form>
-          </div>
+            <button id="btnSubmit" type="submit" class="w-full rounded-2xl bg-primary-blue text-white font-black py-4 hover:opacity-95 active:opacity-90 transition flex items-center justify-center gap-2 shadow-soft">
+              <span id="btnText">Enviar solicitação</span>
+              <span id="btnSpinner" class="hidden"><i class="fas fa-circle-notch fa-spin"></i></span>
+            </button>
 
-          <div class="px-7 py-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
-            <span>© Ariana Móveis</span>
-            <a href="seller_login.html" class="font-bold text-primary-blue hover:underline">Ir para login</a>
-          </div>
+            <p class="text-xs text-center text-slate-500 leading-relaxed">
+              Já tem cadastro? <a href="seller_login.html" class="font-black text-primary-blue hover:underline">Entrar no painel do seller</a>
+            </p>
+          </form>
         </div>
-      </section>
+      </div>
+    </section>
+
+    <section class="max-w-7xl mx-auto px-5 py-12 grid lg:grid-cols-3 gap-5">
+      <div class="step-card">
+        <div class="w-12 h-12 rounded-2xl bg-sky-50 text-primary-blue flex items-center justify-center"><i class="fas fa-paper-plane"></i></div>
+        <h3 class="mt-4 text-xl font-black">1. Envie sua solicitação</h3>
+        <p class="mt-2 text-slate-600 leading-relaxed">Preencha os dados da sua loja para que nossa equipe conheça sua operação.</p>
+      </div>
+      <div class="step-card">
+        <div class="w-12 h-12 rounded-2xl bg-sky-50 text-primary-blue flex items-center justify-center"><i class="fas fa-search"></i></div>
+        <h3 class="mt-4 text-xl font-black">2. Aguarde a análise</h3>
+        <p class="mt-2 text-slate-600 leading-relaxed">A Ariana Móveis avaliará as informações e poderá solicitar documentos adicionais.</p>
+      </div>
+      <div class="step-card">
+        <div class="w-12 h-12 rounded-2xl bg-sky-50 text-primary-blue flex items-center justify-center"><i class="fas fa-store-alt"></i></div>
+        <h3 class="mt-4 text-xl font-black">3. Comece a vender</h3>
+        <p class="mt-2 text-slate-600 leading-relaxed">Após aprovação, você acessa o painel para cadastrar produtos e acompanhar pedidos.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-[#102033] text-white">
+    <div class="max-w-7xl mx-auto px-5 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div>
+        <div class="font-black text-lg">Ariana Móveis Marketplace</div>
+        <div class="text-sm text-white/65">Feita para você vender com mais confiança.</div>
+      </div>
+      <div class="flex items-center gap-4 text-sm text-slate-500">
+        <a href="/" class="hover:text-white">Início</a>
+        <a href="contato.html" class="hover:text-white">Atendimento</a>
+        <a href="seller_login.html" class="hover:text-white">Login Seller</a>
+      </div>
     </div>
-</main>
-  </div>
- 
+  </footer>
+
 <script>
 const IS_LOCAL_HOST = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
 const API_BASE = IS_LOCAL_HOST ? "http://localhost:3000/api" : "https://ariana-backend.onrender.com/api";
-const $ = (id)=>document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
-function getSellerToken() {
-  return localStorage.getItem("seller_token") || "";
-}
-function getSellerProfile() {
-  try { return JSON.parse(localStorage.getItem("seller_profile") || "{}") || {}; } catch(_) { return {}; }
-}
-function clearSellerSession() {
-  localStorage.removeItem("seller_token");
-  localStorage.removeItem("seller_profile");
-  localStorage.removeItem("partner_request_id");
-}
-function authHeaders(extra = {}) {
-  const token = getSellerToken();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
-}
-function toast(message, type='info'){
+function toast(message, type = 'info') {
   const c = $('toast-container');
-  if(!c) return alert(message);
+  if (!c) return alert(message);
   const el = document.createElement('div');
-  const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-  el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
+  const color = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-primary-blue';
+  el.className = `toast ${color} text-white px-5 py-4 rounded-2xl font-bold`;
   el.textContent = message;
   c.appendChild(el);
-  setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)},3400);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-8px)'; setTimeout(() => el.remove(), 300); }, 3600);
 }
-</script>
 
-<script>
-// Cadastro de seller
-function showAlert(msg, type='error'){
+function showAlert(msg, type = 'error') {
   const a = $('alert');
-  if(!a) return;
+  if (!a) return;
   a.textContent = msg;
-
-  a.className =
-    'rounded-2xl px-4 py-3 text-sm font-semibold ' +
-    (type==='success'
+  a.className = 'rounded-2xl px-4 py-3 text-sm font-semibold ' +
+    (type === 'success'
       ? 'bg-green-50 text-green-700 border border-green-200'
       : 'bg-red-50 text-red-700 border border-red-200');
-
   a.classList.remove('hidden');
 }
 
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
 
-(function bootSignupPage(){
-  const token = getSellerToken();
-  const profile = getSellerProfile();
-  const sidebar = document.getElementById('sidebar');
-  const header = document.getElementById('seller-header');
-  const sellerMain = document.getElementById('seller-main');
-  const nameBox = document.getElementById('user-display-name');
-  if (token && profile && (profile._id || profile.id || profile.email)) {
-    if (sidebar) sidebar.classList.remove('hidden');
-    if (header) header.classList.remove('hidden');
-    if (sellerMain) sellerMain.classList.add('p-6');
-    if (nameBox) nameBox.textContent = `Bem-vindo, ${profile.factoryName || profile.name || 'Seller'}!`;
-  } else {
-    if (sidebar) sidebar.classList.add('hidden');
-    if (header) header.classList.add('hidden');
-  }
-  document.getElementById('btn-sair')?.addEventListener('click', (e)=>{
-    e.preventDefault();
-    clearSellerSession();
-    window.location.href = 'seller_login.html';
-  });
-  document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
-    document.getElementById('sidebar')?.classList.toggle("-translate-x-full");
-  });
-})();
+function setButtonLoading(isLoading) {
+  const btn = $('btnSubmit');
+  const text = $('btnText');
+  const spinner = $('btnSpinner');
+  if (!btn) return;
+  btn.disabled = isLoading;
+  btn.classList.toggle('opacity-70', isLoading);
+  if (text) text.textContent = isLoading ? 'Enviando solicitação...' : 'Enviar solicitação';
+  if (spinner) spinner.classList.toggle('hidden', !isLoading);
+}
 
-// ===== SUBMIT DO FORMULÁRIO =====
-$('signup-form').addEventListener('submit', async (e)=>{
+$('togglePass')?.addEventListener('click', () => {
+  const pass = $('password');
+  const icon = $('togglePass')?.querySelector('i');
+  if (!pass) return;
+  const visible = pass.type === 'text';
+  pass.type = visible ? 'password' : 'text';
+  if (icon) icon.className = visible ? 'fas fa-eye' : 'fas fa-eye-slash';
+});
+
+$('signup-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const btn = $('btnSubmit');
-  btn.disabled = true;
-  btn.textContent = 'Enviando...';
+  const name = $('name').value.trim();
+  const factoryName = $('factoryName').value.trim();
+  const email = $('email').value.trim().toLowerCase();
+  const phone = $('phone').value.trim();
+  const cpfCnpj = $('cpfCnpj').value.trim();
+  const password = $('password').value.trim();
+  const confirmPassword = $('confirmPassword').value.trim();
 
-  try{
+  if (password.length < 6) return showAlert('A senha precisa ter no mínimo 6 caracteres.');
+  if (password !== confirmPassword) return showAlert('As senhas não conferem.');
+  if (onlyDigits(cpfCnpj).length < 11) return showAlert('Informe um CPF ou CNPJ válido.');
+
+  setButtonLoading(true);
+
+  try {
     const payload = {
-      name: $('name').value.trim(),
-      factoryName: $('factoryName').value.trim(),
-      email: $('email').value.trim().toLowerCase(),
-      phone: $('phone').value.trim(),
-      whatsapp: $('phone').value.trim(),
-      cnpj: $('cpfCnpj').value.trim(),
-      cpf_cnpj: $('cpfCnpj').value.trim(),
-      requestedTempPass: $('password').value.trim(),
-      status: 'pending_onboarding'
+      name,
+      factoryName,
+      email,
+      phone,
+      whatsapp: phone,
+      cnpj: cpfCnpj,
+      cpf_cnpj: cpfCnpj,
+      requestedTempPass: password,
+      status: 'pending_onboarding',
+      active: false,
+      accountType: 'seller'
     };
 
-    // Chamada para o servidor no Render
-    const res = await fetch(API_BASE + "/seller/partner-request",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
+    const res = await fetch(API_BASE + "/seller/partner-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+
     if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Erro no servidor');
+      throw new Error(data?.message || data?.error || 'Não foi possível enviar sua solicitação agora.');
     }
 
-    const data = await res.json();
+    const rid = data?.id || data?.sellerId || data?.seller?.sellerId || data?.seller?._id || data?._id;
+    if (rid) localStorage.setItem('partner_request_id', rid);
 
-    const rid = data.id || data.sellerId || data?.seller?.sellerId || data?.seller?._id;
-    if(!rid) throw new Error('ID não retornado pelo servidor');
+    showAlert('Solicitação enviada com sucesso. Nossa equipe fará a análise e entrará em contato.', 'success');
+    toast('Solicitação enviada com sucesso.', 'success');
 
-    localStorage.setItem('partner_request_id', rid);
+    setTimeout(() => {
+      const target = rid
+        ? 'seller_sucesso.html?rid=' + encodeURIComponent(rid)
+        : 'seller_sucesso.html';
+      window.location.href = target;
+    }, 900);
 
-    showAlert('Solicitação criada com sucesso. Continue no onboarding.', 'success');
-    toast('Solicitação criada.', 'success');
-
-    setTimeout(()=>{
-      window.location.href = 'seller_onboarding.html?rid=' + encodeURIComponent(rid);
-    },700);
-
-  }catch(err){
-    console.error('Erro no cadastro:', err);
+  } catch (err) {
+    console.error('Erro no cadastro de seller:', err);
     showAlert('Erro ao enviar solicitação: ' + err.message);
     toast('Erro ao enviar solicitação.', 'error');
-
-    btn.disabled = false;
-    btn.textContent = 'Criar conta';
+    setButtonLoading(false);
   }
 });
 </script>

@@ -1633,7 +1633,7 @@ function renderAccountPopover() {
         try { window.dispatchEvent(new Event('user:updated')); } catch (_) {}
         atualizarUsuarioHeader();
         updateHeaderCityDisplay();
-        window.location.href = 'index.html';
+        window.location.href = '/';
       } catch (e) {
         console.error(e);
       }

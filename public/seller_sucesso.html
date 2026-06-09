@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitação enviada | Ariana Móveis</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="canonical" href="https://arianamoveis.com.br/seller_sucesso.html">
+  <link rel="manifest" href="/manifest-seller.webmanifest">
+  <meta name="theme-color" content="#2E6DA4">
+  <link rel="icon" href="/favicon.ico">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <style>
+    :root{--primary-blue:#2E6DA4;--dark:#102033}
+    body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f3f6fb;color:#102033}
+    .text-primary-blue{color:var(--primary-blue)}
+    .bg-primary-blue{background:var(--primary-blue)}
+    .shadow-soft{box-shadow:0 20px 55px rgba(15,38,74,.10)}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-5 py-5 flex items-center justify-between gap-4">
+      <a href="/" class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-primary-blue text-white flex items-center justify-center shadow-soft">
+          <i class="fas fa-store text-xl"></i>
+        </div>
+        <div class="leading-tight">
+          <div class="text-2xl font-black italic text-primary-blue tracking-tight">ARIANA <span class="text-sky-500">MÓVEIS</span></div>
+          <div class="text-[11px] uppercase tracking-[0.24em] font-black text-slate-500">Marketplace</div>
+        </div>
+      </a>
+      <a href="seller_login.html" class="hidden sm:inline-flex px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-primary-blue font-black text-sm">Entrar como seller</a>
+    </div>
+  </header>
+
+  <main class="flex-1 flex items-center justify-center px-5 py-12">
+    <section class="w-full max-w-3xl bg-white rounded-[32px] shadow-soft border border-slate-200 overflow-hidden">
+      <div class="p-8 sm:p-12 text-center">
+        <div class="mx-auto w-20 h-20 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+          <i class="fas fa-check text-3xl"></i>
+        </div>
+
+        <h1 class="mt-7 text-3xl sm:text-4xl font-black tracking-tight text-slate-950">Solicitação enviada com sucesso!</h1>
+        <p class="mt-4 text-slate-600 leading-relaxed text-lg">
+          Recebemos o cadastro da sua loja. A equipe da Ariana Móveis vai analisar as informações e entrará em contato para dar continuidade à liberação do painel do vendedor.
+        </p>
+
+        <div class="mt-8 grid sm:grid-cols-3 gap-4 text-left">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div class="w-11 h-11 rounded-2xl bg-white text-primary-blue flex items-center justify-center"><i class="fas fa-clipboard-check"></i></div>
+            <h3 class="mt-4 font-black text-slate-900">1. Cadastro recebido</h3>
+            <p class="mt-1 text-sm text-slate-500">Sua solicitação foi registrada em nossa plataforma.</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div class="w-11 h-11 rounded-2xl bg-white text-primary-blue flex items-center justify-center"><i class="fas fa-search"></i></div>
+            <h3 class="mt-4 font-black text-slate-900">2. Análise interna</h3>
+            <p class="mt-1 text-sm text-slate-500">Nossa equipe verifica os dados enviados pela loja.</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div class="w-11 h-11 rounded-2xl bg-white text-primary-blue flex items-center justify-center"><i class="fas fa-store-alt"></i></div>
+            <h3 class="mt-4 font-black text-slate-900">3. Liberação</h3>
+            <p class="mt-1 text-sm text-slate-500">Após aprovação, o vendedor poderá acessar o painel.</p>
+          </div>
+        </div>
+
+        <div id="protocol-box" class="hidden mt-8 rounded-2xl bg-blue-50 border border-blue-100 p-4 text-sm text-slate-700">
+          <span class="font-black text-primary-blue">Protocolo da solicitação:</span>
+          <span id="protocol-value" class="font-mono break-all"></span>
+        </div>
+
+        <div class="mt-9 flex flex-col sm:flex-row gap-3 justify-center">
+          <a id="status-link" href="seller_status.html" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-blue text-white px-6 py-4 font-black hover:opacity-95">
+            <i class="fas fa-clock"></i> Acompanhar solicitação
+          </a>
+          <a href="/" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100 text-slate-700 px-6 py-4 font-black hover:bg-slate-200">
+            <i class="fas fa-home"></i> Voltar para a loja
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function(){
+      const params = new URLSearchParams(window.location.search);
+      const rid = params.get('rid') || localStorage.getItem('partner_request_id') || '';
+      const box = document.getElementById('protocol-box');
+      const value = document.getElementById('protocol-value');
+      const statusLink = document.getElementById('status-link');
+
+      if (rid) {
+        localStorage.setItem('partner_request_id', rid);
+        if (box) box.classList.remove('hidden');
+        if (value) value.textContent = rid;
+        if (statusLink) statusLink.href = 'seller_status.html?rid=' + encodeURIComponent(rid);
+      }
+    })();
+  </script>
+</body>
+</html>

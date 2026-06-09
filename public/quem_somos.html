@@ -46,9 +46,10 @@
             position: relative;
             overflow: hidden;
             background:
-                radial-gradient(circle at 15% 20%, rgba(86, 181, 255, .28), transparent 28%),
-                linear-gradient(135deg, #0F3E6D 0%, #2E6DA4 46%, #1D2B3A 100%);
-            color: #fff;
+                radial-gradient(circle at 12% 12%, rgba(46, 109, 164, .10), transparent 30%),
+                radial-gradient(circle at 86% 18%, rgba(86, 181, 255, .14), transparent 28%),
+                linear-gradient(180deg, #ffffff 0%, #F7FAFD 100%);
+            color: var(--am-text);
             padding: 74px 0 96px;
         }
 
@@ -57,10 +58,10 @@
             position: absolute;
             inset: 0;
             background-image:
-                linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px),
-                linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px);
+                linear-gradient(90deg, rgba(46,109,164,.045) 1px, transparent 1px),
+                linear-gradient(rgba(46,109,164,.04) 1px, transparent 1px);
             background-size: 54px 54px;
-            opacity: .28;
+            opacity: .7;
             pointer-events: none;
         }
 
@@ -78,14 +79,14 @@
             align-items: center;
             gap: 10px;
             padding: 9px 14px;
-            border: 1px solid rgba(255,255,255,.24);
-            background: rgba(255,255,255,.12);
+            border: 1px solid #D8E7F5;
+            background: #EEF6FD;
+            color: var(--am-blue-dark);
             border-radius: 999px;
             font-size: 13px;
             font-weight: 800;
             letter-spacing: .06em;
             text-transform: uppercase;
-            backdrop-filter: blur(10px);
         }
 
         .am-hero h1 {
@@ -100,7 +101,7 @@
             max-width: 630px;
             font-size: clamp(17px, 2vw, 22px);
             line-height: 1.65;
-            color: rgba(255,255,255,.86);
+            color: #475569;
         }
 
         .am-hero-actions {
@@ -125,15 +126,16 @@
         }
 
         .am-btn-primary {
-            background: #fff;
-            color: var(--am-blue-dark);
-            box-shadow: 0 18px 40px rgba(0,0,0,.22);
+            background: var(--am-blue);
+            color: #fff;
+            box-shadow: 0 16px 34px rgba(46,109,164,.22);
         }
 
         .am-btn-secondary {
-            background: rgba(255,255,255,.11);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,.22);
+            background: #fff;
+            color: var(--am-blue-dark);
+            border: 1px solid #D8E7F5;
+            box-shadow: 0 10px 28px rgba(15,23,42,.06);
         }
 
         .am-btn-primary:hover,
@@ -143,10 +145,9 @@
             position: relative;
             border-radius: 34px;
             padding: 26px;
-            background: rgba(255,255,255,.14);
-            border: 1px solid rgba(255,255,255,.22);
-            box-shadow: 0 30px 80px rgba(0,0,0,.24);
-            backdrop-filter: blur(12px);
+            background: #ffffff;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 24px 60px rgba(15,23,42,.10);
         }
 
         .am-hero-card-grid {
@@ -156,8 +157,9 @@
         }
 
         .am-mini-stat {
-            background: rgba(255,255,255,.94);
+            background: #F8FAFC;
             color: var(--am-navy);
+            border: 1px solid #E6EEF6;
             border-radius: 22px;
             padding: 22px;
             min-height: 142px;
@@ -403,6 +405,13 @@
         .am-cta a {
             flex: 0 0 auto;
         }
+
+        .am-cta .am-btn-primary {
+            background: #fff;
+            color: var(--am-blue-dark);
+            box-shadow: 0 18px 40px rgba(0,0,0,.18);
+        }
+
 
         @media (max-width: 900px) {
             .am-hero { padding: 44px 0 72px; }
