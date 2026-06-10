@@ -569,7 +569,15 @@ window.editProduct = function(id){
   const p=allProductsCache.find(x=>String(x.id||x._id)===String(id)); if(!p) return;
   editingProductId=String(p.id||p._id); document.getElementById('product-id').value=editingProductId;
   document.getElementById('product-name').value=p.name||''; document.getElementById('product-category').innerHTML=productCategoryOptions(p.categoryName||p.category||'');
-  document.getElementById('product-price').value=Number(p.price||0); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||'';
+  document.getElementById('product-price').value=Number(p.price||0); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
+  if(specsEl) {
+    let specValue = p.technicalSpecs || p.technicalSpecification || p.technicalSpecifications || p.specifications || p.specification || p.specs || p.fichaTecnica || p.ficha_tecnica || p.especificacaoTecnica || p.especificacoesTecnicas || p.especificacoes || p.technicalDetails || '';
+    if(!specValue && (p.attributes || p.atributos)){
+      const obj = p.attributes || p.atributos;
+      specValue = Object.entries(obj).map(([k,v]) => `${k}: ${v && typeof v === 'object' ? (v.value || v.valor || JSON.stringify(v)) : v}`).join('\n');
+    }
+    specsEl.value = specValue;
+  }
   document.getElementById('product-weight').value=p.weight||1; document.getElementById('product-length').value=p.length||20; document.getElementById('product-height').value=p.height||10; document.getElementById('product-width').value=p.width||15;
   ['Offer','Favorite','Highlight','BestSeller','NewArrival','Recommended'].forEach(k=>{const el=document.getElementById(`product-is${k}`); if(el) el.checked=!!p[`is${k}`]});
   productImagesCache=(Array.isArray(p.images)?p.images:[]).map(normalizeImageEntry).filter(Boolean); if(!productImagesCache.length && p.imageUrl) productImagesCache=[{url:p.imageUrl,path:p.mainImagePath||p.imageUrl,name:'principal',isMain:true}];
@@ -745,6 +753,20 @@ async function persistProductImages(){
       stock: Number(document.getElementById('product-stock')?.value ?? existing.stock ?? 0),
       sku: document.getElementById('product-sku')?.value?.trim() || existing.sku || '',
       description: document.getElementById('product-description')?.value?.trim() || existing.description || '',
+      technicalSpecs: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalSpecs || existing.technicalSpecifications || existing.specifications || '',
+      technicalSpecification: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalSpecification || existing.technicalSpecs || existing.specifications || '',
+      technicalSpecifications: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalSpecifications || existing.technicalSpecs || existing.specifications || '',
+      specifications: document.getElementById('product-technical-specs')?.value?.trim() || existing.specifications || existing.technicalSpecs || existing.technicalSpecifications || '',
+      specification: document.getElementById('product-technical-specs')?.value?.trim() || existing.specification || existing.specifications || existing.technicalSpecs || '',
+      specs: document.getElementById('product-technical-specs')?.value?.trim() || existing.specs || existing.specifications || existing.technicalSpecs || '',
+      fichaTecnica: document.getElementById('product-technical-specs')?.value?.trim() || existing.fichaTecnica || existing.technicalSpecs || '',
+      ficha_tecnica: document.getElementById('product-technical-specs')?.value?.trim() || existing.ficha_tecnica || existing.technicalSpecs || '',
+      especificacaoTecnica: document.getElementById('product-technical-specs')?.value?.trim() || existing.especificacaoTecnica || existing.technicalSpecs || '',
+      especificacoesTecnicas: document.getElementById('product-technical-specs')?.value?.trim() || existing.especificacoesTecnicas || existing.technicalSpecs || '',
+      especificacoes: document.getElementById('product-technical-specs')?.value?.trim() || existing.especificacoes || existing.technicalSpecs || '',
+      technicalDetails: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalDetails || existing.technicalSpecs || '',
+      attributes: parseTechnicalSpecsToObject(document.getElementById('product-technical-specs')?.value?.trim() || ''),
+      atributos: parseTechnicalSpecsToObject(document.getElementById('product-technical-specs')?.value?.trim() || ''),
       weight: Number(document.getElementById('product-weight')?.value ?? existing.weight ?? 1),
       length: Number(document.getElementById('product-length')?.value ?? existing.length ?? 20),
       height: Number(document.getElementById('product-height')?.value ?? existing.height ?? 10),
@@ -785,6 +807,26 @@ window.handleProductSaveClick = async function(e){
   return saveProductFromForm(e);
 }
 
+
+function parseTechnicalSpecsToObject(text){
+  const out = {};
+  String(text || '')
+    .split(/\r?\n|;\s*/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .forEach((line, idx) => {
+      const parts = line.split(/:\s*/);
+      if(parts.length > 1){
+        const key = parts.shift().trim();
+        const value = parts.join(': ').trim();
+        if(key && value) out[key] = value;
+      } else {
+        out[`Item ${idx + 1}`] = line;
+      }
+    });
+  return out;
+}
+
 async function saveProductFromForm(e){
   if(editingProductId && !hasAdminPerm('products:update')){ displayMessage('Você não tem permissão para atualizar produtos.','error'); return; }
   if(!editingProductId && !hasAdminPerm('products:create')){ displayMessage('Você não tem permissão para cadastrar produtos.','error'); return; }
@@ -796,6 +838,8 @@ async function saveProductFromForm(e){
     const currentMain=(productImagesCache.find(x=>x.isMain)||productImagesCache[0]||{});
     const currentIdField=document.getElementById('product-id');
     const currentFormId=String(currentIdField?.value||editingProductId||'').trim();
+    const technicalSpecsText = document.getElementById('product-technical-specs')?.value?.trim() || '';
+    const technicalSpecsObject = parseTechnicalSpecsToObject(technicalSpecsText);
     const payload={
       name:document.getElementById('product-name').value.trim(),
       category:document.getElementById('product-category').value,
@@ -804,6 +848,20 @@ async function saveProductFromForm(e){
       stock:Number(document.getElementById('product-stock').value||0),
       sku:document.getElementById('product-sku').value.trim(),
       description:document.getElementById('product-description').value.trim(),
+      technicalSpecs:technicalSpecsText,
+      technicalSpecification:technicalSpecsText,
+      technicalSpecifications:technicalSpecsText,
+      specifications:technicalSpecsText,
+      specification:technicalSpecsText,
+      specs:technicalSpecsText,
+      fichaTecnica:technicalSpecsText,
+      ficha_tecnica:technicalSpecsText,
+      especificacaoTecnica:technicalSpecsText,
+      especificacoesTecnicas:technicalSpecsText,
+      especificacoes:technicalSpecsText,
+      technicalDetails:technicalSpecsText,
+      attributes:technicalSpecsObject,
+      atributos:technicalSpecsObject,
       weight:Number(document.getElementById('product-weight').value||1),
       length:Number(document.getElementById('product-length').value||20),
       height:Number(document.getElementById('product-height').value||10),
@@ -938,7 +996,8 @@ async function renderProductsView(){
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Estoque</label><input id="product-stock" type="number" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">SKU</label><input id="product-sku" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
           </div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label><textarea id="product-description" class="w-full min-h-[110px] border border-gray-300 rounded-lg px-3 py-2"></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label><textarea id="product-description" class="w-full min-h-[110px] border border-gray-300 rounded-lg px-3 py-2" placeholder="Descrição comercial do produto para aparecer na página de detalhes."></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Especificação Técnica</label><textarea id="product-technical-specs" class="w-full min-h-[120px] border border-gray-300 rounded-lg px-3 py-2" placeholder="Ex: Marca, modelo, voltagem, dimensões, capacidade, material, garantia e demais informações técnicas."></textarea><p class="text-xs text-gray-500 mt-1">Use este campo para ficha técnica separada da descrição do produto.</p></div>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Peso (kg)</label><input id="product-weight" type="number" step="0.01" value="1" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Comprimento</label><input id="product-length" type="number" step="1" value="20" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>

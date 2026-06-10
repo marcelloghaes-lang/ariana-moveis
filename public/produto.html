@@ -1054,12 +1054,90 @@ async function loadPaymentsSettingsForProduct() {
                 const attributesList = byId('product-attributes');
                 if (attributesList) {
                     attributesList.innerHTML = '';
-                    const attrs = productData.attributes || productData.atributos || {};
-                    Object.entries(attrs).forEach(([key, value]) => {
+
+                    const escapeSpec = (v) => String(v ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+
+                    const specSources = [
+                        productData.technicalSpecifications,
+                        productData.technicalSpecification,
+                        productData.technicalSpecs,
+                        productData.technicalDetails,
+                        productData.specifications,
+                        productData.specification,
+                        productData.specs,
+                        productData.fichaTecnica,
+                        productData.ficha_tecnica,
+                        productData.especificacaoTecnica,
+                        productData.especificacoesTecnicas,
+                        productData.especificacoes,
+                        productData.attributes,
+                        productData.atributos,
+                        productData.details,
+                        productData.detalhes,
+                        productData.metadata?.technicalSpecs,
+                        productData.metadata?.specifications,
+                        productData.extra?.technicalSpecs,
+                        productData.extra?.specifications
+                    ];
+
+                    const addSpecLine = (key, value) => {
+                        if (value === null || value === undefined || String(value).trim() === '') return;
                         const li = document.createElement('li');
-                        li.innerHTML = `<strong>${key}:</strong> ${value}`;
+                        if (key) li.innerHTML = `<strong>${escapeSpec(key)}:</strong> ${escapeSpec(value)}`;
+                        else li.innerHTML = escapeSpec(value);
                         attributesList.appendChild(li);
-                    });
+                    };
+
+                    let added = false;
+                    for (const source of specSources) {
+                        if (!source) continue;
+
+                        if (typeof source === 'string') {
+                            const lines = source.split(/\r?\n|;\s*/).map(s => s.trim()).filter(Boolean);
+                            lines.forEach(line => {
+                                const parts = line.split(/:\s*/);
+                                if (parts.length > 1) addSpecLine(parts.shift(), parts.join(': '));
+                                else addSpecLine('', line);
+                                added = true;
+                            });
+                            if (added) break;
+                        }
+
+                        if (Array.isArray(source)) {
+                            source.forEach(item => {
+                                if (typeof item === 'string') addSpecLine('', item);
+                                else if (item && typeof item === 'object') {
+                                    addSpecLine(item.name || item.label || item.key || item.titulo || item.title, item.value || item.valor || item.text || item.description || item.descricao);
+                                }
+                                added = true;
+                            });
+                            if (added) break;
+                        }
+
+                        if (typeof source === 'object') {
+                            Object.entries(source).forEach(([key, value]) => {
+                                if (value && typeof value === 'object') {
+                                    addSpecLine(value.name || value.label || key, value.value || value.valor || value.text || JSON.stringify(value));
+                                } else {
+                                    addSpecLine(key, value);
+                                }
+                                added = true;
+                            });
+                            if (added) break;
+                        }
+                    }
+
+                    if (!attributesList.children.length) {
+                        const li = document.createElement('li');
+                        li.className = 'list-none text-gray-500';
+                        li.textContent = 'Nenhuma especificação técnica cadastrada para este produto.';
+                        attributesList.appendChild(li);
+                    }
                 }
 
                 productImages = [];

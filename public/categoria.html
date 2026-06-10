@@ -105,7 +105,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-8 gap-4">
           <div>
             <nav class="flex text-xs text-gray-400 mb-2 gap-2" id="breadcrumb">
-              <a href="index.html">Início</a><span>/</span><span class="text-gray-600">Categorias</span>
+              <a href="/">Início</a><span>/</span><span class="text-gray-600">Categorias</span>
             </nav>
             <h1 id="category-title" class="text-3xl font-extrabold text-dark-bg">Carregando...</h1>
           </div>
@@ -286,44 +286,60 @@
         });
       }
 
-      function aliasTermsForCategory(cat, includeChildren = true) {
-        const terms = new Set();
+      function getCategoryIdentityValues(cat) {
+        const out = [];
+        if (!cat) return out;
+        [cat.id, cat._id, cat.name, cat.nome, cat.title, cat.slug, cat.key, cat.code].forEach(v => {
+          if (v !== null && v !== undefined && String(v).trim()) out.push(String(v).trim());
+        });
+        return out;
+      }
+
+      function getProductCategoryValues(p) {
+        const out = [];
         const add = (v) => {
-          const a = norm(v); const b = slug(v);
-          if (a) terms.add(a);
-          if (b) terms.add(b.replace(/-/g, ' '));
+          if (v === null || v === undefined) return;
+          if (Array.isArray(v)) return v.forEach(add);
+          if (typeof v === 'object') {
+            [v.id, v._id, v.name, v.nome, v.title, v.slug, v.key, v.code].forEach(add);
+            return;
+          }
+          const s = String(v).trim();
+          if (s) out.push(s);
         };
-        if (!cat) return terms;
-        [cat.id, cat._id, cat.name, cat.nome, cat.slug, cat.key, cat.code].forEach(add);
-        const name = norm(cat.name || cat.nome || cat.slug);
-        const packs = {
-          'smart tv': ['smart tv','smarttv','tv','televisor','televisores'],
-          'smartphones': ['smartphones','smartphone','celular','celulares','telefone'],
-          'celulares': ['smartphones','smartphone','celular','celulares','telefone'],
-          'moveis': ['moveis','movel','móveis','móvel','guarda roupas','guarda roupa','sofa','sofas','cama','camas','cozinha','rack','painel','mesa','cadeira'],
-          'eletrodomesticos': ['eletrodomesticos','eletro domesticos','geladeira','geladeiras','refrigerador','fogao','fogoes','microondas','micro ondas','maquina de lavar','lavadora'],
-          'eletroportateis': ['eletroportateis','eletro portateis','air fryer','fritadeira','secador','ventilador','liquidificador','batedeira'],
-          'informatica': ['informatica','notebook','computador','computadores','monitor','impressora'],
-          'som e audio': ['som','audio','caixa de som','caixa som','speaker'],
-          'caixa de som': ['som','audio','caixa de som','caixa som','speaker'],
-          'beleza e saude': ['beleza','saude','maquina de corte','barbeador','secador','chapinha']
-        };
-        for (const [key, vals] of Object.entries(packs)) {
-          if (name.includes(key) || key.includes(name)) vals.forEach(add);
-        }
-        if (includeChildren) getChildren(cat).forEach(ch => aliasTermsForCategory(ch, false).forEach(t => terms.add(t)));
-        return terms;
+
+        add(p.categoryId);
+        add(p.category_id);
+        add(p.categoriaId);
+        add(p.categoria_id);
+        add(p.categorySlug);
+        add(p.category_slug);
+        add(p.categoriaSlug);
+        add(p.categoryName);
+        add(p.category);
+        add(p.categoria);
+        add(p.subcategoryId);
+        add(p.subcategory_id);
+        add(p.subcategoriaId);
+        add(p.subcategorySlug);
+        add(p.subcategory_slug);
+        add(p.subcategoryName);
+        add(p.subcategory);
+        add(p.subcategoria);
+        add(p.department);
+        add(p.departamento);
+        add(p.categories);
+        add(p.categorias);
+
+        return out.filter(Boolean);
       }
 
       function productSearchText(p) {
+        // Busca livre pelo produto. Não é usada para decidir categoria,
+        // para evitar misturar celular com TV, lavadora, caixa de som etc.
         const values = [
           p.id, p._id, p.sku, p.slug,
           p.name, p.nome, p.title, p.titulo,
-          p.categoryId, p.category_id, p.categoriaId,
-          p.categoryName, p.category, p.categoria,
-          p.subcategoryId, p.subcategory_id,
-          p.subcategoryName, p.subcategory, p.subcategoria,
-          p.department, p.departamento,
           p.brand, p.marca,
           p.description, p.descricao
         ];
@@ -332,16 +348,24 @@
 
       function matchesCategory(p, cat) {
         if (!cat) return true;
-        const text = productSearchText(p);
-        const directIds = [p.categoryId, p.category_id, p.categoriaId, p.subcategoryId, p.subcategory_id].map(v => String(v || '').trim());
-        const validIds = [cat.id, cat._id, ...getChildren(cat).map(c => c.id), ...getChildren(cat).map(c => c._id)].map(v => String(v || '').trim()).filter(Boolean);
-        if (directIds.some(id => id && validIds.includes(id))) return true;
-        const terms = aliasTermsForCategory(cat, true);
-        for (const t of terms) {
-          if (!t || t.length < 2) continue;
-          if (text.includes(t)) return true;
-        }
-        return false;
+
+        const selectedCats = [cat, ...getChildren(cat)].filter(Boolean);
+        const validRaw = selectedCats.flatMap(getCategoryIdentityValues);
+        const validIds = validRaw.map(v => String(v || '').trim()).filter(Boolean);
+        const validNorms = new Set(validRaw.map(norm).filter(Boolean));
+        const validSlugs = new Set(validRaw.map(slug).filter(Boolean));
+
+        const productRaw = getProductCategoryValues(p);
+        if (!productRaw.length) return false;
+
+        return productRaw.some(value => {
+          const raw = String(value || '').trim();
+          if (!raw) return false;
+          if (validIds.includes(raw)) return true;
+          if (validNorms.has(norm(raw))) return true;
+          if (validSlugs.has(slug(raw))) return true;
+          return false;
+        });
       }
 
       function renderSidebar() {
@@ -431,7 +455,7 @@
         const breadcrumb = $('breadcrumb');
         const label = currentSub?.name || currentParent?.name || currentCategory?.name || 'Categorias';
         if (title) title.textContent = label;
-        if (breadcrumb) breadcrumb.innerHTML = `<a href="index.html">Início</a><span>/</span><span class="text-gray-600">${escapeHtml(label)}</span>`;
+        if (breadcrumb) breadcrumb.innerHTML = `<a href="/">Início</a><span>/</span><span class="text-gray-600">${escapeHtml(label)}</span>`;
       }
 
       async function initCategoria() {
