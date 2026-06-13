@@ -893,30 +893,936 @@ async function findOrdersForBot({ identifier = '', cpf = '', phone = '', orderId
   }
 
   if (phoneDigits) {
-  const phoneRegex = new RegExp(
-    phoneDigits.slice(-8) + '$'
-  );
+    const localPhone = phoneDigits.startsWith('55') && phoneDigits.length > 11
+      ? phoneDigits.slice(2)
+      : phoneDigits;
 
-  queries.push(
-    { customerPhone: phoneDigits },
-    { customerPhone: phoneRegex },
+    const phoneEnd8 = phoneDigits.slice(-8);
+    const phoneEnd9 = phoneDigits.slice(-9);
+    const phoneEnd10 = phoneDigits.slice(-10);
+    const phoneEnd11 = phoneDigits.slice(-11);
 
-    { 'shippingAddress.phone': phoneDigits },
-    { 'shippingAddress.phone': phoneRegex },
+    const phoneRegex = new RegExp(`(${phoneEnd8}|${phoneEnd9}|${phoneEnd10}|${phoneEnd11})import dotenv from 'dotenv';
+dotenv.config();
 
-    { 'customer.phone': phoneDigits },
-    { 'customer.phone': phoneRegex },
+import { v2 as cloudinary } from 'cloudinary';
 
-    { whatsapp: phoneDigits },
-    { whatsapp: phoneRegex },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-    { telefone: phoneDigits },
-    { telefone: phoneRegex }
+
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import multer from 'multer';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
+import { OAuth2Client } from 'google-auth-library';
+import { generateProductPosterBuffer } from './poster-generator.js';
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+
+
+const PORT = Number(process.env.PORT || 3000);
+const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
+const MONGODB_URI = process.env.MONGODB_URI || '';
+const MONGODB_DB = process.env.MONGODB_DB || 'ariana_moveis_db';
+const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+const FRONTEND_URL = (process.env.FRONTEND_URL || process.env.SITE_URL || 'https://arianamoveis.com.br').replace(/\/+$/, '');
+const RESET_PASSWORD_URL = (process.env.RESET_PASSWORD_URL || `${FRONTEND_URL}/redefinir_senha.html`).trim();
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
+const EMAIL_HOST = String(process.env.EMAIL_HOST || '').trim();
+const EMAIL_PORT = Number(process.env.EMAIL_PORT || 587);
+const EMAIL_SECURE = String(process.env.EMAIL_SECURE || '').toLowerCase() === 'true' || EMAIL_PORT === 465;
+const EMAIL_USER = String(process.env.EMAIL_USER || '').trim();
+const EMAIL_PASS = String(process.env.EMAIL_PASS || '').trim();
+const EMAIL_FROM = String(process.env.EMAIL_FROM || EMAIL_USER || 'Ariana MÃ³veis <no-reply@arianamoveis.com.br>').trim();
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const MAX_DISPATCH_ATTEMPTS = Number(process.env.MAX_DISPATCH_ATTEMPTS || 5);
+const DISPATCH_RETRY_BASE_MS = Number(process.env.DISPATCH_RETRY_BASE_MS || 5 * 60 * 1000);
+const DEFAULT_CURRENCY = 'BRL';
+
+if (!MONGODB_URI) {
+  console.error('âŒ MONGODB_URI nÃ£o configurada.');
+  process.exit(1);
+}
+
+mongoose.set('strictQuery', true);
+mongoose.connect(MONGODB_URI, { dbName: MONGODB_DB })
+  .then(() => console.log(`âœ… Mongo conectado em ${MONGODB_DB}`))
+  .catch((err) => {
+    console.error('âŒ Erro ao conectar no Mongo:', err);
+    process.exit(1);
+  });
+
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const tmpUploadsDir = path.join(uploadsDir, '_tmp');
+if (!fs.existsSync(tmpUploadsDir)) fs.mkdirSync(tmpUploadsDir, { recursive: true });
+console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
+
+const allowedOrigins = [
+  'http://127.0.0.1:5500',
+  'http://localhost:5500',
+  'https://ariana-moveis-oficial.onrender.com',
+  'https://ariana-moveis.onrender.com',
+  'https://arianamoveis.com.br',
+  'https://www.arianamoveis.com.br',
+  'https://arianamoveis.site',
+  'https://www.arianamoveis.site'
+];
+
+const envFrontendOrigins = String(process.env.FRONTEND_URLS || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const dynamicAllowedOrigins = Array.from(new Set([...allowedOrigins, ...envFrontendOrigins]));
+
+function isAllowedOrigin(origin = '') {
+  if (!origin) return true;
+  if (dynamicAllowedOrigins.includes(origin)) return true;
+  return /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error(`CORS bloqueado: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: false,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+}));
+
+function buildPublicFileUrl(req, filename) {
+  if (APP_BASE_URL) return `${APP_BASE_URL}/uploads/${String(filename || '').replace(/^\/+/, '')}`;
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
+  const host = (req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+  return `${proto}://${host}/uploads/${String(filename || '').replace(/^\/+/, '')}`;
+}
+function now() { return new Date(); }
+function uid(prefix = 'id') { return `${prefix}_${crypto.randomBytes(8).toString('hex')}`; }
+function cleanPhone(value = '') { return String(value).replace(/\D/g, ''); }
+function normalizePhone(value = '', defaultCountryCode = '55') {
+  let digits = cleanPhone(value);
+  if (!digits) return '';
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if ((digits.length === 10 || digits.length === 11) && defaultCountryCode) digits = `${defaultCountryCode}${digits}`;
+  return digits;
+}
+function redact(value, depth = 0) {
+  if (depth > 6) return '[max-depth]';
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.slice(0, 50).map(v => redact(v, depth + 1));
+  if (typeof value !== 'object') return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    const key = k.toLowerCase();
+    if (key.includes('token') || key.includes('secret') || key.includes('password') || key.includes('certificate') || key.includes('private_key') || key.includes('apikey')) out[k] = '[redacted]';
+    else out[k] = redact(v, depth + 1);
+  }
+  return out;
+}
+function changedKeys(before = {}, after = {}, prefix = '') {
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  const out = [];
+  for (const key of keys) {
+    const b = before ? before[key] : undefined;
+    const a = after ? after[key] : undefined;
+    const nextPrefix = prefix ? `${prefix}.${key}` : key;
+    const bothObjects = b && a && typeof b === 'object' && typeof a === 'object' && !Array.isArray(b) && !Array.isArray(a);
+    if (bothObjects) out.push(...changedKeys(b, a, nextPrefix));
+    else if (JSON.stringify(b) !== JSON.stringify(a)) out.push(nextPrefix);
+  }
+  return out.slice(0, 200);
+}
+function sanitizeIdPart(value = '') {
+  return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 120) || 'item';
+}
+
+function escapeRegex(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function normalizeObjectId(id) {
+  if (!id) return null;
+  if (mongoose.Types.ObjectId.isValid(id)) return new mongoose.Types.ObjectId(id);
+  return null;
+}
+function toJSON(doc) {
+  if (!doc) return doc;
+  const obj = typeof doc.toObject === 'function' ? doc.toObject({ virtuals: true }) : { ...doc };
+  if (obj._id && !obj.id) obj.id = String(obj._id);
+  return obj;
+}
+function ensureArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null) return [];
+  return [value];
+}
+
+function normalizeImageEntry(img) {
+  if (!img) return null;
+  if (typeof img === 'string') {
+    const value = String(img).trim();
+    if (!value) return null;
+    return { url: value, name: path.basename(value), path: value, isMain: false };
+  }
+  const url = String(img.url || img.imageUrl || img.downloadURL || img.downloadUrl || img.image || '').trim();
+  if (!url) return null;
+  return {
+    url,
+    name: String(img.name || path.basename(url) || 'imagem').trim(),
+    path: String(img.path || img.fullPath || img.filePath || url).trim(),
+    isMain: img.isMain === true,
+    contentType: String(img.contentType || '').trim() || undefined,
+  };
+}
+
+function normalizeProductForResponse(doc) {
+  const obj = toJSON(doc) || {};
+  const normalizedImages = ensureArray(obj.images).map(normalizeImageEntry).filter(Boolean);
+  const fallbackUrl = String(obj.mainImageUrl || obj.imageUrl || obj.image || obj.imagem || '').trim();
+  if (!normalizedImages.length && fallbackUrl) normalizedImages.push({ url: fallbackUrl, name: path.basename(fallbackUrl) || 'principal', path: String(obj.mainImagePath || fallbackUrl), isMain: true });
+  if (normalizedImages.length && !normalizedImages.some((img) => img.isMain)) normalizedImages[0].isMain = true;
+  const mainImage = normalizedImages.find((img) => img.isMain) || normalizedImages[0] || null;
+  obj.images = normalizedImages;
+  obj.image = mainImage ? mainImage.url : (fallbackUrl || '');
+  obj.imageUrl = mainImage ? mainImage.url : (fallbackUrl || '');
+  obj.imagem = obj.imageUrl;
+  obj.mainImageUrl = mainImage ? mainImage.url : (fallbackUrl || '');
+  obj.mainImagePath = mainImage ? (mainImage.path || mainImage.url) : (obj.mainImagePath || '');
+  obj.imageUrls = normalizedImages.map((img) => img.url).filter(Boolean);
+  obj.imagePaths = normalizedImages.map((img) => img.path || img.url).filter(Boolean);
+  return obj;
+}
+
+function signToken(user) {
+  return jwt.sign({ id: String(user._id), email: user.email, role: user.role || 'customer', sellerId: user.sellerId || null, admin: user.role === 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+}
+async function authRequired(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ ok: false, error: 'UsuÃ¡rio invÃ¡lido' });
+    req.user = user;
+    req.auth = decoded;
+    next();
+  } catch (_error) {
+    return res.status(401).json({ ok: false, error: 'Token invÃ¡lido' });
+  }
+}
+
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '').trim();
+const ADMIN_NAME = String(process.env.ADMIN_NAME || 'Administrador').trim();
+
+function signAdminToken(payload = {}) {
+  return jwt.sign({ role: 'admin', admin: true, active: true, ...payload }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function adminPermissionAllowedForRoute(req, permissions = []) {
+  const role = String(req.admin?.role || req.auth?.role || '').toLowerCase();
+  if (role === 'admin' || req.admin?.admin === true) return true;
+
+  const perms = new Set(Array.isArray(permissions) ? permissions : []);
+  const method = String(req.method || 'GET').toUpperCase();
+  const pathOnly = String(req.path || req.originalUrl || '').split('?')[0];
+
+  const has = (permission) => perms.has(permission);
+  const hasAny = (...items) => items.some((item) => has(item));
+
+  if (pathOnly === '/api/admin/me') return true;
+
+  if (pathOnly.startsWith('/api/admin/categories') && method === 'GET') {
+    return hasAny('categories:read', 'products:read', 'products:create', 'products:update');
+  }
+
+  if (pathOnly === '/api/admin/uploads' && ['POST', 'DELETE'].includes(method)) {
+    return hasAny('uploads:create', 'products:create', 'products:update');
+  }
+
+  if (pathOnly.startsWith('/api/admin/posters/product')) {
+    return method === 'POST' && has('posters:generate');
+  }
+
+  if (pathOnly.startsWith('/api/admin/posters/bulk') || pathOnly.startsWith('/api/admin/posters/offers')) {
+    return method === 'POST' && has('posters:generate:bulk');
+  }
+
+  if (pathOnly === '/api/admin/products' || pathOnly.startsWith('/api/admin/products/')) {
+    if (method === 'GET') return has('products:read');
+    if (method === 'POST') return has('products:create');
+    if (['PATCH', 'PUT'].includes(method)) return has('products:update');
+    if (method === 'DELETE') return has('products:delete');
+  }
+
+  return false;
+}
+
+async function adminRequired(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const decodedRole = String(decoded.role || '').toLowerCase();
+
+    if (decoded && (decoded.admin === true || decodedRole === 'admin')) {
+      req.admin = decoded;
+      req.user = decoded;
+      req.auth = decoded;
+      return next();
+    }
+
+    const user = decoded.id ? await User.findById(decoded.id) : null;
+    const userRole = String(user?.role || decodedRole || '').toLowerCase();
+
+    if (user && user.isActive === false) {
+      return res.status(403).json({ ok: false, error: 'UsuÃ¡rio desativado' });
+    }
+
+    if (user && userRole === 'admin') {
+      req.admin = {
+        id: String(user._id),
+        email: user.email || '',
+        name: user.name || ADMIN_NAME,
+        role: 'admin',
+        admin: true,
+        permissions: ['*']
+      };
+      req.user = user;
+      req.auth = req.admin;
+      return next();
+    }
+
+    if (user && userRole === 'staff') {
+      const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+      req.admin = {
+        id: String(user._id),
+        email: user.email || '',
+        name: user.name || 'Colaborador',
+        role: 'staff',
+        admin: false,
+        permissions
+      };
+      req.user = user;
+      req.auth = req.admin;
+
+      if (adminPermissionAllowedForRoute(req, permissions)) return next();
+
+      return res.status(403).json({
+        ok: false,
+        error: 'Sem permissÃ£o para esta aÃ§Ã£o',
+        requiredPath: req.path,
+        method: req.method
+      });
+    }
+
+    return res.status(403).json({ ok: false, error: 'Acesso negado' });
+  } catch (_error) {
+    return res.status(401).json({ ok: false, error: 'Token invÃ¡lido' });
+  }
+}
+
+function parsePossiblyJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === '') return [];
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [trimmed];
+    }
+  }
+  return [value];
+}
+
+function normalizeIncomingImages(body = {}, fallbackImages = []) {
+  const bodyImages = parsePossiblyJsonArray(body.images);
+  const bodyImageUrls = parsePossiblyJsonArray(body.imageUrls);
+  const bodyImagePaths = parsePossiblyJsonArray(body.imagePaths);
+
+  const imagesFromBody = bodyImages.map(normalizeImageEntry).filter(Boolean);
+  const imagesFromFlatUrls = bodyImageUrls.map((url, index) => normalizeImageEntry({
+    url,
+    path: bodyImagePaths[index] || url,
+    name: path.basename(String(url || '')) || `imagem_${index + 1}`,
+    isMain: false,
+  })).filter(Boolean);
+
+  const merged = [...imagesFromBody, ...imagesFromFlatUrls, ...ensureArray(fallbackImages).map(normalizeImageEntry).filter(Boolean)];
+  const byKey = new Map();
+  for (const img of merged) {
+    const key = String(img.path || img.url || img.name || '').trim();
+    if (!key) continue;
+    const current = byKey.get(key) || {};
+    byKey.set(key, {
+      ...current,
+      ...img,
+      url: String(img.url || current.url || '').trim(),
+      path: String(img.path || current.path || img.url || '').trim(),
+      name: String(img.name || current.name || path.basename(String(img.url || current.url || '')) || 'imagem').trim(),
+      isMain: current.isMain === true || img.isMain === true,
+    });
+  }
+  const normalized = Array.from(byKey.values()).filter((img) => img.url);
+  const preferredMain = String(body.mainImagePath || body.mainImageUrl || body.imageUrl || body.image || body.imagem || '').trim();
+  if (preferredMain) {
+    normalized.forEach((img) => {
+      img.isMain = img.url === preferredMain || img.path === preferredMain;
+    });
+  }
+  if (normalized.length && !normalized.some((img) => img.isMain)) normalized[0].isMain = true;
+  return normalized;
+}
+
+function productPayloadFromBody(body = {}, existingDoc = null) {
+  const existing = existingDoc ? normalizeProductForResponse(existingDoc) : {};
+  const imageObjects = normalizeIncomingImages(body, existing.images || []);
+  const mainImageObj = imageObjects.find((img) => img.isMain) || imageObjects[0] || null;
+  const fallbackMainUrl = String(body.mainImageUrl || body.imageUrl || body.image || body.imagem || existing.mainImageUrl || existing.imageUrl || existing.image || '').trim();
+  const fallbackMainPath = String(body.mainImagePath || existing.mainImagePath || fallbackMainUrl || '').trim();
+  const mainImageUrl = mainImageObj ? mainImageObj.url : (fallbackMainUrl || null);
+  const mainImagePath = mainImageObj ? (mainImageObj.path || mainImageObj.url) : (fallbackMainPath || null);
+  const skuSource = body.sku !== undefined ? body.sku : existing.sku;
+  const slugSource = body.slug !== undefined ? body.slug : existing.slug;
+  const nameSource = body.name ?? body.nome ?? existing.name ?? '';
+  return {
+    sellerId: String(body.sellerId ?? body.seller_id ?? existing.sellerId ?? '').trim(),
+    sellerName: body.sellerName ?? body.seller_name ?? existing.sellerName ?? '',
+    name: nameSource,
+    slug: slugSource || sanitizeIdPart(nameSource || ''),
+    description: body.description ?? body.descricao ?? existing.description ?? '',
+    category: body.category ?? body.categoria ?? body.categoryName ?? existing.category ?? existing.categoryName ?? '',
+    categoryId: body.categoryId ?? existing.categoryId ?? '',
+    categoryName: body.categoryName ?? body.category ?? body.categoria ?? existing.categoryName ?? existing.category ?? '',
+    brand: body.brand ?? existing.brand ?? '',
+    sku: skuSource || uid('sku'),
+    price: Number(body.price ?? body.preco ?? existing.price ?? 0),
+    oldPrice: body.oldPrice !== undefined && body.oldPrice !== null && body.oldPrice !== '' ? Number(body.oldPrice) : (existing.oldPrice ?? null),
+    pixPrice: body.pixPrice !== undefined && body.pixPrice !== null && body.pixPrice !== '' ? Number(body.pixPrice) : (existing.pixPrice ?? null),
+    installmentCount: Number(body.installmentCount ?? existing.installmentCount ?? 12),
+    image: mainImageUrl || null,
+    imageUrl: mainImageUrl || null,
+    imagem: mainImageUrl || null,
+    mainImageUrl: mainImageUrl || null,
+    mainImagePath: mainImagePath || null,
+    images: imageObjects,
+    imageUrls: imageObjects.map((i) => i.url).filter(Boolean),
+    imagePaths: imageObjects.map((i) => i.path || i.url).filter(Boolean),
+    stock: Number(body.stock ?? existing.stock ?? 0),
+    active: body.active !== undefined ? body.active !== false : (existing.active !== false),
+    specs: body.specs ?? existing.specs ?? {},
+    dimensions: body.dimensions ?? existing.dimensions ?? {},
+    logistics: body.logistics ?? existing.logistics ?? {},
+    weight: body.weight !== undefined ? Number(body.weight) : existing.weight,
+    length: body.length !== undefined ? Number(body.length) : existing.length,
+    height: body.height !== undefined ? Number(body.height) : existing.height,
+    width: body.width !== undefined ? Number(body.width) : existing.width,
+    isOffer: body.isOffer !== undefined ? !!body.isOffer : !!existing.isOffer,
+    isFavorite: body.isFavorite !== undefined ? !!body.isFavorite : !!existing.isFavorite,
+    isHighlight: body.isHighlight !== undefined ? !!body.isHighlight : !!existing.isHighlight,
+    isBestSeller: body.isBestSeller !== undefined ? !!body.isBestSeller : !!existing.isBestSeller,
+    isNewArrival: body.isNewArrival !== undefined ? !!body.isNewArrival : !!existing.isNewArrival,
+    isRecommended: body.isRecommended !== undefined ? !!body.isRecommended : !!existing.isRecommended,
+    updatedAt: now(),
+  };
+}
+
+function safeUploadFolder(input = '') {
+  const clean = String(input || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  return clean.split('/').filter(Boolean).map((part) => part.replace(/[^a-zA-Z0-9._-]/g, '_')).slice(0, 5).join('/');
+}
+
+
+
+function isCloudinaryConfigured() {
+  return Boolean(
+    String(process.env.CLOUDINARY_CLOUD_NAME || '').trim() &&
+    String(process.env.CLOUDINARY_API_KEY || '').trim() &&
+    String(process.env.CLOUDINARY_API_SECRET || '').trim()
   );
 }
 
-  if (requestedOrderId && mongoose.Types.ObjectId.isValid(requestedOrderId)) {
-    queries.push({ _id: new mongoose.Types.ObjectId(requestedOrderId) });
+function buildCloudinaryFolder(input = '') {
+  const folder = safeUploadFolder(input || 'geral') || 'geral';
+  return `ariana_moveis/${folder}`;
+}
+
+async function uploadToCloudinary(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'Nenhum arquivo enviado' });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(500).json({ ok: false, error: 'Cloudinary nÃ£o configurado.' });
+    }
+
+    // Define a pasta e limpa o nome do produto para o link
+    const targetFolder = buildCloudinaryFolder(req.body?.path || req.query?.path || 'geral');
+    const nomeOriginal = req.body.name || req.body.nome || 'produto';
+    
+    const slug = nomeOriginal
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    // Upload com o nome do produto + timestamp
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: targetFolder,
+      public_id: `${slug}-${Date.now()}`,
+      resource_type: 'image',
+      overwrite: true
+    });
+
+    // Limpa o arquivo temporÃ¡rio do servidor
+    if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+    return res.json({
+      ok: true,
+      url: result.secure_url,
+      public_id: result.public_id,
+      format: result.format
+    });
+  } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    console.error('Erro no upload:', error);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, tmpUploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '');
+    const base = path.basename(file.originalname || 'arquivo', ext).replace(/[^\w\-]+/g, '_');
+    cb(null, `${Date.now()}-${base}${ext}`);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+const baseOptions = { timestamps: true, versionKey: false };
+const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin', 'staff'] }, permissions: { type: [String], default: [] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true }, emailVerified: { type: Boolean, default: false }, googleId: { type: String, index: true, sparse: true }, authProvider: { type: String, default: 'password' }, resetPasswordTokenHash: { type: String, default: '' }, resetPasswordExpiresAt: { type: Date, default: null } }, baseOptions);
+const sellerSchema = new mongoose.Schema({ sellerId: { type: String, index: true, unique: true }, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, displayName: String, storeName: String, email: String, phone: String, document: String, status: { type: String, default: 'pending' }, onboardingCompleted: { type: Boolean, default: false }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
+const categorySchema = new mongoose.Schema({ name: { type: String, required: true }, slug: String, parentId: { type: String, default: null }, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, image: String }, baseOptions);
+const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
+productSchema.index({ name: 'text', description: 'text', category: 'text', brand: 'text' });
+const bannerSchema = new mongoose.Schema({ slot: { type: String, required: true, index: true }, targetSlot: { type: String, index: true }, title: String, subtitle: String, image: String, href: String, alt: String, active: { type: Boolean, default: true }, status: { type: String, default: 'published', index: true }, source: { type: String, default: 'manual' }, draftType: String, products: [mongoose.Schema.Types.Mixed], sortOrder: { type: Number, default: 0 }, device: { type: String, default: 'all' } }, baseOptions);
+const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, name: String, phone: String, cep: String, logradouro: String, numero: String, bairro: String, cidade: String, uf: String, complemento: String, reference: String, isDefault: { type: Boolean, default: false } }, baseOptions);
+const ticketSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, orderId: { type: String, default: null }, protocolo: { type: String, index: true }, tipo: String, assunto: String, mensagem: String, status: { type: String, default: 'Novo' }, origem: { type: String, default: 'site' }, nome: String, email: String, telefone: String, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
+const contactSchema = new mongoose.Schema({ name: String, email: String, phone: String, subject: String, message: String, source: { type: String, default: 'fale_conosco' }, status: { type: String, default: 'novo' } }, baseOptions);
+const denunciaSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, productId: { type: String, default: null }, sellerId: { type: String, default: null }, motivo: String, descricao: String, status: { type: String, default: 'nova' }, nome: String, email: String }, baseOptions);
+const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed }, baseOptions);
+const settingsSchema = new mongoose.Schema({ key: { type: String, unique: true, index: true }, value: mongoose.Schema.Types.Mixed, updatedBy: String }, baseOptions);
+const integrationAuditLogSchema = new mongoose.Schema({ scope: { type: String, default: 'integration' }, eventType: { type: String, default: 'unspecified', index: true }, orderId: { type: String, default: null, index: true }, manufacturer: { type: String, default: null, index: true }, integrationId: { type: String, default: null }, queueId: { type: String, default: null }, status: String, statusCode: Number, message: String, changedKeys: [String], request: mongoose.Schema.Types.Mixed, response: mongoose.Schema.Types.Mixed, metadata: mongoose.Schema.Types.Mixed, buildId: String }, baseOptions);
+const manufacturerIntegrationSchema = new mongoose.Schema({ manufacturer: { type: String, unique: true, index: true }, enabled: { type: Boolean, default: true }, endpoint: String, method: { type: String, default: 'POST' }, headers: mongoose.Schema.Types.Mixed, authType: String, authToken: String, apiKey: String, sendAs: { type: String, default: 'json', enum: ['json', 'form'] }, timeoutMs: { type: Number, default: 30000 }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
+const manufacturerDispatchQueueSchema = new mongoose.Schema({ queueId: { type: String, unique: true, index: true }, orderId: { type: String, required: true, index: true }, manufacturer: { type: String, required: true, index: true }, payload: mongoose.Schema.Types.Mixed, status: { type: String, default: 'pending', index: true }, attempts: { type: Number, default: 0 }, maxAttempts: { type: Number, default: MAX_DISPATCH_ATTEMPTS }, nextAttemptAt: { type: Date, default: now, index: true }, lastAttemptAt: Date, lastError: String, lastResponse: mongoose.Schema.Types.Mixed, deadLetter: { type: Boolean, default: false } }, baseOptions);
+const operationalAlertSchema = new mongoose.Schema({ alertId: { type: String, unique: true, index: true }, type: { type: String, index: true }, severity: { type: String, default: 'medium' }, status: { type: String, default: 'open', index: true }, title: String, message: String, manufacturer: String, orderId: String, queueId: String, entityKey: String, count: { type: Number, default: 1 }, metadata: mongoose.Schema.Types.Mixed, buildId: String, firstSeenAt: Date, lastSeenAt: Date, resolvedAt: Date }, baseOptions);
+const whatsappWebhookSchema = new mongoose.Schema({ event: String, remoteJid: String, number: String, pushName: String, fromMe: Boolean, text: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
+const notificationSchema = new mongoose.Schema({ type: String, title: String, message: String, status: { type: String, default: 'unread' }, relatedId: String, severity: { type: String, default: 'info' }, audience: { type: String, default: 'admin', index: true }, sellerId: { type: String, default: '', index: true }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
+const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
+
+const User = mongoose.model('User', userSchema);
+const Seller = mongoose.model('Seller', sellerSchema);
+const Category = mongoose.model('Category', categorySchema);
+const Product = mongoose.model('Product', productSchema);
+const Banner = mongoose.model('Banner', bannerSchema);
+const Address = mongoose.model('Address', addressSchema);
+const Ticket = mongoose.model('Ticket', ticketSchema);
+const Contact = mongoose.model('Contact', contactSchema);
+const Denuncia = mongoose.model('Denuncia', denunciaSchema);
+const Order = mongoose.model('Order', orderSchema);
+const Setting = mongoose.model('Setting', settingsSchema);
+const IntegrationAuditLog = mongoose.model('IntegrationAuditLog', integrationAuditLogSchema);
+const ManufacturerIntegration = mongoose.model('ManufacturerIntegration', manufacturerIntegrationSchema);
+const ManufacturerDispatchQueue = mongoose.model('ManufacturerDispatchQueue', manufacturerDispatchQueueSchema);
+const OperationalAlert = mongoose.model('OperationalAlert', operationalAlertSchema);
+const WhatsAppWebhook = mongoose.model('WhatsAppWebhook', whatsappWebhookSchema);
+const Notification = mongoose.model('Notification', notificationSchema);
+
+async function createAdminNotification(data = {}) {
+  try {
+    const title = String(data.title || 'NotificaÃ§Ã£o').trim();
+    const message = String(data.message || '').trim();
+    if (!title && !message) return null;
+    return await Notification.create({
+      type: String(data.type || 'system').trim(),
+      title,
+      message,
+      status: data.status || 'unread',
+      relatedId: data.relatedId ? String(data.relatedId) : '',
+      severity: data.severity || 'info',
+      audience: data.audience || 'admin',
+      sellerId: data.sellerId ? String(data.sellerId) : '',
+      metadata: data.metadata || null
+    });
+  } catch (error) {
+    console.error('Erro ao criar notificaÃ§Ã£o administrativa:', error.message || error);
+    return null;
+  }
+}
+
+async function createSellerNotification(data = {}) {
+  try {
+    const sellerId = String(data.sellerId || '').trim();
+    const title = String(data.title || 'NotificaÃ§Ã£o').trim();
+    const message = String(data.message || '').trim();
+    if (!sellerId || (!title && !message)) return null;
+
+    return await Notification.create({
+      type: String(data.type || 'seller_system').trim(),
+      title,
+      message,
+      status: data.status || 'unread',
+      relatedId: data.relatedId ? String(data.relatedId) : '',
+      severity: data.severity || 'info',
+      audience: 'seller',
+      sellerId,
+      metadata: data.metadata || null
+    });
+  } catch (error) {
+    console.error('Erro ao criar notificaÃ§Ã£o do seller:', error.message || error);
+    return null;
+  }
+}
+
+function extractSellerIdsFromOrder(order = {}) {
+  const obj = toJSON(order) || order || {};
+  const ids = new Set();
+
+  ensureArray(obj.sellerIds).forEach((id) => {
+    const value = String(id || '').trim();
+    if (value) ids.add(value);
+  });
+
+  ensureArray(obj.items).forEach((item) => {
+    const value = String(item?.sellerId || item?.seller_id || '').trim();
+    if (value) ids.add(value);
+  });
+
+  if (obj.manufacturer) ids.add(String(obj.manufacturer).trim());
+
+  return Array.from(ids).filter(Boolean);
+}
+
+async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sellerIds = extractSellerIdsFromOrder(order);
+  if (!sellerIds.length) return [];
+
+  const orderId = String(order._id || order.id || data.orderId || '').trim();
+  const orderShort = orderId ? orderId.slice(-8).toUpperCase() : '---';
+  const title = data.title || 'ðŸ“¦ Pedido atualizado';
+  const message = data.message || `Pedido #${orderShort} atualizado para ${order.statusLabel || order.status || 'Atualizado'}`;
+
+  const results = [];
+  for (const sellerId of sellerIds) {
+    const doc = await createSellerNotification({
+      sellerId,
+      type: data.type || 'seller_order_updated',
+      title,
+      message,
+      relatedId: orderId,
+      severity: data.severity || 'info',
+      metadata: {
+        orderId,
+        status: order.status || '',
+        statusLabel: order.statusLabel || '',
+        trackingCode: order.trackingCode || '',
+        origin: data.origin || '',
+        total: order.total || 0
+      }
+    });
+    if (doc) results.push(doc);
+  }
+  return results;
+}
+
+const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
+
+
+function normalizeBannerPayload(input = {}, fallback = {}) {
+  const source = { ...(fallback || {}), ...(input || {}) };
+  const slot = String(source.slot || source.id || fallback.slot || '').trim();
+  return {
+    slot,
+    targetSlot: String(source.targetSlot || source.slot || '').trim(),
+    title: String(source.title || '').trim(),
+    subtitle: String(source.subtitle || '').trim(),
+    image: String(source.image || source.imageUrl || '').trim(),
+    href: String(source.href || source.linkUrl || '').trim(),
+    alt: String(source.alt || '').trim(),
+    active: source.active === true || String(source.active).toLowerCase() == 'true',
+    status: String(source.status || (source.active === false ? 'draft' : 'published')).trim(),
+    source: String(source.source || 'manual').trim(),
+    draftType: String(source.draftType || '').trim(),
+    products: Array.isArray(source.products) ? source.products : [],
+    sortOrder: Number(source.sortOrder || 0),
+    device: String(source.device || 'all').trim() || 'all',
+  };
+}
+
+function normalizeBannerForResponse(doc) {
+  const obj = toJSON(doc) || {};
+  return {
+    ...obj,
+    id: String(obj.slot || obj.id || obj._id || ''),
+    slot: String(obj.slot || obj.id || ''),
+    imageUrl: String(obj.image || obj.imageUrl || '').trim(),
+    linkUrl: String(obj.href || obj.linkUrl || '').trim(),
+    targetSlot: String(obj.targetSlot || obj.slot || '').trim(),
+    status: String(obj.status || (obj.active === false ? 'draft' : 'published')).trim(),
+    source: String(obj.source || 'manual').trim(),
+    draftType: String(obj.draftType || '').trim(),
+    products: Array.isArray(obj.products) ? obj.products : [],
+    alt: String(obj.alt || '').trim(),
+  };
+}
+
+function parseBannerInput(body = {}) {
+  if (Array.isArray(body?.banners)) return body.banners;
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    const values = Object.values(body);
+    if (values.length && values.every((item) => item && typeof item === 'object')) return values;
+  }
+  return [];
+}
+
+const WHATSAPP_EVOLUTION_DEFAULT_API_URL = process.env.EVOLUTION_API_URL || 'http://167.86.108.75:8082';
+const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE =
+  process.env.EVOLUTION_INSTANCE || 'Ariana_Notificacoes';
+const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
+const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'OlÃ¡, {customerName}! Seu pedido {orderId} na Ariana MÃ³veis agora estÃ¡ em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'OlÃ¡! Este Ã© um teste de integraÃ§Ã£o do WhatsApp da Ariana MÃ³veis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
+const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', publicKey: process.env.PAGARME_PUBLIC_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
+const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
+const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÃ“VEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana MÃ³veis', prazo: '1 a 3 dias Ãºteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias Ãºteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
+
+async function getSetting(key, fallback = null) { const doc = await Setting.findOne({ key }); return doc ? doc.value : fallback; }
+async function setSetting(key, value, updatedBy = 'system') { const doc = await Setting.findOneAndUpdate({ key }, { $set: { value, updatedBy } }, { upsert: true, new: true }); return doc.value; }
+async function getWhatsappSettings() {
+  const value = await getSetting('whatsapp_evolution', DEFAULT_WHATSAPP_SETTINGS);
+  const merged = { ...DEFAULT_WHATSAPP_SETTINGS, ...(value || {}) };
+
+  // Garante que variÃ¡veis do Render nÃ£o sejam anuladas por configuraÃ§Ã£o antiga/vazia salva no MongoDB.
+  merged.enabled = String(process.env.EVOLUTION_ENABLED || (merged.enabled === false ? 'false' : 'true')).toLowerCase() !== 'false';
+  merged.apiUrl = String(process.env.EVOLUTION_API_URL || merged.apiUrl || WHATSAPP_EVOLUTION_DEFAULT_API_URL || '').trim();
+  merged.instanceName = String(process.env.EVOLUTION_INSTANCE || merged.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
+  merged.apiKey = String(process.env.EVOLUTION_API_KEY || merged.apiKey || '').trim();
+  merged.adminNotifyNumbers = String(process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || merged.adminNotifyNumbers || '').trim();
+  merged.defaultCountryCode = String(merged.defaultCountryCode || '55').trim();
+  merged.autoNotifyOrderStatus = merged.autoNotifyOrderStatus !== false;
+  merged.chatNotifyEnabled = merged.chatNotifyEnabled !== false;
+  return merged;
+}
+async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
+async function getPaymentsSettings() { const value = await getSetting('payments', DEFAULT_PAYMENTS_SETTINGS); return { mercadopago: { ...DEFAULT_PAYMENTS_SETTINGS.mercadopago, ...(value?.mercadopago || {}) }, pagarme: { ...DEFAULT_PAYMENTS_SETTINGS.pagarme, ...(value?.pagarme || {}) } }; }
+async function saveShippingSettings(data, updatedBy = 'system') { const current = await getShippingSettings(); const incoming = data || {}; const merged = { ...current, ...incoming, correios: { ...(current.correios || {}), ...((incoming && incoming.correios) || {}) }, businessRules: { ...(current.businessRules || {}), ...((incoming && incoming.businessRules) || {}), arianaMoveis: { ...((current.businessRules || {}).arianaMoveis || {}), ...(((incoming && incoming.businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((current.businessRules || {}).snDigital || {}), ...(((incoming && incoming.businessRules) || {}).snDigital || {}) }, rodocap: { ...((current.businessRules || {}).rodocap || {}), ...(((incoming && incoming.businessRules) || {}).rodocap || {}), allowedCities: Array.isArray((((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities) && (((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities.length ? (((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities : (((current.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(current.carriers || {}), ...((incoming && incoming.carriers) || {}), correios: { ...((current.carriers || {}).correios || {}), ...(((incoming && incoming.carriers) || {}).correios || {}), enabled: ((incoming && incoming.correios && incoming.correios.enabled !== undefined) ? incoming.correios.enabled : ((((incoming && incoming.carriers) || {}).correios || {}).enabled ?? ((current.carriers || {}).correios || {}).enabled)), maxWeightKg: Number((((incoming && incoming.correios) || {}).maxWeightKg) || ((((incoming && incoming.carriers) || {}).correios || {}).maxWeightKg) || (((current.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((((incoming && incoming.correios) || {}).maxDimensionCm) || ((((incoming && incoming.carriers) || {}).correios || {}).maxDimensionCm) || (((current.carriers || {}).correios || {}).maxDimensionCm) || 100) } } }; await setSetting('shipping', merged, updatedBy); return merged; }
+async function getShippingSettings() { const value = await getSetting('shipping', DEFAULT_SHIPPING_SETTINGS); const merged = { ...DEFAULT_SHIPPING_SETTINGS, ...(value || {}), correios: { ...(DEFAULT_SHIPPING_SETTINGS.correios || {}), ...(((value || {}).correios) || {}) }, businessRules: { ...(DEFAULT_SHIPPING_SETTINGS.businessRules || {}), ...(((value || {}).businessRules) || {}), arianaMoveis: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).arianaMoveis || {}), ...((((value || {}).businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).snDigital || {}), ...((((value || {}).businessRules) || {}).snDigital || {}) }, rodocap: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}), ...((((value || {}).businessRules) || {}).rodocap || {}), allowedCities: Array.isArray(((((value || {}).businessRules) || {}).rodocap || {}).allowedCities) && ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities.length ? ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities : (((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(DEFAULT_SHIPPING_SETTINGS.carriers || {}), ...(((value || {}).carriers) || {}) } }; merged.carriers = merged.carriers || {}; merged.carriers.correios = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.correios || {}), ...((merged.carriers || {}).correios || {}), enabled: merged.correios.enabled !== undefined ? merged.correios.enabled : ((merged.carriers || {}).correios || {}).enabled, maxWeightKg: Number((merged.correios.maxWeightKg !== undefined ? merged.correios.maxWeightKg : ((merged.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((merged.correios.maxDimensionCm !== undefined ? merged.correios.maxDimensionCm : ((merged.carriers || {}).correios || {}).maxDimensionCm) || 100) };
+merged.carriers.frenet = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.frenet || {}), ...((merged.carriers || {}).frenet || {}) };
+merged.carriers.frenet.enabled = String(process.env.FRENET_ENABLED || (merged.carriers.frenet.enabled === false ? 'false' : '')).toLowerCase() === 'false' ? false : (merged.carriers.frenet.enabled !== false);
+merged.carriers.frenet.token = String(process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || merged.carriers.frenet.token || '').trim();
+merged.carriers.frenet.apiUrl = String(process.env.FRENET_API_URL || merged.carriers.frenet.apiUrl || 'https://api.frenet.com.br').replace(/\/+$/, '');
+merged.carriers.frenet.origemCep = String(process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || merged.carriers.frenet.origemCep || merged.correios.origemCep || '').trim();
+return merged; }
+
+
+app.get('/api/settings/payments', async (_req, res) => {
+  try {
+    const settings = await getPaymentsSettings();
+    return res.json({
+      ok: true,
+      mercadopago: {
+        enabled: !!settings?.mercadopago?.enabled,
+        publicKey: settings?.mercadopago?.publicKey || '',
+        splitEnabled: settings?.mercadopago?.splitEnabled !== false
+      },
+      pagarme: {
+        enabled: !!settings?.pagarme?.enabled
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar configuraÃ§Ãµes de pagamento' });
+  }
+});
+
+
+// ============================================================
+// ROTAS PARA BOTS DO WHATSAPP - FINANCEIRO E SAC
+// Usadas pelas automaÃ§Ãµes Ariana_Financeiro e Ariana_SAC.
+// SeguranÃ§a: se BOT_API_TOKEN estiver configurado no Render,
+// o bot deve enviar o mesmo valor no header x-bot-token.
+// ============================================================
+const BOT_API_TOKEN = String(
+  process.env.BOT_API_TOKEN ||
+  process.env.FINANCEIRO_BOT_SECRET ||
+  process.env.SAC_BOT_SECRET ||
+  ''
+).trim();
+
+function botAccessRequired(req, res, next) {
+  const incomingToken = String(
+    req.headers['x-bot-token'] ||
+    req.headers['x-api-key'] ||
+    req.query.token ||
+    ''
+  ).trim();
+
+  if (BOT_API_TOKEN && incomingToken !== BOT_API_TOKEN) {
+    return res.status(401).json({ ok: false, error: 'Token do bot invÃ¡lido' });
+  }
+
+  return next();
+}
+
+function onlyDigits(value = '') {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isLikelyCpf(value = '') {
+  return onlyDigits(value).length === 11;
+}
+
+function isLikelyPhone(value = '') {
+  const digits = onlyDigits(value);
+  return digits.length >= 10 && digits.length <= 13;
+}
+
+function shortOrderId(order = {}) {
+  return String(order?._id || order?.id || '').slice(-8).toUpperCase();
+}
+
+function normalizeBotOrder(orderDoc = {}, channel = 'financeiro') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const address = order.shippingAddress || {};
+  const payment = order.payment || {};
+  const items = ensureArray(order.items).map((item) => ({
+    name: String(item?.name || item?.nome || item?.sku || 'Produto').trim(),
+    qty: Number(item?.qty || item?.quantity || 1) || 1,
+    total: Number(item?.totalPrice || item?.total || 0) || 0
+  })).slice(0, 8);
+
+  return {
+    id: String(order._id || order.id || ''),
+    shortId: shortOrderId(order),
+    createdAt: order.createdAt || null,
+    updatedAt: order.updatedAt || null,
+    status: order.status || '',
+    statusLabel: order.statusLabel || order.status || '',
+    total: Number(order.total || 0),
+    subtotal: Number(order.subtotal || 0),
+    shippingCost: Number(order.shippingCost || 0),
+    payment: {
+      method: payment.method || payment.type || payment.provider || payment.payment_method || '',
+      status: payment.status || payment.status_detail || payment.payment_status || '',
+      externalId: payment.id || payment.externalId || payment.paymentId || '',
+      pixCode: payment.pixCode || payment.pix_code || payment.qr_code || payment.qrCode || payment.copyPaste || payment.copiaCola || order.pixCode || order.pix_code || order.qr_code || order.qrCode || '',
+      pixQrCodeBase64: payment.qr_code_base64 || payment.qrCodeBase64 || order.qr_code_base64 || order.qrCodeBase64 || ''
+    },
+    customer: {
+      name: order.customerName || address.name || '',
+      email: order.customerEmail || '',
+      phone: order.customerPhone || address.phone || ''
+    },
+    shipping: {
+      city: address.cidade || address.city || '',
+      uf: address.uf || address.state || '',
+      cep: address.cep || address.zipCode || '',
+      trackingCode: order.trackingCode || '',
+      deadline: order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || ''
+    },
+    items,
+    channel
+  };
+}
+
+async function findOrdersForBot({ identifier = '', cpf = '', phone = '', orderId = '', limit = 5 } = {}) {
+  const raw = String(identifier || cpf || phone || orderId || '').trim();
+  const digits = onlyDigits(raw);
+  const queries = [];
+  const userIds = [];
+
+  const cpfDigits = onlyDigits(cpf || (isLikelyCpf(raw) ? raw : ''));
+  const phoneDigits = normalizePhone(phone || (isLikelyPhone(raw) ? raw : ''), '55');
+  const requestedOrderId = String(orderId || raw || '').trim();
+
+  if (cpfDigits) {
+    const users = await User.find({ cpf: cpfDigits }).select('_id name email cpf phone').limit(10);
+    users.forEach((u) => userIds.push(u._id));
+    queries.push(
+      { customerCpf: cpfDigits },
+      { cpf: cpfDigits },
+      { 'customer.cpf': cpfDigits },
+      { 'shippingAddress.cpf': cpfDigits },
+      { 'payment.payer.identification.number': cpfDigits },
+      { 'payment.payer.cpf': cpfDigits }
+    );
+  }
+
+);
+
+    queries.push(
+      { customerPhone: phoneDigits },
+      { customerPhone: localPhone },
+      { customerPhone: phoneRegex },
+
+      { 'shippingAddress.phone': phoneDigits },
+      { 'shippingAddress.phone': localPhone },
+      { 'shippingAddress.phone': phoneRegex },
+
+      { 'customer.phone': phoneDigits },
+      { 'customer.phone': localPhone },
+      { 'customer.phone': phoneRegex },
+
+      { phone: phoneDigits },
+      { phone: localPhone },
+      { phone: phoneRegex },
+
+      { whatsapp: phoneDigits },
+      { whatsapp: localPhone },
+      { whatsapp: phoneRegex },
+
+      { telefone: phoneDigits },
+      { telefone: localPhone },
+      { telefone: phoneRegex }
+    );
   }
 
   if (requestedOrderId && requestedOrderId.length >= 6) {
@@ -5061,6 +5967,8 @@ app.listen(PORT, () => {
   console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
+
+
 
 
 
