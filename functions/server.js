@@ -871,64 +871,134 @@ function normalizeBotOrder(orderDoc = {}, channel = 'financeiro') {
 
 async function findOrdersForBot({ identifier = '', cpf = '', phone = '', orderId = '', limit = 5 } = {}) {
   const raw = String(identifier || cpf || phone || orderId || '').trim();
-  const digits = onlyDigits(raw);
   const queries = [];
   const userIds = [];
 
   const cpfDigits = onlyDigits(cpf || (isLikelyCpf(raw) ? raw : ''));
-  const phoneDigits = normalizePhone(phone || (isLikelyPhone(raw) ? raw : ''), '55');
+  const rawPhoneDigits = onlyDigits(phone || (isLikelyPhone(raw) ? raw : ''));
+  const phoneDigits = rawPhoneDigits ? normalizePhone(rawPhoneDigits, '55') : '';
   const requestedOrderId = String(orderId || raw || '').trim();
 
+  function addUserId(id) {
+    if (!id) return;
+    const value = String(id);
+    if (!userIds.some((existing) => String(existing) === value)) userIds.push(id);
+  }
+
+  function addQuery(q) {
+    if (q && Object.keys(q).length) queries.push(q);
+  }
+
+  function phoneRegexFromDigits(value = '', anchored = false) {
+    const digitsOnly = onlyDigits(value);
+    if (!digitsOnly) return null;
+    const pattern = digitsOnly.split('').map((d) => escapeRegex(d)).join('\\D*');
+    return new RegExp(anchored ? `${pattern}$` : pattern, 'i');
+  }
+
+  function buildPhoneSearch(phoneValue = '') {
+    const full = normalizePhone(phoneValue, '55');
+    const local = full.startsWith('55') && full.length > 11 ? full.slice(2) : full;
+    const candidates = new Set();
+
+    [full, local, phoneValue, onlyDigits(phoneValue)].forEach((value) => {
+      const clean = onlyDigits(value);
+      if (clean) candidates.add(clean);
+    });
+
+    // Também tenta versões finais do número, pois alguns pedidos são salvos sem DDI ou com máscara.
+    [8, 9, 10, 11].forEach((size) => {
+      if (full.length >= size) candidates.add(full.slice(-size));
+      if (local.length >= size) candidates.add(local.slice(-size));
+    });
+
+    const regexes = Array.from(candidates)
+      .filter((value) => value.length >= 8)
+      .map((value) => phoneRegexFromDigits(value, value.length >= 10))
+      .filter(Boolean);
+
+    return {
+      full,
+      local,
+      candidates: Array.from(candidates).filter(Boolean),
+      regexes
+    };
+  }
+
   if (cpfDigits) {
-    const users = await User.find({ cpf: cpfDigits }).select('_id name email cpf phone').limit(10);
-    users.forEach((u) => userIds.push(u._id));
-    queries.push(
-      { customerCpf: cpfDigits },
-      { cpf: cpfDigits },
-      { 'customer.cpf': cpfDigits },
-      { 'shippingAddress.cpf': cpfDigits },
-      { 'payment.payer.identification.number': cpfDigits },
-      { 'payment.payer.cpf': cpfDigits }
-    );
+    const users = await User.find({
+      $or: [
+        { cpf: cpfDigits },
+        { document: cpfDigits },
+        { 'customer.cpf': cpfDigits }
+      ]
+    }).select('_id name email cpf phone').limit(20);
+
+    users.forEach((u) => addUserId(u._id));
+
+    addQuery({ customerCpf: cpfDigits });
+    addQuery({ cpf: cpfDigits });
+    addQuery({ 'customer.cpf': cpfDigits });
+    addQuery({ 'shippingAddress.cpf': cpfDigits });
+    addQuery({ 'payment.payer.identification.number': cpfDigits });
+    addQuery({ 'payment.payer.cpf': cpfDigits });
   }
 
   if (phoneDigits) {
-  const phoneRegex = new RegExp(
-    phoneDigits.slice(-8) + '$'
-  );
+    const phoneSearch = buildPhoneSearch(phoneDigits);
+    const phoneFields = [
+      'customerPhone',
+      'phone',
+      'whatsapp',
+      'telefone',
+      'customer.phone',
+      'customer.whatsapp',
+      'shippingAddress.phone',
+      'shippingAddress.telefone',
+      'shippingAddress.whatsapp',
+      'billingAddress.phone',
+      'billingAddress.telefone',
+      'payment.payer.phone',
+      'payment.payer.phone.number',
+      'payment.phone',
+      'payment.customer.phone'
+    ];
 
-  queries.push(
-    { customerPhone: phoneDigits },
-    { customerPhone: phoneRegex },
+    for (const field of phoneFields) {
+      for (const candidate of phoneSearch.candidates) {
+        addQuery({ [field]: candidate });
+      }
+      for (const regex of phoneSearch.regexes) {
+        addQuery({ [field]: regex });
+      }
+    }
 
-    { 'shippingAddress.phone': phoneDigits },
-    { 'shippingAddress.phone': phoneRegex },
+    // Se o telefone estiver no cadastro do usuário ou endereço salvo, localiza os pedidos por userId.
+    const userPhoneOr = [];
+    for (const candidate of phoneSearch.candidates) userPhoneOr.push({ phone: candidate });
+    for (const regex of phoneSearch.regexes) userPhoneOr.push({ phone: regex });
 
-    { 'customer.phone': phoneDigits },
-    { 'customer.phone': phoneRegex },
+    if (userPhoneOr.length) {
+      const usersByPhone = await User.find({ $or: userPhoneOr }).select('_id phone').limit(20);
+      usersByPhone.forEach((u) => addUserId(u._id));
 
-    { whatsapp: phoneDigits },
-    { whatsapp: phoneRegex },
-
-    { telefone: phoneDigits },
-    { telefone: phoneRegex }
-  );
-}
+      const addressesByPhone = await Address.find({ $or: userPhoneOr }).select('userId phone').limit(50);
+      addressesByPhone.forEach((a) => addUserId(a.userId));
+    }
+  }
 
   if (requestedOrderId && mongoose.Types.ObjectId.isValid(requestedOrderId)) {
-    queries.push({ _id: new mongoose.Types.ObjectId(requestedOrderId) });
+    addQuery({ _id: new mongoose.Types.ObjectId(requestedOrderId) });
   }
 
   if (requestedOrderId && requestedOrderId.length >= 6) {
-    queries.push(
-      { orderId: requestedOrderId },
-      { externalId: requestedOrderId },
-      { 'payment.orderId': requestedOrderId },
-      { 'payment.external_reference': requestedOrderId }
-    );
+    addQuery({ orderId: requestedOrderId });
+    addQuery({ externalId: requestedOrderId });
+    addQuery({ 'payment.orderId': requestedOrderId });
+    addQuery({ 'payment.external_reference': requestedOrderId });
   }
 
-  if (userIds.length) queries.push({ userId: { $in: userIds } });
+  if (userIds.length) addQuery({ userId: { $in: userIds } });
 
   if (!queries.length) return [];
 
