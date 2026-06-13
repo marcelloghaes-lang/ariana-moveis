@@ -102,11 +102,8 @@
                             <i class="fas fa-phone-alt text-xl"></i>
                         </div>
                         <div>
-                            <p class="text-[10px] font-bold uppercase text-gray-400">Falar no SAC</p>
-                            <a id="display-sac-whatsapp" href="https://wa.me/553398783399" target="_blank" rel="noopener"
-                               class="inline-flex items-center gap-2 mt-1 px-4 py-2 rounded-lg bg-green-600 text-white font-black text-sm hover:bg-green-700 transition-all">
-                                <i class="fab fa-whatsapp"></i> Chamar no WhatsApp
-                            </a>
+                            <p class="text-[10px] font-bold uppercase text-gray-400">Capitais e Regiões</p>
+                            <p id="display-4004" class="text-lg font-black text-dark-ariana">4004-0000</p>
                         </div>
                     </div>
 
@@ -115,11 +112,8 @@
                             <i class="fas fa-whatsapp text-xl"></i>
                         </div>
                         <div>
-                            <p class="text-[10px] font-bold uppercase text-gray-400">Falar no Financeiro</p>
-                            <a id="display-financeiro-whatsapp" href="https://wa.me/553398022353" target="_blank" rel="noopener"
-                               class="inline-flex items-center gap-2 mt-1 px-4 py-2 rounded-lg bg-green-600 text-white font-black text-sm hover:bg-green-700 transition-all">
-                                <i class="fab fa-whatsapp"></i> Chamar no WhatsApp
-                            </a>
+                            <p class="text-[10px] font-bold uppercase text-gray-400">WhatsApp / SAC</p>
+                            <p id="display-0800" class="text-lg font-black text-dark-ariana">0800-000-000</p>
                         </div>
                     </div>
                 </div>
@@ -171,56 +165,30 @@
         window.addEventListener('load', initAriana);
         setTimeout(initAriana, 600);
 
-        const SAC_API_BASE = String(window.API_BASE || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, '');
+        const API_BASE = window.API_BASE;
 
         document.getElementById('form-atendimento').onsubmit = async (e) => {
             e.preventDefault();
 
-            const btn = document.getElementById('btn-enviar');
-            const originalText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = 'ENVIANDO...';
-
-            const tipo = document.getElementById('tipo').value;
-            const pedido = document.getElementById('pedido').value.trim();
-            const mensagem = document.getElementById('mensagem').value.trim();
-
             const payload = {
-                nome: document.getElementById('nome').value.trim(),
-                email: document.getElementById('email').value.trim(),
-                orderId: pedido || null,
-                pedido,
-                tipo,
-                assunto: tipo,
-                mensagem,
-                origem: 'sac',
-                metadata: {
-                    pagina: 'sac.html',
-                    pedido
-                }
+                nome: document.getElementById('nome').value,
+                email: document.getElementById('email').value,
+                pedido: document.getElementById('pedido').value,
+                tipo: document.getElementById('tipo').value,
+                mensagem: document.getElementById('mensagem').value
             };
 
             try {
-                const response = await fetch(SAC_API_BASE + "/tickets", {
+                await fetch(API_BASE + "/atendimentos", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
 
-                const data = await response.json().catch(() => null);
-
-                if (!response.ok || data?.ok === false) {
-                    throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
-                }
-
                 alert("Sua mensagem foi enviada com sucesso!");
                 e.target.reset();
             } catch (err) {
-                console.error('Erro ao enviar atendimento:', err);
-                alert("Erro ao enviar mensagem. Tente novamente ou fale conosco pelo WhatsApp.");
-            } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
+                alert("Erro ao enviar.");
             }
         };
     </script>

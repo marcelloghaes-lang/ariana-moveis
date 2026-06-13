@@ -893,27 +893,14 @@ async function findOrdersForBot({ identifier = '', cpf = '', phone = '', orderId
   }
 
   if (phoneDigits) {
-  const phoneRegex = new RegExp(
-    phoneDigits.slice(-8) + '$'
-  );
-
-  queries.push(
-    { customerPhone: phoneDigits },
-    { customerPhone: phoneRegex },
-
-    { 'shippingAddress.phone': phoneDigits },
-    { 'shippingAddress.phone': phoneRegex },
-
-    { 'customer.phone': phoneDigits },
-    { 'customer.phone': phoneRegex },
-
-    { whatsapp: phoneDigits },
-    { whatsapp: phoneRegex },
-
-    { telefone: phoneDigits },
-    { telefone: phoneRegex }
-  );
-}
+    queries.push(
+      { customerPhone: phoneDigits },
+      { 'shippingAddress.phone': phoneDigits },
+      { 'customer.phone': phoneDigits },
+      { whatsapp: phoneDigits },
+      { telefone: phoneDigits }
+    );
+  }
 
   if (requestedOrderId && mongoose.Types.ObjectId.isValid(requestedOrderId)) {
     queries.push({ _id: new mongoose.Types.ObjectId(requestedOrderId) });
@@ -987,73 +974,8 @@ function extractOrderPhone(order = {}, defaultCountryCode = '55') { const candid
 function extractOrderCustomerName(order = {}) { return String(order.customerName || order.nomeCliente || order.nome || order.customer?.name || order.customer?.nome || order.user?.name || order.customerEmail || 'Cliente').trim() || 'Cliente'; }
 function extractSellerPhone(order = {}, defaultCountryCode = '55') { const candidates = [order.sellerPhone, order.sellerWhatsapp, order.seller?.phone, order.seller?.whatsapp, order.vendorPhone, order.fabricanteTelefone]; for (const value of candidates) { const n = normalizePhone(value, defaultCountryCode); if (n) return n; } return ''; }
 function parseAdminNotifyNumbers(settings = {}) { return String(settings.adminNotifyNumbers || '').split(',').map(item => normalizePhone(item, settings.defaultCountryCode || '55')).filter(Boolean); }
-function buildTrackingLine(order = {}, trackingCode = '') {
-  const code = String(trackingCode || order.trackingCode || order.tracking_code || '').trim();
-  return code ? `\n🔎 Código de rastreio: ${code}` : '';
-}
-
-function formatOrderStatusForCustomer(status = '') {
-  const key = String(status || '').trim().toLowerCase();
-
-  const map = {
-    pending: 'Aguardando pagamento',
-    pending_payment: 'Aguardando pagamento',
-    aguardando_pagamento: 'Aguardando pagamento',
-    paid: 'Pagamento confirmado',
-    approved: 'Pagamento confirmado',
-    pagamento_confirmado: 'Pagamento confirmado',
-    processing: 'Pedido em separação',
-    separacao: 'Pedido em separação',
-    shipped: 'Pedido enviado',
-    enviado: 'Pedido enviado',
-    delivered: 'Pedido entregue',
-    entregue: 'Pedido entregue',
-    canceled: 'Pedido cancelado',
-    cancelled: 'Pedido cancelado',
-    cancelado: 'Pedido cancelado',
-    rejected: 'Pagamento recusado',
-    recusado: 'Pagamento recusado'
-  };
-
-  return map[key] || status || 'Atualizado';
-}
-
-function buildOrderStatusMessage(orderId, order = {}, settings = {}) {
-  const customerName = extractOrderCustomerName(order);
-  const fullId = String(orderId || order._id || order.id || order.orderId || '').trim();
-  const shortId = fullId ? fullId.slice(-8).toUpperCase() : '---';
-
-  const rawStatus = order.statusLabel || order.status || 'Atualizado';
-  const statusLabel = formatOrderStatusForCustomer(rawStatus);
-  const trackingLine = buildTrackingLine(order);
-
-  const produto = Array.isArray(order.items) && order.items.length
-    ? String(order.items[0]?.name || '').trim()
-    : '';
-
-  const valor = Number(order.total || 0);
-  const valorLinha = valor > 0
-    ? `\n💰 Valor: ${formatMoneyBRL(valor)}`
-    : '';
-
-  const produtoLinha = produto
-    ? `\n📦 Produto: ${produto}`
-    : '';
-
-  return `
-🛒 Ariana Móveis
-
-Olá, ${customerName}!
-
-Seu pedido #${shortId} foi atualizado.
-
-📋 Status: ${statusLabel}${produtoLinha}${valorLinha}${trackingLine}
-
-Assim que houver uma nova atualização, você será avisado por aqui.
-
-Obrigado por comprar na Ariana Móveis! 💙
-`.trim();
-}
+function buildTrackingLine(order = {}, trackingCode = '') { const code = String(trackingCode || order.trackingCode || order.tracking_code || '').trim(); return code ? ` CÃ³digo de rastreio: ${code}` : ''; }
+function buildOrderStatusMessage(orderId, order = {}, settings = {}) { const template = String(settings.statusTemplate || DEFAULT_WHATSAPP_SETTINGS.statusTemplate).trim(); const replacements = { customerName: extractOrderCustomerName(order), orderId: String(orderId || order.id || order.orderId || '').trim() || '---', status: String(order.status || order.statusLabel || 'Atualizado').trim(), trackingCode: String(order.trackingCode || order.tracking_code || '').trim(), trackingLine: buildTrackingLine(order), storeName: 'Ariana MÃ³veis' }; return template.replace(/\{(customerName|orderId|status|trackingCode|trackingLine|storeName)\}/g, (_, key) => replacements[key] || '').replace(/\n{3,}/g, '\n\n').trim(); }
 function buildOrderChatMessage(orderId, order = {}, message = {}) { const senderName = String(message.senderName || 'Equipe Ariana MÃ³veis').trim(); const senderType = String(message.senderType || 'admin').trim(); const customerName = extractOrderCustomerName(order); const base = senderType === 'customer' ? `OlÃ¡! O cliente ${senderName} enviou uma nova mensagem no pedido ${orderId} da Ariana MÃ³veis.` : `OlÃ¡, ${customerName}! VocÃª recebeu uma nova mensagem sobre o pedido ${orderId} na Ariana MÃ³veis.`; const text = String(message.text || '').trim(); return `${base}\n\nMensagem: ${text}`.trim(); }
 async function waSendTextMessage({ number, text, settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('IntegraÃ§Ã£o WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('ConfiguraÃ§Ã£o incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('NÃºmero de telefone invÃ¡lido.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(cfg.instanceName)}`; const response = await axios.post(url, { number: normalizedNumber, text: String(text || '').trim(), delay: Number(delay || 0) || 0, linkPreview: false }, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status }; }
 
@@ -5061,7 +4983,6 @@ app.listen(PORT, () => {
   console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
-
 
 
 
