@@ -1400,7 +1400,7 @@ async function getDistanceKm(originCep, destinationCep) {
   }
 }
 function calculateOwnDelivery(km, tiers = []) { const sorted = [...tiers].sort((a, b) => Number(a.maxKm || 0) - Number(b.maxKm || 0)); for (const tier of sorted) { if (Number(km || 0) <= Number(tier.maxKm || 0)) return { available: true, price: Number(tier.price || 0), service: 'own_delivery' }; } return { available: false }; }
-function normalizeShippingText(value = '') { return String(value || '').normalize('NFD').replace(/[Ì€-Í¯]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase(); }
+function normalizeShippingText(value = '') { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase(); }
 function normalizeCepValue(value = '') { const digits = normalizeDigits(value); return digits.length === 8 ? digits : ''; }
 function cepInRange(cep, startCep, endCep) { const cepNum = Number(normalizeCepValue(cep)); const startNum = Number(normalizeCepValue(startCep)); const endNum = Number(normalizeCepValue(endCep)); if (!Number.isFinite(cepNum) || !Number.isFinite(startNum) || !Number.isFinite(endNum)) return false; return cepNum >= startNum && cepNum <= endNum; }
 function parsePrazoToDeadlineDays(prazo = '') {
@@ -4944,4 +4944,5 @@ app.listen(PORT, () => {
   console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
+
 
