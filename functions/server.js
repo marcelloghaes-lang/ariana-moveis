@@ -779,6 +779,186 @@ app.get('/api/settings/payments', async (_req, res) => {
   }
 });
 
+
+// ============================================================
+// ROTAS PARA BOTS DO WHATSAPP - FINANCEIRO E SAC
+// Usadas pelas automações Ariana_Financeiro e Ariana_SAC.
+// Segurança: se BOT_API_TOKEN estiver configurado no Render,
+// o bot deve enviar o mesmo valor no header x-bot-token.
+// ============================================================
+const BOT_API_TOKEN = String(
+  process.env.BOT_API_TOKEN ||
+  process.env.FINANCEIRO_BOT_SECRET ||
+  process.env.SAC_BOT_SECRET ||
+  ''
+).trim();
+
+function botAccessRequired(req, res, next) {
+  const incomingToken = String(
+    req.headers['x-bot-token'] ||
+    req.headers['x-api-key'] ||
+    req.query.token ||
+    ''
+  ).trim();
+
+  if (BOT_API_TOKEN && incomingToken !== BOT_API_TOKEN) {
+    return res.status(401).json({ ok: false, error: 'Token do bot inválido' });
+  }
+
+  return next();
+}
+
+function onlyDigits(value = '') {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isLikelyCpf(value = '') {
+  return onlyDigits(value).length === 11;
+}
+
+function isLikelyPhone(value = '') {
+  const digits = onlyDigits(value);
+  return digits.length >= 10 && digits.length <= 13;
+}
+
+function shortOrderId(order = {}) {
+  return String(order?._id || order?.id || '').slice(-8).toUpperCase();
+}
+
+function normalizeBotOrder(orderDoc = {}, channel = 'financeiro') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const address = order.shippingAddress || {};
+  const payment = order.payment || {};
+  const items = ensureArray(order.items).map((item) => ({
+    name: String(item?.name || item?.nome || item?.sku || 'Produto').trim(),
+    qty: Number(item?.qty || item?.quantity || 1) || 1,
+    total: Number(item?.totalPrice || item?.total || 0) || 0
+  })).slice(0, 8);
+
+  return {
+    id: String(order._id || order.id || ''),
+    shortId: shortOrderId(order),
+    createdAt: order.createdAt || null,
+    updatedAt: order.updatedAt || null,
+    status: order.status || '',
+    statusLabel: order.statusLabel || order.status || '',
+    total: Number(order.total || 0),
+    subtotal: Number(order.subtotal || 0),
+    shippingCost: Number(order.shippingCost || 0),
+    payment: {
+      method: payment.method || payment.type || payment.provider || payment.payment_method || '',
+      status: payment.status || payment.status_detail || payment.payment_status || '',
+      externalId: payment.id || payment.externalId || payment.paymentId || ''
+    },
+    customer: {
+      name: order.customerName || address.name || '',
+      email: order.customerEmail || '',
+      phone: order.customerPhone || address.phone || ''
+    },
+    shipping: {
+      city: address.cidade || address.city || '',
+      uf: address.uf || address.state || '',
+      cep: address.cep || address.zipCode || '',
+      trackingCode: order.trackingCode || '',
+      deadline: order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || ''
+    },
+    items,
+    channel
+  };
+}
+
+async function findOrdersForBot({ identifier = '', cpf = '', phone = '', orderId = '', limit = 5 } = {}) {
+  const raw = String(identifier || cpf || phone || orderId || '').trim();
+  const digits = onlyDigits(raw);
+  const queries = [];
+  const userIds = [];
+
+  const cpfDigits = onlyDigits(cpf || (isLikelyCpf(raw) ? raw : ''));
+  const phoneDigits = normalizePhone(phone || (isLikelyPhone(raw) ? raw : ''), '55');
+  const requestedOrderId = String(orderId || raw || '').trim();
+
+  if (cpfDigits) {
+    const users = await User.find({ cpf: cpfDigits }).select('_id name email cpf phone').limit(10);
+    users.forEach((u) => userIds.push(u._id));
+    queries.push(
+      { customerCpf: cpfDigits },
+      { cpf: cpfDigits },
+      { 'customer.cpf': cpfDigits },
+      { 'shippingAddress.cpf': cpfDigits },
+      { 'payment.payer.identification.number': cpfDigits },
+      { 'payment.payer.cpf': cpfDigits }
+    );
+  }
+
+  if (phoneDigits) {
+    queries.push(
+      { customerPhone: phoneDigits },
+      { 'shippingAddress.phone': phoneDigits },
+      { 'customer.phone': phoneDigits },
+      { whatsapp: phoneDigits },
+      { telefone: phoneDigits }
+    );
+  }
+
+  if (requestedOrderId && mongoose.Types.ObjectId.isValid(requestedOrderId)) {
+    queries.push({ _id: new mongoose.Types.ObjectId(requestedOrderId) });
+  }
+
+  if (requestedOrderId && requestedOrderId.length >= 6) {
+    queries.push(
+      { orderId: requestedOrderId },
+      { externalId: requestedOrderId },
+      { 'payment.orderId': requestedOrderId },
+      { 'payment.external_reference': requestedOrderId }
+    );
+  }
+
+  if (userIds.length) queries.push({ userId: { $in: userIds } });
+
+  if (!queries.length) return [];
+
+  return Order.find({ $or: queries })
+    .sort({ createdAt: -1 })
+    .limit(Math.max(1, Math.min(Number(limit || 5), 10)));
+}
+
+async function botConsultaHandler(req, res, channel = 'financeiro') {
+  try {
+    const identifier = String(req.query.identifier || req.query.q || req.body?.identifier || req.body?.q || '').trim();
+    const cpf = String(req.query.cpf || req.body?.cpf || '').trim();
+    const phone = String(req.query.phone || req.query.telefone || req.body?.phone || req.body?.telefone || '').trim();
+    const orderId = String(req.query.orderId || req.query.pedido || req.body?.orderId || req.body?.pedido || '').trim();
+    const limit = Number(req.query.limit || req.body?.limit || 5);
+
+    if (!identifier && !cpf && !phone && !orderId) {
+      return res.status(400).json({ ok: false, error: 'Informe CPF, telefone, número do pedido ou identifier' });
+    }
+
+    const orders = await findOrdersForBot({ identifier, cpf, phone, orderId, limit });
+    const normalizedOrders = orders.map((order) => normalizeBotOrder(order, channel));
+
+    return res.json({
+      ok: true,
+      channel,
+      found: normalizedOrders.length,
+      orders: normalizedOrders,
+      message: normalizedOrders.length
+        ? 'Consulta realizada com sucesso.'
+        : 'Nenhum pedido encontrado para os dados informados.'
+    });
+  } catch (error) {
+    console.error(`[bot:${channel}] erro na consulta:`, error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar pedidos' });
+  }
+}
+
+app.get('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
+app.post('/api/bot/financeiro/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'financeiro'));
+
+app.get('/api/bot/sac/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'sac'));
+app.post('/api/bot/sac/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'sac'));
+
+
 const BUILD_ID = 'enterprise-mongo-2026-04-02';
 async function writeAuditLog(entry = {}) { return IntegrationAuditLog.create({ scope: entry.scope || 'integration', eventType: entry.eventType || 'unspecified', orderId: entry.orderId ? String(entry.orderId) : null, manufacturer: entry.manufacturer ? String(entry.manufacturer) : null, integrationId: entry.integrationId ? String(entry.integrationId) : null, queueId: entry.queueId ? String(entry.queueId) : null, status: entry.status || null, statusCode: Number.isFinite(Number(entry.statusCode)) ? Number(entry.statusCode) : null, message: entry.message || null, changedKeys: Array.isArray(entry.changedKeys) ? entry.changedKeys.slice(0, 200) : [], request: redact(entry.request || null), response: redact(entry.response || null), metadata: redact(entry.metadata || null), buildId: BUILD_ID }); }
 async function upsertOperationalAlert(data = {}) { const manufacturer = data.manufacturer ? String(data.manufacturer) : 'global'; const type = data.type ? String(data.type) : 'generic'; const entityKey = data.entityKey ? String(data.entityKey) : `${manufacturer}_${type}`; const alertId = `${sanitizeIdPart(type)}__${sanitizeIdPart(entityKey)}`; const existing = await OperationalAlert.findOne({ alertId }); if (!existing) return OperationalAlert.create({ alertId, type, severity: data.severity || 'medium', status: data.status || 'open', title: data.title || 'Alerta operacional', message: data.message || null, manufacturer: data.manufacturer || null, orderId: data.orderId || null, queueId: data.queueId || null, entityKey, count: 1, metadata: redact(data.metadata || null), buildId: BUILD_ID, firstSeenAt: now(), lastSeenAt: now(), resolvedAt: data.status === 'resolved' ? now() : null }); existing.count = Number(existing.count || 1) + 1; existing.severity = data.severity || existing.severity; existing.status = data.status || 'open'; existing.title = data.title || existing.title; existing.message = data.message || existing.message; existing.manufacturer = data.manufacturer || existing.manufacturer; existing.orderId = data.orderId || existing.orderId; existing.queueId = data.queueId || existing.queueId; existing.metadata = redact(data.metadata || existing.metadata || null); existing.lastSeenAt = now(); existing.buildId = BUILD_ID; if (existing.status === 'resolved') existing.resolvedAt = now(); await existing.save(); return existing; }
