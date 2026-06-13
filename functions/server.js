@@ -3455,7 +3455,35 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
 }
 
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || process.env.MP_PUBLIC_KEY || '' }); });
-app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana MÃ³veis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) return res.status(response.status).json(normalizeMercadoPagoPaymentResponse(response.data)); return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar PIX', details: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar PIX no Mercado Pago' }); } });
+app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana MÃ³veis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) {
+  const mpNormalized = normalizeMercadoPagoPaymentResponse(response.data);
+
+  if (body.orderId) {
+    try {
+      await Order.findByIdAndUpdate(body.orderId, {
+        $set: {
+          "payment.provider": "mercadopago",
+          "payment.method": "pix",
+          "payment.type": "pix",
+          "payment.status": mpNormalized.status || "pending",
+          "payment.statusDetail": mpNormalized.statusDetail || "",
+          "payment.paymentId": mpNormalized.id || "",
+          "payment.externalId": mpNormalized.id || "",
+          "payment.pixCode": mpNormalized.qrCode || mpNormalized.qr_code || "",
+          "payment.qr_code": mpNormalized.qrCode || mpNormalized.qr_code || "",
+          "payment.qrCodeBase64": mpNormalized.qrCodeBase64 || "",
+          "payment.qr_code_base64": mpNormalized.qrCodeBase64 || "",
+          "payment.ticketUrl": mpNormalized.ticketUrl || mpNormalized.ticket_url || "",
+          "payment.updatedAt": new Date()
+        }
+      });
+    } catch (e) {
+      console.error("Erro ao salvar PIX no pedido:", e.message || e);
+    }
+  }
+
+  return res.status(response.status).json(mpNormalized);
+} return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar PIX', details: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar PIX no Mercado Pago' }); } });
 
 app.post('/api/payments/mp/credit', async (req, res) => {
   try {
@@ -4955,6 +4983,7 @@ app.listen(PORT, () => {
   console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
+
 
 
 
