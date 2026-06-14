@@ -45,22 +45,22 @@ const EMAIL_PORT = Number(process.env.EMAIL_PORT || 587);
 const EMAIL_SECURE = String(process.env.EMAIL_SECURE || '').toLowerCase() === 'true' || EMAIL_PORT === 465;
 const EMAIL_USER = String(process.env.EMAIL_USER || '').trim();
 const EMAIL_PASS = String(process.env.EMAIL_PASS || '').trim();
-const EMAIL_FROM = String(process.env.EMAIL_FROM || EMAIL_USER || 'Ariana MÃ³veis <no-reply@arianamoveis.com.br>').trim();
+const EMAIL_FROM = String(process.env.EMAIL_FROM || EMAIL_USER || 'Ariana Móveis <no-reply@arianamoveis.com.br>').trim();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 const MAX_DISPATCH_ATTEMPTS = Number(process.env.MAX_DISPATCH_ATTEMPTS || 5);
 const DISPATCH_RETRY_BASE_MS = Number(process.env.DISPATCH_RETRY_BASE_MS || 5 * 60 * 1000);
 const DEFAULT_CURRENCY = 'BRL';
 
 if (!MONGODB_URI) {
-  console.error('âŒ MONGODB_URI nÃ£o configurada.');
+  console.error('❌ MONGODB_URI não configurada.');
   process.exit(1);
 }
 
 mongoose.set('strictQuery', true);
 mongoose.connect(MONGODB_URI, { dbName: MONGODB_DB })
-  .then(() => console.log(`âœ… Mongo conectado em ${MONGODB_DB}`))
+  .then(() => console.log(`✅ Mongo conectado em ${MONGODB_DB}`))
   .catch((err) => {
-    console.error('âŒ Erro ao conectar no Mongo:', err);
+    console.error('❌ Erro ao conectar no Mongo:', err);
     process.exit(1);
   });
 
@@ -68,7 +68,7 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 const tmpUploadsDir = path.join(uploadsDir, '_tmp');
 if (!fs.existsSync(tmpUploadsDir)) fs.mkdirSync(tmpUploadsDir, { recursive: true });
-console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
+console.log(`📁 Uploads em: ${uploadsDir}`);
 
 const allowedOrigins = [
   'http://127.0.0.1:5500',
@@ -228,12 +228,12 @@ async function authRequired(req, res, next) {
     if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.id);
-    if (!user) return res.status(401).json({ ok: false, error: 'UsuÃ¡rio invÃ¡lido' });
+    if (!user) return res.status(401).json({ ok: false, error: 'Usuário inválido' });
     req.user = user;
     req.auth = decoded;
     next();
   } catch (_error) {
-    return res.status(401).json({ ok: false, error: 'Token invÃ¡lido' });
+    return res.status(401).json({ ok: false, error: 'Token inválido' });
   }
 }
 
@@ -304,7 +304,7 @@ async function adminRequired(req, res, next) {
     const userRole = String(user?.role || decodedRole || '').toLowerCase();
 
     if (user && user.isActive === false) {
-      return res.status(403).json({ ok: false, error: 'UsuÃ¡rio desativado' });
+      return res.status(403).json({ ok: false, error: 'Usuário desativado' });
     }
 
     if (user && userRole === 'admin') {
@@ -338,7 +338,7 @@ async function adminRequired(req, res, next) {
 
       return res.status(403).json({
         ok: false,
-        error: 'Sem permissÃ£o para esta aÃ§Ã£o',
+        error: 'Sem permissão para esta ação',
         requiredPath: req.path,
         method: req.method
       });
@@ -346,7 +346,7 @@ async function adminRequired(req, res, next) {
 
     return res.status(403).json({ ok: false, error: 'Acesso negado' });
   } catch (_error) {
-    return res.status(401).json({ ok: false, error: 'Token invÃ¡lido' });
+    return res.status(401).json({ ok: false, error: 'Token inválido' });
   }
 }
 
@@ -486,7 +486,7 @@ async function uploadToCloudinary(req, res) {
 
     if (!isCloudinaryConfigured()) {
       if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      return res.status(500).json({ ok: false, error: 'Cloudinary nÃ£o configurado.' });
+      return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     }
 
     // Define a pasta e limpa o nome do produto para o link
@@ -509,7 +509,7 @@ async function uploadToCloudinary(req, res) {
       overwrite: true
     });
 
-    // Limpa o arquivo temporÃ¡rio do servidor
+    // Limpa o arquivo temporário do servidor
     if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     return res.json({
@@ -576,7 +576,7 @@ const Notification = mongoose.model('Notification', notificationSchema);
 
 async function createAdminNotification(data = {}) {
   try {
-    const title = String(data.title || 'NotificaÃ§Ã£o').trim();
+    const title = String(data.title || 'Notificação').trim();
     const message = String(data.message || '').trim();
     if (!title && !message) return null;
     return await Notification.create({
@@ -591,7 +591,7 @@ async function createAdminNotification(data = {}) {
       metadata: data.metadata || null
     });
   } catch (error) {
-    console.error('Erro ao criar notificaÃ§Ã£o administrativa:', error.message || error);
+    console.error('Erro ao criar notificação administrativa:', error.message || error);
     return null;
   }
 }
@@ -599,7 +599,7 @@ async function createAdminNotification(data = {}) {
 async function createSellerNotification(data = {}) {
   try {
     const sellerId = String(data.sellerId || '').trim();
-    const title = String(data.title || 'NotificaÃ§Ã£o').trim();
+    const title = String(data.title || 'Notificação').trim();
     const message = String(data.message || '').trim();
     if (!sellerId || (!title && !message)) return null;
 
@@ -615,7 +615,7 @@ async function createSellerNotification(data = {}) {
       metadata: data.metadata || null
     });
   } catch (error) {
-    console.error('Erro ao criar notificaÃ§Ã£o do seller:', error.message || error);
+    console.error('Erro ao criar notificação do seller:', error.message || error);
     return null;
   }
 }
@@ -646,7 +646,7 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 
   const orderId = String(order._id || order.id || data.orderId || '').trim();
   const orderShort = orderId ? orderId.slice(-8).toUpperCase() : '---';
-  const title = data.title || 'ðŸ“¦ Pedido atualizado';
+  const title = data.title || '📦 Pedido atualizado';
   const message = data.message || `Pedido #${orderShort} atualizado para ${order.statusLabel || order.status || 'Atualizado'}`;
 
   const results = [];
@@ -726,10 +726,10 @@ const WHATSAPP_EVOLUTION_DEFAULT_API_URL = process.env.EVOLUTION_API_URL || 'htt
 const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE =
   process.env.EVOLUTION_INSTANCE || 'Ariana_Notificacoes';
 const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
-const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'OlÃ¡, {customerName}! Seu pedido {orderId} na Ariana MÃ³veis agora estÃ¡ em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'OlÃ¡! Este Ã© um teste de integraÃ§Ã£o do WhatsApp da Ariana MÃ³veis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
+const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
 const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', publicKey: process.env.PAGARME_PUBLIC_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
-const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÃ“VEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana MÃ³veis', prazo: '1 a 3 dias Ãºteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias Ãºteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
+const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
 
 async function getSetting(key, fallback = null) { const doc = await Setting.findOne({ key }); return doc ? doc.value : fallback; }
 async function setSetting(key, value, updatedBy = 'system') { const doc = await Setting.findOneAndUpdate({ key }, { $set: { value, updatedBy } }, { upsert: true, new: true }); return doc.value; }
@@ -737,7 +737,7 @@ async function getWhatsappSettings() {
   const value = await getSetting('whatsapp_evolution', DEFAULT_WHATSAPP_SETTINGS);
   const merged = { ...DEFAULT_WHATSAPP_SETTINGS, ...(value || {}) };
 
-  // Garante que variÃ¡veis do Render nÃ£o sejam anuladas por configuraÃ§Ã£o antiga/vazia salva no MongoDB.
+  // Garante que variáveis do Render não sejam anuladas por configuração antiga/vazia salva no MongoDB.
   merged.enabled = String(process.env.EVOLUTION_ENABLED || (merged.enabled === false ? 'false' : 'true')).toLowerCase() !== 'false';
   merged.apiUrl = String(process.env.EVOLUTION_API_URL || merged.apiUrl || WHATSAPP_EVOLUTION_DEFAULT_API_URL || '').trim();
   merged.instanceName = String(process.env.EVOLUTION_INSTANCE || merged.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
@@ -775,15 +775,15 @@ app.get('/api/settings/payments', async (_req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar configuraÃ§Ãµes de pagamento' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar configurações de pagamento' });
   }
 });
 
 
 // ============================================================
 // ROTAS PARA BOTS DO WHATSAPP - FINANCEIRO E SAC
-// Usadas pelas automaÃ§Ãµes Ariana_Financeiro e Ariana_SAC.
-// SeguranÃ§a: se BOT_API_TOKEN estiver configurado no Render,
+// Usadas pelas automações Ariana_Financeiro e Ariana_SAC.
+// Segurança: se BOT_API_TOKEN estiver configurado no Render,
 // o bot deve enviar o mesmo valor no header x-bot-token.
 // ============================================================
 const BOT_API_TOKEN = String(
@@ -802,7 +802,7 @@ function botAccessRequired(req, res, next) {
   ).trim();
 
   if (BOT_API_TOKEN && incomingToken !== BOT_API_TOKEN) {
-    return res.status(401).json({ ok: false, error: 'Token do bot invÃ¡lido' });
+    return res.status(401).json({ ok: false, error: 'Token do bot inválido' });
   }
 
   return next();
@@ -1016,7 +1016,7 @@ async function botConsultaHandler(req, res, channel = 'financeiro') {
     const limit = Number(req.query.limit || req.body?.limit || 5);
 
     if (!identifier && !cpf && !phone && !orderId) {
-      return res.status(400).json({ ok: false, error: 'Informe CPF, telefone, nÃºmero do pedido ou identifier' });
+      return res.status(400).json({ ok: false, error: 'Informe CPF, telefone, número do pedido ou identifier' });
     }
 
     const orders = await findOrdersForBot({ identifier, cpf, phone, orderId, limit });
@@ -1048,9 +1048,9 @@ const BUILD_ID = 'enterprise-mongo-2026-04-02';
 async function writeAuditLog(entry = {}) { return IntegrationAuditLog.create({ scope: entry.scope || 'integration', eventType: entry.eventType || 'unspecified', orderId: entry.orderId ? String(entry.orderId) : null, manufacturer: entry.manufacturer ? String(entry.manufacturer) : null, integrationId: entry.integrationId ? String(entry.integrationId) : null, queueId: entry.queueId ? String(entry.queueId) : null, status: entry.status || null, statusCode: Number.isFinite(Number(entry.statusCode)) ? Number(entry.statusCode) : null, message: entry.message || null, changedKeys: Array.isArray(entry.changedKeys) ? entry.changedKeys.slice(0, 200) : [], request: redact(entry.request || null), response: redact(entry.response || null), metadata: redact(entry.metadata || null), buildId: BUILD_ID }); }
 async function upsertOperationalAlert(data = {}) { const manufacturer = data.manufacturer ? String(data.manufacturer) : 'global'; const type = data.type ? String(data.type) : 'generic'; const entityKey = data.entityKey ? String(data.entityKey) : `${manufacturer}_${type}`; const alertId = `${sanitizeIdPart(type)}__${sanitizeIdPart(entityKey)}`; const existing = await OperationalAlert.findOne({ alertId }); if (!existing) return OperationalAlert.create({ alertId, type, severity: data.severity || 'medium', status: data.status || 'open', title: data.title || 'Alerta operacional', message: data.message || null, manufacturer: data.manufacturer || null, orderId: data.orderId || null, queueId: data.queueId || null, entityKey, count: 1, metadata: redact(data.metadata || null), buildId: BUILD_ID, firstSeenAt: now(), lastSeenAt: now(), resolvedAt: data.status === 'resolved' ? now() : null }); existing.count = Number(existing.count || 1) + 1; existing.severity = data.severity || existing.severity; existing.status = data.status || 'open'; existing.title = data.title || existing.title; existing.message = data.message || existing.message; existing.manufacturer = data.manufacturer || existing.manufacturer; existing.orderId = data.orderId || existing.orderId; existing.queueId = data.queueId || existing.queueId; existing.metadata = redact(data.metadata || existing.metadata || null); existing.lastSeenAt = now(); existing.buildId = BUILD_ID; if (existing.status === 'resolved') existing.resolvedAt = now(); await existing.save(); return existing; }
 async function resolveOperationalAlert(type, entityKey) { const alertId = `${sanitizeIdPart(type)}__${sanitizeIdPart(entityKey)}`; await OperationalAlert.findOneAndUpdate({ alertId }, { $set: { status: 'resolved', resolvedAt: now(), lastSeenAt: now(), buildId: BUILD_ID } }); }
-async function scanOperationalAlerts() { const findings = []; const queueRows = await ManufacturerDispatchQueue.find().sort({ updatedAt: -1 }).limit(200); for (const row of queueRows) { const status = String(row.status || '').toLowerCase(); const attempts = Number(row.attempts || 0); if (status === 'dead_letter') { findings.push(await upsertOperationalAlert({ type: 'dispatch_dead_letter', severity: 'critical', manufacturer: row.manufacturer, orderId: row.orderId, queueId: row.queueId, entityKey: row.queueId, title: 'Pedido caiu em dead letter', message: `O pedido ${row.orderId || row.queueId} esgotou as tentativas de envio ao fabricante.`, metadata: row.toObject() })); continue; } if (['pending', 'retrying', 'retry_processing'].includes(status) && attempts >= 3) findings.push(await upsertOperationalAlert({ type: 'dispatch_retry_pressure', severity: attempts >= 5 ? 'high' : 'medium', manufacturer: row.manufacturer, orderId: row.orderId, queueId: row.queueId, entityKey: row.queueId, title: 'Fila de reenvio com muitas tentativas', message: `O pedido ${row.orderId || row.queueId} jÃ¡ acumula ${attempts} tentativas de envio ao fabricante.`, metadata: row.toObject() })); }
- const orders = await Order.find().sort({ updatedAt: -1 }).limit(200); for (const row of orders) { const integ = String(row.status_integracao || '').toLowerCase(); const dispatchStatus = String(row.manufacturerDispatch?.status || '').toLowerCase(); const manufacturer = row.manufacturer || row.sellerIds?.[0] || null; if (['erro_envio_fabricante', 'fila_erro_fabricante'].includes(integ) || dispatchStatus === 'error') findings.push(await upsertOperationalAlert({ type: 'order_dispatch_error', severity: 'high', manufacturer, orderId: String(row._id), queueId: row.manufacturerDispatch?.queueId || null, entityKey: String(row._id), title: 'Pedido com erro de integraÃ§Ã£o', message: `O pedido ${row._id} estÃ¡ com falha no envio ao fabricante.`, metadata: { status_integracao: row.status_integracao || null, manufacturerDispatch: row.manufacturerDispatch || null } })); }
- const since = new Date(Date.now() - (6 * 60 * 60 * 1000)); const recentLogs = await IntegrationAuditLog.find({ createdAt: { $gte: since } }).sort({ createdAt: -1 }).limit(300); const stats = {}; for (const log of recentLogs) { const manufacturer = String(log.manufacturer || 'global'); if (!stats[manufacturer]) stats[manufacturer] = { errors: 0, success: 0 }; if (log.eventType === 'manufacturer_dispatch_http') { if (String(log.status || '').toLowerCase() === 'success' || (Number(log.statusCode) >= 200 && Number(log.statusCode) < 300)) stats[manufacturer].success += 1; else stats[manufacturer].errors += 1; } } for (const [manufacturer, stat] of Object.entries(stats)) { if (stat.errors >= 3 && stat.success === 0) findings.push(await upsertOperationalAlert({ type: 'manufacturer_outage', severity: stat.errors >= 5 ? 'critical' : 'high', manufacturer, entityKey: manufacturer, title: 'PossÃ­vel indisponibilidade do fabricante', message: `Foram detectadas ${stat.errors} falhas recentes sem sucesso para ${manufacturer}.`, metadata: stat })); } return findings; }
+async function scanOperationalAlerts() { const findings = []; const queueRows = await ManufacturerDispatchQueue.find().sort({ updatedAt: -1 }).limit(200); for (const row of queueRows) { const status = String(row.status || '').toLowerCase(); const attempts = Number(row.attempts || 0); if (status === 'dead_letter') { findings.push(await upsertOperationalAlert({ type: 'dispatch_dead_letter', severity: 'critical', manufacturer: row.manufacturer, orderId: row.orderId, queueId: row.queueId, entityKey: row.queueId, title: 'Pedido caiu em dead letter', message: `O pedido ${row.orderId || row.queueId} esgotou as tentativas de envio ao fabricante.`, metadata: row.toObject() })); continue; } if (['pending', 'retrying', 'retry_processing'].includes(status) && attempts >= 3) findings.push(await upsertOperationalAlert({ type: 'dispatch_retry_pressure', severity: attempts >= 5 ? 'high' : 'medium', manufacturer: row.manufacturer, orderId: row.orderId, queueId: row.queueId, entityKey: row.queueId, title: 'Fila de reenvio com muitas tentativas', message: `O pedido ${row.orderId || row.queueId} já acumula ${attempts} tentativas de envio ao fabricante.`, metadata: row.toObject() })); }
+ const orders = await Order.find().sort({ updatedAt: -1 }).limit(200); for (const row of orders) { const integ = String(row.status_integracao || '').toLowerCase(); const dispatchStatus = String(row.manufacturerDispatch?.status || '').toLowerCase(); const manufacturer = row.manufacturer || row.sellerIds?.[0] || null; if (['erro_envio_fabricante', 'fila_erro_fabricante'].includes(integ) || dispatchStatus === 'error') findings.push(await upsertOperationalAlert({ type: 'order_dispatch_error', severity: 'high', manufacturer, orderId: String(row._id), queueId: row.manufacturerDispatch?.queueId || null, entityKey: String(row._id), title: 'Pedido com erro de integração', message: `O pedido ${row._id} está com falha no envio ao fabricante.`, metadata: { status_integracao: row.status_integracao || null, manufacturerDispatch: row.manufacturerDispatch || null } })); }
+ const since = new Date(Date.now() - (6 * 60 * 60 * 1000)); const recentLogs = await IntegrationAuditLog.find({ createdAt: { $gte: since } }).sort({ createdAt: -1 }).limit(300); const stats = {}; for (const log of recentLogs) { const manufacturer = String(log.manufacturer || 'global'); if (!stats[manufacturer]) stats[manufacturer] = { errors: 0, success: 0 }; if (log.eventType === 'manufacturer_dispatch_http') { if (String(log.status || '').toLowerCase() === 'success' || (Number(log.statusCode) >= 200 && Number(log.statusCode) < 300)) stats[manufacturer].success += 1; else stats[manufacturer].errors += 1; } } for (const [manufacturer, stat] of Object.entries(stats)) { if (stat.errors >= 3 && stat.success === 0) findings.push(await upsertOperationalAlert({ type: 'manufacturer_outage', severity: stat.errors >= 5 ? 'critical' : 'high', manufacturer, entityKey: manufacturer, title: 'Possível indisponibilidade do fabricante', message: `Foram detectadas ${stat.errors} falhas recentes sem sucesso para ${manufacturer}.`, metadata: stat })); } return findings; }
 
 function redactWhatsappSettings(settings = {}) { const cfg = { ...(settings || {}) }; if (cfg.apiKey) cfg.apiKey = '[redacted]'; return cfg; }
 function extractOrderPhone(order = {}, defaultCountryCode = '55') { const candidates = [order.whatsapp, order.telefoneWhatsapp, order.telefone, order.phone, order.customerPhone, order.customerWhatsapp, order.customer?.phone, order.customer?.whatsapp, order.shippingAddress?.phone]; for (const value of candidates) { const n = normalizePhone(value, defaultCountryCode); if (n) return n; } return ''; }
@@ -1097,9 +1097,9 @@ function buildOrderStatusMessage(orderId, order = {}, settings = {}) {
   const statusLabel = formatOrderStatusForCustomer(rawStatus);
   const trackingLine = buildTrackingLine(order);
 
-  const produto = Array.isArray(order.items) && order.items.length
-    ? String(order.items[0]?.name || '').trim()
-    : '';
+  const items = Array.isArray(order.items) ? order.items : [];
+  const produto = items.length ? String(items[0]?.name || '').trim() : '';
+  const outrosItens = items.length > 1 ? ` + ${items.length - 1} item(ns)` : '';
 
   const valor = Number(order.total || 0);
   const valorLinha = valor > 0
@@ -1107,25 +1107,69 @@ function buildOrderStatusMessage(orderId, order = {}, settings = {}) {
     : '';
 
   const produtoLinha = produto
-    ? `\n📦 Produto: ${produto}`
+    ? `\n📦 Produto: ${produto}${outrosItens}`
     : '';
+
+  const statusKey = String(rawStatus || statusLabel || '').toLowerCase();
+
+  let orientacao = '📲 Você pode acompanhar novas atualizações diretamente por aqui.';
+  if (
+    statusKey.includes('aguard') ||
+    statusKey.includes('pend') ||
+    statusKey.includes('pending')
+  ) {
+    orientacao = '💳 Assim que o pagamento for confirmado, vamos iniciar a preparação do seu pedido.';
+  } else if (
+    statusKey.includes('aprov') ||
+    statusKey.includes('pago') ||
+    statusKey.includes('approved') ||
+    statusKey.includes('paid')
+  ) {
+    orientacao = '✅ Pagamento confirmado. Já estamos preparando sua compra com todo cuidado.';
+  } else if (
+    statusKey.includes('separ') ||
+    statusKey.includes('processing')
+  ) {
+    orientacao = '📦 Seu pedido está em separação. Em breve enviaremos novas atualizações.';
+  } else if (
+    statusKey.includes('enviado') ||
+    statusKey.includes('shipped') ||
+    statusKey.includes('transporte')
+  ) {
+    orientacao = '🚚 Seu pedido está a caminho. Acompanhe as próximas atualizações por aqui.';
+  } else if (
+    statusKey.includes('entreg') ||
+    statusKey.includes('delivered')
+  ) {
+    orientacao = '✅ Pedido entregue. Esperamos que você aproveite sua compra!';
+  } else if (
+    statusKey.includes('cancel') ||
+    statusKey.includes('recus') ||
+    statusKey.includes('rejected')
+  ) {
+    orientacao = 'ℹ️ Caso tenha dúvidas sobre esta atualização, fale com nossa equipe de atendimento.';
+  }
 
   return `
 🛒 Ariana Móveis
 
-Olá, ${customerName}!
+Olá, ${customerName}! 👋
 
 Seu pedido #${shortId} foi atualizado.
 
 📋 Status: ${statusLabel}${produtoLinha}${valorLinha}${trackingLine}
 
-Assim que houver uma nova atualização, você será avisado por aqui.
+${orientacao}
 
-Obrigado por comprar na Ariana Móveis! 💙
+💙 Obrigado por escolher a Ariana Móveis.
+
+Atenciosamente,
+Equipe Ariana Móveis
 `.trim();
 }
-function buildOrderChatMessage(orderId, order = {}, message = {}) { const senderName = String(message.senderName || 'Equipe Ariana MÃ³veis').trim(); const senderType = String(message.senderType || 'admin').trim(); const customerName = extractOrderCustomerName(order); const base = senderType === 'customer' ? `OlÃ¡! O cliente ${senderName} enviou uma nova mensagem no pedido ${orderId} da Ariana MÃ³veis.` : `OlÃ¡, ${customerName}! VocÃª recebeu uma nova mensagem sobre o pedido ${orderId} na Ariana MÃ³veis.`; const text = String(message.text || '').trim(); return `${base}\n\nMensagem: ${text}`.trim(); }
-async function waSendTextMessage({ number, text, settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('IntegraÃ§Ã£o WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('ConfiguraÃ§Ã£o incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('NÃºmero de telefone invÃ¡lido.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(cfg.instanceName)}`; const response = await axios.post(url, { number: normalizedNumber, text: String(text || '').trim(), delay: Number(delay || 0) || 0, linkPreview: false }, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status }; }
+
+function buildOrderChatMessage(orderId, order = {}, message = {}) { const senderName = String(message.senderName || 'Equipe Ariana Móveis').trim(); const senderType = String(message.senderType || 'admin').trim(); const customerName = extractOrderCustomerName(order); const base = senderType === 'customer' ? `Olá! O cliente ${senderName} enviou uma nova mensagem no pedido ${orderId} da Ariana Móveis.` : `Olá, ${customerName}! Você recebeu uma nova mensagem sobre o pedido ${orderId} na Ariana Móveis.`; const text = String(message.text || '').trim(); return `${base}\n\nMensagem: ${text}`.trim(); }
+async function waSendTextMessage({ number, text, settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(cfg.instanceName)}`; const response = await axios.post(url, { number: normalizedNumber, text: String(text || '').trim(), delay: Number(delay || 0) || 0, linkPreview: false }, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status }; }
 
 function formatMoneyBRL(value = 0) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY }).format(Number(value || 0));
@@ -1136,10 +1180,10 @@ function formatOrderItemsForWhatsapp(items = []) {
     const qty = Number(item.qty || item.quantity || 1) || 1;
     const name = String(item.name || item.nome || item.sku || 'Produto').trim();
     const total = Number(item.totalPrice || (Number(item.unitPrice || item.price || 0) * qty) || 0);
-    return `â€¢ ${qty}x ${name}${total ? ` â€” ${formatMoneyBRL(total)}` : ''}`;
+    return `• ${qty}x ${name}${total ? ` — ${formatMoneyBRL(total)}` : ''}`;
   });
-  if (!rows.length) return 'â€¢ Itens nÃ£o informados';
-  if (ensureArray(items).length > rows.length) rows.push(`â€¢ +${ensureArray(items).length - rows.length} item(ns)`);
+  if (!rows.length) return '• Itens não informados';
+  if (ensureArray(items).length > rows.length) rows.push(`• +${ensureArray(items).length - rows.length} item(ns)`);
   return rows.join('\n');
 }
 
@@ -1147,19 +1191,19 @@ function buildAdminNewOrderMessage(orderDoc = {}) {
   const order = toJSON(orderDoc) || orderDoc || {};
 
   const orderId = String(order._id || order.id || '').slice(-8).toUpperCase() || '---';
-  const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente nÃ£o informado').trim();
+  const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente não informado').trim();
   const customerPhone = String(order.customerPhone || order.shippingAddress?.phone || '').trim();
-  const paymentMethod = String(order.payment?.method || order.payment?.payment_method || order.payment?.type || order.payment?.provider || 'NÃ£o informado').trim();
+  const paymentMethod = String(order.payment?.method || order.payment?.payment_method || order.payment?.type || order.payment?.provider || 'Não informado').trim();
   const address = order.shippingAddress || {};
   const cidadeUf = [address.cidade || address.city, address.uf || address.state].filter(Boolean).join('/');
-  const prazo = order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || (order.shipping?.deadlineDays ? `${order.shipping.deadlineDays} dia(s) Ãºteis` : 'NÃ£o informado');
+  const prazo = order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || (order.shipping?.deadlineDays ? `${order.shipping.deadlineDays} dia(s) úteis` : 'Não informado');
 
   return [
     'ðŸ›’ *NOVA VENDA REALIZADA*',
     '',
     `Pedido: #${orderId}`,
     `Cliente: ${customerName}`,
-    customerPhone ? `Telefone: ${customerPhone}` : 'Telefone: nÃ£o informado',
+    customerPhone ? `Telefone: ${customerPhone}` : 'Telefone: não informado',
     `Valor total: ${formatMoneyBRL(order.total || 0)}`,
     `Pagamento: ${paymentMethod}`,
     `Status: ${order.statusLabel || order.status || 'pendente'}`,
@@ -1212,17 +1256,17 @@ function buildAdminOrderStatusMessage(orderId, before = {}, after = {}) {
 
   const previousStatus = String(before?.statusLabel || before?.status || '---').trim();
   const nextStatus = String(order.statusLabel || order.status || 'Atualizado').trim();
-  const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente nÃ£o informado').trim();
+  const customerName = String(order.customerName || order.shippingAddress?.name || 'Cliente não informado').trim();
   const customerPhone = String(order.customerPhone || order.shippingAddress?.phone || '').trim();
   const trackingCode = String(order.trackingCode || '').trim();
   const orderShort = String(order._id || order.id || orderId || '').slice(-8).toUpperCase() || '---';
 
   return [
-    'ðŸ“¦ *PEDIDO ATUALIZADO*',
+    '📦 *PEDIDO ATUALIZADO*',
     '',
     `Pedido: #${orderShort}`,
     `Cliente: ${customerName}`,
-    customerPhone ? `Telefone: ${customerPhone}` : 'Telefone: nÃ£o informado',
+    customerPhone ? `Telefone: ${customerPhone}` : 'Telefone: não informado',
     `Status anterior: ${previousStatus}`,
     `Novo status: ${nextStatus}`,
     `Valor total: ${formatMoneyBRL(order.total || 0)}`,
@@ -1261,12 +1305,12 @@ async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, 
 
     return { ok: results.some((row) => row.ok), results };
   } catch (error) {
-    console.error('Erro ao notificar atualizaÃ§Ã£o do pedido para admin por WhatsApp:', error.message || error);
+    console.error('Erro ao notificar atualização do pedido para admin por WhatsApp:', error.message || error);
     return { ok: false, error: error.message || String(error) };
   }
 }
-async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 'image', fileName = '', settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('IntegraÃ§Ã£o WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('ConfiguraÃ§Ã£o incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('NÃºmero de telefone invÃ¡lido.'); if (!String(mediaUrl || '').trim()) throw new Error('URL da mÃ­dia nÃ£o informada.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendMedia/${encodeURIComponent(cfg.instanceName)}`; const payload = { number: normalizedNumber, mediatype: String(mediaType || 'image').trim().toLowerCase(), media: String(mediaUrl || '').trim(), caption: String(caption || '').trim(), fileName: String(fileName || '').trim() || undefined, delay: Number(delay || 0) || 0 }; const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status, payload: redact(payload) }; }
-async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('ConfiguraÃ§Ã£o incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
+async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 'image', fileName = '', settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); if (!String(mediaUrl || '').trim()) throw new Error('URL da mídia não informada.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendMedia/${encodeURIComponent(cfg.instanceName)}`; const payload = { number: normalizedNumber, mediatype: String(mediaType || 'image').trim().toLowerCase(), media: String(mediaUrl || '').trim(), caption: String(caption || '').trim(), fileName: String(fileName || '').trim() || undefined, delay: Number(delay || 0) || 0 }; const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status, payload: redact(payload) }; }
+async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('Configuração incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
 function waParseIncomingWebhook(body = {}) { const payload = body?.data || body?.message || body || {}; const key = payload?.key || body?.key || {}; const message = payload?.message || body?.message || {}; const text = message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || body?.text || ''; const remoteJid = key?.remoteJid || payload?.key?.remoteJid || body?.remoteJid || ''; const number = cleanPhone(String(remoteJid).split('@')[0] || body?.from || ''); const pushName = payload?.pushName || body?.pushName || body?.sender?.pushName || null; const fromMe = key?.fromMe === true || body?.fromMe === true; const event = String(body?.event || body?.type || '').trim() || null; return { event, remoteJid, number, pushName, fromMe, text: String(text || '').trim(), raw: body }; }
 async function waPersistWebhook(body = {}) { const parsed = waParseIncomingWebhook(body); await WhatsAppWebhook.create({ event: parsed.event || null, remoteJid: parsed.remoteJid || null, number: parsed.number || null, pushName: parsed.pushName || null, fromMe: parsed.fromMe === true, text: parsed.text || null, payload: redact(body || null) }); if ((parsed.event === 'MESSAGES_UPSERT' || !parsed.event) && !parsed.fromMe && parsed.text) await Ticket.create({ protocolo: `WA-${Date.now()}`, nome: parsed.pushName || parsed.number || 'WhatsApp', email: null, tipo: 'WhatsApp', status: 'Novo', telefone: parsed.number || null, mensagem: parsed.text, origem: 'evolution_webhook', metadata: { remoteJid: parsed.remoteJid || null } }); return parsed; }
 async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, origin = 'route') {
@@ -1318,7 +1362,7 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
           ...(after.whatsappNotification || {}),
           lastAttemptAt: now(),
           lastStatusNotified: null,
-          lastError: 'Telefone do cliente nÃ£o encontrado.',
+          lastError: 'Telefone do cliente não encontrado.',
           origin
         }
       }
@@ -1330,14 +1374,14 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
 
   const text = buildOrderStatusMessage(orderId, after, settings);
 
-  // Chave simples e forte: evita duplicidade mesmo quando duas rotas disparam a mesma atualizaÃ§Ã£o.
-  // NÃ£o depende do texto completo, nem da origem, para nÃ£o falhar quando uma rota muda pequenos detalhes.
+  // Chave simples e forte: evita duplicidade mesmo quando duas rotas disparam a mesma atualização.
+  // Não depende do texto completo, nem da origem, para não falhar quando uma rota muda pequenos detalhes.
   const statusForKey = String(nextStatus || nextStatusLabel || 'status').trim().toLowerCase();
   const labelForKey = String(nextStatusLabel || '').trim().toLowerCase();
   const trackingForKey = String(nextTracking || '').trim().toLowerCase();
   const customerNotificationKey = `${String(orderId)}|${number}|${statusForKey}|${labelForKey}|${trackingForKey}`;
 
-  // Se essa mesma atualizaÃ§Ã£o jÃ¡ foi enviada recentemente, nÃ£o envia de novo.
+  // Se essa mesma atualização já foi enviada recentemente, não envia de novo.
   const currentOrder = await Order.findById(orderId).lean().catch(() => null);
   const currentWa = currentOrder?.whatsappNotification || {};
   if (
@@ -1355,7 +1399,7 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
     return { skipped: true, reason: 'duplicate_notification', number, customerNotificationKey };
   }
 
-  // Trava atÃ´mica no MongoDB: sÃ³ uma chamada consegue marcar esta chave como "em envio".
+  // Trava atômica no MongoDB: só uma chamada consegue marcar esta chave como "em envio".
   const lockDoc = await Order.findOneAndUpdate(
     {
       _id: orderId,
@@ -1459,9 +1503,9 @@ async function waNotifyOrderChatMessage(orderId, order = {}, message = {}, origi
 
 async function getManufacturerIntegration(manufacturer) { return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() }); }
 function computeNextAttempt(attempts) { const backoff = Math.pow(2, Math.max(0, attempts - 1)) * DISPATCH_RETRY_BASE_MS; return new Date(Date.now() + backoff); }
-async function dispatchOrderToManufacturer(orderPayload = {}) { const manufacturer = String(orderPayload.manufacturer || orderPayload.fabricante || orderPayload.sellerIds?.[0] || orderPayload.sellerId || '').trim(); if (!manufacturer) throw new Error('Fabricante nÃ£o informado no pedido.'); const integration = await getManufacturerIntegration(manufacturer); if (!integration || !integration.enabled) throw new Error(`IntegraÃ§Ã£o do fabricante ${manufacturer} nÃ£o configurada ou desativada.`); const endpoint = String(integration.endpoint || '').trim(); if (!endpoint) throw new Error(`Endpoint do fabricante ${manufacturer} nÃ£o configurado.`); const method = String(integration.method || 'POST').toUpperCase(); const sendAs = String(integration.sendAs || 'json').toLowerCase(); const headers = { ...(integration.headers || {}) }; if (integration.apiKey) headers.apikey = integration.apiKey; if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`; let response; if (sendAs === 'form') { const body = new URLSearchParams(); Object.entries(orderPayload || {}).forEach(([k, v]) => { if (v === undefined || v === null) return; body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); }); response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, data: body.toString(), timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } else { response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/json', ...headers }, data: orderPayload, timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } const ok = response.status >= 200 && response.status < 300; await writeAuditLog({ scope: 'manufacturer_integration', eventType: 'manufacturer_dispatch_http', orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''), manufacturer, status: ok ? 'success' : 'error', statusCode: response.status, request: orderPayload, response: response.data, metadata: { endpoint, method, sendAs } }); return { ok, manufacturer, endpoint, status: response.status, data: response.data, sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json' }; }
+async function dispatchOrderToManufacturer(orderPayload = {}) { const manufacturer = String(orderPayload.manufacturer || orderPayload.fabricante || orderPayload.sellerIds?.[0] || orderPayload.sellerId || '').trim(); if (!manufacturer) throw new Error('Fabricante não informado no pedido.'); const integration = await getManufacturerIntegration(manufacturer); if (!integration || !integration.enabled) throw new Error(`Integração do fabricante ${manufacturer} não configurada ou desativada.`); const endpoint = String(integration.endpoint || '').trim(); if (!endpoint) throw new Error(`Endpoint do fabricante ${manufacturer} não configurado.`); const method = String(integration.method || 'POST').toUpperCase(); const sendAs = String(integration.sendAs || 'json').toLowerCase(); const headers = { ...(integration.headers || {}) }; if (integration.apiKey) headers.apikey = integration.apiKey; if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`; let response; if (sendAs === 'form') { const body = new URLSearchParams(); Object.entries(orderPayload || {}).forEach(([k, v]) => { if (v === undefined || v === null) return; body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); }); response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, data: body.toString(), timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } else { response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/json', ...headers }, data: orderPayload, timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } const ok = response.status >= 200 && response.status < 300; await writeAuditLog({ scope: 'manufacturer_integration', eventType: 'manufacturer_dispatch_http', orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''), manufacturer, status: ok ? 'success' : 'error', statusCode: response.status, request: orderPayload, response: response.data, metadata: { endpoint, method, sendAs } }); return { ok, manufacturer, endpoint, status: response.status, data: response.data, sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json' }; }
 async function enqueueManufacturerDispatch(orderDoc) { const order = toJSON(orderDoc); const manufacturer = String(order.manufacturer || order.sellerIds?.[0] || '').trim(); if (!manufacturer) return { skipped: true, reason: 'missing_manufacturer' }; const queueId = uid('mq'); const payload = { orderId: String(order._id || order.id), id: String(order._id || order.id), manufacturer, customerName: order.customerName, customerPhone: order.customerPhone, customerEmail: order.customerEmail, shippingAddress: order.shippingAddress, items: order.items, total: order.total, notes: order.notes }; const queueRow = await ManufacturerDispatchQueue.create({ queueId, orderId: String(order._id || order.id), manufacturer, payload, status: 'pending', attempts: 0, maxAttempts: MAX_DISPATCH_ATTEMPTS, nextAttemptAt: now() }); await Order.findByIdAndUpdate(order._id || order.id, { $set: { manufacturer, manufacturerDispatch: { queueId, status: 'pending', attempts: 0, updatedAt: now() }, status_integracao: 'fila_pendente_fabricante' } }); await writeAuditLog({ scope: 'manufacturer_queue', eventType: 'manufacturer_dispatch_enqueued', orderId: String(order._id || order.id), manufacturer, queueId, status: 'queued', request: payload }); return { ok: true, queueId: queueRow.queueId }; }
-async function processSingleQueueItem(queueRow) { const row = typeof queueRow.toObject === 'function' ? queueRow : await ManufacturerDispatchQueue.findOne({ queueId: queueRow.queueId }); if (!row) return { ok: false, error: 'Queue item nÃ£o encontrado' }; row.status = row.attempts > 0 ? 'retry_processing' : 'processing'; row.lastAttemptAt = now(); await row.save(); try { const result = await dispatchOrderToManufacturer(row.payload || {}); row.attempts = Number(row.attempts || 0) + 1; row.lastResponse = redact(result.data || null); if (result.ok) { row.status = 'sent'; row.deadLetter = false; row.nextAttemptAt = null; await row.save(); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: 'enviado', manufacturerDispatch: { queueId: row.queueId, status: 'sent', attempts: row.attempts, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data || null), updatedAt: now() } } }); await resolveOperationalAlert('dispatch_dead_letter', row.queueId); await resolveOperationalAlert('dispatch_retry_pressure', row.queueId); await resolveOperationalAlert('order_dispatch_error', row.orderId); return { ok: true, result }; } row.lastError = `HTTP ${result.status}`; if (row.attempts >= Number(row.maxAttempts || MAX_DISPATCH_ATTEMPTS)) { row.status = 'dead_letter'; row.deadLetter = true; row.nextAttemptAt = null; } else { row.status = 'retrying'; row.nextAttemptAt = computeNextAttempt(row.attempts); } await row.save(); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: row.status === 'dead_letter' ? 'fila_erro_fabricante' : 'retry_fabricante', manufacturerDispatch: { queueId: row.queueId, status: row.status === 'dead_letter' ? 'error' : row.status, attempts: row.attempts, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data || null), updatedAt: now(), lastError: row.lastError } } }); return { ok: false, result }; } catch (error) { row.attempts = Number(row.attempts || 0) + 1; row.lastError = error.message; if (row.attempts >= Number(row.maxAttempts || MAX_DISPATCH_ATTEMPTS)) { row.status = 'dead_letter'; row.deadLetter = true; row.nextAttemptAt = null; } else { row.status = 'retrying'; row.nextAttemptAt = computeNextAttempt(row.attempts); } await row.save(); await writeAuditLog({ scope: 'manufacturer_queue', eventType: 'manufacturer_dispatch_processing_error', orderId: row.orderId, manufacturer: row.manufacturer, queueId: row.queueId, status: 'error', message: error.message, request: row.payload || null }); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: row.status === 'dead_letter' ? 'fila_erro_fabricante' : 'retry_fabricante', manufacturerDispatch: { queueId: row.queueId, status: row.status === 'dead_letter' ? 'error' : row.status, attempts: row.attempts, updatedAt: now(), lastError: error.message } } }); return { ok: false, error: error.message }; } }
+async function processSingleQueueItem(queueRow) { const row = typeof queueRow.toObject === 'function' ? queueRow : await ManufacturerDispatchQueue.findOne({ queueId: queueRow.queueId }); if (!row) return { ok: false, error: 'Queue item não encontrado' }; row.status = row.attempts > 0 ? 'retry_processing' : 'processing'; row.lastAttemptAt = now(); await row.save(); try { const result = await dispatchOrderToManufacturer(row.payload || {}); row.attempts = Number(row.attempts || 0) + 1; row.lastResponse = redact(result.data || null); if (result.ok) { row.status = 'sent'; row.deadLetter = false; row.nextAttemptAt = null; await row.save(); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: 'enviado', manufacturerDispatch: { queueId: row.queueId, status: 'sent', attempts: row.attempts, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data || null), updatedAt: now() } } }); await resolveOperationalAlert('dispatch_dead_letter', row.queueId); await resolveOperationalAlert('dispatch_retry_pressure', row.queueId); await resolveOperationalAlert('order_dispatch_error', row.orderId); return { ok: true, result }; } row.lastError = `HTTP ${result.status}`; if (row.attempts >= Number(row.maxAttempts || MAX_DISPATCH_ATTEMPTS)) { row.status = 'dead_letter'; row.deadLetter = true; row.nextAttemptAt = null; } else { row.status = 'retrying'; row.nextAttemptAt = computeNextAttempt(row.attempts); } await row.save(); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: row.status === 'dead_letter' ? 'fila_erro_fabricante' : 'retry_fabricante', manufacturerDispatch: { queueId: row.queueId, status: row.status === 'dead_letter' ? 'error' : row.status, attempts: row.attempts, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data || null), updatedAt: now(), lastError: row.lastError } } }); return { ok: false, result }; } catch (error) { row.attempts = Number(row.attempts || 0) + 1; row.lastError = error.message; if (row.attempts >= Number(row.maxAttempts || MAX_DISPATCH_ATTEMPTS)) { row.status = 'dead_letter'; row.deadLetter = true; row.nextAttemptAt = null; } else { row.status = 'retrying'; row.nextAttemptAt = computeNextAttempt(row.attempts); } await row.save(); await writeAuditLog({ scope: 'manufacturer_queue', eventType: 'manufacturer_dispatch_processing_error', orderId: row.orderId, manufacturer: row.manufacturer, queueId: row.queueId, status: 'error', message: error.message, request: row.payload || null }); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: row.status === 'dead_letter' ? 'fila_erro_fabricante' : 'retry_fabricante', manufacturerDispatch: { queueId: row.queueId, status: row.status === 'dead_letter' ? 'error' : row.status, attempts: row.attempts, updatedAt: now(), lastError: error.message } } }); return { ok: false, error: error.message }; } }
 async function processManufacturerQueue(limit = 10) { const rows = await ManufacturerDispatchQueue.find({ status: { $in: ['pending', 'retrying'] }, $or: [{ nextAttemptAt: { $lte: now() } }, { nextAttemptAt: null }] }).sort({ nextAttemptAt: 1, createdAt: 1 }).limit(Math.max(1, Number(limit || 10))); const results = []; for (const row of rows) results.push(await processSingleQueueItem(row)); return results; }
 
 function envFirst(...keys) { for (const key of keys) { const value = process.env[key]; if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim(); } return ''; }
@@ -1492,9 +1536,9 @@ function pickDeadline(item = {}) {
 const SERVICE_NAMES = { '03298': 'PAC', '03328': 'SEDEX', '03220': 'SEDEX Hoje', '03204': 'SEDEX 10', '03212': 'SEDEX 12' };
 let correiosTokenCache = { token: null, exp: 0 };
 function correiosCfg(settings = null) { const cfg = settings && settings.correios ? settings.correios : {}; return { user: envFirst('CORREIOS_USER'), pass: envFirst('CORREIOS_PASS'), cartao: envFirst('CORREIOS_CARTAO'), contrato: envFirst('CORREIOS_CONTRATO'), dr: envFirst('CORREIOS_DR') || '0', originCep: normalizeDigits(cfg.origemCep || envFirst('LOJA_ORIGEM_CEP')), services: (Array.isArray(cfg.servicos) && cfg.servicos.length ? cfg.servicos : parseServices(envFirst('CORREIOS_SERVICOS'))), pesoKgPadrao: Number(cfg.pesoKgPadrao || 1), alturaCmPadrao: Number(cfg.alturaCmPadrao || 10), larguraCmPadrao: Number(cfg.larguraCmPadrao || 15), comprimentoCmPadrao: Number(cfg.comprimentoCmPadrao || 20), valorDeclaradoPadrao: Number(cfg.valorDeclaradoPadrao || 0), tokenUrl: 'https://api.correios.com.br/token/v1/autentica/cartaopostagem', precoUrl: 'https://api.correios.com.br/preco/v1/nacional' }; }
-async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token nÃ£o retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
-async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP invÃ¡lido (8 dÃ­gitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino invÃ¡lido (8 dÃ­gitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg invÃ¡lido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite mÃ¡ximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
-      const resolvedPrazo = resolvedDeadlineDays ? `${resolvedDeadlineDays} dia(s) Ãºteis` : ((coProduto === '03298') ? '3 a 7 dias Ãºteis' : (coProduto === '03328' || coProduto === '03220') ? '1 a 3 dias Ãºteis' : 'sob consulta');
+async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token não retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
+async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
+      const resolvedPrazo = resolvedDeadlineDays ? `${resolvedDeadlineDays} dia(s) úteis` : ((coProduto === '03298') ? '3 a 7 dias úteis' : (coProduto === '03328' || coProduto === '03220') ? '1 a 3 dias úteis' : 'sob consulta');
       quotes.push({ service: coProduto, label: SERVICE_NAMES[coProduto] || coProduto, name: SERVICE_NAMES[coProduto] || coProduto, price: pickPrice(item), prazo: resolvedPrazo, deadlineDays: resolvedDeadlineDays, raw: item }); } quotes.sort((a,b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9)); return { ok: true, quotes, errors, bestQuote: quotes[0] || null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: hasDims ? { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } : null, servicesRequested: cfg.services, limits: { maxWeightKg: Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30), maxSideCm: Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100) } } }; }
 const viaCepCache = new Map();
 const geoCache = new Map();
@@ -1672,12 +1716,12 @@ function normalizeFrenetQuote(row = {}) {
     label: carrier ? `${carrier} - ${serviceDescription}` : serviceDescription,
     name: carrier ? `${carrier} - ${serviceDescription}` : serviceDescription,
     price,
-    prazo: deliveryTime > 0 ? `${deliveryTime} dia(s) Ãºteis` : 'sob consulta',
+    prazo: deliveryTime > 0 ? `${deliveryTime} dia(s) úteis` : 'sob consulta',
     deadlineDays: deliveryTime > 0 ? deliveryTime : null,
     provider: 'frenet',
     raw: row,
     unavailable: error || !Number.isFinite(price) || price <= 0,
-    error: message || (error ? 'ServiÃ§o indisponÃ­vel na Frenet.' : '')
+    error: message || (error ? 'Serviço indisponível na Frenet.' : '')
   };
 }
 
@@ -1686,12 +1730,12 @@ async function quoteFrenet(body = {}, settings = null) {
   const cfg = shippingSettings?.carriers?.frenet || {};
   const token = String(cfg.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim();
   if (!cfg.enabled) return { ok: true, quotes: [], skipped: true, reason: 'frenet_disabled' };
-  if (!token) throw new Error('FRENET_TOKEN nÃ£o configurado.');
+  if (!token) throw new Error('FRENET_TOKEN não configurado.');
 
   const sellerCep = normalizeCepValue(cfg.origemCep || process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || shippingSettings?.correios?.origemCep || '');
   const recipientCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
-  if (!sellerCep) throw new Error('CEP de origem da Frenet nÃ£o configurado.');
-  if (!recipientCep) throw new Error('CEP de destino invÃ¡lido para cotaÃ§Ã£o Frenet.');
+  if (!sellerCep) throw new Error('CEP de origem da Frenet não configurado.');
+  if (!recipientCep) throw new Error('CEP de destino inválido para cotação Frenet.');
 
   const invoiceValue = Number(body.productPrice || body.price || body.valorNota || body.invoiceValue || body.subtotal || body.total || 0);
   const payload = {
@@ -1764,13 +1808,13 @@ async function calculateShipping(body = {}) {
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
       service: 'ariana_free_local',
-      label: arianaRule.label || 'Ariana MÃ³veis',
+      label: arianaRule.label || 'Ariana Móveis',
       price: 0,
-      prazo: arianaRule.prazo || '1 a 3 dias Ãºteis',
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: `Frete grÃ¡tis para o CEP ${arianaRule.freeCepStart}.`,
+      details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
       metadata: { rule: 'ariana_free_local', cep: destinationCep },
-      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias Ãºteis')
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
     }));
   }
 
@@ -1779,11 +1823,11 @@ async function calculateShipping(body = {}) {
       service: 'sn_digital_ate_40km',
       label: snRule.label || 'SN Digital',
       price: Number(snRule.priceTier1 || 120),
-      prazo: snRule.prazo || '1 a 3 dias Ãºteis',
+      prazo: snRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: `SN Digital atÃ© ${Number(snRule.maxKmTier1 || 40)} km.`,
+      details: `SN Digital até ${Number(snRule.maxKmTier1 || 40)} km.`,
       metadata: { rule: 'sn_digital_ate_40km', distanceKm },
-      deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias Ãºteis')
+      deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
   if (usesArianaLogistics && snRule.enabled !== false && !hasArianaFree && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
@@ -1791,11 +1835,11 @@ async function calculateShipping(body = {}) {
       service: 'sn_digital_40_70km',
       label: snRule.label || 'SN Digital',
       price: Number(snRule.priceTier2 || 190),
-      prazo: snRule.prazo || '1 a 3 dias Ãºteis',
+      prazo: snRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: `SN Digital de ${Number(snRule.maxKmTier1 || 40)} atÃ© ${Number(snRule.maxKmTier2 || 70)} km.`,
+      details: `SN Digital de ${Number(snRule.maxKmTier1 || 40)} até ${Number(snRule.maxKmTier2 || 70)} km.`,
       metadata: { rule: 'sn_digital_40_70km', distanceKm },
-      deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias Ãºteis')
+      deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
   let rodocapAvailable = false;
@@ -1822,7 +1866,7 @@ async function calculateShipping(body = {}) {
         label: rodocapRule.label || 'Rodocap',
         unavailable: true,
         provider: 'configured',
-        error: location.city ? `Rodocap nÃ£o atende a cidade ${location.city}.` : 'Rodocap depende da cidade do destino e essa cidade nÃ£o foi identificada.',
+        error: location.city ? `Rodocap não atende a cidade ${location.city}.` : 'Rodocap depende da cidade do destino e essa cidade não foi identificada.',
         metadata: { rule: 'rodocap_city_check', destinationCity: location.city || null, destinationState: location.state || null, destinationCep: destinationCep || null, locationSource: location.source }
       });
     }
@@ -1852,7 +1896,7 @@ async function calculateShipping(body = {}) {
           label: q.label || q.name || 'Frenet',
           name: q.name || q.label || 'Frenet',
           price: Number(q.price),
-          prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s) Ãºteis` : 'sob consulta'),
+          prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s) úteis` : 'sob consulta'),
           deadlineDays: q.deadlineDays || parsePrazoToDeadlineDays(q.prazo || ''),
           provider: 'frenet',
           raw: q.raw || null
@@ -1864,7 +1908,7 @@ async function calculateShipping(body = {}) {
           label: q.label || 'Frenet',
           unavailable: true,
           provider: 'frenet',
-          error: q.error || 'ServiÃ§o indisponÃ­vel na Frenet.',
+          error: q.error || 'Serviço indisponível na Frenet.',
           raw: q.raw || null
         })));
       }
@@ -1884,7 +1928,7 @@ async function calculateShipping(body = {}) {
             service: q.service,
             label: q.label || q.name || 'Correios',
             price: Number(q.price),
-            prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s) Ãºteis` : 'sob consulta'),
+            prazo: q.prazo || (q.deadlineDays ? `${q.deadlineDays} dia(s) úteis` : 'sob consulta'),
             deadlineDays: q.deadlineDays || parsePrazoToDeadlineDays(q.prazo || ''),
             provider: 'correios',
             raw: q.raw || null
@@ -1895,7 +1939,7 @@ async function calculateShipping(body = {}) {
       options.push({ service: 'correios_error', label: 'Correios', unavailable: true, error: error.message });
     }
   } else if (!hasArianaFree) {
-    options.push({ service: 'correios_unavailable_limits', label: 'Correios', unavailable: true, provider: 'correios', error: `Correios disponÃ­veis somente atÃ© ${Number(correios.maxWeightKg || 30)}kg e atÃ© ${Number(correios.maxDimensionCm || 100)}cm no maior lado.`, metadata: { weightKg, maxDimensionCm } });
+    options.push({ service: 'correios_unavailable_limits', label: 'Correios', unavailable: true, provider: 'correios', error: `Correios disponíveis somente até ${Number(correios.maxWeightKg || 30)}kg e até ${Number(correios.maxDimensionCm || 100)}cm no maior lado.`, metadata: { weightKg, maxDimensionCm } });
   }
 
   const totalExpress = settings.carriers?.totalExpress || {};
@@ -1907,16 +1951,16 @@ async function calculateShipping(body = {}) {
   const ownDelivery = settings.carriers?.ownDelivery || {};
   if (!hasArianaFree && !isAriana && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
     const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []);
-    if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega PrÃ³pria', price: own.price, prazo: '1 a 3 dias Ãºteis', provider: 'configured' }));
+    if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }));
   }
 
   options.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
   const normalizedOptions = options.map((option) => ({
     ...option,
-    name: option.name || option.label || 'LogÃ­stica',
-    prazo: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) Ãºteis` : null),
-    deliveryTime: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) Ãºteis` : null),
-    prazoEntrega: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) Ãºteis` : null),
+    name: option.name || option.label || 'Logística',
+    prazo: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
+    deliveryTime: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
+    prazoEntrega: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
     deadlineDays: option.deadlineDays || parsePrazoToDeadlineDays(option.prazo || '')
   }));
   const quotes = normalizedOptions.filter((o) => !o.unavailable && Number.isFinite(Number(o.price)));
@@ -1950,9 +1994,9 @@ async function calculateShipping(body = {}) {
     }
   };
 }
-async function buildMercadoPagoHeaders() { const settings = await getPaymentsSettings(); const accessToken = settings.mercadopago?.accessToken || process.env.MP_ACCESS_TOKEN || ''; if (!accessToken) throw new Error('Mercado Pago access token nÃ£o configurado.'); return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }; }
+async function buildMercadoPagoHeaders() { const settings = await getPaymentsSettings(); const accessToken = settings.mercadopago?.accessToken || process.env.MP_ACCESS_TOKEN || ''; if (!accessToken) throw new Error('Mercado Pago access token não configurado.'); return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }; }
 async function createMercadoPagoPayment(payload) { const headers = await buildMercadoPagoHeaders(); const idempotencyKey = uid('mp'); const response = await axios.post('https://api.mercadopago.com/v1/payments', payload, { headers: { ...headers, 'X-Idempotency-Key': idempotencyKey }, timeout: 30000, validateStatus: () => true }); return { response, idempotencyKey }; }
-async function createPagarmeOrder(payload) { const settings = await getPaymentsSettings(); const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || ''; const endpoint = settings.pagarme?.endpoint || 'https://api.pagar.me/core/v5'; if (!apiKey) throw new Error('Pagar.me API key nÃ£o configurada.'); return axios.post(`${endpoint}/orders`, payload, { auth: { username: apiKey, password: '' }, headers: { 'Content-Type': 'application/json' }, timeout: 30000, validateStatus: () => true }); }
+async function createPagarmeOrder(payload) { const settings = await getPaymentsSettings(); const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || ''; const endpoint = settings.pagarme?.endpoint || 'https://api.pagar.me/core/v5'; if (!apiKey) throw new Error('Pagar.me API key não configurada.'); return axios.post(`${endpoint}/orders`, payload, { auth: { username: apiKey, password: '' }, headers: { 'Content-Type': 'application/json' }, timeout: 30000, validateStatus: () => true }); }
 
 function moneyToCents(value = 0) {
   const n = Number(value || 0);
@@ -2136,7 +2180,7 @@ async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = 
 
     const patch = {
       status: approved ? 'pago' : (status === 'rejected' ? 'pagamento_recusado' : 'pending_payment'),
-      statusLabel: approved ? 'Pagamento aprovado' : (status === 'rejected' ? 'Pagamento recusado' : 'Aguardando confirmaÃ§Ã£o do pagamento'),
+      statusLabel: approved ? 'Pagamento aprovado' : (status === 'rejected' ? 'Pagamento recusado' : 'Aguardando confirmação do pagamento'),
       payment: {
         provider: 'pagarme',
         method: 'card',
@@ -2161,9 +2205,9 @@ async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = 
 
 function buildPagarmeCreditPayload(body = {}, order = null) {
   const cardToken = String(body.card_token || body.cardToken || body.token || '').trim();
-  if (!cardToken) throw new Error('Token do cartÃ£o Pagar.me ausente.');
+  if (!cardToken) throw new Error('Token do cartão Pagar.me ausente.');
   const amount = moneyToCents(body.amount || body.total || order?.total || 0);
-  if (!amount) throw new Error('Total invÃ¡lido para cartÃ£o Pagar.me.');
+  if (!amount) throw new Error('Total inválido para cartão Pagar.me.');
   const installments = Math.max(1, Math.min(Number(body.installments || 1) || 1, 12));
   const billingAddress = buildPagarmeBillingAddress(body, order);
 
@@ -2179,9 +2223,9 @@ function buildPagarmeCreditPayload(body = {}, order = null) {
         statement_descriptor: sanitizePagarmeStatementDescriptor(process.env.PAGARME_STATEMENT_DESCRIPTOR || 'ARIANAMOVEIS'),
         operation_type: 'auth_and_capture',
         card_token: cardToken,
-        // IMPORTANTE: o token do cartÃ£o nÃ£o leva o endereÃ§o de cobranÃ§a.
-        // Com antifraude/gateway ativo, o Pagar.me exige billing_address na cobranÃ§a.
-        // Mantemos em billing_address e tambÃ©m em card.billing_address para compatibilidade da API/gateway.
+        // IMPORTANTE: o token do cartão não leva o endereço de cobrança.
+        // Com antifraude/gateway ativo, o Pagar.me exige billing_address na cobrança.
+        // Mantemos em billing_address e também em card.billing_address para compatibilidade da API/gateway.
         billing_address: billingAddress,
         card: { billing_address: billingAddress }
       }
@@ -2195,7 +2239,7 @@ function buildPagarmeCreditPayload(body = {}, order = null) {
 }
 
 
-app.get('/', (_req, res) => res.json({ ok: true, service: 'Ariana MÃ³veis Enterprise Mongo API', buildId: BUILD_ID }));
+app.get('/', (_req, res) => res.json({ ok: true, service: 'Ariana Móveis Enterprise Mongo API', buildId: BUILD_ID }));
 app.get('/health', (_req, res) => res.json({ ok: true, mongo: mongoose.connection.readyState === 1 ? 'connected' : `state_${mongoose.connection.readyState}`, buildId: BUILD_ID, uptime: process.uptime(), time: new Date().toISOString() }));
 
 function isEmailConfigured() {
@@ -2222,22 +2266,22 @@ async function sendPasswordResetEmail(user, resetUrl) {
   const transporter = getMailTransporter();
   const name = String(user?.name || user?.email || 'cliente').trim();
 
-  const subject = 'RedefiniÃ§Ã£o de senha - Ariana MÃ³veis';
-  const text = `OlÃ¡, ${name}!\n\nRecebemos uma solicitaÃ§Ã£o para redefinir sua senha na Ariana MÃ³veis.\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 1 hora:\n${resetUrl}\n\nSe vocÃª nÃ£o solicitou essa alteraÃ§Ã£o, ignore este e-mail.`;
+  const subject = 'Redefinição de senha - Ariana Móveis';
+  const text = `Olá, ${name}!\n\nRecebemos uma solicitação para redefinir sua senha na Ariana Móveis.\n\nAcesse o link abaixo para criar uma nova senha. O link expira em 1 hora:\n${resetUrl}\n\nSe você não solicitou essa alteração, ignore este e-mail.`;
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
-      <h2 style="color:#2E6DA4">RedefiniÃ§Ã£o de senha</h2>
-      <p>OlÃ¡, <strong>${name}</strong>!</p>
-      <p>Recebemos uma solicitaÃ§Ã£o para redefinir sua senha na Ariana MÃ³veis.</p>
+      <h2 style="color:#2E6DA4">Redefinição de senha</h2>
+      <p>Olá, <strong>${name}</strong>!</p>
+      <p>Recebemos uma solicitação para redefinir sua senha na Ariana Móveis.</p>
       <p>O link abaixo expira em <strong>1 hora</strong>:</p>
       <p><a href="${resetUrl}" style="display:inline-block;background:#2E6DA4;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Criar nova senha</a></p>
-      <p>Se o botÃ£o nÃ£o funcionar, copie e cole este link no navegador:</p>
+      <p>Se o botão não funcionar, copie e cole este link no navegador:</p>
       <p style="word-break:break-all;color:#374151">${resetUrl}</p>
-      <p style="font-size:12px;color:#6b7280">Se vocÃª nÃ£o solicitou essa alteraÃ§Ã£o, ignore este e-mail.</p>
+      <p style="font-size:12px;color:#6b7280">Se você não solicitou essa alteração, ignore este e-mail.</p>
     </div>`;
 
   if (!transporter) {
-    console.warn('[auth/forgot-password] SMTP nÃ£o configurado. Link de redefiniÃ§Ã£o:', resetUrl);
+    console.warn('[auth/forgot-password] SMTP não configurado. Link de redefinição:', resetUrl);
     return { ok: false, skipped: true, reason: 'email_not_configured' };
   }
 
@@ -2266,7 +2310,7 @@ app.get('/api/auth/google-config', (_req, res) => {
 app.post('/api/auth/google-login', async (req, res) => {
   try {
     if (!GOOGLE_CLIENT_ID || !googleClient) {
-      return res.status(500).json({ ok: false, error: 'Login com Google nÃ£o configurado no servidor.' });
+      return res.status(500).json({ ok: false, error: 'Login com Google não configurado no servidor.' });
     }
 
     const idToken = String(req.body?.credential || req.body?.idToken || req.body?.token || '').trim();
@@ -2278,7 +2322,7 @@ app.post('/api/auth/google-login', async (req, res) => {
     const googleId = String(payload.sub || '').trim();
     const name = String(payload.name || payload.given_name || (email ? email.split('@')[0] : 'Cliente')).trim();
 
-    if (!email || !googleId) return res.status(401).json({ ok: false, error: 'Conta Google invÃ¡lida.' });
+    if (!email || !googleId) return res.status(401).json({ ok: false, error: 'Conta Google inválida.' });
 
     let user = await User.findOne({ $or: [{ email }, { googleId }] });
     if (!user) {
@@ -2300,13 +2344,13 @@ app.post('/api/auth/google-login', async (req, res) => {
       if (changed) await user.save();
     }
 
-    if (user.isActive === false) return res.status(403).json({ ok: false, error: 'UsuÃ¡rio desativado.' });
+    if (user.isActive === false) return res.status(403).json({ ok: false, error: 'Usuário desativado.' });
 
     const token = signToken(user);
     return res.json({ ok: true, token, user: normalizePublicUserForAuth(user) });
   } catch (error) {
     console.error('Erro em /api/auth/google-login:', error);
-    return res.status(401).json({ ok: false, error: 'NÃ£o foi possÃ­vel validar o login com Google.' });
+    return res.status(401).json({ ok: false, error: 'Não foi possível validar o login com Google.' });
   }
 });
 
@@ -2317,7 +2361,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    // Resposta neutra para nÃ£o revelar se o e-mail existe ou nÃ£o.
+    // Resposta neutra para não revelar se o e-mail existe ou não.
     const neutralResponse = {
       ok: true,
       message: 'Se este e-mail estiver cadastrado, enviaremos um link para redefinir a senha.'
@@ -2355,7 +2399,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     });
   } catch (error) {
     console.error('Erro em /api/auth/forgot-password:', error);
-    return res.status(500).json({ ok: false, error: 'Erro ao solicitar recuperaÃ§Ã£o de senha.' });
+    return res.status(500).json({ ok: false, error: 'Erro ao solicitar recuperação de senha.' });
   }
 });
 
@@ -2364,8 +2408,8 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const token = String(req.body?.token || '').trim();
     const password = String(req.body?.password || req.body?.newPassword || '');
 
-    if (!token) return res.status(400).json({ ok: false, error: 'Token de redefiniÃ§Ã£o ausente.' });
-    if (!password || password.length < 6) return res.status(400).json({ ok: false, error: 'A nova senha deve ter no mÃ­nimo 6 caracteres.' });
+    if (!token) return res.status(400).json({ ok: false, error: 'Token de redefinição ausente.' });
+    if (!password || password.length < 6) return res.status(400).json({ ok: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' });
 
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await User.findOne({
@@ -2373,7 +2417,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
       resetPasswordExpiresAt: { $gt: new Date() }
     });
 
-    if (!user) return res.status(400).json({ ok: false, error: 'Link invÃ¡lido ou expirado. Solicite uma nova recuperaÃ§Ã£o de senha.' });
+    if (!user) return res.status(400).json({ ok: false, error: 'Link inválido ou expirado. Solicite uma nova recuperação de senha.' });
 
    await User.updateOne(
   { _id: user._id },
@@ -2408,12 +2452,12 @@ app.post('/api/auth/change-password', authRequired, async (req, res) => {
     const currentPassword = String(req.body?.currentPassword || req.body?.current_password || '');
     const newPassword = String(req.body?.newPassword || req.body?.password || '');
 
-    if (!newPassword || newPassword.length < 6) return res.status(400).json({ ok: false, error: 'A nova senha deve ter no mÃ­nimo 6 caracteres.' });
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ ok: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' });
 
     const storedHash = String(req.user.passwordHash || '');
     if (storedHash) {
       const valid = await bcrypt.compare(currentPassword, storedHash).catch(() => false);
-      if (!valid) return res.status(401).json({ ok: false, error: 'Senha atual invÃ¡lida.' });
+      if (!valid) return res.status(401).json({ ok: false, error: 'Senha atual inválida.' });
     }
 
     req.user.passwordHash = await bcrypt.hash(newPassword, 10);
@@ -2425,19 +2469,19 @@ app.post('/api/auth/change-password', authRequired, async (req, res) => {
   }
 });
 
-app.post('/api/auth/register', async (req, res) => { try { const body = req.body || {}; const email = String(body.email || '').trim().toLowerCase(); const password = String(body.password || ''); const name = String(body.name || '').trim(); if (!email || !password || !name) return res.status(400).json({ ok: false, error: 'Nome, e-mail e senha sÃ£o obrigatÃ³rios' }); const existing = await User.findOne({ email }); if (existing) return res.status(409).json({ ok: false, error: 'E-mail jÃ¡ cadastrado' }); const passwordHash = await bcrypt.hash(password, 10); const user = await User.create({ name, email, passwordHash, cpf: body.cpf || '', phone: body.phone || '', role: body.role === 'seller' ? 'seller' : 'customer', city: body.city || '', uf: body.uf || '' }); if (user.role === 'seller') { const sellerId = uid('seller'); await Seller.create({ sellerId, userId: user._id, displayName: name, storeName: body.storeName || name, email, phone: body.phone || '', document: body.cpf || '', status: 'pending' }); user.sellerId = sellerId; await user.save(); } const token = signToken(user); return res.json({ ok: true, token, user: toJSON(user) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao registrar usuÃ¡rio' }); } });
+app.post('/api/auth/register', async (req, res) => { try { const body = req.body || {}; const email = String(body.email || '').trim().toLowerCase(); const password = String(body.password || ''); const name = String(body.name || '').trim(); if (!email || !password || !name) return res.status(400).json({ ok: false, error: 'Nome, e-mail e senha são obrigatórios' }); const existing = await User.findOne({ email }); if (existing) return res.status(409).json({ ok: false, error: 'E-mail já cadastrado' }); const passwordHash = await bcrypt.hash(password, 10); const user = await User.create({ name, email, passwordHash, cpf: body.cpf || '', phone: body.phone || '', role: body.role === 'seller' ? 'seller' : 'customer', city: body.city || '', uf: body.uf || '' }); if (user.role === 'seller') { const sellerId = uid('seller'); await Seller.create({ sellerId, userId: user._id, displayName: name, storeName: body.storeName || name, email, phone: body.phone || '', document: body.cpf || '', status: 'pending' }); user.sellerId = sellerId; await user.save(); } const token = signToken(user); return res.json({ ok: true, token, user: toJSON(user) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao registrar usuário' }); } });
 app.post('/api/auth/login', async (req, res) => {
   try {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
 
     if (!email || !password) {
-      return res.status(400).json({ ok: false, error: 'E-mail e senha sÃ£o obrigatÃ³rios' });
+      return res.status(400).json({ ok: false, error: 'E-mail e senha são obrigatórios' });
     }
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ ok: false, error: 'Credenciais invÃ¡lidas' });
+      return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
     }
 
     const storedHash = String(user.passwordHash || '');
@@ -2458,7 +2502,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (!valid) {
-      return res.status(401).json({ ok: false, error: 'Credenciais invÃ¡lidas' });
+      return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
     }
 
     const token = signToken(user);
@@ -2470,8 +2514,8 @@ app.post('/api/auth/login', async (req, res) => {
 });
 app.get('/api/me', authRequired, (req, res) => res.json({ ok: true, user: toJSON(req.user) }));
 app.patch('/api/users/me', authRequired, async (req, res) => { try { const allowed = ['name', 'cpf', 'phone', 'city', 'uf']; const patch = {}; for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key]; const before = toJSON(req.user); const after = await User.findByIdAndUpdate(req.user._id, { $set: patch }, { new: true }); await writeAuditLog({ scope: 'user_profile', eventType: 'user_profile_updated', status: 'success', changedKeys: changedKeys(before, toJSON(after)), metadata: { userId: String(req.user._id) } }); return res.json({ ok: true, user: toJSON(after) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao atualizar perfil' }); } });
-app.post('/api/seller/partner-request', async (req, res) => { try { const body = req.body || {}; const sellerId = uid('seller'); const seller = await Seller.create({ sellerId, displayName: body.name || body.displayName || '', storeName: body.storeName || body.name || '', email: body.email || '', phone: body.phone || '', document: body.document || body.cpf || '', status: 'pending', metadata: body }); return res.json({ ok: true, id: seller.sellerId, sellerId: seller.sellerId, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitaÃ§Ã£o de parceiro' }); } });
-app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId Ã© obrigatÃ³rio' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller nÃ£o encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
+app.post('/api/seller/partner-request', async (req, res) => { try { const body = req.body || {}; const sellerId = uid('seller'); const seller = await Seller.create({ sellerId, displayName: body.name || body.displayName || '', storeName: body.storeName || body.name || '', email: body.email || '', phone: body.phone || '', document: body.document || body.cpf || '', status: 'pending', metadata: body }); return res.json({ ok: true, id: seller.sellerId, sellerId: seller.sellerId, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' }); } });
+app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
 
 // ===== ROTAS SELLER CORRIGIDAS - ESPECÃFICAS ANTES DO CURINGA /api/seller/:sellerId =====
 async function sellerAuthRequired(req,res,next){
@@ -2480,19 +2524,19 @@ async function sellerAuthRequired(req,res,next){
     if(!token) return res.status(401).json({ok:false,error:'Token ausente'});
     const dec=jwt.verify(token,JWT_SECRET);
     const user=dec.id?await User.findById(dec.id):null;
-    if(!user) return res.status(401).json({ok:false,error:'UsuÃ¡rio invÃ¡lido'});
+    if(!user) return res.status(401).json({ok:false,error:'Usuário inválido'});
     let seller=user.sellerId?await Seller.findOne({sellerId:user.sellerId}):null;
     if(!seller && user.email) seller=await Seller.findOne({email:String(user.email).toLowerCase()});
-    if(!seller) return res.status(403).json({ok:false,error:'Seller nÃ£o encontrado'});
+    if(!seller) return res.status(403).json({ok:false,error:'Seller não encontrado'});
     req.user=user; req.seller=seller; req.sellerId=String(seller.sellerId||user.sellerId||'');
     next();
-  }catch(e){ return res.status(401).json({ok:false,error:'Token invÃ¡lido'}); }
+  }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
 }
 function sellerProfile(s,u){ const o=toJSON(s)||{}; return {...o,id:String(o.sellerId||o._id||''),sellerId:String(o.sellerId||''),name:o.displayName||o.storeName||u?.name||'',factoryName:o.storeName||o.displayName||u?.name||'',email:o.email||u?.email||'',active:!['bloqueado','reprovado','blocked','rejected'].includes(String(o.status||'').toLowerCase())}; }
 app.post('/api/seller/auth/login',async(req,res)=>{
   try{
     const email=String(req.body?.email||'').trim().toLowerCase(); const password=String(req.body?.password||'');
-    if(!email||!password) return res.status(400).json({ok:false,error:'E-mail e senha sÃ£o obrigatÃ³rios'});
+    if(!email||!password) return res.status(400).json({ok:false,error:'E-mail e senha são obrigatórios'});
     let user=await User.findOne({email}); let seller=user?.sellerId?await Seller.findOne({sellerId:user.sellerId}):null;
     if(!seller) seller=await Seller.findOne({email});
     const temp=String(seller?.metadata?.requestedTempPass||seller?.metadata?.password||seller?.metadata?.senha||'');
@@ -2500,8 +2544,8 @@ app.post('/api/seller/auth/login',async(req,res)=>{
     if(user?.passwordHash){ try{valid=await bcrypt.compare(password,String(user.passwordHash||''));}catch(_){valid=false;} if(!valid&&String(user.passwordHash||'')===password){valid=true; user.passwordHash=await bcrypt.hash(password,10); await user.save();}}
     if(!valid&&temp&&temp===password) valid=true;
     if(!seller&&user&&String(user.role||'').toLowerCase()==='seller'){ const sid=user.sellerId||uid('seller'); seller=await Seller.create({sellerId:sid,userId:user._id,displayName:user.name||email,storeName:user.name||email,email,phone:user.phone||'',document:user.cpf||'',status:'aprovado',onboardingCompleted:true,metadata:{}}); user.sellerId=sid; await user.save();}
-    if(!seller) return res.status(401).json({ok:false,error:'Seller nÃ£o encontrado'});
-    if(!valid) return res.status(401).json({ok:false,error:'Credenciais invÃ¡lidas'});
+    if(!seller) return res.status(401).json({ok:false,error:'Seller não encontrado'});
+    if(!valid) return res.status(401).json({ok:false,error:'Credenciais inválidas'});
     if(!user){ user=await User.create({name:seller.displayName||seller.storeName||email,email,passwordHash:await bcrypt.hash(password,10),phone:seller.phone||'',cpf:seller.document||'',role:'seller',sellerId:seller.sellerId,isActive:true}); seller.userId=user._id; await seller.save();}
     if(String(user.role||'').toLowerCase()!=='seller'||!user.sellerId){ user.role='seller'; user.sellerId=seller.sellerId; await user.save();}
     return res.json({ok:true,token:signToken(user),seller:sellerProfile(seller,user),user:toJSON(user)});
@@ -2514,23 +2558,23 @@ app.get('/api/seller/notifications', sellerAuthRequired, async (req, res) => {
     const rows = await Notification.find({ audience: 'seller', sellerId: sid }).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 80), 200));
     return res.json(rows.map(toJSON));
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificaÃ§Ãµes do seller' });
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificações do seller' });
   }
 });
 app.patch('/api/seller/notifications/:id', sellerAuthRequired, async (req, res) => {
   try {
     const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' });
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
     const sid = String(req.sellerId || '').trim();
     const doc = await Notification.findOneAndUpdate(
       { _id: oid, audience: 'seller', sellerId: sid },
       { $set: { status: req.body?.status || 'read' } },
       { new: true }
     );
-    if (!doc) return res.status(404).json({ ok: false, error: 'NotificaÃ§Ã£o nÃ£o encontrada' });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Notificação não encontrada' });
     return res.json({ ok: true, notification: toJSON(doc) });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar notificaÃ§Ã£o do seller' });
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar notificação do seller' });
   }
 });
 app.post('/api/seller/notifications/mark-read', sellerAuthRequired, async (req, res) => {
@@ -2539,13 +2583,13 @@ app.post('/api/seller/notifications/mark-read', sellerAuthRequired, async (req, 
     await Notification.updateMany({ audience: 'seller', sellerId: sid, status: { $ne: 'read' } }, { $set: { status: 'read' } });
     return res.json({ ok: true });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar notificaÃ§Ãµes como lidas' });
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar notificações como lidas' });
   }
 });
 app.get('/api/seller/orders',sellerAuthRequired,async(req,res)=>{try{const sid=req.sellerId; const rows=await Order.find({$or:[{sellerIds:sid},{'items.sellerId':sid}]}).sort({createdAt:-1}).limit(500); return res.json(rows.map(toJSON));}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao listar pedidos'});}});
-app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID invÃ¡lido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido nÃ£o encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
-app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID invÃ¡lido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido nÃ£o encontrado'}); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(before).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissÃ£o para este pedido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); await createSellerOrderNotifications(order,{type:'seller_order_updated',title:'ðŸ“¦ Pedido atualizado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel||order.status||'Atualizado'}`,severity:'info',origin:'seller_status_route'}); await createAdminNotification({type:'seller_order_updated',title:'ðŸ­ Seller atualizou pedido',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} atualizou o pedido ${order._id} para ${order.statusLabel||order.status||'Atualizado'}`,relatedId:String(order._id),severity:'info',metadata:{sellerId:sid,origin:'seller_status_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
-app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID invÃ¡lido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido nÃ£o encontrado'}); const beforeObj=toJSON(before); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(beforeObj).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissÃ£o para este pedido'}); const order=before; order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); const afterObj=toJSON(order); await createSellerOrderNotifications(order,{type:'seller_order_shipped',title:'ðŸšš Pedido marcado como enviado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,severity:'success',origin:'seller_ship_route'}); await createAdminNotification({type:'seller_order_shipped',title:'ðŸšš Seller marcou pedido como enviado',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} marcou o pedido ${order._id} como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,relatedId:String(order._id),severity:'success',metadata:{sellerId:sid,origin:'seller_ship_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route_admin'); return res.json({ok:true,order:afterObj,whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
+app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
+app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(before).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); await createSellerOrderNotifications(order,{type:'seller_order_updated',title:'📦 Pedido atualizado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel||order.status||'Atualizado'}`,severity:'info',origin:'seller_status_route'}); await createAdminNotification({type:'seller_order_updated',title:'ðŸ­ Seller atualizou pedido',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} atualizou o pedido ${order._id} para ${order.statusLabel||order.status||'Atualizado'}`,relatedId:String(order._id),severity:'info',metadata:{sellerId:sid,origin:'seller_status_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
+app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const beforeObj=toJSON(before); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(beforeObj).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=before; order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); const afterObj=toJSON(order); await createSellerOrderNotifications(order,{type:'seller_order_shipped',title:'ðŸšš Pedido marcado como enviado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,severity:'success',origin:'seller_ship_route'}); await createAdminNotification({type:'seller_order_shipped',title:'ðŸšš Seller marcou pedido como enviado',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} marcou o pedido ${order._id} como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,relatedId:String(order._id),severity:'success',metadata:{sellerId:sid,origin:'seller_ship_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route_admin'); return res.json({ok:true,order:afterObj,whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
 
 
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
@@ -2567,7 +2611,7 @@ app.get('/api/seller/products/:id', async (req, res) => {
     const oid = normalizeObjectId(req.params.id);
     let row = oid ? await Product.findById(oid) : null;
     if (!row) row = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] });
-    if (!row) return res.status(404).json({ ok: false, error: 'Produto nÃ£o encontrado' });
+    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
     return res.json(normalizeProductForResponse(row));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
@@ -2576,20 +2620,20 @@ app.get('/api/seller/products/:id', async (req, res) => {
 
 app.delete('/api/seller/products/:id', authRequired, async (req, res) => {
   const oid = normalizeObjectId(req.params.id);
-  if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' });
+  if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
   await Product.findByIdAndDelete(oid);
   return res.json({ ok: true });
 });
 
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
-  if (!seller) return res.status(404).json({ ok: false, error: 'Seller nÃ£o encontrado' });
+  if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
   return res.json({ ok: true, seller: toJSON(seller) });
 });
 
 app.get('/api/sellers/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
-  if (!seller) return res.status(404).json({ ok: false, error: 'Seller nÃ£o encontrado' });
+  if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
   return res.json({ ok: true, seller: toJSON(seller) });
 });
 
@@ -2660,8 +2704,8 @@ function buildProductSeoUrl(baseUrl, product = {}) {
   const id = String(product._id || product.id || '').trim();
   const slug = String(product.slug || '').trim();
 
-  // MantÃ©m compatÃ­vel com seu site atual, que abre produto por produto.html?id=...
-  // Usa o slug sÃ³ se nÃ£o existir _id.
+  // Mantém compatível com seu site atual, que abre produto por produto.html?id=...
+  // Usa o slug só se não existir _id.
   const identifier = id || slug || sanitizeIdPart(product.name || product.sku || 'produto');
   return `${baseUrl}/produto.html?id=${encodeURIComponent(identifier)}`;
 }
@@ -2729,7 +2773,7 @@ app.get('/sitemap.xml', async (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     return res.status(200).send(xml);
   } catch (error) {
-    console.error('[sitemap] erro ao gerar sitemap dinÃ¢mico:', error);
+    console.error('[sitemap] erro ao gerar sitemap dinâmico:', error);
     return res.status(500).type('text/plain').send('Erro ao gerar sitemap');
   }
 });
@@ -2886,7 +2930,7 @@ app.get('/api/products', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Erro ao listar produtos' });
   }
 });
-app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto nÃ£o encontrado' }); return res.json(normalizeProductForResponse(doc)); });
+app.get('/api/products/:id', async (req, res) => { const oid = normalizeObjectId(req.params.id); let doc = oid ? await Product.findById(oid) : null; if (!doc) doc = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] }); if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); return res.json(normalizeProductForResponse(doc)); });
 app.get('/api/products/seller/:sellerId', async (req, res) => {
   try {
     const sellerId = String(req.params.sellerId || '').trim();
@@ -2939,16 +2983,16 @@ app.get('/api/seller/products/:id', async (req, res) => {
     const oid = normalizeObjectId(req.params.id);
     let row = oid ? await Product.findById(oid) : null;
     if (!row) row = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] });
-    if (!row) return res.status(404).json({ ok: false, error: 'Produto nÃ£o encontrado' });
+    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
     return res.json(normalizeProductForResponse(row));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
   }
 });
 app.post('/api/products', authRequired, async (req, res) => { try { const body = req.body || {}; const sellerId = String(body.sellerId || req.user.sellerId || '').trim(); const seller = sellerId ? await Seller.findOne({ sellerId }) : null; const images = ensureArray(body.images).filter(Boolean); const image = body.image || images[0] || null; const doc = await Product.create({ sellerId, sellerName: seller?.storeName || seller?.displayName || '', name: body.name, slug: body.slug || sanitizeIdPart(body.name), description: body.description || '', category: body.category || '', categoryId: body.categoryId || '', brand: body.brand || '', sku: body.sku || uid('sku'), price: Number(body.price || 0), oldPrice: body.oldPrice !== undefined ? Number(body.oldPrice) : null, pixPrice: body.pixPrice !== undefined ? Number(body.pixPrice) : null, installmentCount: Number(body.installmentCount || 12), image, images: image ? Array.from(new Set([image, ...images])) : images, stock: Number(body.stock || 0), active: body.active !== false, specs: body.specs || {}, dimensions: body.dimensions || {}, logistics: body.logistics || {} }); return res.json({ ok: true, product: normalizeProductForResponse(doc) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao cadastrar produto' }); } });
-app.put('/api/products/:id', authRequired, async (req, res) => { try { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' }); const before = await Product.findById(oid); if (!before) return res.status(404).json({ ok: false, error: 'Produto nÃ£o encontrado' }); const update = { ...(req.body || {}) }; if (update.price !== undefined) update.price = Number(update.price); if (update.oldPrice !== undefined) update.oldPrice = Number(update.oldPrice); if (update.pixPrice !== undefined) update.pixPrice = Number(update.pixPrice); if (update.stock !== undefined) update.stock = Number(update.stock); const after = await Product.findByIdAndUpdate(oid, { $set: update }, { new: true }); await writeAuditLog({ scope: 'catalog', eventType: 'product_updated', status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { productId: String(after._id), sellerId: after.sellerId } }); return res.json({ ok: true, product: normalizeProductForResponse(after) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao editar produto' }); } });
-app.delete('/api/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
-app.delete('/api/seller/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
+app.put('/api/products/:id', authRequired, async (req, res) => { try { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const before = await Product.findById(oid); if (!before) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); const update = { ...(req.body || {}) }; if (update.price !== undefined) update.price = Number(update.price); if (update.oldPrice !== undefined) update.oldPrice = Number(update.oldPrice); if (update.pixPrice !== undefined) update.pixPrice = Number(update.pixPrice); if (update.stock !== undefined) update.stock = Number(update.stock); const after = await Product.findByIdAndUpdate(oid, { $set: update }, { new: true }); await writeAuditLog({ scope: 'catalog', eventType: 'product_updated', status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { productId: String(after._id), sellerId: after.sellerId } }); return res.json({ ok: true, product: normalizeProductForResponse(after) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao editar produto' }); } });
+app.delete('/api/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
+app.delete('/api/seller/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
 app.get('/api/banners', async (req, res) => {
   const query = { active: true };
   if (req.query.slot) query.slot = String(req.query.slot);
@@ -2964,7 +3008,7 @@ app.get('/api/index/banners', async (req, res) => {
 app.get('/api/header_category_banner', async (_req, res) => {
   try {
     const doc = await Banner.findOne({ slot: 'header_category_banner', active: true }).sort({ sortOrder: 1, createdAt: -1 });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Banner nÃ£o encontrado' });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Banner não encontrado' });
     return res.json(normalizeBannerForResponse(doc));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar banner do header' });
@@ -3036,7 +3080,7 @@ app.post('/api/admin/banners', adminRequired, async (req, res) => {
 });
 app.get('/api/addresses', authRequired, async (req, res) => res.json((await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 })).map(toJSON)));
 app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
-app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
+app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
 
 function normalizeOrderItemsForCheckout(body = {}) {
   return ensureArray(body.items).map((item) => {
@@ -3061,7 +3105,7 @@ async function reserveStockForOrderItems(items = []) {
     for (const item of items) {
       const oid = normalizeObjectId(item.productId);
       if (!oid) {
-        const err = new Error(`Produto invÃ¡lido no carrinho: ${item.name || item.productId || 'sem identificaÃ§Ã£o'}`);
+        const err = new Error(`Produto inválido no carrinho: ${item.name || item.productId || 'sem identificação'}`);
         err.statusCode = 400;
         throw err;
       }
@@ -3078,7 +3122,7 @@ async function reserveStockForOrderItems(items = []) {
         const available = Number(current?.stock || 0);
         const productName = current?.name || item.name || 'Produto';
         const err = new Error(available <= 0
-          ? `${productName} estÃ¡ sem estoque no momento.`
+          ? `${productName} está sem estoque no momento.`
           : `${productName} possui apenas ${available} unidade(s) em estoque.`);
         err.statusCode = 409;
         err.code = 'INSUFFICIENT_STOCK';
@@ -3124,7 +3168,7 @@ app.post('/api/orders', async (req, res) => {
 
     const shipping = body.shipping || {};
     if (shipping && !shipping.prazo && (shipping.deadlineDays || shipping.deliveryTime || shipping.prazoEntrega)) {
-      shipping.prazo = shipping.deliveryTime || shipping.prazoEntrega || `${shipping.deadlineDays} dia(s) Ãºteis`;
+      shipping.prazo = shipping.deliveryTime || shipping.prazoEntrega || `${shipping.deadlineDays} dia(s) úteis`;
     }
 
     const order = await Order.create({
@@ -3147,9 +3191,9 @@ app.post('/api/orders', async (req, res) => {
       manufacturer: body.manufacturer || sellerIds[0] || ''
     });
 
-    // Pedido criado no checkout ainda NÃƒO Ã© venda concluÃ­da.
-    // NÃ£o notifica admin/seller/WhatsApp e nÃ£o envia ao fabricante antes do pagamento aprovado.
-    // A notificaÃ§Ã£o de "Nova venda recebida" fica centralizada no helper notifySaleAfterPaymentApproved().
+    // Pedido criado no checkout ainda NÃƒO é venda concluída.
+    // Não notifica admin/seller/WhatsApp e não envia ao fabricante antes do pagamento aprovado.
+    // A notificação de "Nova venda recebida" fica centralizada no helper notifySaleAfterPaymentApproved().
     return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { skipped: true, reason: 'waiting_payment_approval' } });
   } catch (error) {
     if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
@@ -3174,7 +3218,7 @@ app.get('/api/users/:id/pedidos', authRequired, async (req, res) => {
     const requestedId = String(req.params.id || '').trim();
     const currentId = String(req.user._id || '').trim();
     if (req.user.role === 'customer' && requestedId && requestedId !== currentId) {
-      return res.status(403).json({ ok: false, error: 'Sem permissÃ£o' });
+      return res.status(403).json({ ok: false, error: 'Sem permissão' });
     }
     const userObjectId = normalizeObjectId(requestedId) || req.user._id;
     return res.json((await Order.find({ userId: userObjectId }).sort({ createdAt: -1 })).map(toJSON));
@@ -3182,14 +3226,14 @@ app.get('/api/users/:id/pedidos', authRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar pedidos' });
   }
 });
-app.get('/api/orders/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' }); const row = await Order.findById(oid); if (!row) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' }); if (req.user.role === 'customer' && String(row.userId || '') !== String(req.user._id)) return res.status(403).json({ ok: false, error: 'Sem permissÃ£o' }); return res.json(toJSON(row)); });
+app.get('/api/orders/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const row = await Order.findById(oid); if (!row) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); if (req.user.role === 'customer' && String(row.userId || '') !== String(req.user._id)) return res.status(403).json({ ok: false, error: 'Sem permissão' }); return res.json(toJSON(row)); });
 app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
   try {
     const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' });
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
 
     const before = await Order.findById(oid);
-    if (!before) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' });
+    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
 
     const previousStatus = String(before.status || '');
     const patch = {
@@ -3212,14 +3256,14 @@ app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
     if (String(after.status || '') !== previousStatus || String(after.trackingCode || '') !== String(before.trackingCode || '')) {
       await createAdminNotification({
         type: 'order_updated',
-        title: 'ðŸ“¦ Pedido atualizado',
+        title: '📦 Pedido atualizado',
         message: `Pedido ${after._id} mudou para ${after.statusLabel || after.status || 'Atualizado'}${after.trackingCode ? ` - Rastreio: ${after.trackingCode}` : ''}`,
         relatedId: String(after._id),
         severity: 'info'
       });
       await createSellerOrderNotifications(after, {
         type: 'seller_order_updated',
-        title: 'ðŸ“¦ Pedido atualizado',
+        title: '📦 Pedido atualizado',
         message: `Pedido #${String(after._id).slice(-8).toUpperCase()} mudou para ${after.statusLabel || after.status || 'Atualizado'}${after.trackingCode ? ` - Rastreio: ${after.trackingCode}` : ''}`,
         severity: 'info',
         origin: 'status_route'
@@ -3246,17 +3290,17 @@ app.post('/api/admin/alerts/scan', adminRequired, async (_req, res) => { const r
 app.get('/api/admin/audit-logs', adminRequired, async (req, res) => { const limit = Math.min(Number(req.query.limit || 100), 500); const query = {}; if (req.query.scope) query.scope = String(req.query.scope); if (req.query.orderId) query.orderId = String(req.query.orderId); if (req.query.manufacturer) query.manufacturer = String(req.query.manufacturer); return res.json((await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(limit)).map(toJSON)); });
 app.get('/api/admin/queue/manufacturers', authRequired, async (_req, res) => res.json((await ManufacturerDispatchQueue.find().sort({ updatedAt: -1 }).limit(200)).map(toJSON)));
 app.post('/api/admin/queue/manufacturers/process', authRequired, async (req, res) => { const results = await processManufacturerQueue(Number(req.body?.limit || 10)); return res.json({ ok: true, processed: results.length, results }); });
-app.post('/api/admin/manufacturers/integrations', authRequired, async (req, res) => { const body = req.body || {}; const manufacturer = String(body.manufacturer || '').trim(); if (!manufacturer) return res.status(400).json({ ok: false, error: 'manufacturer Ã© obrigatÃ³rio' }); const doc = await ManufacturerIntegration.findOneAndUpdate({ manufacturer }, { $set: { enabled: body.enabled !== false, endpoint: body.endpoint || '', method: body.method || 'POST', headers: body.headers || {}, authType: body.authType || '', authToken: body.authToken || '', apiKey: body.apiKey || '', sendAs: body.sendAs || 'json', timeoutMs: Number(body.timeoutMs || 30000), metadata: body.metadata || {} } }, { upsert: true, new: true }); return res.json({ ok: true, integration: toJSON(doc) }); });
-app.get('/api/admin/whatsapp/settings', authRequired, async (_req, res) => { try { return res.json({ ok: true, config: redactWhatsappSettings(await getWhatsappSettings()) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao consultar configuraÃ§Ã£o do WhatsApp' }); } });
-app.post('/api/admin/whatsapp/settings', authRequired, async (req, res) => { try { return res.json({ ok: true, config: redactWhatsappSettings(await saveWhatsappSettings(req.body || {}, String(req.user._id))) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao salvar configuraÃ§Ã£o do WhatsApp' }); } });
+app.post('/api/admin/manufacturers/integrations', authRequired, async (req, res) => { const body = req.body || {}; const manufacturer = String(body.manufacturer || '').trim(); if (!manufacturer) return res.status(400).json({ ok: false, error: 'manufacturer é obrigatório' }); const doc = await ManufacturerIntegration.findOneAndUpdate({ manufacturer }, { $set: { enabled: body.enabled !== false, endpoint: body.endpoint || '', method: body.method || 'POST', headers: body.headers || {}, authType: body.authType || '', authToken: body.authToken || '', apiKey: body.apiKey || '', sendAs: body.sendAs || 'json', timeoutMs: Number(body.timeoutMs || 30000), metadata: body.metadata || {} } }, { upsert: true, new: true }); return res.json({ ok: true, integration: toJSON(doc) }); });
+app.get('/api/admin/whatsapp/settings', authRequired, async (_req, res) => { try { return res.json({ ok: true, config: redactWhatsappSettings(await getWhatsappSettings()) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao consultar configuração do WhatsApp' }); } });
+app.post('/api/admin/whatsapp/settings', authRequired, async (req, res) => { try { return res.json({ ok: true, config: redactWhatsappSettings(await saveWhatsappSettings(req.body || {}, String(req.user._id))) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao salvar configuração do WhatsApp' }); } });
 app.post('/api/admin/whatsapp/webhook/sync', authRequired, async (_req, res) => { try { return res.json(await waSyncWebhook()); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao sincronizar webhook da Evolution' }); } });
 app.post('/api/admin/whatsapp/test-text', authRequired, async (req, res) => { try { const settings = await getWhatsappSettings(); const target = req.body?.number || settings.testNumber || ''; const text = String(req.body?.text || settings.testMessage || '').trim(); return res.json(await waSendTextMessage({ number: target, text, settings })); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar mensagem pela Evolution' }); } });
-app.post('/api/admin/whatsapp/test-media', authRequired, async (req, res) => { try { const settings = await getWhatsappSettings(); const target = req.body?.number || settings.testNumber || ''; const mediaUrl = String(req.body?.mediaUrl || req.body?.media || '').trim(); const caption = String(req.body?.caption || '').trim(); const mediaType = String(req.body?.mediaType || req.body?.mediatype || 'image').trim().toLowerCase(); const fileName = String(req.body?.fileName || '').trim(); return res.json(await waSendMediaMessage({ number: target, mediaUrl, caption, mediaType, fileName, settings })); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar mÃ­dia pela Evolution' }); } });
-app.post('/api/orders/:id/notify-whatsapp', authRequired, async (req, res) => { try { const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' }); return res.json({ ok: true, result: await waMaybeNotifyOrderStatusChange(String(order._id), { status: req.body?.previousStatus || '__manual__' }, toJSON(order), 'manual_route') }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao notificar status do pedido' }); } });
-app.post('/api/orders/:id/chat-notify-whatsapp', authRequired, async (req, res) => { try { const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' }); return res.json({ ok: true, result: await waNotifyOrderChatMessage(String(order._id), toJSON(order), req.body || {}, 'manual_route') }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao notificar chat do pedido' }); } });
+app.post('/api/admin/whatsapp/test-media', authRequired, async (req, res) => { try { const settings = await getWhatsappSettings(); const target = req.body?.number || settings.testNumber || ''; const mediaUrl = String(req.body?.mediaUrl || req.body?.media || '').trim(); const caption = String(req.body?.caption || '').trim(); const mediaType = String(req.body?.mediaType || req.body?.mediatype || 'image').trim().toLowerCase(); const fileName = String(req.body?.fileName || '').trim(); return res.json(await waSendMediaMessage({ number: target, mediaUrl, caption, mediaType, fileName, settings })); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar mídia pela Evolution' }); } });
+app.post('/api/orders/:id/notify-whatsapp', authRequired, async (req, res) => { try { const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); return res.json({ ok: true, result: await waMaybeNotifyOrderStatusChange(String(order._id), { status: req.body?.previousStatus || '__manual__' }, toJSON(order), 'manual_route') }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao notificar status do pedido' }); } });
+app.post('/api/orders/:id/chat-notify-whatsapp', authRequired, async (req, res) => { try { const order = await Order.findById(req.params.id); if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); return res.json({ ok: true, result: await waNotifyOrderChatMessage(String(order._id), toJSON(order), req.body || {}, 'manual_route') }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao notificar chat do pedido' }); } });
 app.post('/api/whatsapp/webhook', async (req, res) => { try { const parsed = await waPersistWebhook(req.body || {}); return res.json({ ok: true, received: true, event: parsed.event || null }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao processar webhook da Evolution' }); } });
 app.post('/api/manufacturers/orders/dispatch', adminRequired, async (req, res) => { try { const body = req.body || {}; const orderId = String(body.orderId || body.id || '').trim(); let orderPayload = body; if (orderId) { const order = await Order.findById(orderId); if (order) orderPayload = { id: String(order._id), ...toJSON(order), ...body }; } const result = await dispatchOrderToManufacturer(orderPayload); if (orderId) await Order.findByIdAndUpdate(orderId, { $set: { status_integracao: result.ok ? 'enviado' : 'erro_envio_fabricante', manufacturerDispatch: { manufacturer: result.manufacturer, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data), sentContentType: result.sentContentType, status: result.ok ? 'sent' : 'error', updatedAt: now() } } }); return res.status(result.ok ? 200 : 502).json({ ok: result.ok, manufacturer: result.manufacturer, endpoint: result.endpoint, status: result.status, response: result.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Falha ao enviar pedido ao fabricante' }); } });
-app.post('/api/manufacturers/orders/enqueue', adminRequired, async (req, res) => { try { const orderId = String(req.body?.orderId || '').trim(); if (!orderId) return res.status(400).json({ ok: false, error: 'orderId Ã© obrigatÃ³rio' }); const order = await Order.findById(orderId); if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' }); return res.json(await enqueueManufacturerDispatch(order)); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao enfileirar pedido' }); } });
+app.post('/api/manufacturers/orders/enqueue', adminRequired, async (req, res) => { try { const orderId = String(req.body?.orderId || '').trim(); if (!orderId) return res.status(400).json({ ok: false, error: 'orderId é obrigatório' }); const order = await Order.findById(orderId); if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' }); return res.json(await enqueueManufacturerDispatch(order)); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao enfileirar pedido' }); } });
 app.post('/api/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/shipping/calculate', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
 app.post('/api/shipping/quote', async (req, res) => { try { return res.json(await calculateShipping(req.body || {})); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete' }); } });
@@ -3266,8 +3310,8 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
     const result = await calculateShipping(req.body || {});
     const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
       service: q.service,
-      label: q.label || q.name || 'LogÃ­stica',
-      name: q.label || q.name || 'LogÃ­stica',
+      label: q.label || q.name || 'Logística',
+      name: q.label || q.name || 'Logística',
       price: Number(q.price || 0),
       prazo: q.prazo || null,
       deadlineDays: q.deadlineDays || null,
@@ -3277,13 +3321,13 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
     })) : [];
     const errors = Array.isArray(result?.options) ? result.options.filter((q) => q && q.unavailable).map((q) => ({
       service: q.service || 'LOGISTICA',
-      name: q.label || 'LogÃ­stica',
-      message: q.error || 'IndisponÃ­vel',
+      name: q.label || 'Logística',
+      message: q.error || 'Indisponível',
       metadata: q.metadata || null
     })) : [];
     return res.json({ ok: true, quotes, errors, bestQuote: quotes[0] || null, context: result?.context || null });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logÃ­stico' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' });
   }
 });
 app.post('/shipping/logistics/quote', async (req, res) => {
@@ -3291,8 +3335,8 @@ app.post('/shipping/logistics/quote', async (req, res) => {
     const result = await calculateShipping(req.body || {});
     const quotes = Array.isArray(result?.options) ? result.options.map((q) => ({
       service: q.service,
-      label: q.label || q.name || 'LogÃ­stica',
-      name: q.label || q.name || 'LogÃ­stica',
+      label: q.label || q.name || 'Logística',
+      name: q.label || q.name || 'Logística',
       price: Number(q.price || 0),
       prazo: q.prazo || null,
       deadlineDays: q.deadlineDays || null,
@@ -3302,13 +3346,13 @@ app.post('/shipping/logistics/quote', async (req, res) => {
     })) : [];
     const errors = Array.isArray(result?.options) ? result.options.filter((q) => q && q.unavailable).map((q) => ({
       service: q.service || 'LOGISTICA',
-      name: q.label || 'LogÃ­stica',
-      message: q.error || 'IndisponÃ­vel',
+      name: q.label || 'Logística',
+      message: q.error || 'Indisponível',
       metadata: q.metadata || null
     })) : [];
     return res.json({ ok: true, quotes, errors, bestQuote: quotes[0] || null, context: result?.context || null });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logÃ­stico' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular frete logístico' });
   }
 });
 app.get('/api/admin/shipping/rules', adminRequired, async (_req, res) => res.json({ ok: true, settings: await getShippingSettings() }));
@@ -3461,7 +3505,7 @@ function buildMercadoPagoAdditionalInfo(body = {}) {
 
   // A API /v1/payments do Mercado Pago rejeita campos como
   // additional_info.payer.address.city, federal_unit e neighborhood.
-  // Por isso o endereÃ§o completo fica apenas no campo principal `payer.address`
+  // Por isso o endereço completo fica apenas no campo principal `payer.address`
   // e, dentro de additional_info, mantemos somente nome/telefone e envio.
   if (!additionalInfo.payer.phone || !additionalInfo.payer.phone.number) {
     delete additionalInfo.payer.phone;
@@ -3471,8 +3515,8 @@ function buildMercadoPagoAdditionalInfo(body = {}) {
   if (items.length) {
     additionalInfo.items = items.slice(0, 50).map((item) => ({
       id: String(item.productId || item.id || item.sku || '').slice(0, 256),
-      title: String(item.name || item.title || 'Produto Ariana MÃ³veis').slice(0, 256),
-      description: String(item.description || item.name || item.title || 'Produto Ariana MÃ³veis').slice(0, 256),
+      title: String(item.name || item.title || 'Produto Ariana Móveis').slice(0, 256),
+      description: String(item.description || item.name || item.title || 'Produto Ariana Móveis').slice(0, 256),
       quantity: Number(item.qty || item.quantity || 1) || 1,
       unit_price: Number(item.unitPrice || item.price || item.totalPrice || 0) || 0
     }));
@@ -3578,7 +3622,7 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
     const approved = status === 'approved';
     const patch = {
       status: approved ? 'pago' : 'pending_payment',
-      statusLabel: approved ? 'Pagamento aprovado' : 'Aguardando confirmaÃ§Ã£o do pagamento',
+      statusLabel: approved ? 'Pagamento aprovado' : 'Aguardando confirmação do pagamento',
       payment: {
         provider: 'mercadopago',
         method,
@@ -3603,7 +3647,7 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
 }
 
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || process.env.MP_PUBLIC_KEY || '' }); });
-app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana MÃ³veis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) {
+app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) {
   const mpNormalized = normalizeMercadoPagoPaymentResponse(response.data);
 
   if (body.orderId) {
@@ -3639,7 +3683,7 @@ app.post('/api/payments/mp/credit', async (req, res) => {
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
       token: body.token,
-      description: body.description || `Pedido Ariana MÃ³veis`,
+      description: body.description || `Pedido Ariana Móveis`,
       installments: Number(body.installments || 1),
       payment_method_id: body.payment_method_id || 'visa',
       issuer_id: body.issuer_id,
@@ -3711,7 +3755,7 @@ app.post('/api/payments/mp/credit', async (req, res) => {
     const details = error?.response?.data || null;
     return res.status(status).json({
       ok: false,
-      error: details?.message || details?.cause?.[0]?.description || error.message || 'Erro ao criar pagamento cartÃ£o no Mercado Pago',
+      error: details?.message || details?.cause?.[0]?.description || error.message || 'Erro ao criar pagamento cartão no Mercado Pago',
       statusDetail: details?.status_detail || '',
       details
     });
@@ -3724,7 +3768,7 @@ app.post('/api/payments/mp/card', async (req, res) => {
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
       token: body.token,
-      description: body.description || `Pedido Ariana MÃ³veis`,
+      description: body.description || `Pedido Ariana Móveis`,
       installments: Number(body.installments || 1),
       payment_method_id: body.payment_method_id || 'visa',
       issuer_id: body.issuer_id,
@@ -3770,7 +3814,7 @@ app.post('/api/payments/mp/card', async (req, res) => {
       order: updatedOrder ? toJSON(updatedOrder) : null
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartÃ£o no Mercado Pago' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' });
   }
 });
 
@@ -3881,7 +3925,7 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
     const orderId = body.orderId || body.order_id || null;
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
-      description: body.description || `Pedido Ariana MÃ³veis`,
+      description: body.description || `Pedido Ariana Móveis`,
       payment_method_id: 'bolbradesco',
       payer: buildMercadoPagoPayer(body),
       metadata: { orderId },
@@ -3898,7 +3942,7 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
     if (response.status >= 200 && response.status < 300) {
       orderUpdate = await updateOrderFromMercadoPagoPayment(mpData, orderId, 'mercadopago_boleto_created');
 
-      // Boleto criado ainda nÃ£o Ã© venda concluÃ­da. SÃ³ notifica quando o webhook confirmar pagamento aprovado.
+      // Boleto criado ainda não é venda concluída. Só notifica quando o webhook confirmar pagamento aprovado.
       adminWhatsapp = { skipped: true, reason: 'waiting_boleto_payment_approval' };
     }
 
@@ -3972,7 +4016,7 @@ app.get('/api/payments/pagarme/public-key', async (_req, res) => {
   try {
     const settings = await getPaymentsSettings();
     const publicKey = settings.pagarme?.publicKey || process.env.PAGARME_PUBLIC_KEY || '';
-    if (!publicKey) return res.status(500).json({ ok: false, error: 'Pagar.me public key nÃ£o configurada.' });
+    if (!publicKey) return res.status(500).json({ ok: false, error: 'Pagar.me public key não configurada.' });
     return res.json({ ok: true, publicKey, endpoint: settings.pagarme?.endpoint || process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao obter public key Pagar.me.' });
@@ -4028,7 +4072,7 @@ app.post('/api/payments/pagarme/credit', async (req, res) => {
     return res.status(status).json({
       ok: false,
       provider: 'pagarme',
-      error: details?.message || details?.errors?.[0]?.message || error.message || 'Erro ao criar pagamento cartÃ£o no Pagar.me',
+      error: details?.message || details?.errors?.[0]?.message || error.message || 'Erro ao criar pagamento cartão no Pagar.me',
       details
     });
   }
@@ -4058,14 +4102,14 @@ app.post('/api/webhooks/pagarme', async (req, res) => {
   }
 });
 app.get('/api/admin/runtime', adminRequired, async (_req, res) => { const whatsapp = await getWhatsappSettings(); const shipping = await getShippingSettings(); const payments = await getPaymentsSettings(); return res.json({ ok: true, buildId: BUILD_ID, runtime: { nodeEnv: process.env.NODE_ENV || 'development', port: PORT, appBaseUrl: APP_BASE_URL || null, contaboPublicUrl: process.env.CONTABO_PUBLIC_URL || null, evolutionApiUrl: whatsapp.apiUrl || null, evolutionInstance: whatsapp.instanceName || null, mongoDb: MONGODB_DB }, integrations: { whatsapp: redactWhatsappSettings(whatsapp), shipping, payments: redact(payments) } }); });
-app.use((error, _req, res, _next) => { console.error('âŒ Erro nÃ£o tratado:', error); return res.status(500).json({ ok: false, error: error.message || 'Erro interno' }); });
+app.use((error, _req, res, _next) => { console.error('❌ Erro não tratado:', error); return res.status(500).json({ ok: false, error: error.message || 'Erro interno' }); });
 
 app.get('/api/shipping/correios/debug', async (_req, res) => { const cfg = correiosCfg(await getShippingSettings()); return res.json({ ok: true, CORREIOS_USER: cfg.user ? 'OK' : 'MISSING', CORREIOS_PASS: cfg.pass ? 'OK' : 'MISSING', CORREIOS_CARTAO: cfg.cartao ? 'OK' : 'MISSING', CORREIOS_CONTRATO: cfg.contrato ? 'OK' : 'MISSING', CORREIOS_DR: cfg.dr || '0', CORREIOS_SERVICOS: (cfg.services || []).join(','), LOJA_ORIGEM_CEP: cfg.originCep ? 'OK' : 'MISSING' }); });
 app.get('/api/shipping/correios/token-test', async (_req, res) => { try { const token = await getCorreiosToken(await getShippingSettings()); return res.json({ ok: true, tokenPreview: String(token).slice(0, 16) + '...' }); } catch (e) { const err = safeAxiosError(e); return res.status(err.status || 500).json({ ok: false, stage: 'token', error: err.message, correios: err.data }); } });
 app.post('/api/shipping/correios/quote', async (req, res) => { try { return res.json(await quoteCorreios(req.body || {}, await getShippingSettings())); } catch (e) { const err = safeAxiosError(e); return res.status(err.status || 500).json({ ok: false, error: err.message, correios: err.data }); } });
 app.post('/shipping/correios/quote', async (req, res) => { try { return res.json(await quoteCorreios(req.body || {}, await getShippingSettings())); } catch (e) { const err = safeAxiosError(e); return res.status(err.status || 500).json({ ok: false, error: err.message, correios: err.data }); } });
 app.get('/api/shipping/correios/tracking/:code', async (req, res) => { try { const code = String(req.params.code || '').trim(); if (!code) return res.status(400).json({ ok: false, error: 'tracking_code_required' }); const order = await Order.findOne({ $or: [{ trackingCode: code }, { 'shipping.trackingCode': code }, { 'payment.externalReference': code }] }).sort({ createdAt: -1 }); if (!order) return res.status(404).json({ ok: false, error: 'tracking_not_found' }); return res.json({ ok: true, trackingCode: code, orderId: String(order._id), status: order.status || null, statusLabel: order.statusLabel || null, customerName: order.customerName || null, trackingHistory: order.trackingHistory || [], shipping: order.shipping || null }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'tracking_failed' }); } });
-app.get('/api/shipping/correios/label/:orderId/html', async (req, res) => { try { const order = await Order.findById(req.params.orderId); if (!order) return res.status(404).send('Pedido nÃ£o encontrado'); const addr = order.shippingAddress || {}; const items = Array.isArray(order.items) ? order.items : []; const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Etiqueta ${String(order._id)}</title><style>body{font-family:Arial,sans-serif;padding:24px} .box{border:2px solid #111;padding:24px;max-width:760px} .muted{color:#555;font-size:12px} h1{margin:0 0 12px} .row{margin:8px 0}</style></head><body><div class="box"><h1>Ariana MÃ³veis - Etiqueta</h1><div class="row"><strong>Pedido:</strong> ${String(order._id)}</div><div class="row"><strong>DestinatÃ¡rio:</strong> ${String(order.customerName || addr.name || '')}</div><div class="row"><strong>Telefone:</strong> ${String(order.customerPhone || addr.phone || '')}</div><div class="row"><strong>EndereÃ§o:</strong> ${String(addr.logradouro || '')}, ${String(addr.numero || '')} - ${String(addr.bairro || '')}</div><div class="row"><strong>Cidade/UF:</strong> ${String(addr.cidade || '')}/${String(addr.uf || '')} - CEP ${String(addr.cep || '')}</div><div class="row"><strong>Itens:</strong> ${items.map(i => `${String(i.name || 'Item')} x${Number(i.qty || 1)}`).join(', ')}</div><div class="row"><strong>CÃ³digo de rastreio:</strong> ${String(order.trackingCode || '') || 'â€”'}</div><div class="muted">Etiqueta HTML de contingÃªncia. A etiqueta operacional oficial depende do fluxo contratado dos Correios.</div></div></body></html>`; res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(html); } catch (error) { return res.status(500).send(error.message || 'Erro ao gerar etiqueta'); } });
+app.get('/api/shipping/correios/label/:orderId/html', async (req, res) => { try { const order = await Order.findById(req.params.orderId); if (!order) return res.status(404).send('Pedido não encontrado'); const addr = order.shippingAddress || {}; const items = Array.isArray(order.items) ? order.items : []; const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="utf-8"><title>Etiqueta ${String(order._id)}</title><style>body{font-family:Arial,sans-serif;padding:24px} .box{border:2px solid #111;padding:24px;max-width:760px} .muted{color:#555;font-size:12px} h1{margin:0 0 12px} .row{margin:8px 0}</style></head><body><div class="box"><h1>Ariana Móveis - Etiqueta</h1><div class="row"><strong>Pedido:</strong> ${String(order._id)}</div><div class="row"><strong>Destinatário:</strong> ${String(order.customerName || addr.name || '')}</div><div class="row"><strong>Telefone:</strong> ${String(order.customerPhone || addr.phone || '')}</div><div class="row"><strong>Endereço:</strong> ${String(addr.logradouro || '')}, ${String(addr.numero || '')} - ${String(addr.bairro || '')}</div><div class="row"><strong>Cidade/UF:</strong> ${String(addr.cidade || '')}/${String(addr.uf || '')} - CEP ${String(addr.cep || '')}</div><div class="row"><strong>Itens:</strong> ${items.map(i => `${String(i.name || 'Item')} x${Number(i.qty || 1)}`).join(', ')}</div><div class="row"><strong>Código de rastreio:</strong> ${String(order.trackingCode || '') || '—'}</div><div class="muted">Etiqueta HTML de contingência. A etiqueta operacional oficial depende do fluxo contratado dos Correios.</div></div></body></html>`; res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(html); } catch (error) { return res.status(500).send(error.message || 'Erro ao gerar etiqueta'); } });
 
 
 
@@ -4130,7 +4174,7 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(401).json({
         ok: false,
         error: 'invalid_admin_credentials',
-        message: 'E-mail ou senha de administrador invÃ¡lidos.'
+        message: 'E-mail ou senha de administrador inválidos.'
       });
     }
 
@@ -4349,20 +4393,20 @@ function productBannerGroup(product = {}) {
   if (/caixa de som|som|audio|amplificad|speaker|bluetooth|antena/.test(text)) return 'som';
   if (/ar condicionado|climatizador|ventilador|ventisol|turbo/.test(text)) return 'climatizacao';
   if (/notebook|computador|informatica|impressora|teclado|mouse|tablet/.test(text)) return 'informatica';
-  if (/geladeira|refrigerador|freezer|lavadora|maquina de lavar|tanquinho|fogao|fogÃ£o|cooktop|forno|micro-ondas|microondas|air fryer|fritadeira|eletrodomestico|eletrodomÃ©stico/.test(text)) return 'eletrodomesticos';
-  if (/guarda[- ]?roupa|roupeiro|sofa|sof[aÃ¡]|rack|painel|mesa|cadeira|cozinha|armario|armÃ¡rio|comoda|cÃ´moda|balcao|balcÃ£o|multiuso|moveis|mÃ³veis/.test(text)) return 'moveis';
+  if (/geladeira|refrigerador|freezer|lavadora|maquina de lavar|tanquinho|fogao|fogão|cooktop|forno|micro-ondas|microondas|air fryer|fritadeira|eletrodomestico|eletrodoméstico/.test(text)) return 'eletrodomesticos';
+  if (/guarda[- ]?roupa|roupeiro|sofa|sof[aá]|rack|painel|mesa|cadeira|cozinha|armario|armário|comoda|cômoda|balcao|balcão|multiuso|moveis|móveis/.test(text)) return 'moveis';
   return 'geral';
 }
 
 const BANNER_GROUP_RULES = {
-  moveis: /m[oÃ³]veis|guarda[- ]?roupa|roupeiro|sof[aÃ¡]|rack|painel|mesa|cadeira|cozinha|arm[aÃ¡]rio|c[oÃ´]moda|balc[aÃ£]o|multiuso/i,
-  eletrodomesticos: /eletrodom[eÃ©]sticos|geladeira|refrigerador|freezer|lavadora|m[aÃ¡]quina de lavar|tanquinho|fog[aÃ£]o|cooktop|forno|micro[- ]?ondas|air fryer|fritadeira/i,
-  colchoes: /colch[oÃµ]es?|cama box|travesseiro|pillow/i,
+  moveis: /m[oó]veis|guarda[- ]?roupa|roupeiro|sof[aá]|rack|painel|mesa|cadeira|cozinha|arm[aá]rio|c[oô]moda|balc[aã]o|multiuso/i,
+  eletrodomesticos: /eletrodom[eé]sticos|geladeira|refrigerador|freezer|lavadora|m[aá]quina de lavar|tanquinho|fog[aã]o|cooktop|forno|micro[- ]?ondas|air fryer|fritadeira/i,
+  colchoes: /colch[oõ]es?|cama box|travesseiro|pillow/i,
   celulares: /smartphone|celular|iphone|galaxy|motorola|moto\s*g/i,
-  tvs: /smart\s*tv|televis[aÃ£]o|\btv\b|roku|monitor/i,
-  som: /som|[aÃ¡]udio|caixa de som|amplificada|bluetooth|antena/i,
+  tvs: /smart\s*tv|televis[aã]o|\btv\b|roku|monitor/i,
+  som: /som|[aá]udio|caixa de som|amplificada|bluetooth|antena/i,
   climatizacao: /ar condicionado|climatizador|ventilador|ventisol|turbo/i,
-  informatica: /inform[aÃ¡]tica|notebook|computador|impressora|teclado|mouse|tablet/i
+  informatica: /inform[aá]tica|notebook|computador|impressora|teclado|mouse|tablet/i
 };
 
 function regexForBannerGroup(group = '') {
@@ -4372,44 +4416,44 @@ function regexForBannerGroup(group = '') {
 function bannerCopyForDefinition(def = {}, products = []) {
   const group = String(def.group || productBannerGroup(products[0] || {}) || 'geral').trim();
 
-  // Textos de campanha por CATEGORIA, nÃ£o por produto individual.
-  // Assim o banner fica profissional: mostra produtos da categoria e uma chamada geral da seÃ§Ã£o.
+  // Textos de campanha por CATEGORIA, não por produto individual.
+  // Assim o banner fica profissional: mostra produtos da categoria e uma chamada geral da seção.
   const copies = {
     moveis: [
-      'As melhores ofertas de mÃ³veis vocÃª encontra aqui',
+      'As melhores ofertas de móveis você encontra aqui',
       'Ambientes completos, bonitos e funcionais para transformar sua casa.'
     ],
     eletrodomesticos: [
-      'EletrodomÃ©sticos com as melhores condiÃ§Ãµes de pagamento',
-      'Geladeiras, lavadoras, fogÃµes e utilidades para facilitar seu dia a dia.'
+      'Eletrodomésticos com as melhores condições de pagamento',
+      'Geladeiras, lavadoras, fogões e utilidades para facilitar seu dia a dia.'
     ],
     colchoes: [
       'Conforto de verdade para suas noites de descanso',
-      'ColchÃµes selecionados com qualidade, preÃ§o justo e compra segura.'
+      'Colchões selecionados com qualidade, preço justo e compra segura.'
     ],
     celulares: [
       'Tecnologia que acompanha sua rotina',
-      'Smartphones selecionados com ofertas especiais para vocÃª aproveitar mais.'
+      'Smartphones selecionados com ofertas especiais para você aproveitar mais.'
     ],
     tvs: [
       'Imagem de cinema para sua sala',
-      'Smart TVs selecionadas para transformar seus momentos em famÃ­lia.'
+      'Smart TVs selecionadas para transformar seus momentos em família.'
     ],
     som: [
       'Som de qualidade para todos os momentos',
-      'Caixas, Ã¡udio e acessÃ³rios selecionados com ofertas especiais.'
+      'Caixas, áudio e acessórios selecionados com ofertas especiais.'
     ],
     climatizacao: [
       'Mais conforto para sua casa todos os dias',
-      'Ventiladores e climatizaÃ§Ã£o com preÃ§o especial para deixar seu ambiente melhor.'
+      'Ventiladores e climatização com preço especial para deixar seu ambiente melhor.'
     ],
     informatica: [
-      'Os melhores produtos eletrÃ´nicos e tecnologia do mercado',
+      'Os melhores produtos eletrônicos e tecnologia do mercado',
       'Produtos escolhidos para transformar sua vida num verdadeiro sonho.'
     ],
     geral: [
-      def.title || 'Ofertas selecionadas Ariana MÃ³veis',
-      def.subtitle || 'Produtos escolhidos com qualidade, preÃ§o especial e compra segura.'
+      def.title || 'Ofertas selecionadas Ariana Móveis',
+      def.subtitle || 'Produtos escolhidos com qualidade, preço especial e compra segura.'
     ]
   };
 
@@ -4431,14 +4475,14 @@ async function loadRemoteImageAsPng(url, width, height) {
     const source = Buffer.from(response.data);
 
     // IMPORTANTE:
-    // O cÃ³digo anterior transformava pixels brancos em transparÃªncia.
+    // O código anterior transformava pixels brancos em transparência.
     // Isso estragava produto branco/cinza, como guarda-roupa, geladeira, ventilador e TV.
-    // Agora a imagem Ã© tratada com fundo branco preservado, sem apagar partes do produto.
+    // Agora a imagem é tratada com fundo branco preservado, sem apagar partes do produto.
     let img = sharp(source, { failOn: 'none' })
       .rotate()
       .flatten({ background: '#ffffff' });
 
-    // Corta somente a borda branca externa quando possÃ­vel, sem remover branco do produto.
+    // Corta somente a borda branca externa quando possível, sem remover branco do produto.
     try {
       img = img.trim({ background: '#ffffff', threshold: 10 });
     } catch (_error) {
@@ -4464,30 +4508,30 @@ async function loadRemoteImageAsPng(url, width, height) {
 
 function bannerDraftDefinitions() {
   return [
-    { key: 'index_main', targetSlot: 'index_main', title: 'Ofertas imperdÃ­veis', subtitle: 'PreÃ§o especial no PIX e parcelamento sem juros', width: 1920, height: 480, productLimit: 3, group: 'moveis', href: 'categoria.html?category=MÃ³veis' },
-    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'PromoÃ§Ã£o especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 1, group: 'tvs', href: 'todos_produtos.html?section=offers' },
+    { key: 'index_main', targetSlot: 'index_main', title: 'Ofertas imperdíveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', width: 1920, height: 480, productLimit: 3, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'Promoção especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 1, group: 'tvs', href: 'todos_produtos.html?section=offers' },
 
-    { key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'MÃ³veis em destaque', subtitle: 'Renove sua casa com preÃ§o especial', width: 800, height: 450, productLimit: 2, group: 'moveis', href: 'categoria.html?category=MÃ³veis' },
-    { key: 'index_mini_2', targetSlot: 'index_mini_2', title: 'Som e Ã¡udio', subtitle: 'Produtos selecionados para vocÃª', width: 800, height: 450, productLimit: 2, group: 'som', href: 'categoria.html?category=Som e Ãudio' },
-    { key: 'index_mini_3', targetSlot: 'index_mini_3', title: 'ClimatizaÃ§Ã£o', subtitle: 'Mais conforto para sua casa', width: 800, height: 450, productLimit: 2, group: 'climatizacao', href: 'categoria.html?category=Ventiladores' },
+    { key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'Móveis em destaque', subtitle: 'Renove sua casa com preço especial', width: 800, height: 450, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_mini_2', targetSlot: 'index_mini_2', title: 'Som e áudio', subtitle: 'Produtos selecionados para você', width: 800, height: 450, productLimit: 2, group: 'som', href: 'categoria.html?category=Som e Ãudio' },
+    { key: 'index_mini_3', targetSlot: 'index_mini_3', title: 'Climatização', subtitle: 'Mais conforto para sua casa', width: 800, height: 450, productLimit: 2, group: 'climatizacao', href: 'categoria.html?category=Ventiladores' },
     { key: 'index_mini_4', targetSlot: 'index_mini_4', title: 'Celulares', subtitle: 'Smartphones com ofertas especiais', width: 800, height: 450, productLimit: 2, group: 'celulares', href: 'categoria.html?category=Smartphones' },
     { key: 'index_mini_5', targetSlot: 'index_mini_5', title: 'Smart TVs', subtitle: 'Imagem de cinema para sua sala', width: 800, height: 450, productLimit: 2, group: 'tvs', href: 'categoria.html?category=Smart Tv' },
 
-    { key: 'index_duo_1', targetSlot: 'index_duo_1', title: 'LanÃ§amentos', subtitle: 'Novidades selecionadas para sua casa', width: 1200, height: 400, productLimit: 2, group: 'moveis', href: 'categoria.html?category=MÃ³veis' },
-    { key: 'index_duo_2', targetSlot: 'index_duo_2', title: 'Recomendado pra vocÃª', subtitle: 'Produtos escolhidos para vender mais', width: 1200, height: 400, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=EletrodomÃ©sticos' },
+    { key: 'index_duo_1', targetSlot: 'index_duo_1', title: 'Lançamentos', subtitle: 'Novidades selecionadas para sua casa', width: 1200, height: 400, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_duo_2', targetSlot: 'index_duo_2', title: 'Recomendado pra você', subtitle: 'Produtos escolhidos para vender mais', width: 1200, height: 400, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' },
 
-    { key: 'index_secondary_1', targetSlot: 'index_secondary_1', title: 'Queridinhos da internet', subtitle: 'Os produtos mais procurados na Ariana MÃ³veis', width: 1200, height: 350, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=EletrodomÃ©sticos' },
-    { key: 'index_secondary_2', targetSlot: 'index_secondary_2', title: 'PromoÃ§Ã£o exclusiva', subtitle: 'Selecionamos ofertas para vocÃª economizar', width: 1200, height: 350, productLimit: 2, group: 'colchoes', href: 'categoria.html?category=ColchÃµes' },
+    { key: 'index_secondary_1', targetSlot: 'index_secondary_1', title: 'Queridinhos da internet', subtitle: 'Os produtos mais procurados na Ariana Móveis', width: 1200, height: 350, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' },
+    { key: 'index_secondary_2', targetSlot: 'index_secondary_2', title: 'Promoção exclusiva', subtitle: 'Selecionamos ofertas para você economizar', width: 1200, height: 350, productLimit: 2, group: 'colchoes', href: 'categoria.html?category=Colchões' },
 
-    { key: 'home_card_1', targetSlot: 'home_card_1', title: 'EletrodomÃ©sticos', subtitle: 'Geladeiras, lavadoras e muito mais', width: 800, height: 800, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=EletrodomÃ©sticos' },
-    { key: 'home_card_2', targetSlot: 'home_card_2', title: 'InformÃ¡tica', subtitle: 'Tecnologia para sua rotina', width: 800, height: 800, productLimit: 2, group: 'informatica', href: 'categoria.html?category=InformÃ¡tica' },
-    { key: 'home_card_3', targetSlot: 'home_card_3', title: 'MÃ³veis', subtitle: 'Ambientes bonitos e completos', width: 800, height: 800, productLimit: 2, group: 'moveis', href: 'categoria.html?category=MÃ³veis' },
+    { key: 'home_card_1', targetSlot: 'home_card_1', title: 'Eletrodomésticos', subtitle: 'Geladeiras, lavadoras e muito mais', width: 800, height: 800, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' },
+    { key: 'home_card_2', targetSlot: 'home_card_2', title: 'Informática', subtitle: 'Tecnologia para sua rotina', width: 800, height: 800, productLimit: 2, group: 'informatica', href: 'categoria.html?category=Informática' },
+    { key: 'home_card_3', targetSlot: 'home_card_3', title: 'Móveis', subtitle: 'Ambientes bonitos e completos', width: 800, height: 800, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
 
-    { key: 'footer_banner', targetSlot: 'footer_banner', title: 'Mais ofertas para vocÃª', subtitle: 'Ariana MÃ³veis: compra fÃ¡cil pelo site ou WhatsApp', width: 1920, height: 400, productLimit: 3, group: 'colchoes', href: 'categoria.html?category=ColchÃµes' },
-    { key: 'header_category_banner', targetSlot: 'header_category_banner', title: 'Categorias Ariana', subtitle: 'Encontre mÃ³veis, eletros, colchÃµes e tecnologia', width: 900, height: 520, productLimit: 2, group: 'moveis', href: 'todos_produtos.html' },
+    { key: 'footer_banner', targetSlot: 'footer_banner', title: 'Mais ofertas para você', subtitle: 'Ariana Móveis: compra fácil pelo site ou WhatsApp', width: 1920, height: 400, productLimit: 3, group: 'colchoes', href: 'categoria.html?category=Colchões' },
+    { key: 'header_category_banner', targetSlot: 'header_category_banner', title: 'Categorias Ariana', subtitle: 'Encontre móveis, eletros, colchões e tecnologia', width: 900, height: 520, productLimit: 2, group: 'moveis', href: 'todos_produtos.html' },
 
-    { key: 'produto_detail_horizontal_1', targetSlot: 'produto_detail_horizontal_1', title: 'Complemente sua compra', subtitle: 'Produtos selecionados para combinar com sua casa', width: 1200, height: 350, productLimit: 2, group: 'moveis', href: 'categoria.html?category=MÃ³veis' },
-    { key: 'produto_detail_horizontal_2', targetSlot: 'produto_detail_horizontal_2', title: 'Oferta especial Ariana', subtitle: 'CondiÃ§Ãµes imperdÃ­veis por tempo limitado', width: 1200, height: 350, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=EletrodomÃ©sticos' }
+    { key: 'produto_detail_horizontal_1', targetSlot: 'produto_detail_horizontal_1', title: 'Complemente sua compra', subtitle: 'Produtos selecionados para combinar com sua casa', width: 1200, height: 350, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'produto_detail_horizontal_2', targetSlot: 'produto_detail_horizontal_2', title: 'Oferta especial Ariana', subtitle: 'Condições imperdíveis por tempo limitado', width: 1200, height: 350, productLimit: 2, group: 'eletrodomesticos', href: 'categoria.html?category=Eletrodomésticos' }
   ];
 }
 
@@ -4500,7 +4544,7 @@ async function selectProductsForBanner(definition, usedIds = new Set(), limit = 
   } : base;
 
   let docs = await Product.find(query).sort({ isOffer: -1, isHighlight: -1, updatedAt: -1, createdAt: -1 }).limit(limit * 8);
-  // Nunca completa banner de categoria com produto de outra famÃ­lia. Se achou sÃ³ 1, usa sÃ³ 1.
+  // Nunca completa banner de categoria com produto de outra família. Se achou só 1, usa só 1.
   docs = docs.filter((doc) => !definition.group || productBannerGroup(normalizeProductForResponse(doc)) === definition.group);
 
   const chosen = [];
@@ -4536,8 +4580,8 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
 
   const group = String(forcedGroup || productBannerGroup(products[0] || { name: title, category: subtitle }) || 'geral');
   const copy = bannerCopyForDefinition({ title, subtitle, group }, products);
-  const safeTitle = xmlEscape(copy.title || title || 'Ariana MÃ³veis');
-  const safeSubtitle = xmlEscape(copy.subtitle || subtitle || 'Ofertas selecionadas para vocÃª');
+  const safeTitle = xmlEscape(copy.title || title || 'Ariana Móveis');
+  const safeSubtitle = xmlEscape(copy.subtitle || subtitle || 'Ofertas selecionadas para você');
 
   const margin = Math.round(W * (isVertical ? 0.070 : 0.052));
   const R = Math.round(Math.min(W, H) * 0.045);
@@ -4580,8 +4624,8 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
       <circle cx="${Math.round(W * 0.63)}" cy="${Math.round(H * 0.58)}" r="${Math.round(Math.min(W, H) * 0.25)}" fill="#ffffff" opacity="0.07"/>
 
       <rect x="${margin}" y="${Math.round(brandY - brandFs * 0.90)}" width="${Math.round(brandFs * 8.6)}" height="${Math.round(brandFs * 1.38)}" rx="${Math.round(brandFs * 0.40)}" fill="#ffffff" opacity="0.10"/>
-      <text x="${margin + Math.round(brandFs * 0.42)}" y="${brandY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="950" fill="#F7C600">ARIANA MÃ“VEIS</text>
-      <text x="${margin}" y="${Math.round(brandY + brandFs * 1.35)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${eyebrowFs}" font-weight="900" fill="#DDEBFF">OFERTAS SELECIONADAS â€¢ COMPRA SEGURA</text>
+      <text x="${margin + Math.round(brandFs * 0.42)}" y="${brandY}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${brandFs}" font-weight="950" fill="#F7C600">ARIANA MÓVEIS</text>
+      <text x="${margin}" y="${Math.round(brandY + brandFs * 1.35)}" font-family="Inter, Arial, Helvetica, sans-serif" font-size="${eyebrowFs}" font-weight="900" fill="#DDEBFF">OFERTAS SELECIONADAS • COMPRA SEGURA</text>
 
       <foreignObject x="${margin}" y="${titleTop}" width="${textW}" height="${titleBoxH}">
         <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:${titleFs}px;font-weight:950;line-height:1.02;color:#ffffff;letter-spacing:-1px;text-shadow:0 5px 14px rgba(0,0,0,.22);">${safeTitle}</div>
@@ -4654,7 +4698,7 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
       left: 0
     });
 
-    // Sem etiqueta individual, sem nome individual e sem preÃ§o individual em cima do produto.
+    // Sem etiqueta individual, sem nome individual e sem preço individual em cima do produto.
     // A legenda do banner fica somente na chamada principal por categoria.
     composites.push({ input: productPng, left, top });
   }
@@ -4681,13 +4725,13 @@ async function generateAndSaveProductCreative(doc, variant = 'square', pixPercen
 app.post('/api/admin/posters/product/:id', adminRequired, async (req, res) => {
   try {
     if (!isCloudinaryConfigured()) {
-      return res.status(500).json({ ok: false, error: 'Cloudinary nÃ£o configurado.' });
+      return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     }
 
     const oid = normalizeObjectId(req.params.id);
     let doc = oid ? await Product.findById(oid) : null;
     if (!doc) doc = await Product.findOne({ $or: [{ slug: req.params.id }, { sku: req.params.id }] });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Produto nÃ£o encontrado' });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
 
     const variant = String(req.body?.variant || req.query?.variant || 'square').toLowerCase() === 'story' ? 'story' : 'square';
     const pixPercent = Number(req.body?.pixPercent || req.query?.pixPercent || 17);
@@ -4704,7 +4748,7 @@ app.post('/api/admin/posters/offers', adminRequired, async (req, res) => {
   try {
     const limit = Math.min(Number(req.body?.limit || req.query?.limit || 6), 8);
     const products = await Product.find({ active: { $ne: false }, isOffer: true }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit);
-    return res.json({ ok: true, message: 'Primeira versÃ£o instalada. Use /api/admin/posters/product/:id para gerar posters por produto.', products: products.map(normalizeProductForResponse) });
+    return res.json({ ok: true, message: 'Primeira versão instalada. Use /api/admin/posters/product/:id para gerar posters por produto.', products: products.map(normalizeProductForResponse) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'offers_poster_failed' });
   }
@@ -4713,7 +4757,7 @@ app.post('/api/admin/posters/offers', adminRequired, async (req, res) => {
 
 app.post('/api/admin/posters/bulk', adminRequired, async (req, res) => {
   try {
-    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary nÃ£o configurado.' });
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const variant = String(req.body?.variant || req.query?.variant || 'square').toLowerCase() === 'story' ? 'story' : 'square';
     const limit = Math.min(Math.max(Number(req.body?.limit || req.query?.limit || 500), 1), 1000);
     const pixPercent = Number(req.body?.pixPercent || req.query?.pixPercent || 17);
@@ -4735,7 +4779,7 @@ app.post('/api/admin/posters/bulk', adminRequired, async (req, res) => {
 
 app.post('/api/admin/marketing/banner-drafts/generate', adminRequired, async (req, res) => {
   try {
-    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary nÃ£o configurado.' });
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const definitions = bannerDraftDefinitions();
     const usedIds = new Set();
     const saved = [];
@@ -4785,7 +4829,7 @@ app.post('/api/admin/marketing/banner-drafts/:id/publish', adminRequired, async 
   try {
     const oid = normalizeObjectId(req.params.id);
     const doc = oid ? await Banner.findById(oid) : await Banner.findOne({ slot: req.params.id });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho nÃ£o encontrado' });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho não encontrado' });
     const targetSlot = String(req.body?.targetSlot || doc.targetSlot || doc.slot || '').trim();
     if (!targetSlot) return res.status(400).json({ ok: false, error: 'targetSlot_required' });
     await Banner.updateMany({ _id: { $ne: doc._id }, $or: [{ slot: targetSlot }, { targetSlot }], active: true }, { $set: { active: false, status: 'archived' } });
@@ -4805,7 +4849,7 @@ app.delete('/api/admin/marketing/banner-drafts/:id', adminRequired, async (req, 
   try {
     const oid = normalizeObjectId(req.params.id);
     const doc = oid ? await Banner.findByIdAndDelete(oid) : await Banner.findOneAndDelete({ slot: req.params.id, status: 'draft' });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho nÃ£o encontrado' });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Rascunho não encontrado' });
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'banner_draft_delete_failed' });
@@ -4814,7 +4858,7 @@ app.delete('/api/admin/marketing/banner-drafts/:id', adminRequired, async (req, 
 
 app.post('/api/admin/marketing/generate-all-drafts', adminRequired, async (req, res) => {
   try {
-    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary nÃ£o configurado.' });
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const limit = Math.min(Math.max(Number(req.body?.limit || req.query?.limit || 500), 1), 1000);
     const products = await Product.find({ active: { $ne: false } }).sort({ updatedAt: -1, createdAt: -1 }).limit(limit);
     const posters = [];
@@ -5051,7 +5095,7 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
       return res.json({ id: saved.key, key: saved.key, ...(saved.value || {}), updatedAt: saved.updatedAt, createdAt: saved.createdAt });
     }
     const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' });
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
     const existingDoc = await Model.findById(oid);
     if (!existingDoc) return res.status(404).json({ ok: false, error: 'not_found' });
     const beforeObj = toJSON(existingDoc);
@@ -5067,14 +5111,14 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
       if (statusChanged || trackingChanged) {
         await createAdminNotification({
           type: 'order_updated',
-          title: 'ðŸ“¦ Pedido atualizado',
+          title: '📦 Pedido atualizado',
           message: `Pedido ${afterObj.id || afterObj._id} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
           relatedId: String(afterObj.id || afterObj._id),
           severity: statusChanged ? 'info' : 'success'
         });
         await createSellerOrderNotifications(afterObj, {
           type: 'seller_order_updated',
-          title: 'ðŸ“¦ Pedido atualizado pela Ariana MÃ³veis',
+          title: '📦 Pedido atualizado pela Ariana Móveis',
           message: `Pedido #${String(afterObj.id || afterObj._id).slice(-8).toUpperCase()} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
           severity: statusChanged ? 'info' : 'success',
           origin: 'admin_generic_orders_route'
@@ -5090,8 +5134,8 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
         metadata: { actor: req.admin?.email || req.admin?.id || 'admin' }
       }).catch(() => null);
 
-      // O painel admin usa esta rota genÃ©rica: PATCH /api/admin/orders/:id.
-      // Por isso o WhatsApp precisa ser chamado aqui tambÃ©m.
+      // O painel admin usa esta rota genérica: PATCH /api/admin/orders/:id.
+      // Por isso o WhatsApp precisa ser chamado aqui também.
       const customerWhatsapp = (statusChanged || trackingChanged)
         ? await waMaybeNotifyOrderStatusChange(String(afterObj.id || afterObj._id), beforeObj, afterObj, 'admin_generic_orders_route_customer')
         : { skipped: true, reason: 'no_status_or_tracking_change' };
@@ -5119,7 +5163,7 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
   try {
     if (key === 'settings') { await Setting.deleteOne({ key: req.params.id }); return res.json({ ok: true }); }
     const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID invÃ¡lido' });
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
     await Model.findByIdAndDelete(oid);
     return res.json({ ok: true });
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'admin_delete_failed' }); }
@@ -5128,7 +5172,7 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`ðŸš€ Ariana Enterprise Mongo rodando na porta ${PORT}`);
-  console.log(`ðŸ“ Uploads em: ${uploadsDir}`);
+  console.log(`📁 Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
 
