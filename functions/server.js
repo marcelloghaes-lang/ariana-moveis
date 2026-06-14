@@ -1074,8 +1074,13 @@ function formatOrderStatusForCustomer(status = '') {
     pagamento_confirmado: 'Pagamento confirmado',
     processing: 'Pedido em separação',
     separacao: 'Pedido em separação',
+    em_separacao: 'Pedido em separação',
     shipped: 'Pedido enviado',
     enviado: 'Pedido enviado',
+    despachado: 'Pedido enviado',
+    saiu_entrega: 'Saiu para entrega',
+    saiu_para_entrega: 'Saiu para entrega',
+    out_for_delivery: 'Saiu para entrega',
     delivered: 'Pedido entregue',
     entregue: 'Pedido entregue',
     canceled: 'Pedido cancelado',
@@ -1088,18 +1093,93 @@ function formatOrderStatusForCustomer(status = '') {
   return map[key] || status || 'Atualizado';
 }
 
+function buildOrderStatusActionMessage(status = '') {
+  const key = String(status || '').trim().toLowerCase();
+
+  if (
+    key.includes('pagamento confirmado') ||
+    key.includes('approved') ||
+    key.includes('paid') ||
+    key.includes('aprovado') ||
+    key.includes('pago')
+  ) {
+    return '✅ Pagamento confirmado com sucesso.\n\nSeu pedido já está sendo preparado para envio.';
+  }
+
+  if (
+    key.includes('separacao') ||
+    key.includes('separação') ||
+    key.includes('processing')
+  ) {
+    return '📦 Seu pedido está sendo separado e conferido pela nossa equipe.';
+  }
+
+  if (
+    key.includes('saiu para entrega') ||
+    key.includes('saiu_entrega') ||
+    key.includes('saiu_para_entrega') ||
+    key.includes('out_for_delivery')
+  ) {
+    return '📍 Seu pedido saiu para entrega e poderá chegar a qualquer momento.';
+  }
+
+  if (
+    key.includes('enviado') ||
+    key.includes('shipped') ||
+    key.includes('despachado') ||
+    key.includes('transporte')
+  ) {
+    return '🚚 Seu pedido foi despachado e está a caminho.';
+  }
+
+  if (
+    key.includes('entregue') ||
+    key.includes('delivered')
+  ) {
+    return '🎉 Pedido entregue com sucesso.\n\nEsperamos que você aproveite sua compra.';
+  }
+
+  if (
+    key.includes('aguardando pagamento') ||
+    key.includes('pending') ||
+    key.includes('pendente') ||
+    key.includes('aguard')
+  ) {
+    return '💳 Assim que o pagamento for confirmado, vamos iniciar a preparação do seu pedido.';
+  }
+
+  if (
+    key.includes('cancel') ||
+    key.includes('recus')
+  ) {
+    return 'ℹ️ Caso tenha dúvidas sobre esta atualização, fale com nossa equipe de atendimento.';
+  }
+
+  return '📲 Você pode acompanhar novas atualizações diretamente pelo WhatsApp.';
+}
+
+function titleCaseCustomerName(name = '') {
+  return String(name || 'Cliente')
+    .toLowerCase()
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function buildOrderStatusMessage(orderId, order = {}, settings = {}) {
-  const customerName = extractOrderCustomerName(order);
+  const customerName = titleCaseCustomerName(extractOrderCustomerName(order));
   const fullId = String(orderId || order._id || order.id || order.orderId || '').trim();
   const shortId = fullId ? fullId.slice(-8).toUpperCase() : '---';
 
   const rawStatus = order.statusLabel || order.status || 'Atualizado';
   const statusLabel = formatOrderStatusForCustomer(rawStatus);
+  const actionMessage = buildOrderStatusActionMessage(`${rawStatus} ${statusLabel}`);
   const trackingLine = buildTrackingLine(order);
 
-  const items = Array.isArray(order.items) ? order.items : [];
-  const produto = items.length ? String(items[0]?.name || '').trim() : '';
-  const outrosItens = items.length > 1 ? ` + ${items.length - 1} item(ns)` : '';
+  const produto = Array.isArray(order.items) && order.items.length
+    ? String(order.items[0]?.name || '').trim()
+    : '';
 
   const valor = Number(order.total || 0);
   const valorLinha = valor > 0
@@ -1107,48 +1187,8 @@ function buildOrderStatusMessage(orderId, order = {}, settings = {}) {
     : '';
 
   const produtoLinha = produto
-    ? `\n📦 Produto: ${produto}${outrosItens}`
+    ? `\n📦 Produto: ${produto}`
     : '';
-
-  const statusKey = String(rawStatus || statusLabel || '').toLowerCase();
-
-  let orientacao = '📲 Você pode acompanhar novas atualizações diretamente por aqui.';
-  if (
-    statusKey.includes('aguard') ||
-    statusKey.includes('pend') ||
-    statusKey.includes('pending')
-  ) {
-    orientacao = '💳 Assim que o pagamento for confirmado, vamos iniciar a preparação do seu pedido.';
-  } else if (
-    statusKey.includes('aprov') ||
-    statusKey.includes('pago') ||
-    statusKey.includes('approved') ||
-    statusKey.includes('paid')
-  ) {
-    orientacao = '✅ Pagamento confirmado. Já estamos preparando sua compra com todo cuidado.';
-  } else if (
-    statusKey.includes('separ') ||
-    statusKey.includes('processing')
-  ) {
-    orientacao = '📦 Seu pedido está em separação. Em breve enviaremos novas atualizações.';
-  } else if (
-    statusKey.includes('enviado') ||
-    statusKey.includes('shipped') ||
-    statusKey.includes('transporte')
-  ) {
-    orientacao = '🚚 Seu pedido está a caminho. Acompanhe as próximas atualizações por aqui.';
-  } else if (
-    statusKey.includes('entreg') ||
-    statusKey.includes('delivered')
-  ) {
-    orientacao = '✅ Pedido entregue. Esperamos que você aproveite sua compra!';
-  } else if (
-    statusKey.includes('cancel') ||
-    statusKey.includes('recus') ||
-    statusKey.includes('rejected')
-  ) {
-    orientacao = 'ℹ️ Caso tenha dúvidas sobre esta atualização, fale com nossa equipe de atendimento.';
-  }
 
   return `
 🛒 Ariana Móveis
@@ -1159,7 +1199,7 @@ Seu pedido #${shortId} foi atualizado.
 
 📋 Status: ${statusLabel}${produtoLinha}${valorLinha}${trackingLine}
 
-${orientacao}
+${actionMessage}
 
 💙 Obrigado por escolher a Ariana Móveis.
 
@@ -1167,7 +1207,6 @@ Atenciosamente,
 Equipe Ariana Móveis
 `.trim();
 }
-
 function buildOrderChatMessage(orderId, order = {}, message = {}) { const senderName = String(message.senderName || 'Equipe Ariana Móveis').trim(); const senderType = String(message.senderType || 'admin').trim(); const customerName = extractOrderCustomerName(order); const base = senderType === 'customer' ? `Olá! O cliente ${senderName} enviou uma nova mensagem no pedido ${orderId} da Ariana Móveis.` : `Olá, ${customerName}! Você recebeu uma nova mensagem sobre o pedido ${orderId} na Ariana Móveis.`; const text = String(message.text || '').trim(); return `${base}\n\nMensagem: ${text}`.trim(); }
 async function waSendTextMessage({ number, text, settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(cfg.instanceName)}`; const response = await axios.post(url, { number: normalizedNumber, text: String(text || '').trim(), delay: Number(delay || 0) || 0, linkPreview: false }, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status }; }
 
@@ -5175,6 +5214,7 @@ app.listen(PORT, () => {
   console.log(`📁 Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
+
 
 
 
