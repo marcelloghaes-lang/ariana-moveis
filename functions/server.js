@@ -1080,6 +1080,9 @@ function formatOrderStatusForCustomer(status = '') {
     despachado: 'Pedido enviado',
     saiu_entrega: 'Saiu para entrega',
     saiu_para_entrega: 'Saiu para entrega',
+    saiu_para_entrega_cliente: 'Saiu para entrega',
+    em_rota: 'Saiu para entrega',
+    rota_entrega: 'Saiu para entrega',
     out_for_delivery: 'Saiu para entrega',
     delivered: 'Pedido entregue',
     entregue: 'Pedido entregue',
@@ -1120,7 +1123,7 @@ function buildOrderStatusActionMessage(status = '') {
     key.includes('saiu_para_entrega') ||
     key.includes('out_for_delivery')
   ) {
-    return '📍 Seu pedido saiu para entrega e poderá chegar a qualquer momento.';
+    return '📍 Seu pedido saiu para entrega.\n\nNossa equipe está finalizando a rota e a entrega poderá ocorrer a qualquer momento.';
   }
 
   if (
@@ -1352,6 +1355,112 @@ async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 
 async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('Configuração incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
 function waParseIncomingWebhook(body = {}) { const payload = body?.data || body?.message || body || {}; const key = payload?.key || body?.key || {}; const message = payload?.message || body?.message || {}; const text = message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || body?.text || ''; const remoteJid = key?.remoteJid || payload?.key?.remoteJid || body?.remoteJid || ''; const number = cleanPhone(String(remoteJid).split('@')[0] || body?.from || ''); const pushName = payload?.pushName || body?.pushName || body?.sender?.pushName || null; const fromMe = key?.fromMe === true || body?.fromMe === true; const event = String(body?.event || body?.type || '').trim() || null; return { event, remoteJid, number, pushName, fromMe, text: String(text || '').trim(), raw: body }; }
 async function waPersistWebhook(body = {}) { const parsed = waParseIncomingWebhook(body); await WhatsAppWebhook.create({ event: parsed.event || null, remoteJid: parsed.remoteJid || null, number: parsed.number || null, pushName: parsed.pushName || null, fromMe: parsed.fromMe === true, text: parsed.text || null, payload: redact(body || null) }); if ((parsed.event === 'MESSAGES_UPSERT' || !parsed.event) && !parsed.fromMe && parsed.text) await Ticket.create({ protocolo: `WA-${Date.now()}`, nome: parsed.pushName || parsed.number || 'WhatsApp', email: null, tipo: 'WhatsApp', status: 'Novo', telefone: parsed.number || null, mensagem: parsed.text, origem: 'evolution_webhook', metadata: { remoteJid: parsed.remoteJid || null } }); return parsed; }
+function buildDeliveryRatingMessage(order = {}) {
+  const customerName = titleCaseCustomerName(extractOrderCustomerName(order)).split(" ")[0] || "Cliente";
+
+  return `
+Olá, ${customerName}! 👋
+
+Seu pedido foi entregue com sucesso.
+
+Como foi sua experiência com a Ariana Móveis?
+
+⭐ 1
+⭐⭐ 2
+⭐⭐⭐ 3
+⭐⭐⭐⭐ 4
+⭐⭐⭐⭐⭐ 5
+
+Sua opinião é muito importante para nós. 💙
+`.trim();
+}
+
+async function scheduleDeliveryRating(orderId, order = {}, settings = null) {
+  const rawStatus = String(order.statusLabel || order.status || "").toLowerCase();
+
+  const isDelivered =
+    rawStatus.includes("entregue") ||
+    rawStatus.includes("delivered");
+
+  if (!isDelivered) return { skipped: true, reason: "not_delivered" };
+
+  const current = order.whatsappNotification || {};
+  if (current.deliveryRatingSentAt || current.deliveryRatingDueAt) {
+    return { skipped: true, reason: "already_scheduled_or_sent" };
+  }
+
+  const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await Order.findByIdAndUpdate(orderId, {
+    $set: {
+      "whatsappNotification.deliveryRatingDueAt": dueAt,
+      "whatsappNotification.deliveryRatingStatus": "scheduled"
+    }
+  }).catch(() => null);
+
+  return { ok: true, dueAt };
+}
+
+async function processPendingDeliveryRatings(limit = 20) {
+  const settings = await getWhatsappSettings();
+  if (!settings.enabled) return { skipped: true, reason: "whatsapp_disabled" };
+
+  const orders = await Order.find({
+    "whatsappNotification.deliveryRatingDueAt": { $lte: now() },
+    "whatsappNotification.deliveryRatingSentAt": { $exists: false }
+  }).sort({ "whatsappNotification.deliveryRatingDueAt": 1 }).limit(limit);
+
+  const results = [];
+
+  for (const order of orders) {
+    const obj = toJSON(order);
+    let number = extractOrderPhone(obj, settings.defaultCountryCode || "55");
+
+    if (!number && obj?.userId) {
+      try {
+        const user = await User.findById(obj.userId);
+        number = normalizePhone(user?.phone || user?.telefone || user?.whatsapp || "", settings.defaultCountryCode || "55");
+      } catch (_error) {}
+    }
+
+    if (!number) {
+      await Order.findByIdAndUpdate(obj._id || obj.id, {
+        $set: {
+          "whatsappNotification.deliveryRatingStatus": "error",
+          "whatsappNotification.deliveryRatingError": "Telefone do cliente não encontrado"
+        }
+      }).catch(() => null);
+      continue;
+    }
+
+    const text = buildDeliveryRatingMessage(obj);
+
+    try {
+      const sent = await waSendTextMessage({ number, text, settings });
+
+      await Order.findByIdAndUpdate(obj._id || obj.id, {
+        $set: {
+          "whatsappNotification.deliveryRatingSentAt": now(),
+          "whatsappNotification.deliveryRatingStatus": "sent",
+          "whatsappNotification.deliveryRatingPhone": number,
+          "whatsappNotification.deliveryRatingResponse": redact(sent.data || null)
+        }
+      }).catch(() => null);
+
+      results.push({ ok: true, orderId: String(obj._id || obj.id), number });
+    } catch (error) {
+      await Order.findByIdAndUpdate(obj._id || obj.id, {
+        $set: {
+          "whatsappNotification.deliveryRatingStatus": "error",
+          "whatsappNotification.deliveryRatingError": error.message || String(error)
+        }
+      }).catch(() => null);
+    }
+  }
+
+  return { ok: true, processed: results.length, results };
+}
+
 async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, origin = 'route') {
   const prevStatus = String(before?.status || '').trim();
   const nextStatus = String(after?.status || '').trim();
@@ -1506,6 +1615,10 @@ async function waMaybeNotifyOrderStatusChange(orderId, before = {}, after = {}, 
       response: sent.data || null,
       metadata: { instanceName: settings.instanceName, apiUrl: settings.apiUrl }
     }).catch(() => null);
+
+    await scheduleDeliveryRating(orderId, after, settings).catch((error) => {
+      console.error('[WHATSAPP AVALIACAO ENTREGA] ERRO AO AGENDAR', error.message || error);
+    });
 
     console.log('[WHATSAPP STATUS CLIENTE] ENVIADO', { orderId, number, status: sent.status, customerNotificationKey });
     return { ok: true, number, text, sent, customerNotificationKey };
@@ -5209,11 +5322,18 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res) => {
 });
 
 
+setInterval(() => {
+  processPendingDeliveryRatings(20).catch((error) => {
+    console.error('[WHATSAPP AVALIACAO ENTREGA] ERRO NO PROCESSADOR', error.message || error);
+  });
+}, 15 * 60 * 1000);
+
 app.listen(PORT, () => {
   console.log(`ðŸš€ Ariana Enterprise Mongo rodando na porta ${PORT}`);
   console.log(`📁 Uploads em: ${uploadsDir}`);
   console.log(`ðŸŒ Base local: http://localhost:${PORT}/api`);
 });
+
 
 
 
