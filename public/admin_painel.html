@@ -87,7 +87,20 @@
         <div id="payments-view" class="view hidden animate-fade"><div id="payments-content"></div></div>
         <div class="flex-1 p-4 md:p-8 overflow-y-auto">
           <div id="atendimentos-view" class="view hidden animate-fade">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"><div><h2 class="text-2xl font-black text-gray-800">SAC & Ouvidoria</h2><p class="text-gray-500 text-sm">Gerencie as mensagens e protocolos de atendimento</p></div></div>
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"><div><h2 class="text-2xl font-black text-gray-800">SAC & Ouvidoria</h2><p class="text-gray-500 text-sm">Gerencie as mensagens, protocolos, fila e avaliações do atendimento</p></div><button type="button" onclick="window.renderAtendimentosView && window.renderAtendimentosView()" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
+            <div id="atendimento-dashboard-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+              <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Clientes aguardando</div><div id="metric-at-total" class="text-3xl font-black text-error-red mt-2">—</div><div class="text-xs text-gray-500 mt-1">Fila humana atual</div></div>
+              <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">SAC</div><div id="metric-at-sac" class="text-3xl font-black text-primary-blue mt-2">—</div><div class="text-xs text-gray-500 mt-1">Aguardando atendimento</div></div>
+              <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Financeiro</div><div id="metric-at-fin" class="text-3xl font-black text-success-green mt-2">—</div><div class="text-xs text-gray-500 mt-1">Aguardando atendimento</div></div>
+              <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Média avaliações</div><div id="metric-at-media" class="text-3xl font-black text-yellow-500 mt-2">—</div><div class="text-xs text-gray-500 mt-1">Notas recebidas hoje</div></div>
+              <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Alertas críticos</div><div id="metric-at-critical" class="text-3xl font-black text-red-600 mt-2">—</div><div class="text-xs text-gray-500 mt-1">Hoje</div></div>
+            </div>
+            <div id="atendimento-dashboard-extra" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+              <div class="flex items-center justify-between gap-3 mb-4"><div><h3 class="font-black text-gray-800">Resumo operacional</h3><p class="text-xs text-gray-500">Fila, avaliações e situação geral do atendimento</p></div><span id="atendimento-dashboard-status" class="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-500">Carregando...</span></div>
+              <div id="atendimento-dashboard-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                <div class="p-4 rounded-xl bg-gray-50">Carregando dados...</div>
+              </div>
+            </div>
             <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -1103,9 +1116,79 @@ window.handleOrderUpdate = async function(){
   }
 }
 async function renderUsersView(){ await loadUsers(); const box=document.getElementById('users-content'); box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><h2 class="text-2xl font-bold text-text-dark mb-4">Usuários</h2><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Nome</th><th class="px-4 py-3 text-xs uppercase text-gray-500">E-mail</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Perfil</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${allUsersCache.map(u=>`<tr class="border-t"><td class="px-4 py-3 text-sm">${escHtml(u.name||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(u.email||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(u.role||'customer')}</td><td class="px-4 py-3 text-sm">${u.isActive===false?'<span class="px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold">Inativo</span>':'<span class="px-2 py-1 rounded-full bg-green-50 text-green-600 text-xs font-semibold">Ativo</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum usuário.</td></tr>'}</tbody></table></div></div>`; }
+
+async function loadAtendimentoDashboardMetrics(rows = []){
+  let dashboard = null;
+  try {
+    dashboard = await apiRequest('/admin/atendimento/dashboard', { headers: buildHeadersAuth() });
+  } catch(_e) {
+    dashboard = null;
+  }
+
+  const localRows = Array.isArray(rows) ? rows : [];
+  const novoRows = localRows.filter(at => String(at.status || 'Novo').toLowerCase() === 'novo');
+  const sacLocal = novoRows.filter(at => String(at.tipo || at.departamento || at.department || '').toLowerCase().includes('sac')).length;
+  const finLocal = novoRows.filter(at => String(at.tipo || at.departamento || at.department || '').toLowerCase().includes('fin')).length;
+  const totalLocal = novoRows.length;
+
+  const queue = dashboard?.queue || dashboard?.fila || {};
+  const ratings = dashboard?.ratings || dashboard?.avaliacoes || {};
+  const critical = dashboard?.critical || dashboard?.criticos || {};
+
+  return {
+    total: Number(queue.total ?? dashboard?.clientesAguardando ?? totalLocal ?? 0),
+    sac: Number(queue.sac ?? dashboard?.sacAguardando ?? sacLocal ?? 0),
+    financeiro: Number(queue.financeiro ?? dashboard?.financeiroAguardando ?? finLocal ?? 0),
+    media: ratings.media ?? dashboard?.mediaAvaliacoes ?? '—',
+    avaliacoesHoje: ratings.totalHoje ?? ratings.total ?? dashboard?.avaliacoesHoje ?? 0,
+    criticosHoje: Number(critical.hoje ?? critical.totalHoje ?? dashboard?.alertasCriticosHoje ?? 0),
+    tempoMedio: dashboard?.tempoMedioResposta || dashboard?.tempoMedio || '—',
+    fonte: dashboard ? 'Dados do atendimento em tempo real' : 'Dados parciais do painel'
+  };
+}
+
+function renderAtendimentoDashboardCards(metrics = {}){
+  const setText = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = String(value ?? '—'); };
+  setText('metric-at-total', metrics.total ?? 0);
+  setText('metric-at-sac', metrics.sac ?? 0);
+  setText('metric-at-fin', metrics.financeiro ?? 0);
+  setText('metric-at-media', metrics.media === '—' ? '—' : String(metrics.media).replace('.', ','));
+  setText('metric-at-critical', metrics.criticosHoje ?? 0);
+
+  const status = document.getElementById('atendimento-dashboard-status');
+  if(status){
+    status.textContent = metrics.fonte || 'Atualizado';
+    status.className = 'text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-600';
+  }
+
+  const box = document.getElementById('atendimento-dashboard-summary');
+  if(box){
+    box.innerHTML = `
+      <div class="p-4 rounded-xl bg-blue-50 border border-blue-100">
+        <div class="text-xs uppercase font-black text-blue-500">Fila atual</div>
+        <div class="mt-2 text-gray-800 font-bold">${Number(metrics.total || 0)} cliente(s) aguardando</div>
+        <div class="text-xs text-gray-500 mt-1">SAC: ${Number(metrics.sac || 0)} • Financeiro: ${Number(metrics.financeiro || 0)}</div>
+      </div>
+      <div class="p-4 rounded-xl bg-yellow-50 border border-yellow-100">
+        <div class="text-xs uppercase font-black text-yellow-600">Avaliações</div>
+        <div class="mt-2 text-gray-800 font-bold">Média: ${escHtml(metrics.media || '—')}</div>
+        <div class="text-xs text-gray-500 mt-1">${Number(metrics.avaliacoesHoje || 0)} avaliação(ões) hoje</div>
+      </div>
+      <div class="p-4 rounded-xl bg-red-50 border border-red-100">
+        <div class="text-xs uppercase font-black text-red-500">Risco operacional</div>
+        <div class="mt-2 text-gray-800 font-bold">${Number(metrics.criticosHoje || 0)} alerta(s) crítico(s)</div>
+        <div class="text-xs text-gray-500 mt-1">Tempo médio: ${escHtml(metrics.tempoMedio || '—')}</div>
+      </div>`;
+  }
+}
+
+
+window.renderAtendimentosView = renderAtendimentosView;
 async function renderAtendimentosView(){
   const data = await apiRequest('/admin/atendimentos?sortBy=createdAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
+  const atendimentoMetrics = await loadAtendimentoDashboardMetrics(rows).catch(() => ({}));
+  renderAtendimentoDashboardCards(atendimentoMetrics);
   const tbody=document.getElementById('table-atendimentos-body'); const badge=document.getElementById('badge-atendimentos');
   let novos=0; tbody.innerHTML=rows.map(at=>{const id=String(at.id||at._id||''); const status=String(at.status||'Novo'); if(status==='Novo') novos++; return `<tr class="border-b border-gray-50 hover:bg-gray-50/50 transition"><td class="px-6 py-4"><div class="font-bold text-gray-800">#${escHtml(at.protocolo||id||'---')}</div><div class="text-[10px] text-gray-400">${formatDateTime(at.createdAt||at.data)}</div></td><td class="px-6 py-4"><div class="text-sm font-semibold text-gray-700">${escHtml(at.nome||at.name||'---')}</div><div class="text-xs text-gray-500">${escHtml(at.email||'')}</div></td><td class="px-6 py-4"><span class="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-600">${escHtml(at.tipo||'Atendimento')}</span></td><td class="px-6 py-4 text-center"><select data-id="${escHtml(id)}" class="at-status text-xs border-none bg-gray-100 rounded-lg p-1 font-semibold"><option value="Novo" ${status==='Novo'?'selected':''}>Novo</option><option value="Em Andamento" ${status==='Em Andamento'?'selected':''}>Em Andamento</option><option value="Resolvido" ${status==='Resolvido'?'selected':''}>Resolvido</option></select></td><td class="px-6 py-4 text-right"><button type="button" class="at-view p-2 text-blue-500 hover:bg-blue-50 rounded-lg" data-msg="${escHtml(at.mensagem||at.message||'')}"><i class="fas fa-eye"></i></button></td></tr>`; }).join('') || '<tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">Nenhum atendimento.</td></tr>';
   badge.textContent=String(novos); badge.classList.toggle('hidden',novos===0);
