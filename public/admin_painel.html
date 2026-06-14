@@ -39,7 +39,7 @@
 <body class="bg-gray-100 min-h-screen" style="font-family:Inter,Arial,sans-serif">
   <div id="toast-container" class="fixed top-4 right-4 z-[99999] flex flex-col gap-2 w-[360px] max-w-[92vw]"></div>
   <div class="relative min-h-screen md:flex">
-    <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+    <aside id="sidebar" class="hidden bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
       <a href="#" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ADMIN</span></a>
       <nav class="flex flex-col space-y-2">
         <a href="#" onclick="window.changeView('dashboard')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="dashboard"><i class="fas fa-home"></i><span>Dashboard</span></a>
@@ -55,7 +55,7 @@
     </aside>
 
     <div class="flex-1 flex flex-col overflow-hidden">
-      <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+      <header id="admin-header" class="hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
         <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
         <h1 id="view-title" class="text-xl font-semibold text-text-dark"></h1>
         <div id="user-info" class="relative flex items-center space-x-4">
@@ -87,7 +87,7 @@
         <div id="payments-view" class="view hidden animate-fade"><div id="payments-content"></div></div>
         <div class="flex-1 p-4 md:p-8 overflow-y-auto">
           <div id="atendimentos-view" class="view hidden animate-fade">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"><div><h2 class="text-2xl font-black text-gray-800">SAC & Ouvidoria</h2><p class="text-gray-500 text-sm">Gerencie as mensagens, protocolos, fila e avaliações do atendimento</p></div><button type="button" onclick="window.renderAtendimentosView && window.renderAtendimentosView()" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"><div><h2 class="text-2xl font-black text-gray-800">SAC & Ouvidoria</h2><p class="text-gray-500 text-sm">Gerencie as mensagens, protocolos, fila e avaliações do atendimento</p></div><button type="button" id="atendimento-refresh-btn" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
             <div id="atendimento-dashboard-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
               <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Clientes aguardando</div><div id="metric-at-total" class="text-3xl font-black text-error-red mt-2">—</div><div class="text-xs text-gray-500 mt-1">Fila humana atual</div></div>
               <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">SAC</div><div id="metric-at-sac" class="text-3xl font-black text-primary-blue mt-2">—</div><div class="text-xs text-gray-500 mt-1">Aguardando atendimento</div></div>
@@ -316,7 +316,27 @@ function stopPollers(){pollers.forEach(clearInterval); pollers=[]}
 function startPoller(fn, ms=20000){ const id=setInterval(fn,ms); pollers.push(id); }
 function renderUserDisplayName(name){document.getElementById('user-display-name').textContent=`Bem-vindo, ${name||'Admin'}!`;}
 
+function setAuthLayout(isLogged){
+  const sidebar = document.getElementById('sidebar');
+  const header = document.getElementById('admin-header');
+  const main = document.getElementById('main-content');
+  if(sidebar) sidebar.classList.toggle('hidden', !isLogged);
+  if(header) header.classList.toggle('hidden', !isLogged);
+  if(main) main.classList.toggle('p-6', !!isLogged);
+  if(main) main.classList.toggle('p-4', !isLogged);
+  if(!isLogged){
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    const login = document.getElementById('login-view');
+    if(login) login.classList.remove('hidden');
+    const title = document.getElementById('view-title');
+    if(title) title.textContent = 'Login';
+  }
+}
+function isLoggedInAdmin(){ return !!getAdminToken(); }
+
+
 window.changeView = async function(viewName, force=false){
+  if(!isLoggedInAdmin()){ setAuthLayout(false); return; }
   applyAdminPermissionsToUI();
   if(!canAccessView(viewName)){
     displayMessage('Você não tem permissão para acessar esta área.','error');
@@ -361,6 +381,7 @@ window.handleSignIn = async function(){
     localStorage.setItem('admin_permissions', JSON.stringify((me && me.permissions) || data.permissions || []));
     applyAdminPermissionsToUI();
 
+    setAuthLayout(true);
     document.getElementById('login-view').classList.add('hidden');
     renderUserDisplayName(adminName);
     await bootAuthed(currentView || 'dashboard');
@@ -371,11 +392,11 @@ window.handleSignIn = async function(){
 window.handleSignOut = async function(){
   localStorage.removeItem('admin_token'); localStorage.removeItem('admin_name'); localStorage.removeItem('admin_email'); localStorage.removeItem('admin_id'); localStorage.removeItem('admin_role'); localStorage.removeItem('admin_permissions');
   stopPollers(); currentView='dashboard';
-  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
-  document.getElementById('login-view').classList.remove('hidden');
+  setAuthLayout(false);
   renderUserDisplayName('');
 }
 async function bootAuthed(targetView='dashboard'){
+  setAuthLayout(true);
   stopPollers();
   const me = await fetchAdminMe().catch(() => null);
   if (me) {
@@ -409,6 +430,7 @@ async function init(){
   const token=getAdminToken();
   if(token){
     try{
+      setAuthLayout(true);
       const me=await fetchAdminMe();
       renderUserDisplayName(me.name||me.email||'Admin');
       localStorage.setItem('admin_role', me.role || 'admin');
@@ -419,7 +441,7 @@ async function init(){
       return;
     }catch(e){ window.handleSignOut(); }
   }
-  document.getElementById('login-view').classList.remove('hidden'); document.getElementById('view-title').textContent='Login';
+  setAuthLayout(false);
 }
 
 async function readSetting(key, fallback={}){ try{const data=await apiRequest(`/admin/settings/${encodeURIComponent(key)}`,{headers:buildHeadersAuth()}); return data && data.key ? {...fallback, ...(data.value||{}), key:data.key} : (data||fallback);}catch(e){return fallback;} }
@@ -1183,8 +1205,48 @@ function renderAtendimentoDashboardCards(metrics = {}){
 }
 
 
+
+function showAtendimentoMessage(message){
+  const text = String(message || '').trim() || 'Sem mensagem registrada.';
+  try {
+    alert('MENSAGEM DO ATENDIMENTO:\n\n' + text);
+  } catch(_e) {}
+}
+
+function bindAtendimentoButtons(){
+  const refreshBtn = document.getElementById('atendimento-refresh-btn');
+  if(refreshBtn && !refreshBtn.dataset.bound){
+    refreshBtn.dataset.bound = '1';
+    refreshBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const original = refreshBtn.innerHTML;
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Atualizando...';
+      try {
+        await renderAtendimentosView();
+        displayMessage('Atendimentos atualizados!', 'success');
+      } catch(err) {
+        displayMessage('Erro ao atualizar atendimentos: ' + (err.message || err), 'error');
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = original;
+      }
+    });
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const viewBtn = ev.target.closest && ev.target.closest('.at-view');
+  if(viewBtn){
+    ev.preventDefault();
+    showAtendimentoMessage(viewBtn.dataset.msg || '');
+  }
+});
+
+
 window.renderAtendimentosView = renderAtendimentosView;
 async function renderAtendimentosView(){
+  bindAtendimentoButtons();
   const data = await apiRequest('/admin/atendimentos?sortBy=createdAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
   const atendimentoMetrics = await loadAtendimentoDashboardMetrics(rows).catch(() => ({}));
@@ -1193,7 +1255,7 @@ async function renderAtendimentosView(){
   let novos=0; tbody.innerHTML=rows.map(at=>{const id=String(at.id||at._id||''); const status=String(at.status||'Novo'); if(status==='Novo') novos++; return `<tr class="border-b border-gray-50 hover:bg-gray-50/50 transition"><td class="px-6 py-4"><div class="font-bold text-gray-800">#${escHtml(at.protocolo||id||'---')}</div><div class="text-[10px] text-gray-400">${formatDateTime(at.createdAt||at.data)}</div></td><td class="px-6 py-4"><div class="text-sm font-semibold text-gray-700">${escHtml(at.nome||at.name||'---')}</div><div class="text-xs text-gray-500">${escHtml(at.email||'')}</div></td><td class="px-6 py-4"><span class="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-600">${escHtml(at.tipo||'Atendimento')}</span></td><td class="px-6 py-4 text-center"><select data-id="${escHtml(id)}" class="at-status text-xs border-none bg-gray-100 rounded-lg p-1 font-semibold"><option value="Novo" ${status==='Novo'?'selected':''}>Novo</option><option value="Em Andamento" ${status==='Em Andamento'?'selected':''}>Em Andamento</option><option value="Resolvido" ${status==='Resolvido'?'selected':''}>Resolvido</option></select></td><td class="px-6 py-4 text-right"><button type="button" class="at-view p-2 text-blue-500 hover:bg-blue-50 rounded-lg" data-msg="${escHtml(at.mensagem||at.message||'')}"><i class="fas fa-eye"></i></button></td></tr>`; }).join('') || '<tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">Nenhum atendimento.</td></tr>';
   badge.textContent=String(novos); badge.classList.toggle('hidden',novos===0);
   document.querySelectorAll('.at-status').forEach(sel=>sel.onchange=async e=>{const id=e.target.dataset.id; try{ await apiRequest(`/admin/atendimentos/${encodeURIComponent(id)}`,{method:'PATCH',headers:buildHeadersAuth(),body:JSON.stringify({status:e.target.value})}); displayMessage('Status atualizado!','success'); }catch(err){displayMessage(err.message,'error')}});
-  document.querySelectorAll('.at-view').forEach(btn=>btn.onclick=()=>alert('MENSAGEM:\n\n'+(btn.dataset.msg||'')));
+  bindAtendimentoButtons();
 }
 async function renderPaymentsView(){
   const payments = await readSetting('payments', {mercadopago:{enabled:true,pix:true,boleto:true,publicKey:''},pagarme:{enabled:true,apiKey:'',endpoint:'https://api.pagar.me/core/v5'}});
