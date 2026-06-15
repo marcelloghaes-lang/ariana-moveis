@@ -706,7 +706,13 @@ const crediarioReciboSchema = new mongoose.Schema({
   enviadoWhatsappEm: Date,
   whatsappResultado: mongoose.Schema.Types.Mixed,
   criadoPor: String,
-  status: { type: String, default: 'registrado', index: true }
+  status: { type: String, default: 'registrado', index: true },
+  origem: { type: String, default: 'manual', index: true },
+  sigeCodigo: { type: String, default: '', index: true },
+  documento: { type: String, default: '' },
+  sigeDescricao: { type: String, default: '' },
+  sigeDataVencimento: Date,
+  importHash: { type: String, default: '', index: true }
 }, baseOptions);
 
 const CrediarioCliente = mongoose.model('CrediarioCliente', crediarioClienteSchema);
@@ -816,6 +822,64 @@ function makeReciboNumber() {
   return `REC-${y}${m}${day}-${rand}`;
 }
 
+
+function getSigeValue(row = {}, keys = []) {
+  const entries = Object.entries(row || {});
+  const norm = (value) => String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+  const normalizedMap = new Map(entries.map(([k, v]) => [norm(k), v]));
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    const normalized = norm(key);
+    if (normalizedMap.has(normalized)) {
+      const mapped = normalizedMap.get(normalized);
+      if (mapped !== undefined && mapped !== null && String(mapped).trim() !== '') return mapped;
+    }
+  }
+  return '';
+}
+
+function parseSigeMoney(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+  const clean = raw.replace(/R\$/gi, '').replace(/\s+/g, '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+  const n = Number(clean);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseSigeDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === 'number') {
+    // Excel serial date, considerando base 1899-12-30
+    const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const br = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (br) {
+    const year = Number(br[3].length === 2 ? `20${br[3]}` : br[3]);
+    const d = new Date(year, Number(br[2]) - 1, Number(br[1]), Number(br[4] || 0), Number(br[5] || 0));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const iso = new Date(raw);
+  return Number.isNaN(iso.getTime()) ? null : iso;
+}
+
+function normalizeSigeName(value = '') {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function buildSigeImportHash(parts = []) {
+  return crypto.createHash('sha1').update(parts.map(v => String(v || '')).join('|')).digest('hex');
+}
+
 function normalizeCrediarioCliente(doc) {
   const obj = toJSON(doc) || {};
   return {
@@ -826,7 +890,11 @@ function normalizeCrediarioCliente(doc) {
     telefone: String(obj.telefone || ''),
     contrato: String(obj.contrato || ''),
     endereco: String(obj.endereco || ''),
-    observacao: String(obj.observacao || '')
+    observacao: String(obj.observacao || ''),
+    origem: String(obj.origem || 'manual'),
+    sigeCodigo: String(obj.sigeCodigo || ''),
+    documento: String(obj.documento || ''),
+    sigeDataVencimento: obj.sigeDataVencimento || null
   };
 }
 
@@ -846,7 +914,12 @@ function normalizeCrediarioRecibo(doc) {
     formaPagamento: String(obj.formaPagamento || ''),
     dataPagamento: obj.dataPagamento || obj.createdAt || null,
     observacao: String(obj.observacao || ''),
-    enviadoWhatsapp: obj.enviadoWhatsapp === true
+    enviadoWhatsapp: obj.enviadoWhatsapp === true,
+    origem: String(obj.origem || 'manual'),
+    sigeCodigo: String(obj.sigeCodigo || ''),
+    documento: String(obj.documento || ''),
+    sigeDescricao: String(obj.sigeDescricao || ''),
+    sigeDataVencimento: obj.sigeDataVencimento || null
   };
 }
 
@@ -930,6 +1003,168 @@ app.post('/api/admin/crediario/clientes', adminRequired, async (req, res) => {
     return res.json({ ok: true, cliente: normalizeCrediarioCliente(doc) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar cliente do crediário' });
+  }
+});
+
+
+// Importa clientes exportados do SIGE em Excel, lidos pelo painel no navegador.
+app.post('/api/admin/crediario/importar-sige/clientes', adminRequired, async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    const limit = Math.min(rows.length, 5000);
+    let criados = 0;
+    let atualizados = 0;
+    let ignorados = 0;
+
+    for (const row of rows.slice(0, limit)) {
+      const nome = normalizeSigeName(
+        getSigeValue(row, ['NomeFantasia', 'Nome Fantasia', 'RazaoSocial', 'Razão Social', 'Nome', 'Cliente'])
+      );
+      const cpf = cleanPhone(getSigeValue(row, ['CNPJ_CPF', 'CNPJ/CPF', 'CPF', 'CNPJ']));
+      const telefone = normalizePhone(
+        getSigeValue(row, ['Celular', 'Telefone', 'Fone', 'WhatsApp', 'Whatsapp']),
+        '55'
+      );
+      const cidade = String(getSigeValue(row, ['Cidade', 'Município', 'Municipio']) || '').trim();
+      const uf = String(getSigeValue(row, ['UF', 'Estado']) || '').trim();
+      const bairro = String(getSigeValue(row, ['Bairro']) || '').trim();
+      const logradouro = String(getSigeValue(row, ['Logradouro', 'Endereço', 'Endereco']) || '').trim();
+      const cep = String(getSigeValue(row, ['CEP']) || '').trim();
+
+      if (!nome) {
+        ignorados++;
+        continue;
+      }
+
+      const query = cpf ? { cpf } : (telefone ? { telefone } : { nome: new RegExp(`^${escapeRegex(nome)}$`, 'i') });
+      const before = await CrediarioCliente.findOne(query).select('_id');
+      await CrediarioCliente.findOneAndUpdate(
+        query,
+        {
+          $set: {
+            nome,
+            cpf,
+            telefone,
+            endereco: [logradouro, bairro, cidade && uf ? `${cidade}/${uf}` : cidade, cep].filter(Boolean).join(' - '),
+            observacao: 'Importado do SIGE - clientes',
+            ativo: true,
+            origem: 'sige_clientes'
+          }
+        },
+        { upsert: true, new: true }
+      );
+      if (before) atualizados++; else criados++;
+    }
+
+    return res.json({ ok: true, total: rows.length, processados: limit, criados, atualizados, ignorados });
+  } catch (error) {
+    console.error('[sige clientes import]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao importar clientes do SIGE' });
+  }
+});
+
+// Importa pagamentos exportados do SIGE em Excel, lidos pelo painel no navegador.
+app.post('/api/admin/crediario/importar-sige/pagamentos', adminRequired, async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    const limit = Math.min(rows.length, 5000);
+    let criados = 0;
+    let atualizados = 0;
+    let ignorados = 0;
+    let semTelefone = 0;
+
+    for (const row of rows.slice(0, limit)) {
+      const tipo = String(getSigeValue(row, ['Tipo']) || '').trim();
+      const clienteNome = normalizeSigeName(getSigeValue(row, ['Cliente', 'Pessoa', 'Nome']));
+      const valorPago = parseSigeMoney(getSigeValue(row, ['Valor', 'Valor Pago', 'Valor Recebido']));
+      const codigo = String(getSigeValue(row, ['Código', 'Codigo', 'Cod.']) || '').trim();
+      const documento = String(getSigeValue(row, ['Documento', 'Pedido', 'Número Documento', 'Numero Documento']) || '').trim();
+      const descricao = String(getSigeValue(row, ['Descrição', 'Descricao', 'Histórico', 'Historico']) || '').trim();
+      const formaPagamento = String(getSigeValue(row, ['Forma de Pgto.', 'Forma de Pgto', 'Forma de Pagamento', 'Pagamento']) || 'SIGE').trim();
+      const dataPagamento = parseSigeDate(getSigeValue(row, ['Data Pgto.', 'Data Pgto', 'Data Pagamento', 'Data de Pagamento'])) || now();
+      const dataVencimento = parseSigeDate(getSigeValue(row, ['Data Venc.', 'Data Venc', 'Data Vencimento', 'Vencimento']));
+      const plano = String(getSigeValue(row, ['Plano de Conta', 'Plano Conta']) || '').trim();
+
+      if (!clienteNome || !valorPago || valorPago <= 0) {
+        ignorados++;
+        continue;
+      }
+
+      // Evita importar despesas como recibo de cliente quando o relatório vier misturado.
+      if (tipo && !/receita|entrada|receb/i.test(tipo)) {
+        ignorados++;
+        continue;
+      }
+
+      let cliente = await CrediarioCliente.findOne({ nome: new RegExp(`^${escapeRegex(clienteNome)}$`, 'i') });
+      if (!cliente) {
+        cliente = await CrediarioCliente.create({
+          nome: clienteNome,
+          telefone: '',
+          cpf: '',
+          observacao: 'Criado automaticamente pela importação de pagamentos do SIGE',
+          origem: 'sige_pagamentos',
+          ativo: true
+        });
+        semTelefone++;
+      } else if (!cliente.telefone) {
+        semTelefone++;
+      }
+
+      const produto = descricao || documento || plano || 'Pagamento registrado no SIGE';
+      const hash = buildSigeImportHash([codigo, clienteNome, documento, valorPago, dataPagamento.toISOString().slice(0, 10)]);
+      const existing = await CrediarioRecibo.findOne({ $or: [{ importHash: hash }, ...(codigo ? [{ sigeCodigo: codigo }] : [])] });
+
+      if (existing) {
+        existing.clienteId = cliente._id;
+        existing.clienteNome = cliente.nome || clienteNome;
+        existing.telefone = cliente.telefone || existing.telefone || '';
+        existing.produto = produto;
+        existing.valorPago = valorPago;
+        existing.formaPagamento = formaPagamento;
+        existing.dataPagamento = dataPagamento;
+        existing.documento = documento;
+        existing.sigeDescricao = descricao;
+        existing.sigeDataVencimento = dataVencimento;
+        existing.origem = 'sige_pagamentos';
+        existing.observacao = 'Importado/atualizado pelo relatório de pagamentos do SIGE';
+        await existing.save();
+        atualizados++;
+        continue;
+      }
+
+      let reciboNumber = makeReciboNumber();
+      while (await CrediarioRecibo.exists({ recibo: reciboNumber })) reciboNumber = makeReciboNumber();
+
+      await CrediarioRecibo.create({
+        recibo: reciboNumber,
+        clienteId: cliente._id,
+        clienteNome: cliente.nome || clienteNome,
+        clienteCpf: cliente.cpf || '',
+        telefone: cliente.telefone || '',
+        contrato: cliente.contrato || '',
+        produto,
+        parcela: documento,
+        valorPago,
+        formaPagamento,
+        dataPagamento,
+        observacao: 'Importado pelo relatório de pagamentos do SIGE',
+        criadoPor: req.admin?.email || req.auth?.email || 'admin',
+        status: 'importado',
+        origem: 'sige_pagamentos',
+        sigeCodigo: codigo,
+        documento,
+        sigeDescricao: descricao,
+        sigeDataVencimento: dataVencimento,
+        importHash: hash
+      });
+      criados++;
+    }
+
+    return res.json({ ok: true, total: rows.length, processados: limit, criados, atualizados, ignorados, semTelefone });
+  } catch (error) {
+    console.error('[sige pagamentos import]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao importar pagamentos do SIGE' });
   }
 });
 

@@ -32,6 +32,7 @@
       <div class="nav">
         <button class="active" onclick="showTab('novo',this)">💰 Registrar pagamento</button>
         <button onclick="showTab('clientes',this)">👥 Clientes</button>
+        <button onclick="showTab('importar',this)">📂 Importar SIGE</button>
         <button onclick="showTab('historico',this)">📚 Histórico</button>
         <button onclick="logout()">🚪 Sair</button>
       </div>
@@ -62,11 +63,93 @@
       </section>
 
       <section id="tab-clientes" class="hidden"><div class="card"><h2>Clientes</h2><div class="actions"><input id="buscaCliente" placeholder="Buscar nome, CPF, telefone ou contrato" oninput="loadClientes()"><button class="light" onclick="loadClientes()">Buscar</button></div><table><thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th><th>Contrato</th></tr></thead><tbody id="clientesBody"></tbody></table></div></section>
+      
+      <section id="tab-importar" class="hidden">
+        <div class="card">
+          <h2>Importar planilha do SIGE</h2>
+          <p class="help">Exporte no SIGE em Excel e importe aqui. Use “Clientes” para a planilha de Pessoas e “Pagamentos” para Relatórios → Financeiro → Pagamentos.</p>
+          <div class="formgrid">
+            <div><label>Tipo da planilha</label><select id="sigeTipo"><option value="clientes">Clientes / Pessoas</option><option value="pagamentos">Pagamentos recebidos</option></select></div>
+            <div><label>Arquivo Excel</label><input id="sigeArquivo" type="file" accept=".xlsx,.xls,.csv"></div>
+          </div>
+          <div class="actions"><button class="green" onclick="importarSige()">📂 Importar planilha</button><button class="light" onclick="preverSige()">👁️ Pré-visualizar</button></div>
+          <div id="sigeResultado" class="receipt" style="margin-top:16px">Nenhuma planilha importada ainda.</div>
+          <div style="overflow-x:auto;margin-top:16px"><table><thead id="sigePreviewHead"></thead><tbody id="sigePreviewBody"></tbody></table></div>
+        </div>
+      </section>
+
       <section id="tab-historico" class="hidden"><div class="card"><h2>Histórico de recibos</h2><div class="actions"><input id="buscaRecibo" placeholder="Buscar recibo, cliente, CPF, telefone, produto" oninput="loadRecibos()"><button class="light" onclick="loadRecibos()">Buscar</button></div><table><thead><tr><th>Recibo</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody id="recibosBody"></tbody></table></div></section>
     </main>
   </section>
 
-<script src="js/api-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
+async function readSigeRows(){
+  const file=sigeArquivo.files&&sigeArquivo.files[0];
+  if(!file){toast('Selecione uma planilha do SIGE.');return []}
+  if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}
+  const buffer=await file.arrayBuffer();
+  const wb=XLSX.read(buffer,{type:'array',cellDates:true});
+  const sheet=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
+  return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()));
+}
+async function preverSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}
+  const keys=Object.keys(rows[0]||{});
+  sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;
+  sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';
+  sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('');
+}
+async function importarSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
+  const tipo=sigeTipo.value;
+  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
+  sigeResultado.innerHTML='Importando, aguarde...';
+  const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});
+  const j=await r.json();
+  if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}
+  sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
+  toast('Planilha SIGE importada com sucesso');
+  await loadAll();
+}
+
+</script>
+<script src="js/api-config.js">
+async function readSigeRows(){
+  const file=sigeArquivo.files&&sigeArquivo.files[0];
+  if(!file){toast('Selecione uma planilha do SIGE.');return []}
+  if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}
+  const buffer=await file.arrayBuffer();
+  const wb=XLSX.read(buffer,{type:'array',cellDates:true});
+  const sheet=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
+  return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()));
+}
+async function preverSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}
+  const keys=Object.keys(rows[0]||{});
+  sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;
+  sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';
+  sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('');
+}
+async function importarSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
+  const tipo=sigeTipo.value;
+  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
+  sigeResultado.innerHTML='Importando, aguarde...';
+  const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});
+  const j=await r.json();
+  if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}
+  sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
+  toast('Planilha SIGE importada com sucesso');
+  await loadAll();
+}
+
+</script>
 <script>
 let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
 let recibos=[]; let clientes=[]; let lastRecibo=null;
@@ -89,6 +172,39 @@ function printRecibo(id){window.open(API_BASE+'/admin/crediario/recibos/'+id+'/h
 async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}
 async function loadAll(){await Promise.all([loadClientes(),loadRecibos()])}
 function calcStats(){const today=new Date().toISOString().slice(0,10);stHoje.textContent=recibos.filter(r=>String(r.dataPagamento||r.createdAt).slice(0,10)===today).length;stTotal.textContent=recibos.length;stWa.textContent=recibos.filter(r=>r.enviadoWhatsapp).length}
+
+async function readSigeRows(){
+  const file=sigeArquivo.files&&sigeArquivo.files[0];
+  if(!file){toast('Selecione uma planilha do SIGE.');return []}
+  if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}
+  const buffer=await file.arrayBuffer();
+  const wb=XLSX.read(buffer,{type:'array',cellDates:true});
+  const sheet=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
+  return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()));
+}
+async function preverSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}
+  const keys=Object.keys(rows[0]||{});
+  sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;
+  sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';
+  sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('');
+}
+async function importarSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
+  const tipo=sigeTipo.value;
+  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
+  sigeResultado.innerHTML='Importando, aguarde...';
+  const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});
+  const j=await r.json();
+  if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}
+  sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
+  toast('Planilha SIGE importada com sucesso');
+  await loadAll();
+}
+
 </script>
 </body>
 </html>
