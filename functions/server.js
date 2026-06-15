@@ -674,6 +674,45 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
 
+// ============================================================
+// CREDIÁRIO / RECIBOS DE PARCELAS - ARIANA MÓVEIS
+// Painel separado para loja física registrar parcelas pagas
+// e enviar comprovante pelo WhatsApp Ariana Notificações.
+// ============================================================
+const crediarioClienteSchema = new mongoose.Schema({
+  nome: { type: String, required: true, index: true },
+  cpf: { type: String, default: '', index: true },
+  telefone: { type: String, default: '', index: true },
+  contrato: { type: String, default: '', index: true },
+  endereco: { type: String, default: '' },
+  observacao: { type: String, default: '' },
+  ativo: { type: Boolean, default: true }
+}, baseOptions);
+
+const crediarioReciboSchema = new mongoose.Schema({
+  recibo: { type: String, unique: true, index: true },
+  clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'CrediarioCliente', index: true },
+  clienteNome: String,
+  clienteCpf: String,
+  telefone: String,
+  contrato: String,
+  produto: String,
+  parcela: String,
+  valorPago: { type: Number, default: 0 },
+  formaPagamento: { type: String, default: 'Pix' },
+  dataPagamento: { type: Date, default: now },
+  observacao: String,
+  enviadoWhatsapp: { type: Boolean, default: false },
+  enviadoWhatsappEm: Date,
+  whatsappResultado: mongoose.Schema.Types.Mixed,
+  criadoPor: String,
+  status: { type: String, default: 'registrado', index: true }
+}, baseOptions);
+
+const CrediarioCliente = mongoose.model('CrediarioCliente', crediarioClienteSchema);
+const CrediarioRecibo = mongoose.model('CrediarioRecibo', crediarioReciboSchema);
+
+
 
 function normalizeBannerPayload(input = {}, fallback = {}) {
   const source = { ...(fallback || {}), ...(input || {}) };
@@ -759,6 +798,276 @@ merged.carriers.frenet.apiUrl = String(process.env.FRENET_API_URL || merged.carr
 merged.carriers.frenet.origemCep = String(process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || merged.carriers.frenet.origemCep || merged.correios.origemCep || '').trim();
 return merged; }
 
+
+
+
+function formatDateBR(value = new Date()) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return new Date().toLocaleDateString('pt-BR');
+  return d.toLocaleDateString('pt-BR');
+}
+
+function makeReciboNumber() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const rand = crypto.randomBytes(2).toString('hex').toUpperCase();
+  return `REC-${y}${m}${day}-${rand}`;
+}
+
+function normalizeCrediarioCliente(doc) {
+  const obj = toJSON(doc) || {};
+  return {
+    ...obj,
+    id: String(obj.id || obj._id || ''),
+    nome: String(obj.nome || ''),
+    cpf: String(obj.cpf || ''),
+    telefone: String(obj.telefone || ''),
+    contrato: String(obj.contrato || ''),
+    endereco: String(obj.endereco || ''),
+    observacao: String(obj.observacao || '')
+  };
+}
+
+function normalizeCrediarioRecibo(doc) {
+  const obj = toJSON(doc) || {};
+  return {
+    ...obj,
+    id: String(obj.id || obj._id || ''),
+    recibo: String(obj.recibo || ''),
+    clienteNome: String(obj.clienteNome || ''),
+    clienteCpf: String(obj.clienteCpf || ''),
+    telefone: String(obj.telefone || ''),
+    contrato: String(obj.contrato || ''),
+    produto: String(obj.produto || ''),
+    parcela: String(obj.parcela || ''),
+    valorPago: Number(obj.valorPago || 0),
+    formaPagamento: String(obj.formaPagamento || ''),
+    dataPagamento: obj.dataPagamento || obj.createdAt || null,
+    observacao: String(obj.observacao || ''),
+    enviadoWhatsapp: obj.enviadoWhatsapp === true
+  };
+}
+
+function buildCrediarioReceiptMessage(reciboDoc = {}) {
+  const r = normalizeCrediarioRecibo(reciboDoc);
+  return `✅ Pagamento registrado com sucesso
+
+Olá, ${r.clienteNome || 'cliente'}! 👋
+
+Recebemos o pagamento da sua parcela na Ariana Móveis.
+
+🧾 Recibo: ${r.recibo}
+📦 Produto: ${r.produto || 'Compra na loja'}
+💰 Valor pago: ${formatMoneyBRL(r.valorPago)}
+💳 Forma de pagamento: ${r.formaPagamento || 'Não informada'}
+📅 Data: ${formatDateBR(r.dataPagamento)}
+📌 Parcela: ${r.parcela || 'Não informada'}
+${r.contrato ? `📄 Contrato: ${r.contrato}\n` : ''}${r.observacao ? `\nObservação: ${r.observacao}\n` : ''}
+Seu pagamento foi registrado com sucesso.
+
+💙 Obrigado por escolher a Ariana Móveis.`.trim();
+}
+
+async function sendCrediarioReceiptWhatsapp(reciboDoc = {}) {
+  const recibo = normalizeCrediarioRecibo(reciboDoc);
+  const number = normalizePhone(recibo.telefone || '', '55');
+  if (!number) throw new Error('Telefone do cliente inválido para envio do recibo.');
+  const text = buildCrediarioReceiptMessage(reciboDoc);
+  return waSendTextMessage({ number, text });
+}
+
+app.get('/api/admin/crediario/clientes', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 200));
+    const filter = {};
+    if (q) {
+      const digits = cleanPhone(q);
+      filter.$or = [
+        { nome: new RegExp(escapeRegex(q), 'i') },
+        { contrato: new RegExp(escapeRegex(q), 'i') }
+      ];
+      if (digits) {
+        filter.$or.push({ cpf: new RegExp(escapeRegex(digits), 'i') });
+        filter.$or.push({ telefone: new RegExp(escapeRegex(digits), 'i') });
+      }
+    }
+    const rows = await CrediarioCliente.find(filter).sort({ updatedAt: -1 }).limit(limit);
+    return res.json({ ok: true, clientes: rows.map(normalizeCrediarioCliente) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar clientes do crediário' });
+  }
+});
+
+app.post('/api/admin/crediario/clientes', adminRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const nome = String(body.nome || body.name || '').trim();
+    const telefone = normalizePhone(body.telefone || body.phone || '', '55');
+    const cpf = cleanPhone(body.cpf || '');
+    const contrato = String(body.contrato || '').trim();
+    if (!nome) return res.status(400).json({ ok: false, error: 'Informe o nome do cliente' });
+    if (!telefone) return res.status(400).json({ ok: false, error: 'Informe o WhatsApp do cliente' });
+
+    const query = contrato ? { contrato } : (cpf ? { cpf } : { telefone });
+    const doc = await CrediarioCliente.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          nome,
+          telefone,
+          cpf,
+          contrato,
+          endereco: String(body.endereco || '').trim(),
+          observacao: String(body.observacao || '').trim(),
+          ativo: body.ativo !== false
+        }
+      },
+      { upsert: true, new: true }
+    );
+    return res.json({ ok: true, cliente: normalizeCrediarioCliente(doc) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar cliente do crediário' });
+  }
+});
+
+app.get('/api/admin/crediario/recibos', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const clienteId = String(req.query.clienteId || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 80), 300));
+    const filter = {};
+    if (clienteId && mongoose.Types.ObjectId.isValid(clienteId)) filter.clienteId = new mongoose.Types.ObjectId(clienteId);
+    if (q) {
+      const digits = cleanPhone(q);
+      filter.$or = [
+        { recibo: new RegExp(escapeRegex(q), 'i') },
+        { clienteNome: new RegExp(escapeRegex(q), 'i') },
+        { contrato: new RegExp(escapeRegex(q), 'i') },
+        { produto: new RegExp(escapeRegex(q), 'i') }
+      ];
+      if (digits) {
+        filter.$or.push({ clienteCpf: new RegExp(escapeRegex(digits), 'i') });
+        filter.$or.push({ telefone: new RegExp(escapeRegex(digits), 'i') });
+      }
+    }
+    const rows = await CrediarioRecibo.find(filter).sort({ dataPagamento: -1, createdAt: -1 }).limit(limit);
+    return res.json({ ok: true, recibos: rows.map(normalizeCrediarioRecibo) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar recibos' });
+  }
+});
+
+app.post('/api/admin/crediario/recibos', adminRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const clienteId = String(body.clienteId || '').trim();
+    const nome = String(body.clienteNome || body.nome || '').trim();
+    const telefone = normalizePhone(body.telefone || body.phone || '', '55');
+    const cpf = cleanPhone(body.cpf || body.clienteCpf || '');
+    const contrato = String(body.contrato || '').trim();
+    const produto = String(body.produto || 'Compra na loja').trim();
+    const valorPago = Number(String(body.valorPago || body.valor || '0').replace(/\./g, '').replace(',', '.'));
+    const parcela = String(body.parcela || '').trim();
+    const formaPagamento = String(body.formaPagamento || 'Pix').trim();
+    const dataPagamento = body.dataPagamento ? new Date(body.dataPagamento) : now();
+    const observacao = String(body.observacao || '').trim();
+    const enviarWhatsapp = body.enviarWhatsapp !== false;
+
+    if (!nome) return res.status(400).json({ ok: false, error: 'Informe o cliente' });
+    if (!telefone) return res.status(400).json({ ok: false, error: 'Informe o WhatsApp do cliente' });
+    if (!Number.isFinite(valorPago) || valorPago <= 0) return res.status(400).json({ ok: false, error: 'Informe um valor pago válido' });
+
+    let cliente = null;
+    if (clienteId && mongoose.Types.ObjectId.isValid(clienteId)) cliente = await CrediarioCliente.findById(clienteId);
+    if (!cliente) {
+      const query = contrato ? { contrato } : (cpf ? { cpf } : { telefone });
+      cliente = await CrediarioCliente.findOneAndUpdate(
+        query,
+        { $set: { nome, telefone, cpf, contrato, ativo: true } },
+        { upsert: true, new: true }
+      );
+    }
+
+    let reciboNumber = makeReciboNumber();
+    while (await CrediarioRecibo.exists({ recibo: reciboNumber })) reciboNumber = makeReciboNumber();
+
+    const recibo = await CrediarioRecibo.create({
+      recibo: reciboNumber,
+      clienteId: cliente?._id || null,
+      clienteNome: nome || cliente?.nome || '',
+      clienteCpf: cpf || cliente?.cpf || '',
+      telefone,
+      contrato: contrato || cliente?.contrato || '',
+      produto,
+      parcela,
+      valorPago,
+      formaPagamento,
+      dataPagamento: Number.isNaN(dataPagamento.getTime()) ? now() : dataPagamento,
+      observacao,
+      criadoPor: req.admin?.email || req.auth?.email || 'admin'
+    });
+
+    let whatsapp = { skipped: true, reason: 'envio_desativado' };
+    if (enviarWhatsapp) {
+      try {
+        whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
+        recibo.enviadoWhatsapp = true;
+        recibo.enviadoWhatsappEm = now();
+        recibo.whatsappResultado = redact(whatsapp || null);
+        await recibo.save();
+      } catch (error) {
+        whatsapp = { ok: false, error: error.message || String(error) };
+        recibo.whatsappResultado = whatsapp;
+        await recibo.save();
+      }
+    }
+
+    await createAdminNotification({
+      type: 'crediario_recibo',
+      title: '🧾 Recibo de parcela registrado',
+      message: `${recibo.recibo} - ${recibo.clienteNome} - ${formatMoneyBRL(recibo.valorPago)}`,
+      relatedId: String(recibo._id),
+      severity: whatsapp?.ok === false ? 'warning' : 'info',
+      metadata: { recibo: recibo.recibo, clienteNome: recibo.clienteNome, valorPago: recibo.valorPago, whatsapp }
+    });
+
+    return res.json({ ok: true, recibo: normalizeCrediarioRecibo(recibo), whatsapp });
+  } catch (error) {
+    console.error('[crediario recibo]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao registrar recibo' });
+  }
+});
+
+app.post('/api/admin/crediario/recibos/:id/enviar-whatsapp', adminRequired, async (req, res) => {
+  try {
+    const recibo = await CrediarioRecibo.findById(req.params.id);
+    if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo não encontrado' });
+    const whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
+    recibo.enviadoWhatsapp = true;
+    recibo.enviadoWhatsappEm = now();
+    recibo.whatsappResultado = redact(whatsapp || null);
+    await recibo.save();
+    return res.json({ ok: true, recibo: normalizeCrediarioRecibo(recibo), whatsapp });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao reenviar recibo pelo WhatsApp' });
+  }
+});
+
+app.get('/api/admin/crediario/recibos/:id/html', adminRequired, async (req, res) => {
+  try {
+    const recibo = await CrediarioRecibo.findById(req.params.id);
+    if (!recibo) return res.status(404).send('Recibo não encontrado');
+    const r = normalizeCrediarioRecibo(recibo);
+    const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>${r.recibo}</title><style>body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;padding:30px;color:#111827}.receipt{max-width:720px;margin:auto;background:#fff;border-radius:18px;padding:32px;border:1px solid #e5e7eb}.brand{font-size:26px;font-weight:900;color:#0047AB}.muted{color:#6b7280}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:12px 0}.total{font-size:24px;font-weight:900;color:#16a34a}.footer{margin-top:28px;color:#6b7280;font-size:13px}@media print{body{background:#fff}.receipt{border:none}}</style></head><body><div class="receipt"><div class="brand">Ariana Móveis</div><p class="muted">Comprovante de pagamento de parcela</p><h2>${r.recibo}</h2><div class="row"><strong>Cliente</strong><span>${r.clienteNome}</span></div><div class="row"><strong>CPF</strong><span>${r.clienteCpf || '—'}</span></div><div class="row"><strong>Telefone</strong><span>${r.telefone}</span></div><div class="row"><strong>Contrato</strong><span>${r.contrato || '—'}</span></div><div class="row"><strong>Produto</strong><span>${r.produto}</span></div><div class="row"><strong>Parcela</strong><span>${r.parcela || '—'}</span></div><div class="row"><strong>Forma</strong><span>${r.formaPagamento}</span></div><div class="row"><strong>Data</strong><span>${formatDateBR(r.dataPagamento)}</span></div><div class="row"><strong>Valor pago</strong><span class="total">${formatMoneyBRL(r.valorPago)}</span></div>${r.observacao ? `<p><strong>Observação:</strong><br>${String(r.observacao).replace(/[<>&]/g, '')}</p>` : ''}<div class="footer">Pagamento registrado no sistema da Ariana Móveis. Este comprovante confirma o recebimento da parcela informada.</div></div><script>window.print()</script></body></html>`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch (error) {
+    return res.status(500).send(error.message || 'Erro ao gerar comprovante');
+  }
+});
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, status: 'online', service: 'ariana-backend', time: new Date().toISOString() }));
 

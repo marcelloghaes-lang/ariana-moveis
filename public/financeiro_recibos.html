@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financeiro Recibos | Ariana Móveis</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root{--blue:#0047AB;--blue2:#1d4ed8;--green:#16a34a;--red:#dc2626;--bg:#f3f6fb;--text:#0f172a;--muted:#64748b;--card:#fff;--line:#e5e7eb}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.box{background:white;width:100%;max-width:420px;border-radius:24px;padding:28px;box-shadow:0 18px 50px #0f172a22}.logo{font-size:28px;font-weight:900;color:var(--blue);margin-bottom:4px}.sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+    label{display:block;font-size:12px;text-transform:uppercase;font-weight:800;color:#64748b;margin:12px 0 6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 13px;font:inherit;background:#fff;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--blue2);box-shadow:0 0 0 3px #1d4ed822}button{border:0;border-radius:14px;padding:12px 16px;font-weight:900;cursor:pointer}button.primary{background:var(--blue2);color:white}button.green{background:var(--green);color:white}button.light{background:#eaf1ff;color:var(--blue2)}button.red{background:#fee2e2;color:#991b1b}
+    .app{display:none;min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:260px;background:#172536;color:white;padding:24px}.side h1{font-size:22px;margin:0 0 30px}.nav button{display:block;width:100%;text-align:left;margin-bottom:10px;background:transparent;color:white;padding:13px;border-radius:14px}.nav button.active,.nav button:hover{background:#ffffff18}.main{margin-left:260px;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 10px 30px #0f172a0d}.card h2{margin:0 0 8px;font-size:22px}.help{color:var(--muted);font-size:13px;margin-bottom:15px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}.stat{background:white;border:1px solid var(--line);border-radius:20px;padding:18px}.stat b{font-size:24px;color:var(--blue2)}table{width:100%;border-collapse:collapse}th,td{padding:13px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}th{color:#64748b;font-size:11px;text-transform:uppercase}tr:hover{background:#f8fafc}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#e0f2fe;color:#0369a1}.toast{position:fixed;right:20px;top:20px;z-index:99;display:flex;flex-direction:column;gap:8px}.toast div{background:#111827;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0003}.receipt{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}.receipt .brand{font-weight:900;color:var(--blue);font-size:22px}.row{display:flex;justify-content:space-between;border-bottom:1px dashed #e5e7eb;padding:9px 0;gap:10px}.row span:last-child{text-align:right;font-weight:700}.money{font-size:22px;color:var(--green)!important}.hidden{display:none!important}
+    @media(max-width:900px){.side{position:static;width:100%}.main{margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}}
+  </style>
+</head>
+<body>
+  <div class="toast" id="toast"></div>
+  <section class="login" id="loginView">
+    <div class="box">
+      <div class="logo">Ariana Móveis</div>
+      <div class="sub">Painel Financeiro de Recibos</div>
+      <label>E-mail</label><input id="loginEmail" type="email" placeholder="admin@email.com">
+      <label>Senha</label><input id="loginPass" type="password" placeholder="Senha">
+      <button class="primary" style="width:100%;margin-top:18px" onclick="login()">Entrar</button>
+    </div>
+  </section>
+
+  <section class="app" id="appView">
+    <aside class="side">
+      <h1>🧾 Recibos</h1>
+      <div class="nav">
+        <button class="active" onclick="showTab('novo',this)">💰 Registrar pagamento</button>
+        <button onclick="showTab('clientes',this)">👥 Clientes</button>
+        <button onclick="showTab('historico',this)">📚 Histórico</button>
+        <button onclick="logout()">🚪 Sair</button>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Registre pagamentos da loja física e envie comprovantes pelo Ariana Notificações.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button></div>
+      <div class="stats"><div class="stat"><small>Recibos hoje</small><br><b id="stHoje">0</b></div><div class="stat"><small>Total listado</small><br><b id="stTotal">0</b></div><div class="stat"><small>Enviados WhatsApp</small><br><b id="stWa">0</b></div></div>
+
+      <section id="tab-novo">
+        <div class="grid">
+          <div class="card"><h2>Novo comprovante</h2><p class="help">Preencha os dados e clique em gerar. O sistema salva e envia o recibo para o cliente.</p>
+            <div class="formgrid">
+              <div><label>Cliente</label><input id="nome" placeholder="Nome do cliente"></div>
+              <div><label>WhatsApp</label><input id="telefone" placeholder="33999999999"></div>
+              <div><label>CPF</label><input id="cpf" placeholder="Opcional"></div>
+              <div><label>Contrato</label><input id="contrato" placeholder="Opcional"></div>
+              <div class="full"><label>Produto / Compra</label><input id="produto" placeholder="Ex: Smart TV, colchão, móveis..."></div>
+              <div><label>Valor pago</label><input id="valor" placeholder="150,00"></div>
+              <div><label>Parcela</label><input id="parcela" placeholder="03/12"></div>
+              <div><label>Forma</label><select id="forma"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select></div>
+              <div><label>Data</label><input id="data" type="date"></div>
+              <div class="full"><label>Observação</label><textarea id="obs" rows="3" placeholder="Opcional"></textarea></div>
+            </div>
+            <div class="actions"><button class="green" onclick="criarRecibo(true)">✅ Gerar e enviar WhatsApp</button><button class="light" onclick="criarRecibo(false)">🧾 Só gerar recibo</button><button class="red" onclick="limparForm()">Limpar</button></div>
+          </div>
+          <div class="card"><h2>Prévia</h2><p class="help">Modelo do comprovante enviado.</p><div class="receipt" id="preview"></div></div>
+        </div>
+      </section>
+
+      <section id="tab-clientes" class="hidden"><div class="card"><h2>Clientes</h2><div class="actions"><input id="buscaCliente" placeholder="Buscar nome, CPF, telefone ou contrato" oninput="loadClientes()"><button class="light" onclick="loadClientes()">Buscar</button></div><table><thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th><th>Contrato</th></tr></thead><tbody id="clientesBody"></tbody></table></div></section>
+      <section id="tab-historico" class="hidden"><div class="card"><h2>Histórico de recibos</h2><div class="actions"><input id="buscaRecibo" placeholder="Buscar recibo, cliente, CPF, telefone, produto" oninput="loadRecibos()"><button class="light" onclick="loadRecibos()">Buscar</button></div><table><thead><tr><th>Recibo</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody id="recibosBody"></tbody></table></div></section>
+    </main>
+  </section>
+
+<script src="js/api-config.js"></script>
+<script>
+let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
+let recibos=[]; let clientes=[]; let lastRecibo=null;
+function token(){return localStorage.getItem('admin_token')||''}
+function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
+function money(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function toast(msg){const t=document.createElement('div');t.textContent=msg;document.getElementById('toast').appendChild(t);setTimeout(()=>t.remove(),3500)}
+function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['nome','telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview)); if(token()){loginView.style.display='none';appView.style.display='block';loadAll()} preview()}init();
+async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
+function logout(){localStorage.removeItem('admin_token');location.reload()}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos()}
+function getForm(){return{clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:parcela.value.trim(),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
+function preview(){const f=getForm();preview.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(f.parcela)||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
+async function criarRecibo(enviarWhatsapp){const f=getForm();if(!f.nome||!f.telefone||!f.valorPago){toast('Preencha cliente, telefone e valor.');return}const r=await fetch(API_BASE+'/admin/crediario/recibos',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({...f,enviarWhatsapp})});const j=await r.json();if(!j.ok){toast(j.error||'Erro ao criar recibo');return}lastRecibo=j.recibo;toast(enviarWhatsapp?(j.whatsapp?.ok===false?'Recibo salvo, mas WhatsApp falhou':'Recibo enviado com sucesso'):'Recibo salvo com sucesso');window.open(API_BASE+'/admin/crediario/recibos/'+j.recibo.id+'/html?token='+encodeURIComponent(token()),'_blank');limparForm(false);loadAll()}
+function limparForm(reset=true){['nome','telefone','cpf','contrato','produto','valor','parcela','obs'].forEach(id=>document.getElementById(id).value='');document.getElementById('data').value=new Date().toISOString().slice(0,10);preview()}
+async function loadClientes(){const q=encodeURIComponent(buscaCliente?.value||'');const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+q, {headers:headers()});const j=await r.json();clientes=j.clientes||[];clientesBody.innerHTML=clientes.map(c=>`<tr><td><b>${esc(c.nome)}</b></td><td>${esc(c.telefone)}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente.</td></tr>'}
+async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>`<tr><td><b>${esc(r.recibo)}</b><br><small>${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</small></td><td>${esc(r.clienteNome)}<br><small>${esc(r.telefone)}</small></td><td>${esc(r.produto)}<br><small>${esc(r.parcela)}</small></td><td><b>${money(r.valorPago)}</b></td><td><span class="pill">${r.enviadoWhatsapp?'Enviado':'Pendente'}</span></td><td><button class="light" onclick="printRecibo('${r.id}')">Imprimir</button> <button class="green" onclick="reenviar('${r.id}')">Enviar</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
+function printRecibo(id){window.open(API_BASE+'/admin/crediario/recibos/'+id+'/html','_blank')}
+async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}
+async function loadAll(){await Promise.all([loadClientes(),loadRecibos()])}
+function calcStats(){const today=new Date().toISOString().slice(0,10);stHoje.textContent=recibos.filter(r=>String(r.dataPagamento||r.createdAt).slice(0,10)===today).length;stTotal.textContent=recibos.length;stWa.textContent=recibos.filter(r=>r.enviadoWhatsapp).length}
+</script>
+</body>
+</html>
