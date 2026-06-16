@@ -6143,6 +6143,31 @@ function buildAdminQuery(modelName, req) {
   return q;
 }
 
+
+// ============================================================
+// EXPORTAÇÃO DE PRODUTOS - PDF / EXCEL PELO PAINEL ADMIN
+// Retorna todos os produtos cadastrados para relatórios internos.
+// ============================================================
+app.get('/api/admin/products/export/all', adminRequired, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit || 10000), 20000);
+    const rows = await Product.find({})
+      .sort({ categoryName: 1, category: 1, name: 1, updatedAt: -1 })
+      .limit(limit);
+
+    const items = rows.map((doc) => normalizeProductForResponse(doc));
+
+    return res.json({
+      ok: true,
+      total: items.length,
+      generatedAt: new Date().toISOString(),
+      items
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'products_export_failed' });
+  }
+});
+
 app.get('/api/admin/:collection', adminRequired, async (req, res, next) => {
   const key = String(req.params.collection || '').trim().toLowerCase();
   if (['login','me','uploads','stats','runtime','shipping','alerts','audit-logs','orders','notifications'].includes(key)) return next();

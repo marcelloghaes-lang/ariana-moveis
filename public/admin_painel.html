@@ -456,6 +456,134 @@ async function loadProducts(){
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
   allProductsCache = rows.map(normalizeProduct);
 }
+
+function productExportRows(products = []) {
+  return (products || []).map((p) => {
+    const category = p.categoryName || p.category || '';
+    const active = p.active === false ? 'Não' : 'Sim';
+    const updated = formatDateTime(p.updatedAt || p.createdAt || '');
+    return {
+      nome: p.name || '',
+      sku: p.sku || '',
+      categoria: category,
+      marca: p.brand || '',
+      preco: Number(p.price || 0),
+      precoPix: Number(p.pixPrice || 0),
+      precoAntigo: p.oldPrice !== undefined && p.oldPrice !== null && p.oldPrice !== '' ? Number(p.oldPrice || 0) : '',
+      estoque: Number(p.stock || 0),
+      ativo: active,
+      vendedor: p.sellerName || p.sellerId || 'Ariana Móveis',
+      imagem: p.mainImageUrl || p.imageUrl || p.image || '',
+      atualizado: updated
+    };
+  });
+}
+
+async function fetchAllProductsForExport() {
+  try {
+    const data = await apiRequest('/admin/products/export/all?limit=20000', { headers: buildHeadersAuth() });
+    const rows = Array.isArray(data) ? data : (data.items || data.docs || data.results || []);
+    return rows.map(normalizeProduct);
+  } catch (error) {
+    console.warn('Falha ao buscar exportação completa, usando cache local:', error);
+    if (!allProductsCache.length) await loadProducts();
+    return allProductsCache;
+  }
+}
+
+function buildProductsExportTable(rows = []) {
+  const headers = ['Produto', 'SKU', 'Categoria', 'Marca', 'Preço', 'Preço PIX', 'Preço antigo', 'Estoque', 'Ativo', 'Vendedor', 'Imagem', 'Atualizado'];
+  const escapeCell = (value) => escHtml(String(value ?? ''));
+  const body = rows.map((r) => `
+    <tr>
+      <td>${escapeCell(r.nome)}</td>
+      <td>${escapeCell(r.sku)}</td>
+      <td>${escapeCell(r.categoria)}</td>
+      <td>${escapeCell(r.marca)}</td>
+      <td>${escapeCell(formatCurrency(r.preco))}</td>
+      <td>${escapeCell(r.precoPix ? formatCurrency(r.precoPix) : '')}</td>
+      <td>${escapeCell(r.precoAntigo !== '' ? formatCurrency(r.precoAntigo) : '')}</td>
+      <td>${escapeCell(r.estoque)}</td>
+      <td>${escapeCell(r.ativo)}</td>
+      <td>${escapeCell(r.vendedor)}</td>
+      <td>${escapeCell(r.imagem)}</td>
+      <td>${escapeCell(r.atualizado)}</td>
+    </tr>`).join('');
+
+  return `<table><thead><tr>${headers.map((h) => `<th>${escapeCell(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+window.exportProductsExcel = async function(){
+  try {
+    displayMessage('Gerando Excel de produtos...', 'info');
+    const products = await fetchAllProductsForExport();
+    const rows = productExportRows(products);
+    const table = buildProductsExportTable(rows);
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${table}</body></html>`;
+    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `produtos-ariana-moveis-${date}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    displayMessage(`Excel gerado com ${rows.length} produto(s).`, 'success');
+  } catch (error) {
+    displayMessage(`Erro ao gerar Excel: ${error.message}`, 'error');
+  }
+}
+
+window.printProductsPdf = async function(){
+  try {
+    displayMessage('Gerando relatório para PDF...', 'info');
+    const products = await fetchAllProductsForExport();
+    const rows = productExportRows(products);
+    const table = buildProductsExportTable(rows);
+    const generatedAt = new Date().toLocaleString('pt-BR');
+    const win = window.open('', '_blank');
+    if (!win) throw new Error('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.');
+    win.document.open();
+    win.document.write(`<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório de Produtos - Ariana Móveis</title>
+  <style>
+    body{font-family:Arial,sans-serif;color:#111827;margin:24px;background:#fff;}
+    .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #1d4ed8;padding-bottom:14px;margin-bottom:18px;}
+    h1{margin:0;font-size:24px;color:#0f172a;}
+    .sub{font-size:12px;color:#64748b;margin-top:6px;line-height:1.45;}
+    .badge{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-weight:700;font-size:12px;}
+    table{width:100%;border-collapse:collapse;font-size:10px;}
+    th{background:#1d4ed8;color:#fff;text-align:left;padding:8px 6px;white-space:nowrap;}
+    td{border-bottom:1px solid #e5e7eb;padding:7px 6px;vertical-align:top;word-break:break-word;}
+    tr:nth-child(even) td{background:#f8fafc;}
+    @media print{body{margin:10mm;} .no-print{display:none;} th{background:#1d4ed8!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Ariana Móveis - Relatório de Produtos</h1>
+      <div class="sub">Gerado em ${escHtml(generatedAt)}<br>Total de produtos: ${rows.length}</div>
+    </div>
+    <div class="badge">PDF / Impressão</div>
+  </div>
+  <button class="no-print" onclick="window.print()" style="margin-bottom:14px;padding:10px 14px;border:0;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer">Imprimir / Salvar PDF</button>
+  ${table}
+  <script>setTimeout(()=>window.print(),500)<\/script>
+</body>
+</html>`);
+    win.document.close();
+    displayMessage(`Relatório aberto com ${rows.length} produto(s).`, 'success');
+  } catch (error) {
+    displayMessage(`Erro ao gerar PDF: ${error.message}`, 'error');
+  }
+}
+
 async function loadCategories(){
   const data = await apiRequest('/admin/categories?sortBy=name&sortDir=asc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
   allCategoriesCache = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
@@ -1054,6 +1182,10 @@ async function renderProductsView(){
     <div class="bg-white p-5 rounded-lg shadow-md mt-6 overflow-hidden">
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
         <div><h2 class="text-xl font-bold text-text-dark">Produtos cadastrados</h2><p class="text-sm text-gray-500">Também dá para gerar artes em lote pela tela Marketing IA.</p></div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="window.exportProductsExcel()" class="px-4 py-2 rounded-md bg-success-green text-white text-sm font-bold hover:opacity-90"><i class="fas fa-file-excel mr-2"></i>Exportar Excel</button>
+            <button type="button" onclick="window.printProductsPdf()" class="px-4 py-2 rounded-md bg-primary-blue text-white text-sm font-bold hover:bg-secondary-light-blue"><i class="fas fa-file-pdf mr-2"></i>PDF / Imprimir</button>
+          </div>
         <div class="flex flex-wrap gap-2"><button type="button" onclick="window.generateAllProductPosters('square')" class="px-3 py-2 rounded-md bg-success-green text-white text-xs font-bold">Gerar posters de todos</button><button type="button" onclick="window.generateAllProductPosters('story')" class="px-3 py-2 rounded-md bg-secondary-light-blue text-white text-xs font-bold">Gerar stories de todos</button><button type="button" onclick="window.changeView('marketing')" class="px-3 py-2 rounded-md bg-primary-blue text-white text-xs font-bold">Banners em rascunho</button></div>
       </div>
       <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
