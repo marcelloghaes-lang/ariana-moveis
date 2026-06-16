@@ -1233,7 +1233,17 @@ app.post('/api/admin/crediario/recibos', adminRequired, async (req, res) => {
 
     let cliente = null;
     if (clienteId && mongoose.Types.ObjectId.isValid(clienteId)) cliente = await CrediarioCliente.findById(clienteId);
-    if (!cliente) {
+
+    // Sempre mantém o cadastro permanente do cliente atualizado com os dados digitados no recibo.
+    // Assim, ao gerar outro recibo para o mesmo cliente, celular/CPF/contrato já voltam preenchidos.
+    if (cliente) {
+      cliente.nome = nome || cliente.nome || '';
+      if (telefone) cliente.telefone = telefone;
+      if (cpf) cliente.cpf = cpf;
+      if (contrato) cliente.contrato = contrato;
+      cliente.ativo = true;
+      await cliente.save();
+    } else {
       const query = contrato ? { contrato } : (cpf ? { cpf } : { telefone });
       cliente = await CrediarioCliente.findOneAndUpdate(
         query,
