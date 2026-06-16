@@ -1151,16 +1151,71 @@ async function getSigePessoasByQuery(q = '', limit = 50) {
   return rows.map(normalizeSigePessoa).filter((p) => p.nome).slice(0, limit);
 }
 
-async function getSigeLancamentosFiltered({ q = '', status = 'todos', limit = 100 } = {}) {
-  const rows = await sigeGet('Lancamentos/Pesquisar', {});
+function uniqueSigeLancamentos(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = String(row.Codigo || row.ID || row.NumeroDocumento || JSON.stringify(row)).trim();
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, row);
+  }
+  return Array.from(map.values());
+}
+
+async function getSigeLancamentosRawPages({ maxRecords = 2000, maxPages = 30 } = {}) {
+  const all = [];
+  const seen = new Set();
+  const max = Math.max(100, Math.min(Number(maxRecords || 2000), 5000));
+  const pages = Math.max(1, Math.min(Number(maxPages || 30), 60));
+  const pageSize = Number(process.env.SIGE_PAGE_SIZE || 100);
+
+  for (let page = 0; page < pages; page += 1) {
+    const skip = page * pageSize;
+    const params = page === 0 ? {} : { skip };
+    const pageRows = await sigeGet('Lancamentos/Pesquisar', params);
+    if (!Array.isArray(pageRows) || !pageRows.length) break;
+
+    let added = 0;
+    for (const row of pageRows) {
+      const key = String(row.Codigo || row.ID || row.NumeroDocumento || JSON.stringify(row)).trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      all.push(row);
+      added += 1;
+      if (all.length >= max) break;
+    }
+
+    if (all.length >= max) break;
+    // Se o SIGE ignorar o parâmetro skip, a próxima página vem repetida.
+    // Nesse caso paramos para não fazer chamadas inúteis nem travar o painel.
+    if (page > 0 && added === 0) break;
+    if (pageRows.length < pageSize) break;
+  }
+
+  return uniqueSigeLancamentos(all);
+}
+
+async function getSigeLancamentosFiltered({ q = '', status = 'todos', limit = 100, maxRecords = 2000 } = {}) {
+  const requestedLimit = Math.max(1, Math.min(Number(limit || 100), 2000));
+  const rawLimit = Math.max(requestedLimit, Math.min(Number(maxRecords || 2000), 5000));
+  const rows = await getSigeLancamentosRawPages({ maxRecords: rawLimit });
+
   let normalized = rows.map(normalizeSigeLancamento).filter((l) => l.cliente || l.descricao || l.codigo);
   normalized = filterSigeRows(normalized, q, ['cliente', 'documento', 'descricao', 'formaPagamento', 'planoDeConta']);
+
   const st = String(status || 'todos').toLowerCase();
   if (st === 'aberto' || st === 'abertos') normalized = normalized.filter((l) => !l.quitado);
   if (st === 'quitado' || st === 'quitados' || st === 'pago' || st === 'pagos') normalized = normalized.filter((l) => l.quitado);
-  if (st === 'atrasado' || st === 'vencido' || st === 'inadimplente') normalized = normalized.filter((l) => l.atrasado);
-  normalized.sort((a, b) => new Date(a.dataVencimento || 0) - new Date(b.dataVencimento || 0));
-  return normalized.slice(0, Math.max(1, Math.min(Number(limit || 100), 500)));
+  if (st === 'atrasado' || st === 'atrasados' || st === 'vencido' || st === 'vencidos' || st === 'inadimplente' || st === 'inadimplentes') {
+    normalized = normalized.filter((l) => l.atrasado && !l.quitado && l.saldo > 0);
+  }
+
+  normalized.sort((a, b) => {
+    const da = new Date(a.dataVencimento || 0).getTime() || 0;
+    const db = new Date(b.dataVencimento || 0).getTime() || 0;
+    return da - db;
+  });
+
+  return normalized.slice(0, requestedLimit);
 }
 
 app.get('/api/admin/sige/status', adminRequired, async (_req, res) => {
@@ -1191,7 +1246,8 @@ app.get('/api/admin/sige/lancamentos', adminRequired, async (req, res) => {
     const lancamentos = await getSigeLancamentosFiltered({
       q: req.query.q || '',
       status: req.query.status || 'todos',
-      limit: req.query.limit || 100
+      limit: req.query.limit || 1000,
+      maxRecords: req.query.maxRecords || 3000
     });
     return res.json({ ok: true, lancamentos, total: lancamentos.length });
   } catch (error) {
@@ -1203,17 +1259,33 @@ app.get('/api/admin/sige/lancamentos', adminRequired, async (req, res) => {
 app.get('/api/admin/sige/inadimplentes', adminRequired, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
-    const limit = Math.max(1, Math.min(Number(req.query.limit || 100), 500));
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 1000), 2000));
 
+    // Primeiro buscamos os lançamentos vencidos. Essa é a base mais confiável,
+    // porque no SIGE cada parcela aparece como lançamento com DataVencimento e Quitado.
+    const lancamentos = await getSigeLancamentosFiltered({
+      q,
+      status: 'atrasado',
+      limit,
+      maxRecords: req.query.maxRecords || 4000
+    });
+
+    // A consulta de inadimplências do SIGE pode exigir parâmetros específicos e falhar.
+    // Por isso ela é usada apenas como enriquecimento, nunca como fonte obrigatória.
     let pessoas = [];
     try {
-      const rows = await sigeGet('Pessoas/ConsultaInadimplencias', q ? { nomefantasia: q } : {});
-      pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
+      if (q) {
+        const rows = await sigeGet('Pessoas/Pesquisar', { nomefantasia: q });
+        pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
+      } else {
+        const rows = await sigeGet('Pessoas/ConsultaInadimplencias', {});
+        pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
+      }
     } catch (innerError) {
+      console.warn('SIGE ConsultaInadimplencias indisponível; usando lançamentos vencidos:', innerError.message || innerError);
       pessoas = [];
     }
 
-    const lancamentos = await getSigeLancamentosFiltered({ q, status: 'atrasado', limit });
     const byName = new Map(pessoas.map((p) => [p.nome.toLowerCase(), p]));
     const inadimplentes = lancamentos.map((l) => {
       const pessoa = byName.get(String(l.cliente || '').toLowerCase()) || null;
@@ -1228,7 +1300,7 @@ app.get('/api/admin/sige/inadimplentes', adminRequired, async (req, res) => {
       };
     }).slice(0, limit);
 
-    return res.json({ ok: true, inadimplentes, total: inadimplentes.length });
+    return res.json({ ok: true, inadimplentes, total: inadimplentes.length, fonte: 'lancamentos_vencidos' });
   } catch (error) {
     console.error('Erro SIGE inadimplentes:', error.message || error);
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar inadimplentes no SIGE' });

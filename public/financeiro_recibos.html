@@ -397,7 +397,7 @@ async function buscarSigeLancamentos(){
   const q=encodeURIComponent(sigeLancBusca.value||''); const st=encodeURIComponent(sigeLancStatus.value||'atrasado');
   sigeLancBody.innerHTML='<tr><td colspan="6">Consultando lançamentos no SIGE...</td></tr>';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/lancamentos?q='+q+'&status='+st+'&limit=100',{headers:headers()});
+    const r=await fetch(API_BASE+'/admin/sige/lancamentos?q='+q+'&status='+st+'&limit=1000&maxRecords=4000',{headers:headers()});
     const j=await r.json();
     if(!j.ok){sigeLancBody.innerHTML='<tr><td colspan="6">Erro: '+esc(j.error||'Falha ao consultar SIGE')+'</td></tr>';return}
     renderSigeLancamentos(j.lancamentos||[]);
@@ -407,20 +407,22 @@ async function buscarSigeInadimplentes(){
   const q=encodeURIComponent(sigeLancBusca.value||'');
   sigeLancBody.innerHTML='<tr><td colspan="6">Consultando inadimplentes no SIGE...</td></tr>';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/inadimplentes?q='+q+'&limit=100',{headers:headers()});
+    const r=await fetch(API_BASE+'/admin/sige/inadimplentes?q='+q+'&limit=1000&maxRecords=4000',{headers:headers()});
     const j=await r.json();
     if(!j.ok){sigeLancBody.innerHTML='<tr><td colspan="6">Erro: '+esc(j.error||'Falha ao consultar inadimplentes')+'</td></tr>';return}
     renderSigeLancamentos(j.inadimplentes||[]);
   }catch(e){sigeLancBody.innerHTML='<tr><td colspan="6">Erro ao consultar inadimplentes: '+esc(e.message||e)+'</td></tr>'}
 }
 function renderSigeLancamentos(rows){
-  window.sigeLancamentosCache=rows||[];
-  sigeLancBody.innerHTML=(rows||[]).map((l,i)=>{
+  rows=rows||[];
+  window.sigeLancamentosCache=rows;
+  const resumo=rows.length?`<tr><td colspan="6"><b>${rows.length}</b> lançamento(s) encontrado(s) no SIGE.</td></tr>`:'';
+  sigeLancBody.innerHTML=resumo+rows.map((l,i)=>{
     const status=l.quitado?'✅ Quitado':(l.atrasado?'⚠️ Atrasado':'🟡 Em aberto');
     const doc=l.documento||l.codigoVenda||l.codigo||'—';
     const valor=l.saldo&&l.saldo>0?l.saldo:l.valor;
     return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td><button class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
-  }).join('')||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>';
+  }).join('')||(resumo||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>');
 }
 function cobrarLancamentoSige(i){
   const l=(window.sigeLancamentosCache||[])[Number(i)]; if(!l)return;
