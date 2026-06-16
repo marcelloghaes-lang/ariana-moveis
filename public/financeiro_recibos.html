@@ -9,8 +9,9 @@
     :root{--blue:#0047AB;--blue2:#1d4ed8;--green:#16a34a;--red:#dc2626;--bg:#f3f6fb;--text:#0f172a;--muted:#64748b;--card:#fff;--line:#e5e7eb}
     *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
     .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.box{background:white;width:100%;max-width:420px;border-radius:24px;padding:28px;box-shadow:0 18px 50px #0f172a22}.logo{font-size:28px;font-weight:900;color:var(--blue);margin-bottom:4px}.sub{color:var(--muted);font-size:14px;margin-bottom:22px}
-    label{display:block;font-size:12px;text-transform:uppercase;font-weight:800;color:#64748b;margin:12px 0 6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 13px;font:inherit;background:#fff;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--blue2);box-shadow:0 0 0 3px #1d4ed822}button{border:0;border-radius:14px;padding:12px 16px;font-weight:900;cursor:pointer}button.primary{background:var(--blue2);color:white}button.green{background:var(--green);color:white}button.light{background:#eaf1ff;color:var(--blue2)}button.red{background:#fee2e2;color:#991b1b}
+    label{display:block;font-size:12px;text-transform:uppercase;font-weight:800;color:#64748b;margin:12px 0 6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 13px;font:inherit;background:#fff;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--blue2);box-shadow:0 0 0 3px #1d4ed822}button{border:0;border-radius:14px;padding:12px 16px;font-weight:900;cursor:pointer}button.primary{background:var(--blue2);color:white}button.green{background:var(--green);color:white}button.light{background:#eaf1ff;color:var(--blue2)}button.red{background:#fee2e2;color:#991b1b}button.small{padding:8px 10px;border-radius:10px;font-size:12px}
     .app{display:none;min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:260px;background:#172536;color:white;padding:24px}.side h1{font-size:22px;margin:0 0 30px}.nav button{display:block;width:100%;text-align:left;margin-bottom:10px;background:transparent;color:white;padding:13px;border-radius:14px}.nav button.active,.nav button:hover{background:#ffffff18}.main{margin-left:260px;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 10px 30px #0f172a0d}.card h2{margin:0 0 8px;font-size:22px}.help{color:var(--muted);font-size:13px;margin-bottom:15px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}.stat{background:white;border:1px solid var(--line);border-radius:20px;padding:18px}.stat b{font-size:24px;color:var(--blue2)}table{width:100%;border-collapse:collapse}th,td{padding:13px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}th{color:#64748b;font-size:11px;text-transform:uppercase}tr:hover{background:#f8fafc}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#e0f2fe;color:#0369a1}.toast{position:fixed;right:20px;top:20px;z-index:99;display:flex;flex-direction:column;gap:8px}.toast div{background:#111827;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0003}.receipt{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}.receipt .brand{font-weight:900;color:var(--blue);font-size:22px}.row{display:flex;justify-content:space-between;border-bottom:1px dashed #e5e7eb;padding:9px 0;gap:10px}.row span:last-child{text-align:right;font-weight:700}.money{font-size:22px;color:var(--green)!important}.hidden{display:none!important}
+    .autocomplete-wrap{position:relative}.suggestions{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 45px #0f172a26;z-index:50;max-height:285px;overflow:auto}.suggestion{padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer}.suggestion:hover{background:#eff6ff}.suggestion b{display:block}.suggestion small{color:var(--muted)}.selected-client{margin-top:10px;padding:10px 12px;border-radius:14px;background:#ecfdf5;color:#166534;font-size:13px;font-weight:800}.muted{color:var(--muted);font-size:12px}.warn{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;padding:10px;border-radius:14px;font-size:13px;margin-top:10px}.client-history{margin-top:16px;background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:14px}.client-history h3{margin:0 0 10px;font-size:16px}
     @media(max-width:900px){.side{position:static;width:100%}.main{margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}}
   </style>
 </head>
@@ -43,26 +44,29 @@
 
       <section id="tab-novo">
         <div class="grid">
-          <div class="card"><h2>Novo comprovante</h2><p class="help">Preencha os dados e clique em gerar. O sistema salva e envia o recibo para o cliente.</p>
+          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e selecione o cadastro importado do SIGE para preencher CPF, WhatsApp e contrato automaticamente.</p>
+            <input type="hidden" id="clienteId">
             <div class="formgrid">
-              <div><label>Cliente</label><input id="nome" placeholder="Nome do cliente"></div>
+              <div class="autocomplete-wrap"><label>Cliente</label><input id="nome" placeholder="Digite parte do nome, CPF ou telefone" autocomplete="off"><div id="clienteSugestoes" class="suggestions hidden"></div><div id="clienteSelecionado" class="selected-client hidden"></div></div>
               <div><label>WhatsApp</label><input id="telefone" placeholder="33999999999"></div>
               <div><label>CPF</label><input id="cpf" placeholder="Opcional"></div>
               <div><label>Contrato</label><input id="contrato" placeholder="Opcional"></div>
               <div class="full"><label>Produto / Compra</label><input id="produto" placeholder="Ex: Smart TV, colchão, móveis..."></div>
               <div><label>Valor pago</label><input id="valor" placeholder="150,00"></div>
-              <div><label>Parcela</label><input id="parcela" placeholder="03/12"></div>
-              <div><label>Forma</label><select id="forma"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select></div>
+              <div><label>Parcela</label><input id="parcela" placeholder="03/12 ou Pedido 1654"></div>
+              <div><label>Forma</label><select id="forma"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option><option>Crédito Loja</option><option>SIGE</option></select></div>
               <div><label>Data</label><input id="data" type="date"></div>
               <div class="full"><label>Observação</label><textarea id="obs" rows="3" placeholder="Opcional"></textarea></div>
             </div>
+            <div id="clienteAviso" class="warn hidden"></div>
+            <div id="clienteHistorico" class="client-history hidden"></div>
             <div class="actions"><button class="green" onclick="criarRecibo(true)">✅ Gerar e enviar WhatsApp</button><button class="light" onclick="criarRecibo(false)">🧾 Só gerar recibo</button><button class="red" onclick="limparForm()">Limpar</button></div>
           </div>
-          <div class="card"><h2>Prévia</h2><p class="help">Modelo do comprovante enviado.</p><div class="receipt" id="preview"></div></div>
+          <div class="card"><h2>Prévia</h2><p class="help">Modelo do comprovante enviado.</p><div class="receipt" id="previewBox"></div></div>
         </div>
       </section>
 
-      <section id="tab-clientes" class="hidden"><div class="card"><h2>Clientes</h2><div class="actions"><input id="buscaCliente" placeholder="Buscar nome, CPF, telefone ou contrato" oninput="loadClientes()"><button class="light" onclick="loadClientes()">Buscar</button></div><table><thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th><th>Contrato</th></tr></thead><tbody id="clientesBody"></tbody></table></div></section>
+      <section id="tab-clientes" class="hidden"><div class="card"><h2>Clientes</h2><p class="help">Clique em “Usar no recibo” para levar o cadastro para a tela de registro.</p><div class="actions"><input id="buscaCliente" placeholder="Buscar nome, CPF, telefone ou contrato" oninput="loadClientes()"><button class="light" onclick="loadClientes()">Buscar</button></div><table><thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th><th>Contrato</th><th>Ação</th></tr></thead><tbody id="clientesBody"></tbody></table></div></section>
       
       <section id="tab-importar" class="hidden">
         <div class="card">
@@ -82,129 +86,40 @@
     </main>
   </section>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
-async function readSigeRows(){
-  const file=sigeArquivo.files&&sigeArquivo.files[0];
-  if(!file){toast('Selecione uma planilha do SIGE.');return []}
-  if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}
-  const buffer=await file.arrayBuffer();
-  const wb=XLSX.read(buffer,{type:'array',cellDates:true});
-  const sheet=wb.Sheets[wb.SheetNames[0]];
-  const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
-  return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()));
-}
-async function preverSige(){
-  const rows=await readSigeRows();
-  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}
-  const keys=Object.keys(rows[0]||{});
-  sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;
-  sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';
-  sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('');
-}
-async function importarSige(){
-  const rows=await readSigeRows();
-  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
-  const tipo=sigeTipo.value;
-  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
-  sigeResultado.innerHTML='Importando, aguarde...';
-  const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});
-  const j=await r.json();
-  if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}
-  sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
-  toast('Planilha SIGE importada com sucesso');
-  await loadAll();
-}
-
-</script>
-<script src="js/api-config.js">
-async function readSigeRows(){
-  const file=sigeArquivo.files&&sigeArquivo.files[0];
-  if(!file){toast('Selecione uma planilha do SIGE.');return []}
-  if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}
-  const buffer=await file.arrayBuffer();
-  const wb=XLSX.read(buffer,{type:'array',cellDates:true});
-  const sheet=wb.Sheets[wb.SheetNames[0]];
-  const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
-  return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()));
-}
-async function preverSige(){
-  const rows=await readSigeRows();
-  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}
-  const keys=Object.keys(rows[0]||{});
-  sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;
-  sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';
-  sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('');
-}
-async function importarSige(){
-  const rows=await readSigeRows();
-  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
-  const tipo=sigeTipo.value;
-  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
-  sigeResultado.innerHTML='Importando, aguarde...';
-  const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});
-  const j=await r.json();
-  if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}
-  sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
-  toast('Planilha SIGE importada com sucesso');
-  await loadAll();
-}
-
-</script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
-let recibos=[]; let clientes=[]; let lastRecibo=null;
+let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null;
 function token(){return localStorage.getItem('admin_token')||''}
 function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
 function money(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
 function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function toast(msg){const t=document.createElement('div');t.textContent=msg;document.getElementById('toast').appendChild(t);setTimeout(()=>t.remove(),3500)}
-function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['nome','telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview)); if(token()){loginView.style.display='none';appView.style.display='block';loadAll()} preview()}init();
+function onlyDigits(v){return String(v||'').replace(/\D/g,'')}
+function shortPhone(v){const d=onlyDigits(v);return d.startsWith('55')&&d.length>11?d.slice(2):d}
+function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview));document.getElementById('nome').addEventListener('input',onClienteInput);document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap')) clienteSugestoes.classList.add('hidden')});if(token()){loginView.style.display='none';appView.style.display='block';loadAll()}preview()}init();
 async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos()}
-function getForm(){return{clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:parcela.value.trim(),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
-function preview(){const f=getForm();preview.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(f.parcela)||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:parcela.value.trim(),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
+function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(f.parcela)||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
+function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
+function onClienteInput(){clearTimeout(autocompleteTimer);clearSelectedCliente();preview();const q=nome.value.trim();if(q.length<2){clienteSugestoes.classList.add('hidden');return}autocompleteTimer=setTimeout(()=>buscarSugestoesCliente(q),250)}
+async function buscarSugestoesCliente(q){try{const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+encodeURIComponent(q)+'&limit=12',{headers:headers()});const j=await r.json();const rows=j.clientes||[];if(!rows.length){clienteSugestoes.innerHTML='<div class="suggestion"><b>Nenhum cliente encontrado</b><small>Você pode continuar digitando manualmente.</small></div>';clienteSugestoes.classList.remove('hidden');return}clienteSugestoes.innerHTML=rows.map(c=>`<div class="suggestion" onclick='selecionarCliente(${JSON.stringify(c).replace(/'/g,"&#39;")})'><b>${esc(c.nome)}</b><small>CPF: ${esc(c.cpf)||'—'} • WhatsApp: ${esc(shortPhone(c.telefone))||'—'} • Contrato: ${esc(c.contrato)||'—'}</small></div>`).join('');clienteSugestoes.classList.remove('hidden')}catch(e){console.error(e)}}
+async function selecionarCliente(c){selectedCliente=c||{};clienteId.value=selectedCliente.id||'';nome.value=selectedCliente.nome||'';cpf.value=selectedCliente.cpf||'';telefone.value=shortPhone(selectedCliente.telefone||'');contrato.value=selectedCliente.contrato||'';clienteSugestoes.classList.add('hidden');clienteSelecionado.innerHTML=`✅ Cliente selecionado: ${esc(selectedCliente.nome)}${selectedCliente.cpf?' • CPF: '+esc(selectedCliente.cpf):''}`;clienteSelecionado.classList.remove('hidden');if(!telefone.value){clienteAviso.innerHTML='⚠️ Este cliente foi importado sem telefone/celular. Preencha o WhatsApp antes de enviar o recibo.';clienteAviso.classList.remove('hidden')}else{clienteAviso.classList.add('hidden')}preview();await carregarHistoricoCliente(selectedCliente.id)}
+async function carregarHistoricoCliente(id){if(!id){clienteHistorico.classList.add('hidden');return}try{const r=await fetch(API_BASE+'/admin/crediario/recibos?clienteId='+encodeURIComponent(id)+'&limit=5',{headers:headers()});const j=await r.json();const rows=j.recibos||[];clienteHistorico.innerHTML='<h3>Histórico deste cliente</h3>'+(rows.length?rows.map(r=>`<div class="row"><strong>${esc(r.recibo)}</strong><span>${money(r.valorPago)} • ${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</span></div>`).join(''):'<div class="muted">Nenhum recibo registrado para este cliente.</div>');clienteHistorico.classList.remove('hidden')}catch(e){console.error(e)}}
 async function criarRecibo(enviarWhatsapp){const f=getForm();if(!f.nome||!f.telefone||!f.valorPago){toast('Preencha cliente, telefone e valor.');return}const r=await fetch(API_BASE+'/admin/crediario/recibos',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({...f,enviarWhatsapp})});const j=await r.json();if(!j.ok){toast(j.error||'Erro ao criar recibo');return}lastRecibo=j.recibo;toast(enviarWhatsapp?(j.whatsapp?.ok===false?'Recibo salvo, mas WhatsApp falhou':'Recibo enviado com sucesso'):'Recibo salvo com sucesso');window.open(API_BASE+'/admin/crediario/recibos/'+j.recibo.id+'/html?token='+encodeURIComponent(token()),'_blank');limparForm(false);loadAll()}
-function limparForm(reset=true){['nome','telefone','cpf','contrato','produto','valor','parcela','obs'].forEach(id=>document.getElementById(id).value='');document.getElementById('data').value=new Date().toISOString().slice(0,10);preview()}
-async function loadClientes(){const q=encodeURIComponent(buscaCliente?.value||'');const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+q, {headers:headers()});const j=await r.json();clientes=j.clientes||[];clientesBody.innerHTML=clientes.map(c=>`<tr><td><b>${esc(c.nome)}</b></td><td>${esc(c.telefone)}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente.</td></tr>'}
-async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>`<tr><td><b>${esc(r.recibo)}</b><br><small>${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</small></td><td>${esc(r.clienteNome)}<br><small>${esc(r.telefone)}</small></td><td>${esc(r.produto)}<br><small>${esc(r.parcela)}</small></td><td><b>${money(r.valorPago)}</b></td><td><span class="pill">${r.enviadoWhatsapp?'Enviado':'Pendente'}</span></td><td><button class="light" onclick="printRecibo('${r.id}')">Imprimir</button> <button class="green" onclick="reenviar('${r.id}')">Enviar</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
-function printRecibo(id){window.open(API_BASE+'/admin/crediario/recibos/'+id+'/html','_blank')}
+function limparForm(reset=true){['nome','telefone','cpf','contrato','produto','valor','parcela','obs'].forEach(id=>document.getElementById(id).value='');document.getElementById('clienteId').value='';document.getElementById('data').value=new Date().toISOString().slice(0,10);clearSelectedCliente();preview()}
+async function loadClientes(){const q=encodeURIComponent(buscaCliente?.value||'');const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+q, {headers:headers()});const j=await r.json();clientes=j.clientes||[];clientesBody.innerHTML=clientes.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>${esc(shortPhone(c.telefone))||'<span class="muted">Sem telefone</span>'}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td><td><button class="light small" onclick="usarClienteDaLista(${i})">Usar no recibo</button></td></tr>`).join('')||'<tr><td colspan="5">Nenhum cliente.</td></tr>'}
+function usarClienteDaLista(i){const c=clientes[i];if(!c)return;document.querySelectorAll('.nav button')[0].click();setTimeout(()=>selecionarCliente(c),120)}
+async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>`<tr><td><b>${esc(r.recibo)}</b><br><small>${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</small></td><td>${esc(r.clienteNome)}<br><small>${esc(shortPhone(r.telefone))}</small></td><td>${esc(r.produto)}<br><small>${esc(r.parcela)}</small></td><td><b>${money(r.valorPago)}</b></td><td><span class="pill">${r.enviadoWhatsapp?'Enviado':'Pendente'}</span></td><td><button class="light small" onclick="printRecibo('${r.id}')">Imprimir</button> <button class="green small" onclick="reenviar('${r.id}')">Enviar</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
+function printRecibo(id){window.open(API_BASE+'/admin/crediario/recibos/'+id+'/html?token='+encodeURIComponent(token()),'_blank')}
 async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}
 async function loadAll(){await Promise.all([loadClientes(),loadRecibos()])}
 function calcStats(){const today=new Date().toISOString().slice(0,10);stHoje.textContent=recibos.filter(r=>String(r.dataPagamento||r.createdAt).slice(0,10)===today).length;stTotal.textContent=recibos.length;stWa.textContent=recibos.filter(r=>r.enviadoWhatsapp).length}
-
-async function readSigeRows(){
-  const file=sigeArquivo.files&&sigeArquivo.files[0];
-  if(!file){toast('Selecione uma planilha do SIGE.');return []}
-  if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}
-  const buffer=await file.arrayBuffer();
-  const wb=XLSX.read(buffer,{type:'array',cellDates:true});
-  const sheet=wb.Sheets[wb.SheetNames[0]];
-  const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
-  return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()));
-}
-async function preverSige(){
-  const rows=await readSigeRows();
-  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}
-  const keys=Object.keys(rows[0]||{});
-  sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;
-  sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';
-  sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('');
-}
-async function importarSige(){
-  const rows=await readSigeRows();
-  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
-  const tipo=sigeTipo.value;
-  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
-  sigeResultado.innerHTML='Importando, aguarde...';
-  const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});
-  const j=await r.json();
-  if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}
-  sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
-  toast('Planilha SIGE importada com sucesso');
-  await loadAll();
-}
-
+async function readSigeRows(){const file=sigeArquivo.files&&sigeArquivo.files[0];if(!file){toast('Selecione uma planilha do SIGE.');return []}if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}const buffer=await file.arrayBuffer();const wb=XLSX.read(buffer,{type:'array',cellDates:true});const sheet=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()))}
+async function preverSige(){const rows=await readSigeRows();if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}const keys=Object.keys(rows[0]||{});sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('')}
+async function importarSige(){const rows=await readSigeRows();if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}const tipo=sigeTipo.value;const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';sigeResultado.innerHTML='Importando, aguarde...';const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});const j=await r.json();if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;toast('Planilha SIGE importada com sucesso');await loadAll()}
 </script>
 </body>
 </html>
