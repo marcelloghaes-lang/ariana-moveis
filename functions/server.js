@@ -1121,6 +1121,7 @@ function normalizeSigeLancamento(row = {}) {
     empresa: String(row.Empresa || '').trim(),
     formaPagamento: String(row.FormaPagamento || '').trim(),
     planoDeConta: String(row.PlanoDeConta || '').trim(),
+    ehDespesa: row.EhDespesa === true,
     valor,
     totalRecebido: recebido,
     saldo,
@@ -1203,6 +1204,9 @@ async function getSigeLancamentosFiltered({ q = '', status = 'todos', limit = 10
   normalized = filterSigeRows(normalized, q, ['cliente', 'documento', 'descricao', 'formaPagamento', 'planoDeConta']);
 
   const st = String(status || 'todos').toLowerCase();
+  // No crediário usamos apenas receitas, não despesas.
+  normalized = normalized.filter((l) => l.ehDespesa !== true);
+
   if (st === 'aberto' || st === 'abertos') normalized = normalized.filter((l) => !l.quitado);
   if (st === 'quitado' || st === 'quitados' || st === 'pago' || st === 'pagos') normalized = normalized.filter((l) => l.quitado);
   if (st === 'atrasado' || st === 'atrasados' || st === 'vencido' || st === 'vencidos' || st === 'inadimplente' || st === 'inadimplentes') {
@@ -1253,6 +1257,132 @@ app.get('/api/admin/sige/lancamentos', adminRequired, async (req, res) => {
   } catch (error) {
     console.error('Erro SIGE lançamentos:', error.message || error);
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar lançamentos no SIGE' });
+  }
+});
+
+
+function buildSigeCarneFromLancamentos(lancamentos = [], pessoa = null) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const groupsMap = new Map();
+  const parcelas = lancamentos
+    .filter((l) => l && l.ehDespesa !== true)
+    .map((l) => {
+      const venc = l.dataVencimento ? new Date(l.dataVencimento) : null;
+      const vencida = !l.quitado && venc && !Number.isNaN(venc.getTime()) && venc < hoje;
+      const emAberto = !l.quitado && !vencida;
+      const status = l.quitado ? 'paga' : (vencida ? 'atrasada' : 'aberta');
+      const chave = String(l.codigoVenda && Number(l.codigoVenda) > 0 ? `Pedido ${l.codigoVenda}` : (l.codigoContrato && Number(l.codigoContrato) > 0 ? `Contrato ${l.codigoContrato}` : (l.documento || l.descricao || 'Sem documento'))).trim();
+      return {
+        ...l,
+        chave,
+        status,
+        vencida: Boolean(vencida),
+        emAberto: Boolean(emAberto),
+        valorParcela: Number(l.valor || 0),
+        valorPago: Number(l.totalRecebido || 0),
+        saldoParcela: Math.max(0, Number(l.saldo || 0))
+      };
+    })
+    .sort((a, b) => {
+      const ka = String(a.chave || '').localeCompare(String(b.chave || ''), 'pt-BR');
+      if (ka !== 0) return ka;
+      return (new Date(a.dataVencimento || 0).getTime() || 0) - (new Date(b.dataVencimento || 0).getTime() || 0);
+    });
+
+  for (const parcela of parcelas) {
+    const chave = parcela.chave || 'Sem documento';
+    if (!groupsMap.has(chave)) {
+      groupsMap.set(chave, {
+        documento: chave,
+        descricao: parcela.descricao || '',
+        codigoVenda: parcela.codigoVenda || 0,
+        codigoContrato: parcela.codigoContrato || 0,
+        parcelas: [],
+        total: 0,
+        pago: 0,
+        saldo: 0,
+        pagas: 0,
+        abertas: 0,
+        atrasadas: 0
+      });
+    }
+    const group = groupsMap.get(chave);
+    group.parcelas.push(parcela);
+    group.total += Number(parcela.valorParcela || 0);
+    group.pago += Number(parcela.valorPago || 0);
+    group.saldo += Number(parcela.saldoParcela || 0);
+    if (parcela.status === 'paga') group.pagas += 1;
+    if (parcela.status === 'aberta') group.abertas += 1;
+    if (parcela.status === 'atrasada') group.atrasadas += 1;
+  }
+
+  const grupos = Array.from(groupsMap.values()).map((group) => {
+    const totalParcelas = group.parcelas.length || 1;
+    group.parcelas = group.parcelas.map((p, index) => ({
+      ...p,
+      parcelaNumero: index + 1,
+      parcelaLabel: `${String(index + 1).padStart(2, '0')}/${String(totalParcelas).padStart(2, '0')}`
+    }));
+    group.total = Number(group.total.toFixed(2));
+    group.pago = Number(group.pago.toFixed(2));
+    group.saldo = Number(group.saldo.toFixed(2));
+    return group;
+  });
+
+  const resumo = grupos.reduce((acc, g) => {
+    acc.total += g.total;
+    acc.pago += g.pago;
+    acc.saldo += g.saldo;
+    acc.parcelas += g.parcelas.length;
+    acc.pagas += g.pagas;
+    acc.abertas += g.abertas;
+    acc.atrasadas += g.atrasadas;
+    return acc;
+  }, { total: 0, pago: 0, saldo: 0, parcelas: 0, pagas: 0, abertas: 0, atrasadas: 0 });
+  resumo.total = Number(resumo.total.toFixed(2));
+  resumo.pago = Number(resumo.pago.toFixed(2));
+  resumo.saldo = Number(resumo.saldo.toFixed(2));
+
+  return {
+    cliente: parcelas[0]?.cliente || pessoa?.nome || '',
+    telefone: pessoa?.telefone || '',
+    cpf: pessoa?.cpf || '',
+    cidade: pessoa?.cidade || '',
+    uf: pessoa?.uf || '',
+    resumo,
+    grupos,
+    parcelas
+  };
+}
+
+app.get('/api/admin/sige/carne', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.cliente || req.query.q || '').trim();
+    if (q.length < 2) return res.status(400).json({ ok: false, error: 'Informe pelo menos 2 letras do cliente para gerar o carnê.' });
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 2000), 3000));
+
+    const lancamentos = await getSigeLancamentosFiltered({
+      q,
+      status: 'todos',
+      limit,
+      maxRecords: req.query.maxRecords || 5000
+    });
+
+    let pessoa = null;
+    try {
+      const pessoas = await getSigePessoasByQuery(q, 10);
+      pessoa = pessoas.find((p) => String(p.nome || '').toLowerCase() === q.toLowerCase()) || pessoas[0] || null;
+    } catch (innerError) {
+      console.warn('Não foi possível enriquecer carnê com pessoa SIGE:', innerError.message || innerError);
+    }
+
+    const carne = buildSigeCarneFromLancamentos(lancamentos, pessoa);
+    return res.json({ ok: true, ...carne, total: lancamentos.length, fonte: 'lancamentos_sige' });
+  } catch (error) {
+    console.error('Erro SIGE carnê:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao gerar carnê digital no SIGE' });
   }
 });
 
