@@ -813,6 +813,22 @@ function formatDateBR(value = new Date()) {
   return d.toLocaleDateString('pt-BR');
 }
 
+
+function formatCrediarioParcela(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  // Ex.: 0312, 03-12, 03 12, 3/12 -> 03/12
+  const digits = raw.replace(/\D/g, '');
+  if (/^\d{4}$/.test(digits)) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  if (/^\d{3}$/.test(digits)) return `${digits.slice(0, 1).padStart(2, '0')}/${digits.slice(1)}`;
+
+  const match = raw.match(/^(\d{1,2})\s*[\/\-\s]\s*(\d{1,2})$/);
+  if (match) return `${String(match[1]).padStart(2, '0')}/${String(match[2]).padStart(2, '0')}`;
+
+  return raw;
+}
+
 function makeReciboNumber() {
   const d = new Date();
   const y = d.getFullYear();
@@ -909,7 +925,7 @@ function normalizeCrediarioRecibo(doc) {
     telefone: String(obj.telefone || ''),
     contrato: String(obj.contrato || ''),
     produto: String(obj.produto || ''),
-    parcela: String(obj.parcela || ''),
+    parcela: formatCrediarioParcela(obj.parcela || ''),
     valorPago: Number(obj.valorPago || 0),
     formaPagamento: String(obj.formaPagamento || ''),
     dataPagamento: obj.dataPagamento || obj.createdAt || null,
@@ -936,7 +952,7 @@ Recebemos o pagamento da sua parcela na Ariana Móveis.
 💰 Valor pago: ${formatMoneyBRL(r.valorPago)}
 💳 Forma de pagamento: ${r.formaPagamento || 'Não informada'}
 📅 Data: ${formatDateBR(r.dataPagamento)}
-📌 Parcela: ${r.parcela || 'Não informada'}
+📌 Parcela: ${formatCrediarioParcela(r.parcela) || 'Não informada'}
 ${r.contrato ? `📄 Contrato: ${r.contrato}\n` : ''}${r.observacao ? `\nObservação: ${r.observacao}\n` : ''}
 Seu pagamento foi registrado com sucesso.
 
@@ -1237,7 +1253,7 @@ app.post('/api/admin/crediario/recibos', adminRequired, async (req, res) => {
       telefone,
       contrato: contrato || cliente?.contrato || '',
       produto,
-      parcela,
+      parcela: formatCrediarioParcela(parcela),
       valorPago,
       formaPagamento,
       dataPagamento: Number.isNaN(dataPagamento.getTime()) ? now() : dataPagamento,
@@ -1296,7 +1312,7 @@ app.get('/api/admin/crediario/recibos/:id/html', adminRequired, async (req, res)
     const recibo = await CrediarioRecibo.findById(req.params.id);
     if (!recibo) return res.status(404).send('Recibo não encontrado');
     const r = normalizeCrediarioRecibo(recibo);
-    const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>${r.recibo}</title><style>body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;padding:30px;color:#111827}.receipt{max-width:720px;margin:auto;background:#fff;border-radius:18px;padding:32px;border:1px solid #e5e7eb}.brand{font-size:26px;font-weight:900;color:#0047AB}.muted{color:#6b7280}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:12px 0}.total{font-size:24px;font-weight:900;color:#16a34a}.footer{margin-top:28px;color:#6b7280;font-size:13px}@media print{body{background:#fff}.receipt{border:none}}</style></head><body><div class="receipt"><div class="brand">Ariana Móveis</div><p class="muted">Comprovante de pagamento de parcela</p><h2>${r.recibo}</h2><div class="row"><strong>Cliente</strong><span>${r.clienteNome}</span></div><div class="row"><strong>CPF</strong><span>${r.clienteCpf || '—'}</span></div><div class="row"><strong>Telefone</strong><span>${r.telefone}</span></div><div class="row"><strong>Contrato</strong><span>${r.contrato || '—'}</span></div><div class="row"><strong>Produto</strong><span>${r.produto}</span></div><div class="row"><strong>Parcela</strong><span>${r.parcela || '—'}</span></div><div class="row"><strong>Forma</strong><span>${r.formaPagamento}</span></div><div class="row"><strong>Data</strong><span>${formatDateBR(r.dataPagamento)}</span></div><div class="row"><strong>Valor pago</strong><span class="total">${formatMoneyBRL(r.valorPago)}</span></div>${r.observacao ? `<p><strong>Observação:</strong><br>${String(r.observacao).replace(/[<>&]/g, '')}</p>` : ''}<div class="footer">Pagamento registrado no sistema da Ariana Móveis. Este comprovante confirma o recebimento da parcela informada.</div></div><script>window.print()</script></body></html>`;
+    const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>${r.recibo}</title><style>body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;padding:30px;color:#111827}.receipt{max-width:720px;margin:auto;background:#fff;border-radius:18px;padding:32px;border:1px solid #e5e7eb}.brand{font-size:26px;font-weight:900;color:#0047AB}.muted{color:#6b7280}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:12px 0}.total{font-size:24px;font-weight:900;color:#16a34a}.footer{margin-top:28px;color:#6b7280;font-size:13px}@media print{body{background:#fff}.receipt{border:none}}</style></head><body><div class="receipt"><div class="brand">Ariana Móveis</div><p class="muted">Comprovante de pagamento de parcela</p><h2>${r.recibo}</h2><div class="row"><strong>Cliente</strong><span>${r.clienteNome}</span></div><div class="row"><strong>CPF</strong><span>${r.clienteCpf || '—'}</span></div><div class="row"><strong>Telefone</strong><span>${r.telefone}</span></div><div class="row"><strong>Contrato</strong><span>${r.contrato || '—'}</span></div><div class="row"><strong>Produto</strong><span>${r.produto}</span></div><div class="row"><strong>Parcela</strong><span>${formatCrediarioParcela(r.parcela) || '—'}</span></div><div class="row"><strong>Forma</strong><span>${r.formaPagamento}</span></div><div class="row"><strong>Data</strong><span>${formatDateBR(r.dataPagamento)}</span></div><div class="row"><strong>Valor pago</strong><span class="total">${formatMoneyBRL(r.valorPago)}</span></div>${r.observacao ? `<p><strong>Observação:</strong><br>${String(r.observacao).replace(/[<>&]/g, '')}</p>` : ''}<div class="footer">Pagamento registrado no sistema da Ariana Móveis. Este comprovante confirma o recebimento da parcela informada.</div></div><script>window.print()</script></body></html>`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
   } catch (error) {
