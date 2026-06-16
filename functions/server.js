@@ -1162,43 +1162,92 @@ function uniqueSigeLancamentos(rows = []) {
   return Array.from(map.values());
 }
 
-async function getSigeLancamentosRawPages({ maxRecords = 2000, maxPages = 30 } = {}) {
+function addUniqueSigeRows(target = [], seen = new Set(), rows = []) {
+  let added = 0;
+  for (const row of ensureArray(rows)) {
+    const key = String(row?.Codigo || row?.ID || row?.NumeroDocumento || JSON.stringify(row)).trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    target.push(row);
+    added += 1;
+  }
+  return added;
+}
+
+async function getSigeLancamentosRawPages({ q = '', maxRecords = 2000, maxPages = 30 } = {}) {
   const all = [];
   const seen = new Set();
-  const max = Math.max(100, Math.min(Number(maxRecords || 2000), 5000));
-  const pages = Math.max(1, Math.min(Number(maxPages || 30), 60));
+  const max = Math.max(100, Math.min(Number(maxRecords || 2000), 8000));
+  const pages = Math.max(1, Math.min(Number(maxPages || 30), 80));
   const pageSize = Number(process.env.SIGE_PAGE_SIZE || 100);
+  const rawQ = String(q || '').trim();
 
-  for (let page = 0; page < pages; page += 1) {
-    const skip = page * pageSize;
-    const params = page === 0 ? {} : { skip };
-    const pageRows = await sigeGet('Lancamentos/Pesquisar', params);
-    if (!Array.isArray(pageRows) || !pageRows.length) break;
+  // 1) Primeiro tenta consultar diretamente pelos filtros que o SIGE costuma aceitar.
+  // Algumas instalações ignoram filtros desconhecidos; por isso tudo é deduplicado.
+  const directParamSets = rawQ ? [
+    { cliente: rawQ },
+    { Cliente: rawQ },
+    { nomeCliente: rawQ },
+    { NomeCliente: rawQ },
+    { numeroDocumento: rawQ },
+    { NumeroDocumento: rawQ },
+    { descricao: rawQ },
+    { Descricao: rawQ }
+  ] : [{}];
 
-    let added = 0;
-    for (const row of pageRows) {
-      const key = String(row.Codigo || row.ID || row.NumeroDocumento || JSON.stringify(row)).trim();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      all.push(row);
-      added += 1;
-      if (all.length >= max) break;
+  for (const params of directParamSets) {
+    try {
+      const rows = await sigeGet('Lancamentos/Pesquisar', params);
+      addUniqueSigeRows(all, seen, rows);
+      if (all.length >= max) return uniqueSigeLancamentos(all).slice(0, max);
+    } catch (error) {
+      console.warn('SIGE Lancamentos/Pesquisar ignorado:', error.message || error);
     }
-
-    if (all.length >= max) break;
-    // Se o SIGE ignorar o parâmetro skip, a próxima página vem repetida.
-    // Nesse caso paramos para não fazer chamadas inúteis nem travar o painel.
-    if (page > 0 && added === 0) break;
-    if (pageRows.length < pageSize) break;
   }
 
-  return uniqueSigeLancamentos(all);
+  // 2) Depois tenta paginação. O Swagger informa que GetAll é paginado.
+  // Também tentamos Pesquisar com skip/take porque algumas contas aceitam esses parâmetros.
+  const endpoints = ['Lancamentos/GetAll', 'Lancamentos/Pesquisar'];
+  for (const endpoint of endpoints) {
+    let previousAddedZero = false;
+    for (let page = 0; page < pages; page += 1) {
+      const skip = page * pageSize;
+      const paramOptions = page === 0
+        ? [{}]
+        : [
+            { skip, take: pageSize },
+            { Skip: skip, Take: pageSize },
+            { pagina: page + 1, quantidade: pageSize },
+            { page: page + 1, limit: pageSize }
+          ];
+
+      let pageHadRows = false;
+      let pageAdded = 0;
+      for (const params of paramOptions) {
+        try {
+          const rows = await sigeGet(endpoint, params);
+          if (Array.isArray(rows) && rows.length) pageHadRows = true;
+          pageAdded += addUniqueSigeRows(all, seen, rows);
+          if (all.length >= max) return uniqueSigeLancamentos(all).slice(0, max);
+        } catch (error) {
+          console.warn(`SIGE ${endpoint} página ignorada:`, error.message || error);
+        }
+      }
+
+      if (!pageHadRows) break;
+      // Se duas tentativas seguidas não adicionarem nada, o SIGE provavelmente ignora paginação.
+      if (pageAdded === 0 && previousAddedZero) break;
+      previousAddedZero = pageAdded === 0;
+    }
+  }
+
+  return uniqueSigeLancamentos(all).slice(0, max);
 }
 
 async function getSigeLancamentosFiltered({ q = '', status = 'todos', limit = 100, maxRecords = 2000 } = {}) {
-  const requestedLimit = Math.max(1, Math.min(Number(limit || 100), 2000));
-  const rawLimit = Math.max(requestedLimit, Math.min(Number(maxRecords || 2000), 5000));
-  const rows = await getSigeLancamentosRawPages({ maxRecords: rawLimit });
+  const requestedLimit = Math.max(1, Math.min(Number(limit || 100), 3000));
+  const rawLimit = Math.max(requestedLimit, Math.min(Number(maxRecords || 2000), 8000));
+  const rows = await getSigeLancamentosRawPages({ q, maxRecords: rawLimit });
 
   let normalized = rows.map(normalizeSigeLancamento).filter((l) => l.cliente || l.descricao || l.codigo);
   normalized = filterSigeRows(normalized, q, ['cliente', 'documento', 'descricao', 'formaPagamento', 'planoDeConta']);
@@ -1363,11 +1412,11 @@ app.get('/api/admin/sige/carne', adminRequired, async (req, res) => {
     if (q.length < 2) return res.status(400).json({ ok: false, error: 'Informe pelo menos 2 letras do cliente para gerar o carnê.' });
     const limit = Math.max(1, Math.min(Number(req.query.limit || 2000), 3000));
 
-    const lancamentos = await getSigeLancamentosFiltered({
+    let lancamentos = await getSigeLancamentosFiltered({
       q,
       status: 'todos',
       limit,
-      maxRecords: req.query.maxRecords || 5000
+      maxRecords: req.query.maxRecords || 8000
     });
 
     let pessoa = null;
@@ -1376,6 +1425,15 @@ app.get('/api/admin/sige/carne', adminRequired, async (req, res) => {
       pessoa = pessoas.find((p) => String(p.nome || '').toLowerCase() === q.toLowerCase()) || pessoas[0] || null;
     } catch (innerError) {
       console.warn('Não foi possível enriquecer carnê com pessoa SIGE:', innerError.message || innerError);
+    }
+
+    if ((!lancamentos || !lancamentos.length) && pessoa?.nome && pessoa.nome.toLowerCase() !== q.toLowerCase()) {
+      lancamentos = await getSigeLancamentosFiltered({
+        q: pessoa.nome,
+        status: 'todos',
+        limit,
+        maxRecords: req.query.maxRecords || 8000
+      });
     }
 
     const carne = buildSigeCarneFromLancamentos(lancamentos, pessoa);
