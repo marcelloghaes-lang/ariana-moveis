@@ -35,6 +35,7 @@
         <button onclick="showTab('clientes',this)">👥 Clientes</button>
         <button onclick="showTab('importar',this)">📂 Importar SIGE</button>
         <button onclick="showTab('sige',this)">🔌 SIGE Online</button>
+        <button onclick="showTab('inadimplentes',this)">🚨 Inadimplentes</button>
         <button onclick="showTab('cobrancas',this)">🔔 Cobranças</button>
         <button onclick="showTab('historico',this)">📚 Histórico</button>
         <button onclick="logout()">🚪 Sair</button>
@@ -127,6 +128,29 @@
         </div>
       </section>
 
+
+      <section id="tab-inadimplentes" class="hidden">
+        <div class="card">
+          <h2>🚨 Central de Inadimplência SIGE</h2>
+          <p class="help">Lista automática de parcelas vencidas do SIGE. Use para ver carnê, enviar carnê e cobrar clientes inadimplentes.</p>
+          <div class="actions">
+            <input id="inadBusca" placeholder="Buscar cliente, CPF, documento ou descrição">
+            <button class="blue" onclick="loadSigeInadimplentesCentral()">🔎 Buscar inadimplentes</button>
+            <button class="light" onclick="limparBuscaInadimplentes()">Limpar</button>
+          </div>
+          <div class="stats" style="margin-top:16px">
+            <div class="stat"><small>Clientes em atraso</small><br><b id="inadClientes">0</b></div>
+            <div class="stat"><small>Parcelas vencidas</small><br><b id="inadParcelas">0</b></div>
+            <div class="stat"><small>Valor vencido</small><br><b id="inadValor">R$ 0,00</b></div>
+          </div>
+          <div id="inadResumoExtra" class="receipt" style="margin-bottom:14px">Clique em buscar para carregar a inadimplência do SIGE.</div>
+          <table>
+            <thead><tr><th>Cliente / Contato</th><th>Documento</th><th>Vencimento</th><th>Dias</th><th>Valor</th><th>Ações</th></tr></thead>
+            <tbody id="inadBody"><tr><td colspan="6">Nenhuma consulta realizada.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="tab-cobrancas" class="hidden">
         <div class="grid">
           <div class="card">
@@ -175,7 +199,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
-let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null; let clienteSugestoesCache=[]; let cobrancaAlvo=null;
+let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null; let clienteSugestoesCache=[]; let cobrancaAlvo=null; let sigeCarneAtual=null; let sigeInadimplentesCache=[];
 function token(){return localStorage.getItem('admin_token')||''}
 function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
 function money(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
@@ -187,7 +211,7 @@ function shortPhone(v){const d=onlyDigits(v);return d.startsWith('55')&&d.length
 function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview));document.getElementById('nome').addEventListener('input',onClienteInput);document.getElementById('nome').addEventListener('keydown',onClienteKeydown);document.getElementById('nome').addEventListener('blur',()=>setTimeout(autoSelecionarClientePorTexto,220));parcela.addEventListener('blur',()=>{parcela.value=formatParcelaCliente(parcela.value);preview()});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap')) clienteSugestoes.classList.add('hidden')});if(token()){loginView.style.display='none';appView.style.display='block';loadAll()}preview()}init();
 async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='novo')setTimeout(()=>nome.focus(),120)}
 function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:formatParcelaCliente(parcela.value.trim()),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
 function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(formatParcelaCliente(f.parcela))||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
 function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
@@ -384,7 +408,7 @@ async function buscarSigeClientes(){
     if(!j.ok){sigeClientesBody.innerHTML='<tr><td colspan="4">Erro: '+esc(j.error||'Falha ao consultar SIGE')+'</td></tr>';return}
     const rows=j.clientes||[];
     window.sigeClientesCache=rows;
-    sigeClientesBody.innerHTML=rows.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>CPF: ${esc(c.cpf)||'—'}<br><small>WhatsApp: ${esc(shortPhone(c.telefone))||'—'}</small></td><td>${c.inadimplente?'⚠️ Inadimplente':'✅ Sem alerta'}<br><small>${esc(c.cidade||'')} ${esc(c.uf||'')}</small></td><td><button class="light small" onclick="usarClienteSige(${i})">Usar no recibo</button> <button class="blue small" onclick="verCarneClienteSige(${i})">📋 Carnê</button> <button class="yellow small" onclick="cobrarClienteSige(${i})">🔔 Cobrar</button></td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente encontrado no SIGE.</td></tr>';
+    sigeClientesBody.innerHTML=rows.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>CPF: ${esc(c.cpf)||'—'}<br><small>WhatsApp: ${esc(shortPhone(c.telefone))||'—'}</small></td><td>${c.inadimplente?'⚠️ Inadimplente':'✅ Sem alerta'}<br><small>${esc(c.cidade||'')} ${esc(c.uf||'')}</small></td><td><button type="button" class="light small" onclick="usarClienteSige(${i})">Usar no recibo</button> <button type="button" class="blue small" onclick="verCarneClienteSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarClienteSige(${i})">🔔 Cobrar</button></td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente encontrado no SIGE.</td></tr>';
   }catch(e){sigeClientesBody.innerHTML='<tr><td colspan="4">Erro ao consultar SIGE: '+esc(e.message||e)+'</td></tr>'}
 }
 function usarClienteSige(i){
@@ -430,7 +454,7 @@ function renderSigeLancamentos(rows){
     const status=l.quitado?'✅ Quitado':(l.atrasado?'⚠️ Atrasado':'🟡 Em aberto');
     const doc=l.documento||l.codigoVenda||l.codigo||'—';
     const valor=l.saldo&&l.saldo>0?l.saldo:l.valor;
-    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td><button class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
+    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td><button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
   }).join('')||(resumo||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>');
 }
 function cobrarLancamentoSige(i){
@@ -439,35 +463,59 @@ function cobrarLancamentoSige(i){
   setTimeout(()=>preencherCobranca({kind:'sige',nome:l.cliente||l.nome,clienteNome:l.cliente||l.nome,telefone:l.telefone||'',produto:l.descricao||'Pendência financeira SIGE',parcela:l.documento||'',valorPago:l.saldo&&l.saldo>0?l.saldo:l.valor,documento:l.documento||l.codigo,codigo:l.codigo}),120);
 }
 
+
+function abrirAbaSigeSeguro(){
+  const tab=document.getElementById('tab-sige');
+  if(tab){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));tab.classList.remove('hidden')}
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  const btn=[...document.querySelectorAll('.nav button')].find(b=>(b.textContent||'').toLowerCase().includes('sige'));
+  if(btn)btn.classList.add('active');
+  try{testarSigeStatus()}catch(_e){}
+  setTimeout(()=>{const box=document.getElementById('sigeCarneBusca'); if(box){box.scrollIntoView({behavior:'smooth',block:'center'}); box.focus();}},80);
+}
+function verCarnePorNome(nomeCliente){
+  const nomeLimpo=String(nomeCliente||'').trim();
+  if(!nomeLimpo){toast('Cliente não informado para gerar carnê.');return}
+  abrirAbaSigeSeguro();
+  const input=document.getElementById('sigeCarneBusca');
+  if(input)input.value=nomeLimpo;
+  setTimeout(()=>buscarSigeCarne(),180);
+}
 function verCarneClienteSige(i){
-  const c=(window.sigeClientesCache||[])[Number(i)]; if(!c)return;
-  showTab('sige',document.querySelector(".nav button[onclick*=sige]"));
-  sigeCarneBusca.value=c.nome||'';
-  setTimeout(()=>buscarSigeCarne(),120);
+  const c=(window.sigeClientesCache||[])[Number(i)];
+  if(!c){toast('Não consegui carregar este cliente. Pesquise novamente no SIGE.');return}
+  verCarnePorNome(c.nome||c.NomeFantasia||c.cliente||'');
 }
 function verCarneLancamentoSige(i){
-  const l=(window.sigeLancamentosCache||[])[Number(i)]; if(!l)return;
-  showTab('sige',document.querySelector(".nav button[onclick*=sige]"));
-  sigeCarneBusca.value=l.cliente||l.nome||'';
-  setTimeout(()=>buscarSigeCarne(),120);
+  const l=(window.sigeLancamentosCache||[])[Number(i)];
+  if(!l){toast('Não consegui carregar este lançamento. Pesquise novamente no SIGE.');return}
+  verCarnePorNome(l.cliente||l.nome||l.Cliente||'');
 }
 async function buscarSigeCarne(){
-  const q=(sigeCarneBusca.value||'').trim();
+  const input=document.getElementById('sigeCarneBusca');
+  const box=document.getElementById('sigeCarneBox');
+  const q=(input?.value||'').trim();
   if(q.length<2){toast('Digite pelo menos 2 letras do cliente.');return}
   window.sigeCarneParcelasCache=[];
-  sigeCarneBox.innerHTML='Gerando carnê digital no SIGE...';
+  if(box)box.innerHTML='Gerando carnê digital no SIGE...';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/carne?cliente='+encodeURIComponent(q)+'&limit=2000&maxRecords=5000',{headers:headers()});
+    const url=API_BASE+'/admin/sige/carne?cliente='+encodeURIComponent(q)+'&limit=5000&maxRecords=20000';
+    const r=await fetch(url,{headers:headers()});
     const j=await r.json();
-    if(!j.ok){sigeCarneBox.innerHTML='Erro: '+esc(j.error||'Falha ao gerar carnê');return}
+    if(!j.ok){if(box)box.innerHTML='Erro: '+esc(j.error||'Falha ao gerar carnê');return}
     renderSigeCarne(j);
-  }catch(e){sigeCarneBox.innerHTML='Erro ao gerar carnê: '+esc(e.message||e)}
+  }catch(e){if(box)box.innerHTML='Erro ao gerar carnê: '+esc(e.message||e)}
 }
 function renderSigeCarne(carne){
+  const box=document.getElementById('sigeCarneBox');
   const resumo=carne.resumo||{};
   const grupos=carne.grupos||[];
-  if(!grupos.length){sigeCarneBox.innerHTML='Nenhuma parcela encontrada para este cliente.';return}
+  if(!grupos.length){
+    if(box)box.innerHTML='Nenhuma parcela encontrada para este cliente. Tente pesquisar o nome completo exatamente como está no SIGE ou clique primeiro em Buscar cliente e depois no botão Carnê.';
+    return;
+  }
   window.sigeCarneParcelasCache=[];
+  window.sigeCarneAtual=carne;
   let html=`<div class="brand">Ariana Móveis</div><p><b>Carnê Digital SIGE</b></p>
     <div class="row"><span>Cliente</span><span>${esc(carne.cliente||'')}</span></div>
     <div class="row"><span>CPF</span><span>${esc(carne.cpf||'—')}</span></div>
@@ -475,7 +523,8 @@ function renderSigeCarne(carne){
     <div class="row"><span>Total lançado</span><span>${money(resumo.total||0)}</span></div>
     <div class="row"><span>Total pago</span><span>${money(resumo.pago||0)}</span></div>
     <div class="row"><span>Saldo restante</span><span class="money">${money(resumo.saldo||0)}</span></div>
-    <div class="row"><span>Parcelas</span><span>${resumo.parcelas||0} total • ${resumo.pagas||0} pagas • ${resumo.abertas||0} abertas • ${resumo.atrasadas||0} atrasadas</span></div>`;
+    <div class="row"><span>Parcelas</span><span>${resumo.parcelas||0} total • ${resumo.pagas||0} pagas • ${resumo.abertas||0} abertas • ${resumo.atrasadas||0} atrasadas</span></div>
+    <div class="actions" style="margin-top:12px"><button type="button" class="green" onclick="enviarCarneWhatsapp()">📲 Enviar carnê pelo WhatsApp</button></div>`;
   grupos.forEach((g)=>{
     html+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb"><b>${esc(g.documento||'Sem documento')}</b><br><small>${esc(g.descricao||'')}</small>
       <div class="muted">Total: ${money(g.total||0)} • Pago: ${money(g.pago||0)} • Saldo: ${money(g.saldo||0)} • Atrasadas: ${g.atrasadas||0}</div>
@@ -484,16 +533,135 @@ function renderSigeCarne(carne){
       const st=p.status==='paga'?'✅ Paga':(p.status==='atrasada'?'⚠️ Atrasada':'⏳ Aberta');
       const canCobrar=p.status!=='paga';
       const idx=window.sigeCarneParcelasCache.push({...p,telefone:carne.telefone,cpf:carne.cpf})-1;
-      html+=`<tr><td>${esc(p.parcelaLabel||'')}</td><td>${formatDateBR(p.dataVencimento)}</td><td>${money(p.saldoParcela||p.valorParcela||0)}</td><td>${st}</td><td>${canCobrar?`<button class="yellow small" onclick="cobrarParcelaCarne(${idx})">🔔 Cobrar</button>`:'—'}</td></tr>`;
+      html+=`<tr><td>${esc(p.parcelaLabel||'')}</td><td>${formatDateBR(p.dataVencimento)}</td><td>${money(p.saldoParcela||p.valorParcela||0)}</td><td>${st}</td><td>${canCobrar?`<button type="button" class="yellow small" onclick="cobrarParcelaCarne(${idx})">🔔 Cobrar</button>`:'—'}</td></tr>`;
     });
     html+='</tbody></table></div>';
   });
-  sigeCarneBox.innerHTML=html;
+  if(box)box.innerHTML=html;
 }
+
+async function enviarCarneWhatsapp(){
+  const carne=window.sigeCarneAtual||null;
+  if(!carne||!carne.cliente){toast('Gere o carnê antes de enviar.');return}
+  let tel=shortPhone(carne.telefone||'');
+  if(!tel){
+    tel=prompt('Este cliente não tem WhatsApp salvo. Digite o celular para enviar o carnê:','');
+    if(!tel){toast('Envio cancelado.');return}
+  }
+  try{
+    toast('Enviando carnê pelo WhatsApp...');
+    const r=await fetch(API_BASE+'/admin/sige/carne/enviar-whatsapp',{
+      method:'POST',
+      headers:headers({'Content-Type':'application/json'}),
+      body:JSON.stringify({cliente:carne.cliente,telefone:tel,limit:5000,maxRecords:20000})
+    });
+    const j=await r.json();
+    if(!j.ok){toast('Erro: '+(j.error||'Falha ao enviar carnê'));return}
+    toast('Carnê enviado pelo WhatsApp com sucesso.');
+  }catch(e){toast('Erro ao enviar carnê: '+(e.message||e))}
+}
+
 function cobrarParcelaCarne(idx){
-  const p=(window.sigeCarneParcelasCache||[])[Number(idx)]; if(!p)return;
+  const p=(window.sigeCarneParcelasCache||[])[Number(idx)]; if(!p){toast('Parcela não encontrada.');return}
   openCobrancasTab();
   setTimeout(()=>preencherCobranca({kind:'sige',nome:p.cliente,clienteNome:p.cliente,telefone:p.telefone||'',produto:p.descricao||'Pendência financeira SIGE',parcela:p.parcelaLabel||p.documento||'',valorPago:p.saldoParcela||p.valorParcela||0,documento:p.documento||p.codigo,codigo:p.codigo}),120);
+}
+
+
+async function loadSigeInadimplentesCentral(){
+  const body=document.getElementById('inadBody');
+  const q=(document.getElementById('inadBusca')?.value||'').trim();
+  if(body)body.innerHTML='<tr><td colspan="6">Consultando inadimplentes no SIGE...</td></tr>';
+  try{
+    const url=API_BASE+'/admin/sige/inadimplentes?q='+encodeURIComponent(q)+'&limit=1000&maxRecords=20000';
+    const r=await fetch(url,{headers:headers()});
+    const j=await r.json();
+    if(!j.ok){
+      if(body)body.innerHTML='<tr><td colspan="6">Erro: '+esc(j.error||'Falha ao consultar inadimplentes')+'</td></tr>';
+      return;
+    }
+    renderSigeInadimplentesCentral(j);
+  }catch(e){
+    if(body)body.innerHTML='<tr><td colspan="6">Erro ao consultar inadimplentes: '+esc(e.message||e)+'</td></tr>';
+  }
+}
+function limparBuscaInadimplentes(){
+  const input=document.getElementById('inadBusca');
+  if(input)input.value='';
+  loadSigeInadimplentesCentral();
+}
+function renderSigeInadimplentesCentral(j){
+  const rows=Array.isArray(j.inadimplentes)?j.inadimplentes:[];
+  window.sigeInadimplentesCache=rows;
+  const resumo=j.resumo||{};
+  const clientes=resumo.clientes||new Set(rows.map(r=>String(r.nome||r.cliente||'').toLowerCase()).filter(Boolean)).size;
+  const parcelas=resumo.parcelas||rows.length;
+  const valor=resumo.valorTotal!==undefined?resumo.valorTotal:rows.reduce((s,r)=>s+Number((r.saldo&&r.saldo>0)?r.saldo:(r.valor||0)),0);
+  if(document.getElementById('inadClientes'))inadClientes.textContent=clientes;
+  if(document.getElementById('inadParcelas'))inadParcelas.textContent=parcelas;
+  if(document.getElementById('inadValor'))inadValor.textContent=money(valor);
+  const antiga=resumo.parcelaMaisAntiga||null;
+  if(document.getElementById('inadResumoExtra')){
+    inadResumoExtra.innerHTML=antiga
+      ? `<b>Parcela mais antiga:</b> ${esc(antiga.cliente||'')} • ${formatDateBR(antiga.dataVencimento)} • ${Number(antiga.diasAtraso||0)} dia(s) • ${money(antiga.valor||0)}`
+      : 'Nenhuma parcela vencida encontrada.';
+  }
+  const body=document.getElementById('inadBody');
+  if(!body)return;
+  body.innerHTML=rows.map((r,i)=>{
+    const nome=r.nome||r.cliente||'';
+    const tel=shortPhone(r.telefone||'');
+    const valorItem=(r.saldo&&r.saldo>0)?r.saldo:r.valor;
+    const dias=Number(r.diasAtraso||0);
+    return `<tr>
+      <td><b>${esc(nome)}</b><br><small>${tel?esc(tel):'<span class="muted">Sem WhatsApp</span>'}${r.cpf?' • CPF '+esc(r.cpf):''}</small></td>
+      <td>${esc(r.documento||r.codigoVenda||r.codigo||'—')}<br><small>${esc(r.descricao||'')}</small></td>
+      <td>${formatDateBR(r.dataVencimento)}</td>
+      <td><b>${dias}</b> dia(s)</td>
+      <td><b>${money(valorItem||0)}</b></td>
+      <td>
+        <button type="button" class="blue small" onclick="verCarneInadimplente(${i})">📋 Carnê</button>
+        <button type="button" class="green small" onclick="enviarCarneInadimplente(${i})">📲 Carnê WhatsApp</button>
+        <button type="button" class="yellow small" onclick="cobrarInadimplente(${i},'normal')">🔔 Normal</button>
+        <button type="button" class="red small" onclick="cobrarInadimplente(${i},'urgente')">🚨 Urgente</button>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6">Nenhum inadimplente encontrado.</td></tr>';
+}
+function verCarneInadimplente(i){
+  const r=(window.sigeInadimplentesCache||[])[Number(i)];
+  if(!r){toast('Registro não encontrado.');return}
+  verCarnePorNome(r.nome||r.cliente||'');
+}
+function cobrarInadimplente(i,tipo='normal'){
+  const r=(window.sigeInadimplentesCache||[])[Number(i)];
+  if(!r){toast('Registro não encontrado.');return}
+  openCobrancasTab();
+  setTimeout(()=>{
+    preencherCobranca({kind:'sige',nome:r.nome||r.cliente,clienteNome:r.nome||r.cliente,telefone:r.telefone||'',produto:r.descricao||'Parcela vencida SIGE',parcela:r.documento||r.codigo||'',valorPago:(r.saldo&&r.saldo>0)?r.saldo:r.valor,documento:r.documento||r.codigo,codigo:r.codigo});
+    const tipoBox=document.getElementById('tipoCobranca');
+    if(tipoBox){tipoBox.value=tipo;previewCobranca();}
+  },120);
+}
+async function enviarCarneInadimplente(i){
+  const r=(window.sigeInadimplentesCache||[])[Number(i)];
+  if(!r){toast('Registro não encontrado.');return}
+  let tel=shortPhone(r.telefone||'');
+  if(!tel){
+    tel=prompt('Este cliente não tem WhatsApp salvo no SIGE. Digite o celular para enviar o carnê:','');
+    if(!tel){toast('Envio cancelado.');return}
+  }
+  try{
+    toast('Enviando carnê pelo WhatsApp...');
+    const resp=await fetch(API_BASE+'/admin/sige/carne/enviar-whatsapp',{
+      method:'POST',
+      headers:headers({'Content-Type':'application/json'}),
+      body:JSON.stringify({cliente:r.nome||r.cliente,telefone:tel,limit:5000,maxRecords:20000})
+    });
+    const j=await resp.json();
+    if(!j.ok){toast('Erro: '+(j.error||'Falha ao enviar carnê'));return}
+    toast('Carnê enviado pelo WhatsApp.');
+  }catch(e){toast('Erro ao enviar carnê: '+(e.message||e))}
 }
 
 async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}

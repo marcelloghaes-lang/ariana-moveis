@@ -1411,41 +1411,127 @@ function buildSigeCarneFromLancamentos(lancamentos = [], pessoa = null) {
   };
 }
 
+
+function buildSigeCarneWhatsappMessage(carne = {}) {
+  const resumo = carne.resumo || {};
+  const grupos = Array.isArray(carne.grupos) ? carne.grupos : [];
+  const linhas = [];
+  linhas.push('📋 Carnê Digital Ariana Móveis');
+  linhas.push('');
+  linhas.push(`Olá, ${carne.cliente || 'cliente'}.`);
+  linhas.push('Segue o resumo atualizado do seu carnê:');
+  linhas.push('');
+  linhas.push(`💰 Total lançado: ${formatMoneyBRL(resumo.total || 0)}`);
+  linhas.push(`✅ Total pago: ${formatMoneyBRL(resumo.pago || 0)}`);
+  linhas.push(`📌 Saldo restante: ${formatMoneyBRL(resumo.saldo || 0)}`);
+  linhas.push(`🧾 Parcelas: ${resumo.parcelas || 0} total • ${resumo.pagas || 0} pagas • ${resumo.abertas || 0} abertas • ${resumo.atrasadas || 0} atrasadas`);
+  linhas.push('');
+
+  let totalListadas = 0;
+  for (const grupo of grupos.slice(0, 8)) {
+    linhas.push(`📄 ${grupo.documento || 'Compra'}`);
+    if (grupo.descricao) linhas.push(String(grupo.descricao).slice(0, 120));
+
+    const parcelas = Array.isArray(grupo.parcelas) ? grupo.parcelas : [];
+    for (const p of parcelas.slice(0, 18)) {
+      totalListadas += 1;
+      const status = p.status === 'paga' ? '✅ Paga' : (p.status === 'atrasada' ? '⚠️ Atrasada' : '⏳ Em aberto');
+      const venc = p.dataVencimento ? formatDateBR(p.dataVencimento) : 'sem vencimento';
+      const valor = formatMoneyBRL(p.saldoParcela || p.valorParcela || p.valor || 0);
+      linhas.push(`${p.parcelaLabel || ''} ${venc} - ${valor} - ${status}`.trim());
+    }
+    linhas.push('');
+  }
+
+  const totalParcelas = Number(resumo.parcelas || 0);
+  if (totalParcelas > totalListadas) {
+    linhas.push(`... e mais ${totalParcelas - totalListadas} parcela(s).`);
+    linhas.push('');
+  }
+
+  linhas.push('Para dúvidas ou regularização, entre em contato com nosso financeiro:');
+  linhas.push('📲 (31) 98514-7119');
+  linhas.push('');
+  linhas.push('Ariana Móveis');
+
+  return linhas.filter((linha) => linha !== null && linha !== undefined).join('\n').trim();
+}
+
+async function getSigeCarneData(q = '', options = {}) {
+  const termo = String(q || '').trim();
+  if (termo.length < 2) {
+    const err = new Error('Informe pelo menos 2 letras do cliente para gerar o carnê.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const limit = Math.max(1, Math.min(Number(options.limit || 5000), 10000));
+  let lancamentos = await getSigeLancamentosFiltered({
+    q: termo,
+    status: 'todos',
+    limit,
+    maxRecords: options.maxRecords || 20000
+  });
+
+  let pessoa = null;
+  try {
+    const pessoas = await getSigePessoasByQuery(termo, 10);
+    pessoa = pessoas.find((p) => String(p.nome || '').toLowerCase() === termo.toLowerCase()) || pessoas[0] || null;
+  } catch (innerError) {
+    console.warn('Não foi possível enriquecer carnê com pessoa SIGE:', innerError.message || innerError);
+  }
+
+  if ((!lancamentos || !lancamentos.length) && pessoa?.nome && pessoa.nome.toLowerCase() !== termo.toLowerCase()) {
+    lancamentos = await getSigeLancamentosFiltered({
+      q: pessoa.nome,
+      status: 'todos',
+      limit,
+      maxRecords: options.maxRecords || 20000
+    });
+  }
+
+  const carne = buildSigeCarneFromLancamentos(lancamentos, pessoa);
+  return { ok: true, ...carne, total: lancamentos.length, fonte: 'lancamentos_sige' };
+}
+
 app.get('/api/admin/sige/carne', adminRequired, async (req, res) => {
   try {
     const q = String(req.query.cliente || req.query.q || '').trim();
-    if (q.length < 2) return res.status(400).json({ ok: false, error: 'Informe pelo menos 2 letras do cliente para gerar o carnê.' });
-    const limit = Math.max(1, Math.min(Number(req.query.limit || 5000), 10000));
-
-    let lancamentos = await getSigeLancamentosFiltered({
-      q,
-      status: 'todos',
-      limit,
+    const carne = await getSigeCarneData(q, {
+      limit: req.query.limit || 5000,
       maxRecords: req.query.maxRecords || 20000
     });
-
-    let pessoa = null;
-    try {
-      const pessoas = await getSigePessoasByQuery(q, 10);
-      pessoa = pessoas.find((p) => String(p.nome || '').toLowerCase() === q.toLowerCase()) || pessoas[0] || null;
-    } catch (innerError) {
-      console.warn('Não foi possível enriquecer carnê com pessoa SIGE:', innerError.message || innerError);
-    }
-
-    if ((!lancamentos || !lancamentos.length) && pessoa?.nome && pessoa.nome.toLowerCase() !== q.toLowerCase()) {
-      lancamentos = await getSigeLancamentosFiltered({
-        q: pessoa.nome,
-        status: 'todos',
-        limit,
-        maxRecords: req.query.maxRecords || 20000
-      });
-    }
-
-    const carne = buildSigeCarneFromLancamentos(lancamentos, pessoa);
-    return res.json({ ok: true, ...carne, total: lancamentos.length, fonte: 'lancamentos_sige' });
+    return res.json(carne);
   } catch (error) {
     console.error('Erro SIGE carnê:', error.message || error);
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao gerar carnê digital no SIGE' });
+  }
+});
+
+app.post('/api/admin/sige/carne/enviar-whatsapp', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.body?.cliente || req.body?.q || '').trim();
+    const telefoneManual = String(req.body?.telefone || '').trim();
+    const carne = await getSigeCarneData(q, {
+      limit: req.body?.limit || 5000,
+      maxRecords: req.body?.maxRecords || 20000
+    });
+
+    const telefone = normalizePhone(telefoneManual || carne.telefone || '', '55');
+    if (!telefone) {
+      return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado. Informe o celular para enviar o carnê.' });
+    }
+
+    if (!Array.isArray(carne.grupos) || !carne.grupos.length) {
+      return res.status(404).json({ ok: false, error: 'Nenhuma parcela encontrada para enviar no carnê.' });
+    }
+
+    const text = buildSigeCarneWhatsappMessage(carne);
+    const sent = await waSendTextMessage({ number: telefone, text });
+    return res.json({ ok: true, message: 'Carnê enviado pelo WhatsApp.', telefone, text, whatsapp: sent, carne });
+  } catch (error) {
+    console.error('Erro ao enviar carnê SIGE por WhatsApp:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao enviar carnê por WhatsApp' });
   }
 });
 
@@ -1479,21 +1565,61 @@ app.get('/api/admin/sige/inadimplentes', adminRequired, async (req, res) => {
       pessoas = [];
     }
 
-    const byName = new Map(pessoas.map((p) => [p.nome.toLowerCase(), p]));
+    const byName = new Map(pessoas.map((p) => [String(p.nome || '').toLowerCase(), p]));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const inadimplentes = lancamentos.map((l) => {
       const pessoa = byName.get(String(l.cliente || '').toLowerCase()) || null;
+      const vencimento = parseSigeDate(l.dataVencimento);
+      let diasAtraso = 0;
+      if (vencimento) {
+        const vencDate = new Date(vencimento);
+        vencDate.setHours(0, 0, 0, 0);
+        diasAtraso = Math.max(0, Math.floor((today.getTime() - vencDate.getTime()) / 86400000));
+      }
+
       return {
         ...l,
         nome: l.cliente,
-        telefone: pessoa?.telefone || '',
-        cpf: pessoa?.cpf || '',
+        telefone: pessoa?.telefone || l.telefone || '',
+        cpf: pessoa?.cpf || l.cpf || '',
         cidade: pessoa?.cidade || '',
         uf: pessoa?.uf || '',
-        pessoaId: pessoa?.id || ''
+        pessoaId: pessoa?.id || '',
+        diasAtraso
       };
-    }).slice(0, limit);
+    })
+      .sort((a, b) => Number(b.diasAtraso || 0) - Number(a.diasAtraso || 0))
+      .slice(0, limit);
 
-    return res.json({ ok: true, inadimplentes, total: inadimplentes.length, fonte: 'lancamentos_vencidos' });
+    const clientesUnicos = new Set(inadimplentes.map((item) => String(item.nome || item.cliente || '').trim().toLowerCase()).filter(Boolean));
+    const valorTotal = inadimplentes.reduce((sum, item) => sum + Number(item.saldo && item.saldo > 0 ? item.saldo : item.valor || 0), 0);
+    const parcelaMaisAntiga = inadimplentes.reduce((oldest, item) => {
+      const dt = parseSigeDate(item.dataVencimento);
+      if (!dt) return oldest;
+      if (!oldest) return item;
+      const oldDt = parseSigeDate(oldest.dataVencimento);
+      return oldDt && oldDt <= dt ? oldest : item;
+    }, null);
+
+    return res.json({
+      ok: true,
+      inadimplentes,
+      total: inadimplentes.length,
+      resumo: {
+        clientes: clientesUnicos.size,
+        parcelas: inadimplentes.length,
+        valorTotal: Number(valorTotal.toFixed(2)),
+        parcelaMaisAntiga: parcelaMaisAntiga ? {
+          cliente: parcelaMaisAntiga.nome || parcelaMaisAntiga.cliente || '',
+          dataVencimento: parcelaMaisAntiga.dataVencimento || null,
+          diasAtraso: parcelaMaisAntiga.diasAtraso || 0,
+          valor: Number(parcelaMaisAntiga.saldo && parcelaMaisAntiga.saldo > 0 ? parcelaMaisAntiga.saldo : parcelaMaisAntiga.valor || 0)
+        } : null
+      },
+      fonte: 'lancamentos_vencidos'
+    });
   } catch (error) {
     console.error('Erro SIGE inadimplentes:', error.message || error);
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar inadimplentes no SIGE' });
