@@ -962,24 +962,34 @@ Seu pagamento foi registrado com sucesso.
 
 function buildCrediarioCobrancaMessage(data = {}) {
   const nome = String(data.clienteNome || data.nome || 'cliente').trim() || 'cliente';
+  const tipo = String(data.tipo || data.tipoCobranca || 'normal').toLowerCase();
   const produto = String(data.produto || '').trim();
   const parcela = formatCrediarioParcela(data.parcela || '');
   const valor = Number(data.valor || data.valorPago || 0);
   const documento = String(data.documento || data.recibo || data.contrato || '').trim();
+  const urgente = tipo.includes('urg');
+
+  const cabecalho = urgente ? '🚨 Aviso urgente de pendência financeira' : '🔔 Aviso de pendência financeira';
+  const mensagemPrincipal = urgente
+    ? 'Constam nota(s)/parcela(s) em atraso em nosso sistema. Solicitamos contato com urgência para regularização ou esclarecimentos.'
+    : 'Informamos que existe nota/parcela em atraso em nosso sistema.';
+  const fechamento = urgente
+    ? 'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.'
+    : 'Por favor, entre em contato com a loja para mais informações ou regularização.';
 
   const linhas = [
-    '🔔 Aviso de pendência financeira',
+    cabecalho,
     '',
     `Olá, ${nome}.`,
     '',
-    'Informamos que existe nota/parcela em atraso em nosso sistema.',
+    mensagemPrincipal,
     '',
     produto ? `📦 Referência: ${produto}` : '',
     parcela ? `📌 Parcela: ${parcela}` : '',
     valor > 0 ? `💰 Valor: ${formatMoneyBRL(valor)}` : '',
     documento ? `🧾 Documento: ${documento}` : '',
     '',
-    'Por favor, entre em contato com a loja para mais informações ou regularização.',
+    fechamento,
     '',
     '📲 WhatsApp financeiro:',
     '(31) 98514-7119',
@@ -990,10 +1000,10 @@ function buildCrediarioCobrancaMessage(data = {}) {
   return linhas.filter((linha) => linha !== '').join('\n');
 }
 
-async function sendCrediarioCobrancaWhatsapp({ telefone = '', clienteNome = '', produto = '', parcela = '', valor = 0, documento = '', recibo = '', contrato = '' } = {}) {
+async function sendCrediarioCobrancaWhatsapp({ telefone = '', clienteNome = '', produto = '', parcela = '', valor = 0, documento = '', recibo = '', contrato = '', tipo = 'normal' } = {}) {
   const number = normalizePhone(telefone || '', '55');
   if (!number) throw new Error('Telefone do cliente inválido para envio da cobrança.');
-  const text = buildCrediarioCobrancaMessage({ clienteNome, produto, parcela, valor, documento, recibo, contrato });
+  const text = buildCrediarioCobrancaMessage({ clienteNome, produto, parcela, valor, documento, recibo, contrato, tipo });
   return waSendTextMessage({ number, text });
 }
 
@@ -1357,7 +1367,8 @@ app.post('/api/admin/crediario/clientes/:id/cobranca', adminRequired, async (req
       parcela: body.parcela || '',
       valor: body.valor || 0,
       documento: body.documento || cliente.contrato || '',
-      contrato: cliente.contrato || ''
+      contrato: cliente.contrato || '',
+      tipo: body.tipo || body.tipoCobranca || 'normal'
     });
 
     if (telefone && telefone !== cliente.telefone) {
@@ -1394,7 +1405,8 @@ app.post('/api/admin/crediario/recibos/:id/cobranca', adminRequired, async (req,
       valor: r.valorPago,
       documento: r.documento || r.recibo,
       recibo: r.recibo,
-      contrato: r.contrato
+      contrato: r.contrato,
+      tipo: req.body?.tipo || req.body?.tipoCobranca || 'normal'
     });
 
     await createAdminNotification({

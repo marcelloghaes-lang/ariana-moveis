@@ -34,6 +34,7 @@
         <button class="active" onclick="showTab('novo',this)">💰 Registrar pagamento</button>
         <button onclick="showTab('clientes',this)">👥 Clientes</button>
         <button onclick="showTab('importar',this)">📂 Importar SIGE</button>
+        <button onclick="showTab('cobrancas',this)">🔔 Cobranças</button>
         <button onclick="showTab('historico',this)">📚 Histórico</button>
         <button onclick="logout()">🚪 Sair</button>
       </div>
@@ -82,6 +83,41 @@
         </div>
       </section>
 
+      <section id="tab-cobrancas" class="hidden">
+        <div class="grid">
+          <div class="card">
+            <h2>Central de Cobranças</h2>
+            <p class="help">Busque um cliente ou recibo, selecione e envie cobrança normal ou urgente pelo Ariana Notificações.</p>
+            <div class="actions">
+              <input id="buscaCobranca" placeholder="Buscar cliente, CPF, telefone, recibo ou produto" oninput="loadCobrancas()">
+              <button class="light" onclick="loadCobrancas()">Buscar</button>
+            </div>
+            <table>
+              <thead><tr><th>Cliente / Telefone</th><th>Referência</th><th>Valor</th><th>Ação</th></tr></thead>
+              <tbody id="cobrancasBody"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <h2>Enviar cobrança</h2>
+            <p class="help">Escolha o tipo de aviso antes de enviar.</p>
+            <div id="cobrancaSelecionada" class="receipt">Nenhum cliente ou recibo selecionado.</div>
+            <label>Mensagem</label>
+            <select id="tipoCobranca" onchange="previewCobranca()">
+              <option value="normal">Cobrança normal</option>
+              <option value="urgente">Cobrança urgente</option>
+            </select>
+            <label>Produto / Referência</label><input id="cobrancaProduto" placeholder="Ex: celular, geladeira, pedido..." oninput="previewCobranca()">
+            <label>Parcela</label><input id="cobrancaParcela" placeholder="Ex: 02/12" oninput="previewCobranca()">
+            <label>Valor</label><input id="cobrancaValor" placeholder="Ex: 150,00" oninput="previewCobranca()">
+            <div class="receipt" id="cobrancaPreview" style="margin-top:14px"></div>
+            <div class="actions">
+              <button class="yellow" onclick="enviarCobrancaSelecionada()">🔔 Enviar cobrança</button>
+              <button class="red" onclick="limparCobranca()">Limpar</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="tab-historico" class="hidden"><div class="card"><h2>Histórico de recibos</h2><div class="actions"><input id="buscaRecibo" placeholder="Buscar recibo, cliente, CPF, telefone, produto" oninput="loadRecibos()"><button class="light" onclick="loadRecibos()">Buscar</button></div><table><thead><tr><th>Recibo</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody id="recibosBody"></tbody></table></div></section>
     </main>
   </section>
@@ -89,7 +125,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
-let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null;
+let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null; let cobrancaAlvo=null;
 function token(){return localStorage.getItem('admin_token')||''}
 function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
 function money(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
@@ -101,7 +137,7 @@ function shortPhone(v){const d=onlyDigits(v);return d.startsWith('55')&&d.length
 function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview));document.getElementById('nome').addEventListener('input',onClienteInput);parcela.addEventListener('blur',()=>{parcela.value=formatParcelaCliente(parcela.value);preview()});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap')) clienteSugestoes.classList.add('hidden')});if(token()){loginView.style.display='none';appView.style.display='block';loadAll()}preview()}init();
 async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='novo')setTimeout(()=>nome.focus(),120)}
 function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:formatParcelaCliente(parcela.value.trim()),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
 function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(formatParcelaCliente(f.parcela))||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
 function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
@@ -112,9 +148,9 @@ async function salvarClienteDoFormulario(){const payload={nome:nome.value.trim()
 async function carregarHistoricoCliente(id){if(!id){clienteHistorico.classList.add('hidden');return}try{const r=await fetch(API_BASE+'/admin/crediario/recibos?clienteId='+encodeURIComponent(id)+'&limit=5',{headers:headers()});const j=await r.json();const rows=j.recibos||[];clienteHistorico.innerHTML='<h3>Histórico deste cliente</h3>'+(rows.length?rows.map(r=>`<div class="row"><strong>${esc(r.recibo)}</strong><span>${money(r.valorPago)} • ${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</span></div>`).join(''):'<div class="muted">Nenhum recibo registrado para este cliente.</div>');clienteHistorico.classList.remove('hidden')}catch(e){console.error(e)}}
 async function criarRecibo(enviarWhatsapp){const f=getForm();if(!f.nome||!f.telefone||!f.valorPago){toast('Preencha cliente, telefone e valor.');return}const r=await fetch(API_BASE+'/admin/crediario/recibos',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({...f,enviarWhatsapp})});const j=await r.json();if(!j.ok){toast(j.error||'Erro ao criar recibo');return}lastRecibo=j.recibo;toast(enviarWhatsapp?(j.whatsapp?.ok===false?'Recibo salvo, mas WhatsApp falhou':'Recibo enviado com sucesso'):'Recibo salvo com sucesso');await printRecibo(j.recibo.id);limparForm(false);loadAll()}
 function limparForm(reset=true){['nome','telefone','cpf','contrato','produto','valor','parcela','obs'].forEach(id=>document.getElementById(id).value='');document.getElementById('clienteId').value='';document.getElementById('data').value=new Date().toISOString().slice(0,10);clearSelectedCliente();preview()}
-async function loadClientes(){const q=encodeURIComponent(buscaCliente?.value||'');const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+q, {headers:headers()});const j=await r.json();clientes=j.clientes||[];clientesBody.innerHTML=clientes.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>${esc(shortPhone(c.telefone))||'<span class="muted">Sem telefone</span>'}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td><td><button class="light small" onclick="usarClienteDaLista(${i})">Usar no recibo</button> <button class="yellow small" onclick="cobrarCliente(${i})">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="5">Nenhum cliente.</td></tr>'}
+async function loadClientes(){const q=encodeURIComponent(buscaCliente?.value||'');const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+q, {headers:headers()});const j=await r.json();clientes=j.clientes||[];clientesBody.innerHTML=clientes.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>${esc(shortPhone(c.telefone))||'<span class="muted">Sem telefone</span>'}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td><td><button class="light small" onclick="usarClienteDaLista(${i})">Usar no recibo</button> <button class="yellow small" onclick="selecionarCobrancaCliente(${i})">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="5">Nenhum cliente.</td></tr>'}
 function usarClienteDaLista(i){const c=clientes[i];if(!c)return;document.querySelectorAll('.nav button')[0].click();setTimeout(()=>selecionarCliente(c),120)}
-async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>`<tr><td><b>${esc(r.recibo)}</b><br><small>${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</small></td><td>${esc(r.clienteNome)}<br><small>${esc(shortPhone(r.telefone))}</small></td><td>${esc(r.produto)}<br><small>${esc(formatParcelaCliente(r.parcela))}</small></td><td><b>${money(r.valorPago)}</b></td><td><span class="pill">${r.enviadoWhatsapp?'Enviado':'Pendente'}</span></td><td><button class="light small" onclick="printRecibo('${r.id}')">Imprimir</button> <button class="green small" onclick="reenviar('${r.id}')">Enviar</button> <button class="yellow small" onclick="cobrarRecibo('${r.id}')">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
+async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>`<tr><td><b>${esc(r.recibo)}</b><br><small>${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</small></td><td>${esc(r.clienteNome)}<br><small>${esc(shortPhone(r.telefone))}</small></td><td>${esc(r.produto)}<br><small>${esc(formatParcelaCliente(r.parcela))}</small></td><td><b>${money(r.valorPago)}</b></td><td><span class="pill">${r.enviadoWhatsapp?'Enviado':'Pendente'}</span></td><td><button class="light small" onclick="printRecibo('${r.id}')">Imprimir</button> <button class="green small" onclick="reenviar('${r.id}')">Enviar</button> <button class="yellow small" onclick="selecionarCobrancaRecibo('${r.id}')">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
 async function printRecibo(id){
   try{
     const win = window.open('', '_blank');
@@ -144,26 +180,63 @@ async function printRecibo(id){
   }
 }
 
-async function cobrarCliente(i){
-  const c=clientes[i];
-  if(!c)return;
-  const tel=shortPhone(c.telefone||'');
-  if(!tel){toast('Este cliente não tem celular salvo. Use no recibo, salve o celular e tente novamente.');return}
-  const ok=confirm(`Enviar aviso de cobrança para ${c.nome}?\n\nMensagem: existe nota/parcela em atraso e deve entrar em contato com a loja no WhatsApp (31) 98514-7119.`);
-  if(!ok)return;
-  try{
-    const r=await fetch(API_BASE+'/admin/crediario/clientes/'+encodeURIComponent(c.id)+'/cobranca',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({})});
-    const j=await r.json();
-    toast(j.ok?'Cobrança enviada pelo WhatsApp':'Erro: '+(j.error||'Falha ao enviar cobrança'));
-  }catch(e){toast('Erro ao enviar cobrança: '+(e.message||e))}
+function cobrancaTextoPreview(d){
+  const nome=d.nome||d.clienteNome||'cliente';
+  const tipo=tipoCobranca?.value||'normal';
+  const urgente=tipo==='urgente';
+  const produto=(cobrancaProduto?.value||d.produto||'').trim();
+  const parc=formatParcelaCliente((cobrancaParcela?.value||d.parcela||'').trim());
+  const val=(cobrancaValor?.value||d.valorPago||d.valor||'').toString().trim();
+  return `${urgente?'🚨 Aviso urgente de pendência financeira':'🔔 Aviso de pendência financeira'}
+
+Olá, ${nome}.
+
+${urgente?'Constam nota(s)/parcela(s) em atraso em nosso sistema. Solicitamos contato com urgência para regularização ou esclarecimentos.':'Informamos que existe nota/parcela em atraso em nosso sistema.'}
+
+${produto?'📦 Referência: '+produto+'\n':''}${parc?'📌 Parcela: '+parc+'\n':''}${val?'💰 Valor: R$ '+val+'\n':''}${d.documento||d.recibo?'🧾 Documento: '+(d.documento||d.recibo)+'\n':''}
+${urgente?'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.':'Por favor, entre em contato com a loja para mais informações ou regularização.'}
+
+📲 WhatsApp financeiro:
+(31) 98514-7119
+
+Ariana Móveis`;
 }
-async function cobrarRecibo(id){
-  const r0=recibos.find(x=>String(x.id)===String(id));
-  const nomeCliente=r0?.clienteNome||'cliente';
-  const ok=confirm(`Enviar aviso de cobrança para ${nomeCliente}?\n\nMensagem: existe nota/parcela em atraso e deve entrar em contato com a loja no WhatsApp (31) 98514-7119.`);
-  if(!ok)return;
+function preencherCobranca(d){
+  cobrancaAlvo=d;
+  cobrancaProduto.value=d.produto||'';
+  cobrancaParcela.value=formatParcelaCliente(d.parcela||'');
+  cobrancaValor.value=d.valorPago?String(Number(d.valorPago).toFixed(2)).replace('.',','):'';
+  cobrancaSelecionada.innerHTML=`<b>${esc(d.nome||d.clienteNome)}</b><br><small>WhatsApp: ${esc(shortPhone(d.telefone))||'sem telefone'}${d.recibo?' • Recibo: '+esc(d.recibo):''}</small>`;
+  previewCobranca();
+}
+function previewCobranca(){
+  if(!cobrancaAlvo){cobrancaPreview.innerHTML='Selecione um cliente ou recibo para visualizar a mensagem.';return}
+  cobrancaPreview.innerHTML='<pre style="white-space:pre-wrap;margin:0;font-family:Inter,Arial,sans-serif">'+esc(cobrancaTextoPreview(cobrancaAlvo))+'</pre>';
+}
+function limparCobranca(){cobrancaAlvo=null;cobrancaProduto.value='';cobrancaParcela.value='';cobrancaValor.value='';cobrancaSelecionada.innerHTML='Nenhum cliente ou recibo selecionado.';previewCobranca()}
+function selecionarCobrancaCliente(i){const c=clientes[i];if(!c)return;document.querySelectorAll('.nav button')[3].click();setTimeout(()=>preencherCobranca({...c,tipo:'cliente',nome:c.nome,produto:'Pendência financeira'}),120)}
+function selecionarCobrancaRecibo(id){const r=recibos.find(x=>String(x.id)===String(id));if(!r)return;document.querySelectorAll('.nav button')[3].click();setTimeout(()=>preencherCobranca({...r,tipo:'recibo',nome:r.clienteNome}),120)}
+async function loadCobrancas(){
+  const q=encodeURIComponent(buscaCobranca?.value||'');
+  const [rc, rr]=await Promise.all([
+    fetch(API_BASE+'/admin/crediario/clientes?q='+q+'&limit=20',{headers:headers()}).then(r=>r.json()).catch(()=>({clientes:[]})),
+    fetch(API_BASE+'/admin/crediario/recibos?q='+q+'&limit=20',{headers:headers()}).then(r=>r.json()).catch(()=>({recibos:[]}))
+  ]);
+  const rows=[];
+  (rr.recibos||[]).forEach(r=>rows.push({kind:'recibo',id:r.id,nome:r.clienteNome,telefone:r.telefone,produto:r.produto,parcela:r.parcela,valorPago:r.valorPago,recibo:r.recibo,documento:r.documento||r.recibo}));
+  (rc.clientes||[]).forEach(c=>rows.push({kind:'cliente',id:c.id,nome:c.nome,telefone:c.telefone,produto:'Pendência financeira',parcela:'',valorPago:0,contrato:c.contrato,documento:c.contrato||''}));
+  cobrancasBody.innerHTML=rows.map((r,i)=>`<tr><td><b>${esc(r.nome)}</b><br><small>${esc(shortPhone(r.telefone))||'<span class="muted">Sem telefone</span>'}</small></td><td>${esc(r.recibo||r.contrato||r.produto||'Pendência financeira')}<br><small>${esc(formatParcelaCliente(r.parcela))}</small></td><td><b>${r.valorPago?money(r.valorPago):'—'}</b></td><td><button class="yellow small" onclick='preencherCobranca(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Selecionar</button></td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente ou recibo encontrado.</td></tr>';
+}
+async function enviarCobrancaSelecionada(){
+  if(!cobrancaAlvo){toast('Selecione um cliente ou recibo para cobrar.');return}
+  if(!shortPhone(cobrancaAlvo.telefone||'')){toast('Este cliente não tem celular salvo.');return}
+  const payload={tipo:tipoCobranca.value,produto:cobrancaProduto.value,parcela:cobrancaParcela.value,valor:String(cobrancaValor.value).replace(/\./g,'').replace(',','.')};
+  const endpoint=cobrancaAlvo.kind==='cliente'
+    ? API_BASE+'/admin/crediario/clientes/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca'
+    : API_BASE+'/admin/crediario/recibos/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca';
+  if(!confirm(`Enviar ${tipoCobranca.value==='urgente'?'cobrança urgente':'cobrança normal'} para ${cobrancaAlvo.nome||cobrancaAlvo.clienteNome}?`))return;
   try{
-    const r=await fetch(API_BASE+'/admin/crediario/recibos/'+encodeURIComponent(id)+'/cobranca',{method:'POST',headers:headers({'Content-Type':'application/json'})});
+    const r=await fetch(endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
     const j=await r.json();
     toast(j.ok?'Cobrança enviada pelo WhatsApp':'Erro: '+(j.error||'Falha ao enviar cobrança'));
   }catch(e){toast('Erro ao enviar cobrança: '+(e.message||e))}
