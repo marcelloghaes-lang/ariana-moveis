@@ -34,6 +34,7 @@
         <button class="active" onclick="showTab('novo',this)">💰 Registrar pagamento</button>
         <button onclick="showTab('clientes',this)">👥 Clientes</button>
         <button onclick="showTab('importar',this)">📂 Importar SIGE</button>
+        <button onclick="showTab('sige',this)">🔌 SIGE Online</button>
         <button onclick="showTab('cobrancas',this)">🔔 Cobranças</button>
         <button onclick="showTab('historico',this)">📚 Histórico</button>
         <button onclick="logout()">🚪 Sair</button>
@@ -80,6 +81,40 @@
           <div class="actions"><button class="green" onclick="importarSige()">📂 Importar planilha</button><button class="light" onclick="preverSige()">👁️ Pré-visualizar</button></div>
           <div id="sigeResultado" class="receipt" style="margin-top:16px">Nenhuma planilha importada ainda.</div>
           <div style="overflow-x:auto;margin-top:16px"><table><thead id="sigePreviewHead"></thead><tbody id="sigePreviewBody"></tbody></table></div>
+        </div>
+      </section>
+
+
+      <section id="tab-sige" class="hidden">
+        <div class="grid">
+          <div class="card">
+            <h2>🔌 SIGE Online</h2>
+            <p class="help">Consulta em tempo real no SIGE usando as variáveis SIGE_TOKEN, SIGE_USER e SIGE_APP do backend.</p>
+            <div id="sigeStatusBox" class="receipt">Clique em “Testar conexão” para verificar a integração.</div>
+            <div class="actions">
+              <button class="light" onclick="testarSigeStatus()">🔎 Testar conexão</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Buscar cliente no SIGE</h2>
+            <p class="help">Digite parte do nome para buscar CPF, telefone, endereço e inadimplência diretamente no SIGE.</p>
+            <div class="actions">
+              <input id="sigeBuscaCliente" placeholder="Ex: maria, joão, cpf...">
+              <button class="blue" onclick="buscarSigeClientes()">Buscar</button>
+            </div>
+            <table><thead><tr><th>Cliente</th><th>CPF / Telefone</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="sigeClientesBody"><tr><td colspan="4">Nenhuma busca realizada.</td></tr></tbody></table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <h2>Lançamentos financeiros do SIGE</h2>
+          <p class="help">Filtre parcelas abertas, quitadas ou atrasadas vindas do SIGE.</p>
+          <div class="actions">
+            <input id="sigeLancBusca" placeholder="Buscar cliente, documento ou descrição">
+            <select id="sigeLancStatus"><option value="atrasado">Atrasados</option><option value="aberto">Em aberto</option><option value="quitado">Quitados</option><option value="todos">Todos</option></select>
+            <button class="blue" onclick="buscarSigeLancamentos()">Buscar lançamentos</button>
+            <button class="yellow" onclick="buscarSigeInadimplentes()">Ver inadimplentes</button>
+          </div>
+          <table><thead><tr><th>Cliente</th><th>Documento / Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ação</th></tr></thead><tbody id="sigeLancBody"><tr><td colspan="6">Nenhuma consulta realizada.</td></tr></tbody></table>
         </div>
       </section>
 
@@ -143,7 +178,7 @@ function shortPhone(v){const d=onlyDigits(v);return d.startsWith('55')&&d.length
 function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview));document.getElementById('nome').addEventListener('input',onClienteInput);document.getElementById('nome').addEventListener('keydown',onClienteKeydown);document.getElementById('nome').addEventListener('blur',()=>setTimeout(autoSelecionarClientePorTexto,220));parcela.addEventListener('blur',()=>{parcela.value=formatParcelaCliente(parcela.value);preview()});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap')) clienteSugestoes.classList.add('hidden')});if(token()){loginView.style.display='none';appView.style.display='block';loadAll()}preview()}init();
 async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='novo')setTimeout(()=>nome.focus(),120)}
 function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:formatParcelaCliente(parcela.value.trim()),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
 function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(formatParcelaCliente(f.parcela))||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
 function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
@@ -268,8 +303,8 @@ async function salvarTelefoneCobranca(){
     await loadClientes();
   }catch(e){toast('Erro ao salvar celular: '+(e.message||e))}
 }
-function selecionarCobrancaCliente(i){const c=clientes[i];if(!c)return;document.querySelectorAll('.nav button')[3].click();setTimeout(()=>preencherCobranca({...c,kind:'cliente',tipo:'cliente',nome:c.nome,produto:'Pendência financeira'}),120)}
-function selecionarCobrancaRecibo(id){const r=recibos.find(x=>String(x.id)===String(id));if(!r)return;document.querySelectorAll('.nav button')[3].click();setTimeout(()=>preencherCobranca({...r,kind:'recibo',tipo:'recibo',nome:r.clienteNome}),120)}
+function selecionarCobrancaCliente(i){const c=clientes[i];if(!c)return;document.querySelector(".nav button[onclick*=\"cobrancas\"]").click();setTimeout(()=>preencherCobranca({...c,kind:'cliente',tipo:'cliente',nome:c.nome,produto:'Pendência financeira'}),120)}
+function selecionarCobrancaRecibo(id){const r=recibos.find(x=>String(x.id)===String(id));if(!r)return;document.querySelector(".nav button[onclick*=\"cobrancas\"]").click();setTimeout(()=>preencherCobranca({...r,kind:'recibo',tipo:'recibo',nome:r.clienteNome}),120)}
 async function loadCobrancas(){
   const qRaw=buscaCobranca?.value||'';
   const q=encodeURIComponent(qRaw);
@@ -303,9 +338,12 @@ async function enviarCobrancaSelecionada(){
     return;
   }
   const payload={tipo:tipoCobranca.value,produto:cobrancaProduto.value,parcela:cobrancaParcela.value,valor:String(cobrancaValor.value).replace(/\./g,'').replace(',','.'),telefone:telefoneAtual};
-  const endpoint=cobrancaAlvo.kind==='cliente'
-    ? API_BASE+'/admin/crediario/clientes/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca'
-    : API_BASE+'/admin/crediario/recibos/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca';
+  const endpoint=cobrancaAlvo.kind==='sige'
+    ? API_BASE+'/admin/sige/cobranca'
+    : (cobrancaAlvo.kind==='cliente'
+      ? API_BASE+'/admin/crediario/clientes/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca'
+      : API_BASE+'/admin/crediario/recibos/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca');
+  if(cobrancaAlvo.kind==='sige'){payload.clienteNome=cobrancaAlvo.nome||cobrancaAlvo.clienteNome||'';payload.documento=cobrancaAlvo.documento||cobrancaAlvo.codigo||'';payload.codigo=cobrancaAlvo.codigo||'';}
   if(!confirm(`Enviar ${tipoCobranca.value==='urgente'?'cobrança urgente':'cobrança normal'} para ${cobrancaAlvo.nome||cobrancaAlvo.clienteNome}?`))return;
   try{
     const r=await fetch(endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
@@ -313,6 +351,81 @@ async function enviarCobrancaSelecionada(){
     toast(j.ok?'Cobrança enviada pelo WhatsApp':'Erro: '+(j.error||'Falha ao enviar cobrança'));
     if(j.ok){await loadClientes(); await loadRecibos();}
   }catch(e){toast('Erro ao enviar cobrança: '+(e.message||e))}
+}
+
+
+function formatDateBR(v){try{if(!v)return '—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleDateString('pt-BR')}catch(_e){return '—'}}
+function openCobrancasTab(){const b=document.querySelector(".nav button[onclick*=\"cobrancas\"]");if(b)b.click()}
+async function testarSigeStatus(){
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/status',{headers:headers()});
+    const j=await r.json();
+    sigeStatusBox.innerHTML=j.configured
+      ? `<b>✅ SIGE configurado</b><br>API: ${esc(j.apiUrl)}<br>User: ${esc(j.user)}<br>App: ${esc(j.app)}<br>Token: ${j.tokenConfigured?'configurado':'ausente'}`
+      : `<b>⚠️ SIGE ainda não configurado</b><br>Cadastre no Render: SIGE_API_URL, SIGE_USER, SIGE_APP e SIGE_TOKEN.`;
+  }catch(e){sigeStatusBox.innerHTML='Erro ao testar SIGE: '+esc(e.message||e)}
+}
+async function buscarSigeClientes(){
+  const q=(sigeBuscaCliente.value||'').trim();
+  if(q.length<2){toast('Digite pelo menos 2 letras para buscar no SIGE.');return}
+  sigeClientesBody.innerHTML='<tr><td colspan="4">Consultando SIGE...</td></tr>';
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/clientes?q='+encodeURIComponent(q)+'&limit=30',{headers:headers()});
+    const j=await r.json();
+    if(!j.ok){sigeClientesBody.innerHTML='<tr><td colspan="4">Erro: '+esc(j.error||'Falha ao consultar SIGE')+'</td></tr>';return}
+    const rows=j.clientes||[];
+    window.sigeClientesCache=rows;
+    sigeClientesBody.innerHTML=rows.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>CPF: ${esc(c.cpf)||'—'}<br><small>WhatsApp: ${esc(shortPhone(c.telefone))||'—'}</small></td><td>${c.inadimplente?'⚠️ Inadimplente':'✅ Sem alerta'}<br><small>${esc(c.cidade||'')} ${esc(c.uf||'')}</small></td><td><button class="light small" onclick="usarClienteSige(${i})">Usar no recibo</button> <button class="yellow small" onclick="cobrarClienteSige(${i})">🔔 Cobrar</button></td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente encontrado no SIGE.</td></tr>';
+  }catch(e){sigeClientesBody.innerHTML='<tr><td colspan="4">Erro ao consultar SIGE: '+esc(e.message||e)+'</td></tr>'}
+}
+function usarClienteSige(i){
+  const c=(window.sigeClientesCache||[])[Number(i)]; if(!c)return;
+  showTab('novo', document.querySelector(".nav button[onclick*=\"novo\"]"));
+  selectedCliente={id:'',nome:c.nome,cpf:c.cpf,telefone:c.telefone,contrato:c.id,endereco:c.endereco,origem:'sige'};
+  clienteId.value=''; nome.value=c.nome||''; cpf.value=c.cpf||''; telefone.value=shortPhone(c.telefone||''); contrato.value=c.id||'';
+  clienteSelecionado.innerHTML=`✅ Cliente carregado do SIGE: ${esc(c.nome)}${c.cpf?' • CPF: '+esc(c.cpf):''}${c.telefone?' • WhatsApp: '+esc(shortPhone(c.telefone)):''}`;
+  clienteSelecionado.classList.remove('hidden');
+  if(!telefone.value){clienteAviso.innerHTML='⚠️ Este cliente veio do SIGE sem telefone/celular. Preencha e salve o WhatsApp antes de enviar.';clienteAviso.classList.remove('hidden')}else clienteAviso.classList.add('hidden');
+  preview(); toast('Cliente do SIGE preenchido no recibo.');
+}
+function cobrarClienteSige(i){
+  const c=(window.sigeClientesCache||[])[Number(i)]; if(!c)return;
+  openCobrancasTab();
+  setTimeout(()=>preencherCobranca({kind:'sige',nome:c.nome,clienteNome:c.nome,telefone:c.telefone,cpf:c.cpf,produto:'Pendência financeira SIGE',parcela:'',valorPago:0,documento:c.id,codigo:c.id}),120);
+}
+async function buscarSigeLancamentos(){
+  const q=encodeURIComponent(sigeLancBusca.value||''); const st=encodeURIComponent(sigeLancStatus.value||'atrasado');
+  sigeLancBody.innerHTML='<tr><td colspan="6">Consultando lançamentos no SIGE...</td></tr>';
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/lancamentos?q='+q+'&status='+st+'&limit=100',{headers:headers()});
+    const j=await r.json();
+    if(!j.ok){sigeLancBody.innerHTML='<tr><td colspan="6">Erro: '+esc(j.error||'Falha ao consultar SIGE')+'</td></tr>';return}
+    renderSigeLancamentos(j.lancamentos||[]);
+  }catch(e){sigeLancBody.innerHTML='<tr><td colspan="6">Erro ao consultar SIGE: '+esc(e.message||e)+'</td></tr>'}
+}
+async function buscarSigeInadimplentes(){
+  const q=encodeURIComponent(sigeLancBusca.value||'');
+  sigeLancBody.innerHTML='<tr><td colspan="6">Consultando inadimplentes no SIGE...</td></tr>';
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/inadimplentes?q='+q+'&limit=100',{headers:headers()});
+    const j=await r.json();
+    if(!j.ok){sigeLancBody.innerHTML='<tr><td colspan="6">Erro: '+esc(j.error||'Falha ao consultar inadimplentes')+'</td></tr>';return}
+    renderSigeLancamentos(j.inadimplentes||[]);
+  }catch(e){sigeLancBody.innerHTML='<tr><td colspan="6">Erro ao consultar inadimplentes: '+esc(e.message||e)+'</td></tr>'}
+}
+function renderSigeLancamentos(rows){
+  window.sigeLancamentosCache=rows||[];
+  sigeLancBody.innerHTML=(rows||[]).map((l,i)=>{
+    const status=l.quitado?'✅ Quitado':(l.atrasado?'⚠️ Atrasado':'🟡 Em aberto');
+    const doc=l.documento||l.codigoVenda||l.codigo||'—';
+    const valor=l.saldo&&l.saldo>0?l.saldo:l.valor;
+    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td><button class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
+  }).join('')||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>';
+}
+function cobrarLancamentoSige(i){
+  const l=(window.sigeLancamentosCache||[])[Number(i)]; if(!l)return;
+  openCobrancasTab();
+  setTimeout(()=>preencherCobranca({kind:'sige',nome:l.cliente||l.nome,clienteNome:l.cliente||l.nome,telefone:l.telefone||'',produto:l.descricao||'Pendência financeira SIGE',parcela:l.documento||'',valorPago:l.saldo&&l.saldo>0?l.saldo:l.valor,documento:l.documento||l.codigo,codigo:l.codigo}),120);
 }
 
 async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}

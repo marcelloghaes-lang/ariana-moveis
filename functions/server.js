@@ -1015,6 +1015,250 @@ async function sendCrediarioReceiptWhatsapp(reciboDoc = {}) {
   return waSendTextMessage({ number, text });
 }
 
+
+// ============================================================
+// INTEGRAÇÃO SIGE CLOUD - CONSULTA ONLINE
+// Variáveis necessárias no Render:
+// SIGE_API_URL=https://api.sigecloud.com.br
+// SIGE_USER=marcelloghaes@hotmail.com
+// SIGE_APP=API
+// SIGE_TOKEN=token_novo_do_sige
+// ============================================================
+const SIGE_API_URL = String(process.env.SIGE_API_URL || 'https://api.sigecloud.com.br').replace(/\/+$/, '');
+const SIGE_USER = String(process.env.SIGE_USER || '').trim();
+const SIGE_APP = String(process.env.SIGE_APP || 'API').trim();
+const SIGE_TOKEN = String(process.env.SIGE_TOKEN || process.env.SIGE_AUTHORIZATION_TOKEN || '').trim();
+const SIGE_TIMEOUT_MS = Number(process.env.SIGE_TIMEOUT_MS || 30000);
+
+function isSigeConfigured() {
+  return Boolean(SIGE_API_URL && SIGE_USER && SIGE_APP && SIGE_TOKEN);
+}
+
+function sigeAuthHeaders() {
+  return {
+    'Authorization-Token': SIGE_TOKEN,
+    'User': SIGE_USER,
+    'App': SIGE_APP,
+    'Accept': 'application/json'
+  };
+}
+
+async function sigeGet(endpoint, params = {}) {
+  if (!isSigeConfigured()) {
+    const err = new Error('SIGE não configurado. Configure SIGE_API_URL, SIGE_USER, SIGE_APP e SIGE_TOKEN no Render.');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const cleanEndpoint = String(endpoint || '').replace(/^\/+/, '');
+  const url = `${SIGE_API_URL}/request/${cleanEndpoint}`;
+  const response = await axios.get(url, {
+    headers: sigeAuthHeaders(),
+    params,
+    timeout: SIGE_TIMEOUT_MS,
+    validateStatus: () => true
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    const err = new Error(typeof response.data === 'string' ? response.data : `Erro SIGE HTTP ${response.status}`);
+    err.statusCode = response.status;
+    err.responseData = response.data;
+    throw err;
+  }
+
+  return Array.isArray(response.data) ? response.data : (response.data ? [response.data] : []);
+}
+
+function normalizeSigePessoa(row = {}) {
+  const enderecoPadrao = row.EnderecoPadrao || {};
+  const telefone = normalizePhone(row.Celular || row.Telefone || enderecoPadrao.Telefone || '', '55');
+  const enderecoParts = [
+    row.Logradouro || enderecoPadrao.Logradouro,
+    row.LogradouroNumero || enderecoPadrao.Numero,
+    row.Complemento || enderecoPadrao.Complemento,
+    row.Bairro || enderecoPadrao.Bairro,
+    row.Cidade || enderecoPadrao.Cidade,
+    row.UF || enderecoPadrao.Uf
+  ].map((v) => String(v || '').trim()).filter(Boolean);
+
+  return {
+    id: String(row.ID || row.Id || row.Codigo || ''),
+    nome: String(row.NomeFantasia || row.RazaoSocial || row.Nome || '').trim(),
+    razaoSocial: String(row.RazaoSocial || '').trim(),
+    cpf: cleanPhone(row.CNPJ_CPF || row.CpfCnpj || row.CPF || row.CNPJ || ''),
+    telefone,
+    telefoneOriginal: String(row.Telefone || '').trim(),
+    celularOriginal: String(row.Celular || '').trim(),
+    cidade: String(row.Cidade || enderecoPadrao.Cidade || '').trim(),
+    uf: String(row.UF || enderecoPadrao.Uf || '').trim(),
+    endereco: enderecoParts.join(', '),
+    cep: String(row.CEP || enderecoPadrao.CEP || '').trim(),
+    cliente: row.Cliente === true,
+    bloqueado: row.Bloqueado === true,
+    inadimplente: row.EstaInadimplente === true,
+    ultimaAlteracao: row.UltimaAlteracao || null,
+    raw: row
+  };
+}
+
+function normalizeSigeLancamento(row = {}) {
+  const valor = Number(row.Valor || 0) || 0;
+  const recebido = Number(row.TotalRecebido || 0) || 0;
+  const quitado = row.Quitado === true;
+  const vencimento = row.DataVencimento || row.DataVencimentoOriginal || null;
+  const vencDate = vencimento ? new Date(vencimento) : null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const atrasado = !quitado && vencDate && !Number.isNaN(vencDate.getTime()) && vencDate < hoje;
+  const saldo = Math.max(0, valor - recebido);
+
+  return {
+    codigo: row.Codigo,
+    id: String(row.Codigo || row.ID || ''),
+    cliente: String(row.Cliente || '').trim(),
+    documento: String(row.NumeroDocumento || row.NumeroBoleto || row.CodigoVenda || '').trim(),
+    descricao: String(row.Descricao || '').trim(),
+    empresa: String(row.Empresa || '').trim(),
+    formaPagamento: String(row.FormaPagamento || '').trim(),
+    planoDeConta: String(row.PlanoDeConta || '').trim(),
+    valor,
+    totalRecebido: recebido,
+    saldo,
+    quitado,
+    atrasado: Boolean(atrasado),
+    dataCompetencia: row.DataCompetencia || null,
+    dataVencimento: vencimento,
+    dataQuitacao: row.DataQuitacao && !String(row.DataQuitacao).startsWith('0001-') ? row.DataQuitacao : null,
+    codigoVenda: row.CodigoVenda || 0,
+    codigoContrato: row.CodigoContrato || 0,
+    pagamentos: Array.isArray(row.Pagamentos) ? row.Pagamentos : [],
+    parcelas: Array.isArray(row.Parcelas) ? row.Parcelas : [],
+    raw: row
+  };
+}
+
+function filterSigeRows(rows = [], q = '', fields = []) {
+  const query = String(q || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!query) return rows;
+  return rows.filter((row) => fields.some((field) => String(row[field] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(query)));
+}
+
+async function getSigePessoasByQuery(q = '', limit = 50) {
+  const params = {};
+  const rawQ = String(q || '').trim();
+  if (rawQ) params.nomefantasia = rawQ;
+  const rows = await sigeGet('Pessoas/Pesquisar', params);
+  return rows.map(normalizeSigePessoa).filter((p) => p.nome).slice(0, limit);
+}
+
+async function getSigeLancamentosFiltered({ q = '', status = 'todos', limit = 100 } = {}) {
+  const rows = await sigeGet('Lancamentos/Pesquisar', {});
+  let normalized = rows.map(normalizeSigeLancamento).filter((l) => l.cliente || l.descricao || l.codigo);
+  normalized = filterSigeRows(normalized, q, ['cliente', 'documento', 'descricao', 'formaPagamento', 'planoDeConta']);
+  const st = String(status || 'todos').toLowerCase();
+  if (st === 'aberto' || st === 'abertos') normalized = normalized.filter((l) => !l.quitado);
+  if (st === 'quitado' || st === 'quitados' || st === 'pago' || st === 'pagos') normalized = normalized.filter((l) => l.quitado);
+  if (st === 'atrasado' || st === 'vencido' || st === 'inadimplente') normalized = normalized.filter((l) => l.atrasado);
+  normalized.sort((a, b) => new Date(a.dataVencimento || 0) - new Date(b.dataVencimento || 0));
+  return normalized.slice(0, Math.max(1, Math.min(Number(limit || 100), 500)));
+}
+
+app.get('/api/admin/sige/status', adminRequired, async (_req, res) => {
+  return res.json({
+    ok: true,
+    configured: isSigeConfigured(),
+    apiUrl: SIGE_API_URL,
+    user: SIGE_USER ? SIGE_USER.replace(/(.{3}).+(@.+)/, '$1***$2') : '',
+    app: SIGE_APP || '',
+    tokenConfigured: Boolean(SIGE_TOKEN)
+  });
+});
+
+app.get('/api/admin/sige/clientes', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || req.query.nome || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 200));
+    const pessoas = await getSigePessoasByQuery(q, limit);
+    return res.json({ ok: true, clientes: pessoas, total: pessoas.length });
+  } catch (error) {
+    console.error('Erro SIGE clientes:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar clientes no SIGE' });
+  }
+});
+
+app.get('/api/admin/sige/lancamentos', adminRequired, async (req, res) => {
+  try {
+    const lancamentos = await getSigeLancamentosFiltered({
+      q: req.query.q || '',
+      status: req.query.status || 'todos',
+      limit: req.query.limit || 100
+    });
+    return res.json({ ok: true, lancamentos, total: lancamentos.length });
+  } catch (error) {
+    console.error('Erro SIGE lançamentos:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar lançamentos no SIGE' });
+  }
+});
+
+app.get('/api/admin/sige/inadimplentes', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 100), 500));
+
+    let pessoas = [];
+    try {
+      const rows = await sigeGet('Pessoas/ConsultaInadimplencias', q ? { nomefantasia: q } : {});
+      pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
+    } catch (innerError) {
+      pessoas = [];
+    }
+
+    const lancamentos = await getSigeLancamentosFiltered({ q, status: 'atrasado', limit });
+    const byName = new Map(pessoas.map((p) => [p.nome.toLowerCase(), p]));
+    const inadimplentes = lancamentos.map((l) => {
+      const pessoa = byName.get(String(l.cliente || '').toLowerCase()) || null;
+      return {
+        ...l,
+        nome: l.cliente,
+        telefone: pessoa?.telefone || '',
+        cpf: pessoa?.cpf || '',
+        cidade: pessoa?.cidade || '',
+        uf: pessoa?.uf || '',
+        pessoaId: pessoa?.id || ''
+      };
+    }).slice(0, limit);
+
+    return res.json({ ok: true, inadimplentes, total: inadimplentes.length });
+  } catch (error) {
+    console.error('Erro SIGE inadimplentes:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar inadimplentes no SIGE' });
+  }
+});
+
+app.post('/api/admin/sige/cobranca', adminRequired, async (req, res) => {
+  try {
+    const telefone = String(req.body.telefone || '').trim();
+    const clienteNome = String(req.body.clienteNome || req.body.nome || '').trim();
+    if (!clienteNome) return res.status(400).json({ ok: false, error: 'Cliente não informado' });
+    if (!telefone) return res.status(400).json({ ok: false, error: 'Telefone não informado' });
+
+    const whatsapp = await sendCrediarioCobrancaWhatsapp({
+      telefone,
+      clienteNome,
+      produto: req.body.produto || req.body.descricao || 'Pendência financeira SIGE',
+      parcela: req.body.parcela || '',
+      valor: parseSigeMoney(req.body.valor || req.body.saldo || 0),
+      documento: req.body.documento || req.body.codigo || '',
+      contrato: req.body.contrato || '',
+      tipo: req.body.tipo || 'normal'
+    });
+
+    return res.json({ ok: true, whatsapp });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança SIGE' });
+  }
+});
+
 app.get('/api/admin/crediario/clientes', adminRequired, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
