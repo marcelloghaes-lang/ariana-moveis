@@ -36,6 +36,7 @@
         <button onclick="showTab('importar',this)">📂 Importar SIGE</button>
         <button onclick="showTab('sige',this)">🔌 SIGE Online</button>
         <button onclick="showTab('inadimplentes',this)">🚨 Inadimplentes</button>
+        <button onclick="showTab('autoCobranca',this)">🤖 Automação</button>
         <button onclick="showTab('cobrancas',this)">🔔 Cobranças</button>
         <button onclick="showTab('historico',this)">📚 Histórico</button>
         <button onclick="logout()">🚪 Sair</button>
@@ -151,6 +152,34 @@
         </div>
       </section>
 
+
+      <section id="tab-autoCobranca" class="hidden">
+        <div class="grid">
+          <div class="card">
+            <h2>🤖 Cobrança Automática SIGE</h2>
+            <p class="help">Simule antes de enviar. A regra usa: 1 dia = amigável, 7 dias = normal, 15 dias = urgente. O sistema não repete a mesma cobrança no mesmo dia.</p>
+            <div id="autoCobrancaConfig" class="receipt">Clique em “Carregar configuração”.</div>
+            <div class="formgrid" style="margin-top:12px">
+              <div><label>Buscar cliente opcional</label><input id="autoCobBusca" placeholder="Deixe vazio para todos"></div>
+              <div><label>Limite de envios/consulta</label><input id="autoCobLimit" type="number" value="100" min="1" max="300"></div>
+            </div>
+            <div class="actions">
+              <button class="light" onclick="loadAutoCobrancaConfig()">⚙️ Carregar configuração</button>
+              <button class="blue" onclick="simularAutoCobranca()">👁️ Simular cobranças</button>
+              <button class="red" onclick="executarAutoCobranca()">🚨 Enviar cobranças agora</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Resumo da simulação</h2>
+            <div id="autoCobResumo" class="receipt">Nenhuma simulação executada.</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <h2>Clientes candidatos à cobrança</h2>
+          <table><thead><tr><th>Cliente</th><th>Documento</th><th>Dias</th><th>Tipo</th><th>Telefone</th><th>Status</th></tr></thead><tbody id="autoCobBody"><tr><td colspan="6">Nenhuma simulação realizada.</td></tr></tbody></table>
+        </div>
+      </section>
+
       <section id="tab-cobrancas" class="hidden">
         <div class="grid">
           <div class="card">
@@ -211,7 +240,7 @@ function shortPhone(v){const d=onlyDigits(v);return d.startsWith('55')&&d.length
 function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview));document.getElementById('nome').addEventListener('input',onClienteInput);document.getElementById('nome').addEventListener('keydown',onClienteKeydown);document.getElementById('nome').addEventListener('blur',()=>setTimeout(autoSelecionarClientePorTexto,220));parcela.addEventListener('blur',()=>{parcela.value=formatParcelaCliente(parcela.value);preview()});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap')) clienteSugestoes.classList.add('hidden')});if(token()){loginView.style.display='none';appView.style.display='block';loadAll()}preview()}init();
 async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='autoCobranca')loadAutoCobrancaConfig();if(name==='novo')setTimeout(()=>nome.focus(),120)}
 function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:formatParcelaCliente(parcela.value.trim()),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
 function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(formatParcelaCliente(f.parcela))||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
 function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
@@ -662,6 +691,52 @@ async function enviarCarneInadimplente(i){
     if(!j.ok){toast('Erro: '+(j.error||'Falha ao enviar carnê'));return}
     toast('Carnê enviado pelo WhatsApp.');
   }catch(e){toast('Erro ao enviar carnê: '+(e.message||e))}
+}
+
+
+async function loadAutoCobrancaConfig(){
+  const box=document.getElementById('autoCobrancaConfig');
+  if(box)box.innerHTML='Carregando configuração...';
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/cobranca-automatica/config',{headers:headers()});
+    const j=await r.json();
+    if(!j.ok){if(box)box.innerHTML='Erro: '+esc(j.error||'Falha ao carregar configuração');return}
+    if(box)box.innerHTML=`<b>Status automático no servidor:</b> ${j.enabled?'ATIVADO':'DESATIVADO'}<br><b>Horário:</b> ${String(j.hour).padStart(2,'0')}:00<br><b>Regras:</b><br>${(j.rules||[]).map(r=>'• '+esc(r.label)).join('<br>')}<br><br><small>${esc(j.antiRepeticao||'')}</small>`;
+  }catch(e){if(box)box.innerHTML='Erro: '+esc(e.message||e)}
+}
+function renderAutoCobrancaRows(rows=[]){
+  const body=document.getElementById('autoCobBody'); if(!body)return;
+  body.innerHTML=rows.map(r=>`<tr><td><b>${esc(r.nome||r.cliente||'')}</b></td><td>${esc(r.documento||r.codigo||'')}</td><td>${Number(r.diasAtraso||0)}</td><td><b>${esc(r.tipo||'')}</b></td><td>${r.telefone?esc(shortPhone(r.telefone)):'<span class="muted">Sem telefone</span>'}</td><td>${r.podeEnviar?'✅ Pode enviar':esc(r.motivoBloqueio||'—')}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum candidato encontrado.</td></tr>';
+}
+async function simularAutoCobranca(){
+  const q=(document.getElementById('autoCobBusca')?.value||'').trim();
+  const limit=Number(document.getElementById('autoCobLimit')?.value||100);
+  const resumo=document.getElementById('autoCobResumo');
+  if(resumo)resumo.innerHTML='Simulando cobranças...';
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/cobranca-automatica/simular',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({q,limit})});
+    const j=await r.json();
+    if(!j.ok){if(resumo)resumo.innerHTML='Erro: '+esc(j.error||'Falha na simulação');return}
+    const s=j.resumo||{};
+    if(resumo)resumo.innerHTML=`<b>Total candidatos:</b> ${j.total||0}<br><b>Podem enviar:</b> ${s.podeEnviar||0}<br><b>Sem telefone:</b> ${s.semTelefone||0}<br><b>Já enviados hoje:</b> ${s.jaEnviadoHoje||0}`;
+    renderAutoCobrancaRows(j.candidatos||[]);
+  }catch(e){if(resumo)resumo.innerHTML='Erro: '+esc(e.message||e)}
+}
+async function executarAutoCobranca(){
+  if(!confirm('Enviar cobranças automáticas agora para os clientes elegíveis?'))return;
+  const q=(document.getElementById('autoCobBusca')?.value||'').trim();
+  const limit=Number(document.getElementById('autoCobLimit')?.value||100);
+  const resumo=document.getElementById('autoCobResumo');
+  if(resumo)resumo.innerHTML='Enviando cobranças, aguarde...';
+  try{
+    const r=await fetch(API_BASE+'/admin/sige/cobranca-automatica/executar',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({q,limit,dryRun:false})});
+    const j=await r.json();
+    if(!j.ok){if(resumo)resumo.innerHTML='Erro: '+esc(j.error||'Falha ao executar');return}
+    const s=j.resumo||{};
+    if(resumo)resumo.innerHTML=`<b>Concluído.</b><br>Enviados: ${s.enviados||0}<br>Ignorados: ${s.ignorados||0}<br>Erros: ${s.erros||0}`;
+    renderAutoCobrancaRows(j.resultados||[]);
+    toast('Cobrança automática concluída. Enviados: '+(s.enviados||0));
+  }catch(e){if(resumo)resumo.innerHTML='Erro: '+esc(e.message||e)}
 }
 
 async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}

@@ -719,6 +719,28 @@ const CrediarioCliente = mongoose.model('CrediarioCliente', crediarioClienteSche
 const CrediarioRecibo = mongoose.model('CrediarioRecibo', crediarioReciboSchema);
 
 
+const crediarioCobrancaLogSchema = new mongoose.Schema({
+  uniqueKey: { type: String, unique: true, index: true },
+  origem: { type: String, default: 'sige_auto', index: true },
+  clienteNome: { type: String, default: '', index: true },
+  telefone: { type: String, default: '', index: true },
+  documento: { type: String, default: '', index: true },
+  codigoLancamento: { type: String, default: '', index: true },
+  tipo: { type: String, default: 'normal', index: true },
+  diasAtraso: { type: Number, default: 0 },
+  valor: { type: Number, default: 0 },
+  dataVencimento: Date,
+  enviado: { type: Boolean, default: false },
+  enviadoEm: Date,
+  whatsappResultado: mongoose.Schema.Types.Mixed,
+  mensagem: String,
+  erro: String,
+  metadata: mongoose.Schema.Types.Mixed
+}, baseOptions);
+
+const CrediarioCobrancaLog = mongoose.model('CrediarioCobrancaLog', crediarioCobrancaLogSchema);
+
+
 
 function normalizeBannerPayload(input = {}, fallback = {}) {
   const source = { ...(fallback || {}), ...(input || {}) };
@@ -1535,91 +1557,163 @@ app.post('/api/admin/sige/carne/enviar-whatsapp', adminRequired, async (req, res
   }
 });
 
+
+function getSigeAutoCobrancaTipo(diasAtraso = 0) {
+  const dias = Number(diasAtraso || 0);
+  if (dias >= 15) return 'urgente';
+  if (dias >= 7) return 'normal';
+  if (dias >= 1) return 'amigavel';
+  return '';
+}
+
+function buildSigeAutoCobrancaKey(item = {}, tipo = 'normal') {
+  const today = new Date().toISOString().slice(0, 10);
+  const codigo = String(item.codigo || item.id || item.codigoLancamento || '').trim();
+  const documento = String(item.documento || item.NumeroDocumento || '').trim();
+  const cliente = String(item.nome || item.cliente || item.clienteNome || '').trim().toLowerCase();
+  const venc = String(item.dataVencimento || '').slice(0, 10);
+  return crypto.createHash('sha1').update([today, tipo, codigo, documento, cliente, venc].join('|')).digest('hex');
+}
+
+function buildSigeAutoCobrancaMessage(item = {}, tipo = 'amigavel') {
+  const nome = String(item.nome || item.cliente || item.clienteNome || 'cliente').trim() || 'cliente';
+  const documento = String(item.documento || item.codigo || '').trim();
+  const descricao = String(item.descricao || 'Parcela em aberto').trim();
+  const valor = Number((item.saldo && item.saldo > 0) ? item.saldo : (item.valor || 0));
+  const vencimento = item.dataVencimento ? formatDateBR(item.dataVencimento) : 'não informado';
+  const dias = Number(item.diasAtraso || 0);
+  const tipoNorm = String(tipo || 'amigavel').toLowerCase();
+
+  const cabecalho = tipoNorm === 'urgente'
+    ? '🚨 Aviso urgente de pendência financeira'
+    : (tipoNorm === 'normal' ? '🔔 Aviso de pendência financeira' : '📌 Lembrete de parcela em atraso');
+
+  const texto = tipoNorm === 'urgente'
+    ? 'Consta parcela vencida há vários dias em nosso sistema. Pedimos contato com urgência para regularização ou esclarecimentos.'
+    : (tipoNorm === 'normal'
+      ? 'Identificamos parcela em atraso em nosso sistema. Pedimos a gentileza de entrar em contato com nosso financeiro.'
+      : 'Identificamos uma parcela vencida recentemente em nosso sistema. Caso já tenha realizado o pagamento, por favor desconsidere esta mensagem.');
+
+  return [
+    cabecalho,
+    '',
+    `Olá, ${nome}.`,
+    '',
+    texto,
+    '',
+    documento ? `🧾 Documento: ${documento}` : '',
+    descricao ? `📦 Referência: ${descricao.slice(0, 160)}` : '',
+    valor > 0 ? `💰 Valor: ${formatMoneyBRL(valor)}` : '',
+    `📅 Vencimento: ${vencimento}`,
+    dias > 0 ? `⏱️ Dias em atraso: ${dias}` : '',
+    '',
+    'Para mais informações ou regularização, fale com a loja:',
+    '📲 WhatsApp financeiro: (31) 98514-7119',
+    '',
+    'Ariana Móveis'
+  ].filter(Boolean).join('\n').trim();
+}
+
+async function enrichSigeInadimplenteTelefone(item = {}) {
+  if (item.telefone) return item;
+  const nome = String(item.nome || item.cliente || '').trim();
+  if (!nome) return item;
+  try {
+    const pessoas = await getSigePessoasByQuery(nome, 3);
+    const exact = pessoas.find(p => String(p.nome || '').trim().toLowerCase() === nome.toLowerCase()) || pessoas[0];
+    if (exact?.telefone) {
+      return { ...item, telefone: exact.telefone, cpf: item.cpf || exact.cpf || '', cidade: item.cidade || exact.cidade || '', uf: item.uf || exact.uf || '' };
+    }
+  } catch (error) {
+    console.warn('Não foi possível buscar telefone do inadimplente:', error.message || error);
+  }
+  return item;
+}
+
+async function getSigeInadimplentesData({ q = '', limit = 1000, maxRecords = 4000 } = {}) {
+  const lancamentos = await getSigeLancamentosFiltered({
+    q,
+    status: 'atrasado',
+    limit,
+    maxRecords
+  });
+
+  let pessoas = [];
+  try {
+    if (q) {
+      const rows = await sigeGet('Pessoas/Pesquisar', { nomefantasia: q });
+      pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
+    } else {
+      const rows = await sigeGet('Pessoas/ConsultaInadimplencias', {});
+      pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
+    }
+  } catch (innerError) {
+    console.warn('SIGE ConsultaInadimplencias indisponível; usando lançamentos vencidos:', innerError.message || innerError);
+    pessoas = [];
+  }
+
+  const byName = new Map(pessoas.map((p) => [String(p.nome || '').toLowerCase(), p]));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const inadimplentes = lancamentos.map((l) => {
+    const pessoa = byName.get(String(l.cliente || '').toLowerCase()) || null;
+    const vencimento = parseSigeDate(l.dataVencimento);
+    let diasAtraso = 0;
+    if (vencimento) {
+      const vencDate = new Date(vencimento);
+      vencDate.setHours(0, 0, 0, 0);
+      diasAtraso = Math.max(0, Math.floor((today.getTime() - vencDate.getTime()) / 86400000));
+    }
+    return {
+      ...l,
+      nome: l.cliente,
+      telefone: pessoa?.telefone || l.telefone || '',
+      cpf: pessoa?.cpf || l.cpf || '',
+      cidade: pessoa?.cidade || '',
+      uf: pessoa?.uf || '',
+      pessoaId: pessoa?.id || '',
+      diasAtraso
+    };
+  }).sort((a, b) => Number(b.diasAtraso || 0) - Number(a.diasAtraso || 0)).slice(0, limit);
+
+  const clientesUnicos = new Set(inadimplentes.map((item) => String(item.nome || item.cliente || '').trim().toLowerCase()).filter(Boolean));
+  const valorTotal = inadimplentes.reduce((sum, item) => sum + Number(item.saldo && item.saldo > 0 ? item.saldo : item.valor || 0), 0);
+  const parcelaMaisAntiga = inadimplentes.reduce((oldest, item) => {
+    const dt = parseSigeDate(item.dataVencimento);
+    if (!dt) return oldest;
+    if (!oldest) return item;
+    const oldDt = parseSigeDate(oldest.dataVencimento);
+    return oldDt && oldDt <= dt ? oldest : item;
+  }, null);
+
+  return {
+    inadimplentes,
+    total: inadimplentes.length,
+    resumo: {
+      clientes: clientesUnicos.size,
+      parcelas: inadimplentes.length,
+      valorTotal: Number(valorTotal.toFixed(2)),
+      parcelaMaisAntiga: parcelaMaisAntiga ? {
+        cliente: parcelaMaisAntiga.nome || parcelaMaisAntiga.cliente || '',
+        dataVencimento: parcelaMaisAntiga.dataVencimento || null,
+        diasAtraso: parcelaMaisAntiga.diasAtraso || 0,
+        valor: Number(parcelaMaisAntiga.saldo && parcelaMaisAntiga.saldo > 0 ? parcelaMaisAntiga.saldo : parcelaMaisAntiga.valor || 0)
+      } : null
+    }
+  };
+}
+
 app.get('/api/admin/sige/inadimplentes', adminRequired, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
     const limit = Math.max(1, Math.min(Number(req.query.limit || 1000), 2000));
-
-    // Primeiro buscamos os lançamentos vencidos. Essa é a base mais confiável,
-    // porque no SIGE cada parcela aparece como lançamento com DataVencimento e Quitado.
-    const lancamentos = await getSigeLancamentosFiltered({
+    const data = await getSigeInadimplentesData({
       q,
-      status: 'atrasado',
       limit,
       maxRecords: req.query.maxRecords || 4000
     });
-
-    // A consulta de inadimplências do SIGE pode exigir parâmetros específicos e falhar.
-    // Por isso ela é usada apenas como enriquecimento, nunca como fonte obrigatória.
-    let pessoas = [];
-    try {
-      if (q) {
-        const rows = await sigeGet('Pessoas/Pesquisar', { nomefantasia: q });
-        pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
-      } else {
-        const rows = await sigeGet('Pessoas/ConsultaInadimplencias', {});
-        pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
-      }
-    } catch (innerError) {
-      console.warn('SIGE ConsultaInadimplencias indisponível; usando lançamentos vencidos:', innerError.message || innerError);
-      pessoas = [];
-    }
-
-    const byName = new Map(pessoas.map((p) => [String(p.nome || '').toLowerCase(), p]));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const inadimplentes = lancamentos.map((l) => {
-      const pessoa = byName.get(String(l.cliente || '').toLowerCase()) || null;
-      const vencimento = parseSigeDate(l.dataVencimento);
-      let diasAtraso = 0;
-      if (vencimento) {
-        const vencDate = new Date(vencimento);
-        vencDate.setHours(0, 0, 0, 0);
-        diasAtraso = Math.max(0, Math.floor((today.getTime() - vencDate.getTime()) / 86400000));
-      }
-
-      return {
-        ...l,
-        nome: l.cliente,
-        telefone: pessoa?.telefone || l.telefone || '',
-        cpf: pessoa?.cpf || l.cpf || '',
-        cidade: pessoa?.cidade || '',
-        uf: pessoa?.uf || '',
-        pessoaId: pessoa?.id || '',
-        diasAtraso
-      };
-    })
-      .sort((a, b) => Number(b.diasAtraso || 0) - Number(a.diasAtraso || 0))
-      .slice(0, limit);
-
-    const clientesUnicos = new Set(inadimplentes.map((item) => String(item.nome || item.cliente || '').trim().toLowerCase()).filter(Boolean));
-    const valorTotal = inadimplentes.reduce((sum, item) => sum + Number(item.saldo && item.saldo > 0 ? item.saldo : item.valor || 0), 0);
-    const parcelaMaisAntiga = inadimplentes.reduce((oldest, item) => {
-      const dt = parseSigeDate(item.dataVencimento);
-      if (!dt) return oldest;
-      if (!oldest) return item;
-      const oldDt = parseSigeDate(oldest.dataVencimento);
-      return oldDt && oldDt <= dt ? oldest : item;
-    }, null);
-
-    return res.json({
-      ok: true,
-      inadimplentes,
-      total: inadimplentes.length,
-      resumo: {
-        clientes: clientesUnicos.size,
-        parcelas: inadimplentes.length,
-        valorTotal: Number(valorTotal.toFixed(2)),
-        parcelaMaisAntiga: parcelaMaisAntiga ? {
-          cliente: parcelaMaisAntiga.nome || parcelaMaisAntiga.cliente || '',
-          dataVencimento: parcelaMaisAntiga.dataVencimento || null,
-          diasAtraso: parcelaMaisAntiga.diasAtraso || 0,
-          valor: Number(parcelaMaisAntiga.saldo && parcelaMaisAntiga.saldo > 0 ? parcelaMaisAntiga.saldo : parcelaMaisAntiga.valor || 0)
-        } : null
-      },
-      fonte: 'lancamentos_vencidos'
-    });
+    return res.json({ ok: true, ...data, fonte: 'lancamentos_vencidos' });
   } catch (error) {
     console.error('Erro SIGE inadimplentes:', error.message || error);
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar inadimplentes no SIGE' });
@@ -1647,6 +1741,151 @@ app.post('/api/admin/sige/cobranca', adminRequired, async (req, res) => {
     return res.json({ ok: true, whatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança SIGE' });
+  }
+});
+
+
+app.get('/api/admin/sige/cobranca-automatica/config', adminRequired, async (_req, res) => {
+  return res.json({
+    ok: true,
+    enabled: String(process.env.SIGE_AUTO_COBRANCA_ENABLED || 'false').toLowerCase() === 'true',
+    hour: Number(process.env.SIGE_AUTO_COBRANCA_HOUR || 9),
+    rules: [
+      { minDias: 1, tipo: 'amigavel', label: '1 dia ou mais: lembrete amigável' },
+      { minDias: 7, tipo: 'normal', label: '7 dias ou mais: cobrança normal' },
+      { minDias: 15, tipo: 'urgente', label: '15 dias ou mais: cobrança urgente' }
+    ],
+    antiRepeticao: 'Não envia a mesma cobrança para a mesma parcela mais de uma vez no mesmo dia.'
+  });
+});
+
+app.post('/api/admin/sige/cobranca-automatica/simular', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.body?.q || req.query?.q || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.body?.limit || req.query?.limit || 100), 500));
+    const data = await getSigeInadimplentesData({ q, limit, maxRecords: req.body?.maxRecords || 8000 });
+    const candidatos = [];
+
+    for (const item of data.inadimplentes) {
+      const tipo = getSigeAutoCobrancaTipo(item.diasAtraso);
+      if (!tipo) continue;
+      const enriched = await enrichSigeInadimplenteTelefone(item);
+      const uniqueKey = buildSigeAutoCobrancaKey(enriched, tipo);
+      const existente = await CrediarioCobrancaLog.findOne({ uniqueKey }).lean();
+      candidatos.push({
+        ...enriched,
+        tipo,
+        uniqueKey,
+        jaEnviadoHoje: !!existente,
+        podeEnviar: !!enriched.telefone && !existente,
+        motivoBloqueio: !enriched.telefone ? 'sem telefone' : (existente ? 'já enviado hoje' : '')
+      });
+    }
+
+    return res.json({
+      ok: true,
+      candidatos,
+      total: candidatos.length,
+      resumo: {
+        podeEnviar: candidatos.filter(c => c.podeEnviar).length,
+        semTelefone: candidatos.filter(c => !c.telefone).length,
+        jaEnviadoHoje: candidatos.filter(c => c.jaEnviadoHoje).length
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao simular cobrança automática SIGE:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao simular cobrança automática' });
+  }
+});
+
+app.post('/api/admin/sige/cobranca-automatica/executar', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.body?.q || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.body?.limit || 100), 300));
+    const dryRun = req.body?.dryRun === true;
+    const data = await getSigeInadimplentesData({ q, limit, maxRecords: req.body?.maxRecords || 8000 });
+    const resultados = [];
+
+    for (const item of data.inadimplentes) {
+      const tipo = getSigeAutoCobrancaTipo(item.diasAtraso);
+      if (!tipo) continue;
+      const enriched = await enrichSigeInadimplenteTelefone(item);
+      const uniqueKey = buildSigeAutoCobrancaKey(enriched, tipo);
+      const valor = Number((enriched.saldo && enriched.saldo > 0) ? enriched.saldo : (enriched.valor || 0));
+      const telefone = normalizePhone(enriched.telefone || '', '55');
+      const existente = await CrediarioCobrancaLog.findOne({ uniqueKey }).lean();
+
+      if (existente) {
+        resultados.push({ ok: false, skipped: true, motivo: 'já enviado hoje', cliente: enriched.nome || enriched.cliente, tipo, documento: enriched.documento, codigo: enriched.codigo });
+        continue;
+      }
+      if (!telefone) {
+        resultados.push({ ok: false, skipped: true, motivo: 'sem telefone', cliente: enriched.nome || enriched.cliente, tipo, documento: enriched.documento, codigo: enriched.codigo });
+        continue;
+      }
+
+      const mensagem = buildSigeAutoCobrancaMessage(enriched, tipo);
+      if (dryRun) {
+        resultados.push({ ok: true, dryRun: true, cliente: enriched.nome || enriched.cliente, telefone, tipo, documento: enriched.documento, codigo: enriched.codigo, valor, mensagem });
+        continue;
+      }
+
+      try {
+        const whatsapp = await waSendTextMessage({ number: telefone, text: mensagem });
+        await CrediarioCobrancaLog.create({
+          uniqueKey,
+          origem: 'sige_auto',
+          clienteNome: enriched.nome || enriched.cliente || '',
+          telefone,
+          documento: String(enriched.documento || ''),
+          codigoLancamento: String(enriched.codigo || enriched.id || ''),
+          tipo,
+          diasAtraso: Number(enriched.diasAtraso || 0),
+          valor,
+          dataVencimento: parseSigeDate(enriched.dataVencimento),
+          enviado: true,
+          enviadoEm: new Date(),
+          whatsappResultado: whatsapp,
+          mensagem,
+          metadata: { lancamento: enriched }
+        });
+        resultados.push({ ok: true, cliente: enriched.nome || enriched.cliente, telefone, tipo, documento: enriched.documento, codigo: enriched.codigo, valor });
+      } catch (sendError) {
+        await CrediarioCobrancaLog.create({
+          uniqueKey,
+          origem: 'sige_auto',
+          clienteNome: enriched.nome || enriched.cliente || '',
+          telefone,
+          documento: String(enriched.documento || ''),
+          codigoLancamento: String(enriched.codigo || enriched.id || ''),
+          tipo,
+          diasAtraso: Number(enriched.diasAtraso || 0),
+          valor,
+          dataVencimento: parseSigeDate(enriched.dataVencimento),
+          enviado: false,
+          erro: sendError.message || String(sendError),
+          mensagem,
+          metadata: { lancamento: enriched }
+        }).catch(() => null);
+        resultados.push({ ok: false, cliente: enriched.nome || enriched.cliente, telefone, tipo, documento: enriched.documento, codigo: enriched.codigo, error: sendError.message || String(sendError) });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      dryRun,
+      resultados,
+      resumo: {
+        total: resultados.length,
+        enviados: resultados.filter(r => r.ok && !r.dryRun).length,
+        simulados: resultados.filter(r => r.dryRun).length,
+        ignorados: resultados.filter(r => r.skipped).length,
+        erros: resultados.filter(r => !r.ok && !r.skipped).length
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao executar cobrança automática SIGE:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao executar cobrança automática' });
   }
 });
 
@@ -6952,8 +7191,70 @@ setInterval(() => {
   });
 }, 15 * 60 * 1000);
 
+
+function startSigeAutoCobrancaScheduler() {
+  const enabled = String(process.env.SIGE_AUTO_COBRANCA_ENABLED || 'false').toLowerCase() === 'true';
+  if (!enabled) return;
+  const hour = Math.max(0, Math.min(Number(process.env.SIGE_AUTO_COBRANCA_HOUR || 9), 23));
+  const minute = Math.max(0, Math.min(Number(process.env.SIGE_AUTO_COBRANCA_MINUTE || 0), 59));
+  let lastRun = '';
+
+  setInterval(async () => {
+    try {
+      const nowDate = new Date();
+      const todayKey = nowDate.toISOString().slice(0, 10);
+      if (lastRun === todayKey) return;
+      const local = new Date(nowDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      if (local.getHours() !== hour || local.getMinutes() < minute) return;
+      lastRun = todayKey;
+      console.log('🤖 Executando cobrança automática SIGE...');
+      const fakeReq = { body: { limit: Number(process.env.SIGE_AUTO_COBRANCA_LIMIT || 100), maxRecords: Number(process.env.SIGE_AUTO_COBRANCA_MAX_RECORDS || 8000) } };
+      // Reutiliza a lógica principal sem HTTP para evitar duplicação pesada.
+      const data = await getSigeInadimplentesData({ limit: fakeReq.body.limit, maxRecords: fakeReq.body.maxRecords });
+      let enviados = 0;
+      for (const item of data.inadimplentes) {
+        const tipo = getSigeAutoCobrancaTipo(item.diasAtraso);
+        if (!tipo) continue;
+        const enriched = await enrichSigeInadimplenteTelefone(item);
+        const telefone = normalizePhone(enriched.telefone || '', '55');
+        if (!telefone) continue;
+        const uniqueKey = buildSigeAutoCobrancaKey(enriched, tipo);
+        if (await CrediarioCobrancaLog.findOne({ uniqueKey }).lean()) continue;
+        const mensagem = buildSigeAutoCobrancaMessage(enriched, tipo);
+        try {
+          const whatsapp = await waSendTextMessage({ number: telefone, text: mensagem });
+          await CrediarioCobrancaLog.create({
+            uniqueKey,
+            origem: 'sige_auto_scheduler',
+            clienteNome: enriched.nome || enriched.cliente || '',
+            telefone,
+            documento: String(enriched.documento || ''),
+            codigoLancamento: String(enriched.codigo || enriched.id || ''),
+            tipo,
+            diasAtraso: Number(enriched.diasAtraso || 0),
+            valor: Number((enriched.saldo && enriched.saldo > 0) ? enriched.saldo : (enriched.valor || 0)),
+            dataVencimento: parseSigeDate(enriched.dataVencimento),
+            enviado: true,
+            enviadoEm: new Date(),
+            whatsappResultado: whatsapp,
+            mensagem,
+            metadata: { lancamento: enriched }
+          });
+          enviados += 1;
+        } catch (error) {
+          console.error('Erro cobrança automática SIGE:', error.message || error);
+        }
+      }
+      console.log(`🤖 Cobrança automática SIGE concluída. Enviadas: ${enviados}`);
+    } catch (error) {
+      console.error('Erro no agendador de cobrança SIGE:', error.message || error);
+    }
+  }, 60 * 1000);
+}
+
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
+  startSigeAutoCobrancaScheduler();
   console.log(`📁 Uploads em: ${uploadsDir}`);
   console.log(`🌐 Base local: http://localhost:${PORT}/api`);
 });
