@@ -1397,12 +1397,28 @@ app.post('/api/admin/crediario/recibos/:id/cobranca', adminRequired, async (req,
     if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo não encontrado' });
 
     const r = normalizeCrediarioRecibo(recibo);
+    const telefoneEnvio = normalizePhone(req.body?.telefone || r.telefone || '', '55');
+    if (!telefoneEnvio) return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado' });
+
+    if (telefoneEnvio && telefoneEnvio !== recibo.telefone) {
+      recibo.telefone = telefoneEnvio;
+      await recibo.save();
+    }
+
+    if (recibo.clienteId) {
+      const cliente = await CrediarioCliente.findById(recibo.clienteId);
+      if (cliente && telefoneEnvio && telefoneEnvio !== cliente.telefone) {
+        cliente.telefone = telefoneEnvio;
+        await cliente.save();
+      }
+    }
+
     const whatsapp = await sendCrediarioCobrancaWhatsapp({
-      telefone: r.telefone,
+      telefone: telefoneEnvio,
       clienteNome: r.clienteNome,
-      produto: r.produto,
-      parcela: r.parcela,
-      valor: r.valorPago,
+      produto: req.body?.produto || r.produto,
+      parcela: req.body?.parcela || r.parcela,
+      valor: req.body?.valor || r.valorPago,
       documento: r.documento || r.recibo,
       recibo: r.recibo,
       contrato: r.contrato,
