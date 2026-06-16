@@ -959,6 +959,44 @@ Seu pagamento foi registrado com sucesso.
 💙 Obrigado por escolher a Ariana Móveis.`.trim();
 }
 
+
+function buildCrediarioCobrancaMessage(data = {}) {
+  const nome = String(data.clienteNome || data.nome || 'cliente').trim() || 'cliente';
+  const produto = String(data.produto || '').trim();
+  const parcela = formatCrediarioParcela(data.parcela || '');
+  const valor = Number(data.valor || data.valorPago || 0);
+  const documento = String(data.documento || data.recibo || data.contrato || '').trim();
+
+  const linhas = [
+    '🔔 Aviso de pendência financeira',
+    '',
+    `Olá, ${nome}.`,
+    '',
+    'Informamos que existe nota/parcela em atraso em nosso sistema.',
+    '',
+    produto ? `📦 Referência: ${produto}` : '',
+    parcela ? `📌 Parcela: ${parcela}` : '',
+    valor > 0 ? `💰 Valor: ${formatMoneyBRL(valor)}` : '',
+    documento ? `🧾 Documento: ${documento}` : '',
+    '',
+    'Por favor, entre em contato com a loja para mais informações ou regularização.',
+    '',
+    '📲 WhatsApp financeiro:',
+    '(31) 98514-7119',
+    '',
+    'Ariana Móveis'
+  ];
+
+  return linhas.filter((linha) => linha !== '').join('\n');
+}
+
+async function sendCrediarioCobrancaWhatsapp({ telefone = '', clienteNome = '', produto = '', parcela = '', valor = 0, documento = '', recibo = '', contrato = '' } = {}) {
+  const number = normalizePhone(telefone || '', '55');
+  if (!number) throw new Error('Telefone do cliente inválido para envio da cobrança.');
+  const text = buildCrediarioCobrancaMessage({ clienteNome, produto, parcela, valor, documento, recibo, contrato });
+  return waSendTextMessage({ number, text });
+}
+
 async function sendCrediarioReceiptWhatsapp(reciboDoc = {}) {
   const recibo = normalizeCrediarioRecibo(reciboDoc);
   const number = normalizePhone(recibo.telefone || '', '55');
@@ -1299,6 +1337,78 @@ app.post('/api/admin/crediario/recibos', adminRequired, async (req, res) => {
   } catch (error) {
     console.error('[crediario recibo]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao registrar recibo' });
+  }
+});
+
+
+app.post('/api/admin/crediario/clientes/:id/cobranca', adminRequired, async (req, res) => {
+  try {
+    const cliente = await CrediarioCliente.findById(req.params.id);
+    if (!cliente) return res.status(404).json({ ok: false, error: 'Cliente não encontrado' });
+
+    const body = req.body || {};
+    const telefone = normalizePhone(body.telefone || cliente.telefone || '', '55');
+    if (!telefone) return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado' });
+
+    const whatsapp = await sendCrediarioCobrancaWhatsapp({
+      telefone,
+      clienteNome: cliente.nome,
+      produto: body.produto || 'Pendência financeira',
+      parcela: body.parcela || '',
+      valor: body.valor || 0,
+      documento: body.documento || cliente.contrato || '',
+      contrato: cliente.contrato || ''
+    });
+
+    if (telefone && telefone !== cliente.telefone) {
+      cliente.telefone = telefone;
+      await cliente.save();
+    }
+
+    await createAdminNotification({
+      type: 'crediario_cobranca',
+      title: '🔔 Cobrança enviada',
+      message: `${cliente.nome} - aviso de pendência financeira enviado`,
+      relatedId: String(cliente._id),
+      severity: 'warning',
+      metadata: { clienteId: String(cliente._id), telefone, whatsapp }
+    });
+
+    return res.json({ ok: true, cliente: normalizeCrediarioCliente(cliente), whatsapp });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança' });
+  }
+});
+
+app.post('/api/admin/crediario/recibos/:id/cobranca', adminRequired, async (req, res) => {
+  try {
+    const recibo = await CrediarioRecibo.findById(req.params.id);
+    if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo não encontrado' });
+
+    const r = normalizeCrediarioRecibo(recibo);
+    const whatsapp = await sendCrediarioCobrancaWhatsapp({
+      telefone: r.telefone,
+      clienteNome: r.clienteNome,
+      produto: r.produto,
+      parcela: r.parcela,
+      valor: r.valorPago,
+      documento: r.documento || r.recibo,
+      recibo: r.recibo,
+      contrato: r.contrato
+    });
+
+    await createAdminNotification({
+      type: 'crediario_cobranca',
+      title: '🔔 Cobrança enviada',
+      message: `${r.clienteNome} - ${r.recibo}`,
+      relatedId: String(recibo._id),
+      severity: 'warning',
+      metadata: { recibo: r.recibo, clienteNome: r.clienteNome, telefone: r.telefone, whatsapp }
+    });
+
+    return res.json({ ok: true, recibo: r, whatsapp });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança' });
   }
 });
 
