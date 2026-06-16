@@ -1139,9 +1139,21 @@ function normalizeSigeLancamento(row = {}) {
 }
 
 function filterSigeRows(rows = [], q = '', fields = []) {
-  const query = String(q || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (!query) return rows;
-  return rows.filter((row) => fields.some((field) => String(row[field] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(query)));
+  const normalizeText = (value = '') => String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+  const compactText = (value = '') => normalizeText(value).replace(/[^a-z0-9]+/g, '');
+  const query = normalizeText(q);
+  const queryCompact = compactText(q);
+  if (!query && !queryCompact) return rows;
+  return rows.filter((row) => fields.some((field) => {
+    const value = normalizeText(row[field] || '');
+    const valueCompact = compactText(row[field] || '');
+    return (query && value.includes(query)) || (queryCompact && valueCompact.includes(queryCompact));
+  }));
 }
 
 async function getSigePessoasByQuery(q = '', limit = 50) {
@@ -1177,23 +1189,21 @@ function addUniqueSigeRows(target = [], seen = new Set(), rows = []) {
 async function getSigeLancamentosRawPages({ q = '', maxRecords = 2000, maxPages = 30 } = {}) {
   const all = [];
   const seen = new Set();
-  const max = Math.max(100, Math.min(Number(maxRecords || 2000), 8000));
-  const pages = Math.max(1, Math.min(Number(maxPages || 30), 80));
-  const pageSize = Number(process.env.SIGE_PAGE_SIZE || 100);
+  const max = Math.max(100, Math.min(Number(maxRecords || 2000), 30000));
+  const pages = Math.max(1, Math.min(Number(maxPages || 80), 300));
+  const pageSize = Math.max(50, Math.min(Number(process.env.SIGE_PAGE_SIZE || 1000), 1000));
   const rawQ = String(q || '').trim();
 
-  // 1) Primeiro tenta consultar diretamente pelos filtros que o SIGE costuma aceitar.
-  // Algumas instalações ignoram filtros desconhecidos; por isso tudo é deduplicado.
+  const basePageParams = { pageSize, skip: 0 };
+
+  // O Swagger do SIGE usa "clienteFornecedor" para buscar contas a receber por cliente.
+  // Antes o código enviava "cliente", "nomeCliente" etc., e por isso retornava vazio.
   const directParamSets = rawQ ? [
-    { cliente: rawQ },
-    { Cliente: rawQ },
-    { nomeCliente: rawQ },
-    { NomeCliente: rawQ },
-    { numeroDocumento: rawQ },
-    { NumeroDocumento: rawQ },
-    { descricao: rawQ },
-    { Descricao: rawQ }
-  ] : [{}];
+    { clienteFornecedor: rawQ, ...basePageParams },
+    { documento: rawQ, ...basePageParams },
+    { descricao: rawQ, ...basePageParams },
+    { boleto: rawQ, ...basePageParams }
+  ] : [basePageParams];
 
   for (const params of directParamSets) {
     try {
@@ -1205,21 +1215,17 @@ async function getSigeLancamentosRawPages({ q = '', maxRecords = 2000, maxPages 
     }
   }
 
-  // 2) Depois tenta paginação. O Swagger informa que GetAll é paginado.
-  // Também tentamos Pesquisar com skip/take porque algumas contas aceitam esses parâmetros.
-  const endpoints = ['Lancamentos/GetAll', 'Lancamentos/Pesquisar'];
+  // Paginação correta do endpoint: pageSize + skip.
+  // Mantemos GetAll como fallback, mas sempre usando os parâmetros oficiais vistos no Swagger.
+  const endpoints = ['Lancamentos/Pesquisar', 'Lancamentos/GetAll'];
   for (const endpoint of endpoints) {
     let previousAddedZero = false;
     for (let page = 0; page < pages; page += 1) {
       const skip = page * pageSize;
-      const paramOptions = page === 0
-        ? [{}]
-        : [
-            { skip, take: pageSize },
-            { Skip: skip, Take: pageSize },
-            { pagina: page + 1, quantidade: pageSize },
-            { page: page + 1, limit: pageSize }
-          ];
+      const paramOptions = [rawQ && endpoint === 'Lancamentos/Pesquisar'
+        ? { clienteFornecedor: rawQ, pageSize, skip }
+        : { pageSize, skip }
+      ];
 
       let pageHadRows = false;
       let pageAdded = 0;
@@ -1235,7 +1241,6 @@ async function getSigeLancamentosRawPages({ q = '', maxRecords = 2000, maxPages 
       }
 
       if (!pageHadRows) break;
-      // Se duas tentativas seguidas não adicionarem nada, o SIGE provavelmente ignora paginação.
       if (pageAdded === 0 && previousAddedZero) break;
       previousAddedZero = pageAdded === 0;
     }
@@ -1246,7 +1251,7 @@ async function getSigeLancamentosRawPages({ q = '', maxRecords = 2000, maxPages 
 
 async function getSigeLancamentosFiltered({ q = '', status = 'todos', limit = 100, maxRecords = 2000 } = {}) {
   const requestedLimit = Math.max(1, Math.min(Number(limit || 100), 3000));
-  const rawLimit = Math.max(requestedLimit, Math.min(Number(maxRecords || 2000), 8000));
+  const rawLimit = Math.max(requestedLimit, Math.min(Number(maxRecords || 2000), 30000));
   const rows = await getSigeLancamentosRawPages({ q, maxRecords: rawLimit });
 
   let normalized = rows.map(normalizeSigeLancamento).filter((l) => l.cliente || l.descricao || l.codigo);
@@ -1410,13 +1415,13 @@ app.get('/api/admin/sige/carne', adminRequired, async (req, res) => {
   try {
     const q = String(req.query.cliente || req.query.q || '').trim();
     if (q.length < 2) return res.status(400).json({ ok: false, error: 'Informe pelo menos 2 letras do cliente para gerar o carnê.' });
-    const limit = Math.max(1, Math.min(Number(req.query.limit || 2000), 3000));
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 5000), 10000));
 
     let lancamentos = await getSigeLancamentosFiltered({
       q,
       status: 'todos',
       limit,
-      maxRecords: req.query.maxRecords || 8000
+      maxRecords: req.query.maxRecords || 20000
     });
 
     let pessoa = null;
@@ -1432,7 +1437,7 @@ app.get('/api/admin/sige/carne', adminRequired, async (req, res) => {
         q: pessoa.nome,
         status: 'todos',
         limit,
-        maxRecords: req.query.maxRecords || 8000
+        maxRecords: req.query.maxRecords || 20000
       });
     }
 
