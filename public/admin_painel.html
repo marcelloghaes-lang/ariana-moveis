@@ -546,45 +546,51 @@ window.printProductsPdf = async function(){
     const generatedAt = new Date().toLocaleString('pt-BR');
     const win = window.open('', '_blank');
     if (!win) throw new Error('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.');
+
+    const reportHtml = [
+      '<!DOCTYPE html>',
+      '<html lang="pt-br">',
+      '<head>',
+      '<meta charset="UTF-8">',
+      '<title>Relatório de Produtos - Ariana Móveis</title>',
+      '<style>',
+      'body{font-family:Arial,sans-serif;color:#111827;margin:24px;background:#fff;}',
+      '.header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #1d4ed8;padding-bottom:14px;margin-bottom:18px;}',
+      'h1{margin:0;font-size:24px;color:#0f172a;}',
+      '.sub{font-size:12px;color:#64748b;margin-top:6px;line-height:1.45;}',
+      '.badge{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-weight:700;font-size:12px;}',
+      'table{width:100%;border-collapse:collapse;font-size:10px;}',
+      'th{background:#1d4ed8;color:#fff;text-align:left;padding:8px 6px;white-space:nowrap;}',
+      'td{border-bottom:1px solid #e5e7eb;padding:7px 6px;vertical-align:top;word-break:break-word;}',
+      'tr:nth-child(even) td{background:#f8fafc;}',
+      '@media print{body{margin:10mm;} .no-print{display:none;} th{background:#1d4ed8!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}',
+      '</style>',
+      '</head>',
+      '<body>',
+      '<div class="header">',
+      '<div>',
+      '<h1>Ariana Móveis - Relatório de Produtos</h1>',
+      '<div class="sub">Gerado em ' + escHtml(generatedAt) + '<br>Total de produtos: ' + rows.length + '</div>',
+      '</div>',
+      '<div class="badge">PDF / Impressão</div>',
+      '</div>',
+      '<button class="no-print" onclick="window.print()" style="margin-bottom:14px;padding:10px 14px;border:0;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer">Imprimir / Salvar PDF</button>',
+      table,
+      '</body>',
+      '</html>'
+    ].join('');
+
     win.document.open();
-    win.document.write(`<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="UTF-8">
-  <title>Relatório de Produtos - Ariana Móveis</title>
-  <style>
-    body{font-family:Arial,sans-serif;color:#111827;margin:24px;background:#fff;}
-    .header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #1d4ed8;padding-bottom:14px;margin-bottom:18px;}
-    h1{margin:0;font-size:24px;color:#0f172a;}
-    .sub{font-size:12px;color:#64748b;margin-top:6px;line-height:1.45;}
-    .badge{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-weight:700;font-size:12px;}
-    table{width:100%;border-collapse:collapse;font-size:10px;}
-    th{background:#1d4ed8;color:#fff;text-align:left;padding:8px 6px;white-space:nowrap;}
-    td{border-bottom:1px solid #e5e7eb;padding:7px 6px;vertical-align:top;word-break:break-word;}
-    tr:nth-child(even) td{background:#f8fafc;}
-    @media print{body{margin:10mm;} .no-print{display:none;} th{background:#1d4ed8!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <h1>Ariana Móveis - Relatório de Produtos</h1>
-      <div class="sub">Gerado em ${escHtml(generatedAt)}<br>Total de produtos: ${rows.length}</div>
-    </div>
-    <div class="badge">PDF / Impressão</div>
-  </div>
-  <button class="no-print" onclick="window.print()" style="margin-bottom:14px;padding:10px 14px;border:0;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer">Imprimir / Salvar PDF</button>
-  ${table}
-  <script>setTimeout(()=>window.print(),500)<\/script>
-</body>
-</html>`);
+    win.document.write(reportHtml);
     win.document.close();
+    setTimeout(() => {
+      try { win.focus(); win.print(); } catch (_e) {}
+    }, 500);
     displayMessage(`Relatório aberto com ${rows.length} produto(s).`, 'success');
   } catch (error) {
     displayMessage(`Erro ao gerar PDF: ${error.message}`, 'error');
   }
 }
-
 async function loadCategories(){
   const data = await apiRequest('/admin/categories?sortBy=name&sortDir=asc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
   allCategoriesCache = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
