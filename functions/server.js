@@ -1,4 +1,4 @@
-﻿import dotenv from 'dotenv';
+import dotenv from 'dotenv';
 dotenv.config();
 
 import { v2 as cloudinary } from 'cloudinary';
@@ -796,7 +796,7 @@ const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL
 const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
 const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', publicKey: process.env.PAGARME_PUBLIC_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
-const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 70, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
+const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', localOriginCep: '39740-000', localMaxKmTier1: 30, localPriceTier1: 80, localMaxKmTier2: 120, localPriceTier2: 120, phoneFlatPrice: 19.90, phoneFlatEnabled: true, label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: false, appliesToArianaLogistics: false, minKmExclusive: 120, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
 
 async function getSetting(key, fallback = null) { const doc = await Setting.findOne({ key }); return doc ? doc.value : fallback; }
 async function setSetting(key, value, updatedBy = 'system') { const doc = await Setting.findOneAndUpdate({ key }, { $set: { value, updatedBy } }, { upsert: true, new: true }); return doc.value; }
@@ -1592,9 +1592,7 @@ function buildSigeAutoCobrancaMessage(item = {}, tipo = 'amigavel') {
     ? 'Consta parcela vencida há vários dias em nosso sistema. Pedimos contato com urgência para regularização ou esclarecimentos.'
     : (tipoNorm === 'normal'
       ? 'Identificamos parcela em atraso em nosso sistema. Pedimos a gentileza de entrar em contato com nosso financeiro.'
-      : 'Identificamos uma parcela vencida recentemente em nosso sistema. Caso já tenha realizado o pagamento, por favor desconsidere esta mensagem.');
-
-  return [
+      : 'Identificamos uma parcela vencida recentemente em nosso sistema. Caso já tenha realizado o pagamento, por favor desconsidere esta mensagem.');return [
     cabecalho,
     '',
     `Olá, ${nome}.`,
@@ -3394,6 +3392,58 @@ function getSellerContext(body = {}) {
     isSNDigital: normalized.includes('SN DIGITAL') || normalized === 'SN' || normalized.includes(' SN ') || normalized.startsWith('SN ')
   };
 }
+
+function getShippingOriginCepFromBody(body = {}) {
+  const direct = normalizeCepValue(
+    body.originCep ||
+    body.cepOrigem ||
+    body.sellerOriginCep ||
+    body.sellerCep ||
+    body.storeOriginCep ||
+    body.lojaOrigemCep ||
+    body.shippingOriginCep ||
+    body.shipping?.originCep ||
+    body.shipping?.cepOrigem ||
+    body.seller?.originCep ||
+    body.seller?.cepOrigem ||
+    ''
+  );
+  if (direct) return direct;
+
+  const items = Array.isArray(body.items) ? body.items : [];
+  for (const item of items) {
+    const itemCep = normalizeCepValue(
+      item?.originCep ||
+      item?.cepOrigem ||
+      item?.sellerOriginCep ||
+      item?.sellerCep ||
+      item?.storeOriginCep ||
+      item?.seller?.originCep ||
+      item?.seller?.cepOrigem ||
+      item?.shipping?.originCep ||
+      item?.shipping?.cepOrigem ||
+      ''
+    );
+    if (itemCep) return itemCep;
+  }
+  return '';
+}
+
+function bodyHasPhoneProduct(body = {}) {
+  const parts = [
+    body.name, body.nome, body.title, body.productName, body.description, body.descricao,
+    body.category, body.categoria, body.categoryName, body.brand, body.marca, body.sku
+  ];
+  const items = Array.isArray(body.items) ? body.items : [];
+  for (const item of items) {
+    parts.push(
+      item?.name, item?.nome, item?.title, item?.productName, item?.description, item?.descricao,
+      item?.category, item?.categoria, item?.categoryName, item?.brand, item?.marca, item?.sku
+    );
+  }
+  const text = normalizeShippingText(parts.filter(Boolean).join(' '));
+  return /SMARTPHONE|CELULAR|IPHONE|GALAXY|MOTOROLA|MOTO\s*G|XIAOMI|REDMI|SAMSUNG/.test(text);
+}
 async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
 async function resolveDestinationLocation(body = {}) { const cep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const explicitCity = body.cidade || body.city || body.destinationCity || body.shippingAddress?.cidade || body.shippingAddress?.city || ''; const explicitState = body.uf || body.state || body.destinationState || body.shippingAddress?.uf || body.shippingAddress?.state || ''; if (explicitCity) return { cep, city: String(explicitCity).trim(), state: String(explicitState || '').trim(), source: 'request' }; const viaCep = await lookupCepInfo(cep); if (viaCep) return { ...viaCep, source: 'viacep' }; return { cep, city: '', state: '', source: cep ? 'cep_only' : 'unknown' }; }
 function isRodocapCityAllowed(city = '', rodocapRule = {}) { const normalizedCity = normalizeShippingText(city); if (!normalizedCity) return false; const allowed = Array.isArray(rodocapRule.allowedCities) ? rodocapRule.allowedCities : []; return allowed.map(normalizeShippingText).includes(normalizedCity); }
@@ -3420,9 +3470,7 @@ function buildFrenetItems(body = {}, settings = {}) {
     const weight = normalizeFrenetNumber(item.weightKg || item.pesoKg || item.weight || item.peso, Number(defaults.pesoKgPadrao || 1));
     const height = Math.max(1, Math.ceil(normalizeFrenetNumber(item.altura || item.alturaCm || item.height || item.dimensions?.altura, Number(defaults.alturaCmPadrao || 10))));
     const length = Math.max(1, Math.ceil(normalizeFrenetNumber(item.comprimento || item.comprimentoCm || item.length || item.dimensions?.comprimento, Number(defaults.comprimentoCmPadrao || 20))));
-    const width = Math.max(1, Math.ceil(normalizeFrenetNumber(item.largura || item.larguraCm || item.width || item.dimensions?.largura, Number(defaults.larguraCmPadrao || 15))));
-
-    const out = {
+    const width = Math.max(1, Math.ceil(normalizeFrenetNumber(item.largura || item.larguraCm || item.width || item.dimensions?.largura, Number(defaults.larguraCmPadrao || 15))));const out = {
       Height: height,
       Length: length,
       Quantity: qty,
@@ -3532,15 +3580,38 @@ async function calculateShipping(body = {}) {
   const destinationCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
   const sellerCtx = getSellerContext(body);
   const location = await resolveDestinationLocation(body);
-  const originCep = normalizeCepValue(settings?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || '');
-  const inferredDistanceKm = await getDistanceKm(originCep, destinationCep);
+  const configuredOriginCep = normalizeCepValue(settings?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000');
+  const sellerOriginCep = getShippingOriginCepFromBody(body);
+  const arianaLocalOriginCep = normalizeCepValue(arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000');
+  const originCep = sellerOriginCep || configuredOriginCep;
+  const inferredDistanceKm = await getDistanceKm(arianaLocalOriginCep || originCep, destinationCep);
   const distanceKm = Number(body.distanceKm || body.km || inferredDistanceKm || 0);
   const options = [];
   const isAriana = body.shippingRule === 'ariana' || body.isArianaOrder === true || sellerCtx.isAriana;
+  const isLocalSellerOrigin = Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep);
+  const usesArianaLocalRule = isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.useArianaLocalRule === true;
   const isSNDigital = body.shippingRule === 'sn_digital' || sellerCtx.isSNDigital;
-  const usesArianaLogistics = isAriana || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.snDigital?.appliesToArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
+  const usesArianaLogistics = usesArianaLocalRule || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.snDigital?.appliesToArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
+  const isPhoneProduct = arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
 
-  const hasArianaFree = isAriana && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
+  if (isPhoneProduct) {
+    const phoneLocalFree = destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
+    options.push(buildManualShippingOption({
+      service: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo',
+      label: phoneLocalFree ? 'Frete grátis celular' : 'Frete fixo celular',
+      price: phoneLocalFree ? 0 : Number(arianaRule.phoneFlatPrice || 19.90),
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: phoneLocalFree
+        ? `Frete grátis para celulares no CEP ${arianaRule.freeCepStart || '39740-000'}.`
+        : 'Frete fixo para celulares para qualquer destino.',
+      metadata: { rule: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo', destinationCep },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+    }));
+  }
+
+  const hasPhoneFlatDelivery = isPhoneProduct;
+  const hasArianaFree = !hasPhoneFlatDelivery && usesArianaLocalRule && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
       service: 'ariana_free_local',
@@ -3554,7 +3625,41 @@ async function calculateShipping(body = {}) {
     }));
   }
 
-  if (usesArianaLogistics && snRule.enabled !== false && !hasArianaFree && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
+  const arianaTier1Km = Number(arianaRule.localMaxKmTier1 || 30);
+  const arianaTier1Price = Number(arianaRule.localPriceTier1 || 80);
+  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 120);
+  const arianaTier2Price = Number(arianaRule.localPriceTier2 || 120);
+  let hasArianaDistanceDelivery = false;
+
+  if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > 0 && Number(distanceKm || 0) <= arianaTier1Km) {
+    hasArianaDistanceDelivery = true;
+    options.push(buildManualShippingOption({
+      service: 'ariana_entrega_ate_30km',
+      label: arianaRule.label || 'Ariana Móveis',
+      price: arianaTier1Price,
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `Entrega Ariana Móveis até ${arianaTier1Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
+      metadata: { rule: 'ariana_entrega_ate_30km', distanceKm, destinationCep },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+    }));
+  }
+
+  if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > arianaTier1Km && Number(distanceKm || 0) <= arianaTier2Km) {
+    hasArianaDistanceDelivery = true;
+    options.push(buildManualShippingOption({
+      service: 'ariana_entrega_30_120km',
+      label: arianaRule.label || 'Ariana Móveis',
+      price: arianaTier2Price,
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: `Entrega Ariana Móveis de ${arianaTier1Km} km até ${arianaTier2Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
+      metadata: { rule: 'ariana_entrega_30_120km', distanceKm, destinationCep },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+    }));
+  }
+
+  if (usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
     options.push(buildManualShippingOption({
       service: 'sn_digital_ate_40km',
       label: snRule.label || 'SN Digital',
@@ -3566,7 +3671,7 @@ async function calculateShipping(body = {}) {
       deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
-  if (usesArianaLogistics && snRule.enabled !== false && !hasArianaFree && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
+  if (usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
     options.push(buildManualShippingOption({
       service: 'sn_digital_40_70km',
       label: snRule.label || 'SN Digital',
@@ -3579,9 +3684,9 @@ async function calculateShipping(body = {}) {
     }));
   }
   let rodocapAvailable = false;
-  const rodocapEnabledByEnv = String(process.env.RODOCAP_ENABLED || 'true').toLowerCase() !== 'false';
+  const rodocapEnabledByEnv = String(process.env.RODOCAP_ENABLED || 'false').toLowerCase() === 'true';
 
-  if (usesArianaLogistics && rodocapEnabledByEnv && rodocapRule.enabled !== false && !hasArianaFree && distanceKm > Number(rodocapRule.minKmExclusive || 70)) {
+  if (usesArianaLogistics && !hasPhoneFlatDelivery && rodocapEnabledByEnv && rodocapRule.enabled !== false && !hasArianaFree && !hasArianaDistanceDelivery && distanceKm > Number(rodocapRule.minKmExclusive || 120)) {
     const allowedCity = isRodocapCityAllowed(location.city, rodocapRule);
     if (allowedCity) {
       const rodocapPrice = Number((productPrice * Number(rodocapRule.percentOfInvoice || 0.12)).toFixed(2));
@@ -3592,7 +3697,7 @@ async function calculateShipping(body = {}) {
         price: rodocapPrice,
         prazo: rodocapRule.prazoPadrao || 'sob consulta',
         provider: 'configured',
-        details: `Rodocap acima de ${Number(rodocapRule.minKmExclusive || 70)} km: 12% do valor da nota para cidades atendidas.`,
+        details: `Rodocap acima de ${Number(rodocapRule.minKmExclusive || 120)} km: 12% do valor da nota para cidades atendidas.`,
         metadata: { rule: 'rodocap_12_percent', distanceKm, destinationCity: location.city, destinationState: location.state, locationSource: location.source },
         deadlineDays: parsePrazoToDeadlineDays(rodocapRule.prazoPadrao || '')
       }));
@@ -3616,6 +3721,7 @@ async function calculateShipping(body = {}) {
     (Number(maxDimensionCm || 0) > correiosMaxDimensionCmForFrenet);
 
   const frenetAllowed =
+    !hasPhoneFlatDelivery &&
     !hasArianaFree &&
     !rodocapAvailable &&
     needsFrenetByCorreiosLimit &&
@@ -3654,7 +3760,7 @@ async function calculateShipping(body = {}) {
   }
 
   const correios = settings.carriers?.correios || {};
-  const correiosAllowed = !hasArianaFree && correios.enabled && weightKg > 0 && weightKg <= Number(correios.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(correios.maxDimensionCm || 100);
+  const correiosAllowed = !hasPhoneFlatDelivery && !hasArianaFree && correios.enabled && weightKg > 0 && weightKg <= Number(correios.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(correios.maxDimensionCm || 100);
   if (correiosAllowed) {
     try {
       const quoted = await quoteCorreios(body, settings);
@@ -3674,18 +3780,18 @@ async function calculateShipping(body = {}) {
     } catch (error) {
       options.push({ service: 'correios_error', label: 'Correios', unavailable: true, error: error.message });
     }
-  } else if (!hasArianaFree) {
+  } else if (!hasPhoneFlatDelivery && !hasArianaFree) {
     options.push({ service: 'correios_unavailable_limits', label: 'Correios', unavailable: true, provider: 'correios', error: `Correios disponíveis somente até ${Number(correios.maxWeightKg || 30)}kg e até ${Number(correios.maxDimensionCm || 100)}cm no maior lado.`, metadata: { weightKg, maxDimensionCm } });
   }
 
   const totalExpress = settings.carriers?.totalExpress || {};
-  if (!hasArianaFree && totalExpress.enabled && weightKg > 0 && weightKg <= Number(totalExpress.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(totalExpress.maxDimensionCm || 110)) {
+  if (!hasPhoneFlatDelivery && !hasArianaFree && totalExpress.enabled && weightKg > 0 && weightKg <= Number(totalExpress.maxWeightKg || 30) && maxDimensionCm > 0 && maxDimensionCm <= Number(totalExpress.maxDimensionCm || 110)) {
     const base = Number(settings.totalExpressBasePrice || 0);
     if (base > 0) options.push(buildManualShippingOption({ service: 'total_express', label: 'Total Express', price: base, prazo: settings.totalExpressPrazo || 'sob consulta', provider: 'configured' }));
   }
 
   const ownDelivery = settings.carriers?.ownDelivery || {};
-  if (!hasArianaFree && !isAriana && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
+  if (!hasPhoneFlatDelivery && !hasArianaFree && !usesArianaLocalRule && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
     const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []);
     if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }));
   }
@@ -3712,6 +3818,9 @@ async function calculateShipping(body = {}) {
     context: {
       sellerDetected: sellerCtx.raw || null,
       isAriana,
+      isLocalSellerOrigin,
+      usesArianaLocalRule,
+      isPhoneProduct,
       isSNDigital,
       usesArianaLogistics,
       destinationCity: location.city || null,
@@ -5153,9 +5262,7 @@ app.post('/api/bot/atendimento/avaliacao', botAccessRequired, async (req, res) =
       severity: nota <= 3 ? 'high' : 'info',
       audience: 'admin',
       metadata: { protocolo, telefone, nota, setor, source: 'bot' }
-    });
-
-    if (protocolo || telefone) {
+    });if (protocolo || telefone) {
       await Ticket.findOneAndUpdate(
         protocolo ? { protocolo } : { telefone },
         {
@@ -6499,9 +6606,7 @@ async function loadRemoteImageAsPng(url, width, height) {
 function bannerDraftDefinitions() {
   return [
     { key: 'index_main', targetSlot: 'index_main', title: 'Ofertas imperdíveis', subtitle: 'Preço especial no PIX e parcelamento sem juros', width: 1920, height: 480, productLimit: 3, group: 'moveis', href: 'categoria.html?category=Móveis' },
-    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'Promoção especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 1, group: 'tvs', href: 'todos_produtos.html?section=offers' },
-
-    { key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'Móveis em destaque', subtitle: 'Renove sua casa com preço especial', width: 800, height: 450, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
+    { key: 'index_sidebar_vertical', targetSlot: 'index_sidebar_vertical', title: 'Promoção especial', subtitle: 'Escolha seu produto e compre pelo WhatsApp', width: 600, height: 900, productLimit: 1, group: 'tvs', href: 'todos_produtos.html?section=offers' },{ key: 'index_mini_1', targetSlot: 'index_mini_1', title: 'Móveis em destaque', subtitle: 'Renove sua casa com preço especial', width: 800, height: 450, productLimit: 2, group: 'moveis', href: 'categoria.html?category=Móveis' },
     { key: 'index_mini_2', targetSlot: 'index_mini_2', title: 'Som e áudio', subtitle: 'Produtos selecionados para você', width: 800, height: 450, productLimit: 2, group: 'som', href: 'categoria.html?category=Som e Ãudio' },
     { key: 'index_mini_3', targetSlot: 'index_mini_3', title: 'Climatização', subtitle: 'Mais conforto para sua casa', width: 800, height: 450, productLimit: 2, group: 'climatizacao', href: 'categoria.html?category=Ventiladores' },
     { key: 'index_mini_4', targetSlot: 'index_mini_4', title: 'Celulares', subtitle: 'Smartphones com ofertas especiais', width: 800, height: 450, productLimit: 2, group: 'celulares', href: 'categoria.html?category=Smartphones' },
@@ -7258,10 +7363,3 @@ app.listen(PORT, () => {
   console.log(`📁 Uploads em: ${uploadsDir}`);
   console.log(`🌐 Base local: http://localhost:${PORT}/api`);
 });
-
-
-
-
-
-
-
