@@ -675,6 +675,37 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
 
 // ============================================================
+// LOGÍSTICA / ETIQUETAS - ARIANA MÓVEIS
+// Painel preparado para etiqueta manual, Correios, Frenet e
+// transportadoras parceiras. No primeiro momento gera romaneio/
+// etiqueta imprimível e salva rastreio no pedido.
+// ============================================================
+const logisticsLabelSchema = new mongoose.Schema({
+  orderId: { type: String, required: true, index: true },
+  orderObjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', index: true, default: null },
+  provider: { type: String, default: 'manual', index: true },
+  service: { type: String, default: '' },
+  status: { type: String, default: 'gerada', index: true },
+  trackingCode: { type: String, default: '', index: true },
+  shippingCost: { type: Number, default: 0 },
+  volumes: { type: Number, default: 1 },
+  weightKg: { type: Number, default: 0 },
+  heightCm: { type: Number, default: 0 },
+  widthCm: { type: Number, default: 0 },
+  lengthCm: { type: Number, default: 0 },
+  notes: { type: String, default: '' },
+  labelType: { type: String, default: 'manual_print' },
+  labelHtml: { type: String, default: '' },
+  labelUrl: { type: String, default: '' },
+  rawProviderResponse: mongoose.Schema.Types.Mixed,
+  createdBy: { type: String, default: '' },
+  updatedBy: { type: String, default: '' }
+}, baseOptions);
+
+const LogisticsLabel = mongoose.model('LogisticsLabel', logisticsLabelSchema);
+
+
+// ============================================================
 // CREDIÁRIO / RECIBOS DE PARCELAS - ARIANA MÓVEIS
 // Painel separado para loja física registrar parcelas pagas
 // e enviar comprovante pelo WhatsApp Ariana Notificações.
@@ -5128,6 +5159,280 @@ app.get('/api/tickets', authRequired, async (req, res) => { const query = req.us
 app.post('/api/contact', async (req, res) => res.json({ ok: true, contact: toJSON(await Contact.create({ name: req.body?.name || '', email: req.body?.email || '', phone: req.body?.phone || '', subject: req.body?.subject || '', message: req.body?.message || '', source: 'fale_conosco' })) }));
 app.post('/api/denuncias', async (req, res) => res.json({ ok: true, denuncia: toJSON(await Denuncia.create({ userId: normalizeObjectId(req.body?.userId) || null, productId: req.body?.productId || null, sellerId: req.body?.sellerId || null, motivo: req.body?.motivo || '', descricao: req.body?.descricao || '', status: 'nova', nome: req.body?.nome || '', email: req.body?.email || '' })) }));
 app.get('/api/admin/stats', adminRequired, async (_req, res) => { const [totalPedidos, totalClientes, totalProdutos] = await Promise.all([Order.countDocuments(), User.countDocuments({ role: 'customer' }), Product.countDocuments()]); const faturamentoAgg = await Order.aggregate([{ $match: { status: { $in: ['pago', 'enviado', 'entregue'] } } }, { $group: { _id: null, total: { $sum: '$total' } } }]); const pendentes = await Order.countDocuments({ status: 'pendente' }); return res.json({ faturamentoTotal: faturamentoAgg[0]?.total || 0, pedidosPendentes: pendentes, totalClientes, totalPedidos, totalProdutos }); });
+
+
+// ============================================================
+// PAINEL DE LOGÍSTICA / GERAÇÃO DE ETIQUETAS
+// Fase 1: painel manual inteligente, pronto para integrações.
+// ============================================================
+function normalizeLogisticsLabel(doc) {
+  const obj = toJSON(doc) || {};
+  return {
+    ...obj,
+    id: String(obj.id || obj._id || ''),
+    orderId: String(obj.orderId || ''),
+    provider: String(obj.provider || 'manual'),
+    service: String(obj.service || ''),
+    status: String(obj.status || 'gerada'),
+    trackingCode: String(obj.trackingCode || ''),
+    shippingCost: Number(obj.shippingCost || 0),
+    volumes: Number(obj.volumes || 1),
+    weightKg: Number(obj.weightKg || 0),
+    heightCm: Number(obj.heightCm || 0),
+    widthCm: Number(obj.widthCm || 0),
+    lengthCm: Number(obj.lengthCm || 0),
+    notes: String(obj.notes || ''),
+    labelUrl: String(obj.labelUrl || '')
+  };
+}
+
+function getOrderAddress(order = {}) {
+  const a = order.shippingAddress || order.address || order.endereco || {};
+  return {
+    name: a.name || a.nome || order.customerName || '',
+    phone: a.phone || a.telefone || order.customerPhone || '',
+    cep: normalizeCepValue(a.cep || a.zip || ''),
+    logradouro: a.logradouro || a.street || a.rua || '',
+    numero: a.numero || a.number || '',
+    bairro: a.bairro || a.district || '',
+    cidade: a.cidade || a.city || '',
+    uf: a.uf || a.state || '',
+    complemento: a.complemento || a.complement || '',
+    reference: a.reference || a.referencia || ''
+  };
+}
+
+function orderItemsSummary(order = {}) {
+  return ensureArray(order.items).map((item) => {
+    const qty = Number(item.qty || item.quantity || 1);
+    const name = String(item.name || item.nome || item.title || 'Produto').trim();
+    return `${qty}x ${name}`;
+  }).join(' | ');
+}
+
+function escapeHtmlBasic(value = '') {
+  return String(value || '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function buildManualLogisticsLabelHtml(orderDoc = {}, labelDoc = {}) {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const label = normalizeLogisticsLabel(labelDoc);
+  const address = getOrderAddress(order);
+  const orderId = String(order.id || order._id || label.orderId || '');
+  const shortId = orderId ? orderId.slice(-8).toUpperCase() : 'SEM-ID';
+  const sellerNames = ensureArray(order.items).map((i) => String(i.sellerName || i.sellerId || '').trim()).filter(Boolean);
+  const seller = sellerNames[0] || order.manufacturer || 'Ariana Móveis';
+  const items = orderItemsSummary(order);
+  const dims = [label.lengthCm, label.widthCm, label.heightCm].filter(v => Number(v) > 0).join(' x ');
+  const generatedAt = new Date().toLocaleString('pt-BR');
+
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta ${shortId}</title>
+  <style>
+    *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f3f4f6;color:#111827}.page{max-width:760px;margin:20px auto;background:white;border:1px solid #111;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;border-bottom:2px solid #111;padding-bottom:12px}.brand{font-size:24px;font-weight:900;color:#0047AB}.tag{border:2px solid #111;padding:10px 14px;text-align:center;font-weight:900;font-size:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.box{border:1px solid #111;padding:12px;min-height:110px}.box h3{margin:0 0 8px;font-size:13px;text-transform:uppercase}.line{margin:5px 0;font-size:14px}.big{font-size:22px;font-weight:900}.barcode{font-family:monospace;text-align:center;border:1px dashed #111;padding:12px;margin-top:12px;font-size:24px;letter-spacing:2px}.footer{margin-top:12px;font-size:12px;color:#374151}.actions{margin:16px auto;max-width:760px;text-align:right}.actions button{padding:10px 16px;border:0;border-radius:10px;background:#0047AB;color:white;font-weight:800;cursor:pointer}@media print{body{background:white}.page{margin:0;border:1px solid #111}.actions{display:none}}
+  </style></head><body><div class="actions"><button onclick="window.print()">Imprimir etiqueta</button></div><main class="page">
+    <div class="top"><div><div class="brand">Ariana Móveis</div><div>Etiqueta / Romaneio de logística</div></div><div class="tag">${escapeHtmlBasic(label.provider).toUpperCase()}<br><small>${escapeHtmlBasic(label.service || 'Manual')}</small></div></div>
+    <div class="grid">
+      <section class="box"><h3>Destinatário</h3><div class="big">${escapeHtmlBasic(address.name || order.customerName || 'Cliente')}</div><div class="line">${escapeHtmlBasic(address.phone || order.customerPhone || '')}</div><div class="line">${escapeHtmlBasic(address.logradouro)} ${escapeHtmlBasic(address.numero)}</div><div class="line">${escapeHtmlBasic(address.bairro)} ${address.complemento ? ' - ' + escapeHtmlBasic(address.complemento) : ''}</div><div class="line">${escapeHtmlBasic(address.cidade)} / ${escapeHtmlBasic(address.uf)} - CEP ${escapeHtmlBasic(address.cep)}</div>${address.reference ? `<div class="line">Ref.: ${escapeHtmlBasic(address.reference)}</div>` : ''}</section>
+      <section class="box"><h3>Pedido / Envio</h3><div class="line"><b>Pedido:</b> #${escapeHtmlBasic(shortId)}</div><div class="line"><b>Rastreio:</b> ${escapeHtmlBasic(label.trackingCode || 'A preencher')}</div><div class="line"><b>Status:</b> ${escapeHtmlBasic(label.status)}</div><div class="line"><b>Vendedor:</b> ${escapeHtmlBasic(seller)}</div><div class="line"><b>Valor frete:</b> ${formatMoneyBRL(label.shippingCost || order.shippingCost || 0)}</div></section>
+    </div>
+    <section class="box" style="margin-top:12px"><h3>Produtos</h3><div class="line">${escapeHtmlBasic(items || 'Produtos do pedido')}</div></section>
+    <div class="grid"><section class="box"><h3>Volumes</h3><div class="line"><b>Volumes:</b> ${label.volumes || 1}</div><div class="line"><b>Peso:</b> ${label.weightKg || 0} kg</div><div class="line"><b>Dimensões:</b> ${escapeHtmlBasic(dims || 'não informado')} cm</div></section><section class="box"><h3>Observações</h3><div class="line">${escapeHtmlBasic(label.notes || 'Sem observações.')}</div></section></div>
+    <div class="barcode">*${escapeHtmlBasic(label.trackingCode || shortId)}*</div>
+    <div class="footer">Gerado em ${escapeHtmlBasic(generatedAt)}. Esta etiqueta manual deixa o painel pronto para integração com Correios, Frenet e transportadoras parceiras.</div>
+  </main></body></html>`;
+}
+
+function inferLogisticsProvider(order = {}) {
+  const shipping = order.shipping || order.payment?.shipping || {};
+  const provider = String(shipping.provider || shipping.carrier || shipping.transportadora || '').trim();
+  const service = String(shipping.service || shipping.label || shipping.name || '').trim();
+  const text = `${provider} ${service}`.toLowerCase();
+  if (text.includes('correio') || text.includes('sedex') || text.includes('pac')) return 'correios';
+  if (text.includes('frenet')) return 'frenet';
+  if (text.includes('rodocap')) return 'rodocap';
+  if (text.includes('ariana')) return 'ariana_local';
+  return provider || 'manual';
+}
+
+app.get('/api/admin/logistica/provedores', adminRequired, async (_req, res) => {
+  const settings = await getShippingSettings().catch(() => ({}));
+  return res.json({
+    ok: true,
+    provedores: [
+      { id: 'manual', nome: 'Transportadora manual', integrado: false, enabled: true },
+      { id: 'ariana_local', nome: 'Entrega Ariana / parceiro local', integrado: false, enabled: true },
+      { id: 'correios', nome: 'Correios', integrado: false, enabled: !!settings?.carriers?.correios?.enabled, proximaFase: 'API de pré-postagem/contrato Correios' },
+      { id: 'frenet', nome: 'Frenet / transportadoras', integrado: false, enabled: settings?.carriers?.frenet?.enabled !== false, proximaFase: 'Compra de frete/etiqueta via Frenet' },
+      { id: 'rodocap', nome: 'Rodocap', integrado: false, enabled: settings?.businessRules?.rodocap?.enabled !== false }
+    ]
+  });
+});
+
+app.get('/api/admin/logistica/pedidos', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const status = String(req.query.status || '').trim();
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 100), 500));
+    const filter = {};
+    if (status) filter.status = status;
+    if (q) {
+      const rx = new RegExp(escapeRegex(q), 'i');
+      filter.$or = [
+        { customerName: rx },
+        { customerEmail: rx },
+        { customerPhone: rx },
+        { trackingCode: rx },
+        { status: rx },
+        { statusLabel: rx }
+      ];
+      if (mongoose.Types.ObjectId.isValid(q)) filter.$or.push({ _id: new mongoose.Types.ObjectId(q) });
+    }
+    const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+    const orderIds = orders.map(o => String(o._id));
+    const labels = await LogisticsLabel.find({ orderId: { $in: orderIds } }).sort({ updatedAt: -1 }).lean();
+    const byOrder = new Map();
+    for (const label of labels) if (!byOrder.has(String(label.orderId))) byOrder.set(String(label.orderId), normalizeLogisticsLabel(label));
+    return res.json({
+      ok: true,
+      pedidos: orders.map((order) => {
+        const obj = toJSON(order);
+        const address = getOrderAddress(obj);
+        return {
+          ...obj,
+          id: String(obj._id || obj.id || ''),
+          shortId: String(obj._id || obj.id || '').slice(-8).toUpperCase(),
+          logisticsProvider: inferLogisticsProvider(obj),
+          address,
+          itemsSummary: orderItemsSummary(obj),
+          etiqueta: byOrder.get(String(obj._id || obj.id || '')) || null
+        };
+      })
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar pedidos para logística' });
+  }
+});
+
+app.post('/api/admin/logistica/etiquetas/manual', adminRequired, async (req, res) => {
+  try {
+    const orderId = String(req.body?.orderId || '').trim();
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para gerar etiqueta.' });
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+
+    const before = toJSON(order);
+    const provider = String(req.body?.provider || inferLogisticsProvider(before) || 'manual').trim();
+    const service = String(req.body?.service || req.body?.servico || '').trim();
+    const trackingCode = String(req.body?.trackingCode || req.body?.rastreio || before.trackingCode || '').trim();
+    const patch = {
+      orderId,
+      orderObjectId: order._id,
+      provider,
+      service,
+      status: String(req.body?.status || 'gerada').trim(),
+      trackingCode,
+      shippingCost: Number(req.body?.shippingCost || before.shippingCost || 0),
+      volumes: Math.max(1, Number(req.body?.volumes || 1)),
+      weightKg: Number(req.body?.weightKg || req.body?.pesoKg || 0),
+      heightCm: Number(req.body?.heightCm || req.body?.alturaCm || 0),
+      widthCm: Number(req.body?.widthCm || req.body?.larguraCm || 0),
+      lengthCm: Number(req.body?.lengthCm || req.body?.comprimentoCm || 0),
+      notes: String(req.body?.notes || req.body?.observacoes || '').trim(),
+      labelType: 'manual_print',
+      updatedBy: req.admin?.email || req.admin?.id || 'admin'
+    };
+    if (!patch.createdBy) patch.createdBy = req.admin?.email || req.admin?.id || 'admin';
+
+    let label = await LogisticsLabel.findOneAndUpdate(
+      { orderId },
+      { $set: patch, $setOnInsert: { createdBy: req.admin?.email || req.admin?.id || 'admin' } },
+      { upsert: true, new: true }
+    );
+    const html = buildManualLogisticsLabelHtml(order, label);
+    label = await LogisticsLabel.findByIdAndUpdate(label._id, { $set: { labelHtml: html } }, { new: true });
+
+    const updateOrder = {
+      trackingCode,
+      shipping: {
+        ...(before.shipping || {}),
+        provider,
+        service,
+        labelId: String(label._id),
+        labelStatus: patch.status,
+        labelType: patch.labelType,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    if (String(req.body?.markStatus || '').trim()) {
+      updateOrder.status = String(req.body.markStatus).trim();
+      updateOrder.statusLabel = String(req.body.markStatusLabel || req.body.markStatus).trim();
+    }
+    const after = await Order.findByIdAndUpdate(orderId, { $set: updateOrder }, { new: true });
+
+    await writeAuditLog({
+      scope: 'logistica',
+      eventType: 'manual_label_generated',
+      orderId,
+      status: 'success',
+      changedKeys: changedKeys(before, toJSON(after)),
+      metadata: { provider, service, trackingCode, labelId: String(label._id), actor: req.admin?.email || req.admin?.id || 'admin' }
+    }).catch(() => null);
+
+    const shouldNotify = req.body?.notifyCustomer === true;
+    let whatsapp = { skipped: true, reason: 'notifyCustomer_false' };
+    if (shouldNotify && (trackingCode || updateOrder.status)) {
+      whatsapp = await waMaybeNotifyOrderStatusChange(orderId, before, toJSON(after), 'logistica_label_manual').catch((error) => ({ ok: false, error: error.message || String(error) }));
+    }
+
+    return res.json({ ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), whatsapp });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar etiqueta manual.' });
+  }
+});
+
+app.get('/api/admin/logistica/etiquetas/:orderId/html', adminRequired, async (req, res) => {
+  try {
+    const orderId = String(req.params.orderId || '').trim();
+    const label = await LogisticsLabel.findOne({ orderId }).sort({ updatedAt: -1 });
+    if (!label) return res.status(404).send('Etiqueta não encontrada para este pedido.');
+    if (label.labelHtml) return res.type('html').send(label.labelHtml);
+    const order = mongoose.Types.ObjectId.isValid(orderId) ? await Order.findById(orderId) : null;
+    return res.type('html').send(buildManualLogisticsLabelHtml(order || {}, label));
+  } catch (error) {
+    return res.status(500).send(error.message || 'Erro ao abrir etiqueta.');
+  }
+});
+
+app.patch('/api/admin/logistica/rastreio/:orderId', adminRequired, async (req, res) => {
+  try {
+    const orderId = String(req.params.orderId || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido.' });
+    const before = await Order.findById(orderId);
+    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+    const patch = {
+      trackingCode: String(req.body?.trackingCode || '').trim(),
+      status: String(req.body?.status || before.status || '').trim(),
+      statusLabel: String(req.body?.statusLabel || req.body?.status || before.statusLabel || '').trim()
+    };
+    const after = await Order.findByIdAndUpdate(orderId, { $set: patch }, { new: true });
+    await LogisticsLabel.findOneAndUpdate({ orderId }, { $set: { trackingCode: patch.trackingCode, status: patch.status || 'atualizada', updatedBy: req.admin?.email || req.admin?.id || 'admin' } }, { new: true }).catch(() => null);
+    const whatsapp = req.body?.notifyCustomer === true
+      ? await waMaybeNotifyOrderStatusChange(orderId, toJSON(before), toJSON(after), 'logistica_tracking_patch').catch((error) => ({ ok: false, error: error.message || String(error) }))
+      : { skipped: true, reason: 'notifyCustomer_false' };
+    return res.json({ ok: true, order: toJSON(after), whatsapp });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar rastreio.' });
+  }
+});
+
+app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, async (_req, res) => {
+  return res.status(501).json({ ok: false, error: 'Integração Correios ainda não ativada. O painel já está preparado; falta cadastrar contrato/API de pré-postagem dos Correios.' });
+});
+
+app.post('/api/admin/logistica/etiquetas/frenet/preparar', adminRequired, async (_req, res) => {
+  return res.status(501).json({ ok: false, error: 'Integração Frenet/transportadora ainda não ativada. O painel já está preparado; falta habilitar compra de frete/etiqueta no provedor.' });
+});
+
 app.get('/api/admin/orders', adminRequired, async (req, res) => res.json((await Order.find().sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 10), 100))).map(toJSON)));
 app.get('/api/admin/notifications', adminRequired, async (_req, res) => res.json((await Notification.find({ $or: [{ audience: { $exists: false } }, { audience: '' }, { audience: 'admin' }, { audience: 'all' }] }).sort({ createdAt: -1 }).limit(50)).map(toJSON)));
 
