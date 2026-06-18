@@ -4624,6 +4624,94 @@ app.post('/api/seller/auth/login',async(req,res)=>{
   }catch(e){return res.status(500).json({ok:false,error:e.message||'Erro no login seller'});}
 });
 app.get('/api/seller/auth/me',sellerAuthRequired,(req,res)=>res.json({ok:true,seller:sellerProfile(req.seller,req.user),user:toJSON(req.user)}));
+
+app.get('/api/seller/profile', sellerAuthRequired, async (req, res) => {
+  try {
+    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: toJSON(req.user) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dados cadastrais do seller' });
+  }
+});
+
+app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const sellerUpdates = {};
+    const userUpdates = {};
+
+    if (body.storeName !== undefined) sellerUpdates.storeName = String(body.storeName || '').trim();
+    if (body.displayName !== undefined) sellerUpdates.displayName = String(body.displayName || '').trim();
+    if (body.email !== undefined) {
+      sellerUpdates.email = String(body.email || '').trim().toLowerCase();
+      userUpdates.email = sellerUpdates.email;
+    }
+    if (body.phone !== undefined) {
+      sellerUpdates.phone = String(body.phone || '').trim();
+      userUpdates.phone = sellerUpdates.phone;
+    }
+    if (body.document !== undefined) {
+      sellerUpdates.document = String(body.document || '').trim();
+      userUpdates.cpf = sellerUpdates.document;
+    }
+    if (body.city !== undefined) userUpdates.city = String(body.city || '').trim();
+    if (body.uf !== undefined) userUpdates.uf = String(body.uf || '').trim().toUpperCase().slice(0, 2);
+
+    const metadata = { ...(req.seller?.metadata || {}) };
+    const metadataKeys = ['address', 'cep', 'bairro', 'numero', 'complemento', 'responsavel', 'bankName', 'bankAgency', 'bankAccount', 'pixKey'];
+    for (const key of metadataKeys) {
+      if (body[key] !== undefined) metadata[key] = String(body[key] || '').trim();
+    }
+    sellerUpdates.metadata = metadata;
+
+    const seller = await Seller.findOneAndUpdate(
+      { sellerId: req.sellerId },
+      { $set: sellerUpdates },
+      { new: true }
+    );
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: userUpdates }, { new: true });
+
+    return res.json({ ok: true, seller: sellerProfile(seller, user), user: toJSON(user) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
+  }
+});
+
+app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    const productQuery = { sellerId: sid };
+    const totalProdutos = await Product.countDocuments(productQuery);
+    const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: { $ne: false } });
+    const orderQuery = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] };
+    const orders = await Order.find(orderQuery).sort({ createdAt: -1 }).limit(20);
+    const allSellerOrders = await Order.find(orderQuery).select('status total items sellerIds createdAt');
+    const pendingStatuses = new Set(['pendente', 'pending', 'processing', 'preparando', 'novo', 'new']);
+    const approvedStatuses = new Set(['pago', 'approved', 'aprovado', 'paid', 'entregue', 'delivered', 'shipped']);
+    let pedidosPendentes = 0;
+    let vendasTotal = 0;
+    for (const order of allSellerOrders) {
+      const status = String(order.status || '').toLowerCase();
+      if (pendingStatuses.has(status)) pedidosPendentes += 1;
+      if (approvedStatuses.has(status)) {
+        const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || '') === sid);
+        const sellerTotal = sellerItems.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0);
+        vendasTotal += sellerTotal || Number(order.total || 0);
+      }
+    }
+    return res.json({
+      ok: true,
+      seller: sellerProfile(req.seller, req.user),
+      totalProdutos,
+      produtosAtivos,
+      pedidosPendentes,
+      totalPedidos: allSellerOrders.length,
+      vendasTotal,
+      recentOrders: orders.map(toJSON)
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dashboard do seller' });
+  }
+});
 app.get('/api/seller/notifications', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
@@ -4665,11 +4753,10 @@ app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{c
 
 
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
-app.get('/api/seller/products', async (req, res) => {
+app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
-    const query = {};
-    const sellerId = String(req.query.sellerId || req.query.seller_id || req.query.storeId || '').trim();
-    if (sellerId) query.sellerId = sellerId;
+    const query = { sellerId: String(req.sellerId || '').trim() };
+    if (!query.sellerId) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
     if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
     const rows = await Product.find(query).sort({ createdAt: -1 });
     return res.json(rows.map(normalizeProductForResponse));
@@ -4678,21 +4765,31 @@ app.get('/api/seller/products', async (req, res) => {
   }
 });
 
-app.get('/api/seller/products/:id', async (req, res) => {
+app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
+    const sid = String(req.sellerId || '').trim();
     const oid = normalizeObjectId(req.params.id);
-    let row = oid ? await Product.findById(oid) : null;
-    if (!row) row = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] });
-    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
+    let row = oid ? await Product.findOne({ _id: oid, sellerId: sid }) : null;
+    if (!row) row = await Product.findOne({ sellerId: sid, $or: [{ sku: req.params.id }, { slug: req.params.id }] });
+    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
     return res.json(normalizeProductForResponse(row));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
   }
 });
 
-app.delete('/api/seller/products/:id', authRequired, async (req, res) => {
-  const oid = normalizeObjectId(req.params.id);
-  if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const sid = String(req.sellerId || '').trim();
+    const deleted = await Product.findOneAndDelete({ _id: oid, sellerId: sid });
+    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
+  }
+});
   await Product.findByIdAndDelete(oid);
   return res.json({ ok: true });
 });
@@ -5013,11 +5110,10 @@ app.get('/api/products/seller/:sellerId', async (req, res) => {
   }
 });
 
-app.get('/api/seller/products', async (req, res) => {
+app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
-    const query = {};
-    const sellerId = String(req.query.sellerId || req.query.seller_id || req.query.storeId || '').trim();
-    if (sellerId) query.sellerId = sellerId;
+    const query = { sellerId: String(req.sellerId || '').trim() };
+    if (!query.sellerId) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
     if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
     const rows = await Product.find(query).sort({ createdAt: -1 });
     return res.json(rows.map(normalizeProductForResponse));
@@ -5050,21 +5146,76 @@ app.get('/api/sellers/:sellerId/products', async (req, res) => {
   }
 });
 
-app.get('/api/seller/products/:id', async (req, res) => {
+app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
+    const sid = String(req.sellerId || '').trim();
     const oid = normalizeObjectId(req.params.id);
-    let row = oid ? await Product.findById(oid) : null;
-    if (!row) row = await Product.findOne({ $or: [{ sku: req.params.id }, { slug: req.params.id }] });
-    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
+    let row = oid ? await Product.findOne({ _id: oid, sellerId: sid }) : null;
+    if (!row) row = await Product.findOne({ sellerId: sid, $or: [{ sku: req.params.id }, { slug: req.params.id }] });
+    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
     return res.json(normalizeProductForResponse(row));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
   }
 });
-app.post('/api/products', authRequired, async (req, res) => { try { const body = req.body || {}; const sellerId = String(body.sellerId || req.user.sellerId || '').trim(); const seller = sellerId ? await Seller.findOne({ sellerId }) : null; const images = ensureArray(body.images).filter(Boolean); const image = body.image || images[0] || null; const doc = await Product.create({ sellerId, sellerName: seller?.storeName || seller?.displayName || '', name: body.name, slug: body.slug || sanitizeIdPart(body.name), description: body.description || '', category: body.category || '', categoryId: body.categoryId || '', brand: body.brand || '', sku: body.sku || uid('sku'), price: Number(body.price || 0), oldPrice: body.oldPrice !== undefined ? Number(body.oldPrice) : null, pixPrice: body.pixPrice !== undefined ? Number(body.pixPrice) : null, installmentCount: Number(body.installmentCount || 12), image, images: image ? Array.from(new Set([image, ...images])) : images, stock: Number(body.stock || 0), active: body.active !== false, specs: body.specs || {}, dimensions: body.dimensions || {}, logistics: body.logistics || {} }); return res.json({ ok: true, product: normalizeProductForResponse(doc) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao cadastrar produto' }); } });
-app.put('/api/products/:id', authRequired, async (req, res) => { try { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); const before = await Product.findById(oid); if (!before) return res.status(404).json({ ok: false, error: 'Produto não encontrado' }); const update = { ...(req.body || {}) }; if (update.price !== undefined) update.price = Number(update.price); if (update.oldPrice !== undefined) update.oldPrice = Number(update.oldPrice); if (update.pixPrice !== undefined) update.pixPrice = Number(update.pixPrice); if (update.stock !== undefined) update.stock = Number(update.stock); const after = await Product.findByIdAndUpdate(oid, { $set: update }, { new: true }); await writeAuditLog({ scope: 'catalog', eventType: 'product_updated', status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { productId: String(after._id), sellerId: after.sellerId } }); return res.json({ ok: true, product: normalizeProductForResponse(after) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao editar produto' }); } });
-app.delete('/api/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
-app.delete('/api/seller/products/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
+app.post('/api/products', authRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const sellerId = userRole === 'admin' ? String(body.sellerId || req.user.sellerId || '').trim() : String(req.user.sellerId || '').trim();
+    if (userRole === 'seller' && !sellerId) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    const seller = sellerId ? await Seller.findOne({ sellerId }) : null;
+    const payload = productPayloadFromBody({ ...body, sellerId, sellerName: seller?.storeName || seller?.displayName || '' });
+    const doc = await Product.create(payload);
+    return res.json({ ok: true, product: normalizeProductForResponse(doc) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao cadastrar produto' });
+  }
+});
+app.put('/api/products/:id', authRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const before = await Product.findById(oid);
+    if (!before) return res.status(404).json({ ok: false, error: 'Produto não encontrado' });
+    const userRole = String(req.user?.role || '').toLowerCase();
+    if (userRole === 'seller' && String(before.sellerId || '') !== String(req.user.sellerId || '')) {
+      return res.status(403).json({ ok: false, error: 'Sem permissão para editar este produto' });
+    }
+    const update = productPayloadFromBody(req.body || {}, before);
+    if (userRole === 'seller') update.sellerId = String(req.user.sellerId || '');
+    const after = await Product.findByIdAndUpdate(oid, { $set: update }, { new: true });
+    await writeAuditLog({ scope: 'catalog', eventType: 'product_updated', status: 'success', changedKeys: changedKeys(toJSON(before), toJSON(after)), metadata: { productId: String(after._id), sellerId: after.sellerId } });
+    return res.json({ ok: true, product: normalizeProductForResponse(after) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao editar produto' });
+  }
+});
+app.delete('/api/products/:id', authRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const query = userRole === 'seller' ? { _id: oid, sellerId: String(req.user.sellerId || '') } : { _id: oid };
+    const deleted = await Product.findOneAndDelete(query);
+    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado ou sem permissão' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
+  }
+});
+app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const sid = String(req.sellerId || '').trim();
+    const deleted = await Product.findOneAndDelete({ _id: oid, sellerId: sid });
+    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
+  }
+}); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
 app.get('/api/banners', async (req, res) => {
   const query = { active: true };
   if (req.query.slot) query.slot = String(req.query.slot);

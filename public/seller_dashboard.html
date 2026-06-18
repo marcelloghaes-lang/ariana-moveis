@@ -46,6 +46,7 @@
         </a>
         <nav class="flex flex-col space-y-2">
             <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="#" id="seller-store-nav-link" target="_blank" rel="noopener" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-store"></i><span>Minha loja no site</span></a>
             <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
             <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
             <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
@@ -74,6 +75,81 @@
     <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
         <section>
             <h2 class="text-2xl font-bold text-text-dark mb-6">Visão Geral do Seller</h2>
+
+            <div class="bg-white border border-blue-100 rounded-2xl shadow-sm p-5 mb-6 animate-fade">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-black uppercase tracking-wide text-primary-blue mb-1"><i class="fas fa-store mr-1"></i> Vitrine pública</p>
+                        <h3 class="text-xl font-bold text-gray-900">Minha loja no site Ariana Móveis</h3>
+                        <p class="text-sm text-gray-500 mt-1">Use este link para compartilhar sua página personalizada com seus clientes.</p>
+                        <div id="seller-store-url" class="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 break-all">Carregando link da loja...</div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-2 lg:min-w-[330px]">
+                        <a id="seller-store-open-btn" href="#" target="_blank" rel="noopener" class="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-primary-blue text-white font-bold hover:bg-secondary-light-blue transition">
+                            <i class="fas fa-external-link-alt mr-2"></i> Abrir minha loja
+                        </a>
+                        <button id="seller-store-copy-btn" type="button" class="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition">
+                            <i class="fas fa-copy mr-2"></i> Copiar link
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-6 animate-fade">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <p class="text-xs font-black uppercase tracking-wide text-primary-blue mb-1"><i class="fas fa-id-card mr-1"></i> Dados cadastrais</p>
+                        <h3 class="text-xl font-bold text-gray-900">Cadastro do seller</h3>
+                        <p class="text-sm text-gray-500 mt-1">Esses dados identificam sua loja no marketplace e ajudam no atendimento dos pedidos.</p>
+                    </div>
+                    <span id="seller-status-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-700">Carregando</span>
+                </div>
+                <form id="seller-profile-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="lg:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Nome da loja</label>
+                        <input id="seller-store-name" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="Nome da loja" />
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Responsável</label>
+                        <input id="seller-display-name" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="Nome do responsável" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">CPF/CNPJ</label>
+                        <input id="seller-document" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="Documento" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Telefone</label>
+                        <input id="seller-phone" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="WhatsApp" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">E-mail</label>
+                        <input id="seller-email" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="email@loja.com" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">CEP</label>
+                        <input id="seller-cep" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="00000-000" />
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Endereço</label>
+                        <input id="seller-address" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="Rua, avenida, número" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Cidade</label>
+                        <input id="seller-city" class="w-full border border-gray-300 rounded-xl px-3 py-2" placeholder="Cidade" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">UF</label>
+                        <input id="seller-uf" maxlength="2" class="w-full border border-gray-300 rounded-xl px-3 py-2 uppercase" placeholder="MG" />
+                    </div>
+                    <div class="lg:col-span-4 flex justify-end">
+                        <button type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary-blue text-white font-bold hover:bg-secondary-light-blue transition">
+                            <i class="fas fa-save mr-2"></i> Salvar dados cadastrais
+                        </button>
+                    </div>
+                </form>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between animate-fade">
                     <div><p class="text-sm font-medium text-gray-500">Meus Produtos</p><p id="kpi-products" class="text-3xl font-bold text-primary-blue">0</p></div>
@@ -153,6 +229,114 @@ function toast(message, type='info'){
   setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)},3400);
 }
 
+function getSellerStoreRef(profile = {}) {
+  return (
+    profile.sellerId ||
+    profile.seller_id ||
+    profile.storeSlug ||
+    profile.slug ||
+    profile.id ||
+    profile._id ||
+    localStorage.getItem("seller_id") ||
+    localStorage.getItem("partner_request_id") ||
+    ""
+  );
+}
+
+function buildSellerStoreUrl(profile = {}) {
+  const ref = String(getSellerStoreRef(profile) || "").trim();
+  const siteOrigin = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? window.location.origin
+    : "https://arianamoveis.com.br";
+  if (!ref) return `${siteOrigin}/loja.html`;
+  return `${siteOrigin}/loja.html?sellerId=${encodeURIComponent(ref)}`;
+}
+
+function updateSellerStoreShortcut(profile = {}) {
+  const url = buildSellerStoreUrl(profile);
+  const urlBox = $("seller-store-url");
+  const openBtn = $("seller-store-open-btn");
+  const navLink = $("seller-store-nav-link");
+  if (urlBox) urlBox.textContent = url;
+  if (openBtn) openBtn.href = url;
+  if (navLink) navLink.href = url;
+}
+
+async function copySellerStoreLink() {
+  const url = $("seller-store-open-btn")?.href || $("seller-store-url")?.textContent || "";
+  if (!url) return toast("Link da loja não encontrado.", "error");
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Link da loja copiado com sucesso!", "success");
+  } catch (_) {
+    const temp = document.createElement("textarea");
+    temp.value = url;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand("copy");
+    temp.remove();
+    toast("Link da loja copiado com sucesso!", "success");
+  }
+}
+
+
+    
+function fillSellerProfileForm(seller = {}, user = {}) {
+  const meta = seller.metadata || {};
+  const set = (id, value) => { const el = $(id); if (el) el.value = value || ""; };
+  set("seller-store-name", seller.storeName || seller.factoryName || seller.name || "");
+  set("seller-display-name", seller.displayName || seller.name || user.name || "");
+  set("seller-document", seller.document || user.cpf || "");
+  set("seller-phone", seller.phone || user.phone || "");
+  set("seller-email", seller.email || user.email || "");
+  set("seller-cep", meta.cep || "");
+  set("seller-address", meta.address || "");
+  set("seller-city", user.city || meta.city || "");
+  set("seller-uf", user.uf || meta.uf || "");
+  const badge = $("seller-status-badge");
+  if (badge) {
+    const status = String(seller.status || "pendente");
+    badge.textContent = status.toUpperCase();
+    badge.className = "text-xs font-bold px-3 py-1 rounded-full " + (seller.active === false ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700");
+  }
+}
+
+async function saveSellerProfile(event) {
+  event.preventDefault();
+  try {
+    const payload = {
+      storeName: $("seller-store-name")?.value || "",
+      displayName: $("seller-display-name")?.value || "",
+      document: $("seller-document")?.value || "",
+      phone: $("seller-phone")?.value || "",
+      email: $("seller-email")?.value || "",
+      cep: $("seller-cep")?.value || "",
+      address: $("seller-address")?.value || "",
+      city: $("seller-city")?.value || "",
+      uf: $("seller-uf")?.value || ""
+    };
+    const res = await fetch(`${API_BASE}/seller/profile`, {
+      method: "PATCH",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
+
+            if (data.seller) {
+                localStorage.setItem("seller_profile", JSON.stringify(data.seller));
+                fillSellerProfileForm(data.seller, data.user || {});
+                updateSellerStoreShortcut(data.seller);
+                $('user-display-name').textContent = `Olá, ${data.seller.factoryName || data.seller.name || 'Seller'}!`;
+            }
+    localStorage.setItem("seller_profile", JSON.stringify(data.seller || {}));
+    fillSellerProfileForm(data.seller || {}, data.user || {});
+    updateSellerStoreShortcut(data.seller || {});
+    toast("Dados cadastrais salvos com sucesso!", "success");
+  } catch (e) {
+    toast(e.message || "Erro ao salvar dados cadastrais.", "error");
+  }
+}
 
     async function loadDashboard() {
         const token = localStorage.getItem("seller_token");
@@ -161,6 +345,8 @@ function toast(message, type='info'){
         if (!token) { window.location.href = 'seller_login.html'; return; }
         
         $('user-display-name').textContent = `Olá, ${profile.factoryName || profile.name || 'Seller'}!`;
+        updateSellerStoreShortcut(profile);
+        fillSellerProfileForm(profile, profile.user || {});
 
         try {
             const res = await fetch(`${API_BASE}/seller/dashboard`, {
@@ -206,6 +392,9 @@ function toast(message, type='info'){
     $('sidebar-toggle')?.addEventListener('click', () => {
         $('sidebar').classList.toggle("-translate-x-full");
     });
+
+    $('seller-store-copy-btn')?.addEventListener('click', copySellerStoreLink);
+    $('seller-profile-form')?.addEventListener('submit', saveSellerProfile);
 
     window.onload = loadDashboard;
   </script>
