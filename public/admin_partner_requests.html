@@ -3,239 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Aprovação de Parceiros | ARIANA MÓVEIS</title>
+  <title>Aprovação de Sellers | ARIANA MÓVEIS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="css/tailwind.min.css">
+  <script src="js/api-config.js"></script>
   <style>
-    body { font-family: 'Inter', sans-serif; background-color: #F5F7FA; }
-    .bg-dark-bg { background-color: #1D2B3A; }
-    .bg-primary-blue { background-color: #2E6DA4; }
-    #toast-container { position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; }
-    .toast { padding: 1rem 1.5rem; border-radius: 1rem; color: white; font-weight: bold; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+    body{font-family:Inter,Arial,sans-serif;background:#f3f6fb;color:#0f172a;}
+    .bg-dark-bg{background:#152436;}
+    .card{background:#fff;border:1px solid #e6edf7;border-radius:22px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:10px 14px;font-weight:800;font-size:13px;transition:.15s ease;white-space:nowrap}
+    .btn:hover{transform:translateY(-1px);filter:brightness(.98)}
+    .btn-blue{background:#1d4ed8;color:#fff}.btn-green{background:#16a34a;color:#fff}.btn-red{background:#dc2626;color:#fff}.btn-soft{background:#eef4ff;color:#1d4ed8}
+    .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+    .pill-pending{background:#fff4cc;color:#92400e}.pill-approved{background:#dcfce7;color:#166534}.pill-rejected{background:#fee2e2;color:#991b1b}
+    #toast-container{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:10px;width:360px;max-width:92vw}.toast{padding:14px 16px;border-radius:16px;color:#fff;font-weight:800;box-shadow:0 16px 32px rgba(0,0,0,.15)}
   </style>
 </head>
 <body class="min-h-screen flex">
   <div id="toast-container"></div>
 
-  <aside class="bg-dark-bg w-64 hidden md:flex flex-col space-y-6 py-7 px-4 text-white">
-    <span class="text-2xl font-extrabold tracking-widest px-4">ARIANA MÓVEIS</span>
-    <nav class="flex flex-col space-y-2">
-      <a href="admin_painel.htm" class="flex items-center space-x-2 py-2.5 px-4 rounded hover:bg-slate-700">
-        <i class="fas fa-home w-5"></i><span>Dashboard</span>
-      </a>
-      <a href="admin_partner_requests.html" class="flex items-center space-x-2 py-2.5 px-4 rounded bg-slate-700">
-        <i class="fas fa-store w-5"></i><span>Solicitações</span>
-      </a>
+  <aside class="bg-dark-bg w-64 hidden md:flex flex-col py-7 px-4 text-white shrink-0">
+    <div class="px-4 mb-7"><div class="text-2xl font-black tracking-tight">ARIANA MÓVEIS</div><div class="text-xs text-slate-300 mt-1">Admin Marketplace</div></div>
+    <nav class="flex flex-col gap-2">
+      <a href="admin_painel.html" class="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-white/10"><i class="fa-solid fa-house w-5"></i><span>Dashboard</span></a>
+      <a href="admin_partner_requests.html" class="flex items-center gap-3 py-3 px-4 rounded-xl bg-white/12"><i class="fa-solid fa-store w-5"></i><span>Aprovar Sellers</span></a>
+      <a href="logistica_etiquetas.html?from=admin" class="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-white/10"><i class="fa-solid fa-truck w-5"></i><span>Logística</span></a>
+      <a href="#" onclick="logoutAdmin()" class="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-white/10 text-red-300 mt-auto"><i class="fa-solid fa-right-from-bracket w-5"></i><span>Sair</span></a>
     </nav>
   </aside>
 
-  <div class="flex-1 flex flex-col">
-    <header class="flex items-center justify-between p-4 bg-white border-b shadow-sm">
-      <h1 class="text-xl font-bold text-gray-800">Gerenciar Parceiros</h1>
-      <div class="flex items-center space-x-2">
-        <span class="text-sm font-medium">Admin Ariana</span>
-        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+  <div class="flex-1 min-w-0">
+    <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200">
+      <div class="px-5 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div><h1 class="text-xl md:text-2xl font-black">Aprovação de Sellers</h1><p class="text-sm text-slate-500">Analise solicitações de lojas parceiras e libere acesso ao marketplace.</p></div>
+        <button onclick="loadRequests()" class="btn btn-blue"><i class="fa-solid fa-rotate"></i>Atualizar</button>
       </div>
     </header>
 
-    <main class="p-6">
-      <div class="bg-white rounded-2xl shadow-sm border p-6">
-        <div class="flex justify-between items-center mb-6">
-          <div>
-            <h2 class="text-2xl font-black text-gray-800">Solicitações no MongoDB</h2>
-            <p class="text-sm text-gray-500">Aprove ou reprove novos parceiros em tempo real.</p>
+    <main class="p-5 md:p-8 space-y-6">
+      <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Total</div><div id="kpi-total" class="text-3xl font-black text-blue-700 mt-1">0</div></div>
+        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Pendentes</div><div id="kpi-pending" class="text-3xl font-black text-amber-600 mt-1">0</div></div>
+        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Aprovados</div><div id="kpi-approved" class="text-3xl font-black text-green-600 mt-1">0</div></div>
+        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Recusados</div><div id="kpi-rejected" class="text-3xl font-black text-red-600 mt-1">0</div></div>
+      </section>
+
+      <section class="card p-5 md:p-6">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+          <div><h2 class="text-xl font-black">Solicitações recebidas</h2><p class="text-sm text-slate-500">Ao aprovar, o seller fica liberado para continuar o cadastro e operar no painel.</p></div>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input id="search-q" class="border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-200" placeholder="Buscar loja, CNPJ, e-mail..." oninput="renderRequests()">
+            <select id="filter-status" class="border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-200" onchange="renderRequests()">
+              <option value="todos">Todos</option>
+              <option value="pending">Pendentes</option>
+              <option value="approved">Aprovados</option>
+              <option value="rejected">Recusados</option>
+            </select>
           </div>
-          <button onclick="loadRequests()" class="bg-primary-blue text-white px-5 py-2.5 rounded-xl font-bold hover:opacity-90 transition">
-            <i class="fas fa-sync-alt mr-2"></i>Sincronizar
-          </button>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left">
-            <thead class="bg-gray-50">
-              <tr class="text-xs uppercase text-gray-400 font-bold border-b">
-                <th class="px-6 py-4">Loja / CNPJ</th>
-                <th class="px-6 py-4">Responsável / Contato</th>
-                <th class="px-6 py-4">Status</th>
-                <th class="px-6 py-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tb-requests" class="divide-y">
-              <tr><td colspan="4" class="py-10 text-center text-gray-400">Carregando dados do Render...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <div id="requests-list" class="space-y-3"><div class="py-10 text-center text-slate-400">Carregando solicitações...</div></div>
+      </section>
     </main>
   </div>
 
-  
-  <script>
-    const API_BASE =
-      localStorage.getItem("API_BASE") ||
-      "https://ariana-move-mongo.onrender.com/api";
-
-    function getAdminToken() {
-      return (
-        localStorage.getItem("adminToken") ||
-        localStorage.getItem("admin_token") ||
-        localStorage.getItem("token") ||
-        localStorage.getItem("authToken") ||
-        ""
-      );
-    }
-
-    function getHeaders(extra = {}) {
-      const token = getAdminToken();
-      return {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...extra
-      };
-    }
-
-    function toast(msg, type = 'info') {
-      const el = document.createElement('div');
-      el.className = `toast ${type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-rose-500' : 'bg-primary-blue'}`;
-      el.textContent = msg;
-      document.getElementById('toast-container').appendChild(el);
-      setTimeout(() => el.remove(), 4000);
-    }
-
-    function normalizeRequests(payload) {
-      if (Array.isArray(payload)) return payload;
-      if (Array.isArray(payload?.requests)) return payload.requests;
-      if (Array.isArray(payload?.items)) return payload.items;
-      if (Array.isArray(payload?.data)) return payload.data;
-      if (Array.isArray(payload?.partnerRequests)) return payload.partnerRequests;
-      if (Array.isArray(payload?.sellers)) return payload.sellers;
-      return [];
-    }
-
-    async function apiFetch(path, options = {}) {
-      const res = await fetch(`${API_BASE}${path}`, {
-        ...options,
-        headers: getHeaders(options.headers || {})
-      });
-
-      const text = await res.text();
-      let data = null;
-
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch (_) {
-        data = text;
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          (data && (data.message || data.error)) ||
-          `Erro HTTP ${res.status}`
-        );
-      }
-
-      return data;
-    }
-
-    async function checkAdmin() {
-      try {
-        const me = await apiFetch("/admin/me");
-        return !!(me && (me.admin || me.user || me.data || me));
-      } catch (_) {
-        return false;
-      }
-    }
-
-    async function loadRequests() {
-      const tbody = document.getElementById('tb-requests');
-      try {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-gray-400">Carregando dados do Render...</td></tr>';
-
-        const payload = await apiFetch('/seller/partner-requests');
-        const sellers = normalizeRequests(payload);
-
-        if (!sellers || sellers.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-gray-400">Nenhuma solicitação encontrada no MongoDB.</td></tr>';
-          return;
-        }
-
-        tbody.innerHTML = sellers.map(s => {
-          const id = s._id || s.id || '';
-          const status = (s.status || 'pendente').toLowerCase();
-          const loja = s.factoryName || s.storeName || s.shopName || s.name || 'Sem nome';
-          const responsavel = s.ownerName || s.responsavel || s.name || '—';
-          const email = s.email || s.contactEmail || '—';
-          const cnpj = s.cnpj || s.document || 'Sem CNPJ';
-          const statusClass =
-            status === 'aprovado'
-              ? 'bg-green-100 text-green-700'
-              : status === 'reprovado'
-              ? 'bg-rose-100 text-rose-700'
-              : 'bg-amber-100 text-amber-700';
-
-          return `
-            <tr class="hover:bg-gray-50 transition">
-              <td class="px-6 py-4">
-                <div class="font-bold text-gray-900">${loja}</div>
-                <div class="text-xs text-gray-500">${cnpj}</div>
-              </td>
-              <td class="px-6 py-4 text-sm">
-                <div class="font-medium">${responsavel}</div>
-                <div class="text-gray-500">${email}</div>
-              </td>
-              <td class="px-6 py-4">
-                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${statusClass}">${status}</span>
-              </td>
-              <td class="px-6 py-4 text-right space-x-2">
-                <button onclick="updateStatus('${id}', 'aprovado')" class="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90">Aprovar</button>
-                <button onclick="updateStatus('${id}', 'reprovado')" class="bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90">Recusar</button>
-              </td>
-            </tr>
-          `;
-        }).join('');
-      } catch (e) {
-        console.error(e);
-        tbody.innerHTML = '<tr><td colspan="4" class="py-10 text-center text-rose-500 font-bold">Erro ao conectar com o Render.</td></tr>';
-      }
-    }
-
-    async function updateStatus(id, newStatus) {
-      if (!confirm(`Deseja alterar o status para ${newStatus}?`)) return;
-
-      try {
-        await apiFetch(`/seller/partner-requests/${id}/status`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status: newStatus,
-            active: newStatus === 'aprovado'
-          })
-        });
-
-        toast(`Vendedor ${newStatus} com sucesso!`, 'success');
-        loadRequests();
-      } catch (e) {
-        console.error(e);
-        toast('Erro ao atualizar status.', 'error');
-      }
-    }
-
-    window.updateStatus = updateStatus;
-    window.loadRequests = loadRequests;
-
-    window.addEventListener('load', async () => {
-      const ok = await checkAdmin();
-      if (!ok) {
-        toast('Acesso negado. Faça login como administrador.', 'error');
-        setTimeout(() => {
-          window.location.href = 'login_admin.html';
-        }, 900);
-        return;
-      }
-
-      loadRequests();
-    });
-  </script>
-
+<script>
+const API_BASE = (window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, '');
+let requestsCache = [];
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function getAdminToken(){return localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('token')||''}
+function headers(extra={}){const t=getAdminToken(); return {'Content-Type':'application/json',...(t?{Authorization:`Bearer ${t}`}:{}) ,...extra}}
+function toast(msg,type='info'){const el=document.createElement('div');el.className='toast '+(type==='success'?'bg-green-600':type==='error'?'bg-red-600':'bg-blue-600');el.textContent=msg;$('toast-container').appendChild(el);setTimeout(()=>el.remove(),3800)}
+function normalizeStatus(v){v=String(v||'pending').toLowerCase(); if(['aprovado','approved','active'].includes(v))return'approved'; if(['reprovado','rejected','recusado'].includes(v))return'rejected'; return'pending'}
+function statusLabel(s){s=normalizeStatus(s); return s==='approved'?'Aprovado':s==='rejected'?'Recusado':'Pendente'}
+function statusPill(s){s=normalizeStatus(s); return `<span class="pill ${s==='approved'?'pill-approved':s==='rejected'?'pill-rejected':'pill-pending'}">${statusLabel(s)}</span>`}
+function normalizePayload(payload){ if(Array.isArray(payload))return payload; return payload?.requests||payload?.items||payload?.data||payload?.partnerRequests||payload?.sellers||[] }
+async function api(path,opt={}){const res=await fetch(API_BASE+path,{...opt,headers:headers(opt.headers||{})}); const text=await res.text(); let data=null; try{data=text?JSON.parse(text):null}catch(_){data=text} if(!res.ok) throw new Error(data?.error||data?.message||`HTTP ${res.status}`); return data}
+async function checkAdmin(){try{await api('/admin/me');return true}catch(e){return false}}
+function updateKpis(rows){const total=rows.length, pending=rows.filter(x=>normalizeStatus(x.status)==='pending').length, approved=rows.filter(x=>normalizeStatus(x.status)==='approved').length, rejected=rows.filter(x=>normalizeStatus(x.status)==='rejected').length; $('kpi-total').textContent=total; $('kpi-pending').textContent=pending; $('kpi-approved').textContent=approved; $('kpi-rejected').textContent=rejected}
+function renderRequests(){const q=String($('search-q').value||'').toLowerCase().trim(); const f=$('filter-status').value; let rows=[...requestsCache]; if(f&&f!=='todos') rows=rows.filter(x=>normalizeStatus(x.status)===f); if(q) rows=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q)); updateKpis(requestsCache); const box=$('requests-list'); if(!rows.length){box.innerHTML='<div class="py-10 text-center text-slate-400">Nenhuma solicitação encontrada.</div>';return} box.innerHTML=rows.map(s=>{const id=s.id||s._id||s.sellerId||''; const loja=s.storeName||s.factoryName||s.shopName||s.displayName||s.name||'Loja sem nome'; const resp=s.ownerName||s.responsavel||s.displayName||s.name||'Não informado'; const email=s.email||s.contactEmail||'—'; const phone=s.phone||s.whatsapp||'—'; const doc=s.document||s.cnpj||s.cpf||'—'; const city=[s.city||s.cidade,s.uf||s.estado].filter(Boolean).join(' / ')||'—'; const created=s.createdAt||s.requestedAt; const st=normalizeStatus(s.status); return `<article class="border border-slate-200 rounded-2xl p-4 hover:bg-slate-50 transition"><div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4"><div class="min-w-0"><div class="flex flex-wrap items-center gap-2 mb-2"><h3 class="font-black text-slate-900 text-lg">${esc(loja)}</h3>${statusPill(st)}</div><div class="grid md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm text-slate-600"><div><b>Responsável:</b><br>${esc(resp)}</div><div><b>Documento:</b><br>${esc(doc)}</div><div><b>Contato:</b><br>${esc(phone)}<br>${esc(email)}</div><div><b>Cidade:</b><br>${esc(city)}${created?`<br><span class="text-xs text-slate-400">${new Date(created).toLocaleString('pt-BR')}</span>`:''}</div></div></div><div class="flex flex-wrap xl:flex-col gap-2 xl:w-36"><button class="btn btn-green" onclick="updateStatus('${esc(id)}','aprovado')"><i class="fa-solid fa-check"></i>Aprovar</button><button class="btn btn-red" onclick="updateStatus('${esc(id)}','reprovado')"><i class="fa-solid fa-xmark"></i>Recusar</button></div></div></article>`}).join('')}
+async function loadRequests(){try{$('requests-list').innerHTML='<div class="py-10 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Carregando solicitações...</div>'; const payload=await api('/seller/partner-requests?limit=1000'); requestsCache=normalizePayload(payload); renderRequests();}catch(e){console.error(e); $('requests-list').innerHTML='<div class="py-10 text-center text-red-600 font-bold">Erro ao carregar solicitações: '+esc(e.message)+'</div>'; toast(e.message,'error')}}
+async function updateStatus(id,status){if(!id)return toast('ID da solicitação não encontrado.','error'); if(!confirm(`Confirmar alteração para ${status}?`))return; try{await api(`/seller/partner-requests/${encodeURIComponent(id)}/status`,{method:'PATCH',body:JSON.stringify({status,active:status==='aprovado'})}); toast('Status atualizado com sucesso!','success'); await loadRequests();}catch(e){console.error(e);toast(e.message||'Erro ao atualizar status','error')}}
+function logoutAdmin(){localStorage.removeItem('admin_token');localStorage.removeItem('adminToken');location.href='admin_painel.html'}
+window.loadRequests=loadRequests; window.updateStatus=updateStatus; window.logoutAdmin=logoutAdmin;
+window.addEventListener('load',async()=>{const ok=await checkAdmin(); if(!ok){toast('Faça login como administrador.','error');setTimeout(()=>location.href='admin_painel.html',900);return} loadRequests();});
+</script>
 </body>
 </html>

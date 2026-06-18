@@ -4390,7 +4390,200 @@ app.post('/api/auth/login', async (req, res) => {
 });
 app.get('/api/me', authRequired, (req, res) => res.json({ ok: true, user: toJSON(req.user) }));
 app.patch('/api/users/me', authRequired, async (req, res) => { try { const allowed = ['name', 'cpf', 'phone', 'city', 'uf']; const patch = {}; for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key]; const before = toJSON(req.user); const after = await User.findByIdAndUpdate(req.user._id, { $set: patch }, { new: true }); await writeAuditLog({ scope: 'user_profile', eventType: 'user_profile_updated', status: 'success', changedKeys: changedKeys(before, toJSON(after)), metadata: { userId: String(req.user._id) } }); return res.json({ ok: true, user: toJSON(after) }); } catch (_error) { return res.status(500).json({ ok: false, error: 'Erro ao atualizar perfil' }); } });
-app.post('/api/seller/partner-request', async (req, res) => { try { const body = req.body || {}; const sellerId = uid('seller'); const seller = await Seller.create({ sellerId, displayName: body.name || body.displayName || '', storeName: body.storeName || body.name || '', email: body.email || '', phone: body.phone || '', document: body.document || body.cpf || '', status: 'pending', metadata: body }); return res.json({ ok: true, id: seller.sellerId, sellerId: seller.sellerId, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' }); } });
+function normalizePartnerRequestStatus(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['aprovado', 'approved', 'approve', 'ativo', 'active'].includes(raw)) return 'approved';
+  if (['reprovado', 'rejected', 'recusado', 'denied', 'cancelado'].includes(raw)) return 'rejected';
+  if (['pendente', 'pending', 'novo', 'new'].includes(raw)) return 'pending';
+  return raw || 'pending';
+}
+
+function partnerRequestPublicStatus(value = '') {
+  const status = normalizePartnerRequestStatus(value);
+  if (status === 'approved') return 'aprovado';
+  if (status === 'rejected') return 'reprovado';
+  return 'pendente';
+}
+
+function normalizePartnerRequestForResponse(doc = {}) {
+  const obj = toJSON(doc) || {};
+  const meta = obj.metadata || {};
+  const status = normalizePartnerRequestStatus(obj.status || meta.status || 'pending');
+  return {
+    ...obj,
+    id: String(obj.id || obj._id || obj.sellerId || ''),
+    sellerId: String(obj.sellerId || ''),
+    status,
+    statusLabel: partnerRequestPublicStatus(status),
+    storeName: String(obj.storeName || obj.displayName || meta.storeName || meta.factoryName || meta.shopName || meta.name || '').trim(),
+    factoryName: String(meta.factoryName || obj.storeName || obj.displayName || '').trim(),
+    ownerName: String(meta.ownerName || meta.responsavel || meta.owner || obj.displayName || meta.name || '').trim(),
+    email: String(obj.email || meta.email || meta.contactEmail || '').trim(),
+    phone: String(obj.phone || meta.phone || meta.whatsapp || '').trim(),
+    document: String(obj.document || meta.document || meta.cnpj || meta.cpf || '').trim(),
+    cnpj: String(meta.cnpj || obj.document || '').trim(),
+    city: String(meta.city || meta.cidade || '').trim(),
+    uf: String(meta.uf || meta.estado || '').trim(),
+    requestedAt: obj.createdAt || meta.createdAt || null
+  };
+}
+
+function collectPartnerNotifyNumbers(settings = {}) {
+  const numbers = new Set(parseAdminNotifyNumbers(settings));
+  const envValues = [
+    process.env.EVOLUTION_SAC_NUMBER,
+    process.env.EVOLUTION_FINANCEIRO_NUMBER,
+    process.env.EVOLUTION_NOTIFICACAO_NUMBER,
+    process.env.EVOLUTION_LOJA_NUMBER,
+    process.env.SAC_WHATSAPP_NUMBER,
+    process.env.FINANCEIRO_WHATSAPP_NUMBER,
+    process.env.NOTIFICACAO_WHATSAPP_NUMBER,
+    process.env.LOJA_WHATSAPP_NUMBER,
+    process.env.ATENDIMENTO_LOJA_WHATSAPP,
+    process.env.PARTNER_REQUEST_NOTIFY_NUMBERS
+  ];
+  for (const value of envValues) {
+    String(value || '').split(',').forEach((item) => {
+      const n = normalizePhone(item, settings.defaultCountryCode || '55');
+      if (n) numbers.add(n);
+    });
+  }
+  return Array.from(numbers).filter(Boolean);
+}
+
+function buildPartnerRequestNotifyMessage(seller = {}) {
+  const s = normalizePartnerRequestForResponse(seller);
+  const loja = s.storeName || s.factoryName || 'Loja parceira';
+  const responsavel = s.ownerName || 'Não informado';
+  const contato = [s.phone, s.email].filter(Boolean).join(' / ') || 'Não informado';
+  const doc = s.document || s.cnpj || 'Não informado';
+  const cidade = [s.city, s.uf].filter(Boolean).join(' / ') || 'Não informada';
+  return [
+    '🏪 Nova solicitação de cadastro de seller',
+    '',
+    `Loja: ${loja}`,
+    `Responsável: ${responsavel}`,
+    `Documento: ${doc}`,
+    `Contato: ${contato}`,
+    `Cidade: ${cidade}`,
+    '',
+    'Acesse o painel administrativo para aprovar ou recusar:',
+    `${FRONTEND_URL}/admin_partner_requests.html`
+  ].join('\n');
+}
+
+async function notifyNewPartnerRequest(seller = {}) {
+  const s = normalizePartnerRequestForResponse(seller);
+  const loja = s.storeName || s.factoryName || 'Loja parceira';
+  const relatedId = String(s.id || s.sellerId || '');
+
+  await createAdminNotification({
+    type: 'partner_request_created',
+    title: '🏪 Novo seller aguardando aprovação',
+    message: `${loja} enviou uma solicitação de cadastro para o marketplace.`,
+    relatedId,
+    severity: 'info',
+    metadata: { sellerId: s.sellerId, storeName: loja, email: s.email, phone: s.phone, document: s.document }
+  });
+
+  const settings = await getWhatsappSettings().catch(() => null);
+  if (!settings || !settings.enabled) return { panel: true, whatsapp: { skipped: true, reason: 'whatsapp_disabled' } };
+  const numbers = collectPartnerNotifyNumbers(settings);
+  if (!numbers.length) return { panel: true, whatsapp: { skipped: true, reason: 'missing_notify_numbers' } };
+
+  const text = buildPartnerRequestNotifyMessage(s);
+  const results = [];
+  for (const number of numbers) {
+    try {
+      const sent = await waSendTextMessage({ number, text, settings });
+      results.push({ number, ok: true, status: sent.status });
+    } catch (error) {
+      results.push({ number, ok: false, error: error.message || String(error) });
+    }
+  }
+  return { panel: true, whatsapp: { numbers, results } };
+}
+
+app.post('/api/seller/partner-request', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const sellerId = uid('seller');
+    const seller = await Seller.create({
+      sellerId,
+      displayName: body.name || body.displayName || body.ownerName || '',
+      storeName: body.storeName || body.factoryName || body.shopName || body.name || '',
+      email: body.email || body.contactEmail || '',
+      phone: body.phone || body.whatsapp || '',
+      document: body.document || body.cnpj || body.cpf || '',
+      status: 'pending',
+      onboardingCompleted: false,
+      metadata: body
+    });
+
+    const notification = await notifyNewPartnerRequest(seller).catch((error) => ({ ok: false, error: error.message || String(error) }));
+
+    return res.json({ ok: true, id: seller.sellerId, sellerId: seller.sellerId, seller: normalizePartnerRequestForResponse(seller), notification });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' });
+  }
+});
+
+app.get('/api/seller/partner-requests', adminRequired, async (req, res) => {
+  try {
+    const status = String(req.query.status || '').trim().toLowerCase();
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(Number(req.query.limit || 500), 1000);
+    const filter = {};
+    if (status && status !== 'todos' && status !== 'all') filter.status = normalizePartnerRequestStatus(status);
+    if (q) {
+      const rx = new RegExp(escapeRegex(q), 'i');
+      filter.$or = [
+        { storeName: rx }, { displayName: rx }, { email: rx }, { phone: rx }, { document: rx },
+        { 'metadata.storeName': rx }, { 'metadata.factoryName': rx }, { 'metadata.ownerName': rx }, { 'metadata.cnpj': rx }
+      ];
+    }
+    const rows = await Seller.find(filter).sort({ createdAt: -1 }).limit(limit);
+    const requests = rows.map(normalizePartnerRequestForResponse);
+    return res.json({ ok: true, requests, items: requests, total: requests.length });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar solicitações de seller' });
+  }
+});
+
+app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const status = normalizePartnerRequestStatus(req.body?.status || req.body?.newStatus || 'pending');
+    const active = status === 'approved';
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ _id: id }, { sellerId: id }] } : { sellerId: id };
+    const seller = await Seller.findOneAndUpdate(filter, {
+      $set: {
+        status,
+        onboardingCompleted: active ? true : false,
+        'metadata.status': partnerRequestPublicStatus(status),
+        'metadata.active': active,
+        'metadata.reviewedAt': now(),
+        'metadata.reviewedBy': req.admin?.email || req.user?.email || 'admin'
+      }
+    }, { new: true });
+
+    if (!seller) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
+
+    const s = normalizePartnerRequestForResponse(seller);
+    await createAdminNotification({
+      type: 'partner_request_status_updated',
+      title: status === 'approved' ? '✅ Seller aprovado' : status === 'rejected' ? '❌ Seller recusado' : '⏳ Seller pendente',
+      message: `${s.storeName || s.factoryName || 'Seller'} foi marcado como ${s.statusLabel}.`,
+      relatedId: s.id,
+      severity: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+      metadata: { sellerId: s.sellerId, status }
+    });
+
+    return res.json({ ok: true, request: s, seller: s });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do seller' });
+  }
+});
 app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
 
 // ===== ROTAS SELLER CORRIGIDAS - ESPECÃFICAS ANTES DO CURINGA /api/seller/:sellerId =====
@@ -7323,15 +7516,46 @@ async function generateMarketingBannerBuffer({ title, subtitle, products = [], w
     .toBuffer();
 }
 
-async function generateAndSaveProductCreative(doc, variant = 'square', pixPercent = 17) {
+function normalizePosterSiteCtaOptions(input = {}) {
+  const siteUrl = String(input.siteUrl || input.storeUrl || input.urlLoja || input.website || input.site || process.env.STORE_SITE_URL || FRONTEND_URL || 'https://arianamoveis.com.br').trim() || 'https://arianamoveis.com.br';
+  const cleanSiteUrl = siteUrl.replace(/\/+$/, '');
+  const siteText = String(input.siteText || input.storeText || input.textoSite || 'arianamoveis.com.br').trim() || 'arianamoveis.com.br';
+  const ctaText = String(input.ctaText || input.buttonText || input.botaoTexto || 'COMPRE DIRETO DO SITE').trim() || 'COMPRE DIRETO DO SITE';
+  const ctaSubtext = String(input.ctaSubtext || input.buttonSubtext || input.subtextoBotao || siteText).trim() || siteText;
+  const mascotImageUrl = String(input.mascotImageUrl || input.mascoteUrl || input.avatarUrl || process.env.POSTER_MASCOT_IMAGE_URL || '').trim();
+
+  return {
+    siteUrl: cleanSiteUrl,
+    storeUrl: cleanSiteUrl,
+    linkUrl: cleanSiteUrl,
+    siteText,
+    ctaText,
+    buttonText: ctaText,
+    ctaSubtext,
+    buttonSubtext: ctaSubtext,
+    whatsappText: ctaText,
+    whatsappLabel: ctaText,
+    whatsappNumber: siteText,
+    phoneText: siteText,
+    replaceWhatsappWithSite: true,
+    showWhatsapp: false,
+    showSiteCta: true,
+    mascotImageUrl,
+    mascoteUrl: mascotImageUrl,
+    removeMascotBackground: true
+  };
+}
+
+async function generateAndSaveProductCreative(doc, variant = 'square', pixPercent = 17, creativeOptions = {}) {
   const product = normalizeProductForResponse(doc);
-  const buffer = await generateProductPosterBuffer(product, { variant, pixPercent });
+  const siteCtaOptions = normalizePosterSiteCtaOptions(creativeOptions);
+  const buffer = await generateProductPosterBuffer(product, { variant, pixPercent, ...siteCtaOptions });
   const publicId = `${sanitizeIdPart(product.name || product.sku || product.id)}-${variant}-${Date.now()}`;
   const result = await uploadBufferToCloudinary(buffer, {
     folder: buildCloudinaryFolder(`posters/produtos/${variant}`),
     public_id: publicId
   });
-  const poster = { variant, url: result.secure_url, public_id: result.public_id, width: result.width, height: result.height, format: result.format, createdAt: new Date().toISOString() };
+  const poster = { variant, url: result.secure_url, public_id: result.public_id, width: result.width, height: result.height, format: result.format, siteUrl: siteCtaOptions.siteUrl, ctaText: siteCtaOptions.ctaText, createdAt: new Date().toISOString() };
   await Product.findByIdAndUpdate(doc._id, { $push: { posters: { $each: [poster], $slice: -20 } }, $set: { updatedAt: new Date() } });
   return poster;
 }
@@ -7349,7 +7573,7 @@ app.post('/api/admin/posters/product/:id', adminRequired, async (req, res) => {
 
     const variant = String(req.body?.variant || req.query?.variant || 'square').toLowerCase() === 'story' ? 'story' : 'square';
     const pixPercent = Number(req.body?.pixPercent || req.query?.pixPercent || 17);
-    const poster = await generateAndSaveProductCreative(doc, variant, pixPercent);
+    const poster = await generateAndSaveProductCreative(doc, variant, pixPercent, req.body || {});
 
     return res.json({ ok: true, productId: String(doc._id), poster, url: poster.url });
   } catch (error) {
@@ -7379,7 +7603,7 @@ app.post('/api/admin/posters/bulk', adminRequired, async (req, res) => {
     const results = [];
     for (const doc of products) {
       try {
-        const poster = await generateAndSaveProductCreative(doc, variant, pixPercent);
+        const poster = await generateAndSaveProductCreative(doc, variant, pixPercent, req.body || {});
         results.push({ ok: true, productId: String(doc._id), name: doc.name, url: poster.url });
       } catch (error) {
         results.push({ ok: false, productId: String(doc._id), name: doc.name, error: error.message });
@@ -7478,8 +7702,8 @@ app.post('/api/admin/marketing/generate-all-drafts', adminRequired, async (req, 
     const posters = [];
     const stories = [];
     for (const doc of products) {
-      try { const poster = await generateAndSaveProductCreative(doc, 'square', 17); posters.push({ ok: true, productId: String(doc._id), url: poster.url }); } catch (error) { posters.push({ ok: false, productId: String(doc._id), error: error.message }); }
-      try { const story = await generateAndSaveProductCreative(doc, 'story', 17); stories.push({ ok: true, productId: String(doc._id), url: story.url }); } catch (error) { stories.push({ ok: false, productId: String(doc._id), error: error.message }); }
+      try { const poster = await generateAndSaveProductCreative(doc, 'square', Number(req.body?.pixPercent || req.query?.pixPercent || 17), req.body || {}); posters.push({ ok: true, productId: String(doc._id), url: poster.url }); } catch (error) { posters.push({ ok: false, productId: String(doc._id), error: error.message }); }
+      try { const story = await generateAndSaveProductCreative(doc, 'story', Number(req.body?.pixPercent || req.query?.pixPercent || 17), req.body || {}); stories.push({ ok: true, productId: String(doc._id), url: story.url }); } catch (error) { stories.push({ ok: false, productId: String(doc._id), error: error.message }); }
     }
     const definitions = bannerDraftDefinitions();
     const usedIds = new Set();
