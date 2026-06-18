@@ -1902,10 +1902,47 @@ function updateClientHeaderUI(user) {
             return String(v || "").replace(/\D/g, "").slice(0, 8);
         }
 
+        function normalizeSellerTextForShipping(value) {
+            return String(value || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+        }
+
         function isArianaProduct(p) {
-            var sid = String((p && p.sellerId) ? p.sellerId : 'admin').toLowerCase().trim();
-            var sname = String((p && p.sellerName) ? p.sellerName : 'Ariana Móveis').toLowerCase();
-            return sid === 'admin' || sname.indexOf('ariana') !== -1;
+            const data = p || {};
+            const sellerFields = [
+                data.sellerId,
+                data.seller_id,
+                data.sellerName,
+                data.seller_name,
+                data.soldBy,
+                data.sold_by,
+                data.manufacturer,
+                data.vendor,
+                data.storeName,
+                data.store_name,
+                data.loja,
+                data.lojista,
+                data.shippingRule,
+                data.logistics && data.logistics.sellerName,
+                data.logistics && data.logistics.originName
+            ];
+
+            const normalized = sellerFields
+                .map(normalizeSellerTextForShipping)
+                .filter(Boolean)
+                .join(' ');
+
+            return (
+                !normalized ||
+                normalized === 'admin' ||
+                normalized.includes('ariana') ||
+                normalized.includes('ariana moveis') ||
+                normalized.includes('ariana moveis')
+            );
         }
 
         function isSNDigitalProduct(p) {
@@ -2017,6 +2054,8 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
     const qty = Math.max(1, Number(quantity || 1) || 1);
     const cep = sanitizeCep(cepDestino);
     const unitPrice = safeNumber((productData && (productData.price ?? productData.preco)), 0);
+    const arianaProduct = isArianaProduct(productData);
+    const snDigitalProduct = isSNDigitalProduct(productData);
     const payload = {
         cepDestino: cep,
         destinationCep: cep,
@@ -2028,9 +2067,12 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
         invoiceValue: unitPrice * qty,
         valorNota: unitPrice * qty,
         sellerId: productData?.sellerId || null,
-        sellerName: productData?.sellerName || productData?.soldBy || null,
-        shippingRule: isArianaProduct(productData) ? 'ariana' : (isSNDigitalProduct(productData) ? 'sn_digital' : undefined),
-        isArianaOrder: isArianaProduct(productData),
+        sellerName: productData?.sellerName || productData?.soldBy || 'Ariana Móveis',
+        shippingRule: arianaProduct ? 'ariana_local' : (snDigitalProduct ? 'sn_digital' : undefined),
+        isArianaOrder: arianaProduct,
+        useArianaLocalRule: arianaProduct,
+        useArianaLogistics: arianaProduct,
+        enableArianaLogistics: arianaProduct,
         quantity: qty,
         items: [{
             id: productData?._id || productData?.id || null,
