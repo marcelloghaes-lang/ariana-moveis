@@ -5561,6 +5561,60 @@ function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') 
   };
 }
 
+function isProviderBaseUrlOnly(endpoint = '', provider = '') {
+  const value = String(endpoint || '').trim().replace(/\/+$/, '');
+  if (!value) return true;
+
+  try {
+    const url = new URL(value);
+    const host = String(url.hostname || '').toLowerCase();
+    const pathname = String(url.pathname || '').replace(/\/+$/, '');
+
+    if (provider === 'correios') {
+      return host === 'api.correios.com.br' && (!pathname || pathname === '');
+    }
+
+    if (provider === 'frenet') {
+      return host === 'api.frenet.com.br' && (!pathname || pathname === '');
+    }
+  } catch (_error) {
+    return false;
+  }
+
+  return false;
+}
+
+function buildProviderPreparedFallback({
+  provider = 'correios',
+  shipment = {},
+  quote = {},
+  trackingCode = '',
+  payload = {},
+  reason = '',
+  providerError = null,
+  statusCode = null
+} = {}) {
+  const isCorreios = provider === 'correios';
+  const providerName = isCorreios ? 'Correios' : 'Frenet';
+
+  return {
+    ok: true,
+    preparedOnly: true,
+    providerFallback: true,
+    message: `${providerName} indisponível ou endpoint oficial não configurado corretamente. Romaneio/etiqueta interna preparada para impressão manual.`,
+    trackingCode: String(trackingCode || '').trim(),
+    labelUrl: '',
+    payload: payload || shipment,
+    quote,
+    raw: {
+      skippedProviderCall: true,
+      reason,
+      statusCode,
+      providerError: providerError ? String(providerError).slice(0, 800) : ''
+    }
+  };
+}
+
 async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
   const settings = await getShippingSettings();
   const endpoint = String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim();
@@ -5591,40 +5645,72 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
     };
   }
 
-  const token = await getCorreiosToken(settings);
-  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
-  const response = await axios.post(endpoint, providerPayload, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
-    timeout: Number(process.env.CORREIOS_PREPOSTAGEM_TIMEOUT_MS || 30000),
-    validateStatus: () => true
-  });
-
-  const data = response.data || {};
-  if (response.status < 200 || response.status >= 300) {
-    const message = data?.message || data?.mensagem || data?.erro || `Correios pré-postagem HTTP ${response.status}`;
-    throw new Error(String(message));
+  if (isProviderBaseUrlOnly(endpoint, 'correios')) {
+    return buildProviderPreparedFallback({
+      provider: 'correios',
+      shipment,
+      quote,
+      trackingCode: body.trackingCode,
+      reason: 'CORREIOS_PREPOSTAGEM_URL aponta apenas para a URL base da API. Informe o endpoint específico de pré-postagem ou deixe vazio para usar romaneio interno.'
+    });
   }
 
-  return {
-    ok: true,
-    preparedOnly: false,
-    message: 'Pré-postagem Correios enviada ao provedor.',
-    trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
-    labelUrl: extractProviderLabelUrl(data),
-    payload: providerPayload,
-    quote,
-    raw: data
-  };
+  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
+
+  try {
+    const token = await getCorreiosToken(settings);
+    const response = await axios.post(endpoint, providerPayload, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+      timeout: Number(process.env.CORREIOS_PREPOSTAGEM_TIMEOUT_MS || 30000),
+      validateStatus: () => true
+    });
+
+    const data = response.data || {};
+    if (response.status < 200 || response.status >= 300) {
+      const message = data?.message || data?.mensagem || data?.erro || data?.error || `Correios pré-postagem HTTP ${response.status}`;
+      return buildProviderPreparedFallback({
+        provider: 'correios',
+        shipment,
+        quote,
+        trackingCode: body.trackingCode,
+        payload: providerPayload,
+        reason: 'Correios retornou erro na pré-postagem. O pedido foi salvo como preparado internamente.',
+        providerError: message,
+        statusCode: response.status
+      });
+    }
+
+    return {
+      ok: true,
+      preparedOnly: false,
+      message: 'Pré-postagem Correios enviada ao provedor.',
+      trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
+      labelUrl: extractProviderLabelUrl(data),
+      payload: providerPayload,
+      quote,
+      raw: data
+    };
+  } catch (error) {
+    return buildProviderPreparedFallback({
+      provider: 'correios',
+      shipment,
+      quote,
+      trackingCode: body.trackingCode,
+      payload: providerPayload,
+      reason: 'Falha ao comunicar com a API de pré-postagem dos Correios. O pedido foi salvo como preparado internamente.',
+      providerError: error?.response?.data?.message || error?.response?.data?.mensagem || error?.message || String(error),
+      statusCode: error?.response?.status || null
+    });
+  }
 }
 
 async function callFrenetOrder(orderDoc = {}, body = {}) {
   const settings = await getShippingSettings();
   const frenet = settings?.carriers?.frenet || {};
   const token = String(frenet.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim();
-  if (!token) throw new Error('FRENET_TOKEN não configurado.');
-
   const endpoint = String(process.env.FRENET_ORDER_URL || process.env.FRENET_ORDERS_URL || '').trim();
   const shipment = buildLogisticsShipmentPayload(orderDoc, body, 'frenet');
+
   const quote = await quoteFrenet({
     cepDestino: shipment.recipient.cep,
     weightKg: shipment.weightKg || undefined,
@@ -5634,6 +5720,16 @@ async function callFrenetOrder(orderDoc = {}, body = {}) {
     productPrice: shipment.invoiceValue,
     shippingServiceCode: body.shippingServiceCode || body.serviceCode || body.service || undefined
   }, settings).catch((error) => ({ ok: false, error: error.message || String(error) }));
+
+  if (!token) {
+    return buildProviderPreparedFallback({
+      provider: 'frenet',
+      shipment,
+      quote,
+      trackingCode: body.trackingCode,
+      reason: 'FRENET_TOKEN ausente. Pedido preparado internamente.'
+    });
+  }
 
   if (!endpoint) {
     return {
@@ -5648,29 +5744,62 @@ async function callFrenetOrder(orderDoc = {}, body = {}) {
     };
   }
 
-  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
-  const response = await axios.post(endpoint, providerPayload, {
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', token },
-    timeout: Number(process.env.FRENET_ORDER_TIMEOUT_MS || 30000),
-    validateStatus: () => true
-  });
-
-  const data = response.data || {};
-  if (response.status < 200 || response.status >= 300) {
-    const message = data?.Message || data?.message || data?.error || `Frenet order HTTP ${response.status}`;
-    throw new Error(String(message));
+  if (isProviderBaseUrlOnly(endpoint, 'frenet')) {
+    return buildProviderPreparedFallback({
+      provider: 'frenet',
+      shipment,
+      quote,
+      trackingCode: body.trackingCode,
+      reason: 'FRENET_ORDER_URL aponta apenas para a URL base da API. Informe o endpoint específico de emissão/compra de frete ou deixe vazio para usar romaneio interno.'
+    });
   }
 
-  return {
-    ok: true,
-    preparedOnly: false,
-    message: 'Pedido/etiqueta Frenet enviado ao provedor.',
-    trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
-    labelUrl: extractProviderLabelUrl(data),
-    payload: providerPayload,
-    quote,
-    raw: data
-  };
+  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
+
+  try {
+    const response = await axios.post(endpoint, providerPayload, {
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', token },
+      timeout: Number(process.env.FRENET_ORDER_TIMEOUT_MS || 30000),
+      validateStatus: () => true
+    });
+
+    const data = response.data || {};
+    if (response.status < 200 || response.status >= 300) {
+      const message = data?.Message || data?.message || data?.error || `Frenet order HTTP ${response.status}`;
+      return buildProviderPreparedFallback({
+        provider: 'frenet',
+        shipment,
+        quote,
+        trackingCode: body.trackingCode,
+        payload: providerPayload,
+        reason: 'Frenet retornou erro na emissão. O pedido foi salvo como preparado internamente.',
+        providerError: message,
+        statusCode: response.status
+      });
+    }
+
+    return {
+      ok: true,
+      preparedOnly: false,
+      message: 'Pedido/etiqueta Frenet enviado ao provedor.',
+      trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
+      labelUrl: extractProviderLabelUrl(data),
+      payload: providerPayload,
+      quote,
+      raw: data
+    };
+  } catch (error) {
+    return buildProviderPreparedFallback({
+      provider: 'frenet',
+      shipment,
+      quote,
+      trackingCode: body.trackingCode,
+      payload: providerPayload,
+      reason: 'Falha ao comunicar com a API da Frenet. O pedido foi salvo como preparado internamente.',
+      providerError: error?.response?.data?.Message || error?.response?.data?.message || error?.message || String(error),
+      statusCode: error?.response?.status || null
+    });
+  }
 }
 
 async function saveProviderLogisticsResult({ order, body = {}, provider = 'manual', providerResult = {}, actor = 'admin', labelType = 'provider_prepared', origin = 'logistica_provider' } = {}) {
