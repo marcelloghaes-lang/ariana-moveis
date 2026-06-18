@@ -5447,15 +5447,317 @@ function inferLogisticsProvider(order = {}) {
   return provider || 'manual';
 }
 
+function hasCorreiosPrepostagemConfig(settings = {}) {
+  const cfg = correiosCfg(settings || {});
+  return Boolean(cfg.user && cfg.pass && cfg.cartao && (process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL));
+}
+
+function hasFrenetOrderConfig(settings = {}) {
+  const frenet = settings?.carriers?.frenet || {};
+  return Boolean(String(frenet.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim() && (process.env.FRENET_ORDER_URL || process.env.FRENET_ORDERS_URL));
+}
+
+function extractProviderTrackingCode(data = {}) {
+  const candidates = [
+    data.codigoObjeto,
+    data.codigoRastreamento,
+    data.trackingCode,
+    data.tracking_code,
+    data.TrackingCode,
+    data.objectCode,
+    data?.prepostagem?.codigoObjeto,
+    data?.prepostagem?.codigoRastreamento,
+    data?.data?.codigoObjeto,
+    data?.data?.codigoRastreamento,
+    data?.data?.trackingCode,
+    data?.order?.trackingCode,
+    data?.Order?.TrackingCode,
+    data?.Shipping?.TrackingCode
+  ];
+  for (const item of candidates) {
+    const value = String(item || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function extractProviderLabelUrl(data = {}) {
+  const candidates = [
+    data.labelUrl,
+    data.label_url,
+    data.urlRotulo,
+    data.rotuloUrl,
+    data.urlEtiqueta,
+    data.etiquetaUrl,
+    data?.prepostagem?.urlRotulo,
+    data?.data?.urlRotulo,
+    data?.data?.labelUrl,
+    data?.order?.labelUrl,
+    data?.Order?.LabelUrl,
+    data?.Shipping?.LabelUrl
+  ];
+  for (const item of candidates) {
+    const value = String(item || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const address = getOrderAddress(order);
+  const items = ensureArray(order.items).map((item) => ({
+    productId: String(item.productId || item.id || ''),
+    sku: String(item.sku || ''),
+    name: String(item.name || item.nome || item.title || 'Produto'),
+    quantity: Number(item.qty || item.quantity || 1),
+    unitPrice: Number(item.unitPrice || item.price || 0),
+    totalPrice: Number(item.totalPrice || 0)
+  }));
+
+  return {
+    provider,
+    orderId: String(order._id || order.id || ''),
+    orderCode: String(order._id || order.id || '').slice(-8).toUpperCase(),
+    service: String(body.service || body.servico || order.shipping?.service || order.shipping?.label || ''),
+    invoiceValue: Number(body.invoiceValue || body.valorNota || order.total || order.subtotal || 0),
+    shippingCost: Number(body.shippingCost || order.shippingCost || 0),
+    volumes: Math.max(1, Number(body.volumes || 1)),
+    weightKg: Number(body.weightKg || body.pesoKg || order.weightKg || 0),
+    dimensions: {
+      lengthCm: Number(body.lengthCm || body.comprimentoCm || order.lengthCm || 0),
+      widthCm: Number(body.widthCm || body.larguraCm || order.widthCm || 0),
+      heightCm: Number(body.heightCm || body.alturaCm || order.heightCm || 0)
+    },
+    sender: {
+      name: process.env.LOJA_REMETENTE_NOME || 'Ariana Móveis',
+      phone: process.env.LOJA_REMETENTE_TELEFONE || '',
+      document: process.env.LOJA_REMETENTE_DOCUMENTO || '',
+      cep: normalizeCepValue(process.env.LOJA_ORIGEM_CEP || ''),
+      address: process.env.LOJA_REMETENTE_ENDERECO || '',
+      number: process.env.LOJA_REMETENTE_NUMERO || '',
+      district: process.env.LOJA_REMETENTE_BAIRRO || '',
+      city: process.env.LOJA_REMETENTE_CIDADE || 'Guanhães',
+      state: process.env.LOJA_REMETENTE_UF || 'MG'
+    },
+    recipient: {
+      name: address.name || order.customerName || 'Cliente',
+      phone: address.phone || order.customerPhone || '',
+      email: order.customerEmail || '',
+      document: order.customerCpf || order.cpf || '',
+      cep: normalizeCepValue(address.cep || ''),
+      address: address.logradouro || '',
+      number: address.numero || 'S/N',
+      complement: address.complemento || '',
+      district: address.bairro || '',
+      city: address.cidade || '',
+      state: address.uf || ''
+    },
+    items,
+    notes: String(body.notes || body.observacoes || '').trim()
+  };
+}
+
+async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
+  const settings = await getShippingSettings();
+  const endpoint = String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim();
+  const shipment = buildLogisticsShipmentPayload(orderDoc, body, 'correios');
+
+  const quotePayload = {
+    cepDestino: shipment.recipient.cep,
+    weightKg: shipment.weightKg || undefined,
+    lengthCm: shipment.dimensions.lengthCm || undefined,
+    widthCm: shipment.dimensions.widthCm || undefined,
+    heightCm: shipment.dimensions.heightCm || undefined,
+    productPrice: shipment.invoiceValue,
+    shippingServiceCode: body.shippingServiceCode || body.serviceCode || body.service || undefined
+  };
+
+  const quote = await quoteCorreios(quotePayload, settings).catch((error) => ({ ok: false, error: error.message || String(error) }));
+
+  if (!endpoint) {
+    return {
+      ok: true,
+      preparedOnly: true,
+      message: 'Pré-postagem Correios preparada no pedido. Para enviar oficialmente aos Correios, configure CORREIOS_PREPOSTAGEM_URL no Render.',
+      trackingCode: String(body.trackingCode || '').trim(),
+      labelUrl: '',
+      payload: shipment,
+      quote,
+      raw: { skippedProviderCall: true, reason: 'CORREIOS_PREPOSTAGEM_URL ausente' }
+    };
+  }
+
+  const token = await getCorreiosToken(settings);
+  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
+  const response = await axios.post(endpoint, providerPayload, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+    timeout: Number(process.env.CORREIOS_PREPOSTAGEM_TIMEOUT_MS || 30000),
+    validateStatus: () => true
+  });
+
+  const data = response.data || {};
+  if (response.status < 200 || response.status >= 300) {
+    const message = data?.message || data?.mensagem || data?.erro || `Correios pré-postagem HTTP ${response.status}`;
+    throw new Error(String(message));
+  }
+
+  return {
+    ok: true,
+    preparedOnly: false,
+    message: 'Pré-postagem Correios enviada ao provedor.',
+    trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
+    labelUrl: extractProviderLabelUrl(data),
+    payload: providerPayload,
+    quote,
+    raw: data
+  };
+}
+
+async function callFrenetOrder(orderDoc = {}, body = {}) {
+  const settings = await getShippingSettings();
+  const frenet = settings?.carriers?.frenet || {};
+  const token = String(frenet.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim();
+  if (!token) throw new Error('FRENET_TOKEN não configurado.');
+
+  const endpoint = String(process.env.FRENET_ORDER_URL || process.env.FRENET_ORDERS_URL || '').trim();
+  const shipment = buildLogisticsShipmentPayload(orderDoc, body, 'frenet');
+  const quote = await quoteFrenet({
+    cepDestino: shipment.recipient.cep,
+    weightKg: shipment.weightKg || undefined,
+    lengthCm: shipment.dimensions.lengthCm || undefined,
+    widthCm: shipment.dimensions.widthCm || undefined,
+    heightCm: shipment.dimensions.heightCm || undefined,
+    productPrice: shipment.invoiceValue,
+    shippingServiceCode: body.shippingServiceCode || body.serviceCode || body.service || undefined
+  }, settings).catch((error) => ({ ok: false, error: error.message || String(error) }));
+
+  if (!endpoint) {
+    return {
+      ok: true,
+      preparedOnly: true,
+      message: 'Pedido Frenet preparado localmente. Para comprar/emitir etiqueta pela Frenet, configure FRENET_ORDER_URL no Render.',
+      trackingCode: String(body.trackingCode || '').trim(),
+      labelUrl: '',
+      payload: shipment,
+      quote,
+      raw: { skippedProviderCall: true, reason: 'FRENET_ORDER_URL ausente' }
+    };
+  }
+
+  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
+  const response = await axios.post(endpoint, providerPayload, {
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', token },
+    timeout: Number(process.env.FRENET_ORDER_TIMEOUT_MS || 30000),
+    validateStatus: () => true
+  });
+
+  const data = response.data || {};
+  if (response.status < 200 || response.status >= 300) {
+    const message = data?.Message || data?.message || data?.error || `Frenet order HTTP ${response.status}`;
+    throw new Error(String(message));
+  }
+
+  return {
+    ok: true,
+    preparedOnly: false,
+    message: 'Pedido/etiqueta Frenet enviado ao provedor.',
+    trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
+    labelUrl: extractProviderLabelUrl(data),
+    payload: providerPayload,
+    quote,
+    raw: data
+  };
+}
+
+async function saveProviderLogisticsResult({ order, body = {}, provider = 'manual', providerResult = {}, actor = 'admin', labelType = 'provider_prepared', origin = 'logistica_provider' } = {}) {
+  const before = toJSON(order);
+  const orderId = String(order._id || order.id || body.orderId || '');
+  const service = String(body.service || body.servico || providerResult?.payload?.service || provider || '').trim();
+  const trackingCode = String(providerResult.trackingCode || body.trackingCode || before.trackingCode || '').trim();
+  const shippingCost = Number(body.shippingCost || providerResult?.quote?.quotes?.[0]?.price || before.shippingCost || 0);
+  const patch = {
+    orderId,
+    orderObjectId: order._id,
+    provider,
+    service,
+    status: providerResult.preparedOnly ? 'preparada' : 'emitida',
+    trackingCode,
+    shippingCost,
+    volumes: Math.max(1, Number(body.volumes || 1)),
+    weightKg: Number(body.weightKg || body.pesoKg || 0),
+    heightCm: Number(body.heightCm || body.alturaCm || 0),
+    widthCm: Number(body.widthCm || body.larguraCm || 0),
+    lengthCm: Number(body.lengthCm || body.comprimentoCm || 0),
+    notes: String(body.notes || body.observacoes || providerResult.message || '').trim(),
+    labelType,
+    labelUrl: String(providerResult.labelUrl || ''),
+    rawProviderResponse: redact(providerResult.raw || providerResult),
+    updatedBy: actor
+  };
+
+  let label = await LogisticsLabel.findOneAndUpdate(
+    { orderId },
+    { $set: patch, $setOnInsert: { createdBy: actor } },
+    { upsert: true, new: true }
+  );
+  const html = buildManualLogisticsLabelHtml(order, label);
+  label = await LogisticsLabel.findByIdAndUpdate(label._id, { $set: { labelHtml: html } }, { new: true });
+
+  const orderPatch = {
+    trackingCode,
+    shippingCost: shippingCost || before.shippingCost || 0,
+    shipping: {
+      ...(before.shipping || {}),
+      provider,
+      service,
+      labelId: String(label._id),
+      labelStatus: patch.status,
+      labelType: patch.labelType,
+      labelUrl: patch.labelUrl,
+      providerPreparedOnly: providerResult.preparedOnly === true,
+      updatedAt: new Date().toISOString()
+    }
+  };
+  if (String(body.markStatus || '').trim()) {
+    orderPatch.status = String(body.markStatus).trim();
+    orderPatch.statusLabel = String(body.markStatusLabel || body.markStatus).trim();
+  } else if (providerResult.preparedOnly !== true) {
+    orderPatch.status = before.status === 'entregue' ? before.status : 'preparando_envio';
+    orderPatch.statusLabel = before.status === 'entregue' ? before.statusLabel : 'Preparando envio';
+  }
+
+  const after = await Order.findByIdAndUpdate(orderId, { $set: orderPatch }, { new: true });
+
+  await writeAuditLog({
+    scope: 'logistics',
+    eventType: `${provider}_label_prepared`,
+    orderId,
+    status: 'success',
+    request: { provider, body: redact(body), payload: redact(providerResult.payload || null) },
+    response: redact(providerResult.raw || providerResult),
+    metadata: { origin, labelId: String(label._id), preparedOnly: providerResult.preparedOnly === true }
+  }).catch(() => null);
+
+  let whatsapp = { skipped: true, reason: 'notifyCustomer_false' };
+  if (body.notifyCustomer === true && (trackingCode || orderPatch.status)) {
+    whatsapp = await waMaybeNotifyOrderStatusChange(orderId, before, toJSON(after), origin).catch((error) => ({ ok: false, error: error.message || String(error) }));
+  }
+
+  return { ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), providerResult: redact(providerResult), whatsapp };
+}
+
 app.get('/api/admin/logistica/provedores', adminRequired, async (_req, res) => {
   const settings = await getShippingSettings().catch(() => ({}));
+  const correiosIntegrated = hasCorreiosPrepostagemConfig(settings);
+  const frenetIntegrated = hasFrenetOrderConfig(settings);
   return res.json({
     ok: true,
     provedores: [
       { id: 'manual', nome: 'Transportadora manual', integrado: false, enabled: true },
       { id: 'ariana_local', nome: 'Entrega Ariana / parceiro local', integrado: false, enabled: true },
-      { id: 'correios', nome: 'Correios', integrado: false, enabled: !!settings?.carriers?.correios?.enabled, proximaFase: 'API de pré-postagem/contrato Correios' },
-      { id: 'frenet', nome: 'Frenet / transportadoras', integrado: false, enabled: settings?.carriers?.frenet?.enabled !== false, proximaFase: 'Compra de frete/etiqueta via Frenet' },
+      { id: 'correios', nome: 'Correios', integrado: correiosIntegrated, enabled: !!settings?.carriers?.correios?.enabled, proximaFase: correiosIntegrated ? 'Pré-postagem configurada no backend' : 'Configurar CORREIOS_PREPOSTAGEM_URL no Render' },
+      { id: 'frenet', nome: 'Frenet / transportadoras', integrado: frenetIntegrated, enabled: settings?.carriers?.frenet?.enabled !== false, proximaFase: frenetIntegrated ? 'Orders Frenet configurado no backend' : 'Configurar FRENET_ORDER_URL no Render' },
       { id: 'rodocap', nome: 'Rodocap', integrado: false, enabled: settings?.businessRules?.rodocap?.enabled !== false }
     ]
   });
@@ -5618,12 +5920,50 @@ app.patch('/api/admin/logistica/rastreio/:orderId', adminRequired, async (req, r
   }
 });
 
-app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, async (_req, res) => {
-  return res.status(501).json({ ok: false, error: 'Integração Correios ainda não ativada. O painel já está preparado; falta cadastrar contrato/API de pré-postagem dos Correios.' });
+app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, async (req, res) => {
+  try {
+    const orderId = String(req.body?.orderId || '').trim();
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para pré-postagem Correios.' });
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+    const providerResult = await callCorreiosPrepostagem(order, req.body || {});
+    const result = await saveProviderLogisticsResult({
+      order,
+      body: req.body || {},
+      provider: 'correios',
+      providerResult,
+      actor: req.admin?.email || req.auth?.email || 'admin',
+      labelType: providerResult.preparedOnly ? 'correios_prepostagem_preparada' : 'correios_prepostagem_api',
+      origin: 'admin_logistica_correios_preparar'
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[logistica correios preparar]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar pré-postagem Correios.' });
+  }
 });
 
-app.post('/api/admin/logistica/etiquetas/frenet/preparar', adminRequired, async (_req, res) => {
-  return res.status(501).json({ ok: false, error: 'Integração Frenet/transportadora ainda não ativada. O painel já está preparado; falta habilitar compra de frete/etiqueta no provedor.' });
+app.post('/api/admin/logistica/etiquetas/frenet/preparar', adminRequired, async (req, res) => {
+  try {
+    const orderId = String(req.body?.orderId || '').trim();
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para emissão Frenet.' });
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+    const providerResult = await callFrenetOrder(order, req.body || {});
+    const result = await saveProviderLogisticsResult({
+      order,
+      body: req.body || {},
+      provider: 'frenet',
+      providerResult,
+      actor: req.admin?.email || req.auth?.email || 'admin',
+      labelType: providerResult.preparedOnly ? 'frenet_order_preparado' : 'frenet_order_api',
+      origin: 'admin_logistica_frenet_preparar'
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[logistica frenet preparar]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar pedido Frenet.' });
+  }
 });
 
 // ============================================================
@@ -5644,8 +5984,8 @@ app.get('/api/seller/logistica/provedores', sellerAuthRequired, async (_req, res
     provedores: [
       { id: 'manual', nome: 'Transportadora manual', integrado: false, enabled: true },
       { id: 'ariana_local', nome: 'Entrega local / parceiro', integrado: false, enabled: true },
-      { id: 'correios', nome: 'Correios', integrado: false, enabled: !!settings?.carriers?.correios?.enabled, proximaFase: 'API de pré-postagem/contrato Correios' },
-      { id: 'frenet', nome: 'Frenet / transportadoras', integrado: false, enabled: settings?.carriers?.frenet?.enabled !== false, proximaFase: 'Compra de frete/etiqueta via Frenet' }
+      { id: 'correios', nome: 'Correios', integrado: hasCorreiosPrepostagemConfig(settings), enabled: !!settings?.carriers?.correios?.enabled, proximaFase: hasCorreiosPrepostagemConfig(settings) ? 'Pré-postagem configurada no backend' : 'Configurar CORREIOS_PREPOSTAGEM_URL no Render' },
+      { id: 'frenet', nome: 'Frenet / transportadoras', integrado: hasFrenetOrderConfig(settings), enabled: settings?.carriers?.frenet?.enabled !== false, proximaFase: hasFrenetOrderConfig(settings) ? 'Orders Frenet configurado no backend' : 'Configurar FRENET_ORDER_URL no Render' }
     ]
   });
 });
@@ -5783,6 +6123,73 @@ app.post('/api/seller/logistica/etiquetas/manual', sellerAuthRequired, async (re
     return res.json({ ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), whatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar etiqueta do seller.' });
+  }
+});
+
+
+app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    const orderId = String(req.body?.orderId || '').trim();
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para pré-postagem Correios.' });
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+    if (!sellerCanAccessOrder(order, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
+    const providerResult = await callCorreiosPrepostagem(order, req.body || {});
+    const result = await saveProviderLogisticsResult({
+      order,
+      body: req.body || {},
+      provider: 'correios',
+      providerResult,
+      actor: req.seller?.email || req.sellerId || 'seller',
+      labelType: providerResult.preparedOnly ? 'seller_correios_prepostagem_preparada' : 'seller_correios_prepostagem_api',
+      origin: 'seller_logistica_correios_preparar'
+    });
+    await createAdminNotification({
+      type: 'seller_logistica_correios',
+      title: '📮 Seller preparou Correios',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} preparou Correios para o pedido #${orderId.slice(-8).toUpperCase()}`,
+      relatedId: orderId,
+      severity: 'info',
+      metadata: { sellerId: sid, preparedOnly: providerResult.preparedOnly === true }
+    }).catch(() => null);
+    return res.json(result);
+  } catch (error) {
+    console.error('[seller logistica correios preparar]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Correios do seller.' });
+  }
+});
+
+app.post('/api/seller/logistica/etiquetas/frenet/preparar', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    const orderId = String(req.body?.orderId || '').trim();
+    if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para emissão Frenet.' });
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
+    if (!sellerCanAccessOrder(order, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
+    const providerResult = await callFrenetOrder(order, req.body || {});
+    const result = await saveProviderLogisticsResult({
+      order,
+      body: req.body || {},
+      provider: 'frenet',
+      providerResult,
+      actor: req.seller?.email || req.sellerId || 'seller',
+      labelType: providerResult.preparedOnly ? 'seller_frenet_order_preparado' : 'seller_frenet_order_api',
+      origin: 'seller_logistica_frenet_preparar'
+    });
+    await createAdminNotification({
+      type: 'seller_logistica_frenet',
+      title: '🚚 Seller preparou Frenet',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} preparou Frenet para o pedido #${orderId.slice(-8).toUpperCase()}`,
+      relatedId: orderId,
+      severity: 'info',
+      metadata: { sellerId: sid, preparedOnly: providerResult.preparedOnly === true }
+    }).catch(() => null);
+    return res.json(result);
+  } catch (error) {
+    console.error('[seller logistica frenet preparar]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Frenet do seller.' });
   }
 });
 
