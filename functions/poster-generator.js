@@ -1,12 +1,23 @@
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 const BRAND_BLUE = '#0047AB';
 const BRAND_BLUE_DARK = '#073B7A';
 const BRAND_YELLOW = '#F7C600';
 const BRAND_GREEN = '#16A34A';
 const BRAND_ORANGE = '#FF7A00';
-const WHATSAPP_NUMBER = '5531985147119';
-const WHATSAPP_TEXT = 'Olá! Vim pelo cartaz da Ariana Móveis e quero comprar este produto.';
+const SITE_URL = 'https://arianamoveis.com.br/';
+const SITE_LABEL = 'arianamoveis.com.br';
+const CTA_TEXT = 'COMPRE DIRETO DO SITE';
+// Caminho padrão: coloque o arquivo da mascote em /assets/mascote.png na raiz do backend.
+// Também aceita variável POSTER_MASCOT_PATH ou POSTER_MASCOT_URL no Render.
+const DEFAULT_MASCOT_RELATIVE_PATH = './assets/mascote.png';
 const TEXT_DARK = '#172033';
 const TEXT_MUTED = '#64748B';
 const CARD_STROKE = '#CFE4FF';
@@ -39,10 +50,14 @@ function brl(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(toNumber(value, 0));
 }
 
+export function buildSiteUrl(_product = {}) {
+  return SITE_URL;
+}
+
+// Mantido por compatibilidade com qualquer trecho antigo do backend/painel que ainda importe este nome.
+// Agora ele direciona para o site, não para WhatsApp.
 export function buildWhatsappUrl(product = {}) {
-  const name = String(product.name || product.title || 'produto').trim();
-  const msg = `${WHATSAPP_TEXT} Produto: ${name}`;
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+  return buildSiteUrl(product);
 }
 
 function wrapText(text = '', maxChars = 34, maxLines = 2) {
@@ -75,6 +90,57 @@ async function loadImageBuffer(url) {
   if (!url) return null;
   const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 25000 });
   return Buffer.from(response.data);
+}
+
+async function loadLocalImageBuffer(filePath = '') {
+  const rawPath = String(filePath || '').trim();
+  if (!rawPath) return null;
+
+  const candidates = [
+    rawPath,
+    path.resolve(__dirname, rawPath),
+    path.resolve(process.cwd(), rawPath),
+    path.resolve(__dirname, 'assets', path.basename(rawPath)),
+    path.resolve(process.cwd(), 'assets', path.basename(rawPath))
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return fs.readFileSync(candidate);
+    } catch (_error) {}
+  }
+
+  return null;
+}
+
+async function loadMascotBuffer(options = {}) {
+  const mascotUrl = String(
+    options.mascotUrl ||
+    options.mascoteUrl ||
+    process.env.POSTER_MASCOT_URL ||
+    ''
+  ).trim();
+
+  if (mascotUrl) {
+    const remote = await loadImageBuffer(mascotUrl).catch(() => null);
+    if (remote) return remote;
+  }
+
+  const mascotPath = String(
+    options.mascotPath ||
+    options.mascotePath ||
+    process.env.POSTER_MASCOT_PATH ||
+    DEFAULT_MASCOT_RELATIVE_PATH
+  ).trim();
+
+  return loadLocalImageBuffer(mascotPath);
+}
+
+function mascotLayoutForVariant(variant) {
+  if (variant === 'story') {
+    return { w: 260, h: 360, left: 758, top: 1390 };
+  }
+  return { w: 168, h: 232, left: 828, top: 734 };
 }
 
 function calculatePricing(product = {}, pixPercent = 17) {
@@ -212,7 +278,7 @@ function backgroundSvg({ width, height, variant }) {
   </svg>`;
 }
 
-function foregroundSvg({ width, height, product, pricing, variant }) {
+function foregroundSvg({ width, height, product, pricing, variant, options = {} }) {
   const L = layoutForVariant(variant);
   const isStory = variant === 'story';
   const titleLines = wrapText(product.name || product.title || 'Produto Ariana Móveis', L.title.maxChars, L.title.maxLines);
@@ -220,7 +286,8 @@ function foregroundSvg({ width, height, product, pricing, variant }) {
   const titleText = titleLines.map((line, idx) => `
     <text x="${L.title.x}" y="${L.title.y + idx * L.title.gap}" font-size="${L.title.size}" font-weight="900" fill="${TEXT_DARK}" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`).join('');
 
-  const whatsappLabel = 'WHATSAPP (31) 98514-7119';
+  const siteLabel = String(options.siteLabel || SITE_LABEL).trim() || SITE_LABEL;
+  const ctaText = String(options.ctaText || CTA_TEXT).trim() || CTA_TEXT;
   const offerX = L.badge.x + L.badge.w + 20;
 
   return `
@@ -244,8 +311,8 @@ function foregroundSvg({ width, height, product, pricing, variant }) {
     <text x="${L.total.x}" y="${L.total.y}" font-size="${L.total.fs}" fill="${TEXT_MUTED}" font-family="Arial, Helvetica, sans-serif">Total parcelado: ${brl(pricing.fullPrice)}</text>
 
     <rect x="${L.cta.x}" y="${L.cta.y}" width="${L.cta.w}" height="${L.cta.h}" rx="22" fill="${BRAND_BLUE}"/>
-    <text x="${width / 2}" y="${L.cta.textY}" text-anchor="middle" font-size="${L.cta.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">COMPRE AGORA</text>
-    <text x="${width / 2}" y="${L.cta.phoneY}" text-anchor="middle" font-size="${L.cta.phoneFs}" font-weight="900" fill="${BRAND_BLUE}" font-family="Arial, Helvetica, sans-serif">${whatsappLabel}</text>
+    <text x="${width / 2}" y="${L.cta.textY}" text-anchor="middle" font-size="${L.cta.fs}" font-weight="900" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">${escapeXml(ctaText)}</text>
+    <text x="${width / 2}" y="${L.cta.phoneY}" text-anchor="middle" font-size="${L.cta.phoneFs}" font-weight="900" fill="${BRAND_BLUE}" font-family="Arial, Helvetica, sans-serif">${escapeXml(siteLabel)}</text>
   </svg>`;
 }
 
@@ -260,7 +327,7 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
   const preset = productImagePreset(product, variant);
 
   const bg = Buffer.from(backgroundSvg({ width, height, variant }));
-  const fg = Buffer.from(foregroundSvg({ width, height, product, pricing, variant }));
+  const fg = Buffer.from(foregroundSvg({ width, height, product, pricing, variant, options }));
   const composites = [{ input: bg, top: 0, left: 0 }];
 
   const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
@@ -316,6 +383,29 @@ export async function generateProductPosterBuffer(product = {}, options = {}) {
       top,
       left
     });
+  }
+
+  if (options.showMascot !== false && options.mascote !== false) {
+    const mascotBuffer = await loadMascotBuffer(options).catch(() => null);
+    if (mascotBuffer) {
+      const mascotBox = mascotLayoutForVariant(variant);
+      const mascotPng = await sharp(mascotBuffer)
+        .rotate()
+        .ensureAlpha()
+        .resize(mascotBox.w, mascotBox.h, {
+          fit: 'contain',
+          background: { r: 255, g: 255, b: 255, alpha: 0 },
+          withoutEnlargement: false
+        })
+        .png()
+        .toBuffer();
+
+      composites.push({
+        input: mascotPng,
+        top: mascotBox.top,
+        left: mascotBox.left
+      });
+    }
   }
 
   composites.push({ input: fg, top: 0, left: 0 });

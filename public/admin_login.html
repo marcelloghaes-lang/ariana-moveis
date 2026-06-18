@@ -132,7 +132,7 @@
         localStorage.setItem("admin_name", data?.name || data?.user?.name || data?.user?.nome || "Marcelo");
         localStorage.setItem("admin_email", data?.email || data?.user?.email || email);
         localStorage.setItem("admin_id", String(data?.id || data?._id || data?.userId || data?.uid || data?.user?.id || "env-admin"));
-        window.location.href = "admin_painel.htm";
+        window.location.href = "admin_painel.html";
       } catch (err) {
         console.error("[admin-login]", err);
         alert("Não foi possível conectar ao backend configurado. Verifique se o servidor está online.");

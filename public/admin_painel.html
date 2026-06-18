@@ -754,6 +754,72 @@ window.editProduct = function(id){
   document.getElementById('product-form-title').textContent=`Editar Produto: ${p.name||''}`; document.getElementById('product-submit-btn').innerHTML='Atualizar Produto'; renderProductImages(); window.scrollTo({top:0,behavior:'smooth'});
 }
 window.deleteProduct = async function(id){ if(!hasAdminPerm('products:delete')){ displayMessage('Você não tem permissão para excluir produtos.','error'); return; } if(!confirm('Excluir este produto?')) return; try{ await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()}); await loadProducts(); resetProductForm(); displayMessage('Produto excluído com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
+function getMarketingCreativeSettings(){
+  const defaults = {
+    ctaText: 'COMPRE DIRETO DO SITE',
+    siteUrl: 'https://arianamoveis.com.br/',
+    siteLabel: 'arianamoveis.com.br',
+    footerLabel: 'arianamoveis.com.br',
+    mascotImageUrl: './ariana-mascote-sem-fundo.png',
+    useMascot: true
+  };
+  try {
+    return { ...defaults, ...(JSON.parse(localStorage.getItem('ariana_marketing_creative_settings') || '{}') || {}) };
+  } catch(_e) {
+    return defaults;
+  }
+}
+
+function buildPosterPayload(variant){
+  const cfg = getMarketingCreativeSettings();
+  return {
+    variant,
+    ctaText: cfg.ctaText,
+    ctaLabel: cfg.ctaText,
+    siteUrl: cfg.siteUrl,
+    siteLabel: cfg.siteLabel,
+    footerLabel: cfg.footerLabel,
+    whatsappLabel: cfg.siteLabel,
+    replaceWhatsappWithSite: true,
+    useMascot: !!cfg.useMascot,
+    mascotImageUrl: cfg.mascotImageUrl
+  };
+}
+
+window.saveMarketingCreativeSettings = function(){
+  const cfg = {
+    ctaText: document.getElementById('mk-cta-text')?.value?.trim() || 'COMPRE DIRETO DO SITE',
+    siteUrl: document.getElementById('mk-site-url')?.value?.trim() || 'https://arianamoveis.com.br/',
+    siteLabel: document.getElementById('mk-site-label')?.value?.trim() || 'arianamoveis.com.br',
+    footerLabel: document.getElementById('mk-footer-label')?.value?.trim() || 'arianamoveis.com.br',
+    mascotImageUrl: document.getElementById('mk-mascot-url')?.value?.trim() || './ariana-mascote-sem-fundo.png',
+    useMascot: document.getElementById('mk-use-mascot')?.checked !== false
+  };
+  localStorage.setItem('ariana_marketing_creative_settings', JSON.stringify(cfg));
+  displayMessage('Configuração dos cartazes salva neste painel.', 'success');
+  const preview = document.getElementById('mk-mascot-preview');
+  if(preview) preview.src = cfg.mascotImageUrl;
+}
+
+window.uploadMarketingMascot = async function(){
+  const input = document.getElementById('mk-mascot-file');
+  if(!input || !input.files || !input.files[0]) { displayMessage('Escolha a imagem PNG da mascote sem fundo.', 'error'); return; }
+  try{
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('folder', 'marketing/mascote');
+    const data = await apiRequest('/admin/uploads', { method:'POST', headers: buildHeadersAuth(), body: fd });
+    const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+    const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+    if(!url) throw new Error('Upload concluído, mas a URL não retornou.');
+    document.getElementById('mk-mascot-url').value = url;
+    window.saveMarketingCreativeSettings();
+    displayMessage('Mascote enviada e salva para os cartazes.', 'success');
+  }catch(e){
+    displayMessage(`Erro ao enviar mascote: ${e.message}`, 'error');
+  }
+}
+
 window.generateProductPoster = async function(id, variant = 'square'){
   if(!hasAdminPerm('posters:generate')){ displayMessage('Você não tem permissão para gerar posters.','error'); return; }
   const productId = String(id || editingProductId || '').trim();
@@ -764,7 +830,7 @@ window.generateProductPoster = async function(id, variant = 'square'){
     const data = await apiRequest(`/admin/posters/product/${encodeURIComponent(productId)}`,{
       method:'POST',
       headers:buildHeadersAuth(),
-      body:JSON.stringify({ variant })
+      body:JSON.stringify(buildPosterPayload(variant))
     });
     if(data && data.url){
       window.open(data.url, '_blank');
@@ -796,7 +862,7 @@ window.generateAllProductPosters = async function(variant = 'square'){
     const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters');
     const original=btn?btn.innerHTML:'';
     if(btn){btn.disabled=true;btn.innerHTML='Gerando...';}
-    const data = await runMarketingAction('/admin/posters/bulk', { variant, limit: 1000 }, `${label.charAt(0).toUpperCase()+label.slice(1)} gerados: ${label}.`);
+    const data = await runMarketingAction('/admin/posters/bulk', { ...buildPosterPayload(variant), limit: 1000 }, `${label.charAt(0).toUpperCase()+label.slice(1)} gerados: ${label}.`);
     displayMessage(`Concluído: ${data.success||0} sucesso(s), ${data.failed||0} falha(s).`,'info');
     await loadProducts().catch(()=>null);
     if(btn){btn.disabled=false;btn.innerHTML=original;}
@@ -808,7 +874,7 @@ window.generateBannerDrafts = async function(){
   try{
     const btn=document.getElementById('btn-generate-banner-drafts'); const original=btn?btn.innerHTML:'';
     if(btn){btn.disabled=true;btn.innerHTML='Gerando prévias...';}
-    const data = await runMarketingAction('/admin/marketing/banner-drafts/generate', {}, 'Prévia(s) de banners gerada(s) como rascunho.');
+    const data = await runMarketingAction('/admin/marketing/banner-drafts/generate', { ...getMarketingCreativeSettings(), replaceWhatsappWithSite: true }, 'Prévia(s) de banners gerada(s) como rascunho.');
     displayMessage(`${data.count||0} rascunho(s) criado(s). Revise antes de publicar.`,'info');
     await renderMarketingView();
     if(btn){btn.disabled=false;btn.innerHTML=original;}
@@ -820,7 +886,7 @@ window.generateEverythingDraftMode = async function(){
   try{
     const btn=document.getElementById('btn-generate-everything'); const original=btn?btn.innerHTML:'';
     if(btn){btn.disabled=true;btn.innerHTML='Gerando tudo...';}
-    const data = await runMarketingAction('/admin/marketing/generate-all-drafts', { limit: 1000 }, 'Geração geral concluída.');
+    const data = await runMarketingAction('/admin/marketing/generate-all-drafts', { ...getMarketingCreativeSettings(), replaceWhatsappWithSite: true, limit: 1000 }, 'Geração geral concluída.');
     displayMessage(`Posters: ${data.postersSuccess||0} | Stories: ${data.storiesSuccess||0} | Banners rascunho: ${data.bannerDrafts||0}`,'success');
     await loadProducts().catch(()=>null);
     await renderMarketingView();
@@ -893,6 +959,28 @@ async function renderMarketingView(){
           <div><h2 class="text-2xl font-black text-gray-900">Marketing automático Ariana Móveis</h2><p class="text-sm text-gray-500 mt-1">Gere posters, stories e todos os formatos de banners do painel. Ao aprovar, o banner ocupa o mesmo slot que o painel manual edita e o index lê.</p></div>
           <button id="btn-generate-everything" onclick="window.generateEverythingDraftMode()" class="px-5 py-3 rounded-xl bg-primary-blue text-white font-black shadow hover:opacity-90">GERAR TUDO EM RASCUNHO</button>
         </div>
+        ${(() => { const cfg = getMarketingCreativeSettings(); return `
+        <div class="mt-6 p-5 rounded-2xl border border-blue-100 bg-blue-50">
+          <div class="flex flex-col lg:flex-row gap-5 items-start">
+            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="md:col-span-2"><h3 class="text-lg font-black text-primary-blue">Texto do botão dos cartazes</h3><p class="text-sm text-gray-600">Troca o rodapé de WhatsApp por compra direta no site.</p></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Texto do botão</label><input id="mk-cta-text" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.ctaText)}"></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Texto abaixo do botão</label><input id="mk-site-label" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.siteLabel)}"></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Endereço do site</label><input id="mk-site-url" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.siteUrl)}"></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Rodapé</label><input id="mk-footer-label" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.footerLabel)}"></div>
+              <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-500 mb-1">URL da mascote PNG sem fundo</label><input id="mk-mascot-url" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.mascotImageUrl)}"></div>
+              <div class="md:col-span-2 flex flex-wrap items-center gap-3">
+                <label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700"><input type="checkbox" id="mk-use-mascot" ${cfg.useMascot ? 'checked' : ''}> Usar mascote nos stories</label>
+                <input id="mk-mascot-file" type="file" accept="image/png,image/webp,image/jpeg" class="text-sm">
+                <button type="button" onclick="window.uploadMarketingMascot()" class="px-4 py-2 rounded-xl bg-white border text-primary-blue font-bold">Enviar mascote</button>
+                <button type="button" onclick="window.saveMarketingCreativeSettings()" class="px-4 py-2 rounded-xl bg-primary-blue text-white font-bold">Salvar configuração</button>
+              </div>
+            </div>
+            <div class="w-32 h-44 bg-white rounded-2xl border flex items-end justify-center overflow-hidden">
+              <img id="mk-mascot-preview" src="${escHtml(cfg.mascotImageUrl)}" class="max-w-full max-h-full object-contain" onerror="this.style.display='none'">
+            </div>
+          </div>
+        </div>`; })()}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <button id="btn-generate-all-posters" onclick="window.generateAllProductPosters('square')" class="p-5 rounded-2xl border border-blue-100 bg-blue-50 text-left hover:shadow"><div class="text-lg font-black text-primary-blue">Gerar todos os posters</div><div class="text-sm text-gray-600 mt-1">1080x1080 para todos os produtos ativos.</div></button>
           <button id="btn-generate-all-stories" onclick="window.generateAllProductPosters('story')" class="p-5 rounded-2xl border border-green-100 bg-green-50 text-left hover:shadow"><div class="text-lg font-black text-green-700">Gerar todos os stories</div><div class="text-sm text-gray-600 mt-1">1080x1920 para WhatsApp/Instagram.</div></button>
