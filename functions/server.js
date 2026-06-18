@@ -4790,9 +4790,6 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
   }
 });
-  await Product.findByIdAndDelete(oid);
-  return res.json({ ok: true });
-});
 
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
@@ -5215,8 +5212,6 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
   }
-}); await Product.findByIdAndDelete(oid); return res.json({ ok: true }); });
-app.get('/api/banners', async (req, res) => {
   const query = { active: true };
   if (req.query.slot) query.slot = String(req.query.slot);
   const rows = await Banner.find(query).sort({ sortOrder: 1, createdAt: -1 });
