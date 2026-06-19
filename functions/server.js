@@ -4620,6 +4620,66 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
 });
 app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
 
+app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    if (!sid) {
+      return res.status(400).json({ ok: false, error: 'Seller não identificado' });
+    }
+
+    const sellerFilter = {
+      $or: [
+        { sellerIds: sid },
+        { 'items.sellerId': sid },
+        { manufacturer: sid }
+      ]
+    };
+
+    const returnsFilter = {
+      $or: [
+        { status: /devol/i },
+        { status: /troca/i },
+        { statusLabel: /devol/i },
+        { statusLabel: /troca/i },
+        { 'shipping.status': /devol/i },
+        { 'shipping.status': /troca/i },
+        { 'payment.status': /refund/i },
+        { 'payment.status': /estorno/i },
+        { 'metadata.returnReason': { $exists: true, $ne: '' } },
+        { 'metadata.reason': { $exists: true, $ne: '' } },
+        { returnReason: { $exists: true, $ne: '' } },
+        { reason: { $exists: true, $ne: '' } }
+      ]
+    };
+
+    const orders = await Order.find({
+      $and: [sellerFilter, returnsFilter]
+    })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    return res.json({
+      ok: true,
+      items: orders.map((order) => ({
+        ...order,
+        id: String(order._id || order.id || ''),
+        returnReason:
+          order.returnReason ||
+          order.reason ||
+          order.metadata?.returnReason ||
+          order.metadata?.reason ||
+          'O cliente solicitou troca/devolução.'
+      }))
+    });
+  } catch (error) {
+    console.error('Erro em /api/seller/returns:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Erro ao buscar devoluções'
+    });
+  }
+});
 // ===== ROTAS SELLER CORRIGIDAS - ESPECÃFICAS ANTES DO CURINGA /api/seller/:sellerId =====
 async function sellerAuthRequired(req,res,next){
   try{
