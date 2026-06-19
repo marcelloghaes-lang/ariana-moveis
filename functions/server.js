@@ -3983,22 +3983,47 @@ function getSellerCardMarkupPercent(order = {}) {
 function itemSellerBaseTotal(item = {}, cardMarkupPercent = 17) {
   const qty = Math.max(1, Number(item?.qty ?? item?.quantity ?? item?.quantidade ?? 1) || 1);
 
-  const explicitTotalBase = Number(
-    item?.sellerBaseTotal ?? item?.baseTotal ?? item?.pixTotal ?? item?.totalBase ?? 0
-  );
-  if (Number.isFinite(explicitTotalBase) && explicitTotalBase > 0) return round2(explicitTotalBase);
+  const candidates = [];
 
-  const explicitUnitBase = Number(
-    item?.sellerBaseUnitPrice ?? item?.sellerBasePrice ?? item?.basePrice ?? item?.pixPrice ?? item?.precoPix ?? item?.priceBase ?? item?.precoBase ?? 0
-  );
-  if (Number.isFinite(explicitUnitBase) && explicitUnitBase > 0) return round2(explicitUnitBase * qty);
+  const addTotal = (value) => {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) candidates.push(round2(n));
+  };
+
+  const addUnit = (value) => {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) candidates.push(round2(n * qty));
+  };
+
+  // Valores base/à vista conhecidos. Estes são os que devem entrar no repasse do seller.
+  addTotal(item?.sellerBaseTotal);
+  addTotal(item?.baseTotal);
+  addTotal(item?.pixTotal);
+  addTotal(item?.totalBase);
+
+  addUnit(item?.sellerBaseUnitPrice);
+  addUnit(item?.sellerBasePrice);
+  addUnit(item?.basePrice);
+  addUnit(item?.pixPrice);
+  addUnit(item?.precoPix);
+  addUnit(item?.priceBase);
+  addUnit(item?.precoBase);
 
   const chargedTotal = Number(
     item?.totalPrice ?? item?.total ?? ((Number(item?.unitPrice ?? item?.price ?? item?.preco ?? 0) || 0) * qty)
   ) || 0;
 
   const markupTotal = Number(item?.cardMarkupTotal ?? item?.cardMarkup ?? item?.markupTotal ?? 0) || 0;
-  if (markupTotal > 0 && chargedTotal > markupTotal) return round2(chargedTotal - markupTotal);
+  if (markupTotal > 0 && chargedTotal > markupTotal) {
+    addTotal(chargedTotal - markupTotal);
+  }
+
+  // Quando existir mais de uma base válida, usa a menor para evitar que o valor do cartão entre no repasse.
+  if (candidates.length) {
+    const valid = candidates.filter((value) => value > 0 && (!chargedTotal || value <= chargedTotal + 0.01));
+    if (valid.length) return round2(Math.min(...valid));
+    return round2(Math.min(...candidates));
+  }
 
   const pct = Number(cardMarkupPercent || 17);
   if (chargedTotal > 0 && pct > 0) return round2(chargedTotal / (1 + (pct / 100)));
@@ -5397,20 +5422,64 @@ app.get('/api/seller/vendas', sellerAuthRequired, async (req, res) => {
 });
 
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
+function getSellerIdCandidates(req = {}) {
+  const raw = [
+    req.sellerId,
+    req.user?.sellerId,
+    req.auth?.sellerId,
+    req.seller?.sellerId,
+    req.seller?._id ? String(req.seller._id) : '',
+    req.seller?.id ? String(req.seller.id) : ''
+  ];
+
+  return Array.from(new Set(
+    raw.map((v) => String(v || '').trim()).filter(Boolean)
+  ));
+}
+
+function getSellerNameCandidates(req = {}) {
+  const raw = [
+    req.seller?.storeName,
+    req.seller?.displayName,
+    req.seller?.name,
+    req.user?.name,
+    req.user?.email,
+    req.seller?.email
+  ];
+
+  return Array.from(new Set(
+    raw.map((v) => String(v || '').trim()).filter(Boolean)
+  ));
+}
+
+function buildSellerProductOwnershipQuery(req = {}) {
+  const sellerIds = getSellerIdCandidates(req);
+  const sellerNames = getSellerNameCandidates(req);
+
+  const or = [];
+  if (sellerIds.length) {
+    or.push({ sellerId: { $in: sellerIds } });
+  }
+  if (sellerNames.length) {
+    or.push({ sellerName: { $in: sellerNames } });
+  }
+
+  if (!or.length) return null;
+  return or.length === 1 ? or[0] : { $or: or };
+}
+
 app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
-    const sellerCandidates = Array.from(new Set([
-      req.sellerId,
-      req.user?.sellerId,
-      req.seller?.sellerId,
-      req.seller?._id ? String(req.seller._id) : '',
-      req.seller?.id ? String(req.seller.id) : ''
-    ].map((v) => String(v || '').trim()).filter(Boolean)));
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
 
-    if (!sellerCandidates.length) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    const query = { ...ownershipQuery };
+    if (req.query.active !== undefined) {
+      query.active = String(req.query.active) !== 'false';
+    }
 
-    const query = { sellerId: { $in: sellerCandidates } };
-    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
     const rows = await Product.find(query).sort({ createdAt: -1 });
     return res.json(rows.map(normalizeProductForResponse));
   } catch (error) {
@@ -5420,11 +5489,21 @@ app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
 
 app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
-    const sid = String(req.sellerId || '').trim();
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
     const oid = normalizeObjectId(req.params.id);
-    let row = oid ? await Product.findOne({ _id: oid, sellerId: sid }) : null;
-    if (!row) row = await Product.findOne({ sellerId: sid, $or: [{ sku: req.params.id }, { slug: req.params.id }] });
-    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    const productSelector = oid
+      ? { _id: oid }
+      : { $or: [{ sku: req.params.id }, { slug: req.params.id }] };
+
+    const row = await Product.findOne({ $and: [ownershipQuery, productSelector] });
+    if (!row) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    }
+
     return res.json(normalizeProductForResponse(row));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
@@ -5433,11 +5512,19 @@ app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
 
 app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const sid = String(req.sellerId || '').trim();
-    const deleted = await Product.findOneAndDelete({ _id: oid, sellerId: sid });
-    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+
+    const deleted = await Product.findOneAndDelete({ $and: [ownershipQuery, { _id: oid }] });
+    if (!deleted) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    }
+
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
@@ -5446,21 +5533,25 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
 
 app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
 
-    const sid = String(req.sellerId || '').trim();
-    const existing = await Product.findOne({ _id: oid, sellerId: sid });
+    const existing = await Product.findOne({ $and: [ownershipQuery, { _id: oid }] });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
     }
 
     const payload = productPayloadFromBody(req.body || {}, existing);
-    payload.sellerId = sid;
-    payload.sellerName = existing.sellerName || req.seller?.storeName || req.seller?.displayName || 'Seller';
+    payload.sellerId = String(existing.sellerId || req.sellerId || req.seller?.sellerId || '').trim();
+    payload.sellerName = existing.sellerName || req.seller?.storeName || req.seller?.displayName || req.user?.name || 'Seller';
 
     const updated = await Product.findOneAndUpdate(
-      { _id: oid, sellerId: sid },
+      { _id: oid },
       { $set: payload },
       { new: true }
     );
@@ -5470,6 +5561,7 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar produto' });
   }
 });
+
 
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
@@ -5787,27 +5879,6 @@ app.get('/api/products/seller/:sellerId', async (req, res) => {
   }
 });
 
-app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
-  try {
-    const sellerCandidates = Array.from(new Set([
-      req.sellerId,
-      req.user?.sellerId,
-      req.seller?.sellerId,
-      req.seller?._id ? String(req.seller._id) : '',
-      req.seller?.id ? String(req.seller.id) : ''
-    ].map((v) => String(v || '').trim()).filter(Boolean)));
-
-    if (!sellerCandidates.length) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
-
-    const query = { sellerId: { $in: sellerCandidates } };
-    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
-    const rows = await Product.find(query).sort({ createdAt: -1 });
-    return res.json(rows.map(normalizeProductForResponse));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
-  }
-});
-
 app.get('/api/seller/:sellerId/products', async (req, res) => {
   try {
     const sellerId = String(req.params.sellerId || '').trim();
@@ -5890,21 +5961,15 @@ app.delete('/api/products/:id', authRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
   }
 });
-app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
+app.get('/api/banners', async (req, res) => {
   try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const sid = String(req.sellerId || '').trim();
-    const deleted = await Product.findOneAndDelete({ _id: oid, sellerId: sid });
-    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
-    return res.json({ ok: true });
+    const query = { active: true };
+    if (req.query.slot) query.slot = String(req.query.slot);
+    const rows = await Banner.find(query).sort({ sortOrder: 1, createdAt: -1 });
+    return res.json(rows.map(normalizeBannerForResponse));
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar banners' });
   }
-  const query = { active: true };
-  if (req.query.slot) query.slot = String(req.query.slot);
-  const rows = await Banner.find(query).sort({ sortOrder: 1, createdAt: -1 });
-  return res.json(rows.map(normalizeBannerForResponse));
 });
 
 app.get('/api/index/banners', async (req, res) => {
