@@ -164,6 +164,10 @@ function applySellerHeaderName() {
 }
 
 
+    function money(v) {
+        return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
     async function loadSales() {
         if (!ensureSellerSession()) return;
         applySellerHeaderName();
@@ -181,56 +185,64 @@ function applySellerHeaderName() {
                 applySellerHeaderName();
             }
 
-            const res = await fetch(`${API_BASE}/seller/orders`, { headers: authHeaders() });
+            const res = await fetch(`${API_BASE}/seller/extrato`, { headers: authHeaders() });
             if (res.status === 401 || res.status === 403) {
                 clearSellerSession();
                 window.location.href = 'seller_login.html';
                 return;
             }
-            const orders = await res.json();
-            if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
-            
-            // Filtramos apenas os pedidos pagos (Ex: 'paid' ou 'approved')
-            const approvedOrders = orders.filter(o => o.status === 'paid' || o.status === 'approved' || o.status === 'shipped' || o.status === 'delivered');
+            const rows = await res.json().catch(() => []);
+            if (!res.ok) throw new Error(rows?.message || rows?.error || `Erro ${res.status}`);
+            const sales = Array.isArray(rows) ? rows : [];
 
             let totalGross = 0;
+            let totalFee = 0;
+            let totalLabel = 0;
+            let totalNet = 0;
             const tb = $("tbody");
             tb.innerHTML = "";
 
-            if (approvedOrders.length === 0) {
+            if (!sales.length) {
                 $("empty").classList.remove("hidden");
+                $("countPill").textContent = "0 vendas";
+                $("gross").textContent = money(0);
+                $("fee").textContent = money(0);
+                $("net").textContent = money(0);
                 return;
             }
 
             $("empty").classList.add("hidden");
-            $("countPill").textContent = `${approvedOrders.length} vendas`;
+            $("countPill").textContent = `${sales.length} vendas`;
 
-            approvedOrders.forEach(o => {
-                const brute = Number(o.total || 0);
-                const fee = brute * COMMISSION_RATE;
-                const net = brute - fee;
+            sales.forEach(o => {
+                const brute = Number(o.gross || o.total || 0);
+                const fee = Number(o.fee || o.commission || 0);
+                const label = Number(o.label || o.labelCost || 0);
+                const net = Number(o.net || (brute - fee - label));
                 totalGross += brute;
+                totalFee += fee;
+                totalLabel += label;
+                totalNet += net;
 
                 tb.innerHTML += `
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="py-4 px-3 font-bold text-primary-blue">#${o._id.substring(0,8).toUpperCase()}</td>
-                        <td class="py-4 px-3 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
-                        <td class="py-4 px-3 text-right font-bold text-dark-bg">R$ ${brute.toFixed(2)}</td>
-                        <td class="py-4 px-3 text-right text-error-red">R$ ${fee.toFixed(2)}</td>
-                        <td class="py-4 px-3 text-right font-black text-success-green">R$ ${net.toFixed(2)}</td>
+                        <td class="py-4 px-3 font-bold text-primary-blue">#${String(o.id || o.orderId || '').substring(0,8).toUpperCase()}</td>
+                        <td class="py-4 px-3 text-gray-500">${o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '—'}</td>
+                        <td class="py-4 px-3 text-right font-bold text-dark-bg">${money(brute)}</td>
+                        <td class="py-4 px-3 text-right text-error-red">${money(fee + label)}</td>
+                        <td class="py-4 px-3 text-right font-black text-success-green">${money(net)}</td>
                     </tr>
                 `;
             });
 
-            const totalFee = totalGross * COMMISSION_RATE;
-            const totalNet = totalGross - totalFee;
-
-            $("gross").textContent = totalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            $("fee").textContent = totalFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            $("net").textContent = totalNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            $("gross").textContent = money(totalGross);
+            $("fee").textContent = money(totalFee + totalLabel);
+            $("net").textContent = money(totalNet);
 
         } catch (e) {
             console.error("Erro ao carregar vendas:", e);
+            const tb = $("tbody");
+            if (tb) tb.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-red-500 font-bold">Erro ao carregar vendas do seller.</td></tr>';
         }
     }
 
