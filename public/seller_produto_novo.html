@@ -95,7 +95,17 @@
           </div>
         </section>
 
-        <textarea id="p-desc" placeholder="Descrição" required class="w-full p-4 border rounded-xl min-h-[120px]"></textarea>
+        <section class="product-section">
+          <h2 class="text-xl font-black text-slate-900 mb-3">Descrição do Produto</h2>
+          <p class="text-gray-600 mb-3">Escreva a descrição comercial do produto, benefícios, uso indicado e informações para o cliente.</p>
+          <textarea id="p-desc" placeholder="Descrição do produto" required class="w-full p-4 border rounded-xl min-h-[140px]"></textarea>
+        </section>
+
+        <section class="product-section">
+          <h2 class="text-xl font-black text-slate-900 mb-3">Especificação Técnica</h2>
+          <p class="text-gray-600 mb-3">Informe ficha técnica, modelo, voltagem, material, medidas, garantia, homologação e demais dados técnicos.</p>
+          <textarea id="p-specs" placeholder="Especificação técnica do produto" class="w-full p-4 border rounded-xl min-h-[160px]"></textarea>
+        </section>
 
         <button id="btn-submit" class="bg-primary-blue text-white py-4 rounded-xl font-black w-full">Publicar produto</button>
       </form>
@@ -179,23 +189,120 @@ function toBase64(file) {
   });
 }
 
+let ALL_CATEGORIES = [];
+
+function extractCategoryRows(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+  return raw.categories || raw.items || raw.results || raw.docs || raw.data || raw.rows || [];
+}
+
+function getCategoryName(c) {
+  return String(c?.name || c?.nome || c?.title || c?.titulo || c?.category || c?.categoria || "Sem nome").trim();
+}
+
+function getCategorySlug(c) {
+  const name = getCategoryName(c);
+  return String(c?.slug || c?.categorySlug || c?.categoriaSlug || slugify(name)).trim();
+}
+
+function getCategoryId(c) {
+  return String(c?._id || c?.id || c?.categoryId || c?.categoriaId || getCategorySlug(c)).trim();
+}
+
+function getParentId(c) {
+  return String(c?.parentId || c?.parent_id || c?.parent || c?.parentSlug || c?.categoriaPai || "").trim();
+}
+
+function isCategoryActive(c) {
+  return c?.active !== false && c?.status !== "inactive" && c?.status !== "inativo";
+}
+
+function optionHtml(value, label, slug, id) {
+  return `<option value="${String(value).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}" data-id="${String(id).replace(/"/g, '&quot;')}">${label}</option>`;
+}
+
 async function loadCategories() {
   const select = $("p-category");
+  const subSelect = $("p-subcategory");
   if (!select) return;
+
+  select.innerHTML = '<option value="">Carregando categorias...</option>';
+  if (subSelect) subSelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>';
+
   try {
-    const res = await fetch(`${API_BASE}/categories`);
-    const raw = await res.json();
-    const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || []);
-    const categories = rows.filter(Boolean);
-    if (!categories.length) return;
-    select.innerHTML = '<option value="">Selecione uma Categoria</option>' + categories.map((c) => {
-      const name = c.name || c.nome || c.category || "Sem nome";
-      const slug = c.slug || slugify(name);
-      return `<option value="${String(name).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`;
+    const res = await fetch(`${API_BASE}/categories`, { headers: authHeaders() });
+    const raw = await res.json().catch(() => ([]));
+    const rows = extractCategoryRows(raw).filter(Boolean).filter(isCategoryActive);
+
+    ALL_CATEGORIES = rows;
+
+    if (!rows.length) {
+      select.innerHTML = '<option value="">Nenhuma categoria encontrada</option>';
+      showToast("Nenhuma categoria foi retornada pelo servidor.", "error");
+      return;
+    }
+
+    const childParentIds = new Set(rows.map(getParentId).filter(Boolean));
+    const parents = rows.filter((c) => {
+      const parentId = getParentId(c);
+      const id = getCategoryId(c);
+      const slug = getCategorySlug(c);
+      return !parentId || !rows.some((x) => getCategoryId(x) === parentId || getCategorySlug(x) === parentId) || childParentIds.has(id) || childParentIds.has(slug);
+    });
+
+    const categoriesToShow = parents.length ? parents : rows;
+
+    select.innerHTML = '<option value="">Selecione uma Categoria</option>' + categoriesToShow.map((c) => {
+      const name = getCategoryName(c);
+      const slug = getCategorySlug(c);
+      const id = getCategoryId(c);
+      return optionHtml(name, name, slug, id);
     }).join("");
+
+    loadSubcategoriesForSelectedCategory();
   } catch (error) {
     console.warn("Falha ao carregar categorias:", error);
+    select.innerHTML = '<option value="">Erro ao carregar categorias</option>';
+    showToast("Erro ao carregar categorias do servidor.", "error");
   }
+}
+
+function loadSubcategoriesForSelectedCategory() {
+  const categorySelect = $("p-category");
+  const subcategorySelect = $("p-subcategory");
+  if (!categorySelect || !subcategorySelect) return;
+
+  const selected = categorySelect.selectedOptions?.[0];
+  const selectedId = selected?.dataset?.id || "";
+  const selectedSlug = selected?.dataset?.slug || slugify(categorySelect.value || "");
+  const selectedName = categorySelect.value || "";
+
+  const children = ALL_CATEGORIES.filter((c) => {
+    const parentId = getParentId(c);
+    return parentId && (
+      parentId === selectedId ||
+      parentId === selectedSlug ||
+      parentId === selectedName ||
+      slugify(parentId) === selectedSlug
+    );
+  });
+
+  if (!children.length) {
+    subcategorySelect.innerHTML = '<option value="">Sem subcategoria</option>';
+    subcategorySelect.value = "";
+    syncCategoryFields();
+    return;
+  }
+
+  subcategorySelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>' + children.map((c) => {
+    const name = getCategoryName(c);
+    const slug = getCategorySlug(c);
+    const id = getCategoryId(c);
+    return optionHtml(name, name, slug, id);
+  }).join("");
+
+  syncCategoryFields();
 }
 
 function syncCategoryFields() {
@@ -214,7 +321,7 @@ function generateSku() {
 
 $("btn-generate-sku")?.addEventListener("click", generateSku);
 $("p-name")?.addEventListener("blur", () => { if (!$("p-sku").value.trim()) generateSku(); });
-$("p-category")?.addEventListener("change", syncCategoryFields);
+$("p-category")?.addEventListener("change", () => { loadSubcategoriesForSelectedCategory(); syncCategoryFields(); });
 $("p-subcategory")?.addEventListener("change", syncCategoryFields);
 
 $("product-form")?.addEventListener("submit", async (e) => {
@@ -252,6 +359,10 @@ $("product-form")?.addEventListener("submit", async (e) => {
       subcategorySlug: $("p-subcategorySlug").value || slugify($("p-subcategory").value),
       description: $("p-desc").value.trim(),
       descricao: $("p-desc").value.trim(),
+      technicalSpecs: $("p-specs")?.value?.trim() || "",
+      especificacaoTecnica: $("p-specs")?.value?.trim() || "",
+      specsText: $("p-specs")?.value?.trim() || "",
+      specs: { texto: $("p-specs")?.value?.trim() || "" },
       imageUrl: mainImageUrl,
       mainImageUrl: mainImageUrl,
       image: mainImageUrl,

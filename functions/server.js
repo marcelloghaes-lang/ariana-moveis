@@ -4531,6 +4531,37 @@ app.post('/api/seller/partner-request', async (req, res) => {
   }
 });
 
+app.post('/api/seller/products', sellerAuthRequired, async (req, res) => {
+  try {
+    const payload = productPayloadFromBody(req.body);
+
+    payload.sellerId = String(req.sellerId || '').trim();
+    payload.sellerName = req.seller?.storeName || req.seller?.displayName || req.user?.name || 'Seller';
+    payload.active = true;
+
+    if (!payload.sellerId) {
+      return res.status(400).json({ ok: false, error: 'Seller não identificado' });
+    }
+
+    if (!payload.name || !payload.price) {
+      return res.status(400).json({ ok: false, error: 'Nome e preço são obrigatórios' });
+    }
+
+    const created = await Product.create(payload);
+
+    return res.status(201).json({
+      ok: true,
+      product: normalizeProductForResponse(created)
+    });
+  } catch (error) {
+    console.error('Erro ao criar produto seller:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Erro ao publicar produto'
+    });
+  }
+});
+
 app.get('/api/seller/partner-requests', adminRequired, async (req, res) => {
   try {
     const status = String(req.query.status || '').trim().toLowerCase();
@@ -4639,25 +4670,36 @@ app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
     const sellerUpdates = {};
     const userUpdates = {};
 
-    if (body.storeName !== undefined) sellerUpdates.storeName = String(body.storeName || '').trim();
-    if (body.displayName !== undefined) sellerUpdates.displayName = String(body.displayName || '').trim();
-    if (body.email !== undefined) {
-      sellerUpdates.email = String(body.email || '').trim().toLowerCase();
-      userUpdates.email = sellerUpdates.email;
+    const sellerStatus = String(req.seller?.status || '').trim().toLowerCase();
+    const sellerApproved = ['approved', 'aprovado'].includes(sellerStatus);
+
+    // Depois que o seller for aprovado, dados jurídicos ficam travados.
+    // O backend preserva os valores atuais mesmo que alguém tente alterar pelo painel, DevTools ou API.
+    if (!sellerApproved) {
+      if (body.storeName !== undefined) sellerUpdates.storeName = String(body.storeName || '').trim();
+      if (body.displayName !== undefined) sellerUpdates.displayName = String(body.displayName || '').trim();
+      if (body.email !== undefined) {
+        sellerUpdates.email = String(body.email || '').trim().toLowerCase();
+        userUpdates.email = sellerUpdates.email;
+      }
+      if (body.document !== undefined) {
+        sellerUpdates.document = String(body.document || '').trim();
+        userUpdates.cpf = sellerUpdates.document;
+      }
     }
+
     if (body.phone !== undefined) {
       sellerUpdates.phone = String(body.phone || '').trim();
       userUpdates.phone = sellerUpdates.phone;
-    }
-    if (body.document !== undefined) {
-      sellerUpdates.document = String(body.document || '').trim();
-      userUpdates.cpf = sellerUpdates.document;
     }
     if (body.city !== undefined) userUpdates.city = String(body.city || '').trim();
     if (body.uf !== undefined) userUpdates.uf = String(body.uf || '').trim().toUpperCase().slice(0, 2);
 
     const metadata = { ...(req.seller?.metadata || {}) };
-    const metadataKeys = ['address', 'cep', 'bairro', 'numero', 'complemento', 'responsavel', 'bankName', 'bankAgency', 'bankAccount', 'pixKey'];
+    const metadataKeys = sellerApproved
+      ? ['address', 'cep', 'bairro', 'numero', 'complemento', 'bankName', 'bankAgency', 'bankAccount', 'pixKey']
+      : ['address', 'cep', 'bairro', 'numero', 'complemento', 'responsavel', 'bankName', 'bankAgency', 'bankAccount', 'pixKey'];
+
     for (const key of metadataKeys) {
       if (body[key] !== undefined) metadata[key] = String(body[key] || '').trim();
     }
@@ -4668,9 +4710,17 @@ app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
       { $set: sellerUpdates },
       { new: true }
     );
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: userUpdates }, { new: true });
 
-    return res.json({ ok: true, seller: sellerProfile(seller, user), user: toJSON(user) });
+    const user = Object.keys(userUpdates).length
+      ? await User.findByIdAndUpdate(req.user._id, { $set: userUpdates }, { new: true })
+      : req.user;
+
+    return res.json({
+      ok: true,
+      lockedLegalData: sellerApproved,
+      seller: sellerProfile(seller, user),
+      user: toJSON(user)
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
   }
