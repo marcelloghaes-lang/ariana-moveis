@@ -3946,6 +3946,48 @@ function sellerItemGross(order = {}, sellerId = '') {
   return round2(gross || order.subtotal || order.total || 0);
 }
 
+function getSellerCardMarkupPercent(order = {}) {
+  const p = Number(
+    order?.sellerFinance?.cardMarkupPercent ??
+    order?.sellerSettlement?.cardMarkupPercent ??
+    order?.payment?.cardMarkupPercent ??
+    order?.payment?.card_markup_percent ??
+    order?.cardMarkupPercent ??
+    process.env.CARD_MARKUP_PERCENT ??
+    17
+  );
+  return Number.isFinite(p) ? p : 17;
+}
+
+function itemSellerBaseTotal(item = {}, cardMarkupPercent = 17) {
+  const qty = Number(item?.qty ?? item?.quantity ?? item?.quantidade ?? 1) || 1;
+  const chargedTotal = Number(item?.totalPrice ?? item?.total ?? ((Number(item?.unitPrice ?? item?.price ?? item?.preco ?? 0) || 0) * qty)) || 0;
+
+  const explicitUnitBase = Number(
+    item?.sellerBasePrice ?? item?.basePrice ?? item?.pixPrice ?? item?.precoPix ?? item?.priceBase ?? item?.precoBase ?? 0
+  );
+  const explicitTotalBase = Number(
+    item?.sellerBaseTotal ?? item?.baseTotal ?? item?.pixTotal ?? item?.totalBase ?? 0
+  );
+
+  if (explicitTotalBase > 0) return round2(explicitTotalBase);
+  if (explicitUnitBase > 0) return round2(explicitUnitBase * qty);
+
+  // Regra Ariana: preço de cartão fica com acréscimo embutido.
+  // O repasse do seller e a comissão do marketplace são calculados sobre o preço base/PIX.
+  return round2(chargedTotal * (1 - (Number(cardMarkupPercent || 0) / 100)));
+}
+
+function sellerItemBaseGross(order = {}, sellerId = '') {
+  const sid = String(sellerId || '').trim();
+  const items = ensureArray(order.items);
+  const sellerItems = sid ? items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid) : items;
+  const cardMarkupPercent = getSellerCardMarkupPercent(order);
+  const base = sellerItems.reduce((acc, item) => acc + itemSellerBaseTotal(item, cardMarkupPercent), 0);
+  const charged = sellerItemGross(order, sellerId);
+  return round2(base || charged);
+}
+
 async function getMarketplaceLabelFeeForOrder(order = {}, sellerId = '') {
   try {
     const oid = String(order?._id || order?.id || '').trim();
@@ -3973,17 +4015,23 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const results = [];
   for (const sellerId of sellerIds.filter(Boolean)) {
     const seller = await Seller.findOne({ sellerId }) || await Seller.findById(normalizeObjectId(sellerId)).catch(() => null);
-    const gross = sellerItemGross(order, sellerId);
+    const chargedGross = sellerItemGross(order, sellerId);
+    const gross = sellerItemBaseGross(order, sellerId);
+    const cardMarkupAmount = round2(Math.max(0, chargedGross - gross));
+    const cardMarkupPercent = getSellerCardMarkupPercent(order);
     const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || settings?.mercadopago || {}, seller);
     const commission = round2(gross * commissionPercent / 100);
     const labelFee = await getMarketplaceLabelFeeForOrder(order, sellerId);
-    const marketplaceAmount = round2(commission + labelFee);
-    const sellerNet = round2(Math.max(0, gross - marketplaceAmount));
+    const marketplaceAmount = round2(commission + labelFee + cardMarkupAmount);
+    const sellerNet = round2(Math.max(0, gross - commission - labelFee));
     const meta = seller?.metadata || {};
     results.push({
       sellerId,
       sellerName: seller?.storeName || seller?.displayName || '',
       gross,
+      chargedGross,
+      cardMarkupPercent,
+      cardMarkupAmount,
       commissionPercent,
       commission,
       marketplaceLabelFee: labelFee,
@@ -3997,11 +4045,13 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
     });
   }
   const totalGross = round2(results.reduce((a, r) => a + r.gross, 0));
+  const totalChargedGross = round2(results.reduce((a, r) => a + (r.chargedGross || r.gross), 0));
+  const totalCardMarkupAmount = round2(results.reduce((a, r) => a + (r.cardMarkupAmount || 0), 0));
   const totalCommission = round2(results.reduce((a, r) => a + r.commission, 0));
   const totalLabelFee = round2(results.reduce((a, r) => a + r.marketplaceLabelFee, 0));
   const totalMarketplaceAmount = round2(results.reduce((a, r) => a + r.marketplaceAmount, 0));
   const totalSellerNet = round2(results.reduce((a, r) => a + r.sellerNet, 0));
-  return { ok: true, orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet };
+  return { ok: true, orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalChargedGross, totalCardMarkupAmount, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet };
 }
 
 function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
@@ -5077,9 +5127,13 @@ function normalizeSellerOrderForResponse(orderDoc = {}, sellerId = '') {
     };
   });
 
-  const sellerSubtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+  const chargedSubtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
   const fallbackTotal = Number(order.total || order.subtotal || 0) || 0;
-  const gross = sellerSubtotal || fallbackTotal;
+  const chargedGross = chargedSubtotal || fallbackTotal;
+  const cardMarkupPercent = getSellerCardMarkupPercent(order);
+  const baseSubtotal = items.reduce((sum, item) => sum + itemSellerBaseTotal(item, cardMarkupPercent), 0);
+  const gross = round2(baseSubtotal || (chargedGross * (1 - (cardMarkupPercent / 100))));
+  const cardMarkupAmount = round2(Math.max(0, chargedGross - gross));
   const label = Number(order.sellerFinance?.labelCost ?? order.sellerSettlement?.labelCost ?? order.marketplaceLabelCost ?? order.etiqueta?.shippingCost ?? order.shippingLabelCost ?? 0) || 0;
   const commissionRate = Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12) / 100;
   const fee = Number(order.sellerFinance?.commission ?? order.sellerSettlement?.commission ?? (gross * commissionRate)) || 0;
@@ -5092,6 +5146,9 @@ function normalizeSellerOrderForResponse(orderDoc = {}, sellerId = '') {
     sellerItems: items,
     itemsSummary: items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
     sellerSubtotal: gross,
+    chargedGross,
+    cardMarkupPercent,
+    cardMarkupAmount,
     subtotal: gross,
     total: gross,
     gross,
@@ -5209,6 +5266,9 @@ app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
       const labelFromLogistics = await loadSellerLogisticsLabelCost(orderId);
       const label = Number(normalized.label || labelFromLogistics || 0) || 0;
       const gross = Number(normalized.gross || normalized.total || 0) || 0;
+      const chargedGross = Number(normalized.chargedGross || gross) || gross;
+      const cardMarkupAmount = Number(normalized.cardMarkupAmount || Math.max(0, chargedGross - gross)) || 0;
+      const cardMarkupPercent = Number(normalized.cardMarkupPercent || process.env.CARD_MARKUP_PERCENT || 17) || 17;
       const fee = Number(normalized.fee || gross * (Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12) / 100)) || 0;
       const net = Math.max(0, gross - fee - label);
       rows.push({
@@ -5218,6 +5278,9 @@ app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
         status: normalized.status,
         statusLabel: normalized.statusLabel,
         gross,
+        chargedGross,
+        cardMarkupAmount,
+        cardMarkupPercent,
         fee,
         commission: fee,
         label,
