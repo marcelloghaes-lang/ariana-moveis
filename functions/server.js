@@ -825,7 +825,34 @@ const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE =
   process.env.EVOLUTION_INSTANCE || 'Ariana_Notificacoes';
 const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
 const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
-const DEFAULT_PAYMENTS_SETTINGS = { mercadopago: { enabled: true, accessToken: process.env.MP_ACCESS_TOKEN || '', publicKey: process.env.MP_PUBLIC_KEY || '', webhookSecret: process.env.MP_WEBHOOK_SECRET || '', splitEnabled: true }, pagarme: { enabled: true, apiKey: process.env.PAGARME_API_KEY || '', publicKey: process.env.PAGARME_PUBLIC_KEY || '', endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5' } };
+const DEFAULT_PAYMENTS_SETTINGS = {
+  mercadopago: {
+    enabled: true,
+    accessToken: process.env.MP_ACCESS_TOKEN || '',
+    publicKey: process.env.MP_PUBLIC_KEY || '',
+    webhookSecret: process.env.MP_WEBHOOK_SECRET || '',
+    splitEnabled: true,
+    marketplaceFeePercent: Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12)
+  },
+  pagarme: {
+    enabled: true,
+    apiKey: process.env.PAGARME_API_KEY || '',
+    publicKey: process.env.PAGARME_PUBLIC_KEY || '',
+    endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5',
+    marketplaceRecipientId: process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '',
+    splitEnabled: true,
+    marketplaceFeePercent: Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12)
+  },
+  cielo: {
+    enabled: String(process.env.CIELO_ENABLED || '').toLowerCase() === 'true' || !!process.env.CIELO_MERCHANT_ID,
+    merchantId: process.env.CIELO_MERCHANT_ID || '',
+    merchantKey: process.env.CIELO_MERCHANT_KEY || '',
+    apiUrl: process.env.CIELO_API_URL || 'https://api.cieloecommerce.cielo.com.br',
+    marketplaceMerchantId: process.env.CIELO_MARKETPLACE_MERCHANT_ID || process.env.CIELO_SUBORDINATE_MARKETPLACE_ID || '',
+    splitEnabled: true,
+    marketplaceFeePercent: Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12)
+  }
+};
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
 const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', localOriginCep: '39740-000', localMaxKmTier1: 30, localPriceTier1: 80, localMaxKmTier2: 120, localPriceTier2: 120, phoneFlatPrice: 19.90, phoneFlatEnabled: true, label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 120, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
 
@@ -847,7 +874,14 @@ async function getWhatsappSettings() {
   return merged;
 }
 async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
-async function getPaymentsSettings() { const value = await getSetting('payments', DEFAULT_PAYMENTS_SETTINGS); return { mercadopago: { ...DEFAULT_PAYMENTS_SETTINGS.mercadopago, ...(value?.mercadopago || {}) }, pagarme: { ...DEFAULT_PAYMENTS_SETTINGS.pagarme, ...(value?.pagarme || {}) } }; }
+async function getPaymentsSettings() {
+  const value = await getSetting('payments', DEFAULT_PAYMENTS_SETTINGS);
+  return {
+    mercadopago: { ...DEFAULT_PAYMENTS_SETTINGS.mercadopago, ...(value?.mercadopago || {}) },
+    pagarme: { ...DEFAULT_PAYMENTS_SETTINGS.pagarme, ...(value?.pagarme || {}) },
+    cielo: { ...DEFAULT_PAYMENTS_SETTINGS.cielo, ...(value?.cielo || {}) }
+  };
+}
 async function saveShippingSettings(data, updatedBy = 'system') { const current = await getShippingSettings(); const incoming = data || {}; const merged = { ...current, ...incoming, correios: { ...(current.correios || {}), ...((incoming && incoming.correios) || {}) }, businessRules: { ...(current.businessRules || {}), ...((incoming && incoming.businessRules) || {}), arianaMoveis: { ...((current.businessRules || {}).arianaMoveis || {}), ...(((incoming && incoming.businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((current.businessRules || {}).snDigital || {}), ...(((incoming && incoming.businessRules) || {}).snDigital || {}) }, rodocap: { ...((current.businessRules || {}).rodocap || {}), ...(((incoming && incoming.businessRules) || {}).rodocap || {}), allowedCities: Array.isArray((((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities) && (((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities.length ? (((incoming && incoming.businessRules) || {}).rodocap || {}).allowedCities : (((current.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(current.carriers || {}), ...((incoming && incoming.carriers) || {}), correios: { ...((current.carriers || {}).correios || {}), ...(((incoming && incoming.carriers) || {}).correios || {}), enabled: ((incoming && incoming.correios && incoming.correios.enabled !== undefined) ? incoming.correios.enabled : ((((incoming && incoming.carriers) || {}).correios || {}).enabled ?? ((current.carriers || {}).correios || {}).enabled)), maxWeightKg: Number((((incoming && incoming.correios) || {}).maxWeightKg) || ((((incoming && incoming.carriers) || {}).correios || {}).maxWeightKg) || (((current.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((((incoming && incoming.correios) || {}).maxDimensionCm) || ((((incoming && incoming.carriers) || {}).correios || {}).maxDimensionCm) || (((current.carriers || {}).correios || {}).maxDimensionCm) || 100) } } }; await setSetting('shipping', merged, updatedBy); return merged; }
 async function getShippingSettings() { const value = await getSetting('shipping', DEFAULT_SHIPPING_SETTINGS); const merged = { ...DEFAULT_SHIPPING_SETTINGS, ...(value || {}), correios: { ...(DEFAULT_SHIPPING_SETTINGS.correios || {}), ...(((value || {}).correios) || {}) }, businessRules: { ...(DEFAULT_SHIPPING_SETTINGS.businessRules || {}), ...(((value || {}).businessRules) || {}), arianaMoveis: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).arianaMoveis || {}), ...((((value || {}).businessRules) || {}).arianaMoveis || {}) }, snDigital: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).snDigital || {}), ...((((value || {}).businessRules) || {}).snDigital || {}) }, rodocap: { ...((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}), ...((((value || {}).businessRules) || {}).rodocap || {}), allowedCities: Array.isArray(((((value || {}).businessRules) || {}).rodocap || {}).allowedCities) && ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities.length ? ((((value || {}).businessRules) || {}).rodocap || {}).allowedCities : (((DEFAULT_SHIPPING_SETTINGS.businessRules || {}).rodocap || {}).allowedCities || RODOCAP_ALLOWED_CITIES) } }, carriers: { ...(DEFAULT_SHIPPING_SETTINGS.carriers || {}), ...(((value || {}).carriers) || {}) } }; merged.carriers = merged.carriers || {}; merged.carriers.correios = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.correios || {}), ...((merged.carriers || {}).correios || {}), enabled: merged.correios.enabled !== undefined ? merged.correios.enabled : ((merged.carriers || {}).correios || {}).enabled, maxWeightKg: Number((merged.correios.maxWeightKg !== undefined ? merged.correios.maxWeightKg : ((merged.carriers || {}).correios || {}).maxWeightKg) || 30), maxDimensionCm: Number((merged.correios.maxDimensionCm !== undefined ? merged.correios.maxDimensionCm : ((merged.carriers || {}).correios || {}).maxDimensionCm) || 100) };
 merged.carriers.frenet = { ...(DEFAULT_SHIPPING_SETTINGS.carriers.frenet || {}), ...((merged.carriers || {}).frenet || {}) };
@@ -3877,6 +3911,164 @@ async function buildMercadoPagoHeaders() { const settings = await getPaymentsSet
 async function createMercadoPagoPayment(payload) { const headers = await buildMercadoPagoHeaders(); const idempotencyKey = uid('mp'); const response = await axios.post('https://api.mercadopago.com/v1/payments', payload, { headers: { ...headers, 'X-Idempotency-Key': idempotencyKey }, timeout: 30000, validateStatus: () => true }); return { response, idempotencyKey }; }
 async function createPagarmeOrder(payload) { const settings = await getPaymentsSettings(); const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || ''; const endpoint = settings.pagarme?.endpoint || 'https://api.pagar.me/core/v5'; if (!apiKey) throw new Error('Pagar.me API key não configurada.'); return axios.post(`${endpoint}/orders`, payload, { auth: { username: apiKey, password: '' }, headers: { 'Content-Type': 'application/json' }, timeout: 30000, validateStatus: () => true }); }
 
+// ============================================================
+// SPLIT MARKETPLACE - Sellers / Pagar.me / Cielo / Mercado Pago
+// Regra Ariana: seller recebe líquido, Ariana fica com comissão + etiqueta
+// quando a etiqueta/logística foi gerada pelo marketplace.
+// ============================================================
+function round2(value = 0) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function paymentSplitCents(value = 0) {
+  return Math.max(0, Math.round(Number(value || 0) * 100));
+}
+
+function getMarketplaceCommissionPercent(settings = {}, seller = null) {
+  const meta = seller?.metadata || {};
+  const fromSeller = meta.commissionPercent ?? meta.marketplaceCommissionPercent ?? seller?.commissionPercent;
+  const fromSettings = settings?.marketplaceFeePercent ?? settings?.commissionPercent;
+  return Number(fromSeller ?? fromSettings ?? process.env.MARKETPLACE_COMMISSION_PERCENT ?? 12) || 12;
+}
+
+function sellerItemGross(order = {}, sellerId = '') {
+  const sid = String(sellerId || '').trim();
+  const items = ensureArray(order.items);
+  const sellerItems = sid ? items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid) : items;
+  const gross = sellerItems.reduce((acc, item) => {
+    const qty = Number(item?.qty || item?.quantity || 1) || 1;
+    const total = item?.totalPrice ?? item?.total ?? null;
+    if (total !== null && total !== undefined && total !== '') return acc + Number(total || 0);
+    return acc + (Number(item?.unitPrice ?? item?.price ?? 0) * qty);
+  }, 0);
+  return round2(gross || order.subtotal || order.total || 0);
+}
+
+async function getMarketplaceLabelFeeForOrder(order = {}, sellerId = '') {
+  try {
+    const oid = String(order?._id || order?.id || '').trim();
+    if (!oid || typeof LogisticsLabel === 'undefined') return 0;
+    const label = await LogisticsLabel.findOne({
+      $or: [
+        { orderId: oid },
+        ...(normalizeObjectId(oid) ? [{ orderObjectId: normalizeObjectId(oid) }] : [])
+      ]
+    }).sort({ createdAt: -1 });
+    if (!label) return 0;
+    const provider = String(label.provider || '').toLowerCase();
+    const marketplaceProviders = ['manual', 'ariana_local', 'correios', 'frenet', 'rodocap', 'marketplace'];
+    if (!marketplaceProviders.some((p) => provider.includes(p))) return 0;
+    return round2(label.shippingCost || 0);
+  } catch (_error) {
+    return 0;
+  }
+}
+
+async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sellerIds = explicitSellerId ? [String(explicitSellerId).trim()] : extractSellerIdsFromOrder(order);
+  const settings = await getPaymentsSettings();
+  const results = [];
+  for (const sellerId of sellerIds.filter(Boolean)) {
+    const seller = await Seller.findOne({ sellerId }) || await Seller.findById(normalizeObjectId(sellerId)).catch(() => null);
+    const gross = sellerItemGross(order, sellerId);
+    const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || settings?.mercadopago || {}, seller);
+    const commission = round2(gross * commissionPercent / 100);
+    const labelFee = await getMarketplaceLabelFeeForOrder(order, sellerId);
+    const marketplaceAmount = round2(commission + labelFee);
+    const sellerNet = round2(Math.max(0, gross - marketplaceAmount));
+    const meta = seller?.metadata || {};
+    results.push({
+      sellerId,
+      sellerName: seller?.storeName || seller?.displayName || '',
+      gross,
+      commissionPercent,
+      commission,
+      marketplaceLabelFee: labelFee,
+      marketplaceAmount,
+      sellerNet,
+      recipients: {
+        mercadopago: String(meta.mercadopagoId || meta.mpUserId || meta.mpCollectorId || seller?.mercadopagoId || '').trim(),
+        pagarme: String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller?.pagarmeRecipientId || '').trim(),
+        cielo: String(meta.cieloSubordinateMerchantId || meta.cieloMerchantId || seller?.cieloSubordinateMerchantId || '').trim()
+      }
+    });
+  }
+  const totalGross = round2(results.reduce((a, r) => a + r.gross, 0));
+  const totalCommission = round2(results.reduce((a, r) => a + r.commission, 0));
+  const totalLabelFee = round2(results.reduce((a, r) => a + r.marketplaceLabelFee, 0));
+  const totalMarketplaceAmount = round2(results.reduce((a, r) => a + r.marketplaceAmount, 0));
+  const totalSellerNet = round2(results.reduce((a, r) => a + r.sellerNet, 0));
+  return { ok: true, orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet };
+}
+
+function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
+  const settings = payload.settings || {};
+  const marketplaceRecipientId = String(settings.marketplaceRecipientId || process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '').trim();
+  const sellers = ensureArray(splitSummary.sellers);
+  if (!marketplaceRecipientId || !sellers.length) return payload;
+  const split = [];
+  for (const item of sellers) {
+    if (item.recipients?.pagarme && item.sellerNet > 0) {
+      split.push({
+        amount: paymentSplitCents(item.sellerNet),
+        recipient_id: item.recipients.pagarme,
+        type: 'flat',
+        options: { liable: true, charge_processing_fee: false, charge_remainder_fee: false }
+      });
+    }
+  }
+  const marketplaceAmount = splitSummary.totalMarketplaceAmount || 0;
+  if (marketplaceAmount > 0) {
+    split.push({
+      amount: paymentSplitCents(marketplaceAmount),
+      recipient_id: marketplaceRecipientId,
+      type: 'flat',
+      options: { liable: false, charge_processing_fee: true, charge_remainder_fee: true }
+    });
+  }
+  if (!split.length) return payload;
+  payload.charges = ensureArray(payload.charges).map((charge) => ({ ...charge, split }));
+  return payload;
+}
+
+async function buildCieloHeaders() {
+  const settings = await getPaymentsSettings();
+  const cielo = settings.cielo || {};
+  const merchantId = String(cielo.merchantId || process.env.CIELO_MERCHANT_ID || '').trim();
+  const merchantKey = String(cielo.merchantKey || process.env.CIELO_MERCHANT_KEY || '').trim();
+  if (!merchantId || !merchantKey) throw new Error('Cielo MerchantId/MerchantKey não configurados.');
+  return { MerchantId: merchantId, MerchantKey: merchantKey, 'Content-Type': 'application/json' };
+}
+
+async function createCieloSale(payload) {
+  const settings = await getPaymentsSettings();
+  const apiUrl = String(settings.cielo?.apiUrl || process.env.CIELO_API_URL || 'https://api.cieloecommerce.cielo.com.br').replace(/\/+$/, '');
+  const headers = await buildCieloHeaders();
+  return axios.post(`${apiUrl}/1/sales`, payload, { headers, timeout: 30000, validateStatus: () => true });
+}
+
+function applyCieloSplitToPayload(payload = {}, splitSummary = {}) {
+  const marketplaceMerchantId = String(process.env.CIELO_MARKETPLACE_MERCHANT_ID || process.env.CIELO_SUBORDINATE_MARKETPLACE_ID || '').trim();
+  const sellers = ensureArray(splitSummary.sellers);
+  const splitPayments = [];
+  for (const item of sellers) {
+    if (item.recipients?.cielo && item.sellerNet > 0) {
+      splitPayments.push({ SubordinateMerchantId: item.recipients.cielo, Amount: paymentSplitCents(item.sellerNet) });
+    }
+  }
+  if (marketplaceMerchantId && splitSummary.totalMarketplaceAmount > 0) {
+    splitPayments.push({ SubordinateMerchantId: marketplaceMerchantId, Amount: paymentSplitCents(splitSummary.totalMarketplaceAmount) });
+  }
+  if (splitPayments.length) {
+    payload.Payment = { ...(payload.Payment || {}), SplitPayments: splitPayments };
+  }
+  return payload;
+}
+
+
 function moneyToCents(value = 0) {
   const n = Number(value || 0);
   if (!Number.isFinite(n) || n <= 0) return 0;
@@ -4623,29 +4815,25 @@ app.post('/api/seller/complete-onboarding', async (req, res) => { try { const se
 app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
-    if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado.' });
 
-    const sellerFilter = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { manufacturer: sid }] };
-    const returnFilter = {
+    const orders = await Order.find({
+      sellerIds: sid,
       $or: [
         { status: /devol/i },
         { status: /troca/i },
         { statusLabel: /devol/i },
         { statusLabel: /troca/i },
         { returnReason: { $exists: true, $ne: '' } },
-        { reason: { $exists: true, $ne: '' } },
-        { 'metadata.returnReason': { $exists: true, $ne: '' } },
-        { 'shipping.returnReason': { $exists: true, $ne: '' } }
+        { reason: { $exists: true, $ne: '' } }
       ]
-    };
+    }).sort({ updatedAt: -1, createdAt: -1 }).limit(100);
 
-    const orders = await Order.find({ $and: [sellerFilter, returnFilter] })
-      .sort({ updatedAt: -1, createdAt: -1 })
-      .limit(100);
-
-    return res.json({ ok: true, items: orders.map(toJSON), results: orders.map(toJSON) });
+    return res.json(orders.map(toJSON));
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao buscar devoluções' });
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Erro ao buscar devoluções'
+    });
   }
 });
 
@@ -4664,37 +4852,7 @@ async function sellerAuthRequired(req,res,next){
     next();
   }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
 }
-function sellerProfile(s,u){
-  const o=toJSON(s)||{};
-  const meta=o.metadata||{};
-  const bank=meta.bankAccount||o.bankAccount||{};
-  const status=String(o.status||meta.status||'pending').toLowerCase();
-  const active=!['bloqueado','reprovado','blocked','rejected','recusado'].includes(status);
-  return {
-    ...o,
-    id:String(o.sellerId||o._id||''),
-    sellerId:String(o.sellerId||''),
-    name:o.displayName||o.storeName||u?.name||'',
-    factoryName:o.storeName||o.displayName||u?.name||'',
-    storeName:o.storeName||meta.factoryName||meta.storeName||'',
-    displayName:o.displayName||meta.ownerName||meta.responsavel||u?.name||'',
-    email:o.email||u?.email||'',
-    phone:o.phone||u?.phone||meta.phone||'',
-    document:o.document||u?.cpf||meta.cnpj||meta.cpf||'',
-    cnpj:meta.cnpj||o.document||'',
-    bio:o.bio||meta.bio||'',
-    bankAccount: {
-      bank: bank.bank || bank.bankName || meta.bankName || '',
-      agency: bank.agency || bank.bankAgency || meta.bankAgency || '',
-      account: bank.account || bank.bankAccount || meta.bankAccountNumber || ''
-    },
-    cepColeta:o.cepColeta||meta.cepColeta||'',
-    transpPropria: o.transpPropria ?? meta.transpPropria ?? false,
-    active,
-    approved:['approved','aprovado'].includes(status),
-    lockedLegalData:['approved','aprovado'].includes(status)
-  };
-}
+function sellerProfile(s,u){ const o=toJSON(s)||{}; return {...o,id:String(o.sellerId||o._id||''),sellerId:String(o.sellerId||''),name:o.displayName||o.storeName||u?.name||'',factoryName:o.storeName||o.displayName||u?.name||'',email:o.email||u?.email||'',active:!['bloqueado','reprovado','blocked','rejected'].includes(String(o.status||'').toLowerCase())}; }
 app.post('/api/seller/auth/login',async(req,res)=>{
   try{
     const email=String(req.body?.email||'').trim().toLowerCase(); const password=String(req.body?.password||'');
@@ -4782,113 +4940,6 @@ app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
     });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
-  }
-});
-
-
-app.put('/api/seller/update', sellerAuthRequired, async (req, res) => {
-  try {
-    const body = req.body || {};
-    const sellerStatus = String(req.seller?.status || req.seller?.metadata?.status || '').trim().toLowerCase();
-    const sellerApproved = ['approved', 'aprovado'].includes(sellerStatus);
-
-    const metadata = { ...(req.seller?.metadata || {}) };
-    const bankBody = body.bankAccount && typeof body.bankAccount === 'object' ? body.bankAccount : {};
-
-    if (body.bio !== undefined) metadata.bio = String(body.bio || '').trim();
-    if (body.cepColeta !== undefined) metadata.cepColeta = String(body.cepColeta || '').replace(/\D/g, '');
-    if (body.transpPropria !== undefined) metadata.transpPropria = body.transpPropria === true;
-
-    metadata.bankAccount = {
-      ...(metadata.bankAccount || {}),
-      bank: String(bankBody.bank || body.bankName || metadata.bankAccount?.bank || '').trim(),
-      agency: String(bankBody.agency || body.bankAgency || metadata.bankAccount?.agency || '').trim(),
-      account: String(bankBody.account || body.bankAccountNumber || metadata.bankAccount?.account || '').trim()
-    };
-    metadata.bankName = metadata.bankAccount.bank;
-    metadata.bankAgency = metadata.bankAccount.agency;
-    metadata.bankAccountNumber = metadata.bankAccount.account;
-
-    const sellerUpdates = { metadata };
-
-    // Nome fantasia e documento ficam bloqueados depois da aprovação.
-    if (!sellerApproved) {
-      if (body.factoryName !== undefined) sellerUpdates.storeName = String(body.factoryName || '').trim();
-      if (body.storeName !== undefined) sellerUpdates.storeName = String(body.storeName || '').trim();
-      if (body.displayName !== undefined) sellerUpdates.displayName = String(body.displayName || '').trim();
-      if (body.document !== undefined) sellerUpdates.document = String(body.document || '').trim();
-      if (body.cnpj !== undefined) sellerUpdates.document = String(body.cnpj || '').trim();
-    }
-
-    const seller = await Seller.findOneAndUpdate(
-      { sellerId: req.sellerId },
-      { $set: sellerUpdates },
-      { new: true }
-    );
-
-    if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
-
-    return res.json({
-      ok: true,
-      lockedLegalData: sellerApproved,
-      seller: sellerProfile(seller, req.user),
-      user: toJSON(req.user)
-    });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar configurações do seller' });
-  }
-});
-
-app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
-  try {
-    const sid = String(req.sellerId || '').trim();
-    if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado.' });
-
-    const commissionPercent = Number(process.env.SELLER_COMMISSION_PERCENT || 12);
-    const labelFeeDefault = Number(process.env.SELLER_LABEL_FEE || 0);
-
-    const orders = await Order.find({
-      $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { manufacturer: sid }],
-      status: { $in: ['pago', 'approved', 'aprovado', 'paid', 'enviado', 'entregue', 'shipped', 'delivered'] }
-    }).sort({ createdAt: -1 }).limit(300).lean();
-
-    const orderIds = orders.map(o => String(o._id));
-    const labels = await LogisticsLabel.find({ orderId: { $in: orderIds } }).lean().catch(() => []);
-    const labelByOrder = new Map(labels.map(l => [String(l.orderId), l]));
-
-    const items = orders.map((order) => {
-      const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || '') === sid);
-      const gross = sellerItems.length
-        ? sellerItems.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0)
-        : Number(order.total || 0);
-      const fee = Number((gross * (commissionPercent / 100)).toFixed(2));
-      const labelDoc = labelByOrder.get(String(order._id));
-      const label = Number(labelDoc?.shippingCost || order.shipping?.labelCost || order.shipping?.shippingCost || labelFeeDefault || 0);
-      const net = Number((gross - fee - label).toFixed(2));
-      return {
-        id: String(order._id),
-        orderId: String(order._id),
-        createdAt: order.createdAt,
-        status: order.status,
-        gross,
-        fee,
-        label,
-        net,
-        commissionPercent
-      };
-    });
-
-    const summary = items.reduce((acc, item) => {
-      acc.gross += item.gross;
-      acc.fee += item.fee;
-      acc.label += item.label;
-      acc.net += item.net;
-      return acc;
-    }, { gross: 0, fee: 0, label: 0, net: 0 });
-
-    return res.json({ ok: true, items, results: items, summary });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar extrato do seller' });
   }
 });
 
@@ -7749,6 +7800,106 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
   }
 });
 
+
+app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
+  try {
+    const seller = req.seller || {};
+    const meta = seller.metadata || {};
+    const settings = await getPaymentsSettings();
+    return res.json({
+      ok: true,
+      commissionPercent: Number(meta.commissionPercent || settings.pagarme?.marketplaceFeePercent || settings.mercadopago?.marketplaceFeePercent || 12),
+      marketplaceLogisticsFeeEnabled: true,
+      gateways: {
+        mercadopago: {
+          enabled: settings.mercadopago?.enabled !== false,
+          connected: !!(meta.mercadopagoId || meta.mpUserId || meta.mpCollectorId || seller.mercadopagoId || seller.mpConnected),
+          recipientId: meta.mercadopagoId || meta.mpUserId || meta.mpCollectorId || seller.mercadopagoId || ''
+        },
+        pagarme: {
+          enabled: settings.pagarme?.enabled !== false,
+          connected: !!(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId),
+          recipientId: meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId || ''
+        },
+        cielo: {
+          enabled: settings.cielo?.enabled !== false,
+          connected: !!(meta.cieloSubordinateMerchantId || meta.cieloMerchantId || seller.cieloSubordinateMerchantId),
+          recipientId: meta.cieloSubordinateMerchantId || meta.cieloMerchantId || seller.cieloSubordinateMerchantId || ''
+        }
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar split do seller' });
+  }
+});
+
+app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const meta = { ...(req.seller.metadata || {}) };
+    meta.mercadopagoId = String(body.mercadopagoId || body.mpUserId || meta.mercadopagoId || '').trim();
+    meta.pagarmeRecipientId = String(body.pagarmeRecipientId || body.pagarme_recipient_id || meta.pagarmeRecipientId || '').trim();
+    meta.cieloSubordinateMerchantId = String(body.cieloSubordinateMerchantId || body.cieloMerchantId || meta.cieloSubordinateMerchantId || '').trim();
+    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') {
+      meta.commissionPercent = Number(body.commissionPercent) || 12;
+    }
+    const seller = await Seller.findByIdAndUpdate(req.seller._id, { $set: { metadata: meta } }, { new: true });
+    return res.json({ ok: true, seller: sellerProfile(seller, req.user) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar split do seller' });
+  }
+});
+
+app.get('/api/payments/split/preview/:orderId', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.orderId);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const summary = await buildSellerSplitSummary(order, req.query.sellerId || '');
+    return res.json(summary);
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao calcular split' });
+  }
+});
+
+app.post('/api/payments/cielo/credit', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const orderId = String(body.orderId || '').trim();
+    const order = orderId && normalizeObjectId(orderId) ? await Order.findById(normalizeObjectId(orderId)) : null;
+    const amount = paymentSplitCents(body.amount || body.total || order?.total || 0);
+    if (!amount) return res.status(400).json({ ok: false, error: 'Valor inválido para pagamento Cielo.' });
+    const splitSummary = order ? await buildSellerSplitSummary(order) : { sellers: [], totalMarketplaceAmount: 0 };
+    let payload = {
+      MerchantOrderId: orderId || uid('cielo_order'),
+      Customer: {
+        Name: String(body.name || order?.customerName || 'Cliente Ariana Moveis').trim()
+      },
+      Payment: {
+        Type: 'CreditCard',
+        Amount: amount,
+        Installments: Number(body.installments || 1) || 1,
+        Capture: body.capture !== false,
+        SoftDescriptor: String(process.env.CIELO_SOFT_DESCRIPTOR || 'ARIANAMOVEIS').slice(0, 13),
+        CreditCard: {
+          CardNumber: String(body.cardNumber || body.card?.number || '').replace(/\s+/g, ''),
+          Holder: String(body.cardHolder || body.card?.holder || body.name || 'Cliente').trim(),
+          ExpirationDate: String(body.expirationDate || body.card?.expirationDate || '').trim(),
+          SecurityCode: String(body.cvv || body.securityCode || body.card?.cvv || '').trim(),
+          Brand: String(body.brand || body.card?.brand || 'Visa').trim()
+        }
+      }
+    };
+    payload = applyCieloSplitToPayload(payload, splitSummary);
+    const response = await createCieloSale(payload);
+    await writeAuditLog({ scope: 'payments', eventType: 'cielo_card_created', orderId: orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: redact(payload), response: redact(response.data), metadata: { provider: 'cielo', splitSummary } });
+    return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, provider: 'cielo', data: response.data, split: splitSummary });
+  } catch (error) {
+    return res.status(500).json({ ok: false, provider: 'cielo', error: error.message || 'Erro ao criar pagamento Cielo' });
+  }
+});
+
 app.get('/api/payments/pagarme/public-key', async (_req, res) => {
   try {
     const settings = await getPaymentsSettings();
@@ -7765,7 +7916,12 @@ app.post('/api/payments/pagarme/credit', async (req, res) => {
     const body = req.body || {};
     const orderId = body.orderId || body.order_id || null;
     const order = normalizeObjectId(orderId) ? await Order.findById(orderId) : null;
-    const payload = buildPagarmeCreditPayload(body, order);
+    let payload = buildPagarmeCreditPayload(body, order);
+    const splitSummary = order ? await buildSellerSplitSummary(order) : { sellers: [], totalMarketplaceAmount: 0 };
+    const paymentSettingsForSplit = await getPaymentsSettings();
+    payload.settings = { marketplaceRecipientId: paymentSettingsForSplit.pagarme?.marketplaceRecipientId || process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '' };
+    payload = applyPagarmeSplitToPayload(payload, splitSummary);
+    delete payload.settings;
 
     const response = await createPagarmeOrder(payload);
     const pagarmeData = response.data || {};
@@ -7786,7 +7942,7 @@ app.post('/api/payments/pagarme/credit', async (req, res) => {
       statusCode: response.status,
       request: payload,
       response: pagarmeData,
-      metadata: { provider: 'pagarme', orderUpdated: !!updatedOrder }
+      metadata: { provider: 'pagarme', orderUpdated: !!updatedOrder, splitSummary }
     });
 
     return res.status(response.status).json({
