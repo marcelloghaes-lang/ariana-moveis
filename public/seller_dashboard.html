@@ -281,6 +281,61 @@ async function copySellerStoreLink() {
 
 
     
+
+function isSellerApproved(seller = {}) {
+  const status = String(
+    seller.status ||
+    seller.sellerStatus ||
+    seller.approvalStatus ||
+    localStorage.getItem("seller_status") ||
+    ""
+  ).trim().toLowerCase();
+
+  return (
+    status === "approved" ||
+    status === "aprovado" ||
+    status === "approve" ||
+    seller.active === true ||
+    localStorage.getItem("seller_active") === "true"
+  );
+}
+
+function applySellerProfileLock(seller = {}) {
+  const approved = isSellerApproved(seller);
+
+  const lockedIds = [
+    "seller-store-name",
+    "seller-display-name",
+    "seller-document",
+    "seller-email"
+  ];
+
+  lockedIds.forEach((id) => {
+    const input = $(id);
+    if (!input) return;
+    input.readOnly = approved;
+    input.disabled = false;
+    input.classList.toggle("bg-gray-100", approved);
+    input.classList.toggle("text-gray-500", approved);
+    input.classList.toggle("cursor-not-allowed", approved);
+    input.title = approved
+      ? "Este dado cadastral fica bloqueado após aprovação. Para alterar, solicite ao administrador da Ariana Móveis."
+      : "";
+  });
+
+  let warning = $("seller-profile-lock-warning");
+  const form = $("seller-profile-form");
+  if (approved && form && !warning) {
+    warning = document.createElement("div");
+    warning.id = "seller-profile-lock-warning";
+    warning.className = "lg:col-span-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-xl px-4 py-3 text-sm";
+    warning.innerHTML = '<i class="fas fa-lock mr-2"></i>Dados jurídicos bloqueados após aprovação: nome da loja, responsável, CPF/CNPJ e e-mail. Para alterar esses dados, solicite ao administrador da Ariana Móveis.';
+    form.insertBefore(warning, form.firstChild);
+  } else if (!approved && warning) {
+    warning.remove();
+  }
+}
+
 function fillSellerProfileForm(seller = {}, user = {}) {
   const meta = seller.metadata || {};
   const set = (id, value) => { const el = $(id); if (el) el.value = value || ""; };
@@ -299,22 +354,30 @@ function fillSellerProfileForm(seller = {}, user = {}) {
     badge.textContent = status.toUpperCase();
     badge.className = "text-xs font-bold px-3 py-1 rounded-full " + (seller.active === false ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700");
   }
+
+  applySellerProfileLock(seller);
 }
 
 async function saveSellerProfile(event) {
   event.preventDefault();
   try {
+    const currentSeller = getSellerProfile();
+    const approved = isSellerApproved(currentSeller);
+
     const payload = {
-      storeName: $("seller-store-name")?.value || "",
-      displayName: $("seller-display-name")?.value || "",
-      document: $("seller-document")?.value || "",
       phone: $("seller-phone")?.value || "",
-      email: $("seller-email")?.value || "",
       cep: $("seller-cep")?.value || "",
       address: $("seller-address")?.value || "",
       city: $("seller-city")?.value || "",
       uf: $("seller-uf")?.value || ""
     };
+
+    if (!approved) {
+      payload.storeName = $("seller-store-name")?.value || "";
+      payload.displayName = $("seller-display-name")?.value || "";
+      payload.document = $("seller-document")?.value || "";
+      payload.email = $("seller-email")?.value || "";
+    }
     const res = await fetch(`${API_BASE}/seller/profile`, {
       method: "PATCH",
       headers: authHeaders({ "Content-Type": "application/json" }),

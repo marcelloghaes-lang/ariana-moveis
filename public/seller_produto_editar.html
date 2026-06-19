@@ -1,14 +1,145 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>Editar Produto | ARIANA MÓVEIS</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    const API_BASE =
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root{--primary:#2E6DA4;--dark:#1D2B3A;--bg:#F5F7FA;--success:#10b981;--danger:#ef4444}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg)}
+    .bg-primary-blue{background:#2E6DA4}.text-primary-blue{color:#2E6DA4}.bg-dark-bg{background:#1D2B3A}
+    .bg-fundo-claro{background:#F5F7FA}.bg-dark-gray-bg{background:#222}.bg-error-red{background:#ef4444}.bg-success-green{background:#10b981}
+    .animate-fade{animation:fade-in .3s ease-out}@keyframes fade-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    #toast-container{position:fixed;top:20px;right:20px;z-index:60}.toast{box-shadow:0 4px 14px rgba(0,0,0,.15);transition:opacity .25s ease}
+    .product-section{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:20px}
+    .dimensions-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+    @media (max-width:640px){.dimensions-grid{grid-template-columns:repeat(2,1fr)}}
+    .preview-img{width:86px;height:86px;object-fit:cover;border-radius:14px;border:1px solid #e5e7eb;background:#f8fafc}
+  </style>
+</head>
+<body class="bg-fundo-claro min-h-screen flex">
+  <div id="toast-container" class="space-y-3"></div>
+
+  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+    <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
+    <nav class="flex flex-col space-y-2">
+      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+      <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
+      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+      <a href="logistica_etiquetas.html?from=seller" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-truck-loading"></i><span>Logística / Etiquetas</span></a>
+      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
+      <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
+      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
+      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+    </nav>
+  </aside>
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
+      <h1 class="text-xl font-semibold">Painel do Seller</h1>
+      <div class="flex items-center gap-4">
+        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+      </div>
+    </header>
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6">
+      <div class="flex items-center justify-between gap-4 flex-wrap mb-8">
+        <div>
+          <h1 class="text-3xl font-black text-slate-900">Editar produto</h1>
+          <p class="text-sm text-gray-500 mt-1">Altere somente produtos da sua loja.</p>
+        </div>
+        <span id="productIdPill" class="hidden bg-slate-100 text-slate-700 px-3 py-2 rounded-xl text-xs font-mono"></span>
+      </div>
+
+      <form id="product-form" class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+        <div class="product-section">
+          <h2 class="text-xl font-black text-slate-900 mb-2">Imagens do produto</h2>
+          <p class="text-gray-600 mb-4">Para trocar as imagens, escolha novos arquivos. Se não escolher, as imagens atuais serão mantidas.</p>
+          <input id="file-input" type="file" multiple accept="image/*" class="w-full p-4 border rounded-xl">
+          <div id="image-preview" class="flex gap-3 flex-wrap mt-4"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-slate-800 mb-2">Nome do produto</label>
+            <input id="p-name" placeholder="Nome do produto" required class="w-full p-4 border rounded-xl">
+          </div>
+          <div class="space-y-2">
+            <label class="block text-sm font-bold text-slate-800">SKU</label>
+            <div class="flex gap-2">
+              <input id="p-sku" placeholder="Ex: SOFA-001" class="w-full p-4 border rounded-xl uppercase">
+              <button id="btn-generate-sku" type="button" class="px-4 rounded-xl bg-slate-100 font-bold whitespace-nowrap">Gerar SKU</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <select id="p-category" required class="w-full p-4 border rounded-xl">
+            <option value="">Selecione uma Categoria</option>
+          </select>
+          <select id="p-subcategory" class="w-full p-4 border rounded-xl">
+            <option value="">Selecione uma Subcategoria</option>
+          </select>
+          <input id="p-categorySlug" type="text" placeholder="Slug da categoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
+          <input id="p-subcategorySlug" type="text" placeholder="Slug da subcategoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-slate-800 mb-2">Estoque</label>
+            <input id="p-stock" type="number" min="0" placeholder="Estoque" required class="w-full p-4 border rounded-xl">
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-800 mb-2">Preço</label>
+            <input id="p-price" type="number" min="0" step="0.01" placeholder="Preço" required class="w-full p-4 border rounded-xl">
+          </div>
+        </div>
+
+        <section class="product-section">
+          <h2 class="text-xl font-black text-slate-900 mb-2">Dimensões e Peso para Frete</h2>
+          <p class="text-gray-600 mb-4">Informe as medidas da embalagem de envio (em cm) e o peso real (em kg).</p>
+          <div class="dimensions-grid">
+            <div><label for="p-weight" class="block text-sm font-semibold text-gray-700 mb-1">Peso (kg)</label><input id="p-weight" type="number" step="0.01" min="0.01" required class="w-full p-4 border rounded-xl"></div>
+            <div><label for="p-length" class="block text-sm font-semibold text-gray-700 mb-1">Comprimento (cm)</label><input id="p-length" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
+            <div><label for="p-width" class="block text-sm font-semibold text-gray-700 mb-1">Largura (cm)</label><input id="p-width" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
+            <div><label for="p-height" class="block text-sm font-semibold text-gray-700 mb-1">Altura (cm)</label><input id="p-height" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
+          </div>
+        </section>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-800 mb-2">Descrição do produto</label>
+          <textarea id="p-desc" placeholder="Descrição comercial do produto" required class="w-full p-4 border rounded-xl min-h-[130px]"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-800 mb-2">Especificação técnica</label>
+          <textarea id="p-specs" placeholder="Ex: Processador, memória, medidas, voltagem, material, garantia..." class="w-full p-4 border rounded-xl min-h-[150px]"></textarea>
+        </div>
+
+        <label class="inline-flex items-center gap-2 font-bold text-slate-700">
+          <input id="p-active" type="checkbox" class="w-5 h-5" checked>
+          Produto ativo no site
+        </label>
+
+        <button id="btn-submit" type="submit" class="bg-primary-blue text-white py-4 rounded-xl font-black w-full">Salvar alterações</button>
+      </form>
+    </main>
+  </div>
+
+<script>
+const API_BASE =
   (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
     ? 'http://localhost:3000/api'
     : 'https://ariana-backend.onrender.com/api';
@@ -18,161 +149,328 @@ try {
   localStorage.setItem('API_BASE_URL', API_BASE);
 } catch(_e) {}
 
-    const $ = (id) => document.getElementById(id);
-    function getSellerToken() {
-      return localStorage.getItem('seller_token') || '';
+const $ = (id) => document.getElementById(id);
+const productId = new URLSearchParams(window.location.search).get('id');
+let currentProduct = null;
+let loadedCategories = [];
+let loadedSubcategories = [];
+
+function getSellerToken() { return localStorage.getItem('seller_token') || ''; }
+function getSellerProfile() { try { return JSON.parse(localStorage.getItem('seller_profile') || '{}') || {}; } catch (_) { return {}; } }
+function clearSellerSession() {
+  localStorage.removeItem('seller_token');
+  localStorage.removeItem('seller_profile');
+  localStorage.removeItem('seller_status');
+  localStorage.removeItem('seller_active');
+  localStorage.removeItem('partner_request_id');
+}
+function authHeaders(extra = {}) {
+  const token = getSellerToken();
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+}
+function ensureSellerSession() {
+  if (!getSellerToken()) {
+    window.location.href = 'seller_login.html';
+    return false;
+  }
+  return true;
+}
+function applySellerHeaderName() {
+  const profile = getSellerProfile();
+  const el = $('user-display-name');
+  if (el) el.textContent = 'Bem-vindo, ' + (profile.factoryName || profile.storeName || profile.name || 'Seller') + '!';
+}
+function slugify(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+function showToast(message, type = 'info') {
+  const box = $('toast-container');
+  if (!box) return alert(message);
+  const el = document.createElement('div');
+  el.className = `toast px-4 py-3 rounded-xl text-white font-bold ${type === 'error' ? 'bg-error-red' : type === 'success' ? 'bg-success-green' : 'bg-primary-blue'}`;
+  el.textContent = message;
+  box.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 250); }, 3000);
+}
+function moneyToNumber(value) {
+  if (typeof value === 'number') return value;
+  return Number(String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '')) || 0;
+}
+function resolveImageUrl(product) {
+  const candidates = [product?.imageUrl, product?.mainImageUrl, product?.image, product?.imagem];
+  if (Array.isArray(product?.images)) {
+    for (const item of product.images) {
+      if (typeof item === 'string' && item.trim()) candidates.push(item.trim());
+      if (item?.url) candidates.push(item.url);
     }
-    function getSellerProfile() {
-      try { return JSON.parse(localStorage.getItem('seller_profile') || '{}') || {}; } catch (_) { return {}; }
-    }
-    function clearSellerSession() {
-      localStorage.removeItem('seller_token');
-      localStorage.removeItem('seller_profile');
-      localStorage.removeItem('seller_status');
-      localStorage.removeItem('seller_active');
-      localStorage.removeItem('partner_request_id');
-    }
-    function authHeaders(extra = {}) {
-      const token = getSellerToken();
-      return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
-    }
-    function ensureSellerSession() {
-      const token = getSellerToken();
-      if (!token) {
-        window.location.href = 'seller_login.html';
-        return false;
-      }
-      return true;
-    }
-    const productId = new URLSearchParams(window.location.search).get('id');
-    let currentProduct = null;
-
-    function showToast(message, type = 'info') {
-      const box = $('toast-container');
-      if (!box) return alert(message);
-      const el = document.createElement('div');
-      el.className = `toast px-4 py-3 rounded-xl text-white font-bold ${type === 'error' ? 'bg-error-red' : type === 'success' ? 'bg-success-green' : 'bg-primary-blue'}`;
-      el.textContent = message;
-      box.appendChild(el);
-      setTimeout(() => {
-        el.style.opacity = '0';
-        setTimeout(() => el.remove(), 250);
-      }, 3000);
-    }
-
-    function resolveImageUrl(product) {
-      const candidates = [product?.imageUrl, product?.mainImageUrl, product?.image, product?.imagem];
-      if (Array.isArray(product?.images)) {
-        for (const item of product.images) {
-          if (typeof item === 'string' && item.trim()) candidates.push(item.trim());
-          if (item?.url) candidates.push(item.url);
-        }
-      }
-      for (const item of candidates) {
-        const value = String(item || '').trim();
-        if (value && !value.includes('${')) return value;
-      }
-      return '';
-    }
-
-    async function loadProduct() {
-      if (!ensureSellerSession()) return;
-      if (!productId) return;
-      try {
-        const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
-        if (meRes.status === 401 || meRes.status === 403) {
-          clearSellerSession();
-          window.location.href = 'seller_login.html';
-          return;
-        }
-
-        const res = await fetch(`${API_BASE}/seller/products/${productId}`, { headers: authHeaders() });
-        if (res.status === 401 || res.status === 403) {
-          clearSellerSession();
-          window.location.href = 'seller_login.html';
-          return;
-        }
-        if (!res.ok) throw new Error('Produto não encontrado.');
-        const p = await res.json();
-        currentProduct = p || {};
-
-        $('productIdPill').textContent = p._id || p.id;
-        $('productIdPill').classList.remove('hidden');
-        $('name').value = p.name || p.nome || '';
-        $('sku').value = p.sku || '';
-        $('price').value = p.price || p.preco || 0;
-        $('stock').value = p.stock || p.estoque || 0;
-        $('category').value = p.category || p.categoria || p.categoryName || '';
-        $('imageUrl').value = resolveImageUrl(p);
-        $('description').value = p.description || p.descricao || '';
-        $('pesoKg').value = p.pesoKg || p.weight || '';
-        $('comprimento').value = p.comprimento || p.length || '';
-        $('largura').value = p.largura || p.width || '';
-        $('altura').value = p.altura || p.height || '';
-        $('active').checked = p.active !== false;
-      } catch (e) {
-        console.error(e);
-        showToast(e.message || 'Falha ao carregar produto.', 'error');
-      }
-    }
-
-    $('form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = $('btn-save');
-      btn.disabled = true;
-      btn.textContent = 'Salvando...';
-
-      const imageUrl = $('imageUrl').value.trim();
-      const payload = {
-        name: $('name').value.trim(),
-        nome: $('name').value.trim(),
-        sku: $('sku').value.trim(),
-        price: Number($('price').value || 0),
-        preco: Number($('price').value || 0),
-        stock: Number($('stock').value || 0),
-        category: $('category').value.trim() || currentProduct?.category || currentProduct?.categoria || '',
-        categoria: $('category').value.trim() || currentProduct?.category || currentProduct?.categoria || '',
-        description: $('description').value.trim(),
-        descricao: $('description').value.trim(),
-        imageUrl: imageUrl || resolveImageUrl(currentProduct),
-        mainImageUrl: imageUrl || resolveImageUrl(currentProduct),
-        image: imageUrl || resolveImageUrl(currentProduct),
-        pesoKg: Number($('pesoKg').value || 0),
-        comprimento: Number($('comprimento').value || 0),
-        largura: Number($('largura').value || 0),
-        altura: Number($('altura').value || 0),
-        active: $('active').checked,
-      };
-
-      if (Array.isArray(currentProduct?.images) && currentProduct.images.length) {
-        payload.images = currentProduct.images;
-      } else if (payload.imageUrl) {
-        payload.images = [{ name: 'principal', url: payload.imageUrl, isMain: true }];
-      }
-
-      try {
-        if (!ensureSellerSession()) return;
-        const res = await fetch(`${API_BASE}/seller/products/${productId}`, {
-          method: 'PUT',
-          headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(result.error || result.message || 'Erro ao salvar produto.');
-        showToast('Produto atualizado com sucesso!', 'success');
-        window.location.href = 'seller_produtos.html';
-      } catch (e) {
-        console.error(e);
-        showToast(e.message || 'Erro ao salvar.', 'error');
-        btn.disabled = false;
-        btn.textContent = 'Salvar alterações';
-      }
+  }
+  for (const item of candidates) {
+    const value = String(item || '').trim();
+    if (value && !value.includes('${')) return value;
+  }
+  return '';
+}
+function renderPreviewFromProduct(product = {}) {
+  const box = $('image-preview');
+  if (!box) return;
+  const urls = [];
+  if (Array.isArray(product.images)) {
+    product.images.forEach((img) => {
+      const url = typeof img === 'string' ? img : img?.url;
+      if (url) urls.push(url);
     });
+  }
+  const main = resolveImageUrl(product);
+  if (main && !urls.includes(main)) urls.unshift(main);
+  box.innerHTML = urls.slice(0, 8).map((url) => `<img class="preview-img" src="${String(url).replace(/"/g, '&quot;')}" alt="Imagem do produto">`).join('');
+}
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+  });
+}
+function normalizeCategoryRows(raw) {
+  const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || raw.categories || []);
+  return rows.filter(Boolean);
+}
+async function loadCategories() {
+  const select = $('p-category');
+  if (!select) return;
+  try {
+    const tries = [`${API_BASE}/categories`, `${API_BASE}/admin/categories`];
+    let rows = [];
+    for (const url of tries) {
+      const res = await fetch(url, { headers: authHeaders() });
+      if (!res.ok) continue;
+      rows = normalizeCategoryRows(await res.json().catch(() => []));
+      if (rows.length) break;
+    }
+    loadedCategories = rows.filter((c) => !c.parentId && !c.parent_id && !c.parent && c.active !== false);
+    loadedSubcategories = rows.filter((c) => c.parentId || c.parent_id || c.parent);
+    if (!loadedCategories.length) loadedCategories = rows.filter((c) => c.active !== false);
+    select.innerHTML = '<option value="">Selecione uma Categoria</option>' + loadedCategories.map((c) => {
+      const name = c.name || c.nome || c.category || 'Sem nome';
+      const slug = c.slug || slugify(name);
+      const id = c.id || c._id || slug;
+      return `<option value="${String(name).replace(/"/g, '&quot;')}" data-id="${String(id).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`;
+    }).join('');
+  } catch (error) {
+    console.warn('Falha ao carregar categorias:', error);
+  }
+}
+function loadSubcategoriesForSelected() {
+  const categorySelect = $('p-category');
+  const subSelect = $('p-subcategory');
+  if (!categorySelect || !subSelect) return;
+  const selected = categorySelect.selectedOptions?.[0];
+  const catId = selected?.dataset?.id || '';
+  const catSlug = selected?.dataset?.slug || slugify(categorySelect.value);
+  const catName = categorySelect.value;
+  const subs = loadedSubcategories.filter((c) => {
+    const parent = String(c.parentId || c.parent_id || c.parent || '').trim();
+    return parent === catId || parent === catSlug || parent === catName;
+  });
+  subSelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>' + subs.map((c) => {
+    const name = c.name || c.nome || c.category || 'Sem nome';
+    const slug = c.slug || slugify(name);
+    return `<option value="${String(name).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`;
+  }).join('');
+}
+function syncCategoryFields() {
+  const categorySelect = $('p-category');
+  const subcategorySelect = $('p-subcategory');
+  const selectedCategory = categorySelect?.selectedOptions?.[0];
+  const selectedSubcategory = subcategorySelect?.selectedOptions?.[0];
+  if ($('p-categorySlug')) $('p-categorySlug').value = selectedCategory?.dataset?.slug || slugify(categorySelect?.value || '');
+  if ($('p-subcategorySlug')) $('p-subcategorySlug').value = selectedSubcategory?.dataset?.slug || slugify(subcategorySelect?.value || '');
+}
+function setSelectByValue(selectId, value) {
+  const select = $(selectId);
+  const desired = String(value || '').trim();
+  if (!select || !desired) return;
+  const lower = desired.toLowerCase();
+  for (const opt of Array.from(select.options)) {
+    if (String(opt.value || '').toLowerCase() === lower || String(opt.textContent || '').toLowerCase() === lower || String(opt.dataset.slug || '').toLowerCase() === lower) {
+      select.value = opt.value;
+      return;
+    }
+  }
+  const opt = document.createElement('option');
+  opt.value = desired;
+  opt.textContent = desired;
+  opt.dataset.slug = slugify(desired);
+  select.appendChild(opt);
+  select.value = desired;
+}
+function parseSpecsToText(specs) {
+  if (!specs) return '';
+  if (typeof specs === 'string') return specs;
+  if (Array.isArray(specs)) return specs.map((item) => typeof item === 'string' ? item : `${item.name || item.label || ''}: ${item.value || ''}`.replace(/^: /, '')).join('\n');
+  if (typeof specs === 'object') return Object.entries(specs).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
+  return String(specs || '');
+}
+function specsTextToObject(text = '') {
+  const raw = String(text || '').trim();
+  if (!raw) return {};
+  const out = {};
+  raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((line, index) => {
+    const parts = line.split(/[:：]/);
+    if (parts.length >= 2) {
+      const key = parts.shift().trim();
+      const value = parts.join(':').trim();
+      if (key) out[key] = value;
+    } else {
+      out[`item_${index + 1}`] = line;
+    }
+  });
+  return out;
+}
+function generateSku() {
+  const base = slugify($('p-name')?.value || 'produto').replace(/-/g, '').slice(0, 8).toUpperCase() || 'PRODUTO';
+  $('p-sku').value = `${base}-${Date.now().toString().slice(-6)}`;
+}
+async function loadProduct() {
+  if (!ensureSellerSession()) return;
+  applySellerHeaderName();
+  if (!productId) {
+    showToast('Produto não informado. Abra a edição pela lista Meus Produtos.', 'error');
+    return;
+  }
+  try {
+    await loadCategories();
+    const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`, { headers: authHeaders() });
+    if (res.status === 401 || res.status === 403) {
+      clearSellerSession();
+      window.location.href = 'seller_login.html';
+      return;
+    }
+    const raw = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(raw.error || raw.message || 'Produto não encontrado.');
+    const p = raw.product || raw.item || raw;
+    currentProduct = p || {};
 
-    window.onload = loadProduct;
-    $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
-    $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
-  </script>
-  <script src="js/product-card.js" defer></script>
+    $('productIdPill').textContent = p._id || p.id || productId;
+    $('productIdPill').classList.remove('hidden');
+    $('p-name').value = p.name || p.nome || '';
+    $('p-sku').value = p.sku || '';
+    $('p-price').value = p.price ?? p.preco ?? 0;
+    $('p-stock').value = p.stock ?? p.estoque ?? 0;
+    setSelectByValue('p-category', p.category || p.categoria || p.categoryName || '');
+    loadSubcategoriesForSelected();
+    setSelectByValue('p-subcategory', p.subcategory || p.subcategoria || p.subcategoryName || '');
+    syncCategoryFields();
+    $('p-desc').value = p.description || p.descricao || '';
+    $('p-specs').value = parseSpecsToText(p.specs || p.especificacoes || p.technicalSpecs || p.specifications || '');
+    $('p-weight').value = p.weight ?? p.pesoKg ?? p.peso ?? '';
+    $('p-length').value = p.length ?? p.comprimento ?? '';
+    $('p-width').value = p.width ?? p.largura ?? '';
+    $('p-height').value = p.height ?? p.altura ?? '';
+    $('p-active').checked = p.active !== false;
+    renderPreviewFromProduct(p);
+  } catch (e) {
+    console.error(e);
+    showToast(e.message || 'Falha ao carregar produto.', 'error');
+  }
+}
+async function buildImagesPayload() {
+  const files = Array.from($('file-input')?.files || []);
+  if (!files.length) {
+    if (Array.isArray(currentProduct?.images) && currentProduct.images.length) return currentProduct.images;
+    const currentUrl = resolveImageUrl(currentProduct);
+    return currentUrl ? [{ name: 'principal', url: currentUrl, isMain: true }] : [];
+  }
+  const imageList = [];
+  for (const file of files) {
+    const dataUrl = await toBase64(file);
+    imageList.push({ name: file.name, url: dataUrl, isMain: imageList.length === 0 });
+  }
+  return imageList;
+}
+async function saveProduct(event) {
+  event.preventDefault();
+  const btn = $('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+  try {
+    if (!ensureSellerSession()) return;
+    const images = await buildImagesPayload();
+    const mainImageUrl = images.find((item) => item?.isMain)?.url || images[0]?.url || resolveImageUrl(currentProduct) || '';
+    const specsText = $('p-specs').value.trim();
+    const payload = {
+      name: $('p-name').value.trim(),
+      nome: $('p-name').value.trim(),
+      sku: $('p-sku').value.trim() || currentProduct?.sku || `SKU-${Date.now()}`,
+      price: moneyToNumber($('p-price').value),
+      preco: moneyToNumber($('p-price').value),
+      stock: Number($('p-stock').value || 0),
+      estoque: Number($('p-stock').value || 0),
+      category: $('p-category').value,
+      categoria: $('p-category').value,
+      categorySlug: $('p-categorySlug').value || slugify($('p-category').value),
+      subcategory: $('p-subcategory').value,
+      subcategorySlug: $('p-subcategorySlug').value || slugify($('p-subcategory').value),
+      description: $('p-desc').value.trim(),
+      descricao: $('p-desc').value.trim(),
+      specs: specsTextToObject(specsText),
+      technicalSpecs: specsText,
+      especificacoes: specsText,
+      imageUrl: mainImageUrl,
+      mainImageUrl: mainImageUrl,
+      image: mainImageUrl,
+      imagem: mainImageUrl,
+      images,
+      weight: Number($('p-weight').value || 0),
+      length: Number($('p-length').value || 0),
+      width: Number($('p-width').value || 0),
+      height: Number($('p-height').value || 0),
+      pesoKg: Number($('p-weight').value || 0),
+      comprimento: Number($('p-length').value || 0),
+      largura: Number($('p-width').value || 0),
+      altura: Number($('p-height').value || 0),
+      active: $('p-active').checked
+    };
+    if (!payload.name || !payload.price) throw new Error('Nome e preço são obrigatórios.');
+    const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) {
+      clearSellerSession();
+      window.location.href = 'seller_login.html';
+      return;
+    }
+    if (!res.ok) throw new Error(result.error || result.message || 'Erro ao salvar produto.');
+    showToast('Produto atualizado com sucesso!', 'success');
+    window.location.href = 'seller_produtos.html';
+  } catch (e) {
+    console.error(e);
+    showToast(e.message || 'Erro ao salvar.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = 'Salvar alterações';
+  }
+}
+
+$('btn-generate-sku')?.addEventListener('click', generateSku);
+$('p-name')?.addEventListener('blur', () => { if (!$('p-sku').value.trim()) generateSku(); });
+$('p-category')?.addEventListener('change', () => { loadSubcategoriesForSelected(); syncCategoryFields(); });
+$('p-subcategory')?.addEventListener('change', syncCategoryFields);
+$('product-form')?.addEventListener('submit', saveProduct);
+$('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
+$('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
+window.onload = loadProduct;
+</script>
+<script src="js/product-card.js" defer></script>
+<script src="./product-card.js"></script>
+<script src="js/layout-fit.js" defer></script>
 </body>
 </html>

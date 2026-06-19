@@ -4841,6 +4841,33 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   }
 });
 
+app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    const sid = String(req.sellerId || '').trim();
+    const existing = await Product.findOne({ _id: oid, sellerId: sid });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    }
+
+    const payload = productPayloadFromBody(req.body || {}, existing);
+    payload.sellerId = sid;
+    payload.sellerName = existing.sellerName || req.seller?.storeName || req.seller?.displayName || 'Seller';
+
+    const updated = await Product.findOneAndUpdate(
+      { _id: oid, sellerId: sid },
+      { $set: payload },
+      { new: true }
+    );
+
+    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar produto' });
+  }
+});
+
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
   if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
