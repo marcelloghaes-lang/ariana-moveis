@@ -72,21 +72,17 @@
         <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
           <div>
             <h2 class="text-2xl font-bold text-gray-800">Extrato</h2>
-            <p class="text-sm text-gray-500 mt-1">Bruto cobrado, taxa cartão, comissão, etiqueta Ariana e líquido final por pedido.</p>
+            <p class="text-sm text-gray-500 mt-1">Bruto base do seller, comissão, etiqueta Ariana e líquido final por pedido.</p>
           </div>
           <button id="btn-refresh" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:opacity-95 transition">
             <i class="fas fa-rotate mr-2"></i>Atualizar
           </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
             <div class="text-xs font-bold text-gray-500 uppercase">Bruto</div>
             <div id="kpi-gross" class="text-2xl font-black text-gray-800 mt-2">R$ 0,00</div>
-          </div>
-          <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-            <div class="text-xs font-bold text-gray-500 uppercase">Taxa cartão 17%</div>
-            <div id="kpi-card" class="text-2xl font-black text-orange-600 mt-2">R$ 0,00</div>
           </div>
           <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
             <div class="text-xs font-bold text-gray-500 uppercase">Comissão</div>
@@ -107,16 +103,14 @@
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pedido</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cobrado</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Taxa cartão</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Base seller</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bruto</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Comissão</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Etiqueta Ariana</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Líquido</th>
               </tr>
             </thead>
             <tbody id="tb" class="bg-white divide-y divide-gray-200">
-              <tr><td colspan="7" class="px-6 py-6 text-center text-gray-500">Carregando dados do MongoDB...</td></tr>
+              <tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Carregando dados do MongoDB...</td></tr>
             </tbody>
           </table>
         </div>
@@ -182,16 +176,14 @@ function applySellerHeaderName() {
         if (!res.ok) throw new Error(items?.message || `Erro ${res.status}`);
 
         if (!items.length) {
-          tb.innerHTML = '<tr><td colspan="7" class="px-6 py-6 text-center text-gray-500">Nenhum movimento encontrado.</td></tr>';
+          tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Nenhum movimento encontrado.</td></tr>';
           return;
         }
 
-        let chargedTotal = 0, cardTotal = 0, grossTotal = 0, feeTotal = 0, labelTotal = 0, netTotal = 0;
+        let grossTotal = 0, feeTotal = 0, labelTotal = 0, netTotal = 0;
         tb.innerHTML = "";
 
         items.forEach((item) => {
-          chargedTotal += Number(item.chargedGross || item.gross || 0);
-          cardTotal += Number(item.cardMarkupAmount || 0);
           grossTotal += Number(item.gross || 0);
           feeTotal += Number(item.fee || item.commission || 0);
           labelTotal += item.label;
@@ -200,8 +192,6 @@ function applySellerHeaderName() {
           tb.insertAdjacentHTML("beforeend", `
             <tr>
               <td class="px-6 py-4 text-sm font-mono text-gray-900">#${String(item.id).substring(0,8).toUpperCase()}</td>
-              <td class="px-6 py-4 text-sm text-gray-900 text-right">${money(item.chargedGross || item.gross)}</td>
-              <td class="px-6 py-4 text-sm text-orange-600 text-right">-${money(item.cardMarkupAmount || 0)}</td>
               <td class="px-6 py-4 text-sm text-gray-900 text-right">${money(item.gross)}</td>
               <td class="px-6 py-4 text-sm text-error-red text-right">-${money(item.fee)}</td>
               <td class="px-6 py-4 text-sm text-yellow-700 text-right">-${money(item.label)}</td>
@@ -210,14 +200,13 @@ function applySellerHeaderName() {
           `);
         });
 
-        byId("kpi-gross").textContent = money(chargedTotal);
-        byId("kpi-card").textContent = money(cardTotal);
+        byId("kpi-gross").textContent = money(grossTotal);
         byId("kpi-fee").textContent = money(feeTotal);
         byId("kpi-label").textContent = money(labelTotal);
         byId("kpi-net").textContent = money(netTotal);
 
       } catch (err) {
-        tb.innerHTML = '<tr><td colspan="7" class="px-6 py-6 text-center text-red-500">Erro ao conectar com o servidor.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-red-500">Erro ao conectar com o servidor.</td></tr>';
       }
     }
 

@@ -78,14 +78,10 @@
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                     <div class="text-xs text-gray-500 font-bold uppercase">Total bruto aprovado</div>
                     <div id="gross" class="text-2xl font-black text-dark-bg mt-2">R$ 0,00</div>
-                </div>
-                <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                    <div class="text-xs text-gray-500 font-bold uppercase">Taxa cartão 17%</div>
-                    <div id="cardFee" class="text-2xl font-black text-orange-600 mt-2">R$ 0,00</div>
                 </div>
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                     <div class="text-xs text-gray-500 font-bold uppercase">Comissão Ariana (12%)</div>
@@ -109,9 +105,7 @@
                             <tr>
                                 <th class="py-3 px-3 text-left">ID Pedido</th>
                                 <th class="py-3 px-3 text-left">Data</th>
-                                <th class="py-3 px-3 text-right">Cobrado</th>
-                                <th class="py-3 px-3 text-right">Taxa cartão</th>
-                                <th class="py-3 px-3 text-right">Base seller</th>
+                                <th class="py-3 px-3 text-right">Valor Bruto</th>
                                 <th class="py-3 px-3 text-right">Comissão</th>
                                 <th class="py-3 px-3 text-right">Seu Saldo</th>
                             </tr>
@@ -202,7 +196,6 @@ function applySellerHeaderName() {
             const sales = Array.isArray(rows) ? rows : [];
 
             let totalGross = 0;
-            let totalCardFee = 0;
             let totalFee = 0;
             let totalLabel = 0;
             let totalNet = 0;
@@ -215,8 +208,7 @@ function applySellerHeaderName() {
                 $("gross").textContent = money(0);
                 $("fee").textContent = money(0);
                 $("net").textContent = money(0);
-                if ($("cardFee")) $("cardFee").textContent = money(0);
-                return;
+                                return;
             }
 
             $("empty").classList.add("hidden");
@@ -224,14 +216,11 @@ function applySellerHeaderName() {
 
             sales.forEach(o => {
                 const brute = Number(o.gross || o.total || 0);
-                const charged = Number(o.chargedGross || brute);
-                const cardFee = Number(o.cardMarkupAmount || Math.max(0, charged - brute));
                 const fee = Number(o.fee || o.commission || 0);
                 const label = Number(o.label || o.labelCost || 0);
                 const net = Number(o.net || (brute - fee - label));
-                totalGross += charged;
+                totalGross += brute;
                 totalFee += fee;
-                totalCardFee = (typeof totalCardFee === 'number' ? totalCardFee : 0) + cardFee;
                 totalLabel += label;
                 totalNet += net;
 
@@ -239,8 +228,6 @@ function applySellerHeaderName() {
                     <tr class="hover:bg-gray-50 transition">
                         <td class="py-4 px-3 font-bold text-primary-blue">#${String(o.id || o.orderId || '').substring(0,8).toUpperCase()}</td>
                         <td class="py-4 px-3 text-gray-500">${o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '—'}</td>
-                        <td class="py-4 px-3 text-right font-bold text-dark-bg">${money(charged)}</td>
-                        <td class="py-4 px-3 text-right text-orange-600">${money(cardFee)}</td>
                         <td class="py-4 px-3 text-right font-bold text-dark-bg">${money(brute)}</td>
                         <td class="py-4 px-3 text-right text-error-red">${money(fee + label)}</td>
                         <td class="py-4 px-3 text-right font-black text-success-green">${money(net)}</td>
@@ -249,14 +236,13 @@ function applySellerHeaderName() {
             });
 
             $("gross").textContent = money(totalGross);
-            $("cardFee").textContent = money(totalCardFee);
             $("fee").textContent = money(totalFee + totalLabel);
             $("net").textContent = money(totalNet);
 
         } catch (e) {
             console.error("Erro ao carregar vendas:", e);
             const tb = $("tbody");
-            if (tb) tb.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-red-500 font-bold">Erro ao carregar vendas do seller.</td></tr>';
+            if (tb) tb.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-red-500 font-bold">Erro ao carregar vendas do seller.</td></tr>';
         }
     }
 

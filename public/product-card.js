@@ -116,15 +116,16 @@
     ensureCardStyles();
     const id = getProductId(product);
     const name = getProductName(product);
-    // PADRÃO OFICIAL ARIANA:
-    // - fullPrice = valor total no cartão / valor a prazo
-    // - pixPrice = valor com desconto no PIX
-    // - oldPrice = preço antigo riscado, quando cadastrado; se não vier, mostra o fullPrice riscado para manter o padrão visual
-    const fullPrice = getBasePrice(product);
-    const oldPriceFromProduct = getOldPrice(product, fullPrice);
+    // PADRÃO OFICIAL ARIANA MARKETPLACE:
+    // - product.price = preço base do seller / PIX / boleto
+    // - marketplacePrice/cardPrice/fullPrice = preço de cartão/parcelado com acréscimo embutido
+    // - a taxa de cartão fica invisível para o seller
     const pixPercent = getPixPercent(product);
-    const explicitPix = toNumberBR(product?.pixPrice ?? product?.precoPix ?? product?.cashPrice ?? product?.cash_price ?? product?.preco_avista ?? product?.precoVista, 0);
-    const pixPrice = explicitPix > 0 ? explicitPix : (fullPrice > 0 ? +(fullPrice * (1 - pixPercent / 100)).toFixed(2) : 0);
+    const sellerBasePrice = toNumberBR(product?.sellerBasePrice ?? product?.pixPrice ?? product?.price ?? product?.preco ?? 0, 0);
+    const explicitCard = toNumberBR(product?.marketplacePrice ?? product?.cardPrice ?? product?.fullPrice ?? product?.precoPrazo ?? 0, 0);
+    const fullPrice = explicitCard > 0 ? explicitCard : (sellerBasePrice > 0 ? +(sellerBasePrice / ((100 - pixPercent) / 100)).toFixed(2) : 0);
+    const pixPrice = sellerBasePrice;
+    const oldPriceFromProduct = getOldPrice(product, fullPrice);
     const oldPrice = oldPriceFromProduct > 0 ? oldPriceFromProduct : (fullPrice > pixPrice ? fullPrice : 0);
     const installmentCount = 12;
     const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;

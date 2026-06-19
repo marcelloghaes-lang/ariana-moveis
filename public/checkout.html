@@ -436,7 +436,21 @@
       return Number.isFinite(n) ? n : 0;
     };
 
-    const computeCartTotal = () =>
+    
+    function arianaSellerBasePrice(item) {
+      return safeNumber(item?.sellerBasePrice ?? item?.pixPrice ?? item?.basePrice ?? item?.price ?? item?.preco ?? 0);
+    }
+    function arianaMarketplacePrice(item) {
+      const explicit = safeNumber(item?.marketplacePrice ?? item?.cardPrice ?? item?.fullPrice ?? item?.precoPrazo ?? 0);
+      if (explicit > 0) return explicit;
+      const base = arianaSellerBasePrice(item);
+      return base > 0 ? +(base / 0.83).toFixed(2) : 0;
+    }
+    function arianaUnitPriceForPayment(item, method) {
+      return (String(method || '').toLowerCase() === 'card') ? arianaMarketplacePrice(item) : arianaSellerBasePrice(item);
+    }
+
+const computeCartTotal = () =>
       (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
         const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1);
         const price = safeNumber(i.price ?? i.valor ?? 0);
@@ -751,8 +765,8 @@ async function quoteShippingForCep(cepDestino) {
       sellerName: it.sellerName || 'Ariana Móveis',
       quantity: safeNumber(it.quantity ?? 1),
       qty: safeNumber(it.quantity ?? 1),
-      unitPrice: safeNumber(it.price ?? 0),
-      totalPrice: safeNumber(it.price ?? 0) * safeNumber(it.quantity ?? 1),
+      unitPrice: arianaMarketplacePrice(it),
+      totalPrice: arianaMarketplacePrice(it) * safeNumber(it.quantity ?? 1),
       pesoKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
       weightKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
       weight: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
@@ -1580,6 +1594,26 @@ async function quoteShippingForSelectedAddress(addrObj) {
           price: 0
         };
 
+        const orderItems = (Array.isArray(cart) ? cart : []).map((it) => {
+          const qty = safeNumber(it.quantity ?? it.qty ?? 1) || 1;
+          const sellerBaseUnitPrice = arianaSellerBasePrice(it);
+          const unitPrice = arianaUnitPriceForPayment(it, selectedPayCode);
+          return {
+            ...it,
+            qty,
+            quantity: qty,
+            sellerBasePrice: sellerBaseUnitPrice,
+            sellerBaseUnitPrice,
+            sellerBaseTotal: +(sellerBaseUnitPrice * qty).toFixed(2),
+            marketplacePrice: arianaMarketplacePrice(it),
+            unitPrice,
+            price: unitPrice,
+            totalPrice: +(unitPrice * qty).toFixed(2),
+            cardMarkupUnit: selectedPayCode === 'card' ? +(unitPrice - sellerBaseUnitPrice).toFixed(2) : 0,
+            cardMarkupTotal: selectedPayCode === 'card' ? +((unitPrice - sellerBaseUnitPrice) * qty).toFixed(2) : 0
+          };
+        });
+
         const orderPayload = {
           userId: authUser.uid || authUser.id || "",
           cpf: cpfToUse || "",
@@ -1619,7 +1653,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
             paymentMethod: selectedPayCode
           },
           shipping: shippingToSave,
-          items: cart,
+          items: orderItems,
           mp: {
             payer: mpPayer,
             additional_info: {

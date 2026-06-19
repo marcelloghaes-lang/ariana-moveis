@@ -215,6 +215,14 @@ function normalizeProductForResponse(doc) {
   obj.mainImagePath = mainImage ? (mainImage.path || mainImage.url) : (obj.mainImagePath || '');
   obj.imageUrls = normalizedImages.map((img) => img.url).filter(Boolean);
   obj.imagePaths = normalizedImages.map((img) => img.path || img.url).filter(Boolean);
+  const sellerBasePrice = roundMoney(obj.price || obj.preco || 0);
+  const marketplacePrice = sellerBaseToMarketplacePrice(sellerBasePrice);
+  obj.sellerBasePrice = sellerBasePrice;
+  obj.marketplacePrice = marketplacePrice;
+  obj.cardPrice = marketplacePrice;
+  obj.fullPrice = marketplacePrice;
+  obj.pixPrice = sellerBasePrice;
+  obj.pixDiscountPercent = MARKETPLACE_CARD_DISCOUNT_PERCENT;
   return obj;
 }
 
@@ -546,7 +554,7 @@ const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Type
 const ticketSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, orderId: { type: String, default: null }, protocolo: { type: String, index: true }, tipo: String, assunto: String, mensagem: String, status: { type: String, default: 'Novo' }, origem: { type: String, default: 'site' }, nome: String, email: String, telefone: String, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const contactSchema = new mongoose.Schema({ name: String, email: String, phone: String, subject: String, message: String, source: { type: String, default: 'fale_conosco' }, status: { type: String, default: 'novo' } }, baseOptions);
 const denunciaSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, productId: { type: String, default: null }, sellerId: { type: String, default: null }, motivo: String, descricao: String, status: { type: String, default: 'nova' }, nome: String, email: String }, baseOptions);
-const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed }, baseOptions);
+const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, sellerBaseUnitPrice: Number, sellerBaseTotal: Number, cardMarkupUnit: Number, cardMarkupTotal: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed }, baseOptions);
 const settingsSchema = new mongoose.Schema({ key: { type: String, unique: true, index: true }, value: mongoose.Schema.Types.Mixed, updatedBy: String }, baseOptions);
 const integrationAuditLogSchema = new mongoose.Schema({ scope: { type: String, default: 'integration' }, eventType: { type: String, default: 'unspecified', index: true }, orderId: { type: String, default: null, index: true }, manufacturer: { type: String, default: null, index: true }, integrationId: { type: String, default: null }, queueId: { type: String, default: null }, status: String, statusCode: Number, message: String, changedKeys: [String], request: mongoose.Schema.Types.Mixed, response: mongoose.Schema.Types.Mixed, metadata: mongoose.Schema.Types.Mixed, buildId: String }, baseOptions);
 const manufacturerIntegrationSchema = new mongoose.Schema({ manufacturer: { type: String, unique: true, index: true }, enabled: { type: Boolean, default: true }, endpoint: String, method: { type: String, default: 'POST' }, headers: mongoose.Schema.Types.Mixed, authType: String, authToken: String, apiKey: String, sendAs: { type: String, default: 'json', enum: ['json', 'form'] }, timeoutMs: { type: Number, default: 30000 }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
@@ -2864,6 +2872,51 @@ function formatMoneyBRL(value = 0) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY }).format(Number(value || 0));
 }
 
+
+// ============================================================
+// PREÇO MARKETPLACE / SELLER
+// Regra Ariana: o seller cadastra o preço líquido/base. O site
+// exibe preço parcelado/cartão com acréscimo embutido e PIX/BOLETO
+// voltam ao preço base com 17% OFF. O seller nunca vê a taxa cartão.
+// ============================================================
+const MARKETPLACE_CARD_DISCOUNT_PERCENT = Number(process.env.MARKETPLACE_CARD_DISCOUNT_PERCENT || 17);
+const MARKETPLACE_COMMISSION_PERCENT = Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12);
+function roundMoney(value = 0) { return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100; }
+function getMarketplaceFactor() { const p = Math.min(90, Math.max(0, Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17))); return roundMoney((100 - p) / 100) || 0.83; }
+function sellerBaseToMarketplacePrice(basePrice = 0) { const base = Number(basePrice || 0); if (!base) return 0; return roundMoney(base / getMarketplaceFactor()); }
+function marketplacePriceToSellerBase(chargedPrice = 0) { const charged = Number(chargedPrice || 0); if (!charged) return 0; return roundMoney(charged * getMarketplaceFactor()); }
+function isCreditCardPayment(method = '') { const m = String(method || '').toLowerCase(); return m.includes('card') || m.includes('cartao') || m.includes('cartão') || m.includes('credit'); }
+function getOrderPaymentMethod(order = {}) { return String(order?.payment?.method || order?.paymentMethod || order?.method || '').toLowerCase(); }
+function getItemSellerBaseTotal(item = {}, order = {}) {
+  const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
+  const explicit = Number(item.sellerBaseTotal || item.sellerSubtotal || item.baseTotal || 0);
+  if (explicit > 0) return roundMoney(explicit);
+  const explicitUnit = Number(item.sellerBaseUnitPrice || item.baseUnitPrice || item.basePrice || 0);
+  if (explicitUnit > 0) return roundMoney(explicitUnit * qty);
+  const chargedTotal = Number(item.totalPrice || ((Number(item.unitPrice || item.price || 0) || 0) * qty) || 0);
+  return isCreditCardPayment(getOrderPaymentMethod(order)) ? marketplacePriceToSellerBase(chargedTotal) : roundMoney(chargedTotal);
+}
+function getSellerSettlementForOrder(orderDoc = {}, sellerId = '') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sid = String(sellerId || '').trim();
+  const rows = ensureArray(order.items).filter((it) => !sid || String(it?.sellerId || it?.seller_id || '').trim() === sid);
+  const chargedGross = roundMoney(rows.reduce((sum, it) => sum + Number(it.totalPrice || ((Number(it.unitPrice || it.price || 0) || 0) * (Number(it.qty || it.quantity || 1) || 1)) || 0), 0));
+  const gross = roundMoney(rows.reduce((sum, it) => sum + getItemSellerBaseTotal(it, order), 0));
+  const commission = roundMoney(gross * (MARKETPLACE_COMMISSION_PERCENT / 100));
+  const labels = ensureArray(order.logisticsLabels || order.labels || []);
+  let labelFee = 0;
+  for (const label of labels) {
+    const ls = String(label?.sellerId || '').trim();
+    if (sid && ls && ls !== sid) continue;
+    const marketplace = label?.marketplace === true || label?.usesMarketplaceLabel === true || label?.provider === 'correios' || label?.provider === 'frenet' || label?.provider === 'ariana_local';
+    if (marketplace) labelFee += Number(label?.shippingCost || label?.cost || 0) || 0;
+  }
+  if (!labelFee && order.etiqueta && (order.shipping?.usesArianaLogistics || order.etiqueta?.provider)) labelFee = Number(order.etiqueta.shippingCost || 0) || 0;
+  labelFee = roundMoney(labelFee);
+  const net = roundMoney(gross - commission - labelFee);
+  return { chargedGross, gross, commission, fee: commission, label: labelFee, net, commissionPercent: MARKETPLACE_COMMISSION_PERCENT };
+}
+
 function formatOrderItemsForWhatsapp(items = []) {
   const rows = ensureArray(items).filter(Boolean).slice(0, 12).map((item) => {
     const qty = Number(item.qty || item.quantity || 1) || 1;
@@ -3946,48 +3999,6 @@ function sellerItemGross(order = {}, sellerId = '') {
   return round2(gross || order.subtotal || order.total || 0);
 }
 
-function getSellerCardMarkupPercent(order = {}) {
-  const p = Number(
-    order?.sellerFinance?.cardMarkupPercent ??
-    order?.sellerSettlement?.cardMarkupPercent ??
-    order?.payment?.cardMarkupPercent ??
-    order?.payment?.card_markup_percent ??
-    order?.cardMarkupPercent ??
-    process.env.CARD_MARKUP_PERCENT ??
-    17
-  );
-  return Number.isFinite(p) ? p : 17;
-}
-
-function itemSellerBaseTotal(item = {}, cardMarkupPercent = 17) {
-  const qty = Number(item?.qty ?? item?.quantity ?? item?.quantidade ?? 1) || 1;
-  const chargedTotal = Number(item?.totalPrice ?? item?.total ?? ((Number(item?.unitPrice ?? item?.price ?? item?.preco ?? 0) || 0) * qty)) || 0;
-
-  const explicitUnitBase = Number(
-    item?.sellerBasePrice ?? item?.basePrice ?? item?.pixPrice ?? item?.precoPix ?? item?.priceBase ?? item?.precoBase ?? 0
-  );
-  const explicitTotalBase = Number(
-    item?.sellerBaseTotal ?? item?.baseTotal ?? item?.pixTotal ?? item?.totalBase ?? 0
-  );
-
-  if (explicitTotalBase > 0) return round2(explicitTotalBase);
-  if (explicitUnitBase > 0) return round2(explicitUnitBase * qty);
-
-  // Regra Ariana: preço de cartão fica com acréscimo embutido.
-  // O repasse do seller e a comissão do marketplace são calculados sobre o preço base/PIX.
-  return round2(chargedTotal * (1 - (Number(cardMarkupPercent || 0) / 100)));
-}
-
-function sellerItemBaseGross(order = {}, sellerId = '') {
-  const sid = String(sellerId || '').trim();
-  const items = ensureArray(order.items);
-  const sellerItems = sid ? items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid) : items;
-  const cardMarkupPercent = getSellerCardMarkupPercent(order);
-  const base = sellerItems.reduce((acc, item) => acc + itemSellerBaseTotal(item, cardMarkupPercent), 0);
-  const charged = sellerItemGross(order, sellerId);
-  return round2(base || charged);
-}
-
 async function getMarketplaceLabelFeeForOrder(order = {}, sellerId = '') {
   try {
     const oid = String(order?._id || order?.id || '').trim();
@@ -4015,23 +4026,17 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const results = [];
   for (const sellerId of sellerIds.filter(Boolean)) {
     const seller = await Seller.findOne({ sellerId }) || await Seller.findById(normalizeObjectId(sellerId)).catch(() => null);
-    const chargedGross = sellerItemGross(order, sellerId);
-    const gross = sellerItemBaseGross(order, sellerId);
-    const cardMarkupAmount = round2(Math.max(0, chargedGross - gross));
-    const cardMarkupPercent = getSellerCardMarkupPercent(order);
+    const gross = sellerItemGross(order, sellerId);
     const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || settings?.mercadopago || {}, seller);
     const commission = round2(gross * commissionPercent / 100);
     const labelFee = await getMarketplaceLabelFeeForOrder(order, sellerId);
-    const marketplaceAmount = round2(commission + labelFee + cardMarkupAmount);
-    const sellerNet = round2(Math.max(0, gross - commission - labelFee));
+    const marketplaceAmount = round2(commission + labelFee);
+    const sellerNet = round2(Math.max(0, gross - marketplaceAmount));
     const meta = seller?.metadata || {};
     results.push({
       sellerId,
       sellerName: seller?.storeName || seller?.displayName || '',
       gross,
-      chargedGross,
-      cardMarkupPercent,
-      cardMarkupAmount,
       commissionPercent,
       commission,
       marketplaceLabelFee: labelFee,
@@ -4045,13 +4050,11 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
     });
   }
   const totalGross = round2(results.reduce((a, r) => a + r.gross, 0));
-  const totalChargedGross = round2(results.reduce((a, r) => a + (r.chargedGross || r.gross), 0));
-  const totalCardMarkupAmount = round2(results.reduce((a, r) => a + (r.cardMarkupAmount || 0), 0));
   const totalCommission = round2(results.reduce((a, r) => a + r.commission, 0));
   const totalLabelFee = round2(results.reduce((a, r) => a + r.marketplaceLabelFee, 0));
   const totalMarketplaceAmount = round2(results.reduce((a, r) => a + r.marketplaceAmount, 0));
   const totalSellerNet = round2(results.reduce((a, r) => a + r.sellerNet, 0));
-  return { ok: true, orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalChargedGross, totalCardMarkupAmount, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet };
+  return { ok: true, orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet };
 }
 
 function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
@@ -5064,248 +5067,61 @@ app.post('/api/seller/notifications/mark-read', sellerAuthRequired, async (req, 
   }
 });
 
-function sellerOrderApprovedForFinance(order = {}) {
-  const statusText = String(`${order.status || ''} ${order.statusLabel || ''} ${order.payment?.status || ''} ${order.paymentStatus || ''}`).toLowerCase();
-  return (
-    statusText.includes('pago') ||
-    statusText.includes('pagamento confirmado') ||
-    statusText.includes('confirmed') ||
-    statusText.includes('approved') ||
-    statusText.includes('paid') ||
-    statusText.includes('shipped') ||
-    statusText.includes('enviado') ||
-    statusText.includes('delivered') ||
-    statusText.includes('entregue')
-  );
-}
-
-function normalizeOrderAddressForSeller(order = {}) {
-  const a = order.shippingAddress || order.address || order.deliveryAddress || {};
-  if (typeof a === 'string') return { text: a };
-  return {
-    name: a.name || a.nome || order.customerName || '',
-    phone: a.phone || a.telefone || order.customerPhone || '',
-    cep: a.cep || a.zip || a.zipCode || '',
-    logradouro: a.logradouro || a.street || a.rua || a.address || '',
-    numero: a.numero || a.number || '',
-    bairro: a.bairro || a.neighborhood || '',
-    cidade: a.cidade || a.city || '',
-    uf: a.uf || a.state || '',
-    complemento: a.complemento || a.complement || '',
-    text: [
-      [a.logradouro || a.street || a.rua || a.address || '', a.numero || a.number || ''].filter(Boolean).join(', '),
-      a.bairro || a.neighborhood || '',
-      [a.cidade || a.city || '', a.uf || a.state || ''].filter(Boolean).join('/'),
-      a.cep || a.zip || a.zipCode || ''
-    ].filter(Boolean).join(' - ')
-  };
-}
-
-function normalizeSellerOrderForResponse(orderDoc = {}, sellerId = '') {
-  const order = toJSON(orderDoc) || {};
-  const sid = String(sellerId || '').trim();
-  const orderSellerIds = extractSellerIdsFromOrder(order);
-  const belongs = orderSellerIds.includes(sid);
-  const rawItems = ensureArray(order.items);
-  let myItems = rawItems.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid);
-  if (!myItems.length && belongs && orderSellerIds.length <= 1) myItems = rawItems;
-
-  const items = myItems.map((item) => {
-    const qty = Number(item.qty ?? item.quantity ?? item.quantidade ?? 1) || 1;
-    const unitPrice = Number(item.unitPrice ?? item.price ?? item.preco ?? 0) || 0;
-    const totalPrice = Number(item.totalPrice ?? item.total ?? (unitPrice * qty)) || 0;
-    return {
-      ...item,
-      qty,
-      quantity: qty,
-      unitPrice,
-      price: unitPrice,
-      totalPrice,
-      total: totalPrice,
-      name: item.name || item.nome || item.title || 'Produto',
-      image: item.image || item.imageUrl || item.imagem || ''
-    };
-  });
-
-  const chargedSubtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-  const fallbackTotal = Number(order.total || order.subtotal || 0) || 0;
-  const chargedGross = chargedSubtotal || fallbackTotal;
-  const cardMarkupPercent = getSellerCardMarkupPercent(order);
-  const baseSubtotal = items.reduce((sum, item) => sum + itemSellerBaseTotal(item, cardMarkupPercent), 0);
-  const gross = round2(baseSubtotal || (chargedGross * (1 - (cardMarkupPercent / 100))));
-  const cardMarkupAmount = round2(Math.max(0, chargedGross - gross));
-  const label = Number(order.sellerFinance?.labelCost ?? order.sellerSettlement?.labelCost ?? order.marketplaceLabelCost ?? order.etiqueta?.shippingCost ?? order.shippingLabelCost ?? 0) || 0;
-  const commissionRate = Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12) / 100;
-  const fee = Number(order.sellerFinance?.commission ?? order.sellerSettlement?.commission ?? (gross * commissionRate)) || 0;
-  const net = Number(order.sellerFinance?.net ?? order.sellerSettlement?.net ?? (gross - fee - label)) || 0;
-
-  return {
-    ...order,
-    id: String(order._id || order.id || ''),
-    items,
-    sellerItems: items,
-    itemsSummary: items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
-    sellerSubtotal: gross,
-    chargedGross,
-    cardMarkupPercent,
-    cardMarkupAmount,
-    subtotal: gross,
-    total: gross,
-    gross,
-    fee,
-    commission: fee,
-    label,
-    labelCost: label,
-    net,
-    paymentMethod: order.payment?.method || order.payment?.provider || order.paymentMethod || order.paymentProvider || '—',
-    paymentStatus: order.payment?.status || order.paymentStatus || order.statusLabel || order.status || '',
-    address: normalizeOrderAddressForSeller(order),
-    shippingAddress: normalizeOrderAddressForSeller(order)
-  };
-}
-
-async function loadSellerLogisticsLabelCost(orderId = '') {
-  try {
-    const row = await LogisticsLabel.findOne({ orderId: String(orderId) }).sort({ createdAt: -1 });
-    return Number(row?.shippingCost || 0) || 0;
-  } catch (_e) {
-    return 0;
-  }
-}
-
-app.get('/api/seller/orders', sellerAuthRequired, async (req, res) => {
-  try {
-    const sid = String(req.sellerId || '').trim();
-    if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
-    const rows = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    return res.json(rows.map((order) => normalizeSellerOrderForResponse(order, sid)));
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar pedidos' });
-  }
-});
-
-app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const order = await Order.findById(oid);
-    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
-    const sid = String(req.sellerId || '').trim();
-    const allowed = extractSellerIdsFromOrder(order).includes(sid);
-    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    return res.json({ ok: true, order: normalizeSellerOrderForResponse(order, sid) });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' });
-  }
-});
-
-app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const before = await Order.findById(oid);
-    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
-    const sid = String(req.sellerId || '').trim();
-    const allowed = extractSellerIdsFromOrder(before).includes(sid);
-    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    const status = String(req.body?.status || 'processing').trim();
-    const statusLabelMap = { pending_payment: 'Aguardando Pagamento', processing: 'Em Preparação', shipped: 'Enviado', delivered: 'Entregue', cancelled: 'Cancelado' };
-    const statusLabel = String(req.body?.statusLabel || statusLabelMap[status] || status).trim();
-    const order = await Order.findByIdAndUpdate(oid, { $set: { status, statusLabel } }, { new: true });
-    await createSellerOrderNotifications(order, { type: 'seller_order_updated', title: '📦 Pedido atualizado', message: `Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel || order.status || 'Atualizado'}`, severity: 'info', origin: 'seller_status_route' });
-    await createAdminNotification({ type: 'seller_order_updated', title: '🏭 Seller atualizou pedido', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} atualizou o pedido ${order._id} para ${order.statusLabel || order.status || 'Atualizado'}`, relatedId: String(order._id), severity: 'info', metadata: { sellerId: sid, origin: 'seller_status_route' } });
-    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route');
-    const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route_admin');
-    return res.json({ ok: true, order: normalizeSellerOrderForResponse(order, sid), whatsapp: customerWhatsapp, adminWhatsapp });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar status' });
-  }
-});
-
-app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const trackingCode = String(req.body?.trackingCode || req.body?.tracking || '').trim();
-    const carrier = String(req.body?.carrier || '').trim();
-    const before = await Order.findById(oid);
-    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
-    const beforeObj = toJSON(before);
-    const sid = String(req.sellerId || '').trim();
-    const allowed = extractSellerIdsFromOrder(beforeObj).includes(sid);
-    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    const order = before;
-    order.status = 'shipped';
-    order.statusLabel = 'Enviado';
-    order.trackingCode = trackingCode || order.trackingCode || '';
-    order.shipping = { ...(order.shipping || {}), carrier, trackingCode: trackingCode || order.trackingCode || '', shippedAt: now() };
-    order.trackingHistory = ensureArray(order.trackingHistory);
-    order.trackingHistory.push({ status: 'shipped', label: 'Pedido enviado pelo seller', carrier, trackingCode, date: now() });
-    await order.save();
-    const afterObj = toJSON(order);
-    await createSellerOrderNotifications(order, { type: 'seller_order_shipped', title: '🚚 Pedido marcado como enviado', message: `Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`, severity: 'success', origin: 'seller_ship_route' });
-    await createAdminNotification({ type: 'seller_order_shipped', title: '🚚 Seller marcou pedido como enviado', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} marcou o pedido ${order._id} como enviado${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`, relatedId: String(order._id), severity: 'success', metadata: { sellerId: sid, origin: 'seller_ship_route' } });
-    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), beforeObj, afterObj, 'seller_ship_route');
-    const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(order._id), beforeObj, afterObj, 'seller_ship_route_admin');
-    return res.json({ ok: true, order: normalizeSellerOrderForResponse(order, sid), whatsapp: customerWhatsapp, adminWhatsapp });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar enviado' });
-  }
-});
-
 app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
-    if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
-    const orders = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    const rows = [];
-    for (const order of orders) {
-      const normalized = normalizeSellerOrderForResponse(order, sid);
-      if (!sellerOrderApprovedForFinance(normalized)) continue;
-      const orderId = String(normalized._id || normalized.id || '');
-      const labelFromLogistics = await loadSellerLogisticsLabelCost(orderId);
-      const label = Number(normalized.label || labelFromLogistics || 0) || 0;
-      const gross = Number(normalized.gross || normalized.total || 0) || 0;
-      const chargedGross = Number(normalized.chargedGross || gross) || gross;
-      const cardMarkupAmount = Number(normalized.cardMarkupAmount || Math.max(0, chargedGross - gross)) || 0;
-      const cardMarkupPercent = Number(normalized.cardMarkupPercent || process.env.CARD_MARKUP_PERCENT || 17) || 17;
-      const fee = Number(normalized.fee || gross * (Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12) / 100)) || 0;
-      const net = Math.max(0, gross - fee - label);
-      rows.push({
-        id: orderId,
-        orderId,
-        createdAt: normalized.createdAt,
-        status: normalized.status,
-        statusLabel: normalized.statusLabel,
-        gross,
-        chargedGross,
-        cardMarkupAmount,
-        cardMarkupPercent,
-        fee,
-        commission: fee,
-        label,
-        labelCost: label,
-        net,
-        gateway: normalized.payment?.provider || normalized.paymentProvider || normalized.paymentMethod || '',
-        items: normalized.items
-      });
-    }
+    const approvedStatuses = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','enviado','shipped','entregue','delivered'];
+    const docs = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
+    const rows = docs.map((doc) => {
+      const order = toJSON(doc);
+      const statusText = String(order.statusLabel || order.status || '').toLowerCase();
+      const isApproved = approvedStatuses.some((s) => statusText.includes(s));
+      if (!isApproved) return null;
+      const st = getSellerSettlementForOrder(order, sid);
+      return {
+        id: String(order._id || order.id || ''),
+        orderId: String(order._id || order.id || ''),
+        createdAt: order.createdAt,
+        status: order.status,
+        statusLabel: order.statusLabel,
+        gross: st.gross,
+        chargedGross: st.chargedGross,
+        fee: st.fee,
+        commission: st.commission,
+        label: st.label,
+        net: st.net,
+        commissionPercent: st.commissionPercent
+      };
+    }).filter(Boolean);
     return res.json(rows);
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar extrato do seller' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar extrato' });
   }
 });
 
-app.get('/api/seller/vendas', sellerAuthRequired, async (req, res) => {
+app.get('/api/seller/sales', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
-    const orders = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    const rows = orders.map((order) => normalizeSellerOrderForResponse(order, sid)).filter(sellerOrderApprovedForFinance);
-    return res.json(rows);
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar vendas do seller' });
+    const docs = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
+    const rows = docs.map((doc) => {
+      const order = toJSON(doc);
+      const statusText = String(order.statusLabel || order.status || '').toLowerCase();
+      const isApproved = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','enviado','shipped','entregue','delivered'].some((s) => statusText.includes(s));
+      if (!isApproved) return null;
+      const st = getSellerSettlementForOrder(order, sid);
+      return { id: String(order._id || order.id || ''), createdAt: order.createdAt, status: order.status, statusLabel: order.statusLabel, total: st.gross, gross: st.gross, fee: st.fee, label: st.label, net: st.net };
+    }).filter(Boolean);
+    return res.json({ ok: true, items: rows, sales: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar vendas' });
   }
 });
+
+app.get('/api/seller/orders',sellerAuthRequired,async(req,res)=>{try{const sid=req.sellerId; const rows=await Order.find({$or:[{sellerIds:sid},{'items.sellerId':sid}]}).sort({createdAt:-1}).limit(500); return res.json(rows.map(toJSON));}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao listar pedidos'});}});
+app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
+app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(before).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); await createSellerOrderNotifications(order,{type:'seller_order_updated',title:'📦 Pedido atualizado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel||order.status||'Atualizado'}`,severity:'info',origin:'seller_status_route'}); await createAdminNotification({type:'seller_order_updated',title:'ðŸ­ Seller atualizou pedido',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} atualizou o pedido ${order._id} para ${order.statusLabel||order.status||'Atualizado'}`,relatedId:String(order._id),severity:'info',metadata:{sellerId:sid,origin:'seller_status_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
+app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const beforeObj=toJSON(before); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(beforeObj).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=before; order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); const afterObj=toJSON(order); await createSellerOrderNotifications(order,{type:'seller_order_shipped',title:'ðŸšš Pedido marcado como enviado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,severity:'success',origin:'seller_ship_route'}); await createAdminNotification({type:'seller_order_shipped',title:'ðŸšš Seller marcou pedido como enviado',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} marcou o pedido ${order._id} como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,relatedId:String(order._id),severity:'success',metadata:{sellerId:sid,origin:'seller_ship_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route_admin'); return res.json({ok:true,order:afterObj,whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
+
 
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
 app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
@@ -5883,9 +5699,16 @@ app.post('/api/addresses', authRequired, async (req, res) => { const body = req.
 app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
 
 function normalizeOrderItemsForCheckout(body = {}) {
+  const method = String(body?.payment?.method || body?.paymentMethod || body?.totals?.paymentMethod || '').toLowerCase();
+  const credit = isCreditCardPayment(method);
   return ensureArray(body.items).map((item) => {
     const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
-    const unitPrice = Number(item.unitPrice || item.price || 0) || 0;
+    const rawBase = Number(item.sellerBaseUnitPrice || item.sellerBasePrice || item.basePrice || item.pixPrice || item.price || item.preco || 0) || 0;
+    const baseUnit = roundMoney(rawBase);
+    const cardUnit = sellerBaseToMarketplacePrice(baseUnit);
+    const unitPrice = credit ? cardUnit : baseUnit;
+    const sellerBaseTotal = roundMoney(baseUnit * qty);
+    const totalPrice = roundMoney(unitPrice * qty);
     return {
       productId: String(item.productId || item._id || item.id || '').trim(),
       sellerId: String(item.sellerId || '').trim(),
@@ -5893,12 +5716,15 @@ function normalizeOrderItemsForCheckout(body = {}) {
       sku: item.sku || '',
       qty,
       unitPrice,
-      totalPrice: Number(item.totalPrice || (unitPrice * qty)),
+      totalPrice,
+      sellerBaseUnitPrice: baseUnit,
+      sellerBaseTotal,
+      cardMarkupUnit: credit ? roundMoney(cardUnit - baseUnit) : 0,
+      cardMarkupTotal: credit ? roundMoney(totalPrice - sellerBaseTotal) : 0,
       image: item.image || item.imageUrl || item.imagem || ''
     };
   });
 }
-
 async function reserveStockForOrderItems(items = []) {
   const reserved = [];
   try {
@@ -5936,6 +5762,10 @@ async function reserveStockForOrderItems(items = []) {
       item.sku = item.sku || product.sku || '';
       item.sellerId = item.sellerId || product.sellerId || '';
       item.image = item.image || product.imageUrl || product.image || product.mainImageUrl || '';
+      if (!item.sellerBaseUnitPrice) {
+        item.sellerBaseUnitPrice = roundMoney(product.price || item.unitPrice || 0);
+        item.sellerBaseTotal = roundMoney(item.sellerBaseUnitPrice * qty);
+      }
     }
     return reserved;
   } catch (error) {

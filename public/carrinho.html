@@ -394,7 +394,7 @@
 
     function getCartSubtotalValue() {
       return (Array.isArray(cartItems) ? cartItems : []).reduce((sum, item) => {
-        return sum + ((Number(item.price) || 0) * (parseInt(item.quantity || 1, 10) || 1));
+        return sum + (arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
       }, 0);
     }
 
@@ -584,6 +584,16 @@
       if (typeof price !== 'number' || isNaN(price)) return 'R$ 0,00';
       return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
+
+    function arianaSellerBasePrice(item) {
+      return Number(item?.sellerBasePrice ?? item?.pixPrice ?? item?.basePrice ?? item?.price ?? 0) || 0;
+    }
+    function arianaMarketplacePrice(item) {
+      const explicit = Number(item?.marketplacePrice ?? item?.cardPrice ?? item?.fullPrice ?? 0) || 0;
+      if (explicit > 0) return explicit;
+      const base = arianaSellerBasePrice(item);
+      return base > 0 ? +(base / 0.83).toFixed(2) : 0;
+    }
 
     window.updateClientHeader = function(userName = 'Minha Conta') {
       const accountLink = document.getElementById('client-account-link');
@@ -813,7 +823,7 @@
             <div class="flex-grow">
               <h2 class="text-xl font-semibold text-text-dark">${item.name || 'Produto'}</h2>
               <p class="text-sm text-gray-500">Cor: ${item.color || 'Única'} | Entrega: ${item.delivery || 'A calcular'}</p>
-              <p class="text-lg font-bold text-primary-blue mt-1 item-price" id="price-item-${item.id}">${window.formatPrice((Number(item.price) || 0) * (parseInt(item.quantity || 1, 10) || 1))}</p>
+              <p class="text-lg font-bold text-primary-blue mt-1 item-price" id="price-item-${item.id}">${window.formatPrice(arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1))}</p>
             </div>
             <div class="flex items-center space-x-4 mt-4 sm:mt-0">
               <div class="flex items-center border border-gray-300 rounded-lg">
@@ -867,7 +877,7 @@
 
     async function recalculateTotals() {
       let totalItemsPrice = cartItems.reduce((sum, item) => {
-        return sum + ((Number(item.price) || 0) * (parseInt(item.quantity || 1, 10) || 1));
+        return sum + (arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
       }, 0);
 
       await loadSettingsOnce();
@@ -1010,7 +1020,7 @@
 
       const itemElementPrice = document.getElementById(`price-item-${itemId}`);
       if (itemElementPrice) {
-        itemElementPrice.textContent = window.formatPrice((Number(cartItems[itemIndex].price) || 0) * newQuantity);
+        itemElementPrice.textContent = window.formatPrice(arianaMarketplacePrice(cartItems[itemIndex]) * newQuantity);
       }
 
       recalculateTotals();
