@@ -2889,6 +2889,12 @@ function isCreditCardPayment(method = '') { const m = String(method || '').toLow
 function getOrderPaymentMethod(order = {}) { return String(order?.payment?.method || order?.paymentMethod || order?.method || '').toLowerCase(); }
 function getItemSellerBaseTotal(item = {}, order = {}) {
   const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
+
+  // Prioridade máxima: preço real do produto no MongoDB.
+  // Isso corrige pedidos antigos em que o navegador gravou 845 como base do seller.
+  const productBaseUnit = Number(item.__sellerBaseUnitPrice || item.productBaseUnitPrice || item.mongoBasePrice || 0) || 0;
+  if (productBaseUnit > 0) return roundMoney(productBaseUnit * qty);
+
   const paymentMethod = getOrderPaymentMethod(order);
   const isCredit = isCreditCardPayment(paymentMethod);
   const chargedUnit = Number(item.unitPrice || item.price || 0) || 0;
@@ -2935,6 +2941,46 @@ function getSellerSettlementForOrder(orderDoc = {}, sellerId = '') {
   labelFee = roundMoney(labelFee);
   const net = roundMoney(gross - commission - labelFee);
   return { chargedGross, gross, commission, fee: commission, label: labelFee, net, commissionPercent: MARKETPLACE_COMMISSION_PERCENT };
+}
+
+
+async function enrichOrdersWithMongoBasePrices(orderDocs = []) {
+  const orders = ensureArray(orderDocs).map((doc) => toJSON(doc) || doc || {});
+  const productIds = Array.from(new Set(
+    orders.flatMap((order) => ensureArray(order.items).map((item) => String(item?.productId || item?._id || item?.id || '').trim()))
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+  ));
+
+  if (!productIds.length) return orders;
+
+  const products = await Product.find({ _id: { $in: productIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+    .select('price preco')
+    .lean()
+    .catch(() => []);
+
+  const priceById = new Map();
+  for (const product of products) {
+    const id = String(product._id || '');
+    const base = roundMoney(product.price || product.preco || 0);
+    if (id && base > 0) priceById.set(id, base);
+  }
+
+  for (const order of orders) {
+    order.items = ensureArray(order.items).map((item) => {
+      const pid = String(item?.productId || item?._id || item?.id || '').trim();
+      const base = priceById.get(pid);
+      if (!base) return item;
+      const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
+      return {
+        ...item,
+        __sellerBaseUnitPrice: base,
+        sellerBaseUnitPrice: base,
+        sellerBaseTotal: roundMoney(base * qty)
+      };
+    });
+  }
+
+  return orders;
 }
 
 function formatOrderItemsForWhatsapp(items = []) {
@@ -5101,8 +5147,8 @@ app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
     const approvedStatuses = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','enviado','shipped','entregue','delivered'];
     const docs = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    const rows = docs.map((doc) => {
-      const order = toJSON(doc);
+    const orders = await enrichOrdersWithMongoBasePrices(docs);
+    const rows = orders.map((order) => {
       const statusText = String(order.statusLabel || order.status || '').toLowerCase();
       const isApproved = approvedStatuses.some((s) => statusText.includes(s));
       if (!isApproved) return null;
@@ -5132,8 +5178,8 @@ app.get('/api/seller/sales', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const docs = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    const rows = docs.map((doc) => {
-      const order = toJSON(doc);
+    const orders = await enrichOrdersWithMongoBasePrices(docs);
+    const rows = orders.map((order) => {
       const statusText = String(order.statusLabel || order.status || '').toLowerCase();
       const isApproved = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','enviado','shipped','entregue','delivered'].some((s) => statusText.includes(s));
       if (!isApproved) return null;
