@@ -2889,12 +2889,32 @@ function isCreditCardPayment(method = '') { const m = String(method || '').toLow
 function getOrderPaymentMethod(order = {}) { return String(order?.payment?.method || order?.paymentMethod || order?.method || '').toLowerCase(); }
 function getItemSellerBaseTotal(item = {}, order = {}) {
   const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
+  const paymentMethod = getOrderPaymentMethod(order);
+  const isCredit = isCreditCardPayment(paymentMethod);
+  const chargedUnit = Number(item.unitPrice || item.price || 0) || 0;
+  const chargedTotal = Number(item.totalPrice || (chargedUnit * qty) || 0);
+
   const explicit = Number(item.sellerBaseTotal || item.sellerSubtotal || item.baseTotal || 0);
-  if (explicit > 0) return roundMoney(explicit);
+  if (explicit > 0) {
+    // Segurança para pedidos antigos gravados errado:
+    // se sellerBaseTotal veio igual ao total cobrado no cartão, remove o acréscimo de 17%.
+    if (isCredit && chargedTotal > 0 && Math.abs(roundMoney(explicit) - roundMoney(chargedTotal)) <= 0.05) {
+      return marketplacePriceToSellerBase(chargedTotal);
+    }
+    return roundMoney(explicit);
+  }
+
   const explicitUnit = Number(item.sellerBaseUnitPrice || item.baseUnitPrice || item.basePrice || 0);
-  if (explicitUnit > 0) return roundMoney(explicitUnit * qty);
-  const chargedTotal = Number(item.totalPrice || ((Number(item.unitPrice || item.price || 0) || 0) * qty) || 0);
-  return isCreditCardPayment(getOrderPaymentMethod(order)) ? marketplacePriceToSellerBase(chargedTotal) : roundMoney(chargedTotal);
+  if (explicitUnit > 0) {
+    // Segurança para pedidos antigos gravados errado:
+    // se sellerBaseUnitPrice veio igual ao preço cobrado no cartão, remove o acréscimo de 17%.
+    if (isCredit && chargedUnit > 0 && Math.abs(roundMoney(explicitUnit) - roundMoney(chargedUnit)) <= 0.05) {
+      return roundMoney(marketplacePriceToSellerBase(chargedUnit) * qty);
+    }
+    return roundMoney(explicitUnit * qty);
+  }
+
+  return isCredit ? marketplacePriceToSellerBase(chargedTotal) : roundMoney(chargedTotal);
 }
 function getSellerSettlementForOrder(orderDoc = {}, sellerId = '') {
   const order = toJSON(orderDoc) || orderDoc || {};
@@ -5771,9 +5791,32 @@ async function reserveStockForOrderItems(items = []) {
       item.sku = item.sku || product.sku || '';
       item.sellerId = item.sellerId || product.sellerId || '';
       item.image = item.image || product.imageUrl || product.image || product.mainImageUrl || '';
-      if (!item.sellerBaseUnitPrice) {
-        item.sellerBaseUnitPrice = roundMoney(product.price || item.unitPrice || 0);
-        item.sellerBaseTotal = roundMoney(item.sellerBaseUnitPrice * qty);
+
+      // O preço base do seller SEMPRE vem do MongoDB.
+      // Não confia no navegador, porque o front pode enviar o valor com 17% do cartão embutido.
+      const sellerBaseUnit = roundMoney(product.price || product.preco || 0);
+      const currentUnit = roundMoney(item.unitPrice || item.price || 0);
+      const currentTotal = roundMoney(item.totalPrice || (currentUnit * qty) || 0);
+      const expectedCardUnit = sellerBaseToMarketplacePrice(sellerBaseUnit);
+
+      const looksLikeCreditCardPrice =
+        sellerBaseUnit > 0 &&
+        currentUnit > 0 &&
+        Math.abs(currentUnit - expectedCardUnit) <= 0.10;
+
+      item.sellerBaseUnitPrice = sellerBaseUnit;
+      item.sellerBaseTotal = roundMoney(sellerBaseUnit * qty);
+
+      if (looksLikeCreditCardPrice) {
+        item.unitPrice = expectedCardUnit;
+        item.totalPrice = roundMoney(expectedCardUnit * qty);
+        item.cardMarkupUnit = roundMoney(expectedCardUnit - sellerBaseUnit);
+        item.cardMarkupTotal = roundMoney(item.totalPrice - item.sellerBaseTotal);
+      } else {
+        item.cardMarkupUnit = Number(item.cardMarkupUnit || 0) || 0;
+        item.cardMarkupTotal = Number(item.cardMarkupTotal || 0) || 0;
+        if (!item.unitPrice) item.unitPrice = sellerBaseUnit;
+        if (!item.totalPrice) item.totalPrice = roundMoney(Number(item.unitPrice || sellerBaseUnit) * qty);
       }
     }
     return reserved;
