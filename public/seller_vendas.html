@@ -181,7 +181,6 @@ function applySellerHeaderName() {
     async function loadSales() {
         if (!ensureSellerSession()) return;
         applySellerHeaderName();
-
         try {
             const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
             if (meRes.status === 401 || meRes.status === 403) {
@@ -189,7 +188,6 @@ function applySellerHeaderName() {
                 window.location.href = 'seller_login.html';
                 return;
             }
-
             const meData = await meRes.json().catch(() => ({}));
             const sellerMe = meData?.seller || meData?.user || meData || {};
             if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email)) {
@@ -197,22 +195,17 @@ function applySellerHeaderName() {
                 applySellerHeaderName();
             }
 
-            // IMPORTANTE:
-            // A tela de vendas agora usa o mesmo cálculo correto do extrato.
-            // Assim o seller recebe pelo valor base cadastrado, sem receber junto o acréscimo de 17% do cartão.
             const res = await fetch(`${API_BASE}/seller/extrato`, { headers: authHeaders() });
             if (res.status === 401 || res.status === 403) {
                 clearSellerSession();
                 window.location.href = 'seller_login.html';
                 return;
             }
-
             const rows = await res.json();
             if (!res.ok) throw new Error(rows?.message || rows?.error || `Erro ${res.status}`);
 
             const tb = $("tbody");
             tb.innerHTML = "";
-
             if (!Array.isArray(rows) || rows.length === 0) {
                 $("empty").classList.remove("hidden");
                 $("countPill").textContent = "0 vendas";
@@ -225,27 +218,20 @@ function applySellerHeaderName() {
             $("empty").classList.add("hidden");
             $("countPill").textContent = `${rows.length} vendas`;
 
-            let totalGross = 0;
-            let totalFee = 0;
-            let totalNet = 0;
-
+            let totalGross = 0, totalFee = 0, totalNet = 0;
             rows.forEach(o => {
                 const brute = Number(o.gross || 0);
                 const fee = Number(o.fee || o.commission || 0);
                 const labelFee = Number(o.label || 0);
                 const net = Number(o.net || 0);
-
                 totalGross += brute;
                 totalFee += fee + labelFee;
                 totalNet += net;
-
-                const id = String(o.orderId || o.id || "");
-                const date = o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : "-";
-
+                const id = String(o.orderId || o.id || '');
                 tb.innerHTML += `
                     <tr class="hover:bg-gray-50 transition">
                         <td class="py-4 px-3 font-bold text-primary-blue">#${id.substring(0,8).toUpperCase()}</td>
-                        <td class="py-4 px-3 text-gray-500">${date}</td>
+                        <td class="py-4 px-3 text-gray-500">${o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '-'}</td>
                         <td class="py-4 px-3 text-right font-bold text-dark-bg">${moneyBR(brute)}</td>
                         <td class="py-4 px-3 text-right text-error-red">${moneyBR(fee + labelFee)}</td>
                         <td class="py-4 px-3 text-right font-black text-success-green">${moneyBR(net)}</td>
@@ -259,10 +245,6 @@ function applySellerHeaderName() {
 
         } catch (e) {
             console.error("Erro ao carregar vendas:", e);
-            const tb = $("tbody");
-            if (tb) {
-                tb.innerHTML = `<tr><td colspan="5" class="py-6 px-3 text-center text-red-500 font-bold">Erro ao carregar vendas do seller.</td></tr>`;
-            }
         }
     }
 

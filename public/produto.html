@@ -1265,31 +1265,13 @@ async function loadPaymentsSettingsForProduct() {
                 return Number.isFinite(x) ? x : null;
             };
 
-            /*
-              Correção:
-              A tela de detalhes não pode aplicar 17% novamente quando a API já traz:
-              - fullPrice / marketplacePrice / cardPrice = preço cheio/parcelado
-              - pixPrice / price = preço PIX/base já com desconto
-              Assim fica igual ao index: preço cheio riscado em cima e preço PIX em destaque.
-            */
-            const apiFullPrice = n(
+            // Preço cheio/parcelado vem do backend como fullPrice/marketplacePrice/cardPrice.
+            // Preço PIX/base vem como pixPrice/sellerBasePrice.
+            // Assim a página de detalhe não aplica 17% de novo em cima do valor que já veio com desconto no index.
+            const fullFromApi = n(
                 productData.fullPrice ??
                 productData.marketplacePrice ??
                 productData.cardPrice ??
-                productData.precoCheio ??
-                productData.totalPrazo
-            );
-
-            const apiPixPrice = n(
-                productData.pixPrice ??
-                productData.cashPrice ??
-                productData.precoPix ??
-                productData.price ??
-                productData.preco ??
-                productData.valor
-            );
-
-            const oldPrice = n(
                 productData.oldPrice ??
                 productData.old_price ??
                 productData.precoOriginal ??
@@ -1297,33 +1279,29 @@ async function loadPaymentsSettingsForProduct() {
                 productData.originalPrice
             );
 
+            const cashFromApi = n(
+                productData.pixPrice ??
+                productData.sellerBasePrice ??
+                productData.cashPrice ??
+                productData.precoPix
+            );
+
             const currentPrice = n(productData.price ?? productData.preco ?? productData.valor);
 
-            let original = 0;
-            let cash = 0;
+            let original = fullFromApi && fullFromApi > 0 ? fullFromApi : (currentPrice || 0);
+            let cash = cashFromApi && cashFromApi > 0 ? cashFromApi : null;
 
-            if (apiFullPrice != null && apiFullPrice > 0 && apiPixPrice != null && apiPixPrice > 0 && apiFullPrice > apiPixPrice) {
-                original = apiFullPrice;
-                cash = apiPixPrice;
-            } else if (oldPrice != null && oldPrice > 0 && currentPrice != null && currentPrice > 0 && oldPrice > currentPrice) {
-                original = oldPrice;
-                cash = currentPrice;
-            } else if (apiPixPrice != null && apiPixPrice > 0) {
-                cash = apiPixPrice;
+            if (cash == null) {
                 const desc = __num(__pixDiscountPercent, 17) || 17;
                 const fator = (100 - desc) / 100;
-                original = fator > 0 ? (cash / fator) : cash;
-            } else {
-                original = currentPrice || oldPrice || 0;
-                cash = original;
+                cash = Math.max(0, original * fator);
             }
 
-            original = Math.max(0, original || 0);
-            cash = Math.max(0, cash || 0);
+            if (cash > original && original > 0) cash = original;
 
-            const discountPercent = (original > 0 && cash > 0 && original > cash)
-                ? Math.round((1 - (cash / original)) * 100)
-                : 0;
+            const discountPercent = (original > 0 && cash < original)
+              ? Math.round((1 - (cash / original)) * 100)
+              : 0;
 
             const installments = 12;
             const instValue = (original > 0) ? (original / installments) : 0;
@@ -1596,8 +1574,8 @@ function addToCart(action = 'add') {
 
             // ✅ Preços: no carrinho SEMPRE vai o preço cheio (sem desconto).
             // O desconto do PIX é só visual no detalhe/checkout e só vira "real" quando o método PIX/Boleto é selecionado.
-            const basePrice = Number((window.__detailPricing && window.__detailPricing.original) ?? productData.oldPrice ?? productData.price ?? 0) || 0;
-            const pixPrice = Number((window.__detailPricing && window.__detailPricing.cash) ?? 0) || 0;
+            const basePrice = Number((window.__detailPricing && window.__detailPricing.original) ?? productData.fullPrice ?? productData.marketplacePrice ?? productData.cardPrice ?? productData.oldPrice ?? productData.price ?? 0) || 0;
+            const pixPrice = Number((window.__detailPricing && window.__detailPricing.cash) ?? productData.pixPrice ?? productData.sellerBasePrice ?? 0) || 0;
             const discountPercent = Number((window.__detailPricing && window.__detailPricing.discountPercent) ?? 0) || 0;
 
             if (itemIndex > -1) {
@@ -1608,6 +1586,9 @@ function addToCart(action = 'add') {
                 cart[itemIndex].price = basePrice;
                 cart[itemIndex].originalPrice = basePrice;
                 cart[itemIndex].pixPrice = pixPrice;
+                cart[itemIndex].sellerBaseUnitPrice = pixPrice;
+                cart[itemIndex].sellerBasePrice = pixPrice;
+                cart[itemIndex].cardPrice = basePrice;
                 cart[itemIndex].discountPercent = discountPercent;
                 cart[itemIndex].imageUrl = cart[itemIndex].imageUrl || cart[itemIndex].image || mainImage;
                 cart[itemIndex].image = cart[itemIndex].image || cart[itemIndex].imageUrl || mainImage;
@@ -1627,6 +1608,9 @@ function addToCart(action = 'add') {
                     originalPrice: basePrice,
                     discountPercent: discountPercent,
                     pixPrice: pixPrice,
+                    sellerBaseUnitPrice: pixPrice,
+                    sellerBasePrice: pixPrice,
+                    cardPrice: basePrice,
                     quantity: quantity,
                     // compat: carrinho pode usar imageUrl OU image
                     imageUrl: mainImage,
