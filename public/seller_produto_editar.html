@@ -238,7 +238,7 @@ function toBase64(file) {
   });
 }
 function normalizeCategoryRows(raw) {
-  const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || raw.categories || []);
+  const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || raw.categories || raw.data || raw.rows || []);
   return rows.filter(Boolean);
 }
 async function loadCategories() {
@@ -253,9 +253,9 @@ async function loadCategories() {
       rows = normalizeCategoryRows(await res.json().catch(() => []));
       if (rows.length) break;
     }
-    loadedCategories = rows.filter((c) => !c.parentId && !c.parent_id && !c.parent && c.active !== false);
-    loadedSubcategories = rows.filter((c) => c.parentId || c.parent_id || c.parent);
-    if (!loadedCategories.length) loadedCategories = rows.filter((c) => c.active !== false);
+    loadedCategories = rows.filter((c) => !c.parentId && !c.parent_id && !c.parent && c.active !== false && String(c.status || '').toLowerCase() !== 'inativo' && String(c.status || '').toLowerCase() !== 'inactive');
+    loadedSubcategories = rows.filter((c) => (c.parentId || c.parent_id || c.parent) && c.active !== false && String(c.status || '').toLowerCase() !== 'inativo' && String(c.status || '').toLowerCase() !== 'inactive');
+    if (!loadedCategories.length) loadedCategories = rows.filter((c) => c.active !== false && String(c.status || '').toLowerCase() !== 'inativo' && String(c.status || '').toLowerCase() !== 'inactive');
     select.innerHTML = '<option value="">Selecione uma Categoria</option>' + loadedCategories.map((c) => {
       const name = c.name || c.nome || c.category || 'Sem nome';
       const slug = c.slug || slugify(name);
@@ -313,14 +313,16 @@ function setSelectByValue(selectId, value) {
 function parseSpecsToText(specs) {
   if (!specs) return '';
   if (typeof specs === 'string') return specs;
+  if (typeof specs === 'object' && typeof specs.texto === 'string' && specs.texto.trim()) return specs.texto.trim();
+  if (typeof specs === 'object' && typeof specs.text === 'string' && specs.text.trim()) return specs.text.trim();
   if (Array.isArray(specs)) return specs.map((item) => typeof item === 'string' ? item : `${item.name || item.label || ''}: ${item.value || ''}`.replace(/^: /, '')).join('\n');
-  if (typeof specs === 'object') return Object.entries(specs).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
+  if (typeof specs === 'object') return Object.entries(specs).filter(([k]) => !['texto','text'].includes(k)).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
   return String(specs || '');
 }
 function specsTextToObject(text = '') {
   const raw = String(text || '').trim();
   if (!raw) return {};
-  const out = {};
+  const out = { texto: raw };
   raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((line, index) => {
     const parts = line.split(/[:：]/);
     if (parts.length >= 2) {
@@ -414,13 +416,19 @@ async function saveProduct(event) {
       estoque: Number($('p-stock').value || 0),
       category: $('p-category').value,
       categoria: $('p-category').value,
+      categoryName: $('p-category').value,
+      categoryId: $('p-category')?.selectedOptions?.[0]?.dataset?.id || '',
       categorySlug: $('p-categorySlug').value || slugify($('p-category').value),
       subcategory: $('p-subcategory').value,
+      subcategoryName: $('p-subcategory').value,
+      subcategoryId: $('p-subcategory')?.selectedOptions?.[0]?.dataset?.id || '',
       subcategorySlug: $('p-subcategorySlug').value || slugify($('p-subcategory').value),
       description: $('p-desc').value.trim(),
       descricao: $('p-desc').value.trim(),
       specs: specsTextToObject(specsText),
       technicalSpecs: specsText,
+      especificacaoTecnica: specsText,
+      specsText: specsText,
       especificacoes: specsText,
       imageUrl: mainImageUrl,
       mainImageUrl: mainImageUrl,

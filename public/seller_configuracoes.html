@@ -76,7 +76,7 @@
     <div class="card p-6"><h3 class="text-xl font-black mb-5">Dados gerais</h3>
       <div class="grid md:grid-cols-2 gap-5">
         <div><label class="block text-xs font-black mb-2">Nome Fantasia</label><input id="factoryName" class="input" required autocomplete="off"></div>
-        <div><label class="block text-xs font-black mb-2">CNPJ</label><input id="cnpj" class="input" readonly></div>
+        <div><label class="block text-xs font-black mb-2">CNPJ</label><input id="cnpj" class="input" readonly><p class="text-xs text-gray-400 mt-1">Dados jurídicos ficam bloqueados após aprovação.</p></div>
         <div class="md:col-span-2"><label class="block text-xs font-black mb-2">Descrição pública</label><textarea id="bio" rows="4" class="input" autocomplete="off"></textarea></div>
       </div>
     </div>
@@ -100,7 +100,7 @@
 <script>
 const IS_LOCAL_HOST = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
 const API_BASE = IS_LOCAL_HOST ? "http://localhost:3000/api" : "https://ariana-backend.onrender.com/api";
-const $ = (id)=>document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
 function getSellerToken() {
   return localStorage.getItem("seller_token") || "";
@@ -117,112 +117,140 @@ function authHeaders(extra = {}) {
   const token = getSellerToken();
   return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
 }
-function toast(message, type='info'){
-  const c = $('toast-container');
-  if(!c) return alert(message);
-  const el = document.createElement('div');
-  const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
+function toast(message, type = "info") {
+  const c = $("toast-container");
+  if (!c) return alert(message);
+  const el = document.createElement("div");
+  const color = type === "success" ? "bg-success-green" : type === "error" ? "bg-error-red" : "bg-primary-blue";
   el.className = `toast ${color} text-white px-4 py-3 rounded-2xl`;
   el.textContent = message;
   c.appendChild(el);
-  setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)},3400);
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3400);
 }
-
-
-// CARREGAR DADOS DO MONGODB
 function setLockedField(id, locked) {
   const el = $(id);
   if (!el) return;
   el.readOnly = !!locked;
   el.disabled = false;
-  el.classList.toggle('bg-gray-100', !!locked);
-  el.classList.toggle('text-gray-500', !!locked);
+  el.classList.toggle("bg-gray-100", !!locked);
+  el.classList.toggle("text-gray-500", !!locked);
+  el.title = locked ? "Campo bloqueado após aprovação do seller." : "";
 }
-
 function isApprovedSeller(seller = {}) {
-  const status = String(seller.status || seller.metadata?.status || '').toLowerCase();
-  return ['approved', 'aprovado'].includes(status);
+  const status = String(seller.status || seller.metadata?.status || seller.approvalStatus || "").toLowerCase();
+  return ["approved", "aprovado", "ativo", "active"].includes(status) || seller.approved === true || seller.active === true;
 }
+function normalizeSellerPayload(data = {}) {
+  const seller = data.seller || data.profile || data.user?.seller || data;
+  const meta = seller.metadata || {};
+  return {
+    ...seller,
+    factoryName: seller.factoryName || seller.storeName || seller.displayName || seller.name || "",
+    cnpj: seller.cnpj || seller.document || seller.cpfCnpj || "",
+    bio: seller.bio || meta.bio || meta.description || "",
+    bankAccount: seller.bankAccount || meta.bankAccount || {
+      bank: meta.bankName || "",
+      agency: meta.bankAgency || "",
+      account: meta.bankAccountNumber || ""
+    },
+    cepColeta: seller.cepColeta || meta.cepColeta || meta.pickupCep || "",
+    transpPropria: seller.transpPropria ?? meta.transpPropria ?? false
+  };
+}
+function fillSeller(seller) {
+  const approved = isApprovedSeller(seller);
+  const bank = seller.bankAccount || {};
 
-async function loadSeller(){
+  $("user-display-name").textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.displayName || seller.name || "Seller"}!`;
+  $("factoryName").value = seller.factoryName || "";
+  $("cnpj").value = seller.cnpj || "";
+  $("bio").value = seller.bio || "";
+  $("bankName").value = bank.bank || bank.bankName || "";
+  $("bankAgency").value = bank.agency || bank.bankAgency || "";
+  $("bankAccount").value = bank.account || bank.bankAccount || bank.number || "";
+  $("cepColeta").value = seller.cepColeta || "";
+  $("transpPropria").checked = !!seller.transpPropria;
+
+  setLockedField("factoryName", approved);
+  setLockedField("cnpj", true);
+
+  localStorage.setItem("seller_profile", JSON.stringify(seller));
+}
+async function loadSeller() {
   try {
-    const res = await fetch(`${API_BASE}/seller/profile`, { headers: authHeaders({ 'Content-Type': 'application/json' }) });
-    if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+    const res = await fetch(`${API_BASE}/seller/profile`, { headers: authHeaders({ "Content-Type": "application/json" }) });
+    if (res.status === 401 || res.status === 403) {
+      clearSellerSession();
+      window.location.href = "seller_login.html";
+      return;
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
-
-    const seller = data.seller || data;
-    const approved = isApprovedSeller(seller);
-    const bank = seller.bankAccount || seller.metadata?.bankAccount || {};
-
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || 'Seller'}!`;
-    $('factoryName').value = seller.factoryName || seller.storeName || seller.displayName || '';
-    $('cnpj').value = seller.cnpj || seller.document || '';
-    $('bio').value = seller.bio || seller.metadata?.bio || '';
-    $('bankName').value = bank.bank || bank.bankName || seller.metadata?.bankName || '';
-    $('bankAgency').value = bank.agency || bank.bankAgency || seller.metadata?.bankAgency || '';
-    $('bankAccount').value = bank.account || bank.bankAccount || seller.metadata?.bankAccountNumber || '';
-    $('cepColeta').value = seller.cepColeta || seller.metadata?.cepColeta || '';
-    $('transpPropria').checked = !!(seller.transpPropria ?? seller.metadata?.transpPropria);
-
-    setLockedField('factoryName', approved);
-    setLockedField('cnpj', true);
-
-    localStorage.setItem("seller_profile", JSON.stringify(seller));
-  } catch(e) {
+    fillSeller(normalizeSellerPayload(data));
+  } catch (e) {
     console.error(e);
-    toast(e.message || 'Erro ao carregar configurações.', 'error');
+    toast(e.message || "Erro ao carregar configurações.", "error");
   }
 }
-
-// SALVAR ALTERAÇÕES NO BANCO
-$('settings-form').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const btn = $('save-btn');
+async function saveSeller(event) {
+  event.preventDefault();
+  const btn = $("save-btn");
   btn.disabled = true;
-  btn.textContent = 'Salvando...';
+  btn.innerHTML = "Salvando...";
 
   try {
+    const current = getSellerProfile();
+    const approved = isApprovedSeller(current);
+
     const payload = {
-      factoryName: $('factoryName').value.trim(),
-      bio: $('bio').value.trim(),
+      bio: $("bio").value.trim(),
       bankAccount: {
-        bank: $('bankName').value.trim(),
-        agency: $('bankAgency').value.trim(),
-        account: $('bankAccount').value.trim()
+        bank: $("bankName").value.trim(),
+        agency: $("bankAgency").value.trim(),
+        account: $("bankAccount").value.trim()
       },
-      cepColeta: $('cepColeta').value.replace(/\D/g,''),
-      transpPropria: $('transpPropria').checked
+      cepColeta: $("cepColeta").value.replace(/\D/g, ""),
+      transpPropria: $("transpPropria").checked
     };
+
+    // Nome fantasia só é enviado quando ainda não foi aprovado.
+    // Após aprovação, o backend também deve bloquear este campo.
+    if (!approved) payload.factoryName = $("factoryName").value.trim();
 
     const res = await fetch(`${API_BASE}/seller/update`, {
       method: "PUT",
       headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
+
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
       clearSellerSession();
-      window.location.href = 'seller_login.html';
+      window.location.href = "seller_login.html";
       return;
     }
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-    if (data.seller) localStorage.setItem("seller_profile", JSON.stringify(data.seller));
-    toast('Configurações salvas com sucesso!', 'success');
-    await loadSeller();
-  } catch(e) {
+    const seller = normalizeSellerPayload(data.seller ? data : { seller: { ...current, ...payload, metadata: { ...(current.metadata || {}), bio: payload.bio, cepColeta: payload.cepColeta, transpPropria: payload.transpPropria, bankAccount: payload.bankAccount } } });
+    fillSeller(seller);
+    toast("Configurações salvas com sucesso!", "success");
+  } catch (e) {
     console.error(e);
-    toast(e?.message || 'Erro ao salvar.', 'error');
+    toast(e?.message || "Erro ao salvar.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check-double"></i> Salvar alterações';
   }
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-check-double"></i> Salvar alterações';
+}
+document.addEventListener("DOMContentLoaded", () => {
+  loadSeller();
+  $("settings-form")?.addEventListener("submit", saveSeller);
+  $("sidebar-toggle")?.addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
+  $("btn-sair")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    clearSellerSession();
+    window.location.href = "seller_login.html";
+  });
 });
-
-window.onload = loadSeller;
-$('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
-$('btn-sair')?.addEventListener('click', () => { clearSellerSession(); window.location.href="seller_login.html"; });
-
 </script>
 </body></html>

@@ -4623,25 +4623,29 @@ app.post('/api/seller/complete-onboarding', async (req, res) => { try { const se
 app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
+    if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado.' });
 
-    const orders = await Order.find({
-      sellerIds: sid,
+    const sellerFilter = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { manufacturer: sid }] };
+    const returnFilter = {
       $or: [
         { status: /devol/i },
         { status: /troca/i },
         { statusLabel: /devol/i },
         { statusLabel: /troca/i },
         { returnReason: { $exists: true, $ne: '' } },
-        { reason: { $exists: true, $ne: '' } }
+        { reason: { $exists: true, $ne: '' } },
+        { 'metadata.returnReason': { $exists: true, $ne: '' } },
+        { 'shipping.returnReason': { $exists: true, $ne: '' } }
       ]
-    }).sort({ updatedAt: -1, createdAt: -1 }).limit(100);
+    };
 
-    return res.json(orders.map(toJSON));
+    const orders = await Order.find({ $and: [sellerFilter, returnFilter] })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(100);
+
+    return res.json({ ok: true, items: orders.map(toJSON), results: orders.map(toJSON) });
   } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: error.message || 'Erro ao buscar devoluções'
-    });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao buscar devoluções' });
   }
 });
 
@@ -4660,31 +4664,35 @@ async function sellerAuthRequired(req,res,next){
     next();
   }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
 }
-function sellerProfile(s, u) {
-  const o = toJSON(s) || {};
-  const meta = o.metadata || {};
-  const bank = o.bankAccount || meta.bankAccount || {};
+function sellerProfile(s,u){
+  const o=toJSON(s)||{};
+  const meta=o.metadata||{};
+  const bank=meta.bankAccount||o.bankAccount||{};
+  const status=String(o.status||meta.status||'pending').toLowerCase();
+  const active=!['bloqueado','reprovado','blocked','rejected','recusado'].includes(status);
   return {
     ...o,
-    id: String(o.sellerId || o._id || ''),
-    sellerId: String(o.sellerId || ''),
-    name: o.displayName || o.storeName || u?.name || '',
-    factoryName: o.storeName || o.displayName || u?.name || '',
-    storeName: o.storeName || o.displayName || u?.name || '',
-    displayName: o.displayName || u?.name || '',
-    email: o.email || u?.email || '',
-    cnpj: o.document || u?.cpf || '',
-    document: o.document || u?.cpf || '',
-    phone: o.phone || u?.phone || '',
-    bio: o.bio || meta.bio || '',
+    id:String(o.sellerId||o._id||''),
+    sellerId:String(o.sellerId||''),
+    name:o.displayName||o.storeName||u?.name||'',
+    factoryName:o.storeName||o.displayName||u?.name||'',
+    storeName:o.storeName||meta.factoryName||meta.storeName||'',
+    displayName:o.displayName||meta.ownerName||meta.responsavel||u?.name||'',
+    email:o.email||u?.email||'',
+    phone:o.phone||u?.phone||meta.phone||'',
+    document:o.document||u?.cpf||meta.cnpj||meta.cpf||'',
+    cnpj:meta.cnpj||o.document||'',
+    bio:o.bio||meta.bio||'',
     bankAccount: {
       bank: bank.bank || bank.bankName || meta.bankName || '',
       agency: bank.agency || bank.bankAgency || meta.bankAgency || '',
       account: bank.account || bank.bankAccount || meta.bankAccountNumber || ''
     },
-    cepColeta: o.cepColeta || meta.cepColeta || '',
-    transpPropria: Boolean(o.transpPropria ?? meta.transpPropria),
-    active: !['bloqueado', 'reprovado', 'blocked', 'rejected'].includes(String(o.status || '').toLowerCase())
+    cepColeta:o.cepColeta||meta.cepColeta||'',
+    transpPropria: o.transpPropria ?? meta.transpPropria ?? false,
+    active,
+    approved:['approved','aprovado'].includes(status),
+    lockedLegalData:['approved','aprovado'].includes(status)
   };
 }
 app.post('/api/seller/auth/login',async(req,res)=>{
@@ -4778,97 +4786,43 @@ app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
 });
 
 
-app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
-  try {
-    const sid = String(req.sellerId || '').trim();
-    if (!sid) return res.status(400).json({ ok: false, error: 'Seller não identificado' });
-
-    const orders = await Order.find({
-      $or: [{ sellerIds: sid }, { 'items.sellerId': sid }]
-    }).sort({ createdAt: -1 }).limit(500);
-
-    const paidStatuses = new Set(['pago', 'paid', 'approved', 'aprovado', 'entregue', 'delivered', 'shipped', 'enviado']);
-    const rows = [];
-
-    for (const order of orders) {
-      const obj = toJSON(order) || {};
-      const status = String(obj.status || '').toLowerCase();
-      const items = ensureArray(obj.items).filter((item) => String(item?.sellerId || '') === sid);
-      if (!items.length && !ensureArray(obj.sellerIds).includes(sid)) continue;
-
-      const gross = items.length
-        ? items.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0)
-        : Number(obj.total || 0);
-
-      const feePercent = Number(obj.sellerCommissionPercent || obj.commissionPercent || 0);
-      const fee = Number(obj.sellerCommission || obj.commission || (feePercent > 0 ? gross * (feePercent / 100) : 0)) || 0;
-
-      const label = Number(
-        obj.sellerLabelCost ||
-        obj.labelCost ||
-        obj.etiquetaAriana ||
-        obj.shipping?.labelCost ||
-        obj.shipping?.sellerLabelCost ||
-        0
-      ) || 0;
-
-      const net = Math.max(0, gross - fee - label);
-
-      rows.push({
-        id: String(obj._id || obj.id || ''),
-        orderId: String(obj._id || obj.id || ''),
-        createdAt: obj.createdAt || null,
-        updatedAt: obj.updatedAt || null,
-        status: obj.status || '',
-        statusLabel: obj.statusLabel || '',
-        payable: paidStatuses.has(status),
-        gross,
-        fee,
-        label,
-        net
-      });
-    }
-
-    return res.json(rows);
-  } catch (error) {
-    console.error('Erro no extrato do seller:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar extrato do seller' });
-  }
-});
-
-
 app.put('/api/seller/update', sellerAuthRequired, async (req, res) => {
   try {
     const body = req.body || {};
-    const sellerStatus = String(req.seller?.status || '').trim().toLowerCase();
+    const sellerStatus = String(req.seller?.status || req.seller?.metadata?.status || '').trim().toLowerCase();
     const sellerApproved = ['approved', 'aprovado'].includes(sellerStatus);
 
-    const updates = {};
     const metadata = { ...(req.seller?.metadata || {}) };
-
-    // Dados jurídicos ficam bloqueados após aprovação.
-    if (!sellerApproved && body.factoryName !== undefined) {
-      updates.storeName = String(body.factoryName || '').trim();
-    }
+    const bankBody = body.bankAccount && typeof body.bankAccount === 'object' ? body.bankAccount : {};
 
     if (body.bio !== undefined) metadata.bio = String(body.bio || '').trim();
-
-    if (body.bankAccount && typeof body.bankAccount === 'object') {
-      metadata.bankAccount = {
-        bank: String(body.bankAccount.bank || '').trim(),
-        agency: String(body.bankAccount.agency || '').trim(),
-        account: String(body.bankAccount.account || '').trim()
-      };
-    }
-
     if (body.cepColeta !== undefined) metadata.cepColeta = String(body.cepColeta || '').replace(/\D/g, '');
     if (body.transpPropria !== undefined) metadata.transpPropria = body.transpPropria === true;
 
-    updates.metadata = metadata;
+    metadata.bankAccount = {
+      ...(metadata.bankAccount || {}),
+      bank: String(bankBody.bank || body.bankName || metadata.bankAccount?.bank || '').trim(),
+      agency: String(bankBody.agency || body.bankAgency || metadata.bankAccount?.agency || '').trim(),
+      account: String(bankBody.account || body.bankAccountNumber || metadata.bankAccount?.account || '').trim()
+    };
+    metadata.bankName = metadata.bankAccount.bank;
+    metadata.bankAgency = metadata.bankAccount.agency;
+    metadata.bankAccountNumber = metadata.bankAccount.account;
+
+    const sellerUpdates = { metadata };
+
+    // Nome fantasia e documento ficam bloqueados depois da aprovação.
+    if (!sellerApproved) {
+      if (body.factoryName !== undefined) sellerUpdates.storeName = String(body.factoryName || '').trim();
+      if (body.storeName !== undefined) sellerUpdates.storeName = String(body.storeName || '').trim();
+      if (body.displayName !== undefined) sellerUpdates.displayName = String(body.displayName || '').trim();
+      if (body.document !== undefined) sellerUpdates.document = String(body.document || '').trim();
+      if (body.cnpj !== undefined) sellerUpdates.document = String(body.cnpj || '').trim();
+    }
 
     const seller = await Seller.findOneAndUpdate(
       { sellerId: req.sellerId },
-      { $set: updates },
+      { $set: sellerUpdates },
       { new: true }
     );
 
@@ -4880,9 +4834,61 @@ app.put('/api/seller/update', sellerAuthRequired, async (req, res) => {
       seller: sellerProfile(seller, req.user),
       user: toJSON(req.user)
     });
-  } catch (error) {
-    console.error('Erro ao salvar configurações do seller:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar configurações do seller' });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar configurações do seller' });
+  }
+});
+
+app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado.' });
+
+    const commissionPercent = Number(process.env.SELLER_COMMISSION_PERCENT || 12);
+    const labelFeeDefault = Number(process.env.SELLER_LABEL_FEE || 0);
+
+    const orders = await Order.find({
+      $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { manufacturer: sid }],
+      status: { $in: ['pago', 'approved', 'aprovado', 'paid', 'enviado', 'entregue', 'shipped', 'delivered'] }
+    }).sort({ createdAt: -1 }).limit(300).lean();
+
+    const orderIds = orders.map(o => String(o._id));
+    const labels = await LogisticsLabel.find({ orderId: { $in: orderIds } }).lean().catch(() => []);
+    const labelByOrder = new Map(labels.map(l => [String(l.orderId), l]));
+
+    const items = orders.map((order) => {
+      const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || '') === sid);
+      const gross = sellerItems.length
+        ? sellerItems.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0)
+        : Number(order.total || 0);
+      const fee = Number((gross * (commissionPercent / 100)).toFixed(2));
+      const labelDoc = labelByOrder.get(String(order._id));
+      const label = Number(labelDoc?.shippingCost || order.shipping?.labelCost || order.shipping?.shippingCost || labelFeeDefault || 0);
+      const net = Number((gross - fee - label).toFixed(2));
+      return {
+        id: String(order._id),
+        orderId: String(order._id),
+        createdAt: order.createdAt,
+        status: order.status,
+        gross,
+        fee,
+        label,
+        net,
+        commissionPercent
+      };
+    });
+
+    const summary = items.reduce((acc, item) => {
+      acc.gross += item.gross;
+      acc.fee += item.fee;
+      acc.label += item.label;
+      acc.net += item.net;
+      return acc;
+    }, { gross: 0, fee: 0, label: 0, net: 0 });
+
+    return res.json({ ok: true, items, results: items, summary });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar extrato do seller' });
   }
 });
 

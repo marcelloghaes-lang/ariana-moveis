@@ -204,8 +204,9 @@
           window.location.href = 'seller_login.html';
           return;
         }
-        const orders = await res.json();
-        if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.error || payload?.message || `Erro ${res.status}`);
+        const orders = Array.isArray(payload) ? payload : (payload.orders || payload.items || payload.results || payload.docs || []);
 
         if (!orders.length) {
           tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-gray-400">Nenhum pedido encontrado no banco.</td></tr>';
@@ -213,23 +214,23 @@
         }
 
         $("kpi-orders").textContent = orders.length;
-        $("kpi-pending").textContent = orders.filter(o => o.status === 'pending').length;
-        $("kpi-shipped").textContent = orders.filter(o => o.status === 'shipped').length;
+        $("kpi-pending").textContent = orders.filter(o => ['pending','pendente','aguardando_pagamento','aguardando'].includes(String(o.status || '').toLowerCase())).length;
+        $("kpi-shipped").textContent = orders.filter(o => ['shipped','enviado','em_envio','despachado','transporte'].includes(String(o.status || '').toLowerCase())).length;
         const totalRevenue = orders.reduce((acc, o) => acc + (o.total || 0), 0);
         $("kpi-revenue").textContent = totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         tbody.innerHTML = orders.map(o => `
-          <tr class="hover:bg-gray-50 transition">
-            <td class="p-4 font-black text-dark-bg">#${o._id.substring(0,8).toUpperCase()}</td>
+          <tr class="hover:bg-gray-50 transition" data-status="${String(o.status || o.statusLabel || '').toLowerCase()}">
+            <td class="p-4 font-black text-dark-bg">#${String(o._id || o.id || '').substring(0,8).toUpperCase()}</td>
             <td class="p-4">
                 <div class="font-bold">${o.customerName || 'Cliente'}</div>
                 <div class="text-[10px] text-gray-400">${o.customerEmail || ''}</div>
             </td>
             <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${o.status || 'pendente'}</span></td>
             <td class="p-4 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
-            <td class="p-4 text-right font-black">R$ ${Number(o.total || 0).toFixed(2)}</td>
+            <td class="p-4 text-right font-black">${Number(o.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
             <td class="p-4 text-right">
-                <a href="seller_pedido_editar.html?id=${o._id}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
+                <a href="seller_pedido_detalhe.html?id=${o._id || o.id}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
             </td>
           </tr>
         `).join('');
@@ -239,7 +240,25 @@
       }
     }
 
+
+    function filterRows() {
+      const q = String($('search-input')?.value || '').toLowerCase().trim();
+      const status = String($('status-filter')?.value || 'all').toLowerCase();
+      document.querySelectorAll('#orders-tbody tr[data-status]').forEach((tr) => {
+        const text = tr.textContent.toLowerCase();
+        const st = String(tr.dataset.status || '').toLowerCase();
+        const matchesText = !q || text.includes(q);
+        const matchesStatus = status === 'all' ||
+          (status === 'paid' && ['paid','pago','pagamento aprovado'].some(x => st.includes(x))) ||
+          (status === 'pending' && ['pending','pendente','aguardando'].some(x => st.includes(x))) ||
+          (status === 'shipped' && ['shipped','enviado','envio','despachado','transporte'].some(x => st.includes(x)));
+        tr.style.display = (matchesText && matchesStatus) ? '' : 'none';
+      });
+    }
+
     window.onload = loadOrders;
+    $('search-input')?.addEventListener('input', filterRows);
+    $('status-filter')?.addEventListener('change', filterRows);
     $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
     $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
   </script>

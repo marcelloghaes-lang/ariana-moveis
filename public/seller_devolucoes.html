@@ -106,70 +106,84 @@ function authHeaders(extra = {}) {
   return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
 }
 function ensureSellerSession() {
-  const token = getSellerToken();
-  if (!token) {
+  if (!getSellerToken()) {
     window.location.href = "seller_login.html";
     return false;
   }
   return true;
 }
-function applySellerHeaderName() {
-  const profile = getSellerProfile();
-  const el = document.getElementById("user-display-name");
-  if (el) el.textContent = `Bem-vindo, ${profile.factoryName || profile.name || 'Seller'}!`;
+function applySellerHeaderName(profile = getSellerProfile()) {
+  const el = $("user-display-name");
+  if (el) el.textContent = `Bem-vindo, ${profile.factoryName || profile.storeName || profile.displayName || profile.name || "Seller"}!`;
 }
-</script>
-
-<script>
-
+function resolveReturns(payload) {
+  if (Array.isArray(payload)) return payload;
+  return payload.items || payload.results || payload.docs || payload.returns || payload.orders || [];
+}
+function orderIdOf(order) {
+  return String(order._id || order.id || order.orderId || order.pedidoId || "");
+}
+function reasonOf(order) {
+  return order.returnReason || order.reason || order.motivo || order.metadata?.returnReason || "O cliente solicitou a devolução deste produto através da central de ajuda.";
+}
 async function loadReturns() {
   if (!ensureSellerSession()) return;
   applySellerHeaderName();
-  const list = $('returns-list');
+  const list = $("returns-list");
+  list.innerHTML = '<div class="card p-10 text-center muted font-bold">Sincronizando com MongoDB...</div>';
   try {
     const res = await fetch(`${API_BASE}/seller/returns`, { headers: authHeaders() });
     if (res.status === 401 || res.status === 403) {
       clearSellerSession();
-      window.location.href = 'seller_login.html';
+      window.location.href = "seller_login.html";
       return;
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-    const orders = Array.isArray(data) ? data : (data.items || data.results || data.docs || []);
+    const orders = resolveReturns(data);
     if (!orders.length) {
       list.innerHTML = '<div class="card p-10 text-center muted font-bold">Nenhuma devolução ou troca pendente.</div>';
       return;
     }
 
-    list.innerHTML = orders.map(o => `
-      <div class="card p-6 animate-fade border-l-4 border-primary-blue">
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div class="font-black text-dark-bg text-lg">Pedido #${String(o._id).substring(0,8).toUpperCase()}</div>
-            <div class="muted text-xs mt-1 font-bold italic">${new Date(o.updatedAt || o.createdAt).toLocaleString('pt-BR')}</div>
+    list.innerHTML = orders.map((o) => {
+      const oid = orderIdOf(o);
+      const date = o.updatedAt || o.createdAt || o.date || null;
+      return `
+        <div class="card p-6 animate-fade border-l-4 border-primary-blue">
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div class="font-black text-dark-bg text-lg">Pedido #${String(oid || "---").slice(-8).toUpperCase()}</div>
+              <div class="muted text-xs mt-1 font-bold italic">${date ? new Date(date).toLocaleString("pt-BR") : ""}</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="pill bg-amber-100 text-amber-700 uppercase font-black text-[10px]">${o.statusLabel || o.status || "Aguardando análise"}</span>
+              ${oid ? `<a href="seller_pedido_detalhe.html?id=${oid}" class="btn btn-light !py-2 !px-3 shadow-sm hover:bg-gray-50"><i class="fas fa-eye text-primary-blue"></i></a>` : ""}
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="pill bg-amber-100 text-amber-700 uppercase font-black text-[10px]">Aguardando Coleta</span>
-            <a href="seller_pedido_detalhe.html?id=${o._id}" class="btn btn-light !py-2 !px-3 shadow-sm hover:bg-gray-50"><i class="fas fa-eye text-primary-blue"></i></a>
+          <div class="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-700 italic">
+            <i class="fas fa-comment-alt mr-2 text-primary-blue"></i>
+            "${reasonOf(o)}"
           </div>
         </div>
-        <div class="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-700 italic">
-          <i class="fas fa-comment-alt mr-2 text-primary-blue"></i>
-          "${o.returnReason || o.reason || 'O cliente solicitou a devolução deste produto através da central de ajuda.'}"
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join("");
   } catch (e) {
-    console.error('Erro ao carregar devoluções:', e);
-    list.innerHTML = `<div class="card p-10 text-center text-red-500 font-bold">${e.message || 'Erro de conexão com o servidor.'}</div>`;
+    console.error("Erro ao carregar devoluções:", e);
+    list.innerHTML = `<div class="card p-10 text-center text-red-500 font-bold">${e.message || "Erro de conexão com o servidor."}</div>`;
   }
 }
-
-window.onload = loadReturns;
-$('btn-refresh-returns').onclick = loadReturns;
-$('sidebar-toggle').onclick = () => $('sidebar').classList.toggle("-translate-x-full");
-$('btn-sair').onclick = () => { clearSellerSession(); window.location.href="seller_login.html"; };
+document.addEventListener("DOMContentLoaded", () => {
+  loadReturns();
+  $("btn-refresh-returns")?.addEventListener("click", loadReturns);
+  $("sidebar-toggle")?.addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
+  $("btn-sair")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    clearSellerSession();
+    window.location.href = "seller_login.html";
+  });
+});
 </script>
 </body>
 </html>

@@ -378,23 +378,31 @@ async function saveSellerProfile(event) {
       payload.document = $("seller-document")?.value || "";
       payload.email = $("seller-email")?.value || "";
     }
-    const res = await fetch(`${API_BASE}/seller/profile`, {
+    let res = await fetch(`${API_BASE}/seller/profile`, {
       method: "PATCH",
       headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
-    const data = await res.json().catch(() => ({}));
+    let data = await res.json().catch(() => ({}));
+
+    // Compatibilidade com backend antigo que usa PUT /api/seller/update.
+    if (res.status === 404 || res.status === 405) {
+      res = await fetch(`${API_BASE}/seller/update`, {
+        method: "PUT",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload)
+      });
+      data = await res.json().catch(() => ({}));
+    }
+
+    if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-            if (data.seller) {
-                localStorage.setItem("seller_profile", JSON.stringify(data.seller));
-                fillSellerProfileForm(data.seller, data.user || {});
-                updateSellerStoreShortcut(data.seller);
-                $('user-display-name').textContent = `Olá, ${data.seller.factoryName || data.seller.name || 'Seller'}!`;
-            }
-    localStorage.setItem("seller_profile", JSON.stringify(data.seller || {}));
-    fillSellerProfileForm(data.seller || {}, data.user || {});
-    updateSellerStoreShortcut(data.seller || {});
+    const sellerAtualizado = data.seller || data.user || data || {};
+    localStorage.setItem("seller_profile", JSON.stringify(sellerAtualizado));
+    fillSellerProfileForm(sellerAtualizado, data.user || {});
+    updateSellerStoreShortcut(sellerAtualizado);
+    $('user-display-name').textContent = `Olá, ${sellerAtualizado.factoryName || sellerAtualizado.storeName || sellerAtualizado.name || 'Seller'}!`;
     toast("Dados cadastrais salvos com sucesso!", "success");
   } catch (e) {
     toast(e.message || "Erro ao salvar dados cadastrais.", "error");
@@ -412,12 +420,42 @@ async function saveSellerProfile(event) {
         fillSellerProfileForm(profile, profile.user || {});
 
         try {
-            const res = await fetch(`${API_BASE}/seller/dashboard`, {
-                headers: { "Authorization": `Bearer ${token}` }
+            // Atualiza os dados cadastrais reais antes dos KPIs.
+            try {
+                const profileRes = await fetch(`${API_BASE}/seller/profile`, { headers: authHeaders() });
+                const profileData = await profileRes.json().catch(() => ({}));
+                if (profileRes.ok) {
+                    const sellerFresh = profileData.seller || profileData.user || profileData || {};
+                    localStorage.setItem("seller_profile", JSON.stringify(sellerFresh));
+                    $('user-display-name').textContent = `Olá, ${sellerFresh.factoryName || sellerFresh.storeName || sellerFresh.name || 'Seller'}!`;
+                    updateSellerStoreShortcut(sellerFresh);
+                    fillSellerProfileForm(sellerFresh, profileData.user || {});
+                }
+            } catch (_) {}
+
+            let res = await fetch(`${API_BASE}/seller/dashboard`, {
+                headers: authHeaders()
             });
-            const data = await res.json().catch(() => ({}));
+            let data = await res.json().catch(() => ({}));
             if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
-            if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
+
+            // Fallback caso /seller/dashboard ainda não exista no server.
+            if (!res.ok) {
+                const [prodRes, ordRes] = await Promise.all([
+                    fetch(`${API_BASE}/seller/products`, { headers: authHeaders() }).catch(() => null),
+                    fetch(`${API_BASE}/seller/orders`, { headers: authHeaders() }).catch(() => null)
+                ]);
+                const prodData = prodRes ? await prodRes.json().catch(() => []) : [];
+                const ordData = ordRes ? await ordRes.json().catch(() => []) : [];
+                const products = Array.isArray(prodData) ? prodData : (prodData.products || prodData.items || []);
+                const orders = Array.isArray(ordData) ? ordData : (ordData.orders || ordData.items || []);
+                data = {
+                    totalProdutos: products.length,
+                    pedidosPendentes: orders.filter(o => String(o.status || '').toLowerCase().includes('pend')).length,
+                    vendasTotal: orders.filter(o => ['pago','paid','approved','aprovado'].includes(String(o.status || '').toLowerCase())).reduce((s,o)=>s+Number(o.total||0),0),
+                    recentOrders: orders.slice(0,8)
+                };
+            }
 
             $('kpi-products').textContent = data.totalProdutos || 0;
             $('kpi-orders').textContent = data.pedidosPendentes || 0;

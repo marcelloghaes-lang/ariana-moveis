@@ -161,7 +161,7 @@ function applySellerHeaderName() {
 function slugify(value) {
   return String(value || "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
@@ -215,11 +215,19 @@ function getParentId(c) {
 }
 
 function isCategoryActive(c) {
-  return c?.active !== false && c?.status !== "inactive" && c?.status !== "inativo";
+  const status = String(c?.status || "").toLowerCase();
+  return c?.active !== false && !["inactive", "inativo", "disabled", "desativado"].includes(status);
 }
 
 function optionHtml(value, label, slug, id) {
-  return `<option value="${String(value).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}" data-id="${String(id).replace(/"/g, '&quot;')}">${label}</option>`;
+  return `<option value="${String(value).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}" data-id="${String(id).replace(/"/g, '&quot;')}">${String(label).replace(/</g, '&lt;')}</option>`;
+}
+
+function normalizeParentCategories(rows) {
+  const active = rows.filter(isCategoryActive);
+  const parents = active.filter((c) => !getParentId(c));
+  if (parents.length) return parents;
+  return active;
 }
 
 async function loadCategories() {
@@ -231,27 +239,35 @@ async function loadCategories() {
   if (subSelect) subSelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>';
 
   try {
-    const res = await fetch(`${API_BASE}/categories`, { headers: authHeaders() });
-    const raw = await res.json().catch(() => ([]));
-    const rows = extractCategoryRows(raw).filter(Boolean).filter(isCategoryActive);
+    const urls = [`${API_BASE}/categories`, `${API_BASE}/admin/categories`];
+    let rows = [];
+    let lastError = null;
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { headers: authHeaders() });
+        const raw = await res.json().catch(() => ([]));
+        if (!res.ok) {
+          lastError = raw?.error || raw?.message || `Erro ${res.status}`;
+          continue;
+        }
+        rows = extractCategoryRows(raw).filter(Boolean).filter(isCategoryActive);
+        if (rows.length) break;
+      } catch (err) {
+        lastError = err.message || String(err);
+      }
+    }
 
     ALL_CATEGORIES = rows;
 
     if (!rows.length) {
       select.innerHTML = '<option value="">Nenhuma categoria encontrada</option>';
+      if (lastError) console.warn("Categorias:", lastError);
       showToast("Nenhuma categoria foi retornada pelo servidor.", "error");
       return;
     }
 
-    const childParentIds = new Set(rows.map(getParentId).filter(Boolean));
-    const parents = rows.filter((c) => {
-      const parentId = getParentId(c);
-      const id = getCategoryId(c);
-      const slug = getCategorySlug(c);
-      return !parentId || !rows.some((x) => getCategoryId(x) === parentId || getCategorySlug(x) === parentId) || childParentIds.has(id) || childParentIds.has(slug);
-    });
-
-    const categoriesToShow = parents.length ? parents : rows;
+    const categoriesToShow = normalizeParentCategories(rows);
 
     select.innerHTML = '<option value="">Selecione uma Categoria</option>' + categoriesToShow.map((c) => {
       const name = getCategoryName(c);
@@ -261,6 +277,7 @@ async function loadCategories() {
     }).join("");
 
     loadSubcategoriesForSelectedCategory();
+    syncCategoryFields();
   } catch (error) {
     console.warn("Falha ao carregar categorias:", error);
     select.innerHTML = '<option value="">Erro ao carregar categorias</option>';
@@ -314,6 +331,24 @@ function syncCategoryFields() {
   if ($("p-subcategorySlug")) $("p-subcategorySlug").value = selectedSubcategory?.dataset?.slug || slugify(subcategorySelect?.value || "");
 }
 
+
+function specsTextToObject(text = "") {
+  const raw = String(text || "").trim();
+  if (!raw) return {};
+  const out = { texto: raw };
+  raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((line, index) => {
+    const parts = line.split(/[:：]/);
+    if (parts.length >= 2) {
+      const key = parts.shift().trim();
+      const value = parts.join(":").trim();
+      if (key) out[key] = value;
+    } else {
+      out[`item_${index + 1}`] = line;
+    }
+  });
+  return out;
+}
+
 function generateSku() {
   const base = slugify($("p-name")?.value || "produto").replace(/-/g, "").slice(0, 8).toUpperCase() || "PRODUTO";
   $("p-sku").value = `${base}-${Date.now().toString().slice(-6)}`;
@@ -354,15 +389,19 @@ $("product-form")?.addEventListener("submit", async (e) => {
       stock: parseInt($("p-stock").value || "0", 10),
       category: $("p-category").value,
       categoria: $("p-category").value,
+      categoryName: $("p-category").value,
+      categoryId: $("p-category")?.selectedOptions?.[0]?.dataset?.id || "",
       categorySlug: $("p-categorySlug").value || slugify($("p-category").value),
       subcategory: $("p-subcategory").value,
+      subcategoryName: $("p-subcategory").value,
+      subcategoryId: $("p-subcategory")?.selectedOptions?.[0]?.dataset?.id || "",
       subcategorySlug: $("p-subcategorySlug").value || slugify($("p-subcategory").value),
       description: $("p-desc").value.trim(),
       descricao: $("p-desc").value.trim(),
       technicalSpecs: $("p-specs")?.value?.trim() || "",
       especificacaoTecnica: $("p-specs")?.value?.trim() || "",
       specsText: $("p-specs")?.value?.trim() || "",
-      specs: { texto: $("p-specs")?.value?.trim() || "" },
+      specs: specsTextToObject($("p-specs")?.value || ""),
       imageUrl: mainImageUrl,
       mainImageUrl: mainImageUrl,
       image: mainImageUrl,
