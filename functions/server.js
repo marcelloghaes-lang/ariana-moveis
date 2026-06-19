@@ -3999,6 +3999,15 @@ function sellerItemGross(order = {}, sellerId = '') {
   return round2(gross || order.subtotal || order.total || 0);
 }
 
+function sellerItemBaseGross(order = {}, sellerId = '') {
+  const sid = String(sellerId || '').trim();
+  const items = ensureArray(order.items);
+  const sellerItems = sid ? items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid) : items;
+  const baseGross = sellerItems.reduce((acc, item) => acc + getItemSellerBaseTotal(item, order), 0);
+  const chargedGross = sellerItemGross(order, sellerId);
+  return round2(baseGross || chargedGross);
+}
+
 async function getMarketplaceLabelFeeForOrder(order = {}, sellerId = '') {
   try {
     const oid = String(order?._id || order?.id || '').trim();
@@ -4026,7 +4035,7 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const results = [];
   for (const sellerId of sellerIds.filter(Boolean)) {
     const seller = await Seller.findOne({ sellerId }) || await Seller.findById(normalizeObjectId(sellerId)).catch(() => null);
-    const gross = sellerItemGross(order, sellerId);
+    const gross = sellerItemBaseGross(order, sellerId);
     const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || settings?.mercadopago || {}, seller);
     const commission = round2(gross * commissionPercent / 100);
     const labelFee = await getMarketplaceLabelFeeForOrder(order, sellerId);
