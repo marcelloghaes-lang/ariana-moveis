@@ -80,7 +80,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                    <div class="text-xs text-gray-500 font-bold uppercase">Total bruto aprovado</div>
+                    <div class="text-xs text-gray-500 font-bold uppercase">Total base do seller</div>
                     <div id="gross" class="text-2xl font-black text-dark-bg mt-2">R$ 0,00</div>
                 </div>
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
@@ -88,7 +88,7 @@
                     <div id="fee" class="text-2xl font-black text-error-red mt-2">R$ 0,00</div>
                 </div>
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                    <div class="text-xs text-gray-500 font-bold uppercase">Saldo Líquido Estimado</div>
+                    <div class="text-xs text-gray-500 font-bold uppercase">Saldo líquido</div>
                     <div id="net" class="text-2xl font-black text-success-green mt-2">R$ 0,00</div>
                 </div>
             </div>
@@ -105,7 +105,7 @@
                             <tr>
                                 <th class="py-3 px-3 text-left">ID Pedido</th>
                                 <th class="py-3 px-3 text-left">Data</th>
-                                <th class="py-3 px-3 text-right">Valor Bruto</th>
+                                <th class="py-3 px-3 text-right">Valor base</th>
                                 <th class="py-3 px-3 text-right">Comissão</th>
                                 <th class="py-3 px-3 text-right">Seu Saldo</th>
                             </tr>
@@ -181,6 +181,7 @@ function applySellerHeaderName() {
     async function loadSales() {
         if (!ensureSellerSession()) return;
         applySellerHeaderName();
+
         try {
             const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
             if (meRes.status === 401 || meRes.status === 403) {
@@ -188,6 +189,7 @@ function applySellerHeaderName() {
                 window.location.href = 'seller_login.html';
                 return;
             }
+
             const meData = await meRes.json().catch(() => ({}));
             const sellerMe = meData?.seller || meData?.user || meData || {};
             if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email)) {
@@ -195,41 +197,55 @@ function applySellerHeaderName() {
                 applySellerHeaderName();
             }
 
-            const res = await fetch(`${API_BASE}/seller/orders`, { headers: authHeaders() });
+            // IMPORTANTE:
+            // A tela de vendas agora usa o mesmo cálculo correto do extrato.
+            // Assim o seller recebe pelo valor base cadastrado, sem receber junto o acréscimo de 17% do cartão.
+            const res = await fetch(`${API_BASE}/seller/extrato`, { headers: authHeaders() });
             if (res.status === 401 || res.status === 403) {
                 clearSellerSession();
                 window.location.href = 'seller_login.html';
                 return;
             }
-            const orders = await res.json();
-            if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
-            
-            // Vendas aprovadas do seller: aceita status do Mercado Pago, Pagar.me, Cielo e status em português.
-            const approvedOrders = orders.filter(isApprovedSale);
 
-            let totalGross = 0;
+            const rows = await res.json();
+            if (!res.ok) throw new Error(rows?.message || rows?.error || `Erro ${res.status}`);
+
             const tb = $("tbody");
             tb.innerHTML = "";
 
-            if (approvedOrders.length === 0) {
+            if (!Array.isArray(rows) || rows.length === 0) {
                 $("empty").classList.remove("hidden");
+                $("countPill").textContent = "0 vendas";
+                $("gross").textContent = moneyBR(0);
+                $("fee").textContent = moneyBR(0);
+                $("net").textContent = moneyBR(0);
                 return;
             }
 
             $("empty").classList.add("hidden");
-            $("countPill").textContent = `${approvedOrders.length} vendas`;
+            $("countPill").textContent = `${rows.length} vendas`;
 
-            approvedOrders.forEach(o => {
-                const brute = sellerAmount(o);
-                const fee = sellerCommission(o);
-                const labelFee = sellerLabelFee(o);
-                const net = sellerNet(o);
+            let totalGross = 0;
+            let totalFee = 0;
+            let totalNet = 0;
+
+            rows.forEach(o => {
+                const brute = Number(o.gross || 0);
+                const fee = Number(o.fee || o.commission || 0);
+                const labelFee = Number(o.label || 0);
+                const net = Number(o.net || 0);
+
                 totalGross += brute;
+                totalFee += fee + labelFee;
+                totalNet += net;
+
+                const id = String(o.orderId || o.id || "");
+                const date = o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : "-";
 
                 tb.innerHTML += `
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="py-4 px-3 font-bold text-primary-blue">#${o._id.substring(0,8).toUpperCase()}</td>
-                        <td class="py-4 px-3 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td class="py-4 px-3 font-bold text-primary-blue">#${id.substring(0,8).toUpperCase()}</td>
+                        <td class="py-4 px-3 text-gray-500">${date}</td>
                         <td class="py-4 px-3 text-right font-bold text-dark-bg">${moneyBR(brute)}</td>
                         <td class="py-4 px-3 text-right text-error-red">${moneyBR(fee + labelFee)}</td>
                         <td class="py-4 px-3 text-right font-black text-success-green">${moneyBR(net)}</td>
@@ -237,15 +253,16 @@ function applySellerHeaderName() {
                 `;
             });
 
-            const totalFee = approvedOrders.reduce((acc, o) => acc + sellerCommission(o) + sellerLabelFee(o), 0);
-            const totalNet = approvedOrders.reduce((acc, o) => acc + sellerNet(o), 0);
-
-            $("gross").textContent = totalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            $("fee").textContent = totalFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            $("net").textContent = totalNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            $("gross").textContent = moneyBR(totalGross);
+            $("fee").textContent = moneyBR(totalFee);
+            $("net").textContent = moneyBR(totalNet);
 
         } catch (e) {
             console.error("Erro ao carregar vendas:", e);
+            const tb = $("tbody");
+            if (tb) {
+                tb.innerHTML = `<tr><td colspan="5" class="py-6 px-3 text-center text-red-500 font-bold">Erro ao carregar vendas do seller.</td></tr>`;
+            }
         }
     }
 

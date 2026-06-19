@@ -1262,29 +1262,70 @@ async function loadPaymentsSettingsForProduct() {
         function computeDetailPricing(productData) {
             const n = (v) => {
                 const x = window.__toNumberBR(v, NaN);
-                 return Number.isFinite(x) ? x : null;
+                return Number.isFinite(x) ? x : null;
             };
 
-            const oldPrice = n(productData.oldPrice ?? productData.old_price ?? productData.precoOriginal ?? productData.priceOriginal ?? productData.originalPrice);
+            /*
+              Correção:
+              A tela de detalhes não pode aplicar 17% novamente quando a API já traz:
+              - fullPrice / marketplacePrice / cardPrice = preço cheio/parcelado
+              - pixPrice / price = preço PIX/base já com desconto
+              Assim fica igual ao index: preço cheio riscado em cima e preço PIX em destaque.
+            */
+            const apiFullPrice = n(
+                productData.fullPrice ??
+                productData.marketplacePrice ??
+                productData.cardPrice ??
+                productData.precoCheio ??
+                productData.totalPrazo
+            );
+
+            const apiPixPrice = n(
+                productData.pixPrice ??
+                productData.cashPrice ??
+                productData.precoPix ??
+                productData.price ??
+                productData.preco ??
+                productData.valor
+            );
+
+            const oldPrice = n(
+                productData.oldPrice ??
+                productData.old_price ??
+                productData.precoOriginal ??
+                productData.priceOriginal ??
+                productData.originalPrice
+            );
+
             const currentPrice = n(productData.price ?? productData.preco ?? productData.valor);
 
-            // Se existir oldPrice e o currentPrice for menor, usa como desconto do produto.
-            let original = (oldPrice != null && oldPrice > 0) ? oldPrice : (currentPrice != null ? currentPrice : 0);
-            let cash = (oldPrice != null && currentPrice != null && currentPrice > 0 && currentPrice < oldPrice) ? currentPrice : null;
+            let original = 0;
+            let cash = 0;
 
-            // Se não tiver desconto explícito no produto, aplica o desconto GLOBAL (PIX/BOLETO) configurado no Admin.
-if (cash == null) {
-    // Mesmo cálculo do index:
-    // preço do Mongo = preço cheio/parcelado
-    // preço PIX = preço cheio com desconto
-    const desc = __num(__pixDiscountPercent, 17) || 17;
-    const fator = (100 - desc) / 100;
-    cash = Math.max(0, original * fator);
-}
-const discountPercent = (original > 0) ? Math.round((1 - (cash / original)) * 100) : 0;
+            if (apiFullPrice != null && apiFullPrice > 0 && apiPixPrice != null && apiPixPrice > 0 && apiFullPrice > apiPixPrice) {
+                original = apiFullPrice;
+                cash = apiPixPrice;
+            } else if (oldPrice != null && oldPrice > 0 && currentPrice != null && currentPrice > 0 && oldPrice > currentPrice) {
+                original = oldPrice;
+                cash = currentPrice;
+            } else if (apiPixPrice != null && apiPixPrice > 0) {
+                cash = apiPixPrice;
+                const desc = __num(__pixDiscountPercent, 17) || 17;
+                const fator = (100 - desc) / 100;
+                original = fator > 0 ? (cash / fator) : cash;
+            } else {
+                original = currentPrice || oldPrice || 0;
+                cash = original;
+            }
+
+            original = Math.max(0, original || 0);
+            cash = Math.max(0, cash || 0);
+
+            const discountPercent = (original > 0 && cash > 0 && original > cash)
+                ? Math.round((1 - (cash / original)) * 100)
+                : 0;
 
             const installments = 12;
-            // Parcelamento SEMPRE é calculado pelo valor cheio / a prazo, nunca pelo PIX.
             const instValue = (original > 0) ? (original / installments) : 0;
 
             return {

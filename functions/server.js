@@ -547,7 +547,7 @@ const baseOptions = { timestamps: true, versionKey: false };
 const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true, unique: true, sparse: true }, passwordHash: String, cpf: String, phone: String, role: { type: String, default: 'customer', enum: ['customer', 'seller', 'admin', 'staff'] }, permissions: { type: [String], default: [] }, sellerId: { type: String, default: null }, city: String, uf: String, isActive: { type: Boolean, default: true }, emailVerified: { type: Boolean, default: false }, googleId: { type: String, index: true, sparse: true }, authProvider: { type: String, default: 'password' }, resetPasswordTokenHash: { type: String, default: '' }, resetPasswordExpiresAt: { type: Date, default: null } }, baseOptions);
 const sellerSchema = new mongoose.Schema({ sellerId: { type: String, index: true, unique: true }, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, displayName: String, storeName: String, email: String, phone: String, document: String, status: { type: String, default: 'pending' }, onboardingCompleted: { type: Boolean, default: false }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const categorySchema = new mongoose.Schema({ name: { type: String, required: true }, slug: String, parentId: { type: String, default: null }, active: { type: Boolean, default: true }, sortOrder: { type: Number, default: 0 }, image: String }, baseOptions);
-const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
+const productSchema = new mongoose.Schema({ sellerId: { type: String, index: true }, sellerName: String, name: { type: String, required: true, index: true }, slug: String, description: String, category: String, categoryId: String, categoryName: String, brand: String, sku: String, price: { type: Number, required: true, default: 0 }, sellerBasePrice: { type: Number, default: null }, sellerOriginalPrice: { type: Number, default: null }, oldPrice: { type: Number, default: null }, pixPrice: { type: Number, default: null }, marketplacePrice: { type: Number, default: null }, cardPrice: { type: Number, default: null }, fullPrice: { type: Number, default: null }, installmentCount: { type: Number, default: 12 }, image: String, imageUrl: String, imagem: String, mainImageUrl: String, mainImagePath: String, images: [mongoose.Schema.Types.Mixed], imageUrls: [String], imagePaths: [String], stock: { type: Number, default: 0 }, active: { type: Boolean, default: true }, specs: mongoose.Schema.Types.Mixed, dimensions: mongoose.Schema.Types.Mixed, logistics: mongoose.Schema.Types.Mixed, weight: Number, length: Number, height: Number, width: Number, isOffer: { type: Boolean, default: false }, isFavorite: { type: Boolean, default: false }, isHighlight: { type: Boolean, default: false }, isBestSeller: { type: Boolean, default: false }, isNewArrival: { type: Boolean, default: false }, isRecommended: { type: Boolean, default: false }, posters: [mongoose.Schema.Types.Mixed] }, baseOptions);
 productSchema.index({ name: 'text', description: 'text', category: 'text', brand: 'text' });
 const bannerSchema = new mongoose.Schema({ slot: { type: String, required: true, index: true }, targetSlot: { type: String, index: true }, title: String, subtitle: String, image: String, href: String, alt: String, active: { type: Boolean, default: true }, status: { type: String, default: 'published', index: true }, source: { type: String, default: 'manual' }, draftType: String, products: [mongoose.Schema.Types.Mixed], sortOrder: { type: Number, default: 0 }, device: { type: String, default: 'all' } }, baseOptions);
 const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, name: String, phone: String, cep: String, logradouro: String, numero: String, bairro: String, cidade: String, uf: String, complemento: String, reference: String, isDefault: { type: Boolean, default: false } }, baseOptions);
@@ -2881,12 +2881,51 @@ function formatMoneyBRL(value = 0) {
 // ============================================================
 const MARKETPLACE_CARD_DISCOUNT_PERCENT = Number(process.env.MARKETPLACE_CARD_DISCOUNT_PERCENT || 17);
 const MARKETPLACE_COMMISSION_PERCENT = Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12);
-function roundMoney(value = 0) { return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100; }
-function getMarketplaceFactor() { const p = Math.min(90, Math.max(0, Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17))); return roundMoney((100 - p) / 100) || 0.83; }
-function sellerBaseToMarketplacePrice(basePrice = 0) { const base = Number(basePrice || 0); if (!base) return 0; return roundMoney(base / getMarketplaceFactor()); }
-function marketplacePriceToSellerBase(chargedPrice = 0) { const charged = Number(chargedPrice || 0); if (!charged) return 0; return roundMoney(charged * getMarketplaceFactor()); }
-function isCreditCardPayment(method = '') { const m = String(method || '').toLowerCase(); return m.includes('card') || m.includes('cartao') || m.includes('cartão') || m.includes('credit'); }
-function getOrderPaymentMethod(order = {}) { return String(order?.payment?.method || order?.paymentMethod || order?.method || '').toLowerCase(); }
+
+function roundMoney(value = 0) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+/*
+  Regra Ariana:
+  - price / pixPrice = valor base público do produto no site.
+  - fullPrice / marketplacePrice / cardPrice = valor cheio/parcelado, calculado para permitir 17% OFF no PIX/BOLETO.
+  - No repasse do seller, o acréscimo do cartão nunca entra como saldo do vendedor.
+*/
+function getMarketplaceFactor() {
+  const p = Math.min(90, Math.max(0, Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17)));
+  return ((100 - p) / 100) || 0.83;
+}
+
+function sellerBaseToMarketplacePrice(basePrice = 0) {
+  const base = Number(basePrice || 0);
+  if (!base) return 0;
+  return roundMoney(base / getMarketplaceFactor());
+}
+
+function marketplacePriceToSellerBase(chargedPrice = 0) {
+  const charged = Number(chargedPrice || 0);
+  if (!charged) return 0;
+  return roundMoney(charged * getMarketplaceFactor());
+}
+
+function isCreditCardPayment(method = '') {
+  const m = String(method || '').toLowerCase();
+  return m.includes('card') || m.includes('cartao') || m.includes('cartão') || m.includes('credit') || m.includes('credito') || m.includes('crédito');
+}
+
+function getOrderPaymentMethod(order = {}) {
+  return String(
+    order?.payment?.method ||
+    order?.payment?.payment_method ||
+    order?.payment?.paymentMethod ||
+    order?.payment?.type ||
+    order?.paymentMethod ||
+    order?.method ||
+    ''
+  ).toLowerCase();
+}
+
 function getChargedItemTotal(item = {}) {
   const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
   return roundMoney(Number(item.totalPrice || ((Number(item.unitPrice || item.price || 0) || 0) * qty) || 0));
@@ -2907,63 +2946,120 @@ async function buildProductBasePriceMapForOrders(orders = []) {
   if (!ids.length) return new Map();
 
   const products = await Product.find({ _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } })
-    .select('_id price sellerId')
+    .select('_id price sellerBasePrice sellerOriginalPrice sellerPrice preco pixPrice marketplacePrice cardPrice fullPrice sellerId')
     .lean();
 
-  return new Map(products.map((product) => [String(product._id), {
-    price: roundMoney(product.price || 0),
-    sellerId: String(product.sellerId || '').trim()
-  }]));
+  return new Map(products.map((product) => {
+    const sellerOriginal = Number(product.sellerBasePrice || product.sellerOriginalPrice || product.sellerPrice || 0);
+    const publicBase = Number(product.pixPrice || product.preco || product.price || 0);
+    const full = Number(product.fullPrice || product.marketplacePrice || product.cardPrice || 0);
+    return [String(product._id), {
+      sellerBasePrice: roundMoney(sellerOriginal || 0),
+      publicBasePrice: roundMoney(publicBase || 0),
+      fullPrice: roundMoney(full || 0),
+      sellerId: String(product.sellerId || '').trim()
+    }];
+  }));
 }
 
 function getItemSellerBaseTotal(item = {}, order = {}, productBaseMap = new Map()) {
   const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
   const chargedTotal = getChargedItemTotal(item);
+  const chargedUnit = Number(item.unitPrice || item.price || 0) || (chargedTotal / qty);
   const productId = getItemProductId(item);
   const productBase = productBaseMap instanceof Map ? productBaseMap.get(productId) : null;
 
-  // Regra principal: o preço cadastrado pelo seller no produto é a base real do repasse.
-  // Exemplo: seller cadastrou R$ 700,00. O site pode cobrar R$ 843/845 no cartão,
-  // mas o extrato do seller precisa partir de R$ 700,00, não do valor com acréscimo.
-  if (productBase && Number(productBase.price || 0) > 0) {
-    return roundMoney(Number(productBase.price || 0) * qty);
-  }
-
-  const explicitUnit = Number(item.sellerBaseUnitPrice || item.baseUnitPrice || item.basePrice || 0);
+  // 1) Prioridade máxima: campo salvo explicitamente no pedido como preço real do seller.
+  const explicitUnit = Number(
+    item.sellerOriginalUnitPrice ||
+    item.sellerBaseUnitPrice ||
+    item.sellerBasePrice ||
+    item.baseUnitPrice ||
+    item.basePrice ||
+    0
+  );
   if (explicitUnit > 0) return roundMoney(explicitUnit * qty);
 
-  const explicitTotal = Number(item.sellerBaseTotal || item.sellerSubtotal || item.baseTotal || 0);
-  if (explicitTotal > 0 && explicitTotal < chargedTotal) return roundMoney(explicitTotal);
+  const explicitTotal = Number(
+    item.sellerOriginalTotal ||
+    item.sellerBaseTotal ||
+    item.sellerSubtotal ||
+    item.baseTotal ||
+    0
+  );
+  if (explicitTotal > 0 && explicitTotal <= chargedTotal) return roundMoney(explicitTotal);
+
+  // 2) Se o produto já tiver campo original do seller, usa ele.
+  if (productBase && Number(productBase.sellerBasePrice || 0) > 0) {
+    return roundMoney(Number(productBase.sellerBasePrice || 0) * qty);
+  }
+
+  // 3) Pedido antigo no cartão: remove o acréscimo embutido no cartão.
+  // Isso evita o erro de repassar ao seller o dinheiro da taxa/acréscimo do cartão.
+  if (isCreditCardPayment(getOrderPaymentMethod(order)) && chargedTotal > 0) {
+    return marketplacePriceToSellerBase(chargedTotal);
+  }
 
   const markupTotal = Number(item.cardMarkupTotal || 0);
   if (markupTotal > 0 && chargedTotal > markupTotal) return roundMoney(chargedTotal - markupTotal);
 
-  // Fallback para pedidos antigos em que o método de pagamento veio como Mercado Pago/card
-  // e o pedido salvou somente o valor final cobrado ao cliente.
-  if (isCreditCardPayment(getOrderPaymentMethod(order))) return marketplacePriceToSellerBase(chargedTotal);
+  // 4) Fallback: preço base público do produto.
+  if (productBase && Number(productBase.publicBasePrice || 0) > 0) {
+    return roundMoney(Number(productBase.publicBasePrice || 0) * qty);
+  }
 
-  return roundMoney(explicitTotal > 0 ? explicitTotal : chargedTotal);
+  // 5) Último recurso: usa o valor cobrado.
+  return roundMoney(chargedUnit * qty);
 }
+
 function getSellerSettlementForOrder(orderDoc = {}, sellerId = '', productBaseMap = new Map()) {
   const order = toJSON(orderDoc) || orderDoc || {};
   const sid = String(sellerId || '').trim();
-  const rows = ensureArray(order.items).filter((it) => !sid || String(it?.sellerId || it?.seller_id || '').trim() === sid);
+
+  const rows = ensureArray(order.items).filter((it) =>
+    !sid || String(it?.sellerId || it?.seller_id || '').trim() === sid
+  );
+
   const chargedGross = roundMoney(rows.reduce((sum, it) => sum + getChargedItemTotal(it), 0));
   const gross = roundMoney(rows.reduce((sum, it) => sum + getItemSellerBaseTotal(it, order, productBaseMap), 0));
   const cardFee = roundMoney(Math.max(0, chargedGross - gross));
   const commission = roundMoney(gross * (MARKETPLACE_COMMISSION_PERCENT / 100));
+
   const labels = ensureArray(order.logisticsLabels || order.labels || []);
   let labelFee = 0;
+
   for (const label of labels) {
     const ls = String(label?.sellerId || '').trim();
     if (sid && ls && ls !== sid) continue;
-    const marketplace = label?.marketplace === true || label?.usesMarketplaceLabel === true || label?.provider === 'correios' || label?.provider === 'frenet' || label?.provider === 'ariana_local';
+
+    const marketplace =
+      label?.marketplace === true ||
+      label?.usesMarketplaceLabel === true ||
+      label?.provider === 'correios' ||
+      label?.provider === 'frenet' ||
+      label?.provider === 'ariana_local' ||
+      label?.provider === 'marketplace';
+
     if (marketplace) labelFee += Number(label?.shippingCost || label?.cost || 0) || 0;
   }
-  if (!labelFee && order.etiqueta && (order.shipping?.usesArianaLogistics || order.etiqueta?.provider)) labelFee = Number(order.etiqueta.shippingCost || 0) || 0;
+
+  if (!labelFee && order.etiqueta && (order.shipping?.usesArianaLogistics || order.etiqueta?.provider)) {
+    labelFee = Number(order.etiqueta.shippingCost || 0) || 0;
+  }
+
   labelFee = roundMoney(labelFee);
   const net = roundMoney(gross - commission - labelFee);
-  return { chargedGross, gross, cardFee, commission, fee: commission, label: labelFee, net, commissionPercent: MARKETPLACE_COMMISSION_PERCENT };
+
+  return {
+    chargedGross,
+    gross,
+    cardFee,
+    commission,
+    fee: commission,
+    label: labelFee,
+    net,
+    commissionPercent: MARKETPLACE_COMMISSION_PERCENT
+  };
 }
 
 function formatOrderItemsForWhatsapp(items = []) {
