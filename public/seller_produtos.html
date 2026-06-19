@@ -132,6 +132,25 @@ function applySellerHeaderName() {
 }
 
 
+  function getSellerDebugId(sellerMe = {}) {
+    return String(
+      sellerMe.sellerId ||
+      sellerMe.seller_id ||
+      sellerMe.id ||
+      sellerMe._id ||
+      getSellerProfile().sellerId ||
+      getSellerProfile().id ||
+      getSellerProfile()._id ||
+      ''
+    ).trim();
+  }
+
+  async function fetchJson(url) {
+    const response = await fetch(url, { headers: authHeaders() });
+    const data = await response.json().catch(() => null);
+    return { response, data };
+  }
+
   async function loadProducts() {
     if (!ensureSellerSession()) return;
     applySellerHeaderName();
@@ -143,55 +162,96 @@ function applySellerHeaderName() {
         window.location.href = 'seller_login.html';
         return;
       }
+
       const meData = await meRes.json().catch(() => ({}));
       const sellerMe = meData?.seller || meData?.user || meData || {};
-      if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email)) {
+      if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email || sellerMe.sellerId)) {
         localStorage.setItem("seller_profile", JSON.stringify(sellerMe));
         applySellerHeaderName();
       }
 
-      const res = await fetch(`${API_BASE}/seller/products`, {
-        headers: authHeaders()
-      });
-      if (res.status === 401 || res.status === 403) {
-        clearSellerSession();
-        window.location.href = 'seller_login.html';
-        return;
+      const sellerId = getSellerDebugId(sellerMe);
+      const attempts = [
+        `${API_BASE}/seller/products`,
+        sellerId ? `${API_BASE}/products?sellerId=${encodeURIComponent(sellerId)}` : '',
+        sellerId ? `${API_BASE}/products/seller/${encodeURIComponent(sellerId)}` : '',
+        sellerId ? `${API_BASE}/seller/${encodeURIComponent(sellerId)}/products` : '',
+        sellerId ? `${API_BASE}/sellers/${encodeURIComponent(sellerId)}/products` : ''
+      ].filter(Boolean);
+
+      let products = [];
+      let lastError = '';
+      for (const url of attempts) {
+        const { response, data } = await fetchJson(url);
+        if (response.status === 401 || response.status === 403) {
+          clearSellerSession();
+          window.location.href = 'seller_login.html';
+          return;
+        }
+        if (!response.ok) {
+          lastError = data?.error || data?.message || `Erro ${response.status}`;
+          continue;
+        }
+        const list = Array.isArray(data) ? data : (Array.isArray(data?.products) ? data.products : []);
+        if (list.length) {
+          products = list;
+          break;
+        }
       }
-      const products = await res.json();
-      if (!res.ok) throw new Error(products?.message || `Erro ${res.status}`);
 
       if (!products.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-gray-400 font-bold">Nenhum produto encontrado no MongoDB.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-gray-400 font-bold">
+          Nenhum produto encontrado para este seller.<br>
+          <span style="font-size:12px;font-weight:600;color:#64748b">Seller detectado: ${sellerId || 'não identificado'}${lastError ? ' — ' + lastError : ''}</span>
+        </td></tr>`;
         return;
       }
 
-      tbody.innerHTML = products.map(p => `
+      tbody.innerHTML = products.map(p => {
+        const productId = p.id || p._id || p.sku || '';
+        const price = Number(p.sellerBasePrice ?? p.price ?? p.preco ?? 0) || 0;
+        return `
         <tr class="hover:bg-gray-50/50 transition">
           <td class="product-cell">
             <div class="product-card">
               <div class="product-thumb">
-                ${p.image ? `<img src="${p.image}" class="w-full h-full object-cover">` : `<i class="fas fa-image text-gray-300"></i>`}
+                ${p.image || p.imageUrl ? `<img src="${p.image || p.imageUrl}" class="w-full h-full object-cover">` : `<i class="fas fa-image text-gray-300"></i>`}
               </div>
               <div class="product-info">
-                <div class="product-name">${p.name}</div>
-                <div class="product-category">${p.category || 'Móvel'}</div>
+                <div class="product-name">${p.name || p.nome || '-'}</div>
+                <div class="product-category">${p.category || p.categoryName || p.categoria || 'Produto'}</div>
               </div>
             </div>
           </td>
           <td class="sku-cell"><span class="font-black">${p.sku || '-'}</span></td>
-          <td class="stock-cell"><span class="font-black">${p.stock || 0}</span></td>
-          <td class="price-cell price-main">R$ ${Number(p.price).toFixed(2)}</td>
+          <td class="stock-cell"><span class="font-black">${p.stock ?? p.estoque ?? 0}</span></td>
+          <td class="price-cell price-main">R$ ${price.toFixed(2)}</td>
           <td class="actions-cell text-right">
             <div class="actions-wrap">
-              <a href="seller_produto_editar.html?id=${p._id}" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a>
-              <button onclick="deleteProduct('${p._id}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button>
+              <a href="seller_produto_editar.html?id=${productId}" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a>
+              <button onclick="deleteProduct('${productId}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button>
             </div>
           </td>
-        </tr>
-      `).join('');
+        </tr>`;
+      }).join('');
     } catch (e) {
       tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-red-500 font-bold">Erro ao conectar com o servidor Render.</td></tr>';
+    }
+  }
+
+  async function deleteProduct(id) {
+    if (!id) return alert('Produto sem ID.');
+    if (!confirm('Deseja excluir este produto?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: authHeaders()
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Erro ao excluir produto.');
+      await loadProducts();
+    } catch (error) {
+      alert(error.message || 'Erro ao excluir produto.');
     }
   }
 

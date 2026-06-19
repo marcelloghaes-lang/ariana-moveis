@@ -129,6 +129,20 @@
       ? "http://localhost:3000/api"
       : "https://ariana-backend.onrender.com/api";
     const COMMISSION_RATE = 0.12;
+    function moneyBR(value){ return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    function isApprovedSale(order = {}) {
+      const status = String(order.status || '').toLowerCase().trim();
+      const label = String(order.statusLabel || '').toLowerCase().trim();
+      const paymentStatus = String(order.payment?.status || order.paymentStatus || '').toLowerCase().trim();
+      return ['paid','approved','pago','pagamento_confirmado','shipped','enviado','delivered','entregue'].includes(status)
+        || ['approved','paid','pago'].includes(paymentStatus)
+        || label.includes('pagamento confirmado')
+        || label.includes('pagamento aprovado');
+    }
+    function sellerAmount(order = {}) { return Number(order.sellerGross || order.sellerTotal || order.subtotal || order.total || 0); }
+    function sellerCommission(order = {}) { return Number(order.sellerCommission || order.commission || (sellerAmount(order) * COMMISSION_RATE) || 0); }
+    function sellerLabelFee(order = {}) { return Number(order.marketplaceLabelFee || order.labelFee || order.etiquetaAriana || order.shippingLabelCost || 0); }
+    function sellerNet(order = {}) { return Number(order.sellerNet || (sellerAmount(order) - sellerCommission(order) - sellerLabelFee(order)) || 0); }
     const $ = (id) => document.getElementById(id);
 
     
@@ -164,10 +178,6 @@ function applySellerHeaderName() {
 }
 
 
-    function money(v) {
-        return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
-
     async function loadSales() {
         if (!ensureSellerSession()) return;
         applySellerHeaderName();
@@ -185,64 +195,57 @@ function applySellerHeaderName() {
                 applySellerHeaderName();
             }
 
-            const res = await fetch(`${API_BASE}/seller/extrato`, { headers: authHeaders() });
+            const res = await fetch(`${API_BASE}/seller/orders`, { headers: authHeaders() });
             if (res.status === 401 || res.status === 403) {
                 clearSellerSession();
                 window.location.href = 'seller_login.html';
                 return;
             }
-            const rows = await res.json().catch(() => []);
-            if (!res.ok) throw new Error(rows?.message || rows?.error || `Erro ${res.status}`);
-            const sales = Array.isArray(rows) ? rows : [];
+            const orders = await res.json();
+            if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
+            
+            // Vendas aprovadas do seller: aceita status do Mercado Pago, Pagar.me, Cielo e status em português.
+            const approvedOrders = orders.filter(isApprovedSale);
 
             let totalGross = 0;
-            let totalFee = 0;
-            let totalLabel = 0;
-            let totalNet = 0;
             const tb = $("tbody");
             tb.innerHTML = "";
 
-            if (!sales.length) {
+            if (approvedOrders.length === 0) {
                 $("empty").classList.remove("hidden");
-                $("countPill").textContent = "0 vendas";
-                $("gross").textContent = money(0);
-                $("fee").textContent = money(0);
-                $("net").textContent = money(0);
-                                return;
+                return;
             }
 
             $("empty").classList.add("hidden");
-            $("countPill").textContent = `${sales.length} vendas`;
+            $("countPill").textContent = `${approvedOrders.length} vendas`;
 
-            sales.forEach(o => {
-                const brute = Number(o.gross || o.total || 0);
-                const fee = Number(o.fee || o.commission || 0);
-                const label = Number(o.label || o.labelCost || 0);
-                const net = Number(o.net || (brute - fee - label));
+            approvedOrders.forEach(o => {
+                const brute = sellerAmount(o);
+                const fee = sellerCommission(o);
+                const labelFee = sellerLabelFee(o);
+                const net = sellerNet(o);
                 totalGross += brute;
-                totalFee += fee;
-                totalLabel += label;
-                totalNet += net;
 
                 tb.innerHTML += `
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="py-4 px-3 font-bold text-primary-blue">#${String(o.id || o.orderId || '').substring(0,8).toUpperCase()}</td>
-                        <td class="py-4 px-3 text-gray-500">${o.createdAt ? new Date(o.createdAt).toLocaleDateString('pt-BR') : '—'}</td>
-                        <td class="py-4 px-3 text-right font-bold text-dark-bg">${money(brute)}</td>
-                        <td class="py-4 px-3 text-right text-error-red">${money(fee + label)}</td>
-                        <td class="py-4 px-3 text-right font-black text-success-green">${money(net)}</td>
+                        <td class="py-4 px-3 font-bold text-primary-blue">#${o._id.substring(0,8).toUpperCase()}</td>
+                        <td class="py-4 px-3 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td class="py-4 px-3 text-right font-bold text-dark-bg">${moneyBR(brute)}</td>
+                        <td class="py-4 px-3 text-right text-error-red">${moneyBR(fee + labelFee)}</td>
+                        <td class="py-4 px-3 text-right font-black text-success-green">${moneyBR(net)}</td>
                     </tr>
                 `;
             });
 
-            $("gross").textContent = money(totalGross);
-            $("fee").textContent = money(totalFee + totalLabel);
-            $("net").textContent = money(totalNet);
+            const totalFee = approvedOrders.reduce((acc, o) => acc + sellerCommission(o) + sellerLabelFee(o), 0);
+            const totalNet = approvedOrders.reduce((acc, o) => acc + sellerNet(o), 0);
+
+            $("gross").textContent = totalGross.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            $("fee").textContent = totalFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            $("net").textContent = totalNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         } catch (e) {
             console.error("Erro ao carregar vendas:", e);
-            const tb = $("tbody");
-            if (tb) tb.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-red-500 font-bold">Erro ao carregar vendas do seller.</td></tr>';
         }
     }
 

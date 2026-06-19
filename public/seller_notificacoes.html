@@ -227,6 +227,13 @@
       });
 
       renderNotifs();
+      const unreadNow = notifs.filter(n => String(n.readStatus || '').toLowerCase() !== 'read').length;
+      const lastUnread = Number(localStorage.getItem('seller_notifications_unread_count') || '0');
+      if (unreadNow > lastUnread) {
+        toast(`Você tem ${unreadNow - lastUnread} nova(s) notificação(ões) do seller.`, 'success');
+        try { document.title = `(${unreadNow}) Notificações | ARIANA MÓVEIS`; } catch(_) {}
+      }
+      localStorage.setItem('seller_notifications_unread_count', String(unreadNow));
     } catch (e) {
       console.error(e);
       toast("Erro ao carregar notificações.", "error");

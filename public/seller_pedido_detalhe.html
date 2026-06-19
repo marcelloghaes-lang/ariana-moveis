@@ -179,65 +179,42 @@
 <script>
   const state = { seller: null, order: null, orderId: new URLSearchParams(location.search).get('id') };
 
-  function asMoney(v) {
-    const n = Number(v || 0);
-    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-  function textAddress(address) {
-    if (!address) return 'Endereço não informado';
-    if (typeof address === 'string') return address;
-    if (address.text) return address.text;
-    return [
-      [address.logradouro || address.street || address.rua || '', address.numero || address.number || ''].filter(Boolean).join(', '),
-      address.bairro || address.neighborhood || '',
-      [address.cidade || address.city || '', address.uf || address.state || ''].filter(Boolean).join('/'),
-      address.cep || address.zip || ''
-    ].filter(Boolean).join(' - ') || 'Endereço não informado';
+  function moneyBR(value){ return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function getItemQty(it = {}) { return Number(it.qty ?? it.quantity ?? it.quantidade ?? 1) || 1; }
+  function getItemUnitPrice(it = {}) { return Number(it.unitPrice ?? it.price ?? it.preco ?? 0) || 0; }
+  function getSellerRef(seller = {}) { return String(seller.sellerId || seller.seller_id || seller.id || seller._id || '').trim(); }
+  function sellerMatchesItem(it = {}, seller = {}) {
+    const sid = getSellerRef(seller);
+    if (!sid) return true;
+    return String(it.sellerId || it.seller_id || it.vendorId || '').trim() === sid;
   }
 
   function fillOrder(data, seller) {
-    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.sellerItems) ? data.sellerItems : []);
-    const sellerId = String(seller?.sellerId || seller?.id || seller?._id || '');
-    let myItems = items.filter(it => !sellerId || String(it.sellerId || it.seller_id || '') === sellerId || !it.sellerId);
-    if (!myItems.length && items.length) myItems = items;
+    const items = Array.isArray(data.items) ? data.items : [];
+    const myItems = items.filter(it => sellerMatchesItem(it, seller));
 
-    const orderId = String(data._id || data.id || state.orderId || '');
-    $('order-id').textContent = `#${orderId.substring(0,8).toUpperCase()}`;
-    $('order-date').textContent = data.createdAt ? new Date(data.createdAt).toLocaleString('pt-BR') : '—';
-    $('order-status').textContent = data.statusLabel || data.status || 'pendente';
+    $('order-id').textContent = `#${data._id.substring(0,8).toUpperCase()}`;
+    $('order-date').textContent = new Date(data.createdAt).toLocaleString('pt-BR');
+    $('order-status').textContent = data.status || 'pendente';
     $('items-count').textContent = `${myItems.length} item(ns)`;
-
-    const subtotal = Number(data.sellerSubtotal ?? data.gross ?? myItems.reduce((acc, it) => {
-      const qty = Number(it.quantity ?? it.qty ?? 1) || 1;
-      const price = Number(it.price ?? it.unitPrice ?? it.preco ?? 0) || 0;
-      return acc + (price * qty);
-    }, 0)) || 0;
-    $('subtotal').textContent = asMoney(subtotal);
+    $('subtotal').textContent = moneyBR(myItems.reduce((acc, it) => acc + (getItemUnitPrice(it) * getItemQty(it)), 0));
     
-    $('items-list').innerHTML = myItems.map(it => {
-      const qty = Number(it.quantity ?? it.qty ?? 1) || 1;
-      const price = Number(it.price ?? it.unitPrice ?? it.preco ?? 0) || 0;
-      const name = it.name || it.nome || 'Produto';
-      const image = it.image || it.imageUrl || it.imagem || '';
-      return `
+    $('items-list').innerHTML = myItems.map(it => `
       <div class="flex items-center gap-4 p-4 rounded-2xl border border-soft bg-slate-50">
         <div class="w-14 h-14 rounded-2xl overflow-hidden bg-white border border-soft flex items-center justify-center">
-          ${image ? `<img src="${image}" class="w-full h-full object-cover">` : '<i class="fas fa-image muted"></i>'}
+          ${it.image ? `<img src="${it.image}" class="w-full h-full object-cover">` : '<i class="fas fa-image muted"></i>'}
         </div>
         <div class="flex-1">
-          <div class="font-black text-dark-bg">${name}</div>
-          <div class="muted text-xs mt-1">${qty} × ${asMoney(price)}</div>
+          <div class="font-black text-dark-bg">${it.name}</div>
+          <div class="muted text-xs mt-1">${getItemQty(it)} × ${moneyBR(getItemUnitPrice(it))}</div>
         </div>
-      </div>`;
-    }).join('') || '<div class="muted text-sm">Nenhum item encontrado para este seller.</div>';
+      </div>`).join('');
 
     $('payment').textContent = data.paymentMethod || data.payment?.method || data.payment?.provider || '—';
-    $('payment-status').textContent = data.paymentStatus || data.payment?.status || '';
     $('tracking-view').textContent = data.trackingCode || data.shipping?.trackingCode || '—';
-    $('buyer').textContent = data.customerName || data.address?.name || 'Cliente';
-    $('buyer-email').textContent = data.customerEmail || '';
-    $('address').textContent = textAddress(data.shippingAddress || data.address);
-    $('ship-link').href = `seller_marcar_enviado.html?id=${encodeURIComponent(orderId)}`;
+    $('buyer').textContent = data.customerName || 'Cliente';
+    const a = data.shippingAddress || data.address || {};
+    $('address').textContent = typeof a === 'string' ? a : [a.logradouro || a.street, a.numero || a.number, a.bairro || a.neighborhood, a.cidade || a.city, a.uf || a.state, a.cep || a.zip].filter(Boolean).join(', ') || 'Endereço não informado';
     $('status-select').value = data.status || 'processing';
   }
 

@@ -215,6 +215,16 @@ function normalizeProductForResponse(doc) {
   obj.mainImagePath = mainImage ? (mainImage.path || mainImage.url) : (obj.mainImagePath || '');
   obj.imageUrls = normalizedImages.map((img) => img.url).filter(Boolean);
   obj.imagePaths = normalizedImages.map((img) => img.path || img.url).filter(Boolean);
+
+  const sellerBasePrice = round2(obj.price || obj.preco || 0);
+  const marketplacePrice = sellerBaseToMarketplacePrice(sellerBasePrice);
+  obj.sellerBasePrice = sellerBasePrice;
+  obj.pixPrice = sellerBasePrice;
+  obj.marketplacePrice = marketplacePrice;
+  obj.cardPrice = marketplacePrice;
+  obj.fullPrice = marketplacePrice;
+  obj.pixDiscountPercent = MARKETPLACE_CARD_DISCOUNT_PERCENT;
+
   return obj;
 }
 
@@ -546,7 +556,7 @@ const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Type
 const ticketSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, orderId: { type: String, default: null }, protocolo: { type: String, index: true }, tipo: String, assunto: String, mensagem: String, status: { type: String, default: 'Novo' }, origem: { type: String, default: 'site' }, nome: String, email: String, telefone: String, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const contactSchema = new mongoose.Schema({ name: String, email: String, phone: String, subject: String, message: String, source: { type: String, default: 'fale_conosco' }, status: { type: String, default: 'novo' } }, baseOptions);
 const denunciaSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, productId: { type: String, default: null }, sellerId: { type: String, default: null }, motivo: String, descricao: String, status: { type: String, default: 'nova' }, nome: String, email: String }, baseOptions);
-const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed }, baseOptions);
+const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, sellerBaseUnitPrice: Number, sellerBaseTotal: Number, cardMarkupUnit: Number, cardMarkupTotal: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed }, baseOptions);
 const settingsSchema = new mongoose.Schema({ key: { type: String, unique: true, index: true }, value: mongoose.Schema.Types.Mixed, updatedBy: String }, baseOptions);
 const integrationAuditLogSchema = new mongoose.Schema({ scope: { type: String, default: 'integration' }, eventType: { type: String, default: 'unspecified', index: true }, orderId: { type: String, default: null, index: true }, manufacturer: { type: String, default: null, index: true }, integrationId: { type: String, default: null }, queueId: { type: String, default: null }, status: String, statusCode: Number, message: String, changedKeys: [String], request: mongoose.Schema.Types.Mixed, response: mongoose.Schema.Types.Mixed, metadata: mongoose.Schema.Types.Mixed, buildId: String }, baseOptions);
 const manufacturerIntegrationSchema = new mongoose.Schema({ manufacturer: { type: String, unique: true, index: true }, enabled: { type: Boolean, default: true }, endpoint: String, method: { type: String, default: 'POST' }, headers: mongoose.Schema.Types.Mixed, authType: String, authToken: String, apiKey: String, sendAs: { type: String, default: 'json', enum: ['json', 'form'] }, timeoutMs: { type: Number, default: 30000 }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
@@ -2864,6 +2874,17 @@ function formatMoneyBRL(value = 0) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY }).format(Number(value || 0));
 }
 
+// Regra de preço Ariana Marketplace:
+// preço cadastrado = preço base/PIX; cartão = preço base / 0,83 para permitir 17% OFF no PIX/BOLETO.
+const MARKETPLACE_CARD_DISCOUNT_PERCENT = Number(process.env.MARKETPLACE_CARD_DISCOUNT_PERCENT || 17);
+function sellerBaseToMarketplacePrice(basePrice = 0) {
+  const base = Number(basePrice || 0);
+  const discount = Math.max(0, Math.min(Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17), 90));
+  const divisor = 1 - (discount / 100);
+  if (!Number.isFinite(base) || base <= 0 || divisor <= 0) return 0;
+  return Math.round((base / divisor + Number.EPSILON) * 100) / 100;
+}
+
 function formatOrderItemsForWhatsapp(items = []) {
   const rows = ensureArray(items).filter(Boolean).slice(0, 12).map((item) => {
     const qty = Number(item.qty || item.quantity || 1) || 1;
@@ -3960,22 +3981,54 @@ function getSellerCardMarkupPercent(order = {}) {
 }
 
 function itemSellerBaseTotal(item = {}, cardMarkupPercent = 17) {
-  const qty = Number(item?.qty ?? item?.quantity ?? item?.quantidade ?? 1) || 1;
-  const chargedTotal = Number(item?.totalPrice ?? item?.total ?? ((Number(item?.unitPrice ?? item?.price ?? item?.preco ?? 0) || 0) * qty)) || 0;
+  const qty = Math.max(1, Number(item?.qty ?? item?.quantity ?? item?.quantidade ?? 1) || 1);
 
-  const explicitUnitBase = Number(
-    item?.sellerBasePrice ?? item?.basePrice ?? item?.pixPrice ?? item?.precoPix ?? item?.priceBase ?? item?.precoBase ?? 0
-  );
-  const explicitTotalBase = Number(
-    item?.sellerBaseTotal ?? item?.baseTotal ?? item?.pixTotal ?? item?.totalBase ?? 0
-  );
+  const candidates = [];
 
-  if (explicitTotalBase > 0) return round2(explicitTotalBase);
-  if (explicitUnitBase > 0) return round2(explicitUnitBase * qty);
+  const addTotal = (value) => {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) candidates.push(round2(n));
+  };
 
-  // Regra Ariana: preço de cartão fica com acréscimo embutido.
-  // O repasse do seller e a comissão do marketplace são calculados sobre o preço base/PIX.
-  return round2(chargedTotal * (1 - (Number(cardMarkupPercent || 0) / 100)));
+  const addUnit = (value) => {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) candidates.push(round2(n * qty));
+  };
+
+  // Valores base/à vista conhecidos. Estes são os que devem entrar no repasse do seller.
+  addTotal(item?.sellerBaseTotal);
+  addTotal(item?.baseTotal);
+  addTotal(item?.pixTotal);
+  addTotal(item?.totalBase);
+
+  addUnit(item?.sellerBaseUnitPrice);
+  addUnit(item?.sellerBasePrice);
+  addUnit(item?.basePrice);
+  addUnit(item?.pixPrice);
+  addUnit(item?.precoPix);
+  addUnit(item?.priceBase);
+  addUnit(item?.precoBase);
+
+  const chargedTotal = Number(
+    item?.totalPrice ?? item?.total ?? ((Number(item?.unitPrice ?? item?.price ?? item?.preco ?? 0) || 0) * qty)
+  ) || 0;
+
+  const markupTotal = Number(item?.cardMarkupTotal ?? item?.cardMarkup ?? item?.markupTotal ?? 0) || 0;
+  if (markupTotal > 0 && chargedTotal > markupTotal) {
+    addTotal(chargedTotal - markupTotal);
+  }
+
+  // Quando existir mais de uma base válida, usa a menor para evitar que o valor do cartão entre no repasse.
+  if (candidates.length) {
+    const valid = candidates.filter((value) => value > 0 && (!chargedTotal || value <= chargedTotal + 0.01));
+    if (valid.length) return round2(Math.min(...valid));
+    return round2(Math.min(...candidates));
+  }
+
+  const pct = Number(cardMarkupPercent || 17);
+  if (chargedTotal > 0 && pct > 0) return round2(chargedTotal / (1 + (pct / 100)));
+
+  return round2(chargedTotal);
 }
 
 function sellerItemBaseGross(order = {}, sellerId = '') {
@@ -5101,6 +5154,55 @@ function normalizeOrderAddressForSeller(order = {}) {
   };
 }
 
+
+
+async function enrichSellerOrderWithProductBase(orderDoc = {}, sellerId = '') {
+  const order = toJSON(orderDoc) || {};
+  const sid = String(sellerId || '').trim();
+  const items = ensureArray(order.items);
+  const productIds = Array.from(new Set(items
+    .map((item) => String(item?.productId || item?._id || item?.id || '').trim())
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))));
+
+  if (!productIds.length) return order;
+
+  const products = await Product.find({ _id: { $in: productIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+    .select('_id price sellerId name sku image imageUrl mainImageUrl')
+    .lean()
+    .catch(() => []);
+
+  const byId = new Map((products || []).map((p) => [String(p._id), p]));
+
+  order.items = items.map((item) => {
+    const productId = String(item?.productId || item?._id || item?.id || '').trim();
+    const product = byId.get(productId);
+    if (!product) return item;
+
+    const productSellerId = String(product.sellerId || '').trim();
+    if (sid && productSellerId && productSellerId !== sid && String(item?.sellerId || '').trim() !== sid) return item;
+
+    const qty = Math.max(1, Number(item?.qty ?? item?.quantity ?? item?.quantidade ?? 1) || 1);
+    const baseUnit = round2(product.price || 0);
+    const chargedUnit = round2(item?.unitPrice ?? item?.price ?? baseUnit);
+    const chargedTotal = round2(item?.totalPrice ?? item?.total ?? (chargedUnit * qty));
+    const baseTotal = round2(baseUnit * qty);
+
+    return {
+      ...item,
+      productId,
+      sellerId: String(item?.sellerId || productSellerId || '').trim(),
+      sellerBaseUnitPrice: baseUnit,
+      sellerBaseTotal: baseTotal,
+      cardMarkupUnit: round2(Math.max(0, chargedUnit - baseUnit)),
+      cardMarkupTotal: round2(Math.max(0, chargedTotal - baseTotal)),
+      name: item?.name || product.name || 'Produto',
+      sku: item?.sku || product.sku || '',
+      image: item?.image || product.imageUrl || product.image || product.mainImageUrl || ''
+    };
+  });
+
+  return order;
+}
 function normalizeSellerOrderForResponse(orderDoc = {}, sellerId = '') {
   const order = toJSON(orderDoc) || {};
   const sid = String(sellerId || '').trim();
@@ -5134,10 +5236,10 @@ function normalizeSellerOrderForResponse(orderDoc = {}, sellerId = '') {
   const baseSubtotal = items.reduce((sum, item) => sum + itemSellerBaseTotal(item, cardMarkupPercent), 0);
   const gross = round2(baseSubtotal || (chargedGross * (1 - (cardMarkupPercent / 100))));
   const cardMarkupAmount = round2(Math.max(0, chargedGross - gross));
-  const label = Number(order.sellerFinance?.labelCost ?? order.sellerSettlement?.labelCost ?? order.marketplaceLabelCost ?? order.etiqueta?.shippingCost ?? order.shippingLabelCost ?? 0) || 0;
+  const label = Number(order.marketplaceLabelCost ?? order.etiqueta?.shippingCost ?? order.shippingLabelCost ?? 0) || 0;
   const commissionRate = Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12) / 100;
-  const fee = Number(order.sellerFinance?.commission ?? order.sellerSettlement?.commission ?? (gross * commissionRate)) || 0;
-  const net = Number(order.sellerFinance?.net ?? order.sellerSettlement?.net ?? (gross - fee - label)) || 0;
+  const fee = round2(gross * commissionRate);
+  const net = round2(Math.max(0, gross - fee - label));
 
   return {
     ...order,
@@ -5178,7 +5280,12 @@ app.get('/api/seller/orders', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
     if (!sid) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
     const rows = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    return res.json(rows.map((order) => normalizeSellerOrderForResponse(order, sid)));
+    const normalizedRows = [];
+    for (const order of rows) {
+      const enrichedOrder = await enrichSellerOrderWithProductBase(order, sid);
+      normalizedRows.push(normalizeSellerOrderForResponse(enrichedOrder, sid));
+    }
+    return res.json(normalizedRows);
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar pedidos' });
   }
@@ -5193,7 +5300,8 @@ app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
     const allowed = extractSellerIdsFromOrder(order).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    return res.json({ ok: true, order: normalizeSellerOrderForResponse(order, sid) });
+    const enrichedOrder = await enrichSellerOrderWithProductBase(order, sid);
+    return res.json({ ok: true, order: normalizeSellerOrderForResponse(enrichedOrder, sid) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' });
   }
@@ -5260,7 +5368,8 @@ app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
     const orders = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
     const rows = [];
     for (const order of orders) {
-      const normalized = normalizeSellerOrderForResponse(order, sid);
+      const enrichedOrder = await enrichSellerOrderWithProductBase(order, sid);
+      const normalized = normalizeSellerOrderForResponse(enrichedOrder, sid);
       if (!sellerOrderApprovedForFinance(normalized)) continue;
       const orderId = String(normalized._id || normalized.id || '');
       const labelFromLogistics = await loadSellerLogisticsLabelCost(orderId);
@@ -5300,7 +5409,12 @@ app.get('/api/seller/vendas', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const orders = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    const rows = orders.map((order) => normalizeSellerOrderForResponse(order, sid)).filter(sellerOrderApprovedForFinance);
+    const rows = [];
+    for (const order of orders) {
+      const enrichedOrder = await enrichSellerOrderWithProductBase(order, sid);
+      const normalized = normalizeSellerOrderForResponse(enrichedOrder, sid);
+      if (sellerOrderApprovedForFinance(normalized)) rows.push(normalized);
+    }
     return res.json(rows);
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar vendas do seller' });
@@ -5308,11 +5422,64 @@ app.get('/api/seller/vendas', sellerAuthRequired, async (req, res) => {
 });
 
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
+function getSellerIdCandidates(req = {}) {
+  const raw = [
+    req.sellerId,
+    req.user?.sellerId,
+    req.auth?.sellerId,
+    req.seller?.sellerId,
+    req.seller?._id ? String(req.seller._id) : '',
+    req.seller?.id ? String(req.seller.id) : ''
+  ];
+
+  return Array.from(new Set(
+    raw.map((v) => String(v || '').trim()).filter(Boolean)
+  ));
+}
+
+function getSellerNameCandidates(req = {}) {
+  const raw = [
+    req.seller?.storeName,
+    req.seller?.displayName,
+    req.seller?.name,
+    req.user?.name,
+    req.user?.email,
+    req.seller?.email
+  ];
+
+  return Array.from(new Set(
+    raw.map((v) => String(v || '').trim()).filter(Boolean)
+  ));
+}
+
+function buildSellerProductOwnershipQuery(req = {}) {
+  const sellerIds = getSellerIdCandidates(req);
+  const sellerNames = getSellerNameCandidates(req);
+
+  const or = [];
+  if (sellerIds.length) {
+    or.push({ sellerId: { $in: sellerIds } });
+  }
+  if (sellerNames.length) {
+    or.push({ sellerName: { $in: sellerNames } });
+  }
+
+  if (!or.length) return null;
+  return or.length === 1 ? or[0] : { $or: or };
+}
+
 app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
-    const query = { sellerId: String(req.sellerId || '').trim() };
-    if (!query.sellerId) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
-    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
+    const query = { ...ownershipQuery };
+    if (req.query.active !== undefined) {
+      query.active = String(req.query.active) !== 'false';
+    }
+
     const rows = await Product.find(query).sort({ createdAt: -1 });
     return res.json(rows.map(normalizeProductForResponse));
   } catch (error) {
@@ -5322,11 +5489,21 @@ app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
 
 app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
-    const sid = String(req.sellerId || '').trim();
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
     const oid = normalizeObjectId(req.params.id);
-    let row = oid ? await Product.findOne({ _id: oid, sellerId: sid }) : null;
-    if (!row) row = await Product.findOne({ sellerId: sid, $or: [{ sku: req.params.id }, { slug: req.params.id }] });
-    if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    const productSelector = oid
+      ? { _id: oid }
+      : { $or: [{ sku: req.params.id }, { slug: req.params.id }] };
+
+    const row = await Product.findOne({ $and: [ownershipQuery, productSelector] });
+    if (!row) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    }
+
     return res.json(normalizeProductForResponse(row));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
@@ -5335,11 +5512,19 @@ app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
 
 app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const sid = String(req.sellerId || '').trim();
-    const deleted = await Product.findOneAndDelete({ _id: oid, sellerId: sid });
-    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+
+    const deleted = await Product.findOneAndDelete({ $and: [ownershipQuery, { _id: oid }] });
+    if (!deleted) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+    }
+
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
@@ -5348,21 +5533,25 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
 
 app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   try {
+    const ownershipQuery = buildSellerProductOwnershipQuery(req);
+    if (!ownershipQuery) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
 
-    const sid = String(req.sellerId || '').trim();
-    const existing = await Product.findOne({ _id: oid, sellerId: sid });
+    const existing = await Product.findOne({ $and: [ownershipQuery, { _id: oid }] });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
     }
 
     const payload = productPayloadFromBody(req.body || {}, existing);
-    payload.sellerId = sid;
-    payload.sellerName = existing.sellerName || req.seller?.storeName || req.seller?.displayName || 'Seller';
+    payload.sellerId = String(existing.sellerId || req.sellerId || req.seller?.sellerId || '').trim();
+    payload.sellerName = existing.sellerName || req.seller?.storeName || req.seller?.displayName || req.user?.name || 'Seller';
 
     const updated = await Product.findOneAndUpdate(
-      { _id: oid, sellerId: sid },
+      { _id: oid },
       { $set: payload },
       { new: true }
     );
@@ -5372,6 +5561,7 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar produto' });
   }
 });
+
 
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
@@ -5689,18 +5879,6 @@ app.get('/api/products/seller/:sellerId', async (req, res) => {
   }
 });
 
-app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
-  try {
-    const query = { sellerId: String(req.sellerId || '').trim() };
-    if (!query.sellerId) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
-    if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
-    const rows = await Product.find(query).sort({ createdAt: -1 });
-    return res.json(rows.map(normalizeProductForResponse));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
-  }
-});
-
 app.get('/api/seller/:sellerId/products', async (req, res) => {
   try {
     const sellerId = String(req.params.sellerId || '').trim();
@@ -5783,21 +5961,15 @@ app.delete('/api/products/:id', authRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
   }
 });
-app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
+app.get('/api/banners', async (req, res) => {
   try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const sid = String(req.sellerId || '').trim();
-    const deleted = await Product.findOneAndDelete({ _id: oid, sellerId: sid });
-    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
-    return res.json({ ok: true });
+    const query = { active: true };
+    if (req.query.slot) query.slot = String(req.query.slot);
+    const rows = await Banner.find(query).sort({ sortOrder: 1, createdAt: -1 });
+    return res.json(rows.map(normalizeBannerForResponse));
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar banners' });
   }
-  const query = { active: true };
-  if (req.query.slot) query.slot = String(req.query.slot);
-  const rows = await Banner.find(query).sort({ sortOrder: 1, createdAt: -1 });
-  return res.json(rows.map(normalizeBannerForResponse));
 });
 
 app.get('/api/index/banners', async (req, res) => {
@@ -5936,6 +6108,19 @@ async function reserveStockForOrderItems(items = []) {
       item.sku = item.sku || product.sku || '';
       item.sellerId = item.sellerId || product.sellerId || '';
       item.image = item.image || product.imageUrl || product.image || product.mainImageUrl || '';
+
+      // Regra definitiva Ariana Marketplace:
+      // sellerBase vem sempre do Product.price no MongoDB.
+      // O valor com acréscimo de cartão fica apenas em unitPrice/totalPrice.
+      const baseUnitFromMongo = round2(product.price || product.preco || 0);
+      const chargedUnit = round2(item.unitPrice || item.price || baseUnitFromMongo || 0);
+      const chargedTotal = round2(item.totalPrice || (chargedUnit * qty));
+      item.sellerBaseUnitPrice = baseUnitFromMongo;
+      item.sellerBaseTotal = round2(baseUnitFromMongo * qty);
+      item.cardMarkupUnit = round2(Math.max(0, chargedUnit - baseUnitFromMongo));
+      item.cardMarkupTotal = round2(Math.max(0, chargedTotal - item.sellerBaseTotal));
+      item.unitPrice = chargedUnit;
+      item.totalPrice = chargedTotal;
     }
     return reserved;
   } catch (error) {
