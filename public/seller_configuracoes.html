@@ -129,36 +129,50 @@ function toast(message, type='info'){
 }
 
 
-function toast(message, type='info') {
-  const c = $('toast-container');
-  const el = document.createElement('div');
-  const color = type==='success' ? 'bg-success-green' : type==='error' ? 'bg-error-red' : 'bg-primary-blue';
-  el.className = `toast ${color} text-white px-4 py-3 rounded-2xl shadow-lg`;
-  el.textContent = message; c.appendChild(el);
-  setTimeout(()=>{el.style.opacity='0'; setTimeout(()=>el.remove(),300)}, 3400);
+// CARREGAR DADOS DO MONGODB
+function setLockedField(id, locked) {
+  const el = $(id);
+  if (!el) return;
+  el.readOnly = !!locked;
+  el.disabled = false;
+  el.classList.toggle('bg-gray-100', !!locked);
+  el.classList.toggle('text-gray-500', !!locked);
 }
 
-// CARREGAR DADOS DO MONGODB
+function isApprovedSeller(seller = {}) {
+  const status = String(seller.status || seller.metadata?.status || '').toLowerCase();
+  return ['approved', 'aprovado'].includes(status);
+}
+
 async function loadSeller(){
   try {
-    const res = await fetch(`${API_BASE}/seller/me`, { headers: authHeaders({ 'Content-Type': 'application/json' }) });
+    const res = await fetch(`${API_BASE}/seller/profile`, { headers: authHeaders({ 'Content-Type': 'application/json' }) });
     if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
+
     const seller = data.seller || data;
-    
-    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.name || 'Seller'}!`;
+    const approved = isApprovedSeller(seller);
+    const bank = seller.bankAccount || seller.metadata?.bankAccount || {};
+
+    $('user-display-name').textContent = `Bem-vindo, ${seller.factoryName || seller.storeName || seller.name || 'Seller'}!`;
     $('factoryName').value = seller.factoryName || seller.storeName || seller.displayName || '';
     $('cnpj').value = seller.cnpj || seller.document || '';
     $('bio').value = seller.bio || seller.metadata?.bio || '';
-    
-    const bank = seller.bankAccount || seller.metadata?.bankAccount || {};
-    $('bankName').value = bank.bank || '';
-    $('bankAgency').value = bank.agency || '';
-    $('bankAccount').value = bank.account || '';
+    $('bankName').value = bank.bank || bank.bankName || seller.metadata?.bankName || '';
+    $('bankAgency').value = bank.agency || bank.bankAgency || seller.metadata?.bankAgency || '';
+    $('bankAccount').value = bank.account || bank.bankAccount || seller.metadata?.bankAccountNumber || '';
     $('cepColeta').value = seller.cepColeta || seller.metadata?.cepColeta || '';
     $('transpPropria').checked = !!(seller.transpPropria ?? seller.metadata?.transpPropria);
-  } catch(e) { console.error(e); }
+
+    setLockedField('factoryName', approved);
+    setLockedField('cnpj', true);
+
+    localStorage.setItem("seller_profile", JSON.stringify(seller));
+  } catch(e) {
+    console.error(e);
+    toast(e.message || 'Erro ao carregar configurações.', 'error');
+  }
 }
 
 // SALVAR ALTERAÇÕES NO BANCO
@@ -183,7 +197,7 @@ $('settings-form').addEventListener('submit', async (e)=>{
 
     const res = await fetch(`${API_BASE}/seller/update`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
     const data = await res.json().catch(() => ({}));
@@ -192,12 +206,15 @@ $('settings-form').addEventListener('submit', async (e)=>{
       window.location.href = 'seller_login.html';
       return;
     }
-    if (!res.ok) throw new Error(data?.message || `Erro ${res.status}`);
+    if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-    const current = getSellerProfile();
-    localStorage.setItem("seller_profile", JSON.stringify({ ...current, ...payload }));
+    if (data.seller) localStorage.setItem("seller_profile", JSON.stringify(data.seller));
     toast('Configurações salvas com sucesso!', 'success');
-  } catch(e) { toast(e?.message || 'Erro ao salvar.', 'error'); }
+    await loadSeller();
+  } catch(e) {
+    console.error(e);
+    toast(e?.message || 'Erro ao salvar.', 'error');
+  }
 
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-check-double"></i> Salvar alterações';
@@ -206,5 +223,6 @@ $('settings-form').addEventListener('submit', async (e)=>{
 window.onload = loadSeller;
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
 $('btn-sair')?.addEventListener('click', () => { clearSellerSession(); window.location.href="seller_login.html"; });
+
 </script>
 </body></html>

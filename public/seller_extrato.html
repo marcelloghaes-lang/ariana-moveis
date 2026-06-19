@@ -172,8 +172,9 @@ function applySellerHeaderName() {
           window.location.href = "seller_login.html";
           return;
         }
-        const items = await res.json();
-        if (!res.ok) throw new Error(items?.message || `Erro ${res.status}`);
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.error || payload?.message || `Erro ${res.status}`);
+        const items = Array.isArray(payload) ? payload : (payload.items || payload.rows || []);
 
         if (!items.length) {
           tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Nenhum movimento encontrado.</td></tr>';
@@ -184,10 +185,10 @@ function applySellerHeaderName() {
         tb.innerHTML = "";
 
         items.forEach((item) => {
-          grossTotal += item.gross;
-          feeTotal += item.fee;
-          labelTotal += item.label;
-          netTotal += item.net;
+          grossTotal += Number(item.gross || 0);
+          feeTotal += Number(item.fee || 0);
+          labelTotal += Number(item.label || 0);
+          netTotal += Number(item.net || 0);
 
           tb.insertAdjacentHTML("beforeend", `
             <tr>
@@ -206,7 +207,7 @@ function applySellerHeaderName() {
         byId("kpi-net").textContent = money(netTotal);
 
       } catch (err) {
-        tb.innerHTML = '<tr><td colspan="5" class="px-6 py-6 text-center text-red-500">Erro ao conectar com o servidor.</td></tr>';
+        tb.innerHTML = `<tr><td colspan="5" class="px-6 py-6 text-center text-red-500">${err.message || 'Erro ao conectar com o servidor.'}</td></tr>`;
       }
     }
 

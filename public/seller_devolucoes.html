@@ -133,9 +133,10 @@ async function loadReturns() {
       window.location.href = 'seller_login.html';
       return;
     }
-    const orders = await res.json();
-    if (!res.ok) throw new Error(orders?.message || `Erro ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
+    const orders = Array.isArray(data) ? data : (data.items || data.results || data.docs || []);
     if (!orders.length) {
       list.innerHTML = '<div class="card p-10 text-center muted font-bold">Nenhuma devolução ou troca pendente.</div>';
       return;
@@ -160,7 +161,8 @@ async function loadReturns() {
       </div>
     `).join('');
   } catch (e) {
-    list.innerHTML = '<div class="card p-10 text-center text-red-500 font-bold">Erro de conexão com o servidor.</div>';
+    console.error('Erro ao carregar devoluções:', e);
+    list.innerHTML = `<div class="card p-10 text-center text-red-500 font-bold">${e.message || 'Erro de conexão com o servidor.'}</div>`;
   }
 }
 

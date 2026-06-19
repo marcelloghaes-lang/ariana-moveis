@@ -4623,63 +4623,28 @@ app.post('/api/seller/complete-onboarding', async (req, res) => { try { const se
 app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
-    if (!sid) {
-      return res.status(400).json({ ok: false, error: 'Seller não identificado' });
-    }
 
-    const sellerFilter = {
-      $or: [
-        { sellerIds: sid },
-        { 'items.sellerId': sid },
-        { manufacturer: sid }
-      ]
-    };
-
-    const returnsFilter = {
+    const orders = await Order.find({
+      sellerIds: sid,
       $or: [
         { status: /devol/i },
         { status: /troca/i },
         { statusLabel: /devol/i },
         { statusLabel: /troca/i },
-        { 'shipping.status': /devol/i },
-        { 'shipping.status': /troca/i },
-        { 'payment.status': /refund/i },
-        { 'payment.status': /estorno/i },
-        { 'metadata.returnReason': { $exists: true, $ne: '' } },
-        { 'metadata.reason': { $exists: true, $ne: '' } },
         { returnReason: { $exists: true, $ne: '' } },
         { reason: { $exists: true, $ne: '' } }
       ]
-    };
+    }).sort({ updatedAt: -1, createdAt: -1 }).limit(100);
 
-    const orders = await Order.find({
-      $and: [sellerFilter, returnsFilter]
-    })
-      .sort({ updatedAt: -1, createdAt: -1 })
-      .limit(100)
-      .lean();
-
-    return res.json({
-      ok: true,
-      items: orders.map((order) => ({
-        ...order,
-        id: String(order._id || order.id || ''),
-        returnReason:
-          order.returnReason ||
-          order.reason ||
-          order.metadata?.returnReason ||
-          order.metadata?.reason ||
-          'O cliente solicitou troca/devolução.'
-      }))
-    });
+    return res.json(orders.map(toJSON));
   } catch (error) {
-    console.error('Erro em /api/seller/returns:', error);
     return res.status(500).json({
       ok: false,
       error: error.message || 'Erro ao buscar devoluções'
     });
   }
 });
+
 // ===== ROTAS SELLER CORRIGIDAS - ESPECÃFICAS ANTES DO CURINGA /api/seller/:sellerId =====
 async function sellerAuthRequired(req,res,next){
   try{
@@ -4695,7 +4660,33 @@ async function sellerAuthRequired(req,res,next){
     next();
   }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
 }
-function sellerProfile(s,u){ const o=toJSON(s)||{}; return {...o,id:String(o.sellerId||o._id||''),sellerId:String(o.sellerId||''),name:o.displayName||o.storeName||u?.name||'',factoryName:o.storeName||o.displayName||u?.name||'',email:o.email||u?.email||'',active:!['bloqueado','reprovado','blocked','rejected'].includes(String(o.status||'').toLowerCase())}; }
+function sellerProfile(s, u) {
+  const o = toJSON(s) || {};
+  const meta = o.metadata || {};
+  const bank = o.bankAccount || meta.bankAccount || {};
+  return {
+    ...o,
+    id: String(o.sellerId || o._id || ''),
+    sellerId: String(o.sellerId || ''),
+    name: o.displayName || o.storeName || u?.name || '',
+    factoryName: o.storeName || o.displayName || u?.name || '',
+    storeName: o.storeName || o.displayName || u?.name || '',
+    displayName: o.displayName || u?.name || '',
+    email: o.email || u?.email || '',
+    cnpj: o.document || u?.cpf || '',
+    document: o.document || u?.cpf || '',
+    phone: o.phone || u?.phone || '',
+    bio: o.bio || meta.bio || '',
+    bankAccount: {
+      bank: bank.bank || bank.bankName || meta.bankName || '',
+      agency: bank.agency || bank.bankAgency || meta.bankAgency || '',
+      account: bank.account || bank.bankAccount || meta.bankAccountNumber || ''
+    },
+    cepColeta: o.cepColeta || meta.cepColeta || '',
+    transpPropria: Boolean(o.transpPropria ?? meta.transpPropria),
+    active: !['bloqueado', 'reprovado', 'blocked', 'rejected'].includes(String(o.status || '').toLowerCase())
+  };
+}
 app.post('/api/seller/auth/login',async(req,res)=>{
   try{
     const email=String(req.body?.email||'').trim().toLowerCase(); const password=String(req.body?.password||'');
@@ -4783,6 +4774,115 @@ app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
     });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
+  }
+});
+
+
+app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
+  try {
+    const sid = String(req.sellerId || '').trim();
+    if (!sid) return res.status(400).json({ ok: false, error: 'Seller não identificado' });
+
+    const orders = await Order.find({
+      $or: [{ sellerIds: sid }, { 'items.sellerId': sid }]
+    }).sort({ createdAt: -1 }).limit(500);
+
+    const paidStatuses = new Set(['pago', 'paid', 'approved', 'aprovado', 'entregue', 'delivered', 'shipped', 'enviado']);
+    const rows = [];
+
+    for (const order of orders) {
+      const obj = toJSON(order) || {};
+      const status = String(obj.status || '').toLowerCase();
+      const items = ensureArray(obj.items).filter((item) => String(item?.sellerId || '') === sid);
+      if (!items.length && !ensureArray(obj.sellerIds).includes(sid)) continue;
+
+      const gross = items.length
+        ? items.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0)
+        : Number(obj.total || 0);
+
+      const feePercent = Number(obj.sellerCommissionPercent || obj.commissionPercent || 0);
+      const fee = Number(obj.sellerCommission || obj.commission || (feePercent > 0 ? gross * (feePercent / 100) : 0)) || 0;
+
+      const label = Number(
+        obj.sellerLabelCost ||
+        obj.labelCost ||
+        obj.etiquetaAriana ||
+        obj.shipping?.labelCost ||
+        obj.shipping?.sellerLabelCost ||
+        0
+      ) || 0;
+
+      const net = Math.max(0, gross - fee - label);
+
+      rows.push({
+        id: String(obj._id || obj.id || ''),
+        orderId: String(obj._id || obj.id || ''),
+        createdAt: obj.createdAt || null,
+        updatedAt: obj.updatedAt || null,
+        status: obj.status || '',
+        statusLabel: obj.statusLabel || '',
+        payable: paidStatuses.has(status),
+        gross,
+        fee,
+        label,
+        net
+      });
+    }
+
+    return res.json(rows);
+  } catch (error) {
+    console.error('Erro no extrato do seller:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar extrato do seller' });
+  }
+});
+
+
+app.put('/api/seller/update', sellerAuthRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const sellerStatus = String(req.seller?.status || '').trim().toLowerCase();
+    const sellerApproved = ['approved', 'aprovado'].includes(sellerStatus);
+
+    const updates = {};
+    const metadata = { ...(req.seller?.metadata || {}) };
+
+    // Dados jurídicos ficam bloqueados após aprovação.
+    if (!sellerApproved && body.factoryName !== undefined) {
+      updates.storeName = String(body.factoryName || '').trim();
+    }
+
+    if (body.bio !== undefined) metadata.bio = String(body.bio || '').trim();
+
+    if (body.bankAccount && typeof body.bankAccount === 'object') {
+      metadata.bankAccount = {
+        bank: String(body.bankAccount.bank || '').trim(),
+        agency: String(body.bankAccount.agency || '').trim(),
+        account: String(body.bankAccount.account || '').trim()
+      };
+    }
+
+    if (body.cepColeta !== undefined) metadata.cepColeta = String(body.cepColeta || '').replace(/\D/g, '');
+    if (body.transpPropria !== undefined) metadata.transpPropria = body.transpPropria === true;
+
+    updates.metadata = metadata;
+
+    const seller = await Seller.findOneAndUpdate(
+      { sellerId: req.sellerId },
+      { $set: updates },
+      { new: true }
+    );
+
+    if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
+
+    return res.json({
+      ok: true,
+      lockedLegalData: sellerApproved,
+      seller: sellerProfile(seller, req.user),
+      user: toJSON(req.user)
+    });
+  } catch (error) {
+    console.error('Erro ao salvar configurações do seller:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar configurações do seller' });
   }
 });
 
