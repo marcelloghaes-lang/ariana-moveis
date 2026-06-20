@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <title>Split de Pagamentos | ARIANA MÓVEIS</title>
+  <title>Recebimento Pagar.me | ARIANA MÓVEIS</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body{font-family:Inter,sans-serif;background:#F5F7FA}.sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.92}.sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.1);opacity:1}.card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}.input{width:100%;border:1px solid #d1d5db;border-radius:1rem;padding:.85rem 1rem;outline:none;background:white}.input:focus{border-color:#2E6DA4;box-shadow:0 0 0 4px rgba(46,109,164,.12)}.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;transition:.2s}.btn-primary{background:#2E6DA4;color:#fff}.btn-light{background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb}.pill{display:inline-flex;align-items:center;padding:.35rem .75rem;border-radius:999px;font-size:.75rem;font-weight:900}.toast{position:fixed;right:1rem;top:1rem;z-index:90;color:#fff;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+    body{font-family:Inter,sans-serif;background:#F5F7FA}.sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.92}.sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.1);opacity:1}.card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}.input{width:100%;border:1px solid #d1d5db;border-radius:1rem;padding:.85rem 1rem;outline:none;background:white}.input:focus{border-color:#2E6DA4;box-shadow:0 0 0 4px rgba(46,109,164,.12)}.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;transition:.2s}.btn-primary{background:#2E6DA4;color:#fff}.btn-green{background:#16a34a;color:#fff}.btn-light{background:#f8fafc;color:#0f172a;border:1px solid #e5e7eb}.pill{display:inline-flex;align-items:center;padding:.35rem .75rem;border-radius:999px;font-size:.75rem;font-weight:900}.toast{position:fixed;right:1rem;top:1rem;z-index:90;color:#fff;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.16)}
   </style>
 </head>
 <body class="min-h-screen flex">
@@ -18,7 +18,7 @@
       <a href="seller_dashboard.html" class="sidebar-link"><i class="fas fa-home w-5"></i><span>Dashboard</span></a>
       <a href="seller_produtos.html" class="sidebar-link"><i class="fas fa-box w-5"></i><span>Produtos</span></a>
       <a href="seller_pedidos.html" class="sidebar-link"><i class="fas fa-shopping-cart w-5"></i><span>Pedidos</span></a>
-      <a href="seller_mercadopago.html" class="sidebar-link active"><i class="fas fa-credit-card w-5"></i><span>Split de Pagamentos</span></a>
+      <a href="seller_mercadopago.html" class="sidebar-link active"><i class="fas fa-credit-card w-5"></i><span>Recebimento Pagar.me</span></a>
       <a href="seller_configuracoes.html" class="sidebar-link"><i class="fas fa-cog w-5"></i><span>Configurações</span></a>
       <a href="seller_extrato.html" class="sidebar-link"><i class="fas fa-receipt w-5"></i><span>Extrato</span></a>
       <a href="#" id="btn-sair" class="sidebar-link text-red-400 mt-10"><i class="fas fa-sign-out-alt w-5"></i><span>Sair</span></a>
@@ -28,81 +28,81 @@
   <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
     <header class="flex items-center justify-between p-4 bg-white border-b shadow-sm">
       <button id="sidebar-toggle" class="md:hidden text-gray-500"><i class="fas fa-bars text-xl"></i></button>
-      <h1 class="text-xl font-black text-gray-800">Split de Pagamentos</h1>
+      <h1 class="text-xl font-black text-gray-800">Recebimento Pagar.me</h1>
       <div class="flex items-center gap-2"><span id="user-display-name" class="text-sm font-bold text-gray-600">Carregando...</span><i class="fas fa-user-circle text-2xl text-[#2E6DA4]"></i></div>
     </header>
 
     <main class="flex-1 p-6 overflow-y-auto">
       <div class="max-w-5xl mx-auto space-y-6">
         <section class="card p-6">
-          <h2 class="text-2xl font-black text-slate-900">Recebimento do Seller</h2>
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 class="text-2xl font-black text-slate-900">Split automático obrigatório</h2>
+              <p class="text-sm text-gray-500 mt-2">Todos os pagamentos do seller passam pelo Pagar.me com split: Ariana recebe a comissão automaticamente e o seller recebe o líquido. Não existe repasse manual.</p>
+            </div>
+            <span id="recipient-pill" class="pill bg-gray-100 text-gray-700">Verificando</span>
+          </div>
           <div class="grid md:grid-cols-3 gap-4 mt-5">
+            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Gateway</div><div class="text-2xl font-black text-[#2E6DA4] mt-1">Pagar.me</div></div>
             <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Comissão Ariana</div><div id="commission-view" class="text-2xl font-black text-[#2E6DA4] mt-1">12%</div></div>
-            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Etiqueta marketplace</div><div class="text-2xl font-black text-amber-600 mt-1">Somada</div></div>
-            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Repasse</div><div class="text-2xl font-black text-green-600 mt-1">Líquido</div></div>
+            <div class="rounded-2xl bg-gray-50 p-4 border"><div class="text-xs uppercase font-black text-gray-500">Recipient ID</div><div id="recipient-view" class="text-sm font-black text-green-700 mt-2 break-all">Não criado</div></div>
           </div>
         </section>
 
-        <form id="split-form" class="grid lg:grid-cols-3 gap-5">
-          <section class="card p-6 space-y-4">
-            <div class="flex items-center justify-between"><h3 class="text-xl font-black">Mercado Pago</h3><span id="mp-pill" class="pill bg-gray-100 text-gray-700">Verificando</span></div>
-            <p class="text-sm text-gray-500">Use o identificador da conta conectada do seller, quando usar split/repasse pelo Mercado Pago.</p>
-            <label class="text-xs font-black uppercase text-gray-500">MP User/Collector ID</label>
-            <input id="mercadopagoId" class="input" placeholder="Ex: 123456789" autocomplete="off">
-          </section>
+        <form id="split-form" class="card p-6 space-y-6">
+          <div>
+            <h3 class="text-xl font-black text-slate-900">Dados para criar o Recipient</h3>
+            <p class="text-sm text-gray-500 mt-1">Preencha os dados bancários do seller. Depois clique em criar Recipient Pagar.me.</p>
+          </div>
 
-          <section class="card p-6 space-y-4">
-            <div class="flex items-center justify-between"><h3 class="text-xl font-black">Pagar.me</h3><span id="pagarme-pill" class="pill bg-gray-100 text-gray-700">Verificando</span></div>
-            <p class="text-sm text-gray-500">Recipient ID do seller no Pagar.me para receber o líquido da venda.</p>
-            <label class="text-xs font-black uppercase text-gray-500">Recipient ID</label>
-            <input id="pagarmeRecipientId" class="input" placeholder="re_xxxxxxxxxxxxxx" autocomplete="off">
-          </section>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div><label class="text-xs font-black uppercase text-gray-500">Nome/Razão Social</label><input id="legalName" class="input" placeholder="Nome do seller ou razão social"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">CPF/CNPJ do seller</label><input id="document" class="input" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Nome do titular da conta</label><input id="bankHolderName" class="input" placeholder="Titular da conta bancária"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">CPF/CNPJ do titular</label><input id="bankHolderDocument" class="input" placeholder="Documento do titular"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Banco</label><input id="bankCode" class="input" placeholder="Ex: 001, 237, 341, 104"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Tipo de conta</label><select id="accountType" class="input"><option value="checking">Conta corrente</option><option value="savings">Poupança</option></select></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Agência</label><input id="branchNumber" class="input" placeholder="Sem traço"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Dígito da agência</label><input id="branchCheckDigit" class="input" placeholder="Opcional"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Conta</label><input id="accountNumber" class="input" placeholder="Sem traço"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Dígito da conta</label><input id="accountCheckDigit" class="input" placeholder="Obrigatório"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Comissão Ariana (%)</label><input id="commissionPercent" type="number" min="0" max="50" step="0.01" class="input" placeholder="12"></div>
+            <div><label class="text-xs font-black uppercase text-gray-500">Recipient ID Pagar.me</label><input id="pagarmeRecipientId" class="input bg-gray-50" readonly placeholder="Criado automaticamente"></div>
+          </div>
 
-          <section class="card p-6 space-y-4">
-            <div class="flex items-center justify-between"><h3 class="text-xl font-black">Cielo</h3><span id="cielo-pill" class="pill bg-gray-100 text-gray-700">Verificando</span></div>
-            <p class="text-sm text-gray-500">Subordinate Merchant ID do seller para split Cielo Marketplace.</p>
-            <label class="text-xs font-black uppercase text-gray-500">Subordinate Merchant ID</label>
-            <input id="cieloSubordinateMerchantId" class="input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
-          </section>
-
-          <section class="card p-6 lg:col-span-3">
-            <div class="grid md:grid-cols-[220px_1fr] gap-4 items-end">
-              <div><label class="text-xs font-black uppercase text-gray-500">Comissão padrão (%)</label><input id="commissionPercent" type="number" min="0" max="50" step="0.01" class="input" placeholder="12"></div>
-              <button id="btn-save" class="btn btn-primary w-full md:w-auto" type="submit"><i class="fas fa-save"></i> Salvar split do seller</button>
-            </div>
-            <div class="mt-5 rounded-2xl bg-blue-50 border border-blue-100 p-4 text-sm text-slate-700">
-              <strong>
-            </div>
-          </section>
+          <div class="flex flex-col md:flex-row gap-3 justify-end">
+            <button id="btn-save" class="btn btn-primary" type="submit"><i class="fas fa-save"></i> Salvar dados</button>
+            <button id="btn-create-recipient" class="btn btn-green" type="button"><i class="fas fa-bolt"></i> Criar Recipient Pagar.me</button>
+          </div>
         </form>
       </div>
     </main>
   </div>
-
 <script>
 const API_BASE = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? 'http://localhost:3000/api' : 'https://ariana-backend.onrender.com/api';
 const $ = (id) => document.getElementById(id);
 function getSellerToken(){return localStorage.getItem('seller_token')||''}
 function clearSellerSession(){localStorage.removeItem('seller_token');localStorage.removeItem('seller_profile');location.href='seller_login.html'}
 function authHeaders(extra={}){const t=getSellerToken();return t?{...extra,Authorization:`Bearer ${t}`}:{...extra}}
-function toast(msg,type='info'){const d=document.createElement('div');d.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-[#2E6DA4]');d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
-function pill(id, connected, enabled){const el=$(id);if(!el)return;el.className='pill '+(!enabled?'bg-gray-100 text-gray-600':connected?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700');el.textContent=!enabled?'Desativado':connected?'Configurado':'Pendente'}
+function toast(msg,type='info'){const d=document.createElement('div');d.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-[#2E6DA4]');d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),4500)}
+function pill(connected){const el=$('recipient-pill');if(!el)return;el.className='pill '+(connected?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700');el.textContent=connected?'Recipient criado':'Pendente'}
+function payload(){return {pagarmeRecipientId:$('pagarmeRecipientId').value.trim(),legalName:$('legalName').value.trim(),document:$('document').value.trim(),bankHolderName:$('bankHolderName').value.trim(),bankHolderDocument:$('bankHolderDocument').value.trim(),bankCode:$('bankCode').value.trim(),accountType:$('accountType').value,branchNumber:$('branchNumber').value.trim(),branchCheckDigit:$('branchCheckDigit').value.trim(),accountNumber:$('accountNumber').value.trim(),accountCheckDigit:$('accountCheckDigit').value.trim(),commissionPercent:$('commissionPercent').value};}
 async function load(){
   if(!getSellerToken()) return clearSellerSession();
   const res=await fetch(`${API_BASE}/seller/payment-split`,{headers:authHeaders()});
   const data=await res.json().catch(()=>({}));
   if(res.status===401||res.status===403) return clearSellerSession();
-  if(!res.ok) return toast(data.error||'Erro ao carregar split','error');
+  if(!res.ok) return toast(data.error||'Erro ao carregar Pagar.me','error');
   $('commissionPercent').value=data.commissionPercent||12;$('commission-view').textContent=(data.commissionPercent||12)+'%';
-  $('mercadopagoId').value=data.gateways?.mercadopago?.recipientId||'';
-  $('pagarmeRecipientId').value=data.gateways?.pagarme?.recipientId||'';
-  $('cieloSubordinateMerchantId').value=data.gateways?.cielo?.recipientId||'';
-  pill('mp-pill',data.gateways?.mercadopago?.connected,data.gateways?.mercadopago?.enabled);
-  pill('pagarme-pill',data.gateways?.pagarme?.connected,data.gateways?.pagarme?.enabled);
-  pill('cielo-pill',data.gateways?.cielo?.connected,data.gateways?.cielo?.enabled);
+  const bank=data.pagarme?.bank||{};
+  $('pagarmeRecipientId').value=data.pagarme?.recipientId||'';$('recipient-view').textContent=data.pagarme?.recipientId||'Não criado';
+  $('legalName').value=bank.legalName||'';$('document').value=bank.document||'';$('bankCode').value=bank.bankCode||'';$('branchNumber').value=bank.branchNumber||'';$('branchCheckDigit').value=bank.branchCheckDigit||'';$('accountNumber').value=bank.accountNumber||'';$('accountCheckDigit').value=bank.accountCheckDigit||'';$('accountType').value=bank.accountType||'checking';$('bankHolderName').value=bank.bankHolderName||'';$('bankHolderDocument').value=bank.bankHolderDocument||'';
+  pill(!!data.pagarme?.recipientId);
   try{const p=JSON.parse(localStorage.getItem('seller_profile')||'{}');$('user-display-name').textContent='Bem-vindo, '+(p.factoryName||p.storeName||p.name||'Seller')+'!'}catch(_){ }
 }
-$('split-form').addEventListener('submit',async(e)=>{e.preventDefault();const payload={mercadopagoId:$('mercadopagoId').value.trim(),pagarmeRecipientId:$('pagarmeRecipientId').value.trim(),cieloSubordinateMerchantId:$('cieloSubordinateMerchantId').value.trim(),commissionPercent:$('commissionPercent').value};const res=await fetch(`${API_BASE}/seller/payment-split`,{method:'PUT',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(payload)});const data=await res.json().catch(()=>({}));if(!res.ok)return toast(data.error||'Erro ao salvar','error');if(data.seller)localStorage.setItem('seller_profile',JSON.stringify(data.seller));toast('Split salvo com sucesso','success');load();});
+async function save(){const res=await fetch(`${API_BASE}/seller/payment-split`,{method:'PUT',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(payload())});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Erro ao salvar');if(data.seller)localStorage.setItem('seller_profile',JSON.stringify(data.seller));return data;}
+$('split-form').addEventListener('submit',async(e)=>{e.preventDefault();try{await save();toast('Dados Pagar.me salvos com sucesso','success');load();}catch(err){toast(err.message,'error')}});
+$('btn-create-recipient').addEventListener('click',async()=>{try{$('btn-create-recipient').disabled=true;await save();toast('Criando Recipient no Pagar.me...','info');const res=await fetch(`${API_BASE}/seller/payment-split/pagarme/recipient`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(payload())});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Erro ao criar Recipient');if(data.seller)localStorage.setItem('seller_profile',JSON.stringify(data.seller));toast('Recipient Pagar.me criado com sucesso','success');load();}catch(err){toast(err.message,'error')}finally{$('btn-create-recipient').disabled=false;}});
 $('btn-sair')?.addEventListener('click',(e)=>{e.preventDefault();clearSellerSession()});$('sidebar-toggle')?.addEventListener('click',()=>$('sidebar').classList.toggle('-translate-x-full'));window.onload=load;
 </script>
 </body>

@@ -854,7 +854,7 @@ const DEFAULT_PAYMENTS_SETTINGS = {
     marketplaceFeePercent: Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12)
   },
   cielo: {
-    enabled: String(process.env.CIELO_ENABLED || '').toLowerCase() === 'true' || !!process.env.CIELO_MERCHANT_ID,
+    enabled: false,
     merchantId: process.env.CIELO_MERCHANT_ID || '',
     merchantKey: process.env.CIELO_MERCHANT_KEY || '',
     apiUrl: process.env.CIELO_API_URL || 'https://api.cieloecommerce.cielo.com.br',
@@ -4052,6 +4052,105 @@ async function buildMercadoPagoHeaders() { const settings = await getPaymentsSet
 async function createMercadoPagoPayment(payload) { const headers = await buildMercadoPagoHeaders(); const idempotencyKey = uid('mp'); const response = await axios.post('https://api.mercadopago.com/v1/payments', payload, { headers: { ...headers, 'X-Idempotency-Key': idempotencyKey }, timeout: 30000, validateStatus: () => true }); return { response, idempotencyKey }; }
 async function createPagarmeOrder(payload) { const settings = await getPaymentsSettings(); const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || ''; const endpoint = settings.pagarme?.endpoint || 'https://api.pagar.me/core/v5'; if (!apiKey) throw new Error('Pagar.me API key não configurada.'); return axios.post(`${endpoint}/orders`, payload, { auth: { username: apiKey, password: '' }, headers: { 'Content-Type': 'application/json' }, timeout: 30000, validateStatus: () => true }); }
 
+async function createPagarmeRecipient(payload) {
+  const settings = await getPaymentsSettings();
+  const apiKey = settings.pagarme?.apiKey || process.env.PAGARME_API_KEY || '';
+  const endpoint = String(settings.pagarme?.endpoint || process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5').replace(/\/+$/, '');
+  if (!apiKey) throw new Error('Pagar.me API key não configurada.');
+  return axios.post(`${endpoint}/recipients`, payload, {
+    auth: { username: apiKey, password: '' },
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 30000,
+    validateStatus: () => true
+  });
+}
+
+function normalizePagarmeAccountType(value = '') {
+  const raw = String(value || '').toLowerCase();
+  if (raw.includes('poup')) return 'savings';
+  if (raw.includes('saving')) return 'savings';
+  return 'checking';
+}
+
+function normalizePagarmeHolderType(document = '', explicit = '') {
+  const raw = String(explicit || '').toLowerCase();
+  if (raw === 'company' || raw === 'corporation' || raw === 'cnpj') return 'company';
+  const digits = cleanPhone(document);
+  return digits.length > 11 ? 'company' : 'individual';
+}
+
+function buildPagarmeRecipientPayloadFromSeller(seller = {}, body = {}) {
+  const meta = { ...(seller.metadata || {}), ...(body || {}) };
+  const document = cleanPhone(meta.document || meta.cpfCnpj || meta.cpf || meta.cnpj || seller.document || '');
+  const holderDocument = cleanPhone(meta.bankHolderDocument || meta.holderDocument || document || '');
+  const holderName = String(meta.bankHolderName || meta.holderName || meta.legalName || meta.name || seller.storeName || seller.displayName || '').trim();
+  const name = String(meta.legalName || meta.name || seller.storeName || seller.displayName || holderName || 'Seller Ariana Móveis').trim();
+  const email = String(meta.email || seller.email || '').trim().toLowerCase();
+  const bank = cleanPhone(meta.bankCode || meta.bank || '');
+  const branchNumber = cleanPhone(meta.branchNumber || meta.agency || meta.agencia || '');
+  const branchCheckDigit = cleanPhone(meta.branchCheckDigit || meta.agencyDigit || meta.agenciaDigito || '');
+  const accountNumber = cleanPhone(meta.accountNumber || meta.conta || '');
+  const accountCheckDigit = cleanPhone(meta.accountCheckDigit || meta.contaDigito || meta.accountDigit || '');
+  const required = [];
+  if (!document) required.push('CPF/CNPJ do seller');
+  if (!email) required.push('e-mail do seller');
+  if (!holderName) required.push('nome do titular da conta');
+  if (!holderDocument) required.push('CPF/CNPJ do titular da conta');
+  if (!bank) required.push('código do banco');
+  if (!branchNumber) required.push('agência');
+  if (!accountNumber) required.push('conta bancária');
+  if (!accountCheckDigit) required.push('dígito da conta');
+  if (required.length) {
+    const err = new Error(`Dados insuficientes para criar Recipient Pagar.me: ${required.join(', ')}.`);
+    err.requiredFields = required;
+    throw err;
+  }
+  const holderType = normalizePagarmeHolderType(holderDocument, meta.holderType || meta.bankHolderType);
+  const sellerType = normalizePagarmeHolderType(document, meta.type || meta.recipientType);
+  const payload = {
+    name: name.slice(0, 128),
+    email,
+    document,
+    type: sellerType,
+    default_bank_account: {
+      holder_name: holderName.slice(0, 128),
+      holder_type: holderType,
+      holder_document: holderDocument,
+      bank: bank.padStart(3, '0').slice(-3),
+      branch_number: branchNumber,
+      account_number: accountNumber,
+      account_check_digit: accountCheckDigit,
+      type: normalizePagarmeAccountType(meta.accountType || meta.bankAccountType || meta.tipoConta)
+    },
+    transfer_settings: {
+      transfer_enabled: true,
+      transfer_interval: String(meta.transferInterval || 'daily'),
+      transfer_day: Number(meta.transferDay || 0)
+    },
+    metadata: {
+      sellerId: String(seller.sellerId || seller._id || ''),
+      platform: 'Ariana Móveis'
+    }
+  };
+  if (branchCheckDigit) payload.default_bank_account.branch_check_digit = branchCheckDigit;
+  return payload;
+}
+
+function normalizePagarmeRecipientResponse(data = {}) {
+  return {
+    id: String(data.id || data.recipient_id || data.recipientId || ''),
+    status: String(data.status || data.registration_status || ''),
+    raw: data
+  };
+}
+
+function isArianaOwnSellerId(value = '') {
+  const raw = String(value || '').trim();
+  const norm = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return !raw || norm === 'ariana' || norm === 'ariana moveis' || norm === 'ariana_moveis' || norm === 'loja' || norm === 'loja propria';
+}
+
+
 // ============================================================
 // SPLIT MARKETPLACE - Sellers / Pagar.me / Cielo / Mercado Pago
 // Regra Ariana: seller recebe líquido, Ariana fica com comissão + etiqueta
@@ -4109,32 +4208,33 @@ async function getMarketplaceLabelFeeForOrder(order = {}, sellerId = '') {
 
 async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const order = toJSON(orderDoc) || orderDoc || {};
-  const sellerIds = explicitSellerId ? [String(explicitSellerId).trim()] : extractSellerIdsFromOrder(order);
+  const rawSellerIds = explicitSellerId ? [String(explicitSellerId).trim()] : extractSellerIdsFromOrder(order);
+  const sellerIds = rawSellerIds.map((id) => String(id || '').trim()).filter((id) => id && !isArianaOwnSellerId(id));
   const settings = await getPaymentsSettings();
   const results = [];
-  for (const sellerId of sellerIds.filter(Boolean)) {
+  for (const sellerId of sellerIds) {
     const seller = await Seller.findOne({ sellerId }) || await Seller.findById(normalizeObjectId(sellerId)).catch(() => null);
+    if (!seller) continue;
     const gross = sellerItemGross(order, sellerId);
-    const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || settings?.mercadopago || {}, seller);
+    const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || {}, seller);
     const commission = round2(gross * commissionPercent / 100);
     const labelFee = await getMarketplaceLabelFeeForOrder(order, sellerId);
     const marketplaceAmount = round2(commission + labelFee);
     const sellerNet = round2(Math.max(0, gross - marketplaceAmount));
     const meta = seller?.metadata || {};
+    const pagarmeRecipientId = String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller?.pagarmeRecipientId || '').trim();
     results.push({
       sellerId,
       sellerName: seller?.storeName || seller?.displayName || '',
+      gateway: 'pagarme',
       gross,
       commissionPercent,
       commission,
       marketplaceLabelFee: labelFee,
       marketplaceAmount,
       sellerNet,
-      recipients: {
-        mercadopago: String(meta.mercadopagoId || meta.mpUserId || meta.mpCollectorId || seller?.mercadopagoId || '').trim(),
-        pagarme: String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller?.pagarmeRecipientId || '').trim(),
-        cielo: String(meta.cieloSubordinateMerchantId || meta.cieloMerchantId || seller?.cieloSubordinateMerchantId || '').trim()
-      }
+      recipients: { pagarme: pagarmeRecipientId },
+      splitReady: !!pagarmeRecipientId
     });
   }
   const totalGross = round2(results.reduce((a, r) => a + r.gross, 0));
@@ -4142,14 +4242,18 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const totalLabelFee = round2(results.reduce((a, r) => a + r.marketplaceLabelFee, 0));
   const totalMarketplaceAmount = round2(results.reduce((a, r) => a + r.marketplaceAmount, 0));
   const totalSellerNet = round2(results.reduce((a, r) => a + r.sellerNet, 0));
-  return { ok: true, orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet };
+  const missingPagarmeRecipients = results.filter((r) => !r.recipients?.pagarme).map((r) => ({ sellerId: r.sellerId, sellerName: r.sellerName }));
+  return { ok: true, gateway: 'pagarme', orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet, splitRequired: results.length > 0, splitReady: missingPagarmeRecipients.length === 0, missingPagarmeRecipients };
 }
-
 function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
   const settings = payload.settings || {};
   const marketplaceRecipientId = String(settings.marketplaceRecipientId || process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '').trim();
   const sellers = ensureArray(splitSummary.sellers);
-  if (!marketplaceRecipientId || !sellers.length) return payload;
+  if (!sellers.length) return payload; // venda própria Ariana: sem split de seller
+  if (!marketplaceRecipientId) throw new Error('PAGARME_MARKETPLACE_RECIPIENT_ID não configurado para receber a comissão da Ariana.');
+  const missing = sellers.filter((item) => !item.recipients?.pagarme).map((item) => item.sellerName || item.sellerId).filter(Boolean);
+  if (missing.length) throw new Error(`Seller sem Recipient ID Pagar.me. Configure antes de vender: ${missing.join(', ')}.`);
+
   const split = [];
   for (const item of sellers) {
     if (item.recipients?.pagarme && item.sellerNet > 0) {
@@ -4170,11 +4274,10 @@ function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
       options: { liable: false, charge_processing_fee: true, charge_remainder_fee: true }
     });
   }
-  if (!split.length) return payload;
+  if (!split.length) throw new Error('Split Pagar.me obrigatório, mas nenhum recebedor foi montado.');
   payload.charges = ensureArray(payload.charges).map((charge) => ({ ...charge, split }));
   return payload;
 }
-
 async function buildCieloHeaders() {
   const settings = await getPaymentsSettings();
   const cielo = settings.cielo || {};
@@ -4395,19 +4498,21 @@ async function updateOrderPaymentFromPagarme(orderId, pagarmeData = {}, extra = 
       statusLabel: approved ? 'Pagamento aprovado' : (status === 'rejected' ? 'Pagamento recusado' : 'Aguardando confirmação do pagamento'),
       payment: {
         provider: 'pagarme',
-        method: 'card',
-        type: 'credit_card',
+        method: extra.method || 'card',
+        type: extra.type || (extra.method === 'pix' ? 'pix' : (extra.method === 'boleto' ? 'boleto' : 'credit_card')),
         paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
         orderId: String(pagarmeData.id || ''),
         status,
         statusDetail: getPagarmeGatewayMessage(pagarmeData),
         installments: extra.installments || undefined,
+        ticketUrl: extra.ticketUrl || undefined,
+        qrCode: extra.qrCode || undefined,
         amount: centsToMoney(charge.amount || tx.amount || 0),
         raw: redact(pagarmeData || {})
       }
     };
     const updated = await Order.findByIdAndUpdate(oid, { $set: patch }, { new: true });
-    if (approved) await notifySaleAfterPaymentApproved(updated, 'pagarme_card_approved');
+    if (approved) await notifySaleAfterPaymentApproved(updated, `pagarme_${extra.method || 'card'}_approved`);
     return updated;
   } catch (error) {
     console.error('Erro ao atualizar pedido com pagamento Pagar.me:', error.message || error);
@@ -4449,6 +4554,88 @@ function buildPagarmeCreditPayload(body = {}, order = null) {
     }
   };
 }
+
+function buildPagarmePixPayload(body = {}, order = null) {
+  const amount = moneyToCents(body.amount || body.total || order?.total || 0);
+  if (!amount) throw new Error('Total inválido para Pix Pagar.me.');
+  return {
+    code: String(body.orderId || order?._id || uid('order')).slice(0, 52),
+    closed: true,
+    customer: buildPagarmeCustomer(body, order),
+    items: buildPagarmeItems({ ...body, amount: centsToMoney(amount) }, order),
+    payments: [{
+      payment_method: 'pix',
+      pix: { expires_in: Number(process.env.PAGARME_PIX_EXPIRES_IN || 3600) }
+    }],
+    metadata: { orderId: String(body.orderId || order?._id || ''), provider: 'pagarme', paymentMethod: 'pix' }
+  };
+}
+
+function buildPagarmeBoletoPayload(body = {}, order = null) {
+  const amount = moneyToCents(body.amount || body.total || order?.total || 0);
+  if (!amount) throw new Error('Total inválido para boleto Pagar.me.');
+  const dueAt = new Date(Date.now() + Number(process.env.PAGARME_BOLETO_DUE_DAYS || 3) * 24 * 60 * 60 * 1000);
+  return {
+    code: String(body.orderId || order?._id || uid('order')).slice(0, 52),
+    closed: true,
+    customer: buildPagarmeCustomer(body, order),
+    items: buildPagarmeItems({ ...body, amount: centsToMoney(amount) }, order),
+    payments: [{
+      payment_method: 'boleto',
+      boleto: {
+        bank: String(process.env.PAGARME_BOLETO_BANK || '001'),
+        instructions: String(process.env.PAGARME_BOLETO_INSTRUCTIONS || 'Não receber após o vencimento.').slice(0, 255),
+        due_at: dueAt.toISOString().slice(0, 10)
+      }
+    }],
+    metadata: { orderId: String(body.orderId || order?._id || ''), provider: 'pagarme', paymentMethod: 'boleto' }
+  };
+}
+
+function normalizePagarmePixResponse(pagarmeData = {}) {
+  const charge = getPagarmeCharge(pagarmeData) || {};
+  const tx = getPagarmeTransaction(pagarmeData) || {};
+  const qrCode = tx.qr_code || tx.qrCode || tx.pix_qr_code || tx.copy_paste || '';
+  const qrCodeUrl = tx.qr_code_url || tx.qrCodeUrl || tx.url || '';
+  return {
+    ok: true,
+    provider: 'pagarme',
+    method: 'pix',
+    status: getPagarmeStatus(pagarmeData),
+    id: String(charge.id || tx.id || pagarmeData.id || ''),
+    paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
+    qrCode,
+    qr_code: qrCode,
+    qrCodeImage: qrCodeUrl,
+    ticketUrl: qrCodeUrl,
+    data: pagarmeData,
+    raw: pagarmeData
+  };
+}
+
+function normalizePagarmeBoletoResponse(pagarmeData = {}) {
+  const charge = getPagarmeCharge(pagarmeData) || {};
+  const tx = getPagarmeTransaction(pagarmeData) || {};
+  const ticketUrl = tx.url || tx.pdf || tx.boleto_url || '';
+  const linha = tx.line || tx.digitable_line || tx.barcode || '';
+  return {
+    ok: true,
+    provider: 'pagarme',
+    method: 'boleto',
+    status: getPagarmeStatus(pagarmeData),
+    id: String(charge.id || tx.id || pagarmeData.id || ''),
+    paymentId: String(charge.id || tx.id || pagarmeData.id || ''),
+    ticketUrl,
+    ticket_url: ticketUrl,
+    boletoUrl: ticketUrl,
+    linhaDigitavel: linha,
+    digitableLine: linha,
+    barcode: tx.barcode || linha,
+    data: pagarmeData,
+    raw: pagarmeData
+  };
+}
+
 
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'Ariana Móveis Enterprise Mongo API', buildId: BUILD_ID }));
@@ -7678,6 +7865,8 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
         statusDetail: mpData?.status_detail || '',
         liveMode: mpData?.live_mode === true,
         installments: extra.installments || undefined,
+        ticketUrl: extra.ticketUrl || undefined,
+        qrCode: extra.qrCode || undefined,
         paymentMethodId: extra.paymentMethodId || mpData?.payment_method_id || '',
         issuerId: extra.issuerId || mpData?.issuer_id || '',
         raw: redact(mpData || {})
@@ -8064,30 +8253,34 @@ app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
     const seller = req.seller || {};
     const meta = seller.metadata || {};
     const settings = await getPaymentsSettings();
+    const recipientId = String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId || '').trim();
     return res.json({
       ok: true,
-      commissionPercent: Number(meta.commissionPercent || settings.pagarme?.marketplaceFeePercent || settings.mercadopago?.marketplaceFeePercent || 12),
-      marketplaceLogisticsFeeEnabled: true,
-      gateways: {
-        mercadopago: {
-          enabled: settings.mercadopago?.enabled !== false,
-          connected: !!(meta.mercadopagoId || meta.mpUserId || meta.mpCollectorId || seller.mercadopagoId || seller.mpConnected),
-          recipientId: meta.mercadopagoId || meta.mpUserId || meta.mpCollectorId || seller.mercadopagoId || ''
-        },
-        pagarme: {
-          enabled: settings.pagarme?.enabled !== false,
-          connected: !!(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId),
-          recipientId: meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId || ''
-        },
-        cielo: {
-          enabled: settings.cielo?.enabled !== false,
-          connected: !!(meta.cieloSubordinateMerchantId || meta.cieloMerchantId || seller.cieloSubordinateMerchantId),
-          recipientId: meta.cieloSubordinateMerchantId || meta.cieloMerchantId || seller.cieloSubordinateMerchantId || ''
+      gateway: 'pagarme',
+      splitRequired: true,
+      manualTransferEnabled: false,
+      commissionPercent: Number(meta.commissionPercent || settings.pagarme?.marketplaceFeePercent || 12),
+      pagarme: {
+        enabled: settings.pagarme?.enabled !== false,
+        connected: !!recipientId,
+        recipientId,
+        status: meta.pagarmeRecipientStatus || '',
+        bank: {
+          document: meta.document || seller.document || '',
+          legalName: meta.legalName || seller.storeName || seller.displayName || '',
+          bankCode: meta.bankCode || '',
+          branchNumber: meta.branchNumber || '',
+          branchCheckDigit: meta.branchCheckDigit || '',
+          accountNumber: meta.accountNumber || '',
+          accountCheckDigit: meta.accountCheckDigit || '',
+          accountType: meta.accountType || 'checking',
+          bankHolderName: meta.bankHolderName || meta.legalName || seller.storeName || seller.displayName || '',
+          bankHolderDocument: meta.bankHolderDocument || meta.document || seller.document || ''
         }
       }
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar split do seller' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar recebimento Pagar.me do seller' });
   }
 });
 
@@ -8095,16 +8288,77 @@ app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
   try {
     const body = req.body || {};
     const meta = { ...(req.seller.metadata || {}) };
-    meta.mercadopagoId = String(body.mercadopagoId || body.mpUserId || meta.mercadopagoId || '').trim();
+    meta.paymentGateway = 'pagarme';
+    meta.marketplaceSplitRequired = true;
+    meta.manualTransferEnabled = false;
     meta.pagarmeRecipientId = String(body.pagarmeRecipientId || body.pagarme_recipient_id || meta.pagarmeRecipientId || '').trim();
-    meta.cieloSubordinateMerchantId = String(body.cieloSubordinateMerchantId || body.cieloMerchantId || meta.cieloSubordinateMerchantId || '').trim();
-    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') {
-      meta.commissionPercent = Number(body.commissionPercent) || 12;
-    }
+    meta.document = cleanPhone(body.document || body.cpfCnpj || meta.document || req.seller.document || '');
+    meta.legalName = String(body.legalName || body.name || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
+    meta.bankCode = cleanPhone(body.bankCode || body.bank || meta.bankCode || '');
+    meta.branchNumber = cleanPhone(body.branchNumber || body.agency || meta.branchNumber || '');
+    meta.branchCheckDigit = cleanPhone(body.branchCheckDigit || body.agencyDigit || meta.branchCheckDigit || '');
+    meta.accountNumber = cleanPhone(body.accountNumber || body.conta || meta.accountNumber || '');
+    meta.accountCheckDigit = cleanPhone(body.accountCheckDigit || body.accountDigit || meta.accountCheckDigit || '');
+    meta.accountType = normalizePagarmeAccountType(body.accountType || meta.accountType || 'checking');
+    meta.bankHolderName = String(body.bankHolderName || meta.bankHolderName || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
+    meta.bankHolderDocument = cleanPhone(body.bankHolderDocument || meta.bankHolderDocument || meta.document || req.seller.document || '');
+    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') meta.commissionPercent = Number(body.commissionPercent) || 12;
     const seller = await Seller.findByIdAndUpdate(req.seller._id, { $set: { metadata: meta } }, { new: true });
     return res.json({ ok: true, seller: sellerProfile(seller, req.user) });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar split do seller' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar dados Pagar.me do seller' });
+  }
+});
+
+app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, async (req, res) => {
+  try {
+    const sellerDoc = req.seller;
+    const payload = buildPagarmeRecipientPayloadFromSeller(sellerDoc, req.body || {});
+    const response = await createPagarmeRecipient(payload);
+    const data = response.data || {};
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(response.status).json({ ok: false, error: data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me', details: data });
+    }
+    const normalized = normalizePagarmeRecipientResponse(data);
+    if (!normalized.id) return res.status(500).json({ ok: false, error: 'Pagar.me não retornou Recipient ID.', details: data });
+    const meta = { ...(sellerDoc.metadata || {}), ...(req.body || {}) };
+    meta.paymentGateway = 'pagarme';
+    meta.marketplaceSplitRequired = true;
+    meta.manualTransferEnabled = false;
+    meta.pagarmeRecipientId = normalized.id;
+    meta.pagarmeRecipientStatus = normalized.status;
+    meta.pagarmeRecipientCreatedAt = new Date().toISOString();
+    const seller = await Seller.findByIdAndUpdate(sellerDoc._id, { $set: { metadata: meta } }, { new: true });
+    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_recipient_created_by_seller', status: 'success', request: redact(payload), response: redact(data), metadata: { sellerId: seller.sellerId || String(seller._id) } });
+    return res.json({ ok: true, recipientId: normalized.id, recipient: normalized, seller: sellerProfile(seller, req.user) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar Recipient Pagar.me', requiredFields: error.requiredFields || undefined });
+  }
+});
+
+app.post('/api/admin/sellers/:sellerId/pagarme-recipient', adminRequired, async (req, res) => {
+  try {
+    const sid = String(req.params.sellerId || '').trim();
+    const sellerDoc = await Seller.findOne({ sellerId: sid }) || await Seller.findById(normalizeObjectId(sid)).catch(() => null);
+    if (!sellerDoc) return res.status(404).json({ ok: false, error: 'Seller não encontrado.' });
+    const payload = buildPagarmeRecipientPayloadFromSeller(sellerDoc, req.body || {});
+    const response = await createPagarmeRecipient(payload);
+    const data = response.data || {};
+    if (response.status < 200 || response.status >= 300) return res.status(response.status).json({ ok: false, error: data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me', details: data });
+    const normalized = normalizePagarmeRecipientResponse(data);
+    if (!normalized.id) return res.status(500).json({ ok: false, error: 'Pagar.me não retornou Recipient ID.', details: data });
+    const meta = { ...(sellerDoc.metadata || {}), ...(req.body || {}) };
+    meta.paymentGateway = 'pagarme';
+    meta.marketplaceSplitRequired = true;
+    meta.manualTransferEnabled = false;
+    meta.pagarmeRecipientId = normalized.id;
+    meta.pagarmeRecipientStatus = normalized.status;
+    meta.pagarmeRecipientCreatedAt = new Date().toISOString();
+    const seller = await Seller.findByIdAndUpdate(sellerDoc._id, { $set: { metadata: meta } }, { new: true });
+    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_recipient_created_by_admin', status: 'success', request: redact(payload), response: redact(data), metadata: { sellerId: seller.sellerId || String(seller._id), admin: req.admin?.email || '' } });
+    return res.json({ ok: true, recipientId: normalized.id, recipient: normalized, seller: toJSON(seller) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar Recipient Pagar.me', requiredFields: error.requiredFields || undefined });
   }
 });
 
@@ -8121,40 +8375,53 @@ app.get('/api/payments/split/preview/:orderId', adminRequired, async (req, res) 
   }
 });
 
-app.post('/api/payments/cielo/credit', async (req, res) => {
+app.post('/api/payments/cielo/credit', async (_req, res) => res.status(410).json({ ok: false, provider: 'cielo', error: 'Cielo desativada. Marketplace Ariana usa Pagar.me Split obrigatório.' }));
+
+app.post('/api/payments/pagarme/pix', async (req, res) => {
   try {
     const body = req.body || {};
-    const orderId = String(body.orderId || '').trim();
-    const order = orderId && normalizeObjectId(orderId) ? await Order.findById(normalizeObjectId(orderId)) : null;
-    const amount = paymentSplitCents(body.amount || body.total || order?.total || 0);
-    if (!amount) return res.status(400).json({ ok: false, error: 'Valor inválido para pagamento Cielo.' });
+    const orderId = body.orderId || body.order_id || null;
+    const order = normalizeObjectId(orderId) ? await Order.findById(orderId) : null;
+    let payload = buildPagarmePixPayload(body, order);
     const splitSummary = order ? await buildSellerSplitSummary(order) : { sellers: [], totalMarketplaceAmount: 0 };
-    let payload = {
-      MerchantOrderId: orderId || uid('cielo_order'),
-      Customer: {
-        Name: String(body.name || order?.customerName || 'Cliente Ariana Moveis').trim()
-      },
-      Payment: {
-        Type: 'CreditCard',
-        Amount: amount,
-        Installments: Number(body.installments || 1) || 1,
-        Capture: body.capture !== false,
-        SoftDescriptor: String(process.env.CIELO_SOFT_DESCRIPTOR || 'ARIANAMOVEIS').slice(0, 13),
-        CreditCard: {
-          CardNumber: String(body.cardNumber || body.card?.number || '').replace(/\s+/g, ''),
-          Holder: String(body.cardHolder || body.card?.holder || body.name || 'Cliente').trim(),
-          ExpirationDate: String(body.expirationDate || body.card?.expirationDate || '').trim(),
-          SecurityCode: String(body.cvv || body.securityCode || body.card?.cvv || '').trim(),
-          Brand: String(body.brand || body.card?.brand || 'Visa').trim()
-        }
-      }
-    };
-    payload = applyCieloSplitToPayload(payload, splitSummary);
-    const response = await createCieloSale(payload);
-    await writeAuditLog({ scope: 'payments', eventType: 'cielo_card_created', orderId: orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: redact(payload), response: redact(response.data), metadata: { provider: 'cielo', splitSummary } });
-    return res.status(response.status).json({ ok: response.status >= 200 && response.status < 300, provider: 'cielo', data: response.data, split: splitSummary });
+    const paymentSettingsForSplit = await getPaymentsSettings();
+    payload.settings = { marketplaceRecipientId: paymentSettingsForSplit.pagarme?.marketplaceRecipientId || process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '' };
+    payload = applyPagarmeSplitToPayload(payload, splitSummary);
+    delete payload.settings;
+    const response = await createPagarmeOrder(payload);
+    const pagarmeData = response.data || {};
+    const normalized = normalizePagarmePixResponse(pagarmeData);
+    const updatedOrder = response.status >= 200 && response.status < 300 ? await updateOrderPaymentFromPagarme(orderId, pagarmeData, { method: 'pix', type: 'pix', qrCode: normalized.qrCode }) : null;
+    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_pix_created', orderId: orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: pagarmeData, metadata: { provider: 'pagarme', orderUpdated: !!updatedOrder, splitSummary } });
+    return res.status(response.status).json({ ...normalized, order: updatedOrder ? toJSON(updatedOrder) : null });
   } catch (error) {
-    return res.status(500).json({ ok: false, provider: 'cielo', error: error.message || 'Erro ao criar pagamento Cielo' });
+    const status = error?.response?.status || 500;
+    const details = error?.response?.data || null;
+    return res.status(status).json({ ok: false, provider: 'pagarme', error: details?.message || details?.errors?.[0]?.message || error.message || 'Erro ao criar Pix no Pagar.me', details });
+  }
+});
+
+app.post('/api/payments/pagarme/boleto', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const orderId = body.orderId || body.order_id || null;
+    const order = normalizeObjectId(orderId) ? await Order.findById(orderId) : null;
+    let payload = buildPagarmeBoletoPayload(body, order);
+    const splitSummary = order ? await buildSellerSplitSummary(order) : { sellers: [], totalMarketplaceAmount: 0 };
+    const paymentSettingsForSplit = await getPaymentsSettings();
+    payload.settings = { marketplaceRecipientId: paymentSettingsForSplit.pagarme?.marketplaceRecipientId || process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '' };
+    payload = applyPagarmeSplitToPayload(payload, splitSummary);
+    delete payload.settings;
+    const response = await createPagarmeOrder(payload);
+    const pagarmeData = response.data || {};
+    const normalized = normalizePagarmeBoletoResponse(pagarmeData);
+    const updatedOrder = response.status >= 200 && response.status < 300 ? await updateOrderPaymentFromPagarme(orderId, pagarmeData, { method: 'boleto', type: 'boleto', ticketUrl: normalized.ticketUrl }) : null;
+    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_boleto_created', orderId: orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: pagarmeData, metadata: { provider: 'pagarme', orderUpdated: !!updatedOrder, splitSummary } });
+    return res.status(response.status).json({ ...normalized, order: updatedOrder ? toJSON(updatedOrder) : null });
+  } catch (error) {
+    const status = error?.response?.status || 500;
+    const details = error?.response?.data || null;
+    return res.status(status).json({ ok: false, provider: 'pagarme', error: details?.message || details?.errors?.[0]?.message || error.message || 'Erro ao criar boleto no Pagar.me', details });
   }
 });
 

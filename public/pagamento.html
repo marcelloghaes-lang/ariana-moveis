@@ -909,7 +909,7 @@
         if (pixLoading) {
           pixLoading.innerHTML = '<div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto"></div><p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>';
         }
-        const data = await apiFetch("/payments/mp/pix", {
+        const data = await apiFetch("/payments/pagarme/pix", {
           method: "POST",
           body: JSON.stringify({
             orderId: orderId,
@@ -928,7 +928,7 @@
               ...(orderData || {}),
               paymentMethod: "pix",
               payment_method: "pix",
-              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "pix", type: "pix", ...(data?.payment || data || {}) },
+              payment: { ...(orderData?.payment || {}), provider: "pagarme", method: "pix", type: "pix", ...(data?.payment || data || {}) },
               paymentStatus: "pending",
               status: "pending",
               totals: { ...(orderData?.totals || {}), paymentMethod: "pix" }
@@ -963,7 +963,7 @@
         const parts = splitFullName(getOrderFullName());
         const payer = getMpPayerStrict();
 
-        const data = await apiFetch("/payments/mp/boleto", {
+        const data = await apiFetch("/payments/pagarme/boleto", {
           method: "POST",
           body: JSON.stringify({
             orderId: orderId,
@@ -984,7 +984,7 @@
               ...(orderData || {}),
               paymentMethod: "boleto",
               payment_method: "boleto",
-              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "boleto", type: "boleto", ...(data?.payment || data || {}) },
+              payment: { ...(orderData?.payment || {}), provider: "pagarme", method: "boleto", type: "boleto", ...(data?.payment || data || {}) },
               paymentStatus: "pending",
               status: "pending",
               totals: { ...(orderData?.totals || {}), paymentMethod: "boleto" }
