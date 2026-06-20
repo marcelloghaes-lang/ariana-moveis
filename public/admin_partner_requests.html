@@ -1,94 +1,172 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Aprovação de Sellers | ARIANA MÓVEIS</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="css/tailwind.min.css">
-  <script src="js/api-config.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body{font-family:Inter,Arial,sans-serif;background:#f3f6fb;color:#0f172a;}
-    .bg-dark-bg{background:#152436;}
-    .card{background:#fff;border:1px solid #e6edf7;border-radius:22px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:10px 14px;font-weight:800;font-size:13px;transition:.15s ease;white-space:nowrap}
-    .btn:hover{transform:translateY(-1px);filter:brightness(.98)}
-    .btn-blue{background:#1d4ed8;color:#fff}.btn-green{background:#16a34a;color:#fff}.btn-red{background:#dc2626;color:#fff}.btn-soft{background:#eef4ff;color:#1d4ed8}
-    .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
-    .pill-pending{background:#fff4cc;color:#92400e}.pill-approved{background:#dcfce7;color:#166534}.pill-rejected{background:#fee2e2;color:#991b1b}
-    #toast-container{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:10px;width:360px;max-width:92vw}.toast{padding:14px 16px;border-radius:16px;color:#fff;font-weight:800;box-shadow:0 16px 32px rgba(0,0,0,.15)}
+    body{font-family:Inter,Arial,sans-serif;background:#f5f7fa;color:#0f172a}.sidebar{background:#142437}.card{background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;box-shadow:0 8px 24px rgba(15,23,42,.06)}.pill{display:inline-flex;align-items:center;border-radius:999px;padding:.35rem .7rem;font-size:.72rem;font-weight:900;text-transform:uppercase}.btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border-radius:.85rem;padding:.7rem 1rem;font-weight:900;transition:.2s}.btn-blue{background:#1d4ed8;color:white}.btn-green{background:#16a34a;color:white}.btn-red{background:#dc2626;color:white}.btn-gray{background:#f1f5f9;color:#0f172a;border:1px solid #e2e8f0}.input{border:1px solid #d1d5db;border-radius:.9rem;padding:.85rem 1rem;outline:none}.input:focus{border-color:#1d4ed8;box-shadow:0 0 0 4px rgba(29,78,216,.12)}.label{font-size:.72rem;font-weight:900;text-transform:uppercase;color:#64748b}.value{font-size:.92rem;font-weight:700;color:#0f172a;word-break:break-word}.toast{position:fixed;right:16px;top:16px;z-index:9999;color:white;border-radius:1rem;padding:.9rem 1.1rem;font-weight:900;box-shadow:0 12px 30px rgba(0,0,0,.18)}.details-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:.75rem}@media(min-width:768px){.details-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(min-width:1280px){.details-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   </style>
 </head>
 <body class="min-h-screen flex">
-  <div id="toast-container"></div>
-
-  <aside class="bg-dark-bg w-64 hidden md:flex flex-col py-7 px-4 text-white shrink-0">
-    <div class="px-4 mb-7"><div class="text-2xl font-black tracking-tight">ARIANA MÓVEIS</div><div class="text-xs text-slate-300 mt-1">Admin Marketplace</div></div>
-    <nav class="flex flex-col gap-2">
-      <a href="admin_painel.html" class="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-white/10"><i class="fa-solid fa-house w-5"></i><span>Dashboard</span></a>
-      <a href="admin_partner_requests.html" class="flex items-center gap-3 py-3 px-4 rounded-xl bg-white/12"><i class="fa-solid fa-store w-5"></i><span>Aprovar Sellers</span></a>
-      <a href="logistica_etiquetas.html?from=admin" class="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-white/10"><i class="fa-solid fa-truck w-5"></i><span>Logística</span></a>
-      <a href="#" onclick="logoutAdmin()" class="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-white/10 text-red-300 mt-auto"><i class="fa-solid fa-right-from-bracket w-5"></i><span>Sair</span></a>
+  <aside class="sidebar w-64 min-h-screen py-7 px-3 hidden md:block text-white">
+    <div class="px-4 mb-8"><div class="text-2xl font-black tracking-widest">ARIANA<br>MÓVEIS</div><div class="text-xs mt-2 opacity-80">Admin Marketplace</div></div>
+    <nav class="space-y-2">
+      <a href="admin_painel.html" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10"><i class="fa-solid fa-house"></i><span class="font-bold">Dashboard</span></a>
+      <a href="admin_partner_requests.html" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10"><i class="fa-solid fa-store"></i><span class="font-bold">Aprovar Sellers</span></a>
+      <a href="logistica_etiquetas.html?from=admin" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10"><i class="fa-solid fa-truck"></i><span class="font-bold">Logística</span></a>
+      <a href="#" id="logout-btn" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 text-red-300 mt-10"><i class="fa-solid fa-right-from-bracket"></i><span class="font-bold">Sair</span></a>
     </nav>
   </aside>
 
-  <div class="flex-1 min-w-0">
-    <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200">
-      <div class="px-5 md:px-8 py-4 flex items-center justify-between gap-4">
-        <div><h1 class="text-xl md:text-2xl font-black">Aprovação de Sellers</h1><p class="text-sm text-slate-500">Analise solicitações de lojas parceiras e libere acesso ao marketplace.</p></div>
-        <button onclick="loadRequests()" class="btn btn-blue"><i class="fa-solid fa-rotate"></i>Atualizar</button>
+  <main class="flex-1 min-w-0">
+    <header class="bg-white border-b px-5 md:px-8 py-5 flex items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-black">Aprovação de Sellers</h1>
+        <p class="text-sm text-slate-500">Confira todos os dados cadastrados antes de aprovar o seller.</p>
       </div>
+      <button id="refresh-btn" class="btn btn-blue"><i class="fa-solid fa-rotate"></i> Atualizar</button>
     </header>
 
-    <main class="p-5 md:p-8 space-y-6">
-      <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Total</div><div id="kpi-total" class="text-3xl font-black text-blue-700 mt-1">0</div></div>
-        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Pendentes</div><div id="kpi-pending" class="text-3xl font-black text-amber-600 mt-1">0</div></div>
-        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Aprovados</div><div id="kpi-approved" class="text-3xl font-black text-green-600 mt-1">0</div></div>
-        <div class="card p-5"><div class="text-xs text-slate-500 font-bold uppercase">Recusados</div><div id="kpi-rejected" class="text-3xl font-black text-red-600 mt-1">0</div></div>
-      </section>
+    <section class="p-5 md:p-8 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="card p-5"><div class="label">Total</div><div id="metric-total" class="text-3xl font-black text-blue-700 mt-1">0</div></div>
+        <div class="card p-5"><div class="label">Pendentes</div><div id="metric-pending" class="text-3xl font-black text-amber-600 mt-1">0</div></div>
+        <div class="card p-5"><div class="label">Aprovados</div><div id="metric-approved" class="text-3xl font-black text-green-600 mt-1">0</div></div>
+        <div class="card p-5"><div class="label">Recusados</div><div id="metric-rejected" class="text-3xl font-black text-red-600 mt-1">0</div></div>
+      </div>
 
-      <section class="card p-5 md:p-6">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
-          <div><h2 class="text-xl font-black">Solicitações recebidas</h2><p class="text-sm text-slate-500">Ao aprovar, o seller fica liberado para continuar o cadastro e operar no painel.</p></div>
+      <div class="card p-5 md:p-6">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+          <div><h2 class="text-xl font-black">Solicitações recebidas</h2><p class="text-sm text-slate-500">Os cartões abaixo mostram dados cadastrais, endereço, dados bancários e status do Pagar.me.</p></div>
           <div class="flex flex-col sm:flex-row gap-3">
-            <input id="search-q" class="border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-200" placeholder="Buscar loja, CNPJ, e-mail..." oninput="renderRequests()">
-            <select id="filter-status" class="border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-200" onchange="renderRequests()">
-              <option value="todos">Todos</option>
-              <option value="pending">Pendentes</option>
-              <option value="approved">Aprovados</option>
-              <option value="rejected">Recusados</option>
-            </select>
+            <input id="search-input" class="input w-full sm:w-80" placeholder="Buscar loja, CNPJ, e-mail..." />
+            <select id="status-filter" class="input"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="approved">Aprovados</option><option value="rejected">Recusados</option></select>
+            <button id="search-btn" class="btn btn-blue">Buscar</button>
           </div>
         </div>
+        <div id="requests-list" class="space-y-4"><div class="text-center text-slate-500 py-10">Carregando sellers...</div></div>
+      </div>
+    </section>
+  </main>
 
-        <div id="requests-list" class="space-y-3"><div class="py-10 text-center text-slate-400">Carregando solicitações...</div></div>
-      </section>
-    </main>
-  </div>
-
+<script src="js/api-config.js"></script>
 <script>
 const API_BASE = (window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, '');
-let requestsCache = [];
-function $(id){return document.getElementById(id)}
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function getAdminToken(){return localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('token')||''}
-function headers(extra={}){const t=getAdminToken(); return {'Content-Type':'application/json',...(t?{Authorization:`Bearer ${t}`}:{}) ,...extra}}
-function toast(msg,type='info'){const el=document.createElement('div');el.className='toast '+(type==='success'?'bg-green-600':type==='error'?'bg-red-600':'bg-blue-600');el.textContent=msg;$('toast-container').appendChild(el);setTimeout(()=>el.remove(),3800)}
-function normalizeStatus(v){v=String(v||'pending').toLowerCase(); if(['aprovado','approved','active'].includes(v))return'approved'; if(['reprovado','rejected','recusado'].includes(v))return'rejected'; return'pending'}
-function statusLabel(s){s=normalizeStatus(s); return s==='approved'?'Aprovado':s==='rejected'?'Recusado':'Pendente'}
-function statusPill(s){s=normalizeStatus(s); return `<span class="pill ${s==='approved'?'pill-approved':s==='rejected'?'pill-rejected':'pill-pending'}">${statusLabel(s)}</span>`}
-function normalizePayload(payload){ if(Array.isArray(payload))return payload; return payload?.requests||payload?.items||payload?.data||payload?.partnerRequests||payload?.sellers||[] }
-async function api(path,opt={}){const res=await fetch(API_BASE+path,{...opt,headers:headers(opt.headers||{})}); const text=await res.text(); let data=null; try{data=text?JSON.parse(text):null}catch(_){data=text} if(!res.ok) throw new Error(data?.error||data?.message||`HTTP ${res.status}`); return data}
-async function checkAdmin(){try{await api('/admin/me');return true}catch(e){return false}}
-function updateKpis(rows){const total=rows.length, pending=rows.filter(x=>normalizeStatus(x.status)==='pending').length, approved=rows.filter(x=>normalizeStatus(x.status)==='approved').length, rejected=rows.filter(x=>normalizeStatus(x.status)==='rejected').length; $('kpi-total').textContent=total; $('kpi-pending').textContent=pending; $('kpi-approved').textContent=approved; $('kpi-rejected').textContent=rejected}
-function renderRequests(){const q=String($('search-q').value||'').toLowerCase().trim(); const f=$('filter-status').value; let rows=[...requestsCache]; if(f&&f!=='todos') rows=rows.filter(x=>normalizeStatus(x.status)===f); if(q) rows=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q)); updateKpis(requestsCache); const box=$('requests-list'); if(!rows.length){box.innerHTML='<div class="py-10 text-center text-slate-400">Nenhuma solicitação encontrada.</div>';return} box.innerHTML=rows.map(s=>{const id=s.id||s._id||s.sellerId||''; const loja=s.storeName||s.factoryName||s.shopName||s.displayName||s.name||'Loja sem nome'; const resp=s.ownerName||s.responsavel||s.displayName||s.name||'Não informado'; const email=s.email||s.contactEmail||'—'; const phone=s.phone||s.whatsapp||'—'; const doc=s.document||s.cnpj||s.cpf||'—'; const city=[s.city||s.cidade,s.uf||s.estado].filter(Boolean).join(' / ')||'—'; const created=s.createdAt||s.requestedAt; const st=normalizeStatus(s.status); return `<article class="border border-slate-200 rounded-2xl p-4 hover:bg-slate-50 transition"><div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4"><div class="min-w-0"><div class="flex flex-wrap items-center gap-2 mb-2"><h3 class="font-black text-slate-900 text-lg">${esc(loja)}</h3>${statusPill(st)}</div><div class="grid md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm text-slate-600"><div><b>Responsável:</b><br>${esc(resp)}</div><div><b>Documento:</b><br>${esc(doc)}</div><div><b>Contato:</b><br>${esc(phone)}<br>${esc(email)}</div><div><b>Cidade:</b><br>${esc(city)}${created?`<br><span class="text-xs text-slate-400">${new Date(created).toLocaleString('pt-BR')}</span>`:''}</div></div></div><div class="flex flex-wrap xl:flex-col gap-2 xl:w-36"><button class="btn btn-green" onclick="updateStatus('${esc(id)}','aprovado')"><i class="fa-solid fa-check"></i>Aprovar</button><button class="btn btn-red" onclick="updateStatus('${esc(id)}','reprovado')"><i class="fa-solid fa-xmark"></i>Recusar</button></div></div></article>`}).join('')}
-async function loadRequests(){try{$('requests-list').innerHTML='<div class="py-10 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Carregando solicitações...</div>'; const payload=await api('/seller/partner-requests?limit=1000'); requestsCache=normalizePayload(payload); renderRequests();}catch(e){console.error(e); $('requests-list').innerHTML='<div class="py-10 text-center text-red-600 font-bold">Erro ao carregar solicitações: '+esc(e.message)+'</div>'; toast(e.message,'error')}}
-async function updateStatus(id,status){if(!id)return toast('ID da solicitação não encontrado.','error'); if(!confirm(`Confirmar alteração para ${status}?`))return; try{await api(`/seller/partner-requests/${encodeURIComponent(id)}/status`,{method:'PATCH',body:JSON.stringify({status,active:status==='aprovado'})}); toast('Status atualizado com sucesso!','success'); await loadRequests();}catch(e){console.error(e);toast(e.message||'Erro ao atualizar status','error')}}
-function logoutAdmin(){localStorage.removeItem('admin_token');localStorage.removeItem('adminToken');location.href='admin_painel.html'}
-window.loadRequests=loadRequests; window.updateStatus=updateStatus; window.logoutAdmin=logoutAdmin;
-window.addEventListener('load',async()=>{const ok=await checkAdmin(); if(!ok){toast('Faça login como administrador.','error');setTimeout(()=>location.href='admin_painel.html',900);return} loadRequests();});
+const $ = (id) => document.getElementById(id);
+let allRequests = [];
+function token(){ return localStorage.getItem('admin_token') || ''; }
+function headers(extra={}){ const t=token(); return t ? {...extra, Authorization:'Bearer '+t} : {...extra}; }
+function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function digits(v){ return String(v||'').replace(/\D/g,''); }
+function fmtDate(v){ if(!v) return '—'; const d=new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('pt-BR'); }
+function toast(msg,type='info'){ const el=document.createElement('div'); el.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-blue-700'); el.textContent=msg; document.body.appendChild(el); setTimeout(()=>el.remove(),3800); }
+function getMeta(s){ return s?.metadata && typeof s.metadata === 'object' ? s.metadata : {}; }
+function pick(obj,...keys){ for(const k of keys){ const v = k.split('.').reduce((a,p)=>a && a[p], obj); if(v!==undefined && v!==null && String(v).trim()!=='') return v; } return ''; }
+function normalizeStatus(s){ const raw=String(s?.status || s?.metadata?.status || 'pending').toLowerCase(); if(['approved','aprovado','ativo','active'].includes(raw)) return 'approved'; if(['rejected','recusado','recused','cancelled'].includes(raw)) return 'rejected'; return 'pending'; }
+function statusPill(s){ const st=normalizeStatus(s); if(st==='approved') return '<span class="pill bg-green-100 text-green-700">Aprovado</span>'; if(st==='rejected') return '<span class="pill bg-red-100 text-red-700">Recusado</span>'; return '<span class="pill bg-amber-100 text-amber-700">Pendente</span>'; }
+function recipientStatus(s){ const m=getMeta(s); const id=pick(s,'pagarmeRecipientId','recipientId','metadata.pagarmeRecipientId','metadata.pagarme_recipient_id','metadata.recipientId'); const st=pick(s,'pagarmeRecipientStatus','metadata.pagarmeRecipientStatus','metadata.recipientStatus','metadata.pagarmeStatus'); return { id:String(id||''), status:String(st||'') }; }
+function field(label, value){ const v = value === true ? 'Sim' : value === false ? 'Não' : (String(value||'').trim() || '—'); return `<div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><div class="label">${esc(label)}</div><div class="value mt-1">${esc(v)}</div></div>`; }
+function moneySensitive(value){ const raw=String(value||'').trim(); if(!raw) return '—'; if(raw.length <= 4) return raw; return raw.slice(0,2)+'***'+raw.slice(-3); }
+function missingBankFields(s){ const m=getMeta(s); const req = [
+  ['CPF/CNPJ seller', pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpf')],
+  ['E-mail', pick(s,'email','metadata.email','metadata.contactEmail')],
+  ['Titular', pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name','storeName','displayName')],
+  ['CPF/CNPJ titular', pick(s,'metadata.bankHolderDocument','metadata.holderDocument','metadata.document','document')],
+  ['Banco', pick(s,'metadata.bankCode','metadata.bank','metadata.bankName')],
+  ['Agência', pick(s,'metadata.branchNumber','metadata.agency','metadata.agencia','metadata.bankAgency')],
+  ['Conta', pick(s,'metadata.accountNumber','metadata.conta','metadata.bankAccount')],
+  ['Dígito conta', pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit')]
+]; return req.filter(([,v])=>!String(v||'').trim()).map(([k])=>k); }
+function additionalMeta(s){ const m=getMeta(s); const shown = new Set(['storeName','factoryName','shopName','name','ownerName','responsavel','owner','email','contactEmail','phone','whatsapp','document','cnpj','cpf','city','cidade','uf','estado','address','endereco','cep','bairro','numero','complemento','bankName','bankAgency','bankAccount','pixKey','bankCode','bank','agency','agencia','branchNumber','branchCheckDigit','agencyDigit','agenciaDigito','accountNumber','conta','accountCheckDigit','contaDigito','accountDigit','accountType','tipoConta','bankHolderName','holderName','legalName','bankHolderDocument','holderDocument','pagarmeRecipientId','pagarme_recipient_id','recipientId','pagarmeRecipientStatus','recipientStatus','status','active','reviewedAt','reviewedBy']);
+  return Object.entries(m).filter(([k,v])=>!shown.has(k) && v!==undefined && v!==null && String(v).trim()!=='' && typeof v !== 'object').slice(0,30);
+}
+function renderRequest(s){ const m=getMeta(s); const st=normalizeStatus(s); const rec=recipientStatus(s); const missing=missingBankFields(s); const loja=pick(s,'storeName','factoryName','displayName','metadata.storeName','metadata.factoryName','metadata.shopName','metadata.name') || 'Seller'; const id=String(s.id || s._id || s.sellerId || '').trim();
+  const add=additionalMeta(s);
+  return `<article class="border border-slate-200 rounded-2xl p-4 md:p-5 bg-white" data-id="${esc(id)}">
+    <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+      <div class="min-w-0"><div class="flex items-center gap-2 flex-wrap"><h3 class="text-xl font-black">${esc(loja)}</h3>${statusPill(s)}${rec.id?'<span class="pill bg-blue-100 text-blue-700">Recipient Pagar.me</span>':'<span class="pill bg-slate-100 text-slate-600">Sem Recipient</span>'}</div><p class="text-sm text-slate-500 mt-1">Seller ID: ${esc(s.sellerId || id || '—')} • Solicitação: ${esc(fmtDate(s.requestedAt || s.createdAt))}</p></div>
+      <div class="flex gap-2 flex-wrap"><button class="btn btn-gray" onclick="toggleDetails('${esc(id)}')"><i class="fa-solid fa-eye"></i> Detalhes</button><button class="btn btn-blue" onclick="updateCommission('${esc(id)}')"><i class="fa-solid fa-percent"></i> Alterar comissão</button><button class="btn btn-green" onclick="updateStatus('${esc(id)}','approved')"><i class="fa-solid fa-check"></i> Aprovar</button><button class="btn btn-red" onclick="updateStatus('${esc(id)}','rejected')"><i class="fa-solid fa-xmark"></i> Recusar</button></div>
+    </div>
+    ${missing.length?`<div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Atenção:</b> faltam dados para criar Recipient Pagar.me: ${esc(missing.join(', '))}.</div>`:''}
+    <div class="details-grid mt-4">
+      ${field('Responsável', pick(s,'ownerName','displayName','metadata.ownerName','metadata.responsavel','metadata.owner'))}
+      ${field('CPF/CNPJ', pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpf'))}
+      ${field('E-mail', pick(s,'email','metadata.email','metadata.contactEmail'))}
+      ${field('Telefone / WhatsApp', pick(s,'phone','metadata.phone','metadata.whatsapp'))}
+      ${field('Cidade / UF', [pick(s,'city','metadata.city','metadata.cidade'), pick(s,'uf','metadata.uf','metadata.estado')].filter(Boolean).join(' / '))}
+      ${field('Status onboarding', s.onboardingCompleted ? 'Completo' : 'Pendente')}
+    </div>
+    <div id="details-${esc(id)}" class="hidden mt-5 space-y-5">
+      <section><h4 class="font-black text-slate-900 mb-3">Endereço cadastrado</h4><div class="details-grid">
+        ${field('CEP', pick(s,'metadata.cep','metadata.pickupCep','metadata.cepColeta'))}
+        ${field('Endereço', pick(s,'metadata.address','metadata.endereco','metadata.logradouro'))}
+        ${field('Número', pick(s,'metadata.numero','metadata.number'))}
+        ${field('Bairro', pick(s,'metadata.bairro','metadata.district'))}
+        ${field('Complemento', pick(s,'metadata.complemento','metadata.complement'))}
+        ${field('Transporte próprio', pick(s,'metadata.transpPropria','metadata.transportadoraPropria'))}
+      </div></section>
+      <section><h4 class="font-black text-slate-900 mb-3">Dados bancários / recebimento</h4><div class="details-grid">
+        ${field('Banco', pick(s,'metadata.bankName','metadata.bankCode','metadata.bank','metadata.banco'))}
+        ${field('Agência', pick(s,'metadata.bankAgency','metadata.branchNumber','metadata.agency','metadata.agencia'))}
+        ${field('Dígito agência', pick(s,'metadata.branchCheckDigit','metadata.agencyDigit','metadata.agenciaDigito'))}
+        ${field('Conta', moneySensitive(pick(s,'metadata.bankAccount','metadata.accountNumber','metadata.conta')))}
+        ${field('Dígito conta', pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit'))}
+        ${field('Tipo de conta', pick(s,'metadata.accountType','metadata.bankAccountType','metadata.tipoConta'))}
+        ${field('Titular da conta', pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name'))}
+        ${field('CPF/CNPJ titular', pick(s,'metadata.bankHolderDocument','metadata.holderDocument'))}
+        ${field('Chave Pix', pick(s,'metadata.pixKey','metadata.chavePix'))}
+      </div></section>
+      <section><h4 class="font-black text-slate-900 mb-3">Pagar.me / Split</h4><div class="details-grid">
+        ${field('Recipient ID', rec.id || 'Não criado')}
+        ${field('Status Recipient', rec.status || 'Não informado')}
+        ${field('Comissão configurada', pick(s,'metadata.commissionPercent','metadata.marketplaceCommissionPercent','commissionPercent') ? pick(s,'metadata.commissionPercent','metadata.marketplaceCommissionPercent','commissionPercent') + '%' : 'Padrão do marketplace')}
+        ${field('Comissão alterada por', pick(s,'metadata.commissionUpdatedBy'))}
+        ${field('Comissão alterada em', fmtDate(pick(s,'metadata.commissionUpdatedAt')))}
+        ${field('Revisado por', pick(s,'metadata.reviewedBy'))}
+        ${field('Revisado em', fmtDate(pick(s,'metadata.reviewedAt')))}
+      </div></section>
+      ${add.length?`<section><h4 class="font-black text-slate-900 mb-3">Outros dados cadastrados</h4><div class="details-grid">${add.map(([k,v])=>field(k,v)).join('')}</div></section>`:''}
+    </div>
+  </article>`;
+}
+function toggleDetails(id){ const el=$('details-'+id); if(el) el.classList.toggle('hidden'); }
+window.toggleDetails=toggleDetails;
+function render(){ const q=String($('search-input').value||'').toLowerCase().trim(); const status=$('status-filter').value; const filtered=allRequests.filter(s=>{ const st=normalizeStatus(s); const text=JSON.stringify(s).toLowerCase(); return (!q || text.includes(q)) && (status==='all' || st===status); }); $('requests-list').innerHTML = filtered.length ? filtered.map(renderRequest).join('') : '<div class="text-center text-slate-500 py-10">Nenhuma solicitação encontrada.</div>'; const total=allRequests.length; const pending=allRequests.filter(s=>normalizeStatus(s)==='pending').length; const approved=allRequests.filter(s=>normalizeStatus(s)==='approved').length; const rejected=allRequests.filter(s=>normalizeStatus(s)==='rejected').length; $('metric-total').textContent=total; $('metric-pending').textContent=pending; $('metric-approved').textContent=approved; $('metric-rejected').textContent=rejected; }
+async function loadRequests(){ if(!token()){ location.href='admin_painel.html'; return; } $('requests-list').innerHTML='<div class="text-center text-slate-500 py-10">Carregando sellers...</div>'; try{ const url = `${API_BASE}/seller/partner-requests?limit=1000`; const res=await fetch(url,{headers:headers()}); const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error || data.message || 'Erro ao carregar sellers'); allRequests = Array.isArray(data) ? data : (data.requests || data.items || data.results || []); render(); }catch(e){ $('requests-list').innerHTML=`<div class="text-center text-red-600 py-10">${esc(e.message)}</div>`; toast(e.message,'error'); } }
+async function updateCommission(id){
+  const item = allRequests.find(s => String(s.id || s._id || s.sellerId) === String(id));
+  const current = pick(item || {}, 'metadata.commissionPercent', 'metadata.marketplaceCommissionPercent', 'commissionPercent') || '12';
+  const value = prompt('Informe a nova comissão da Ariana para este seller (%):', String(current).replace('.', ','));
+  if (value === null) return;
+  const commissionPercent = Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(commissionPercent) || commissionPercent < 0 || commissionPercent > 50) {
+    toast('Informe uma comissão válida entre 0% e 50%.', 'error');
+    return;
+  }
+  if (!confirm(`Confirmar comissão de ${commissionPercent}% para este seller?`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/commission`, {
+      method: 'PATCH',
+      headers: headers({'Content-Type':'application/json'}),
+      body: JSON.stringify({ commissionPercent })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || 'Erro ao alterar comissão');
+    toast('Comissão atualizada com sucesso.', 'success');
+    await loadRequests();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+window.updateCommission=updateCommission;
+async function updateStatus(id,status){ const item=allRequests.find(s=>String(s.id||s._id||s.sellerId)===String(id)); if(status==='approved'){ const missing=missingBankFields(item||{}); if(missing.length && !confirm('Este seller ainda tem dados bancários incompletos para Pagar.me:\n\n'+missing.join(', ')+'\n\nDeseja aprovar mesmo assim?')) return; } try{ const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({status})}); const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error || data.message || 'Erro ao atualizar seller'); toast(status==='approved'?'Seller aprovado com sucesso.':'Seller recusado com sucesso.','success'); await loadRequests(); }catch(e){ toast(e.message,'error'); } }
+window.updateStatus=updateStatus;
+$('refresh-btn').addEventListener('click',loadRequests); $('search-btn').addEventListener('click',render); $('search-input').addEventListener('input',render); $('status-filter').addEventListener('change',render); $('logout-btn').addEventListener('click',(e)=>{e.preventDefault();localStorage.removeItem('admin_token');location.href='admin_painel.html';});
+loadRequests();
 </script>
 </body>
 </html>

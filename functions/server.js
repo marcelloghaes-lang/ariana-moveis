@@ -5138,6 +5138,49 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do seller' });
   }
 });
+
+app.patch('/api/seller/partner-requests/:id/commission', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const raw = req.body?.commissionPercent ?? req.body?.marketplaceCommissionPercent ?? req.body?.percent;
+    const commissionPercent = Number(String(raw ?? '').replace(',', '.'));
+
+    if (!id) return res.status(400).json({ ok: false, error: 'Seller inválido' });
+    if (!Number.isFinite(commissionPercent) || commissionPercent < 0 || commissionPercent > 50) {
+      return res.status(400).json({ ok: false, error: 'Informe uma comissão entre 0% e 50%.' });
+    }
+
+    const filter = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ _id: id }, { sellerId: id }] }
+      : { sellerId: id };
+
+    const seller = await Seller.findOneAndUpdate(filter, {
+      $set: {
+        'metadata.commissionPercent': commissionPercent,
+        'metadata.marketplaceCommissionPercent': commissionPercent,
+        'metadata.commissionUpdatedAt': now(),
+        'metadata.commissionUpdatedBy': req.admin?.email || req.user?.email || 'admin'
+      }
+    }, { new: true });
+
+    if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
+
+    const s = normalizePartnerRequestForResponse(seller);
+    await createAdminNotification({
+      type: 'seller_commission_updated',
+      title: '💰 Comissão do seller atualizada',
+      message: `${s.storeName || s.factoryName || s.displayName || 'Seller'} agora está com comissão de ${commissionPercent}%.`,
+      relatedId: s.id,
+      severity: 'info',
+      metadata: { sellerId: s.sellerId, commissionPercent }
+    });
+
+    return res.json({ ok: true, seller: s, request: s, commissionPercent });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao alterar comissão do seller' });
+  }
+});
+
 app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
 
 app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
