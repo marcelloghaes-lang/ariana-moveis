@@ -830,7 +830,9 @@ function parseBannerInput(body = {}) {
 
 const WHATSAPP_EVOLUTION_DEFAULT_API_URL = process.env.EVOLUTION_API_URL || 'http://167.86.108.75:8082';
 const WHATSAPP_EVOLUTION_DEFAULT_INSTANCE =
-  process.env.EVOLUTION_INSTANCE || 'Ariana_Notificacoes';
+  process.env.EVOLUTION_NOTIFY_INSTANCE ||
+  process.env.EVOLUTION_INSTANCE_NOTIFICACOES ||
+  'Ariana_Notificacoes';
 const WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL = process.env.EVOLUTION_WEBHOOK_URL || `${APP_BASE_URL || 'http://localhost:3000'}/api/whatsapp/webhook`;
 const DEFAULT_WHATSAPP_SETTINGS = { enabled: String(process.env.EVOLUTION_ENABLED || 'true').toLowerCase() !== 'false', apiUrl: WHATSAPP_EVOLUTION_DEFAULT_API_URL, apiKey: process.env.EVOLUTION_API_KEY || '', instanceName: WHATSAPP_EVOLUTION_DEFAULT_INSTANCE, webhookUrl: WHATSAPP_EVOLUTION_DEFAULT_WEBHOOK_URL, webhookEvents: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE'], webhookByEvents: false, webhookBase64: false, autoNotifyOrderStatus: true, chatNotifyEnabled: true, defaultCountryCode: '55', statusTemplate: 'Olá, {customerName}! Seu pedido {orderId} na Ariana Móveis agora está em: {status}.{trackingLine}', testNumber: process.env.EVOLUTION_TEST_NUMBER || '', testMessage: 'Olá! Este é um teste de integração do WhatsApp da Ariana Móveis.', adminNotifyNumbers: process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || '' };
 const DEFAULT_PAYMENTS_SETTINGS = {
@@ -873,7 +875,12 @@ async function getWhatsappSettings() {
   // Garante que variáveis do Render não sejam anuladas por configuração antiga/vazia salva no MongoDB.
   merged.enabled = String(process.env.EVOLUTION_ENABLED || (merged.enabled === false ? 'false' : 'true')).toLowerCase() !== 'false';
   merged.apiUrl = String(process.env.EVOLUTION_API_URL || merged.apiUrl || WHATSAPP_EVOLUTION_DEFAULT_API_URL || '').trim();
-  merged.instanceName = String(process.env.EVOLUTION_INSTANCE || merged.instanceName || WHATSAPP_EVOLUTION_DEFAULT_INSTANCE || '').trim();
+  // Usa sempre a instância de NOTIFICAÇÕES para vendas/status, sem cair na instância SAC.
+  merged.instanceName = String(
+    process.env.EVOLUTION_NOTIFY_INSTANCE ||
+    process.env.EVOLUTION_INSTANCE_NOTIFICACOES ||
+    'Ariana_Notificacoes'
+  ).trim();
   merged.apiKey = String(process.env.EVOLUTION_API_KEY || merged.apiKey || '').trim();
   merged.adminNotifyNumbers = String(process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS || process.env.EVOLUTION_ADMIN_NUMBER || merged.adminNotifyNumbers || '').trim();
   merged.defaultCountryCode = String(merged.defaultCountryCode || '55').trim();
@@ -881,7 +888,7 @@ async function getWhatsappSettings() {
   merged.chatNotifyEnabled = merged.chatNotifyEnabled !== false;
   return merged;
 }
-async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
+async function saveWhatsappSettings(data, updatedBy = 'system') { const current = await getWhatsappSettings(); const merged = { ...current, ...(data || {}) }; merged.instanceName = String(process.env.EVOLUTION_NOTIFY_INSTANCE || process.env.EVOLUTION_INSTANCE_NOTIFICACOES || 'Ariana_Notificacoes').trim(); await setSetting('whatsapp_evolution', merged, updatedBy); return merged; }
 async function getPaymentsSettings() {
   const value = await getSetting('payments', DEFAULT_PAYMENTS_SETTINGS);
   return {

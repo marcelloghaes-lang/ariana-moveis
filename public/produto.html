@@ -2093,11 +2093,11 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
         valorNota: unitPrice * qty,
         sellerId: productData?.sellerId || null,
         sellerName: productData?.sellerName || productData?.soldBy || 'Ariana Móveis',
-        shippingRule: arianaProduct ? 'ariana_local' : (snDigitalProduct ? 'sn_digital' : undefined),
-        isArianaOrder: arianaProduct,
-        useArianaLocalRule: arianaProduct,
-        useArianaLogistics: arianaProduct,
-        enableArianaLogistics: arianaProduct,
+        shippingRule: (arianaProduct || snDigitalProduct) ? 'ariana_local' : undefined,
+        isArianaOrder: arianaProduct || snDigitalProduct,
+        useArianaLocalRule: arianaProduct || snDigitalProduct,
+        useArianaLogistics: arianaProduct || snDigitalProduct,
+        enableArianaLogistics: arianaProduct || snDigitalProduct,
         quantity: qty,
         items: [{
             id: productData?._id || productData?.id || null,
@@ -2146,6 +2146,7 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
     // Ela decide sozinha: Correios até 30kg/100cm e Frenet acima desses limites.
     // Não chama mais rotas antigas para evitar aparecer apenas erro dos Correios.
     const endpoints = [
+        `${apiBase}/shipping/logistics/quote`,
         `${apiBase}/shipping/quote`,
     ];
 
@@ -2255,10 +2256,12 @@ function renderShippingQuotes(result, cep) {
                                     q?.raw?.disponivel === false;
 
                 if (unavailable) return false;
-                if (isCorreiosService(q) && (correiosErrorDetected || !Number.isFinite(price) || price <= 0)) {
+                if (!Number.isFinite(price) || price < 0) return false;
+                if (isCorreiosService(q) && (correiosErrorDetected || price <= 0)) {
                     return false;
                 }
-                return Number.isFinite(price) && price > 0;
+                // Frete grátis da Ariana Logística é válido e deve aparecer como R$ 0,00.
+                return true;
             });
 
             if (!quotes.length && !errors.length) {
