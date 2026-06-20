@@ -3522,6 +3522,17 @@ function parsePrazoToDeadlineDays(prazo = '') {
   if (!matches || !matches.length) return null;
   return Number(matches[matches.length - 1]) || null;
 }
+function normalizeShippingProviderForOption(service = '', label = '', provider = 'configured') {
+  const p = String(provider || '').trim();
+  if (p && p !== 'configured') return p;
+  const txt = normalizeShippingText(`${service} ${label}`);
+  if (txt.includes('ARIANA') || txt.includes('LOCAL') || txt.includes('CELULAR')) return 'ariana_local';
+  if (txt.includes('RODOCAP')) return 'rodocap';
+  if (txt.includes('SN DIGITAL')) return 'sn_digital';
+  if (txt.includes('CORREIOS') || txt.includes('PAC') || txt.includes('SEDEX')) return 'correios';
+  if (txt.includes('FRENET')) return 'frenet';
+  return p || 'configured';
+}
 function buildManualShippingOption({ service, label, price, prazo, provider = 'configured', details = null, metadata = null, deadlineDays = null }) {
   const parsedDeadline = Number(deadlineDays || parsePrazoToDeadlineDays(prazo || '0') || 0) || null;
   return {
@@ -3530,7 +3541,7 @@ function buildManualShippingOption({ service, label, price, prazo, provider = 'c
     price: Number(price || 0),
     prazo: prazo || null,
     deadlineDays: parsedDeadline,
-    provider,
+    provider: normalizeShippingProviderForOption(service, label, provider),
     details: details || null,
     metadata: metadata || null
   };
@@ -3775,7 +3786,7 @@ async function calculateShipping(body = {}) {
   const options = [];
   const isAriana = body.shippingRule === 'ariana' || body.isArianaOrder === true || sellerCtx.isAriana;
   const isLocalSellerOrigin = Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep);
-  const usesArianaLocalRule = isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.useArianaLocalRule === true;
+  const usesArianaLocalRule = isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.provider === 'ariana_local' || body.logisticsProvider === 'ariana_local' || body.useArianaLocalRule === true;
   const isSNDigital = body.shippingRule === 'sn_digital' || sellerCtx.isSNDigital;
   const usesArianaLogistics = usesArianaLocalRule || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.snDigital?.appliesToArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
   const isPhoneProduct = arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
@@ -3784,10 +3795,10 @@ async function calculateShipping(body = {}) {
     const phoneLocalFree = destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
     options.push(buildManualShippingOption({
       service: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo',
-      label: phoneLocalFree ? 'Frete grátis celular' : 'Frete fixo celular',
+      label: phoneLocalFree ? 'Frete grátis celular - Ariana Local' : 'Frete fixo celular - Ariana Local',
       price: phoneLocalFree ? 0 : Number(arianaRule.phoneFlatPrice || 19.90),
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
+      provider: 'ariana_local',
       details: phoneLocalFree
         ? `Frete grátis para celulares no CEP ${arianaRule.freeCepStart || '39740-000'}.`
         : 'Frete fixo para celulares para qualquer destino.',
@@ -3801,10 +3812,10 @@ async function calculateShipping(body = {}) {
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
       service: 'ariana_free_local',
-      label: arianaRule.label || 'Ariana Móveis',
+      label: arianaRule.label || 'Ariana Móveis - Entrega Local',
       price: 0,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
+      provider: 'ariana_local',
       details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
       metadata: { rule: 'ariana_free_local', cep: destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
@@ -3821,10 +3832,10 @@ async function calculateShipping(body = {}) {
     hasArianaDistanceDelivery = true;
     options.push(buildManualShippingOption({
       service: 'ariana_entrega_ate_30km',
-      label: arianaRule.label || 'Ariana Móveis',
+      label: arianaRule.label || 'Ariana Móveis - Entrega Local',
       price: arianaTier1Price,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
+      provider: 'ariana_local',
       details: `Entrega Ariana Móveis até ${arianaTier1Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
       metadata: { rule: 'ariana_entrega_ate_30km', distanceKm, destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
@@ -3835,10 +3846,10 @@ async function calculateShipping(body = {}) {
     hasArianaDistanceDelivery = true;
     options.push(buildManualShippingOption({
       service: 'ariana_entrega_30_120km',
-      label: arianaRule.label || 'Ariana Móveis',
+      label: arianaRule.label || 'Ariana Móveis - Entrega Local',
       price: arianaTier2Price,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
+      provider: 'ariana_local',
       details: `Entrega Ariana Móveis de ${arianaTier1Km} km até ${arianaTier2Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
       metadata: { rule: 'ariana_entrega_30_120km', distanceKm, destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
@@ -6646,7 +6657,7 @@ app.post('/api/admin/logistica/etiquetas/manual', adminRequired, async (req, res
       labelType: 'manual_print',
       updatedBy: req.admin?.email || req.admin?.id || 'admin'
     };
-    if (!patch.createdBy) patch.createdBy = req.admin?.email || req.admin?.id || 'admin';
+    delete patch.createdBy;
 
     let label = await LogisticsLabel.findOneAndUpdate(
       { orderId },
@@ -7341,7 +7352,7 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
       price: Number(q.price || 0),
       prazo: q.prazo || null,
       deadlineDays: q.deadlineDays || null,
-      provider: q.provider || 'configured',
+      provider: normalizeShippingProviderForOption(q.service || '', q.label || q.name || '', q.provider || 'configured'),
       raw: q.raw || null,
       metadata: q.metadata || null
     })) : [];
@@ -7366,7 +7377,7 @@ app.post('/shipping/logistics/quote', async (req, res) => {
       price: Number(q.price || 0),
       prazo: q.prazo || null,
       deadlineDays: q.deadlineDays || null,
-      provider: q.provider || 'configured',
+      provider: normalizeShippingProviderForOption(q.service || '', q.label || q.name || '', q.provider || 'configured'),
       raw: q.raw || null,
       metadata: q.metadata || null
     })) : [];

@@ -585,14 +585,20 @@
       return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     };
 
-    function arianaSellerBasePrice(item) {
-      return Number(item?.sellerBasePrice ?? item?.pixPrice ?? item?.basePrice ?? item?.price ?? 0) || 0;
-    }
     function arianaMarketplacePrice(item) {
-      const explicit = Number(item?.marketplacePrice ?? item?.cardPrice ?? item?.fullPrice ?? 0) || 0;
+      const explicit = Number(item?.marketplacePrice ?? item?.cardPrice ?? item?.fullPrice ?? item?.precoPrazo ?? 0) || 0;
       if (explicit > 0) return explicit;
-      const base = arianaSellerBasePrice(item);
-      return base > 0 ? +(base / 0.83).toFixed(2) : 0;
+      const price = Number(item?.price ?? item?.valor ?? item?.preco ?? 0) || 0;
+      const baseExplicit = Number(item?.sellerBasePrice ?? item?.pixPrice ?? item?.basePrice ?? 0) || 0;
+      if (baseExplicit > 0) return +(baseExplicit / 0.83).toFixed(2);
+      return price > 0 ? price : 0;
+    }
+
+    function arianaSellerBasePrice(item) {
+      const explicit = Number(item?.sellerBasePrice ?? item?.pixPrice ?? item?.basePrice ?? item?.precoPix ?? 0) || 0;
+      if (explicit > 0) return explicit;
+      const full = arianaMarketplacePrice(item);
+      return full > 0 ? +(full * 0.83).toFixed(2) : 0;
     }
 
     window.updateClientHeader = function(userName = 'Minha Conta') {
@@ -823,7 +829,9 @@
             <div class="flex-grow">
               <h2 class="text-xl font-semibold text-text-dark">${item.name || 'Produto'}</h2>
               <p class="text-sm text-gray-500">Cor: ${item.color || 'Única'} | Entrega: ${item.delivery || 'A calcular'}</p>
-              <p class="text-lg font-bold text-primary-blue mt-1 item-price" id="price-item-${item.id}">${window.formatPrice(arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1))}</p>
+              <p class="text-lg font-bold text-primary-blue mt-1 item-price" id="price-item-${item.id}">${window.formatPrice(arianaSellerBasePrice(item) * (parseInt(item.quantity || 1, 10) || 1))}</p>
+              <p class="text-xs text-gray-500 mt-1">no PIX à vista <span class="text-green-600 font-bold">17% OFF</span></p>
+              <p class="text-xs text-gray-500">ou ${window.formatPrice(arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1))} no cartão</p>
             </div>
             <div class="flex items-center space-x-4 mt-4 sm:mt-0">
               <div class="flex items-center border border-gray-300 rounded-lg">
@@ -876,17 +884,20 @@
     }
 
     async function recalculateTotals() {
-      let totalItemsPrice = cartItems.reduce((sum, item) => {
+      const totalPrazo = cartItems.reduce((sum, item) => {
         return sum + (arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
+      }, 0);
+
+      const totalPixBase = cartItems.reduce((sum, item) => {
+        return sum + (arianaSellerBasePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
       }, 0);
 
       await loadSettingsOnce();
       const defs = shippingSettings || normalizeShippingDefaults({});
 
       let frete = Number(shippingState?.effectivePrice ?? shippingState?.price ?? 0) || 0;
-      let discount = 0;
 
-      if (defs.freeShippingAbove > 0 && totalItemsPrice >= defs.freeShippingAbove) {
+      if (defs.freeShippingAbove > 0 && totalPixBase >= defs.freeShippingAbove) {
         frete = 0;
       }
 
@@ -903,10 +914,10 @@
         } catch (_) {}
       }
 
-      if (totalItemsPrice > 1000) discount = DISCOUNT_VALUE;
-
-      const subtotal = totalItemsPrice;
-      const totalGeral = subtotal + frete;
+      const subtotal = totalPrazo;
+      const totalPixComFrete = totalPixBase + frete;
+      const totalPrazoComFrete = totalPrazo + frete;
+      const economiaPix = Math.max(0, totalPrazo - totalPixBase);
 
       document.getElementById('subtotal').textContent = window.formatPrice(subtotal);
 
@@ -928,54 +939,21 @@
         }
       }
 
-      const getPercent = (method) => {
-        const p = paymentSettings || {};
-        const obj = method === 'boleto' ? (p.boleto || {}) : (p.pix || {});
-        if (obj && obj.enabled === false) return 0;
-        const raw = Number(obj?.discountPercent ?? obj?.descontoPercent ?? obj?.descontoPix ?? 0);
-        return Number.isFinite(raw) && raw > 0 ? raw : 17;
-      };
-      const pixDiscountPercent = getPercent('pix');
-      const boletoDiscountPercent = getPercent('boleto');
-
-      const coupon = getAppliedCoupon(totalGeral);
-      const calcDiscountValue = (percent) => totalGeral * (Number(percent || 0) / 100);
-      const calcDiscounted = (percent) => {
-        const fator = (100 - Number(percent || 0)) / 100;
-        return totalGeral * (Number.isFinite(fator) ? fator : 1);
-      };
-
       const descontoEl = document.getElementById('desconto');
       if (descontoEl) {
-        const bestPercent = Math.max(pixDiscountPercent, boletoDiscountPercent);
-        const bestPaymentDiscount = calcDiscountValue(bestPercent);
-        descontoEl.textContent = (bestPaymentDiscount + coupon.value) > 0 ? `Até - ${window.formatPrice(bestPaymentDiscount + coupon.value)}` : `- ${window.formatPrice(0)}`;
+        descontoEl.textContent = economiaPix > 0 ? `- ${window.formatPrice(economiaPix)}` : `- ${window.formatPrice(0)}`;
       }
 
       const totalEl = document.getElementById('total-price');
       if (totalEl) {
-        totalEl.textContent = window.formatPrice(totalGeral);
+        totalEl.innerHTML = `
+          <span class="text-2xl font-black">${window.formatPrice(totalPixComFrete)}</span>
+          <div class="text-green-600 text-sm font-bold mt-1">no PIX ou boleto à vista</div>
+          <div class="text-gray-500 text-xs font-semibold mt-1">ou ${window.formatPrice(totalPrazoComFrete)} no cartão</div>
+        `;
 
         let pixPromo = document.getElementById('pix-incentive');
-        if (!pixPromo) {
-          pixPromo = document.createElement('div');
-          pixPromo.id = 'pix-incentive';
-          pixPromo.className = "text-green-600 text-sm font-semibold mt-2 text-center space-y-1";
-          totalEl.parentNode.appendChild(pixPromo);
-        }
-
-        const lines = [];
-        if (pixDiscountPercent > 0) {
-          lines.push(`No PIX: <span class="text-lg">${window.formatPrice(Math.max(0, calcDiscounted(pixDiscountPercent) - coupon.value))}</span> <span class="text-xs" style="color:#00a650">(${pixDiscountPercent}% OFF)</span>`);
-        }
-        if (boletoDiscountPercent > 0) {
-          lines.push(`No boleto: <span class="text-lg">${window.formatPrice(Math.max(0, calcDiscounted(boletoDiscountPercent) - coupon.value))}</span> <span class="text-xs" style="color:#00a650">(${boletoDiscountPercent}% OFF)</span>`);
-        }
-
-        if (lines.length) {
-          pixPromo.classList.remove('hidden');
-          pixPromo.innerHTML = lines.join('<br>');
-        } else {
+        if (pixPromo) {
           pixPromo.innerHTML = '';
           pixPromo.classList.add('hidden');
         }
@@ -983,6 +961,7 @@
 
       const couponInput = document.getElementById('coupon-code');
       const couponMsg = document.getElementById('coupon-message');
+      const coupon = getAppliedCoupon(totalPixComFrete);
       if (couponInput && !couponInput.value) couponInput.value = coupon.code || '';
       if (couponMsg) {
         couponMsg.textContent = coupon.message || 'Digite um cupom válido da Ariana Móveis.';

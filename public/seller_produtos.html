@@ -84,7 +84,7 @@
   <div class="card p-0 overflow-hidden table-wrap">
     <table>
       <thead><tr><th class="col-product">Produto</th><th class="col-sku">SKU</th><th class="col-stock">Estoque</th><th class="col-price">Preço</th><th class="col-actions" style="text-align:right">Ações</th></tr></thead>
-      <tbody id="lista-produtos-corpo"><tr><td colspan="5" class="text-center muted py-10">Sincronizando com MongoDB...</td></tr></tbody>
+      <tbody id="lista-produtos-corpo"><tr><td colspan="5" class="text-center muted py-10">Sincronizando com MongoDB.....</td></tr></tbody>
     </table>
   </div>
 </main></div>
@@ -201,7 +201,7 @@ function applySellerHeaderName() {
 
       if (!products.length) {
         tbody.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-gray-400 font-bold">
-          Nenhum produto encontrado para este seller.<br>
+          Nenhum produto encontrado ainda para este seller.<br>
           <span style="font-size:12px;font-weight:600;color:#64748b">Seller detectado: ${sellerId || 'não identificado'}${lastError ? ' — ' + lastError : ''}</span>
         </td></tr>`;
         return;

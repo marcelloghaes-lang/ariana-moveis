@@ -1758,5 +1758,183 @@ async function quoteShippingForSelectedAddress(addrObj) {
     })();
   </script>
   <script src="js/layout-fit.js" defer></script>
+
+<script>
+/* ============================================================
+   FIX FINAL - BOLETO COM MESMO DESCONTO DO PIX
+   - Pix e boleto: preço com desconto
+   - Cartão: preço cheio
+   ============================================================ */
+(function(){
+  const DISCOUNT = 0.17;
+
+  function brl(v){
+    return Number(v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
+
+  function n(v){
+    if (v === undefined || v === null) return 0;
+    if (typeof v === 'string') {
+      let s = v.trim().replace(/[^\d,.-]/g, '');
+      const c = s.lastIndexOf(',');
+      const d = s.lastIndexOf('.');
+      if (c !== -1 && d !== -1) {
+        if (c > d) s = s.replace(/\./g, '').replace(',', '.');
+        else s = s.replace(/,/g, '');
+      } else if (c !== -1) {
+        s = s.replace(',', '.');
+      }
+      const x = Number(s);
+      return Number.isFinite(x) ? x : 0;
+    }
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
+
+  function getCart(){
+    try {
+      const raw =
+        localStorage.getItem('arianaMoveisCart') ||
+        localStorage.getItem('ariana_moveis_cart') ||
+        '[]';
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch(_) {
+      return [];
+    }
+  }
+
+  function qty(item){
+    return n(item.quantity ?? item.qty ?? item.qtd ?? 1) || 1;
+  }
+
+  function fullUnit(item){
+    const explicit = n(item.marketplacePrice ?? item.cardPrice ?? item.fullPrice ?? item.precoPrazo ?? item.oldPrice ?? 0);
+    if (explicit > 0) return explicit;
+
+    const price = n(item.price ?? item.preco ?? item.valor ?? 0);
+    if (price > 0) return price;
+
+    const base = n(item.pixPrice ?? item.sellerBasePrice ?? item.basePrice ?? 0);
+    return base > 0 ? +(base / (1 - DISCOUNT)).toFixed(2) : 0;
+  }
+
+  function discountUnit(item){
+    const explicit = n(item.pixPrice ?? item.sellerBasePrice ?? item.basePrice ?? 0);
+    if (explicit > 0) return explicit;
+
+    const full = fullUnit(item);
+    return full > 0 ? +(full * (1 - DISCOUNT)).toFixed(2) : 0;
+  }
+
+  function totals(){
+    const cart = getCart();
+    let full = 0, discount = 0;
+    cart.forEach(item => {
+      const q = qty(item);
+      full += fullUnit(item) * q;
+      discount += discountUnit(item) * q;
+    });
+    return { cart, full, discount };
+  }
+
+  function selectedMethod(){
+    const checked = document.querySelector('input[name="pay"]:checked');
+    return String(checked?.value || 'pix').toLowerCase();
+  }
+
+  function setMethodBox(labelId, title, desc, value, suffix){
+    const label = document.getElementById(labelId);
+    const body = label?.querySelector('.pay-method-body');
+    if (!body) return;
+    body.innerHTML = `
+      <div class="flex justify-between items-center w-full">
+        <div>
+          <div class="pay-title">${title}</div>
+          <div class="pay-desc">${desc}</div>
+        </div>
+        <div style="color:#00a650;font-weight:900;text-align:right;white-space:nowrap;">
+          ${brl(value)}${suffix ? `<br><small style="font-size:11px">${suffix}</small>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function currentFrete(){
+    const el = document.getElementById('shipping-price-side') || document.getElementById('shipping-price-main');
+    if (!el) return 0;
+    const txt = String(el.textContent || '');
+    if (/gr[aá]tis|calcular/i.test(txt)) return 0;
+    return n(txt);
+  }
+
+  function applyFix(){
+    const { cart, full, discount } = totals();
+    if (!cart.length) return;
+
+    setMethodBox('label-pix', 'Pix', 'Aprovação rápida', discount, '(17% OFF)');
+    setMethodBox('label-boleto', 'Boleto', 'Compensação bancária', discount, '(17% OFF)');
+    setMethodBox('label-card', 'Cartão', 'Parcelamento no pagamento', full, '');
+
+    const method = selectedMethod();
+    const productTotal = (method === 'card') ? full : discount;
+    const finalTotal = productTotal + currentFrete();
+
+    ['products-total-main','products-total-side'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = brl(productTotal);
+    });
+
+    ['total-geral-main','total-geral-side','resumo-total'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = brl(finalTotal);
+    });
+
+    // Atualiza os valores dos itens visíveis no resumo para bater com a forma escolhida.
+    document.querySelectorAll('#lista-resumo-main .resumo-item, #lista-resumo-side .resumo-item').forEach((row, idx) => {
+      const valueEl = row.querySelector('strong, .font-bold, span:last-child');
+      const item = cart[idx];
+      if (valueEl && item) {
+        const unit = (method === 'card') ? fullUnit(item) : discountUnit(item);
+        valueEl.textContent = brl(unit * qty(item));
+        if (method !== 'card') {
+          valueEl.style.color = '#00a650';
+          valueEl.insertAdjacentHTML('beforeend', '<br><small style="font-size:11px">PIX/Boleto</small>');
+        }
+      }
+    });
+  }
+
+  document.addEventListener('change', function(e){
+    if (e.target && e.target.name === 'pay') {
+      setTimeout(applyFix, 10);
+      setTimeout(applyFix, 120);
+      setTimeout(applyFix, 500);
+    }
+  });
+
+  document.addEventListener('click', function(e){
+    const label = e.target.closest && e.target.closest('.pay-method');
+    if (label) {
+      setTimeout(applyFix, 10);
+      setTimeout(applyFix, 120);
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(applyFix, 300);
+    setTimeout(applyFix, 1000);
+    setTimeout(applyFix, 2000);
+  });
+
+  let count = 0;
+  const timer = setInterval(function(){
+    applyFix();
+    count++;
+    if (count > 30) clearInterval(timer);
+  }, 500);
+})();
+</script>
+
 </body>
 </html>
