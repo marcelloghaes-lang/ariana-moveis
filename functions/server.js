@@ -5509,6 +5509,94 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   }
 });
 
+app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
+  try {
+    const seller = req.seller || {};
+    const meta = seller.metadata || {};
+    const settings = await getPaymentsSettings();
+    const recipientId = String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId || '').trim();
+    return res.json({
+      ok: true,
+      gateway: 'pagarme',
+      splitRequired: true,
+      manualTransferEnabled: false,
+      commissionPercent: Number(meta.commissionPercent || settings.pagarme?.marketplaceFeePercent || 12),
+      pagarme: {
+        enabled: settings.pagarme?.enabled !== false,
+        connected: !!recipientId,
+        recipientId,
+        status: meta.pagarmeRecipientStatus || '',
+        bank: {
+          document: meta.document || seller.document || '',
+          legalName: meta.legalName || seller.storeName || seller.displayName || '',
+          bankCode: meta.bankCode || '',
+          branchNumber: meta.branchNumber || '',
+          branchCheckDigit: meta.branchCheckDigit || '',
+          accountNumber: meta.accountNumber || '',
+          accountCheckDigit: meta.accountCheckDigit || '',
+          accountType: meta.accountType || 'checking',
+          bankHolderName: meta.bankHolderName || meta.legalName || seller.storeName || seller.displayName || '',
+          bankHolderDocument: meta.bankHolderDocument || meta.document || seller.document || ''
+        }
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar recebimento Pagar.me do seller' });
+  }
+});
+
+app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const meta = { ...(req.seller.metadata || {}) };
+    meta.paymentGateway = 'pagarme';
+    meta.marketplaceSplitRequired = true;
+    meta.manualTransferEnabled = false;
+    meta.pagarmeRecipientId = String(body.pagarmeRecipientId || body.pagarme_recipient_id || meta.pagarmeRecipientId || '').trim();
+    meta.document = cleanPhone(body.document || body.cpfCnpj || meta.document || req.seller.document || '');
+    meta.legalName = String(body.legalName || body.name || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
+    meta.bankCode = cleanPhone(body.bankCode || body.bank || meta.bankCode || '');
+    meta.branchNumber = cleanPhone(body.branchNumber || body.agency || meta.branchNumber || '');
+    meta.branchCheckDigit = cleanPhone(body.branchCheckDigit || body.agencyDigit || meta.branchCheckDigit || '');
+    meta.accountNumber = cleanPhone(body.accountNumber || body.conta || meta.accountNumber || '');
+    meta.accountCheckDigit = cleanPhone(body.accountCheckDigit || body.accountDigit || meta.accountCheckDigit || '');
+    meta.accountType = normalizePagarmeAccountType(body.accountType || meta.accountType || 'checking');
+    meta.bankHolderName = String(body.bankHolderName || meta.bankHolderName || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
+    meta.bankHolderDocument = cleanPhone(body.bankHolderDocument || meta.bankHolderDocument || meta.document || req.seller.document || '');
+    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') meta.commissionPercent = Number(body.commissionPercent) || 12;
+    const seller = await Seller.findByIdAndUpdate(req.seller._id, { $set: { metadata: meta } }, { new: true });
+    return res.json({ ok: true, seller: sellerProfile(seller, req.user) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar dados Pagar.me do seller' });
+  }
+});
+
+app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, async (req, res) => {
+  try {
+    const sellerDoc = req.seller;
+    const payload = buildPagarmeRecipientPayloadFromSeller(sellerDoc, req.body || {});
+    const response = await createPagarmeRecipient(payload);
+    const data = response.data || {};
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(response.status).json({ ok: false, error: data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me', details: data });
+    }
+    const normalized = normalizePagarmeRecipientResponse(data);
+    if (!normalized.id) return res.status(500).json({ ok: false, error: 'Pagar.me não retornou Recipient ID.', details: data });
+    const meta = { ...(sellerDoc.metadata || {}), ...(req.body || {}) };
+    meta.paymentGateway = 'pagarme';
+    meta.marketplaceSplitRequired = true;
+    meta.manualTransferEnabled = false;
+    meta.pagarmeRecipientId = normalized.id;
+    meta.pagarmeRecipientStatus = normalized.status;
+    meta.pagarmeRecipientCreatedAt = new Date().toISOString();
+    const seller = await Seller.findByIdAndUpdate(sellerDoc._id, { $set: { metadata: meta } }, { new: true });
+    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_recipient_created_by_seller', status: 'success', request: redact(payload), response: redact(data), metadata: { sellerId: seller.sellerId || String(seller._id) } });
+    return res.json({ ok: true, recipientId: normalized.id, recipient: normalized, seller: sellerProfile(seller, req.user) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar Recipient Pagar.me', requiredFields: error.requiredFields || undefined });
+  }
+});
+
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
   if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
@@ -8291,93 +8379,6 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 });
 
 
-app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
-  try {
-    const seller = req.seller || {};
-    const meta = seller.metadata || {};
-    const settings = await getPaymentsSettings();
-    const recipientId = String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId || '').trim();
-    return res.json({
-      ok: true,
-      gateway: 'pagarme',
-      splitRequired: true,
-      manualTransferEnabled: false,
-      commissionPercent: Number(meta.commissionPercent || settings.pagarme?.marketplaceFeePercent || 12),
-      pagarme: {
-        enabled: settings.pagarme?.enabled !== false,
-        connected: !!recipientId,
-        recipientId,
-        status: meta.pagarmeRecipientStatus || '',
-        bank: {
-          document: meta.document || seller.document || '',
-          legalName: meta.legalName || seller.storeName || seller.displayName || '',
-          bankCode: meta.bankCode || '',
-          branchNumber: meta.branchNumber || '',
-          branchCheckDigit: meta.branchCheckDigit || '',
-          accountNumber: meta.accountNumber || '',
-          accountCheckDigit: meta.accountCheckDigit || '',
-          accountType: meta.accountType || 'checking',
-          bankHolderName: meta.bankHolderName || meta.legalName || seller.storeName || seller.displayName || '',
-          bankHolderDocument: meta.bankHolderDocument || meta.document || seller.document || ''
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar recebimento Pagar.me do seller' });
-  }
-});
-
-app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
-  try {
-    const body = req.body || {};
-    const meta = { ...(req.seller.metadata || {}) };
-    meta.paymentGateway = 'pagarme';
-    meta.marketplaceSplitRequired = true;
-    meta.manualTransferEnabled = false;
-    meta.pagarmeRecipientId = String(body.pagarmeRecipientId || body.pagarme_recipient_id || meta.pagarmeRecipientId || '').trim();
-    meta.document = cleanPhone(body.document || body.cpfCnpj || meta.document || req.seller.document || '');
-    meta.legalName = String(body.legalName || body.name || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
-    meta.bankCode = cleanPhone(body.bankCode || body.bank || meta.bankCode || '');
-    meta.branchNumber = cleanPhone(body.branchNumber || body.agency || meta.branchNumber || '');
-    meta.branchCheckDigit = cleanPhone(body.branchCheckDigit || body.agencyDigit || meta.branchCheckDigit || '');
-    meta.accountNumber = cleanPhone(body.accountNumber || body.conta || meta.accountNumber || '');
-    meta.accountCheckDigit = cleanPhone(body.accountCheckDigit || body.accountDigit || meta.accountCheckDigit || '');
-    meta.accountType = normalizePagarmeAccountType(body.accountType || meta.accountType || 'checking');
-    meta.bankHolderName = String(body.bankHolderName || meta.bankHolderName || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
-    meta.bankHolderDocument = cleanPhone(body.bankHolderDocument || meta.bankHolderDocument || meta.document || req.seller.document || '');
-    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') meta.commissionPercent = Number(body.commissionPercent) || 12;
-    const seller = await Seller.findByIdAndUpdate(req.seller._id, { $set: { metadata: meta } }, { new: true });
-    return res.json({ ok: true, seller: sellerProfile(seller, req.user) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar dados Pagar.me do seller' });
-  }
-});
-
-app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, async (req, res) => {
-  try {
-    const sellerDoc = req.seller;
-    const payload = buildPagarmeRecipientPayloadFromSeller(sellerDoc, req.body || {});
-    const response = await createPagarmeRecipient(payload);
-    const data = response.data || {};
-    if (response.status < 200 || response.status >= 300) {
-      return res.status(response.status).json({ ok: false, error: data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me', details: data });
-    }
-    const normalized = normalizePagarmeRecipientResponse(data);
-    if (!normalized.id) return res.status(500).json({ ok: false, error: 'Pagar.me não retornou Recipient ID.', details: data });
-    const meta = { ...(sellerDoc.metadata || {}), ...(req.body || {}) };
-    meta.paymentGateway = 'pagarme';
-    meta.marketplaceSplitRequired = true;
-    meta.manualTransferEnabled = false;
-    meta.pagarmeRecipientId = normalized.id;
-    meta.pagarmeRecipientStatus = normalized.status;
-    meta.pagarmeRecipientCreatedAt = new Date().toISOString();
-    const seller = await Seller.findByIdAndUpdate(sellerDoc._id, { $set: { metadata: meta } }, { new: true });
-    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_recipient_created_by_seller', status: 'success', request: redact(payload), response: redact(data), metadata: { sellerId: seller.sellerId || String(seller._id) } });
-    return res.json({ ok: true, recipientId: normalized.id, recipient: normalized, seller: sellerProfile(seller, req.user) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar Recipient Pagar.me', requiredFields: error.requiredFields || undefined });
-  }
-});
 
 app.post('/api/admin/sellers/:sellerId/pagarme-recipient', adminRequired, async (req, res) => {
   try {
