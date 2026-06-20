@@ -862,7 +862,7 @@ const DEFAULT_PAYMENTS_SETTINGS = {
   }
 };
 const RODOCAP_ALLOWED_CITIES = ['AGUA BOA', 'AGUANIL', 'ANGELANDIA', 'ARAUJOS', 'ARCOS', 'ARICANDUVA', 'BAMBUI', 'BELO HORIZONTE', 'BETIM', 'BOCAIUVA', 'BORDA DA MATA', 'BRASILIA DE MINAS', 'CACHOEIRA DE MINAS', 'CAETABOPOLIS', 'CAMANDUCAIA', 'CAMBUI', 'CAMBUQUIRA', 'CAMPANHA', 'CAMPO BELO', 'CANDEIAS', 'CANTAGALO', 'CAPELINHA', 'CAPIM BRANCO', 'CAPITAO ENEAS', 'CAPITOLIO', 'CARBONITA', 'CAREACU', 'CARMO DO CAJURU', 'CHAPADA DO NORTE', 'CLAUDIO', 'CONCEICAO DO PARA', 'CONCEICAO DOS OUROS', 'CONFINS', 'CONGONHAL', 'CONTAGEM', 'CORINTO', 'CORREGO FUNDO', 'COUTO DE MAGALHAES DE MINAS', 'CRISTAIS', 'CURVELO', 'DATAS', 'DIAMANTINA', 'DIVINOLANDIA DE MINAS', 'DIVINOPOLIS', 'DORES DE GUANHAES', 'ESTIVA', 'FELIXLANDIA', 'FERROS', 'FORMIGA', 'FRANCISCO SA', 'GOUVEIA', 'GUANHAES', 'IBIRITE', 'IGARATINGA', 'IGUATAMA', 'INIMUTABA', 'ITABIRA', 'ITAMARANDIBA', 'ITAUNA', 'JANAUBA', 'JANUARIA', 'JAPONVAR', 'JOSE RAYDAN', 'LAGOA DA PRATA', 'LAGOA SANTA', 'LAVRAS', 'LONTRA', 'MATERLANDIA', 'MATOZINHOS', 'MINAS NOVAS', 'MIRABELA', 'MONTES CLAROS', 'NOVA LIMA', 'NOVA PORTEIRINHA', 'NOVA SERRANA', 'OLIVEIRA', 'PAINS', 'PARA DE MINAS', 'PARAOPEBA', 'PECANHA', 'PERDIGAO', 'PERDOES', 'PIMENTA', 'PITANGUI', 'PIUMHI', 'PORTEIRINHA', 'POUSO ALEGRE', 'PRUDENTE DE MORAIS', 'RIBEIRAO DAS NEVES', 'RIO VERMELHO', 'SABARA', 'SABINOPOLIS', 'SALINAS', 'SANTA LUZIA', 'SANTA MARIA DE ITABIRA', 'SANTA MARIA DO SUACUI', 'SANTA RITA DO SAPUCAI', 'SANTANA DO JACARE', 'SAO BENTO ABADE', 'SAO GONCALO DO PARA', 'SAO JOAO EVANGELISTA', 'SAO JOSE DA LAPA', 'SAO JOSE DO JACURI', 'SAO PEDRO DO SUACUI', 'SAO SEBASTIAO DA BELA VISTA', 'SAO SEBASTIAO DO OESTE', 'SAO SEBASTIAO DO SAPUCAI', 'SARZEDO', 'SENHORA DO PORTO', 'SERRO', 'SETE LAGOAS', 'SILVIANOPOLIS', 'TAIOBEIRAS', 'TRES CORACOES', 'TURMALINA', 'VARGINHA', 'VEREDINHA', 'VESPASIANO', 'VIRGINOPOLIS', 'ARUJA', 'BARUERI', 'CAJAMAR', 'CAMPINAS', 'CARAPICUIBA', 'COTIA', 'DIADEMA', 'EMBU DAS ARTES', 'FERRAZ DE VASCONCELOS', 'GUARULHOS', 'HORTOLANDIA', 'INDAIATUBA', 'ITAPECERICA DA SERRA', 'ITAQUAQUECETUBA', 'ITUPEVA', 'JANDIRA', 'JUNDIAI', 'LOUVEIRA', 'MAUA', 'MOGI DAS CRUZES', 'OSASCO', 'POA', 'RIBEIRAO PIRES', 'SANTANA DE PARNAIBA', 'SANTO ANDRE', 'SAO BERNARDO DO CAMPO', 'SAO CAETANO DO SUL', 'SAO PAULO', 'SUZANO', 'TABOAO DA SERRA', 'VALINHOS', 'VARGEM GRANDE PAULISTA', 'VARZEA PAULISTA', 'VINHEDO'];
-const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', localOriginCep: '39740-000', localMaxKmTier1: 30, localPriceTier1: 80, localMaxKmTier2: 120, localPriceTier2: 120, phoneFlatPrice: 19.90, phoneFlatEnabled: true, label: 'Ariana Móveis', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: true, appliesToArianaLogistics: true, maxKmTier1: 40, priceTier1: 120, maxKmTier2: 70, priceTier2: 190, label: 'SN Digital', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 120, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
+const DEFAULT_SHIPPING_SETTINGS = { montagemPercent: 0.12, correios: { enabled: true, origemCep: process.env.LOJA_ORIGEM_CEP || '', servicos: String(process.env.CORREIOS_SERVICOS || '03298,03328').split(',').map(s => String(s).trim()).filter(Boolean), pesoKgPadrao: 1, alturaCmPadrao: 10, larguraCmPadrao: 15, comprimentoCmPadrao: 20, valorDeclaradoPadrao: 0, maxWeightKg: 30, maxDimensionCm: 100 }, businessRules: { arianaMoveis: { enabled: true, sellerNames: ['ARIANA MOVEIS', 'ARIANA MÓVEIS'], freeCepStart: '39740-000', freeCepEnd: '39740-000', localOriginCep: '39740-000', localMaxKmTier1: 30, localPriceTier1: 80, localMaxKmTier2: 50, localPriceTier2: 120, phoneFlatPrice: 19.90, phoneFlatEnabled: true, label: 'Ariana Logística', prazo: '1 a 3 dias úteis' }, snDigital: { enabled: false, appliesToArianaLogistics: false, maxKmTier1: 30, priceTier1: 80, maxKmTier2: 50, priceTier2: 120, label: 'Ariana Logística', prazo: '1 a 3 dias úteis' }, rodocap: { enabled: true, appliesToArianaLogistics: true, minKmExclusive: 50, percentOfInvoice: 0.12, label: 'Rodocap', prazoPadrao: 'sob consulta', allowedCities: RODOCAP_ALLOWED_CITIES, onlyUrbanArea: true } }, carriers: { correios: { enabled: true, maxWeightKg: 30, maxDimensionCm: 100 }, frenet: { enabled: String(process.env.FRENET_ENABLED || '').toLowerCase() === 'true' || !!process.env.FRENET_TOKEN || !!process.env.FRENET_API_TOKEN, token: process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '', apiUrl: process.env.FRENET_API_URL || 'https://api.frenet.com.br', origemCep: process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || '', maxWeightKg: Number(process.env.FRENET_MAX_WEIGHT_KG || 100), maxDimensionCm: Number(process.env.FRENET_MAX_DIMENSION_CM || 200) }, totalExpress: { enabled: true, maxWeightKg: 30, maxDimensionCm: 110 }, ownDelivery: { enabled: true, tiers: [{ maxKm: 30, price: 35 }, { maxKm: 60, price: 70 }] } } };
 
 async function getSetting(key, fallback = null) { const doc = await Setting.findOne({ key }); return doc ? doc.value : fallback; }
 async function setSetting(key, value, updatedBy = 'system') { const doc = await Setting.findOneAndUpdate({ key }, { $set: { value, updatedBy } }, { upsert: true, new: true }); return doc.value; }
@@ -3522,17 +3522,6 @@ function parsePrazoToDeadlineDays(prazo = '') {
   if (!matches || !matches.length) return null;
   return Number(matches[matches.length - 1]) || null;
 }
-function normalizeShippingProviderForOption(service = '', label = '', provider = 'configured') {
-  const p = String(provider || '').trim();
-  if (p && p !== 'configured') return p;
-  const txt = normalizeShippingText(`${service} ${label}`);
-  if (txt.includes('ARIANA') || txt.includes('LOCAL') || txt.includes('CELULAR')) return 'ariana_local';
-  if (txt.includes('RODOCAP')) return 'rodocap';
-  if (txt.includes('SN DIGITAL')) return 'sn_digital';
-  if (txt.includes('CORREIOS') || txt.includes('PAC') || txt.includes('SEDEX')) return 'correios';
-  if (txt.includes('FRENET')) return 'frenet';
-  return p || 'configured';
-}
 function buildManualShippingOption({ service, label, price, prazo, provider = 'configured', details = null, metadata = null, deadlineDays = null }) {
   const parsedDeadline = Number(deadlineDays || parsePrazoToDeadlineDays(prazo || '0') || 0) || null;
   return {
@@ -3541,7 +3530,7 @@ function buildManualShippingOption({ service, label, price, prazo, provider = 'c
     price: Number(price || 0),
     prazo: prazo || null,
     deadlineDays: parsedDeadline,
-    provider: normalizeShippingProviderForOption(service, label, provider),
+    provider,
     details: details || null,
     metadata: metadata || null
   };
@@ -3786,19 +3775,21 @@ async function calculateShipping(body = {}) {
   const options = [];
   const isAriana = body.shippingRule === 'ariana' || body.isArianaOrder === true || sellerCtx.isAriana;
   const isLocalSellerOrigin = Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep);
-  const usesArianaLocalRule = isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.provider === 'ariana_local' || body.logisticsProvider === 'ariana_local' || body.useArianaLocalRule === true;
-  const isSNDigital = body.shippingRule === 'sn_digital' || sellerCtx.isSNDigital;
-  const usesArianaLogistics = usesArianaLocalRule || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.snDigital?.appliesToArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
+  // Ariana Logística é a logística local oficial do marketplace.
+  // Ela também cobre a regra antiga chamada SN Digital; para evitar duplicidade, mostramos apenas Ariana Logística.
+  const usesArianaLocalRule = arianaRule.enabled !== false || isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.useArianaLocalRule === true;
+  const isSNDigital = false;
+  const usesArianaLogistics = arianaRule.enabled !== false || usesArianaLocalRule || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
   const isPhoneProduct = arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
 
   if (isPhoneProduct) {
     const phoneLocalFree = destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
     options.push(buildManualShippingOption({
       service: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo',
-      label: phoneLocalFree ? 'Frete grátis celular - Ariana Local' : 'Frete fixo celular - Ariana Local',
+      label: phoneLocalFree ? 'Frete grátis celular' : 'Frete fixo celular',
       price: phoneLocalFree ? 0 : Number(arianaRule.phoneFlatPrice || 19.90),
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'ariana_local',
+      provider: 'configured',
       details: phoneLocalFree
         ? `Frete grátis para celulares no CEP ${arianaRule.freeCepStart || '39740-000'}.`
         : 'Frete fixo para celulares para qualquer destino.',
@@ -3812,10 +3803,10 @@ async function calculateShipping(body = {}) {
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
       service: 'ariana_free_local',
-      label: arianaRule.label || 'Ariana Móveis - Entrega Local',
+      label: arianaRule.label || 'Ariana Móveis',
       price: 0,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'ariana_local',
+      provider: 'configured',
       details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
       metadata: { rule: 'ariana_free_local', cep: destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
@@ -3824,7 +3815,7 @@ async function calculateShipping(body = {}) {
 
   const arianaTier1Km = Number(arianaRule.localMaxKmTier1 || 30);
   const arianaTier1Price = Number(arianaRule.localPriceTier1 || 80);
-  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 120);
+  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 50);
   const arianaTier2Price = Number(arianaRule.localPriceTier2 || 120);
   let hasArianaDistanceDelivery = false;
 
@@ -3832,10 +3823,10 @@ async function calculateShipping(body = {}) {
     hasArianaDistanceDelivery = true;
     options.push(buildManualShippingOption({
       service: 'ariana_entrega_ate_30km',
-      label: arianaRule.label || 'Ariana Móveis - Entrega Local',
+      label: arianaRule.label || 'Ariana Móveis',
       price: arianaTier1Price,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'ariana_local',
+      provider: 'configured',
       details: `Entrega Ariana Móveis até ${arianaTier1Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
       metadata: { rule: 'ariana_entrega_ate_30km', distanceKm, destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
@@ -3845,18 +3836,18 @@ async function calculateShipping(body = {}) {
   if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > arianaTier1Km && Number(distanceKm || 0) <= arianaTier2Km) {
     hasArianaDistanceDelivery = true;
     options.push(buildManualShippingOption({
-      service: 'ariana_entrega_30_120km',
-      label: arianaRule.label || 'Ariana Móveis - Entrega Local',
+      service: 'ariana_entrega_30_50km',
+      label: arianaRule.label || 'Ariana Móveis',
       price: arianaTier2Price,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'ariana_local',
-      details: `Entrega Ariana Móveis de ${arianaTier1Km} km até ${arianaTier2Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
+      provider: 'configured',
+      details: `Entrega Ariana Logística acima de ${arianaTier1Km} km até ${arianaTier2Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
       metadata: { rule: 'ariana_entrega_30_120km', distanceKm, destinationCep },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
     }));
   }
 
-  if (usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
+  if (false && usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
     options.push(buildManualShippingOption({
       service: 'sn_digital_ate_40km',
       label: snRule.label || 'SN Digital',
@@ -3868,7 +3859,7 @@ async function calculateShipping(body = {}) {
       deadlineDays: parsePrazoToDeadlineDays(snRule.prazo || '1 a 3 dias úteis')
     }));
   }
-  if (usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
+  if (false && usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > Number(snRule.maxKmTier1 || 40) && distanceKm <= Number(snRule.maxKmTier2 || 70)) {
     options.push(buildManualShippingOption({
       service: 'sn_digital_40_70km',
       label: snRule.label || 'SN Digital',
@@ -3881,13 +3872,18 @@ async function calculateShipping(body = {}) {
     }));
   }
   let rodocapAvailable = false;
+  let rodocapEligibleByDistance = false;
+  let rodocapCityAllowed = false;
+  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || arianaTier2Km || 50);
   const rodocapEnvFlag = String(process.env.RODOCAP_ENABLED || '').trim().toLowerCase();
   const rodocapEnabled =
     rodocapEnvFlag === 'true' ||
     (rodocapEnvFlag !== 'false' && rodocapRule.enabled !== false);
 
-  if (usesArianaLogistics && !hasPhoneFlatDelivery && rodocapEnabled && !hasArianaFree && !hasArianaDistanceDelivery && distanceKm > Number(rodocapRule.minKmExclusive || 120)) {
+  if (usesArianaLogistics && !hasPhoneFlatDelivery && rodocapEnabled && !hasArianaFree && !hasArianaDistanceDelivery && distanceKm > rodocapMinKmExclusive) {
+    rodocapEligibleByDistance = true;
     const allowedCity = isRodocapCityAllowed(location.city, rodocapRule);
+    rodocapCityAllowed = allowedCity;
     if (allowedCity) {
       const rodocapPrice = Number((productPrice * Number(rodocapRule.percentOfInvoice || 0.12)).toFixed(2));
       rodocapAvailable = true;
@@ -3897,7 +3893,7 @@ async function calculateShipping(body = {}) {
         price: rodocapPrice,
         prazo: rodocapRule.prazoPadrao || 'sob consulta',
         provider: 'configured',
-        details: `Rodocap acima de ${Number(rodocapRule.minKmExclusive || 120)} km: 12% do valor da nota para cidades atendidas.`,
+        details: `Rodocap acima de ${rodocapMinKmExclusive} km: 12% do valor da nota para cidades atendidas.`,
         metadata: { rule: 'rodocap_12_percent', distanceKm, destinationCity: location.city, destinationState: location.state, locationSource: location.source },
         deadlineDays: parsePrazoToDeadlineDays(rodocapRule.prazoPadrao || '')
       }));
@@ -3920,11 +3916,13 @@ async function calculateShipping(body = {}) {
     (Number(weightKg || 0) > correiosMaxWeightKgForFrenet) ||
     (Number(maxDimensionCm || 0) > correiosMaxDimensionCmForFrenet);
 
+  // Frenet entra quando o produto estoura o limite dos Correios OU quando a Rodocap não atende o destino.
+  const needsFrenetByRodocapUnavailable = rodocapEligibleByDistance && !rodocapAvailable;
   const frenetAllowed =
     !hasPhoneFlatDelivery &&
     !hasArianaFree &&
     !rodocapAvailable &&
-    needsFrenetByCorreiosLimit &&
+    (needsFrenetByCorreiosLimit || needsFrenetByRodocapUnavailable) &&
     frenet.enabled !== false &&
     String(frenet.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim() &&
     destinationCep;
@@ -4023,6 +4021,10 @@ async function calculateShipping(body = {}) {
       isPhoneProduct,
       isSNDigital,
       usesArianaLogistics,
+      rodocapEligibleByDistance,
+      rodocapAvailable,
+      rodocapCityAllowed,
+      needsFrenetByCorreiosLimit,
       destinationCity: location.city || null,
       destinationState: location.state || null,
       destinationCep: destinationCep || null,
@@ -7352,7 +7354,7 @@ app.post('/api/shipping/logistics/quote', async (req, res) => {
       price: Number(q.price || 0),
       prazo: q.prazo || null,
       deadlineDays: q.deadlineDays || null,
-      provider: normalizeShippingProviderForOption(q.service || '', q.label || q.name || '', q.provider || 'configured'),
+      provider: q.provider || 'configured',
       raw: q.raw || null,
       metadata: q.metadata || null
     })) : [];
@@ -7377,7 +7379,7 @@ app.post('/shipping/logistics/quote', async (req, res) => {
       price: Number(q.price || 0),
       prazo: q.prazo || null,
       deadlineDays: q.deadlineDays || null,
-      provider: normalizeShippingProviderForOption(q.service || '', q.label || q.name || '', q.provider || 'configured'),
+      provider: q.provider || 'configured',
       raw: q.raw || null,
       metadata: q.metadata || null
     })) : [];
