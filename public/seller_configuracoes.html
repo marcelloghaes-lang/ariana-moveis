@@ -95,9 +95,39 @@
       </div>
     </div>
     <div class="card p-6"><h3 class="text-xl font-black mb-5">Frete e coleta</h3>
-      <div class="grid md:grid-cols-2 gap-5 items-center">
-        <div><label class="block text-xs font-black mb-2">CEP base de coleta</label><input id="cepColeta" class="input" placeholder="00000-000" autocomplete="off"></div>
-        <label class="inline-flex items-center gap-3 font-bold"><input id="transpPropria" type="checkbox"> Transportadora própria / terceirizada</label>
+      <p class="muted text-sm mb-5">Configure o CEP de saída dos produtos e informe se usa transportadora própria/terceirizada.</p>
+      <div class="grid md:grid-cols-3 gap-5 items-end">
+        <div>
+          <label class="block text-xs font-black mb-2">CEP base de coleta</label>
+          <input id="cepColeta" class="input" placeholder="00000-000" autocomplete="off" inputmode="numeric" maxlength="9">
+        </div>
+        <div>
+          <label class="block text-xs font-black mb-2">Tipo de logística</label>
+          <select id="tipoLogistica" class="input">
+            <option value="marketplace">Usar logística do marketplace</option>
+            <option value="propria">Transportadora própria / terceirizada</option>
+            <option value="retirada">Somente retirada/coleta combinada</option>
+          </select>
+        </div>
+        <label class="inline-flex items-center gap-3 font-bold pb-4">
+          <input id="transpPropria" type="checkbox" class="w-4 h-4"> Transportadora própria / terceirizada
+        </label>
+        <div>
+          <label class="block text-xs font-black mb-2">Nome da transportadora</label>
+          <input id="transportadoraNome" class="input" placeholder="Ex: Transportadora própria" autocomplete="off">
+        </div>
+        <div>
+          <label class="block text-xs font-black mb-2">Telefone da transportadora</label>
+          <input id="transportadoraTelefone" class="input" placeholder="(00) 00000-0000" autocomplete="off">
+        </div>
+        <div>
+          <label class="block text-xs font-black mb-2">Prazo padrão</label>
+          <input id="transportadoraPrazo" class="input" placeholder="Ex: 3 a 7 dias úteis" autocomplete="off">
+        </div>
+        <div class="md:col-span-3">
+          <label class="block text-xs font-black mb-2">Observações de frete/coleta</label>
+          <textarea id="freteObs" rows="3" class="input" placeholder="Ex: Coleta de segunda a sexta, das 8h às 17h."></textarea>
+        </div>
       </div>
     </div>
   </form>
@@ -123,6 +153,13 @@ function clearSellerSession() {
 function authHeaders(extra = {}) {
   const token = getSellerToken();
   return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+}
+function formatCep(value = "") {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+}
+function onlyDigits(value = "") {
+  return String(value || "").replace(/\D/g, "");
 }
 function toast(message, type = "info") {
   const c = $("toast-container");
@@ -178,7 +215,12 @@ function normalizeSellerPayload(data = {}) {
     bio: seller.bio || meta.bio || meta.description || "",
     bankAccount: normalizeBankAccount(seller, meta),
     cepColeta: seller.cepColeta || meta.cepColeta || meta.pickupCep || "",
-    transpPropria: seller.transpPropria ?? meta.transpPropria ?? false
+    tipoLogistica: seller.tipoLogistica || meta.tipoLogistica || meta.shippingType || (meta.transpPropria ? "propria" : "marketplace"),
+    transpPropria: seller.transpPropria ?? meta.transpPropria ?? false,
+    transportadoraNome: seller.transportadoraNome || meta.transportadoraNome || meta.carrierName || "",
+    transportadoraTelefone: seller.transportadoraTelefone || meta.transportadoraTelefone || meta.carrierPhone || "",
+    transportadoraPrazo: seller.transportadoraPrazo || meta.transportadoraPrazo || meta.carrierDeadline || "",
+    freteObs: seller.freteObs || meta.freteObs || meta.shippingNotes || ""
   };
 }
 function fillSeller(seller) {
@@ -198,8 +240,13 @@ function fillSeller(seller) {
   $("accountDigit").value = bank.accountDigit || bank.accountCheckDigit || "";
   $("bankHolderName").value = bank.holderName || bank.bankHolderName || seller.factoryName || "";
   $("bankHolderDocument").value = bank.holderDocument || bank.bankHolderDocument || seller.cnpj || "";
-  $("cepColeta").value = seller.cepColeta || "";
-  $("transpPropria").checked = !!seller.transpPropria;
+  $("cepColeta").value = formatCep(seller.cepColeta || "");
+  $("tipoLogistica").value = seller.tipoLogistica || (seller.transpPropria ? "propria" : "marketplace");
+  $("transpPropria").checked = !!seller.transpPropria || $("tipoLogistica").value === "propria";
+  $("transportadoraNome").value = seller.transportadoraNome || "";
+  $("transportadoraTelefone").value = seller.transportadoraTelefone || "";
+  $("transportadoraPrazo").value = seller.transportadoraPrazo || "";
+  $("freteObs").value = seller.freteObs || "";
 
   // Seller aprovado: trava os dados para não alterar depois de salvo/aprovado.
   setLockedField("factoryName", approved);
@@ -214,8 +261,15 @@ function fillSeller(seller) {
   setLockedField("accountDigit", approved);
   setLockedField("bankHolderName", approved);
   setLockedField("bankHolderDocument", approved);
-  setLockedField("cepColeta", approved);
-  setLockedField("transpPropria", approved);
+  // Frete e coleta continuam editáveis mesmo após aprovação,
+  // porque o seller pode trocar CEP de coleta ou transportadora.
+  setLockedField("cepColeta", false);
+  setLockedField("tipoLogistica", false);
+  setLockedField("transpPropria", false);
+  setLockedField("transportadoraNome", false);
+  setLockedField("transportadoraTelefone", false);
+  setLockedField("transportadoraPrazo", false);
+  setLockedField("freteObs", false);
 
   localStorage.setItem("seller_profile", JSON.stringify(seller));
 }
@@ -259,8 +313,13 @@ async function saveSeller(event) {
         holderName: $("bankHolderName").value.trim(),
         holderDocument: $("bankHolderDocument").value.trim()
       },
-      cepColeta: $("cepColeta").value.replace(/\D/g, ""),
-      transpPropria: $("transpPropria").checked
+      cepColeta: onlyDigits($("cepColeta").value),
+      tipoLogistica: $("tipoLogistica").value,
+      transpPropria: $("transpPropria").checked || $("tipoLogistica").value === "propria",
+      transportadoraNome: $("transportadoraNome").value.trim(),
+      transportadoraTelefone: $("transportadoraTelefone").value.trim(),
+      transportadoraPrazo: $("transportadoraPrazo").value.trim(),
+      freteObs: $("freteObs").value.trim()
     };
 
     // Nome fantasia só é enviado quando ainda não foi aprovado.
@@ -281,7 +340,7 @@ async function saveSeller(event) {
     }
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-    const seller = normalizeSellerPayload(data.seller ? data : { seller: { ...current, ...payload, metadata: { ...(current.metadata || {}), bio: payload.bio, cepColeta: payload.cepColeta, transpPropria: payload.transpPropria, bankAccount: payload.bankAccount } } });
+    const seller = normalizeSellerPayload(data.seller ? data : { seller: { ...current, ...payload, metadata: { ...(current.metadata || {}), bio: payload.bio, cepColeta: payload.cepColeta, tipoLogistica: payload.tipoLogistica, transpPropria: payload.transpPropria, transportadoraNome: payload.transportadoraNome, transportadoraTelefone: payload.transportadoraTelefone, transportadoraPrazo: payload.transportadoraPrazo, freteObs: payload.freteObs, bankAccount: payload.bankAccount } } });
     fillSeller(seller);
     toast("Configurações salvas com sucesso!", "success");
   } catch (e) {
@@ -295,6 +354,15 @@ async function saveSeller(event) {
 document.addEventListener("DOMContentLoaded", () => {
   loadSeller();
   $("settings-form")?.addEventListener("submit", saveSeller);
+  $("cepColeta")?.addEventListener("input", (e) => { e.target.value = formatCep(e.target.value); });
+  $("tipoLogistica")?.addEventListener("change", () => {
+    const isOwn = $("tipoLogistica").value === "propria";
+    $("transpPropria").checked = isOwn;
+  });
+  $("transpPropria")?.addEventListener("change", () => {
+    if ($("transpPropria").checked) $("tipoLogistica").value = "propria";
+    else if ($("tipoLogistica").value === "propria") $("tipoLogistica").value = "marketplace";
+  });
   $("sidebar-toggle")?.addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
   $("btn-sair")?.addEventListener("click", (e) => {
     e.preventDefault();

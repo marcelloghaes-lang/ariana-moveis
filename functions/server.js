@@ -5439,7 +5439,12 @@ function sellerProfile(s, u) {
     description: String(meta.bio || meta.description || meta.descricao || o.description || '').trim(),
     bankAccount,
     cepColeta: String(meta.cepColeta || meta.pickupCep || meta.cep_coleta || '').replace(/\D/g, ''),
+    tipoLogistica: String(meta.tipoLogistica || meta.shippingType || (meta.transpPropria === true ? 'propria' : 'marketplace')).trim(),
     transpPropria: meta.transpPropria === true || meta.ownCarrier === true || meta.transportadoraPropria === true,
+    transportadoraNome: String(meta.transportadoraNome || meta.carrierName || '').trim(),
+    transportadoraTelefone: String(meta.transportadoraTelefone || meta.carrierPhone || '').trim(),
+    transportadoraPrazo: String(meta.transportadoraPrazo || meta.carrierDeadline || '').trim(),
+    freteObs: String(meta.freteObs || meta.shippingNotes || '').trim(),
     active: !['bloqueado','reprovado','blocked','rejected'].includes(status)
   };
 }
@@ -5564,8 +5569,31 @@ async function saveSellerProfileSettings(req, res) {
     if (body.cepColeta !== undefined || body.pickupCep !== undefined || body.cep_coleta !== undefined) {
       metadata.cepColeta = String(body.cepColeta ?? body.pickupCep ?? body.cep_coleta ?? '').replace(/\D/g, '');
     }
+    if (body.tipoLogistica !== undefined || body.shippingType !== undefined) {
+      metadata.tipoLogistica = String(body.tipoLogistica ?? body.shippingType ?? '').trim() || 'marketplace';
+      metadata.shippingType = metadata.tipoLogistica;
+    }
     if (body.transpPropria !== undefined || body.ownCarrier !== undefined || body.transportadoraPropria !== undefined) {
       metadata.transpPropria = body.transpPropria === true || body.ownCarrier === true || body.transportadoraPropria === true;
+      metadata.ownCarrier = metadata.transpPropria;
+      metadata.transportadoraPropria = metadata.transpPropria;
+      if (metadata.transpPropria && !metadata.tipoLogistica) metadata.tipoLogistica = 'propria';
+    }
+    if (body.transportadoraNome !== undefined || body.carrierName !== undefined) {
+      metadata.transportadoraNome = String(body.transportadoraNome ?? body.carrierName ?? '').trim();
+      metadata.carrierName = metadata.transportadoraNome;
+    }
+    if (body.transportadoraTelefone !== undefined || body.carrierPhone !== undefined) {
+      metadata.transportadoraTelefone = String(body.transportadoraTelefone ?? body.carrierPhone ?? '').trim();
+      metadata.carrierPhone = metadata.transportadoraTelefone;
+    }
+    if (body.transportadoraPrazo !== undefined || body.carrierDeadline !== undefined) {
+      metadata.transportadoraPrazo = String(body.transportadoraPrazo ?? body.carrierDeadline ?? '').trim();
+      metadata.carrierDeadline = metadata.transportadoraPrazo;
+    }
+    if (body.freteObs !== undefined || body.shippingNotes !== undefined) {
+      metadata.freteObs = String(body.freteObs ?? body.shippingNotes ?? '').trim();
+      metadata.shippingNotes = metadata.freteObs;
     }
 
     metadata.updatedFromSellerConfigAt = now();
