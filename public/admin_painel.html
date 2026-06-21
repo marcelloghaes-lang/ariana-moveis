@@ -172,6 +172,41 @@ let productImagesCache = [];
 let pollers = [];
 
 function escHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function fixMojibakeText(value=''){
+  let text = String(value || '');
+  const map = {'ðŸ›’':'🛒','ðŸ“¦':'📦','ðŸšš':'🚚','ðŸ­':'🏭','Ã§':'ç','Ã£':'ã','Ã¡':'á','Ã©':'é','Ã­':'í','Ã³':'ó','Ãº':'ú','Ã¢':'â','Ãª':'ê','Ãµ':'õ','Âº':'º'};
+  for (const [bad, good] of Object.entries(map)) text = text.split(bad).join(good);
+  return text.trim();
+}
+function cleanNotificationTitleClient(value=''){
+  const text = fixMojibakeText(value || 'Notificação');
+  const lower = text.toLowerCase();
+  if(lower.includes('nova venda')) return 'Nova venda recebida';
+  if(lower.includes('pedido atualizado')) return 'Pedido atualizado';
+  if(lower.includes('seller aprovado')) return 'Seller aprovado';
+  if(lower.includes('seller recusado')) return 'Seller recusado';
+  if(lower.includes('seller atualizou')) return 'Seller atualizou pedido';
+  return text.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+/gu, '').trim() || 'Notificação';
+}
+function formatNotificationMessageClient(message=''){
+  const text = fixMojibakeText(message).replace(/\s+-\s+/g, ' • ').trim();
+  return escHtml(text).replace(/\n/g, '<br>');
+}
+function parseMoneyBRClient(value, fallback=0){
+  if(value === null || value === undefined || value === '') return Number(fallback || 0);
+  if(typeof value === 'number') return Number.isFinite(value) ? value : Number(fallback || 0);
+  let raw = String(value).trim().replace(/R\$/gi,'').replace(/\s+/g,'');
+  if(!raw) return Number(fallback || 0);
+  if(raw.includes(',')) raw = raw.replace(/\./g,'').replace(',', '.');
+  const n = Number(raw.replace(/[^0-9.-]/g,''));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : Number(fallback || 0);
+}
+function formatMoneyInputBR(value){
+  const n = parseMoneyBRClient(value, 0);
+  return n ? n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+}
+
 function formatCurrency(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
 function toJSDate(v){ if(!v) return null; if(v instanceof Date) return v; if(typeof v==='number') return new Date(v); if(typeof v==='string'){const d=new Date(v); return isNaN(d)?null:d;} if(v.seconds) return new Date(v.seconds*1000); return null; }
 function formatDateTime(v){const d=toJSDate(v); return d?d.toLocaleString('pt-BR'):'—'}
@@ -429,6 +464,7 @@ async function init(){
   document.getElementById('sidebar-toggle').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('-translate-x-full'));
   document.getElementById('notif-btn').addEventListener('click',()=>{ unlockNotificationPermission(); document.getElementById('notif-dropdown').classList.toggle('hidden'); });
   document.getElementById('notif-mark-read').addEventListener('click', markNotificationsRead);
+  document.addEventListener('blur', function(ev){ if(ev.target && ev.target.id === 'product-price') ev.target.value = formatMoneyInputBR(ev.target.value); }, true);
   const token=getAdminToken();
   if(token){
     try{
@@ -667,7 +703,7 @@ function renderNotifications(){
   list.innerHTML=allNotificationsCache.map(n=>{
     const unreadClass = String(n.status||'unread').toLowerCase()!=='read' ? 'bg-blue-50' : 'bg-white';
     const related = String(n.relatedId || '').trim();
-    return `<button class="w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 ${unreadClass}" onclick="window.openNotificationRelated('${escHtml(related)}')"><div class="text-sm font-semibold text-gray-800">${escHtml(n.title||'Notificação')}</div><div class="text-xs text-gray-600 mt-1">${escHtml(n.message||'')}</div><div class="text-[11px] text-gray-400 mt-1">${formatDateTime(n.createdAt)}</div></button>`;
+    return `<button class="w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 ${unreadClass}" onclick="window.openNotificationRelated('${escHtml(related)}')"><div class="text-sm font-semibold text-gray-800">${escHtml(cleanNotificationTitleClient(n.title||'Notificação'))}</div><div class="text-xs text-gray-600 mt-1">${formatNotificationMessageClient(n.message||'')}</div><div class="text-[11px] text-gray-400 mt-1">${formatDateTime(n.createdAt)}</div></button>`;
   }).join('');
 }
 window.openNotificationRelated = async function(relatedId=''){
@@ -740,7 +776,7 @@ window.editProduct = function(id){
   const p=allProductsCache.find(x=>String(x.id||x._id)===String(id)); if(!p) return;
   editingProductId=String(p.id||p._id); document.getElementById('product-id').value=editingProductId;
   document.getElementById('product-name').value=p.name||''; document.getElementById('product-category').innerHTML=productCategoryOptions(p.categoryName||p.category||'');
-  document.getElementById('product-price').value=Number(p.price||0); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
+  document.getElementById('product-price').value=Number(p.price||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
   if(specsEl) {
     let specValue = p.technicalSpecs || p.technicalSpecification || p.technicalSpecifications || p.specifications || p.specification || p.specs || p.fichaTecnica || p.ficha_tecnica || p.especificacaoTecnica || p.especificacoesTecnicas || p.especificacoes || p.technicalDetails || '';
     if(!specValue && (p.attributes || p.atributos)){
@@ -1008,7 +1044,7 @@ async function persistProductImages(){
       name: document.getElementById('product-name')?.value?.trim() || existing.name || '',
       category: document.getElementById('product-category')?.value || existing.category || existing.categoryName || '',
       categoryName: document.getElementById('product-category')?.value || existing.categoryName || existing.category || '',
-      price: Number(document.getElementById('product-price')?.value ?? existing.price ?? 0),
+      price: parseMoneyBRClient(document.getElementById('product-price')?.value ?? existing.price ?? 0),
       stock: Number(document.getElementById('product-stock')?.value ?? existing.stock ?? 0),
       sku: document.getElementById('product-sku')?.value?.trim() || existing.sku || '',
       description: document.getElementById('product-description')?.value?.trim() || existing.description || '',
@@ -1103,7 +1139,7 @@ async function saveProductFromForm(e){
       name:document.getElementById('product-name').value.trim(),
       category:document.getElementById('product-category').value,
       categoryName:document.getElementById('product-category').value,
-      price:Number(document.getElementById('product-price').value||0),
+      price:parseMoneyBRClient(document.getElementById('product-price').value||0),
       stock:Number(document.getElementById('product-stock').value||0),
       sku:document.getElementById('product-sku').value.trim(),
       description:document.getElementById('product-description').value.trim(),
@@ -1251,7 +1287,7 @@ async function renderProductsView(){
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label><select id="product-category" class="w-full border border-gray-300 rounded-lg px-3 py-2">${productCategoryOptions('')}</select></div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Preço</label><input id="product-price" type="number" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Preço</label><input id="product-price" type="text" inputmode="decimal" placeholder="0,00" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Estoque</label><input id="product-stock" type="number" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">SKU</label><input id="product-sku" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
           </div>
