@@ -130,15 +130,30 @@ function toast(message, type = "info") {
 function setLockedField(id, locked) {
   const el = $(id);
   if (!el) return;
-  el.readOnly = !!locked;
-  el.disabled = false;
+  if (el.type === "checkbox") {
+    el.disabled = !!locked;
+  } else {
+    el.readOnly = !!locked;
+    el.disabled = false;
+  }
   el.classList.toggle("bg-gray-100", !!locked);
   el.classList.toggle("text-gray-500", !!locked);
-  el.title = locked ? "Campo bloqueado após aprovação do seller." : "";
+  el.title = locked ? "Campo bloqueado após aprovação/salvamento do seller." : "";
 }
 function isApprovedSeller(seller = {}) {
   const status = String(seller.status || seller.metadata?.status || seller.approvalStatus || "").toLowerCase();
   return ["approved", "aprovado", "ativo", "active"].includes(status) || seller.approved === true;
+}
+function normalizeBankAccount(source = {}, meta = {}) {
+  const bankObj = source.bankAccount && typeof source.bankAccount === "object" ? source.bankAccount : {};
+  const metaBankObj = meta.bankAccount && typeof meta.bankAccount === "object" ? meta.bankAccount : {};
+  const legacyMetaBankAccount = meta.bankAccount && typeof meta.bankAccount !== "object" ? String(meta.bankAccount) : "";
+  return {
+    bank: String(bankObj.bank || bankObj.bankName || metaBankObj.bank || metaBankObj.bankName || meta.bankName || meta.bank || "").trim(),
+    agency: String(bankObj.agency || bankObj.bankAgency || metaBankObj.agency || metaBankObj.bankAgency || meta.bankAgency || meta.agency || "").trim(),
+    account: String(bankObj.account || bankObj.number || bankObj.bankAccount || metaBankObj.account || metaBankObj.number || metaBankObj.bankAccount || meta.bankAccountNumber || meta.accountNumber || legacyMetaBankAccount || "").trim(),
+    pixKey: String(bankObj.pixKey || metaBankObj.pixKey || meta.pixKey || "").trim()
+  };
 }
 function normalizeSellerPayload(data = {}) {
   const seller = data.seller || data.profile || data.user?.seller || data;
@@ -148,11 +163,7 @@ function normalizeSellerPayload(data = {}) {
     factoryName: seller.factoryName || seller.storeName || seller.displayName || seller.name || "",
     cnpj: seller.cnpj || seller.document || seller.cpfCnpj || "",
     bio: seller.bio || meta.bio || meta.description || "",
-    bankAccount: seller.bankAccount || meta.bankAccount || {
-      bank: meta.bankName || "",
-      agency: meta.bankAgency || "",
-      account: meta.bankAccountNumber || ""
-    },
+    bankAccount: normalizeBankAccount(seller, meta),
     cepColeta: seller.cepColeta || meta.cepColeta || meta.pickupCep || "",
     transpPropria: seller.transpPropria ?? meta.transpPropria ?? false
   };
@@ -171,8 +182,15 @@ function fillSeller(seller) {
   $("cepColeta").value = seller.cepColeta || "";
   $("transpPropria").checked = !!seller.transpPropria;
 
+  // Seller aprovado: trava os dados para não alterar depois de salvo/aprovado.
   setLockedField("factoryName", approved);
   setLockedField("cnpj", true);
+  setLockedField("bio", approved);
+  setLockedField("bankName", approved);
+  setLockedField("bankAgency", approved);
+  setLockedField("bankAccount", approved);
+  setLockedField("cepColeta", approved);
+  setLockedField("transpPropria", approved);
 
   localStorage.setItem("seller_profile", JSON.stringify(seller));
 }

@@ -5226,14 +5226,16 @@ async function sellerAuthRequired(req,res,next){
 function sellerProfile(s, u) {
   const o = toJSON(s) || {};
   const meta = o.metadata && typeof o.metadata === 'object' ? o.metadata : {};
+  const rootBank = o.bankAccount && typeof o.bankAccount === 'object' ? o.bankAccount : {};
   const bankFromMeta = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
+  const legacyMetaBankAccount = meta.bankAccount && typeof meta.bankAccount !== 'object' ? String(meta.bankAccount) : '';
   const bankAccount = {
-    bank: String(o.bankAccount?.bank || o.bankAccount?.bankName || meta.bank || meta.bankName || bankFromMeta.bank || bankFromMeta.bankName || '').trim(),
-    bankName: String(o.bankAccount?.bankName || o.bankAccount?.bank || meta.bankName || meta.bank || bankFromMeta.bankName || bankFromMeta.bank || '').trim(),
-    agency: String(o.bankAccount?.agency || meta.bankAgency || meta.agency || bankFromMeta.agency || bankFromMeta.bankAgency || '').trim(),
-    account: String(o.bankAccount?.account || meta.bankAccount || meta.account || bankFromMeta.account || bankFromMeta.number || bankFromMeta.bankAccount || '').trim(),
-    number: String(o.bankAccount?.number || meta.bankAccount || meta.account || bankFromMeta.number || bankFromMeta.account || '').trim(),
-    pixKey: String(o.bankAccount?.pixKey || meta.pixKey || bankFromMeta.pixKey || '').trim()
+    bank: String(rootBank.bank || rootBank.bankName || bankFromMeta.bank || bankFromMeta.bankName || meta.bank || meta.bankName || '').trim(),
+    bankName: String(rootBank.bankName || rootBank.bank || bankFromMeta.bankName || bankFromMeta.bank || meta.bankName || meta.bank || '').trim(),
+    agency: String(rootBank.agency || rootBank.bankAgency || bankFromMeta.agency || bankFromMeta.bankAgency || meta.bankAgency || meta.agency || '').trim(),
+    account: String(rootBank.account || rootBank.number || rootBank.bankAccount || bankFromMeta.account || bankFromMeta.number || bankFromMeta.bankAccount || meta.bankAccountNumber || meta.accountNumber || meta.conta || legacyMetaBankAccount || '').trim(),
+    number: String(rootBank.number || rootBank.account || bankFromMeta.number || bankFromMeta.account || meta.bankAccountNumber || meta.accountNumber || meta.conta || legacyMetaBankAccount || '').trim(),
+    pixKey: String(rootBank.pixKey || bankFromMeta.pixKey || meta.pixKey || '').trim()
   };
   const status = String(o.status || meta.status || '').toLowerCase();
   return {
@@ -5352,7 +5354,8 @@ async function saveSellerProfileSettings(req, res) {
       metadata.bankName = bankAccount.bankName || bankAccount.bank;
       metadata.bankAgency = bankAccount.agency;
       metadata.bankAccountNumber = bankAccount.account;
-      metadata.bankAccount = bankAccount;
+      metadata.accountNumber = bankAccount.account;
+      metadata.conta = bankAccount.account;
     }
 
     if (body.cepColeta !== undefined || body.pickupCep !== undefined || body.cep_coleta !== undefined) {
