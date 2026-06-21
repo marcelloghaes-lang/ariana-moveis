@@ -4079,18 +4079,68 @@ function normalizePagarmeHolderType(document = '', explicit = '') {
   return digits.length > 11 ? 'company' : 'individual';
 }
 
+function normalizePagarmeBankCode(value = '') {
+  const raw = String(value || '').trim();
+  const digits = cleanPhone(raw);
+  if (digits) return digits.padStart(3, '0').slice(-3);
+
+  const normalized = raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+  const bankMap = {
+    'itau': '341',
+    'itau unibanco': '341',
+    'banco do brasil': '001',
+    'bb': '001',
+    'bradesco': '237',
+    'caixa': '104',
+    'caixa economica': '104',
+    'santander': '033',
+    'nubank': '260',
+    'nu pagamentos': '260',
+    'inter': '077',
+    'banco inter': '077',
+    'mercado pago': '323',
+    'sicredi': '748',
+    'sicoob': '756'
+  };
+
+  return bankMap[normalized] || '';
+}
+
+function getSellerNormalizedBankForPagarme(meta = {}) {
+  const bankObject = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
+  const legacyBankAccount = meta.bankAccount && typeof meta.bankAccount !== 'object' ? String(meta.bankAccount) : '';
+
+  return normalizeSellerBankFields({
+    bank: meta.bankCode || meta.bank || meta.bankName || meta.banco || bankObject.bank || bankObject.bankName || '',
+    bankName: meta.bankName || meta.bank || meta.banco || bankObject.bankName || bankObject.bank || '',
+    agency: meta.branchNumber || meta.agency || meta.agencia || meta.bankAgency || bankObject.branchNumber || bankObject.agency || bankObject.bankAgency || '',
+    agencyDigit: meta.branchCheckDigit || meta.agencyDigit || meta.agenciaDigito || bankObject.branchCheckDigit || bankObject.agencyDigit || '',
+    account: meta.accountNumber || meta.bankAccountNumber || meta.conta || legacyBankAccount || bankObject.accountNumber || bankObject.bankAccountNumber || bankObject.account || bankObject.number || '',
+    accountDigit: meta.accountCheckDigit || meta.accountDigit || meta.contaDigito || bankObject.accountCheckDigit || bankObject.accountDigit || bankObject.contaDigito || '',
+    pixKey: meta.pixKey || meta.chavePix || bankObject.pixKey || '',
+    accountType: meta.accountType || meta.bankAccountType || meta.tipoConta || bankObject.accountType || bankObject.bankAccountType || ''
+  });
+}
+
 function buildPagarmeRecipientPayloadFromSeller(seller = {}, body = {}) {
   const meta = { ...(seller.metadata || {}), ...(body || {}) };
+  const bankFields = getSellerNormalizedBankForPagarme(meta);
   const document = cleanPhone(meta.document || meta.cpfCnpj || meta.cpf || meta.cnpj || seller.document || '');
-  const holderDocument = cleanPhone(meta.bankHolderDocument || meta.holderDocument || document || '');
-  const holderName = String(meta.bankHolderName || meta.holderName || meta.legalName || meta.name || seller.storeName || seller.displayName || '').trim();
-  const name = String(meta.legalName || meta.name || seller.storeName || seller.displayName || holderName || 'Seller Ariana Móveis').trim();
+  const holderDocument = cleanPhone(meta.bankHolderDocument || meta.holderDocument || meta.cpfCnpjTitular || meta.documentTitular || document || '');
+  const holderName = String(meta.bankHolderName || meta.holderName || meta.legalName || meta.razaoSocial || meta.name || seller.storeName || seller.displayName || '').trim();
+  const name = String(meta.legalName || meta.razaoSocial || meta.name || seller.storeName || seller.displayName || holderName || 'Seller Ariana Móveis').trim();
   const email = String(meta.email || seller.email || '').trim().toLowerCase();
-  const bank = cleanPhone(meta.bankCode || meta.bank || '');
-  const branchNumber = cleanPhone(meta.branchNumber || meta.agency || meta.agencia || '');
-  const branchCheckDigit = cleanPhone(meta.branchCheckDigit || meta.agencyDigit || meta.agenciaDigito || '');
-  const accountNumber = cleanPhone(meta.accountNumber || meta.conta || '');
-  const accountCheckDigit = cleanPhone(meta.accountCheckDigit || meta.contaDigito || meta.accountDigit || '');
+  const bank = normalizePagarmeBankCode(meta.bankCode || meta.bank || meta.bankName || meta.banco || bankFields.bank || bankFields.bankName || '');
+  const branchNumber = cleanPhone(bankFields.branchNumber || bankFields.agency || meta.branchNumber || meta.agency || meta.agencia || meta.bankAgency || '');
+  const branchCheckDigit = cleanPhone(bankFields.branchCheckDigit || bankFields.agencyDigit || meta.branchCheckDigit || meta.agencyDigit || meta.agenciaDigito || '');
+  const accountNumber = cleanPhone(bankFields.accountNumber || meta.accountNumber || '');
+  const accountCheckDigit = cleanPhone(bankFields.accountCheckDigit || bankFields.accountDigit || meta.accountCheckDigit || meta.contaDigito || meta.accountDigit || '');
   const required = [];
   if (!document) required.push('CPF/CNPJ do seller');
   if (!email) required.push('e-mail do seller');
@@ -4116,11 +4166,11 @@ function buildPagarmeRecipientPayloadFromSeller(seller = {}, body = {}) {
       holder_name: holderName.slice(0, 128),
       holder_type: holderType,
       holder_document: holderDocument,
-      bank: bank.padStart(3, '0').slice(-3),
+      bank,
       branch_number: branchNumber,
       account_number: accountNumber,
       account_check_digit: accountCheckDigit,
-      type: normalizePagarmeAccountType(meta.accountType || meta.bankAccountType || meta.tipoConta)
+      type: normalizePagarmeAccountType(bankFields.accountType || meta.accountType || meta.bankAccountType || meta.tipoConta || 'checking')
     },
     transfer_settings: {
       transfer_enabled: true,
@@ -5110,7 +5160,8 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
     const status = normalizePartnerRequestStatus(req.body?.status || req.body?.newStatus || 'pending');
     const active = status === 'approved';
     const filter = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ _id: id }, { sellerId: id }] } : { sellerId: id };
-    const seller = await Seller.findOneAndUpdate(filter, {
+
+    let seller = await Seller.findOneAndUpdate(filter, {
       $set: {
         status,
         onboardingCompleted: active ? true : false,
@@ -5123,17 +5174,78 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
 
     if (!seller) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
 
+    let recipient = null;
+    let recipientError = null;
+
+    // Ao aprovar o seller, tenta criar automaticamente o Recipient no Pagar.me.
+    // Se já existir recipient salvo no Mongo, não duplica.
+    if (active && !String(seller.metadata?.pagarmeRecipientId || seller.metadata?.recipientId || '').trim()) {
+      try {
+        const payload = buildPagarmeRecipientPayloadFromSeller(seller, req.body || {});
+        const response = await createPagarmeRecipient(payload);
+        const data = response.data || {};
+
+        if (response.status < 200 || response.status >= 300) {
+          throw new Error(data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me');
+        }
+
+        const normalized = normalizePagarmeRecipientResponse(data);
+        if (!normalized.id) throw new Error('Pagar.me não retornou Recipient ID.');
+
+        const meta = { ...(seller.metadata || {}) };
+        meta.paymentGateway = 'pagarme';
+        meta.marketplaceSplitRequired = true;
+        meta.manualTransferEnabled = false;
+        meta.pagarmeRecipientId = normalized.id;
+        meta.recipientId = normalized.id;
+        meta.pagarmeRecipientStatus = normalized.status || 'created';
+        meta.pagarmeRecipientCreatedAt = new Date().toISOString();
+        meta.pagarmeRecipientError = '';
+
+        seller = await Seller.findByIdAndUpdate(seller._id, { $set: { metadata: meta } }, { new: true });
+        recipient = normalized;
+
+        await writeAuditLog({
+          scope: 'payments',
+          eventType: 'pagarme_recipient_created_on_approval',
+          status: 'success',
+          request: redact(payload),
+          response: redact(data),
+          metadata: { sellerId: seller.sellerId || String(seller._id), admin: req.admin?.email || '' }
+        });
+      } catch (err) {
+        recipientError = err.message || 'Erro ao criar Recipient Pagar.me';
+        const meta = { ...(seller.metadata || {}) };
+        meta.pagarmeRecipientError = recipientError;
+        meta.pagarmeRecipientErrorAt = new Date().toISOString();
+        meta.pagarmeRecipientRequiredFields = err.requiredFields || [];
+        seller = await Seller.findByIdAndUpdate(seller._id, { $set: { metadata: meta } }, { new: true });
+
+        await writeAuditLog({
+          scope: 'payments',
+          eventType: 'pagarme_recipient_created_on_approval',
+          status: 'error',
+          message: recipientError,
+          metadata: { sellerId: seller.sellerId || String(seller._id), admin: req.admin?.email || '', requiredFields: err.requiredFields || [] }
+        });
+      }
+    }
+
     const s = normalizePartnerRequestForResponse(seller);
     await createAdminNotification({
       type: 'partner_request_status_updated',
       title: status === 'approved' ? '✅ Seller aprovado' : status === 'rejected' ? '❌ Seller recusado' : '⏳ Seller pendente',
-      message: `${s.storeName || s.factoryName || 'Seller'} foi marcado como ${s.statusLabel}.`,
+      message: recipient?.id
+        ? `${s.storeName || s.factoryName || 'Seller'} foi aprovado e o Recipient Pagar.me foi criado.`
+        : recipientError
+          ? `${s.storeName || s.factoryName || 'Seller'} foi aprovado, mas o Recipient Pagar.me não foi criado: ${recipientError}`
+          : `${s.storeName || s.factoryName || 'Seller'} foi marcado como ${s.statusLabel}.`,
       relatedId: s.id,
-      severity: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
-      metadata: { sellerId: s.sellerId, status }
+      severity: status === 'approved' ? (recipientError ? 'warning' : 'success') : status === 'rejected' ? 'warning' : 'info',
+      metadata: { sellerId: s.sellerId, status, recipientId: recipient?.id || '', recipientError: recipientError || '' }
     });
 
-    return res.json({ ok: true, request: s, seller: s });
+    return res.json({ ok: true, request: s, seller: s, recipient, recipientError });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do seller' });
   }
