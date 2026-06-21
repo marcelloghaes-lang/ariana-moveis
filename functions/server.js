@@ -4246,13 +4246,48 @@ function sellerItemGross(order = {}, sellerId = '') {
   const sid = String(sellerId || '').trim();
   const items = ensureArray(order.items);
   const sellerItems = sid ? items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid) : items;
+
+  // REGRA DO MARKETPLACE:
+  // O repasse do seller sempre usa o preço base cadastrado pelo seller.
+  // Não entra aqui:
+  // - acréscimo de cartão/parcelamento;
+  // - frete/etiqueta logística da Ariana;
+  // - outros valores cobrados do cliente para cobrir operação.
   const gross = sellerItems.reduce((acc, item) => {
-    const qty = Number(item?.qty || item?.quantity || 1) || 1;
+    const qty = Math.max(1, Number(item?.qty || item?.quantity || 1) || 1);
+
+    const sellerBaseTotal =
+      item?.sellerBaseTotal ??
+      item?.seller_base_total ??
+      item?.sellerBaseAmount ??
+      item?.seller_base_amount ??
+      null;
+
+    if (sellerBaseTotal !== null && sellerBaseTotal !== undefined && sellerBaseTotal !== '') {
+      return acc + Number(sellerBaseTotal || 0);
+    }
+
+    const sellerBaseUnit =
+      item?.sellerBaseUnitPrice ??
+      item?.seller_base_unit_price ??
+      item?.sellerBasePrice ??
+      item?.seller_base_price ??
+      item?.pixPrice ??
+      item?.precoPix ??
+      null;
+
+    if (sellerBaseUnit !== null && sellerBaseUnit !== undefined && sellerBaseUnit !== '') {
+      return acc + (Number(sellerBaseUnit || 0) * qty);
+    }
+
+    // Último recurso para pedidos antigos: usa o total do item.
+    // Em pedidos novos, sellerBaseTotal deve estar preenchido.
     const total = item?.totalPrice ?? item?.total ?? null;
     if (total !== null && total !== undefined && total !== '') return acc + Number(total || 0);
     return acc + (Number(item?.unitPrice ?? item?.price ?? 0) * qty);
   }, 0);
-  return round2(gross || order.subtotal || order.total || 0);
+
+  return round2(gross || 0);
 }
 
 async function getMarketplaceLabelFeeForOrder(order = {}, sellerId = '') {
@@ -4288,8 +4323,13 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
     const commissionPercent = getMarketplaceCommissionPercent(settings?.pagarme || {}, seller);
     const commission = round2(gross * commissionPercent / 100);
     const labelFee = await getMarketplaceLabelFeeForOrder(order, sellerId);
-    const marketplaceAmount = round2(commission + labelFee);
-    const sellerNet = round2(Math.max(0, gross - marketplaceAmount));
+
+    // O seller NÃO paga o frete/etiqueta da Ariana no split.
+    // Seller recebe: preço base do produto - comissão.
+    // Ariana recebe no split: comissão + todo o restante do pedido
+    // (frete cobrado do cliente, acréscimo de cartão/parcelamento e arredondamentos).
+    const marketplaceAmount = round2(commission);
+    const sellerNet = round2(Math.max(0, gross - commission));
     const meta = seller?.metadata || {};
     const pagarmeRecipientId = String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller?.pagarmeRecipientId || '').trim();
     results.push({
@@ -4311,8 +4351,29 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const totalLabelFee = round2(results.reduce((a, r) => a + r.marketplaceLabelFee, 0));
   const totalMarketplaceAmount = round2(results.reduce((a, r) => a + r.marketplaceAmount, 0));
   const totalSellerNet = round2(results.reduce((a, r) => a + r.sellerNet, 0));
+  const orderTotal = round2(order.total || 0);
+  const orderShippingCost = round2(order.shippingCost || order.shipping?.cost || order.shipping?.price || 0);
+  const totalCardMarkup = round2(ensureArray(order.items).reduce((sum, item) => sum + Number(item?.cardMarkupTotal || 0), 0));
+  const marketplaceRemainder = round2(Math.max(0, orderTotal - totalSellerNet - totalMarketplaceAmount));
   const missingPagarmeRecipients = results.filter((r) => !r.recipients?.pagarme).map((r) => ({ sellerId: r.sellerId, sellerName: r.sellerName }));
-  return { ok: true, gateway: 'pagarme', orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet, splitRequired: results.length > 0, splitReady: missingPagarmeRecipients.length === 0, missingPagarmeRecipients };
+  return {
+    ok: true,
+    gateway: 'pagarme',
+    orderId: String(order._id || order.id || ''),
+    sellers: results,
+    totalGross,
+    totalCommission,
+    totalLabelFee,
+    totalMarketplaceAmount,
+    totalSellerNet,
+    orderTotal,
+    orderShippingCost,
+    totalCardMarkup,
+    marketplaceRemainder,
+    splitRequired: results.length > 0,
+    splitReady: missingPagarmeRecipients.length === 0,
+    missingPagarmeRecipients
+  };
 }
 function getPagarmePayloadTotalCents(payload = {}) {
   const items = ensureArray(payload.items);
