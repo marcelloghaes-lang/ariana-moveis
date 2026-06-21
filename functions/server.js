@@ -5223,20 +5223,52 @@ async function sellerAuthRequired(req,res,next){
     next();
   }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
 }
+
+function cleanDigitsOnly(value = '') {
+  return String(value || '').replace(/\D/g, '');
+}
+function normalizeSellerBankFields(raw = {}) {
+  const bank = raw && typeof raw === 'object' ? raw : {};
+  const fullAccountRaw = String(bank.account ?? bank.number ?? bank.bankAccount ?? bank.bankAccountNumber ?? bank.accountNumber ?? '').trim();
+  const fullAccountDigits = cleanDigitsOnly(fullAccountRaw);
+  const explicitDigit = String(bank.accountDigit ?? bank.accountCheckDigit ?? bank.contaDigito ?? '').replace(/\D/g, '').trim();
+  const accountDigit = explicitDigit || (fullAccountDigits.length > 1 ? fullAccountDigits.slice(-1) : '');
+  const accountNumber = explicitDigit ? fullAccountDigits : (fullAccountDigits.length > 1 ? fullAccountDigits.slice(0, -1) : fullAccountDigits);
+  const fullAccount = fullAccountDigits || fullAccountRaw;
+  return {
+    bank: String(bank.bank ?? bank.bankName ?? bank.banco ?? '').trim(),
+    bankName: String(bank.bankName ?? bank.bank ?? bank.banco ?? '').trim(),
+    agency: cleanDigitsOnly(bank.agency ?? bank.bankAgency ?? bank.agencia ?? bank.branchNumber ?? ''),
+    branchNumber: cleanDigitsOnly(bank.branchNumber ?? bank.agency ?? bank.bankAgency ?? bank.agencia ?? ''),
+    agencyDigit: cleanDigitsOnly(bank.agencyDigit ?? bank.branchCheckDigit ?? bank.agenciaDigito ?? ''),
+    branchCheckDigit: cleanDigitsOnly(bank.branchCheckDigit ?? bank.agencyDigit ?? bank.agenciaDigito ?? ''),
+    account: fullAccount,
+    number: fullAccount,
+    fullAccount,
+    accountNumber,
+    accountDigit,
+    accountCheckDigit: accountDigit,
+    pixKey: String(bank.pixKey ?? bank.chavePix ?? '').trim(),
+    accountType: String(bank.accountType ?? bank.bankAccountType ?? bank.tipoConta ?? '').trim()
+  };
+}
+
 function sellerProfile(s, u) {
   const o = toJSON(s) || {};
   const meta = o.metadata && typeof o.metadata === 'object' ? o.metadata : {};
   const rootBank = o.bankAccount && typeof o.bankAccount === 'object' ? o.bankAccount : {};
   const bankFromMeta = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
   const legacyMetaBankAccount = meta.bankAccount && typeof meta.bankAccount !== 'object' ? String(meta.bankAccount) : '';
-  const bankAccount = {
-    bank: String(rootBank.bank || rootBank.bankName || bankFromMeta.bank || bankFromMeta.bankName || meta.bank || meta.bankName || '').trim(),
-    bankName: String(rootBank.bankName || rootBank.bank || bankFromMeta.bankName || bankFromMeta.bank || meta.bankName || meta.bank || '').trim(),
-    agency: String(rootBank.agency || rootBank.bankAgency || bankFromMeta.agency || bankFromMeta.bankAgency || meta.bankAgency || meta.agency || '').trim(),
-    account: String(rootBank.account || rootBank.number || rootBank.bankAccount || bankFromMeta.account || bankFromMeta.number || bankFromMeta.bankAccount || meta.bankAccountNumber || meta.accountNumber || meta.conta || legacyMetaBankAccount || '').trim(),
-    number: String(rootBank.number || rootBank.account || bankFromMeta.number || bankFromMeta.account || meta.bankAccountNumber || meta.accountNumber || meta.conta || legacyMetaBankAccount || '').trim(),
-    pixKey: String(rootBank.pixKey || bankFromMeta.pixKey || meta.pixKey || '').trim()
-  };
+  const bankAccount = normalizeSellerBankFields({
+    bank: rootBank.bank || rootBank.bankName || bankFromMeta.bank || bankFromMeta.bankName || meta.bank || meta.bankName || '',
+    bankName: rootBank.bankName || rootBank.bank || bankFromMeta.bankName || bankFromMeta.bank || meta.bankName || meta.bank || '',
+    agency: rootBank.agency || rootBank.bankAgency || bankFromMeta.agency || bankFromMeta.bankAgency || meta.bankAgency || meta.agency || meta.branchNumber || '',
+    agencyDigit: rootBank.agencyDigit || rootBank.branchCheckDigit || bankFromMeta.agencyDigit || bankFromMeta.branchCheckDigit || meta.agencyDigit || meta.branchCheckDigit || '',
+    account: rootBank.account || rootBank.number || rootBank.bankAccount || bankFromMeta.account || bankFromMeta.number || bankFromMeta.bankAccount || meta.bankAccountNumber || meta.accountNumber || meta.conta || legacyMetaBankAccount || '',
+    accountDigit: rootBank.accountDigit || rootBank.accountCheckDigit || bankFromMeta.accountDigit || bankFromMeta.accountCheckDigit || meta.accountDigit || meta.accountCheckDigit || meta.contaDigito || '',
+    pixKey: rootBank.pixKey || bankFromMeta.pixKey || meta.pixKey || '',
+    accountType: rootBank.accountType || bankFromMeta.accountType || meta.accountType || meta.bankAccountType || meta.tipoConta || ''
+  });
   const status = String(o.status || meta.status || '').toLowerCase();
   return {
     ...o,
@@ -5342,20 +5374,30 @@ async function saveSellerProfileSettings(req, res) {
 
     const bankBody = body.bankAccount && typeof body.bankAccount === 'object' ? body.bankAccount : {};
     if (body.bankAccount !== undefined || body.bankName !== undefined || body.bankAgency !== undefined || body.account !== undefined) {
-      const bankAccount = {
-        bank: String(bankBody.bank ?? bankBody.bankName ?? body.bankName ?? body.bank ?? '').trim(),
-        bankName: String(bankBody.bankName ?? bankBody.bank ?? body.bankName ?? body.bank ?? '').trim(),
-        agency: String(bankBody.agency ?? bankBody.bankAgency ?? body.bankAgency ?? body.agency ?? '').trim(),
-        account: String(bankBody.account ?? bankBody.number ?? bankBody.bankAccount ?? body.bankAccountNumber ?? body.account ?? '').trim(),
-        number: String(bankBody.number ?? bankBody.account ?? bankBody.bankAccount ?? body.bankAccountNumber ?? body.account ?? '').trim(),
-        pixKey: String(bankBody.pixKey ?? body.pixKey ?? '').trim()
-      };
+      const bankAccount = normalizeSellerBankFields({
+        bank: bankBody.bank ?? bankBody.bankName ?? body.bankName ?? body.bank ?? '',
+        bankName: bankBody.bankName ?? bankBody.bank ?? body.bankName ?? body.bank ?? '',
+        agency: bankBody.agency ?? bankBody.bankAgency ?? body.bankAgency ?? body.agency ?? '',
+        agencyDigit: bankBody.agencyDigit ?? bankBody.branchCheckDigit ?? body.agencyDigit ?? body.branchCheckDigit ?? '',
+        account: bankBody.account ?? bankBody.number ?? bankBody.bankAccount ?? body.bankAccountNumber ?? body.account ?? '',
+        accountDigit: bankBody.accountDigit ?? bankBody.accountCheckDigit ?? body.accountDigit ?? body.accountCheckDigit ?? '',
+        pixKey: bankBody.pixKey ?? body.pixKey ?? '',
+        accountType: bankBody.accountType ?? body.accountType ?? ''
+      });
       metadata.bankAccount = bankAccount;
       metadata.bankName = bankAccount.bankName || bankAccount.bank;
+      metadata.bank = bankAccount.bank || bankAccount.bankName;
       metadata.bankAgency = bankAccount.agency;
-      metadata.bankAccountNumber = bankAccount.account;
-      metadata.accountNumber = bankAccount.account;
-      metadata.conta = bankAccount.account;
+      metadata.agency = bankAccount.agency;
+      metadata.branchNumber = bankAccount.branchNumber || bankAccount.agency;
+      metadata.branchCheckDigit = bankAccount.branchCheckDigit || bankAccount.agencyDigit || '';
+      metadata.bankAccountNumber = bankAccount.fullAccount || bankAccount.account;
+      metadata.conta = bankAccount.fullAccount || bankAccount.account;
+      metadata.accountNumber = bankAccount.accountNumber || bankAccount.fullAccount || bankAccount.account;
+      metadata.accountCheckDigit = bankAccount.accountCheckDigit || bankAccount.accountDigit || '';
+      metadata.accountDigit = bankAccount.accountDigit || bankAccount.accountCheckDigit || '';
+      metadata.pixKey = bankAccount.pixKey || metadata.pixKey || '';
+      metadata.accountType = bankAccount.accountType || metadata.accountType || '';
     }
 
     if (body.cepColeta !== undefined || body.pickupCep !== undefined || body.cep_coleta !== undefined) {
