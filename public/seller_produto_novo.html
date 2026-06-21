@@ -118,14 +118,18 @@ function ensureSellerSession() { if (!getSellerToken()) { window.location.href =
 function applySellerHeaderName() { const profile = getSellerProfile(); const el = $("user-display-name"); if (el) el.textContent = "Bem-vindo, " + (profile.factoryName || profile.storeName || profile.name || "Seller") + "!"; }
 
 function parseMoneyBR(value) {
-  if (typeof value === "number") return Number.isFinite(value) ? Math.round((value + Number.EPSILON) * 100) / 100 : 0;
-  const raw = String(value ?? "").trim();
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value * 100) / 100;
+  let raw = String(value).trim();
   if (!raw) return 0;
-  let cleaned = raw.replace(/R\$/gi, "").replace(/\s+/g, "").replace(/[^0-9,.-]/g, "");
-  if (cleaned.includes(",") && cleaned.includes(".")) cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-  else if (cleaned.includes(",")) cleaned = cleaned.replace(",", ".");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 100) / 100 : 0;
+  raw = raw.replace(/\s+/g, '').replace(/R\$/gi, '');
+  if (raw.includes(',')) raw = raw.replace(/\./g, '').replace(',', '.');
+  else {
+    const parts = raw.split('.');
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) raw = raw.replace(/\./g, '');
+  }
+  const n = Number(raw.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 function parseInteger(value) { const n = parseInt(String(value || "0").replace(/\D/g, ""), 10); return Number.isFinite(n) ? n : 0; }
 function slugify(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }

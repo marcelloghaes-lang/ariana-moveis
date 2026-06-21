@@ -435,7 +435,7 @@ function productPayloadFromBody(body = {}, existingDoc = null) {
     categoryName: body.categoryName ?? body.category ?? body.categoria ?? existing.categoryName ?? existing.category ?? '',
     brand: body.brand ?? existing.brand ?? '',
     sku: skuSource || uid('sku'),
-    price: parseMoneyBR(body.price ?? body.preco ?? existing.price ?? 0),
+    price: parseMoneyBR(body.price ?? body.preco ?? existing.price ?? 0) || 0,
     oldPrice: body.oldPrice !== undefined && body.oldPrice !== null && body.oldPrice !== '' ? parseMoneyBR(body.oldPrice) : (existing.oldPrice ?? null),
     pixPrice: body.pixPrice !== undefined && body.pixPrice !== null && body.pixPrice !== '' ? parseMoneyBR(body.pixPrice) : (existing.pixPrice ?? null),
     installmentCount: Number(body.installmentCount ?? existing.installmentCount ?? 12),
@@ -584,8 +584,8 @@ const Notification = mongoose.model('Notification', notificationSchema);
 
 async function createAdminNotification(data = {}) {
   try {
-    const title = cleanNotificationTitle(data.title || 'Notificação');
-    const message = cleanNotificationMessage(data.message || '');
+    const title = String(data.title || 'Notificação').trim();
+    const message = String(data.message || '').trim();
     if (!title && !message) return null;
     return await Notification.create({
       type: String(data.type || 'system').trim(),
@@ -607,8 +607,8 @@ async function createAdminNotification(data = {}) {
 async function createSellerNotification(data = {}) {
   try {
     const sellerId = String(data.sellerId || '').trim();
-    const title = cleanNotificationTitle(data.title || 'Notificação');
-    const message = cleanNotificationMessage(data.message || '');
+    const title = String(data.title || 'Notificação').trim();
+    const message = String(data.message || '').trim();
     if (!sellerId || (!title && !message)) return null;
 
     return await Notification.create({
@@ -3443,11 +3443,30 @@ function positiveIntOrNull(v) { const n = Number(v); if (!Number.isFinite(n) || 
 function toGrams(v) { const n = Number(v); if (!Number.isFinite(n) || n <= 0) return ''; return String(Math.round(n * 1000)); }
 function parseMoneyBR(value) {
   if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value * 100) / 100;
+
   const raw = String(value).trim();
   if (!raw) return null;
-  const normalized = raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+
+  // Aceita formato brasileiro: 10,99 | 1.099,90 | R$ 10,99
+  // Aceita formato JS: 10.99
+  let normalized = raw.replace(/\s+/g, '').replace(/R\$/gi, '');
+  const hasComma = normalized.includes(',');
+  const hasDot = normalized.includes('.');
+
+  if (hasComma) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (hasDot) {
+    const parts = normalized.split('.');
+    // 1.099 sem centavos vira 1099; 10.99 fica 10.99
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+      normalized = normalized.replace(/\./g, '');
+    }
+  }
+
+  normalized = normalized.replace(/[^\d.-]/g, '');
   const n = Number(normalized);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 function pickPrice(item = {}) { const raw = item.pcFinal ?? item.vrServico ?? item.preco ?? item.valor ?? item.price ?? item.pcProduto ?? null; return parseMoneyBR(raw); }
 function pickDeadline(item = {}) {
@@ -4340,11 +4359,15 @@ function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
     throw new Error(`Seller sem Recipient ID Pagar.me. Configure antes de vender: ${missing.join(', ')}.`);
   }
 
-  const split = [];
+  const payloadTotalCents = getPagarmePayloadTotalCents(payload);
+  if (!payloadTotalCents || payloadTotalCents <= 0) {
+    throw new Error('Total do pedido Pagar.me inválido para montar split.');
+  }
 
+  let sellerSplitItems = [];
   for (const item of sellers) {
     if (item.recipients?.pagarme && Number(item.sellerNet || 0) > 0) {
-      split.push({
+      sellerSplitItems.push({
         amount: paymentSplitCents(item.sellerNet),
         recipient_id: item.recipients.pagarme,
         type: 'flat',
@@ -4358,16 +4381,24 @@ function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
   }
 
   let marketplaceAmountCents = paymentSplitCents(splitSummary.totalMarketplaceAmount || 0);
+  let rawTotalSplitCents = sellerSplitItems.reduce((sum, item) => sum + Number(item.amount || 0), 0) + marketplaceAmountCents;
 
-  // Garante que todo o valor da cobrança fique distribuído.
-  // Antes o split estava sendo calculado só sobre os itens do seller; frete/acréscimos podiam ficar fora.
-  const payloadTotalCents = getPagarmePayloadTotalCents(payload);
-  const sellerSplitCents = split.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const currentTotalSplitCents = sellerSplitCents + marketplaceAmountCents;
+  // O Pagar.me exige que a soma do split seja exatamente igual ao valor do pedido.
+  // Se algum preço antigo vier inflado, o split é redimensionado proporcionalmente para o total real cobrado.
+  if (rawTotalSplitCents > payloadTotalCents) {
+    const factor = payloadTotalCents / rawTotalSplitCents;
+    sellerSplitItems = sellerSplitItems.map((item) => ({
+      ...item,
+      amount: Math.max(0, Math.floor(Number(item.amount || 0) * factor))
+    })).filter((item) => item.amount > 0);
 
-  if (payloadTotalCents > 0 && currentTotalSplitCents < payloadTotalCents) {
-    marketplaceAmountCents += payloadTotalCents - currentTotalSplitCents;
+    const sellerScaledCents = sellerSplitItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    marketplaceAmountCents = Math.max(0, payloadTotalCents - sellerScaledCents);
+  } else if (rawTotalSplitCents < payloadTotalCents) {
+    marketplaceAmountCents += payloadTotalCents - rawTotalSplitCents;
   }
+
+  let split = [...sellerSplitItems];
 
   if (marketplaceAmountCents > 0) {
     split.push({
@@ -4382,14 +4413,23 @@ function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
     });
   }
 
+  const finalTotal = split.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  if (finalTotal !== payloadTotalCents && split.length) {
+    const diff = payloadTotalCents - finalTotal;
+    split[split.length - 1].amount = Math.max(0, Number(split[split.length - 1].amount || 0) + diff);
+  }
+
+  split = split.filter((item) => Number(item.amount || 0) > 0);
+
   if (!split.length) {
     throw new Error('Split Pagar.me obrigatório, mas nenhum recebedor foi montado.');
   }
 
-  // IMPORTANTE:
-  // Este backend cria pedido Pagar.me por /orders usando "payments".
-  // O código anterior colocava o split em payload.charges, mas esse payload não tinha charges ainda.
-  // Por isso o Pagar.me aprovava a venda, porém não criava recebíveis para o seller.
+  const splitTotalCents = split.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  if (splitTotalCents !== payloadTotalCents) {
+    throw new Error(`Split Pagar.me inválido: soma ${splitTotalCents} diferente do total ${payloadTotalCents}.`);
+  }
+
   if (Array.isArray(payload.payments) && payload.payments.length) {
     payload.payments = payload.payments.map((payment) => ({ ...payment, split }));
   } else if (Array.isArray(payload.charges) && payload.charges.length) {
@@ -4403,9 +4443,10 @@ function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
     splitApplied: true,
     splitGateway: 'pagarme',
     marketplaceRecipientId,
-    marketplaceAmountCents,
-    sellerSplitCents,
-    splitTotalCents: split.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    marketplaceAmountCents: split.find((item) => item.recipient_id === marketplaceRecipientId)?.amount || 0,
+    sellerSplitCents: split.filter((item) => item.recipient_id !== marketplaceRecipientId).reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    splitTotalCents,
+    orderTotalCents: payloadTotalCents,
     splitRecipients: split.map((item) => item.recipient_id).join(',')
   };
 
@@ -5834,8 +5875,8 @@ app.get('/api/seller/sales', sellerAuthRequired, async (req, res) => {
 
 app.get('/api/seller/orders',sellerAuthRequired,async(req,res)=>{try{const sid=req.sellerId; const rows=await Order.find({$or:[{sellerIds:sid},{'items.sellerId':sid}]}).sort({createdAt:-1}).limit(500); return res.json(rows.map(toJSON));}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao listar pedidos'});}});
 app.get('/api/seller/orders/:id',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const order=await Order.findById(oid); if(!order)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); return res.json({ok:true,order:toJSON(order)});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao carregar pedido'});}});
-app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(before).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); await createSellerOrderNotifications(order,{type:'seller_order_updated',title:'Pedido atualizado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel||order.status||'Atualizado'}`,severity:'info',origin:'seller_status_route'}); await createAdminNotification({type:'seller_order_updated',title:'Seller atualizou pedido',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} atualizou o pedido ${order._id} para ${order.statusLabel||order.status||'Atualizado'}`,relatedId:String(order._id),severity:'info',metadata:{sellerId:sid,origin:'seller_status_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
-app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const beforeObj=toJSON(before); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(beforeObj).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=before; order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); const afterObj=toJSON(order); await createSellerOrderNotifications(order,{type:'seller_order_shipped',title:'Pedido marcado como enviado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,severity:'success',origin:'seller_ship_route'}); await createAdminNotification({type:'seller_order_shipped',title:'Seller marcou pedido como enviado',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} marcou o pedido ${order._id} como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,relatedId:String(order._id),severity:'success',metadata:{sellerId:sid,origin:'seller_ship_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route_admin'); return res.json({ok:true,order:afterObj,whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
+app.put('/api/seller/orders/:id/status',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(before).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=await Order.findByIdAndUpdate(oid,{$set:{status:req.body?.status||'processing',statusLabel:req.body?.statusLabel||req.body?.status||'processing'}},{new:true}); await createSellerOrderNotifications(order,{type:'seller_order_updated',title:'📦 Pedido atualizado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel||order.status||'Atualizado'}`,severity:'info',origin:'seller_status_route'}); await createAdminNotification({type:'seller_order_updated',title:'ðŸ­ Seller atualizou pedido',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} atualizou o pedido ${order._id} para ${order.statusLabel||order.status||'Atualizado'}`,relatedId:String(order._id),severity:'info',metadata:{sellerId:sid,origin:'seller_status_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),toJSON(before),toJSON(order),'seller_status_route_admin'); return res.json({ok:true,order:toJSON(order),whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao atualizar status'});}});
+app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{const oid=normalizeObjectId(req.params.id); if(!oid)return res.status(400).json({ok:false,error:'ID inválido'}); const trackingCode=String(req.body?.trackingCode||req.body?.tracking||'').trim(); const carrier=String(req.body?.carrier||'').trim(); const before=await Order.findById(oid); if(!before)return res.status(404).json({ok:false,error:'Pedido não encontrado'}); const beforeObj=toJSON(before); const sid=String(req.sellerId||'').trim(); const allowed=extractSellerIdsFromOrder(beforeObj).includes(sid); if(!allowed)return res.status(403).json({ok:false,error:'Sem permissão para este pedido'}); const order=before; order.status='shipped'; order.statusLabel='Enviado'; order.trackingCode=trackingCode||order.trackingCode; order.shipping={...(order.shipping||{}),carrier,trackingCode:trackingCode||order.trackingCode,shippedAt:now()}; order.trackingHistory=ensureArray(order.trackingHistory); order.trackingHistory.push({status:'shipped',label:'Pedido enviado pelo seller',carrier,trackingCode,date:now()}); await order.save(); const afterObj=toJSON(order); await createSellerOrderNotifications(order,{type:'seller_order_shipped',title:'ðŸšš Pedido marcado como enviado',message:`Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,severity:'success',origin:'seller_ship_route'}); await createAdminNotification({type:'seller_order_shipped',title:'ðŸšš Seller marcou pedido como enviado',message:`Seller ${req.seller?.storeName||req.seller?.displayName||sid} marcou o pedido ${order._id} como enviado${trackingCode?` - Rastreio: ${trackingCode}`:''}`,relatedId:String(order._id),severity:'success',metadata:{sellerId:sid,origin:'seller_ship_route'}}); const customerWhatsapp=await waMaybeNotifyOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route'); const adminWhatsapp=await waNotifyAdminOrderStatusChange(String(order._id),beforeObj,afterObj,'seller_ship_route_admin'); return res.json({ok:true,order:afterObj,whatsapp:customerWhatsapp,adminWhatsapp});}catch(e){return res.status(500).json({ok:false,error:e.message||'Erro ao marcar enviado'});}});
 
 
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
@@ -6739,14 +6780,14 @@ app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
     if (String(after.status || '') !== previousStatus || String(after.trackingCode || '') !== String(before.trackingCode || '')) {
       await createAdminNotification({
         type: 'order_updated',
-        title: 'Pedido atualizado',
+        title: '📦 Pedido atualizado',
         message: `Pedido ${after._id} mudou para ${after.statusLabel || after.status || 'Atualizado'}${after.trackingCode ? ` - Rastreio: ${after.trackingCode}` : ''}`,
         relatedId: String(after._id),
         severity: 'info'
       });
       await createSellerOrderNotifications(after, {
         type: 'seller_order_updated',
-        title: 'Pedido atualizado',
+        title: '📦 Pedido atualizado',
         message: `Pedido #${String(after._id).slice(-8).toUpperCase()} mudou para ${after.statusLabel || after.status || 'Atualizado'}${after.trackingCode ? ` - Rastreio: ${after.trackingCode}` : ''}`,
         severity: 'info',
         origin: 'status_route'
@@ -8348,7 +8389,7 @@ async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approv
     await createAdminNotification({
       type: 'order_paid',
       title: 'Nova venda recebida',
-      message: `Cliente: ${updated.customerName || 'Cliente'}\nPedido: ${updated._id}\nValor: ${formatMoneyBRL(updated.total || 0)}\nPagamento: ${updated.statusLabel || updated.status || 'Confirmado'}`,
+      message: `Cliente: ${updated.customerName || 'Cliente'}\nPedido: ${updated._id}\nValor: ${formatMoneyBRL(updated.total || 0)}\nStatus: Pagamento aprovado`,
       relatedId: String(updated._id),
       severity: 'success',
       metadata: { origin, paymentStatus: updated.payment?.status || '', paymentMethod: updated.payment?.method || '' }
@@ -8357,7 +8398,7 @@ async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approv
     await createSellerOrderNotifications(updated, {
       type: 'seller_order_paid',
       title: 'Nova venda recebida',
-      message: `Cliente: ${updated.customerName || 'Cliente'}\nPedido: #${String(updated._id).slice(-8).toUpperCase()}\nValor: ${formatMoneyBRL(updated.total || 0)}\nPagamento: ${updated.statusLabel || updated.status || 'Confirmado'}`,
+      message: `Cliente: ${updated.customerName || 'Cliente'}\nPedido: #${String(updated._id).slice(-8).toUpperCase()}\nValor: ${formatMoneyBRL(updated.total || 0)}\nStatus: Pagamento aprovado`,
       severity: 'success',
       origin
     });
@@ -10022,14 +10063,14 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res) => {
       if (statusChanged || trackingChanged) {
         await createAdminNotification({
           type: 'order_updated',
-          title: 'Pedido atualizado',
+          title: '📦 Pedido atualizado',
           message: `Pedido ${afterObj.id || afterObj._id} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
           relatedId: String(afterObj.id || afterObj._id),
           severity: statusChanged ? 'info' : 'success'
         });
         await createSellerOrderNotifications(afterObj, {
           type: 'seller_order_updated',
-          title: 'Pedido atualizado pela Ariana Móveis',
+          title: '📦 Pedido atualizado pela Ariana Móveis',
           message: `Pedido #${String(afterObj.id || afterObj._id).slice(-8).toUpperCase()} atualizado${afterObj.statusLabel || afterObj.status ? ` para ${afterObj.statusLabel || afterObj.status}` : ''}${afterObj.trackingCode ? ` - Rastreio: ${afterObj.trackingCode}` : ''}`,
           severity: statusChanged ? 'info' : 'success',
           origin: 'admin_generic_orders_route'
