@@ -5270,10 +5270,10 @@ app.post('/api/seller/partner-request', async (req, res) => {
     const seller = await Seller.create({
       sellerId,
       displayName: body.name || body.displayName || body.ownerName || '',
-      storeName: body.storeName || body.factoryName || body.shopName || body.name || '',
+      storeName: body.storeName || body.factoryName || body.razaoSocial || body.legalName || body.shopName || body.name || '',
       email: body.email || body.contactEmail || '',
       phone: body.phone || body.whatsapp || '',
-      document: body.document || body.cnpj || body.cpf || '',
+      document: body.document || body.cnpj || body.cpf || body.cpfCnpj || body.cpf_cnpj || '',
       status: 'pending',
       onboardingCompleted: false,
       metadata: body
@@ -5359,6 +5359,40 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
     }, { new: true });
 
     if (!seller) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
+
+    // Configurações comerciais definidas pelo admin na aprovação.
+    // Isso permite tratar sellers grandes (fabricante/distribuidor/loja) com regras próprias
+    // de comissão, logística, frete e uso de etiqueta Ariana.
+    const marketplaceSet = {};
+    const bodyCommission = req.body?.commissionPercent ?? req.body?.marketplaceCommissionPercent;
+    if (bodyCommission !== undefined && bodyCommission !== null && String(bodyCommission).trim() !== '') {
+      const commissionPercent = Number(String(bodyCommission).replace(',', '.'));
+      if (Number.isFinite(commissionPercent) && commissionPercent >= 0 && commissionPercent <= 50) {
+        marketplaceSet['metadata.commissionPercent'] = commissionPercent;
+        marketplaceSet['metadata.marketplaceCommissionPercent'] = commissionPercent;
+        marketplaceSet['metadata.commissionUpdatedAt'] = now();
+        marketplaceSet['metadata.commissionUpdatedBy'] = req.admin?.email || req.user?.email || 'admin';
+      }
+    }
+
+    const logisticsOwner = String(req.body?.logisticsOwner || req.body?.marketplaceLogisticsOwner || '').trim();
+    const shippingOwner = String(req.body?.shippingOwner || req.body?.marketplaceShippingOwner || '').trim();
+    const labelOwner = String(req.body?.labelOwner || req.body?.marketplaceLabelOwner || '').trim();
+    const useArianaLabel = req.body?.useArianaLabel ?? req.body?.usesArianaLabel;
+    const transferDeadlineDays = req.body?.transferDeadlineDays;
+
+    if (logisticsOwner) marketplaceSet['metadata.marketplaceLogisticsOwner'] = logisticsOwner;
+    if (shippingOwner) marketplaceSet['metadata.marketplaceShippingOwner'] = shippingOwner;
+    if (labelOwner) marketplaceSet['metadata.marketplaceLabelOwner'] = labelOwner;
+    if (useArianaLabel !== undefined) marketplaceSet['metadata.usesArianaLabel'] = useArianaLabel === true || String(useArianaLabel).toLowerCase() === 'true';
+    if (transferDeadlineDays !== undefined && transferDeadlineDays !== null && String(transferDeadlineDays).trim() !== '') {
+      const days = Number(String(transferDeadlineDays).replace(',', '.'));
+      if (Number.isFinite(days) && days >= 0) marketplaceSet['metadata.transferDeadlineDays'] = days;
+    }
+
+    if (Object.keys(marketplaceSet).length) {
+      seller = await Seller.findByIdAndUpdate(seller._id, { $set: marketplaceSet }, { new: true });
+    }
 
     let recipient = null;
     let recipientError = null;
