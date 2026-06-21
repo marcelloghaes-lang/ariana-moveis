@@ -148,6 +148,48 @@
                 </div>
               </div>
 
+              <div class="sm:col-span-2 pt-2 border-t border-slate-100">
+                <h3 class="text-sm font-black text-primary-blue uppercase tracking-wide">Dados bancários para recebimento</h3>
+                <p class="text-xs text-slate-500 mt-1">Esses dados serão usados para criar o Recipient no Pagar.me após aprovação.</p>
+              </div>
+
+              <div>
+                <label for="bankName" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Banco</label>
+                <div class="mt-2 relative"><i class="fas fa-university input-icon"></i><input id="bankName" type="text" class="seller-input" placeholder="Ex: Itaú" required></div>
+              </div>
+              <div>
+                <label for="bankCode" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Código do banco</label>
+                <div class="mt-2 relative"><i class="fas fa-hashtag input-icon"></i><input id="bankCode" type="text" class="seller-input" placeholder="Ex: 341" required></div>
+              </div>
+              <div>
+                <label for="accountType" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Tipo de conta</label>
+                <div class="mt-2 relative"><i class="fas fa-wallet input-icon"></i><select id="accountType" class="seller-input" required><option value="checking">Conta corrente</option><option value="savings">Conta poupança</option></select></div>
+              </div>
+              <div>
+                <label for="bankAgency" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Agência</label>
+                <div class="mt-2 relative"><i class="fas fa-code-branch input-icon"></i><input id="bankAgency" type="text" class="seller-input" placeholder="Ex: 3121" required></div>
+              </div>
+              <div>
+                <label for="agencyDigit" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Dígito agência opcional</label>
+                <div class="mt-2 relative"><i class="fas fa-minus input-icon"></i><input id="agencyDigit" type="text" class="seller-input" placeholder="Ex: 0"></div>
+              </div>
+              <div>
+                <label for="bankAccount" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Conta sem dígito</label>
+                <div class="mt-2 relative"><i class="fas fa-credit-card input-icon"></i><input id="bankAccount" type="text" class="seller-input" placeholder="Ex: 36494" required></div>
+              </div>
+              <div>
+                <label for="accountDigit" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Dígito da conta</label>
+                <div class="mt-2 relative"><i class="fas fa-check input-icon"></i><input id="accountDigit" type="text" class="seller-input" placeholder="Ex: 1" required></div>
+              </div>
+              <div>
+                <label for="bankHolderName" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Titular da conta</label>
+                <div class="mt-2 relative"><i class="fas fa-user-tie input-icon"></i><input id="bankHolderName" type="text" class="seller-input" placeholder="Nome ou razão social" required></div>
+              </div>
+              <div>
+                <label for="bankHolderDocument" class="block text-xs font-black text-slate-700 uppercase tracking-wide">CPF/CNPJ do titular</label>
+                <div class="mt-2 relative"><i class="fas fa-id-card input-icon"></i><input id="bankHolderDocument" type="text" class="seller-input" placeholder="Documento do titular" required></div>
+              </div>
+
               <div>
                 <label for="password" class="block text-xs font-black text-slate-700 uppercase tracking-wide">Senha de acesso</label>
                 <div class="mt-2 relative">
@@ -282,12 +324,27 @@ $('signup-form')?.addEventListener('submit', async (e) => {
   const email = $('email').value.trim().toLowerCase();
   const phone = $('phone').value.trim();
   const cpfCnpj = $('cpfCnpj').value.trim();
+  const bankName = $('bankName').value.trim();
+  const bankCode = $('bankCode').value.trim();
+  const accountType = $('accountType').value;
+  const bankAgency = $('bankAgency').value.trim();
+  const agencyDigit = $('agencyDigit').value.trim();
+  const bankAccount = $('bankAccount').value.trim();
+  const accountDigit = $('accountDigit').value.trim();
+  const bankHolderName = $('bankHolderName').value.trim();
+  const bankHolderDocument = $('bankHolderDocument').value.trim();
   const password = $('password').value.trim();
   const confirmPassword = $('confirmPassword').value.trim();
 
   if (password.length < 6) return showAlert('A senha precisa ter no mínimo 6 caracteres.');
   if (password !== confirmPassword) return showAlert('As senhas não conferem.');
   if (onlyDigits(cpfCnpj).length < 11) return showAlert('Informe um CPF ou CNPJ válido.');
+  if (!onlyDigits(bankCode)) return showAlert('Informe o código do banco. Exemplo: Itaú = 341.');
+  if (!onlyDigits(bankAgency)) return showAlert('Informe a agência bancária.');
+  if (!onlyDigits(bankAccount)) return showAlert('Informe a conta sem o dígito.');
+  if (!onlyDigits(accountDigit)) return showAlert('Informe o dígito da conta.');
+  if (!bankHolderName) return showAlert('Informe o titular da conta.');
+  if (onlyDigits(bankHolderDocument).length < 11) return showAlert('Informe o CPF/CNPJ do titular da conta.');
 
   setButtonLoading(true);
 
@@ -300,6 +357,27 @@ $('signup-form')?.addEventListener('submit', async (e) => {
       whatsapp: phone,
       cnpj: cpfCnpj,
       cpf_cnpj: cpfCnpj,
+      bankName,
+      bankCode,
+      bankAgency,
+      agencyDigit,
+      bankAccountNumber: bankAccount,
+      accountDigit,
+      accountType,
+      bankHolderName,
+      bankHolderDocument,
+      bankAccount: {
+        bank: bankName,
+        bankName,
+        bankCode,
+        agency: bankAgency,
+        agencyDigit,
+        account: bankAccount,
+        accountDigit,
+        accountType,
+        holderName: bankHolderName,
+        holderDocument: bankHolderDocument
+      },
       requestedTempPass: password,
       status: 'pending_onboarding',
       active: false,

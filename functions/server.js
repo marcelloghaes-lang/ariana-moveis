@@ -5177,9 +5177,43 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
     let recipient = null;
     let recipientError = null;
 
-    // Ao aprovar o seller, tenta criar automaticamente o Recipient no Pagar.me.
+    // Permite informar manualmente o Recipient ID já existente no Pagar.me.
+    // Use isso quando o seller já possui recipient criado e você só quer vincular no Mongo ao aprovar.
+    const manualRecipientId = String(
+      req.body?.recipientId ||
+      req.body?.pagarmeRecipientId ||
+      req.body?.pagarme_recipient_id ||
+      ''
+    ).trim();
+
+    if (active && manualRecipientId) {
+      const meta = { ...(seller.metadata || {}) };
+      meta.paymentGateway = 'pagarme';
+      meta.marketplaceSplitRequired = true;
+      meta.manualTransferEnabled = false;
+      meta.pagarmeRecipientId = manualRecipientId;
+      meta.recipientId = manualRecipientId;
+      meta.pagarmeRecipientStatus = String(req.body?.recipientStatus || req.body?.pagarmeRecipientStatus || 'manual').trim();
+      meta.pagarmeRecipientManual = true;
+      meta.pagarmeRecipientManualAt = new Date().toISOString();
+      meta.pagarmeRecipientManualBy = req.admin?.email || req.user?.email || 'admin';
+      meta.pagarmeRecipientError = '';
+      meta.pagarmeRecipientRequiredFields = [];
+
+      seller = await Seller.findByIdAndUpdate(seller._id, { $set: { metadata: meta } }, { new: true });
+      recipient = { id: manualRecipientId, status: meta.pagarmeRecipientStatus, manual: true };
+
+      await writeAuditLog({
+        scope: 'payments',
+        eventType: 'pagarme_recipient_manual_on_approval',
+        status: 'success',
+        metadata: { sellerId: seller.sellerId || String(seller._id), recipientId: manualRecipientId, admin: req.admin?.email || '' }
+      });
+    }
+
+    // Ao aprovar o seller sem Recipient manual, tenta criar automaticamente o Recipient no Pagar.me.
     // Se já existir recipient salvo no Mongo, não duplica.
-    if (active && !String(seller.metadata?.pagarmeRecipientId || seller.metadata?.recipientId || '').trim()) {
+    if (active && !manualRecipientId && !String(seller.metadata?.pagarmeRecipientId || seller.metadata?.recipientId || '').trim()) {
       try {
         const payload = buildPagarmeRecipientPayloadFromSeller(seller, req.body || {});
         const response = await createPagarmeRecipient(payload);
@@ -5350,6 +5384,7 @@ function normalizeSellerBankFields(raw = {}) {
   return {
     bank: String(bank.bank ?? bank.bankName ?? bank.banco ?? '').trim(),
     bankName: String(bank.bankName ?? bank.bank ?? bank.banco ?? '').trim(),
+    bankCode: cleanDigitsOnly(bank.bankCode ?? bank.codigoBanco ?? bank.code ?? ''),
     agency: cleanDigitsOnly(bank.agency ?? bank.bankAgency ?? bank.agencia ?? bank.branchNumber ?? ''),
     branchNumber: cleanDigitsOnly(bank.branchNumber ?? bank.agency ?? bank.bankAgency ?? bank.agencia ?? ''),
     agencyDigit: cleanDigitsOnly(bank.agencyDigit ?? bank.branchCheckDigit ?? bank.agenciaDigito ?? ''),
@@ -5361,7 +5396,9 @@ function normalizeSellerBankFields(raw = {}) {
     accountDigit,
     accountCheckDigit: accountDigit,
     pixKey: String(bank.pixKey ?? bank.chavePix ?? '').trim(),
-    accountType: String(bank.accountType ?? bank.bankAccountType ?? bank.tipoConta ?? '').trim()
+    accountType: String(bank.accountType ?? bank.bankAccountType ?? bank.tipoConta ?? 'checking').trim(),
+    holderName: String(bank.holderName ?? bank.bankHolderName ?? bank.titular ?? '').trim(),
+    holderDocument: cleanDigitsOnly(bank.holderDocument ?? bank.bankHolderDocument ?? bank.documentTitular ?? bank.cpfCnpjTitular ?? '')
   };
 }
 
@@ -5374,12 +5411,15 @@ function sellerProfile(s, u) {
   const bankAccount = normalizeSellerBankFields({
     bank: rootBank.bank || rootBank.bankName || bankFromMeta.bank || bankFromMeta.bankName || meta.bank || meta.bankName || '',
     bankName: rootBank.bankName || rootBank.bank || bankFromMeta.bankName || bankFromMeta.bank || meta.bankName || meta.bank || '',
+    bankCode: rootBank.bankCode || bankFromMeta.bankCode || meta.bankCode || meta.codigoBanco || '',
     agency: rootBank.agency || rootBank.bankAgency || bankFromMeta.agency || bankFromMeta.bankAgency || meta.bankAgency || meta.agency || meta.branchNumber || '',
     agencyDigit: rootBank.agencyDigit || rootBank.branchCheckDigit || bankFromMeta.agencyDigit || bankFromMeta.branchCheckDigit || meta.agencyDigit || meta.branchCheckDigit || '',
-    account: rootBank.account || rootBank.number || rootBank.bankAccount || bankFromMeta.account || bankFromMeta.number || bankFromMeta.bankAccount || meta.bankAccountNumber || meta.accountNumber || meta.conta || legacyMetaBankAccount || '',
+    account: rootBank.account || rootBank.accountNumber || rootBank.number || rootBank.bankAccount || bankFromMeta.account || bankFromMeta.accountNumber || bankFromMeta.number || bankFromMeta.bankAccount || meta.accountNumber || meta.bankAccountNumber || meta.conta || legacyMetaBankAccount || '',
     accountDigit: rootBank.accountDigit || rootBank.accountCheckDigit || bankFromMeta.accountDigit || bankFromMeta.accountCheckDigit || meta.accountDigit || meta.accountCheckDigit || meta.contaDigito || '',
     pixKey: rootBank.pixKey || bankFromMeta.pixKey || meta.pixKey || '',
-    accountType: rootBank.accountType || bankFromMeta.accountType || meta.accountType || meta.bankAccountType || meta.tipoConta || ''
+    accountType: rootBank.accountType || bankFromMeta.accountType || meta.accountType || meta.bankAccountType || meta.tipoConta || '',
+    holderName: rootBank.holderName || rootBank.bankHolderName || bankFromMeta.holderName || bankFromMeta.bankHolderName || meta.bankHolderName || meta.holderName || '',
+    holderDocument: rootBank.holderDocument || rootBank.bankHolderDocument || bankFromMeta.holderDocument || bankFromMeta.bankHolderDocument || meta.bankHolderDocument || meta.holderDocument || meta.documentTitular || meta.cpfCnpjTitular || ''
   });
   const status = String(o.status || meta.status || '').toLowerCase();
   return {
@@ -5485,20 +5525,24 @@ async function saveSellerProfileSettings(req, res) {
     }
 
     const bankBody = body.bankAccount && typeof body.bankAccount === 'object' ? body.bankAccount : {};
-    if (body.bankAccount !== undefined || body.bankName !== undefined || body.bankAgency !== undefined || body.account !== undefined) {
+    if (body.bankAccount !== undefined || body.bankName !== undefined || body.bankCode !== undefined || body.bankAgency !== undefined || body.account !== undefined || body.accountDigit !== undefined || body.bankHolderName !== undefined || body.bankHolderDocument !== undefined) {
       const bankAccount = normalizeSellerBankFields({
         bank: bankBody.bank ?? bankBody.bankName ?? body.bankName ?? body.bank ?? '',
         bankName: bankBody.bankName ?? bankBody.bank ?? body.bankName ?? body.bank ?? '',
+        bankCode: bankBody.bankCode ?? body.bankCode ?? body.codigoBanco ?? '',
         agency: bankBody.agency ?? bankBody.bankAgency ?? body.bankAgency ?? body.agency ?? '',
         agencyDigit: bankBody.agencyDigit ?? bankBody.branchCheckDigit ?? body.agencyDigit ?? body.branchCheckDigit ?? '',
-        account: bankBody.account ?? bankBody.number ?? bankBody.bankAccount ?? body.bankAccountNumber ?? body.account ?? '',
-        accountDigit: bankBody.accountDigit ?? bankBody.accountCheckDigit ?? body.accountDigit ?? body.accountCheckDigit ?? '',
+        account: bankBody.account ?? bankBody.accountNumber ?? bankBody.number ?? bankBody.bankAccount ?? body.accountNumber ?? body.bankAccountNumber ?? body.account ?? '',
+        accountDigit: bankBody.accountDigit ?? bankBody.accountCheckDigit ?? body.accountDigit ?? body.accountCheckDigit ?? body.contaDigito ?? '',
         pixKey: bankBody.pixKey ?? body.pixKey ?? '',
-        accountType: bankBody.accountType ?? body.accountType ?? ''
+        accountType: bankBody.accountType ?? bankBody.bankAccountType ?? body.accountType ?? body.bankAccountType ?? 'checking',
+        holderName: bankBody.holderName ?? bankBody.bankHolderName ?? body.bankHolderName ?? body.holderName ?? '',
+        holderDocument: bankBody.holderDocument ?? bankBody.bankHolderDocument ?? body.bankHolderDocument ?? body.holderDocument ?? body.documentTitular ?? body.cpfCnpjTitular ?? ''
       });
       metadata.bankAccount = bankAccount;
       metadata.bankName = bankAccount.bankName || bankAccount.bank;
       metadata.bank = bankAccount.bank || bankAccount.bankName;
+      metadata.bankCode = bankAccount.bankCode || normalizePagarmeBankCode(bankAccount.bank || bankAccount.bankName || '');
       metadata.bankAgency = bankAccount.agency;
       metadata.agency = bankAccount.agency;
       metadata.branchNumber = bankAccount.branchNumber || bankAccount.agency;
@@ -5509,7 +5553,12 @@ async function saveSellerProfileSettings(req, res) {
       metadata.accountCheckDigit = bankAccount.accountCheckDigit || bankAccount.accountDigit || '';
       metadata.accountDigit = bankAccount.accountDigit || bankAccount.accountCheckDigit || '';
       metadata.pixKey = bankAccount.pixKey || metadata.pixKey || '';
-      metadata.accountType = bankAccount.accountType || metadata.accountType || '';
+      metadata.accountType = bankAccount.accountType || metadata.accountType || 'checking';
+      metadata.bankAccountType = metadata.accountType;
+      metadata.bankHolderName = bankAccount.holderName || metadata.bankHolderName || req.seller?.storeName || req.seller?.displayName || '';
+      metadata.holderName = metadata.bankHolderName;
+      metadata.bankHolderDocument = bankAccount.holderDocument || metadata.bankHolderDocument || req.seller?.document || req.user?.cpf || '';
+      metadata.holderDocument = metadata.bankHolderDocument;
     }
 
     if (body.cepColeta !== undefined || body.pickupCep !== undefined || body.cep_coleta !== undefined) {

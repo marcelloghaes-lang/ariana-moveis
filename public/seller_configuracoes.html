@@ -80,11 +80,18 @@
         <div class="md:col-span-2"><label class="block text-xs font-black mb-2">Descrição pública</label><textarea id="bio" rows="4" class="input" autocomplete="off"></textarea></div>
       </div>
     </div>
-    <div class="card p-6"><h3 class="text-xl font-black mb-5">Pagamento</h3>
+    <div class="card p-6"><h3 class="text-xl font-black mb-2">Pagamento / Recipient Pagar.me</h3>
+      <p class="muted text-sm mb-5">Preencha todos os dados bancários para a Ariana Móveis criar o Recipient automaticamente na aprovação.</p>
       <div class="grid md:grid-cols-3 gap-5">
-        <div><label class="block text-xs font-black mb-2">Banco</label><input id="bankName" class="input" autocomplete="off"></div>
-        <div><label class="block text-xs font-black mb-2">Agência</label><input id="bankAgency" class="input" autocomplete="off"></div>
-        <div><label class="block text-xs font-black mb-2">Conta</label><input id="bankAccount" class="input" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Banco</label><input id="bankName" class="input" placeholder="Ex: Itaú" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Código do banco</label><input id="bankCode" class="input" placeholder="Ex: 341" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Tipo de conta</label><select id="accountType" class="input"><option value="checking">Conta corrente</option><option value="savings">Conta poupança</option></select></div>
+        <div><label class="block text-xs font-black mb-2">Agência</label><input id="bankAgency" class="input" placeholder="Ex: 3121" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Dígito da agência <span class="font-normal text-gray-400">(opcional)</span></label><input id="agencyDigit" class="input" placeholder="Ex: 0" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Conta sem dígito</label><input id="bankAccount" class="input" placeholder="Ex: 36494" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Dígito da conta</label><input id="accountDigit" class="input" placeholder="Ex: 1" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">Titular da conta</label><input id="bankHolderName" class="input" placeholder="Nome/Razão social do titular" autocomplete="off"></div>
+        <div><label class="block text-xs font-black mb-2">CPF/CNPJ do titular</label><input id="bankHolderDocument" class="input" placeholder="Documento do titular" autocomplete="off"></div>
       </div>
     </div>
     <div class="card p-6"><h3 class="text-xl font-black mb-5">Frete e coleta</h3>
@@ -130,7 +137,7 @@ function toast(message, type = "info") {
 function setLockedField(id, locked) {
   const el = $(id);
   if (!el) return;
-  if (el.type === "checkbox") {
+  if (el.type === "checkbox" || el.tagName === "SELECT") {
     el.disabled = !!locked;
   } else {
     el.readOnly = !!locked;
@@ -150,8 +157,14 @@ function normalizeBankAccount(source = {}, meta = {}) {
   const legacyMetaBankAccount = meta.bankAccount && typeof meta.bankAccount !== "object" ? String(meta.bankAccount) : "";
   return {
     bank: String(bankObj.bank || bankObj.bankName || metaBankObj.bank || metaBankObj.bankName || meta.bankName || meta.bank || "").trim(),
-    agency: String(bankObj.agency || bankObj.bankAgency || metaBankObj.agency || metaBankObj.bankAgency || meta.bankAgency || meta.agency || "").trim(),
-    account: String(bankObj.account || bankObj.number || bankObj.bankAccount || metaBankObj.account || metaBankObj.number || metaBankObj.bankAccount || meta.bankAccountNumber || meta.accountNumber || legacyMetaBankAccount || "").trim(),
+    bankCode: String(bankObj.bankCode || metaBankObj.bankCode || meta.bankCode || "").trim(),
+    agency: String(bankObj.agency || bankObj.bankAgency || metaBankObj.agency || metaBankObj.bankAgency || meta.bankAgency || meta.agency || meta.branchNumber || "").trim(),
+    agencyDigit: String(bankObj.agencyDigit || bankObj.branchCheckDigit || metaBankObj.agencyDigit || metaBankObj.branchCheckDigit || meta.agencyDigit || meta.branchCheckDigit || "").trim(),
+    account: String(bankObj.account || bankObj.accountNumber || bankObj.number || bankObj.bankAccount || metaBankObj.account || metaBankObj.accountNumber || metaBankObj.number || metaBankObj.bankAccount || meta.accountNumber || meta.bankAccountNumber || legacyMetaBankAccount || "").trim(),
+    accountDigit: String(bankObj.accountDigit || bankObj.accountCheckDigit || metaBankObj.accountDigit || metaBankObj.accountCheckDigit || meta.accountDigit || meta.accountCheckDigit || meta.contaDigito || "").trim(),
+    accountType: String(bankObj.accountType || bankObj.bankAccountType || metaBankObj.accountType || metaBankObj.bankAccountType || meta.accountType || meta.bankAccountType || "checking").trim(),
+    holderName: String(bankObj.holderName || bankObj.bankHolderName || metaBankObj.holderName || metaBankObj.bankHolderName || meta.bankHolderName || meta.holderName || "").trim(),
+    holderDocument: String(bankObj.holderDocument || bankObj.bankHolderDocument || metaBankObj.holderDocument || metaBankObj.bankHolderDocument || meta.bankHolderDocument || meta.holderDocument || "").trim(),
     pixKey: String(bankObj.pixKey || metaBankObj.pixKey || meta.pixKey || "").trim()
   };
 }
@@ -177,8 +190,14 @@ function fillSeller(seller) {
   $("cnpj").value = seller.cnpj || "";
   $("bio").value = seller.bio || "";
   $("bankName").value = bank.bank || bank.bankName || "";
+  $("bankCode").value = bank.bankCode || "";
+  $("accountType").value = bank.accountType || "checking";
   $("bankAgency").value = bank.agency || bank.bankAgency || "";
-  $("bankAccount").value = bank.account || bank.bankAccount || bank.number || "";
+  $("agencyDigit").value = bank.agencyDigit || bank.branchCheckDigit || "";
+  $("bankAccount").value = bank.account || bank.accountNumber || bank.bankAccount || bank.number || "";
+  $("accountDigit").value = bank.accountDigit || bank.accountCheckDigit || "";
+  $("bankHolderName").value = bank.holderName || bank.bankHolderName || seller.factoryName || "";
+  $("bankHolderDocument").value = bank.holderDocument || bank.bankHolderDocument || seller.cnpj || "";
   $("cepColeta").value = seller.cepColeta || "";
   $("transpPropria").checked = !!seller.transpPropria;
 
@@ -187,8 +206,14 @@ function fillSeller(seller) {
   setLockedField("cnpj", true);
   setLockedField("bio", approved);
   setLockedField("bankName", approved);
+  setLockedField("bankCode", approved);
+  setLockedField("accountType", approved);
   setLockedField("bankAgency", approved);
+  setLockedField("agencyDigit", approved);
   setLockedField("bankAccount", approved);
+  setLockedField("accountDigit", approved);
+  setLockedField("bankHolderName", approved);
+  setLockedField("bankHolderDocument", approved);
   setLockedField("cepColeta", approved);
   setLockedField("transpPropria", approved);
 
@@ -224,8 +249,15 @@ async function saveSeller(event) {
       bio: $("bio").value.trim(),
       bankAccount: {
         bank: $("bankName").value.trim(),
+        bankName: $("bankName").value.trim(),
+        bankCode: $("bankCode").value.trim(),
+        accountType: $("accountType").value,
         agency: $("bankAgency").value.trim(),
-        account: $("bankAccount").value.trim()
+        agencyDigit: $("agencyDigit").value.trim(),
+        account: $("bankAccount").value.trim(),
+        accountDigit: $("accountDigit").value.trim(),
+        holderName: $("bankHolderName").value.trim(),
+        holderDocument: $("bankHolderDocument").value.trim()
       },
       cepColeta: $("cepColeta").value.replace(/\D/g, ""),
       transpPropria: $("transpPropria").checked

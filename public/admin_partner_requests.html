@@ -65,63 +65,24 @@ function digits(v){ return String(v||'').replace(/\D/g,''); }
 function fmtDate(v){ if(!v) return '—'; const d=new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('pt-BR'); }
 function toast(msg,type='info'){ const el=document.createElement('div'); el.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-blue-700'); el.textContent=msg; document.body.appendChild(el); setTimeout(()=>el.remove(),3800); }
 function getMeta(s){ return s?.metadata && typeof s.metadata === 'object' ? s.metadata : {}; }
-function scalar(v){
-  if(v===undefined || v===null) return '';
-  if(typeof v === 'object') return '';
-  return String(v).trim();
-}
-function pick(obj,...keys){
-  for(const k of keys){
-    const v = k.split('.').reduce((a,p)=>a && a[p], obj);
-    const out = scalar(v);
-    if(out) return out;
-  }
-  return '';
-}
-function getBank(s){
-  const m = getMeta(s);
-  const b = (m.bankAccount && typeof m.bankAccount === 'object') ? m.bankAccount : {};
-  const rawAccount = pick({b,m}, 'b.fullAccount','b.account','b.number','b.bankAccount','m.bankAccountNumber','m.conta','m.accountNumber');
-  const accountDigits = digits(rawAccount);
-  const digit = pick({b,m}, 'b.accountDigit','b.accountCheckDigit','m.accountDigit','m.accountCheckDigit','m.contaDigito') || (accountDigits.length > 1 ? accountDigits.slice(-1) : '');
-  const number = pick({b,m}, 'b.accountNumber','m.accountNumber') || (digit && accountDigits.length > 1 ? accountDigits.slice(0,-1) : accountDigits);
-  return {
-    bank: pick({b,m}, 'b.bankName','b.bank','m.bankName','m.bank','m.banco'),
-    agency: pick({b,m}, 'b.agency','b.bankAgency','b.branchNumber','m.bankAgency','m.agency','m.agencia','m.branchNumber'),
-    agencyDigit: pick({b,m}, 'b.agencyDigit','b.branchCheckDigit','m.agencyDigit','m.branchCheckDigit','m.agenciaDigito'),
-    accountFull: rawAccount || [number,digit].filter(Boolean).join(''),
-    accountNumber: number,
-    accountDigit: digit,
-    accountType: pick({b,m}, 'b.accountType','m.accountType','m.bankAccountType','m.tipoConta'),
-    holderName: pick({b,m,s}, 'b.holderName','b.bankHolderName','m.bankHolderName','m.holderName','m.legalName','m.name','s.storeName','s.displayName'),
-    holderDocument: pick({b,m,s}, 'b.holderDocument','b.bankHolderDocument','m.bankHolderDocument','m.holderDocument','m.document','s.document'),
-    pixKey: pick({b,m}, 'b.pixKey','m.pixKey','m.chavePix')
-  };
-}
+function pick(obj,...keys){ for(const k of keys){ const v = k.split('.').reduce((a,p)=>a && a[p], obj); if(v!==undefined && v!==null && String(v).trim()!=='') return v; } return ''; }
 function normalizeStatus(s){ const raw=String(s?.status || s?.metadata?.status || 'pending').toLowerCase(); if(['approved','aprovado','ativo','active'].includes(raw)) return 'approved'; if(['rejected','recusado','recused','cancelled'].includes(raw)) return 'rejected'; return 'pending'; }
 function statusPill(s){ const st=normalizeStatus(s); if(st==='approved') return '<span class="pill bg-green-100 text-green-700">Aprovado</span>'; if(st==='rejected') return '<span class="pill bg-red-100 text-red-700">Recusado</span>'; return '<span class="pill bg-amber-100 text-amber-700">Pendente</span>'; }
-function recipientStatus(s){ const id=pick(s,'pagarmeRecipientId','recipientId','metadata.pagarmeRecipientId','metadata.pagarme_recipient_id','metadata.recipientId'); const st=pick(s,'pagarmeRecipientStatus','metadata.pagarmeRecipientStatus','metadata.recipientStatus','metadata.pagarmeStatus'); return { id:String(id||''), status:String(st||'') }; }
-function prettyLabel(label){
-  const map = { cpf_cnpj:'CPF/CNPJ', requestedTempPass:'Senha temporária', bio:'Descrição pública', cepColeta:'CEP base de coleta', transpPropria:'Transporte próprio', description:'Descrição pública', updatedFromSellerConfigAt:'Atualizado pelo seller em' };
-  return map[label] || String(label||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/_/g,' ').replace(/^\w/,c=>c.toUpperCase());
-}
-function field(label, value){ const v = value === true ? 'Sim' : value === false ? 'Não' : (String(value||'').trim() || '—'); return `<div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><div class="label">${esc(prettyLabel(label))}</div><div class="value mt-1 whitespace-pre-line">${esc(v)}</div></div>`; }
+function recipientStatus(s){ const m=getMeta(s); const id=pick(s,'pagarmeRecipientId','recipientId','metadata.pagarmeRecipientId','metadata.pagarme_recipient_id','metadata.recipientId'); const st=pick(s,'pagarmeRecipientStatus','metadata.pagarmeRecipientStatus','metadata.recipientStatus','metadata.pagarmeStatus'); return { id:String(id||''), status:String(st||'') }; }
+function field(label, value){ const v = value === true ? 'Sim' : value === false ? 'Não' : (String(value||'').trim() || '—'); return `<div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><div class="label">${esc(label)}</div><div class="value mt-1">${esc(v)}</div></div>`; }
 function moneySensitive(value){ const raw=String(value||'').trim(); if(!raw) return '—'; if(raw.length <= 4) return raw; return raw.slice(0,2)+'***'+raw.slice(-3); }
-function missingBankFields(s){ const b=getBank(s); const req = [
-  ['CPF/CNPJ seller', pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpf','metadata.cpf_cnpj')],
+function missingBankFields(s){ const m=getMeta(s); const req = [
+  ['CPF/CNPJ seller', pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpf')],
   ['E-mail', pick(s,'email','metadata.email','metadata.contactEmail')],
-  ['Titular', b.holderName],
-  ['CPF/CNPJ titular', b.holderDocument],
-  ['Banco', b.bank],
-  ['Agência', b.agency],
-  ['Conta', b.accountFull || b.accountNumber],
-  ['Dígito conta', b.accountDigit]
+  ['Titular', pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name','storeName','displayName')],
+  ['CPF/CNPJ titular', pick(s,'metadata.bankHolderDocument','metadata.holderDocument','metadata.document','document')],
+  ['Banco', pick(s,'metadata.bankCode','metadata.bank','metadata.bankName')],
+  ['Agência', pick(s,'metadata.branchNumber','metadata.agency','metadata.agencia','metadata.bankAgency')],
+  ['Conta', pick(s,'metadata.accountNumber','metadata.conta','metadata.bankAccount')],
+  ['Dígito conta', pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit')]
 ]; return req.filter(([,v])=>!String(v||'').trim()).map(([k])=>k); }
-function additionalMeta(s){
-  const m=getMeta(s);
-  const hidden = new Set(['storeName','factoryName','shopName','name','ownerName','responsavel','owner','email','contactEmail','phone','whatsapp','document','cnpj','cpf','cpf_cnpj','city','cidade','uf','estado','address','endereco','logradouro','cep','pickupCep','bairro','numero','number','complemento','complement','district','bankName','bankAgency','bankAccount','pixKey','chavePix','bankCode','bank','banco','agency','agencia','branchNumber','branchCheckDigit','agencyDigit','agenciaDigito','accountNumber','bankAccountNumber','conta','accountCheckDigit','contaDigito','accountDigit','accountType','bankAccountType','tipoConta','bankHolderName','holderName','legalName','bankHolderDocument','holderDocument','pagarmeRecipientId','pagarme_recipient_id','recipientId','pagarmeRecipientStatus','recipientStatus','status','active','reviewedAt','reviewedBy','bio','description','descricao','cepColeta','transpPropria','transportadoraPropria','updatedFromSellerConfigAt','requestedTempPass','password','senha']);
-  const deny = /pass|senha|token|secret|hash/i;
-  return Object.entries(m).filter(([k,v])=>!hidden.has(k) && !deny.test(k) && v!==undefined && v!==null && scalar(v)).slice(0,18);
+function additionalMeta(s){ const m=getMeta(s); const shown = new Set(['storeName','factoryName','shopName','name','ownerName','responsavel','owner','email','contactEmail','phone','whatsapp','document','cnpj','cpf','city','cidade','uf','estado','address','endereco','cep','bairro','numero','complemento','bankName','bankAgency','bankAccount','pixKey','bankCode','bank','agency','agencia','branchNumber','branchCheckDigit','agencyDigit','agenciaDigito','accountNumber','conta','accountCheckDigit','contaDigito','accountDigit','accountType','tipoConta','bankHolderName','holderName','legalName','bankHolderDocument','holderDocument','pagarmeRecipientId','pagarme_recipient_id','recipientId','pagarmeRecipientStatus','recipientStatus','status','active','reviewedAt','reviewedBy']);
+  return Object.entries(m).filter(([k,v])=>!shown.has(k) && v!==undefined && v!==null && String(v).trim()!=='' && typeof v !== 'object').slice(0,30);
 }
 function renderRequest(s){ const m=getMeta(s); const st=normalizeStatus(s); const rec=recipientStatus(s); const missing=missingBankFields(s); const loja=pick(s,'storeName','factoryName','displayName','metadata.storeName','metadata.factoryName','metadata.shopName','metadata.name') || 'Seller'; const id=String(s.id || s._id || s.sellerId || '').trim();
   const add=additionalMeta(s);
@@ -130,7 +91,15 @@ function renderRequest(s){ const m=getMeta(s); const st=normalizeStatus(s); cons
       <div class="min-w-0"><div class="flex items-center gap-2 flex-wrap"><h3 class="text-xl font-black">${esc(loja)}</h3>${statusPill(s)}${rec.id?'<span class="pill bg-blue-100 text-blue-700">Recipient Pagar.me</span>':'<span class="pill bg-slate-100 text-slate-600">Sem Recipient</span>'}</div><p class="text-sm text-slate-500 mt-1">Seller ID: ${esc(s.sellerId || id || '—')} • Solicitação: ${esc(fmtDate(s.requestedAt || s.createdAt))}</p></div>
       <div class="flex gap-2 flex-wrap"><button class="btn btn-gray" onclick="toggleDetails('${esc(id)}')"><i class="fa-solid fa-eye"></i> Detalhes</button><button class="btn btn-blue" onclick="updateCommission('${esc(id)}')"><i class="fa-solid fa-percent"></i> Alterar comissão</button><button class="btn btn-green" onclick="updateStatus('${esc(id)}','approved')"><i class="fa-solid fa-check"></i> Aprovar</button><button class="btn btn-red" onclick="updateStatus('${esc(id)}','rejected')"><i class="fa-solid fa-xmark"></i> Recusar</button></div>
     </div>
-    ${missing.length?`<div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Atenção:</b> faltam dados para criar Recipient Pagar.me: ${esc(missing.join(', '))}.</div>`:''}
+    ${missing.length && !rec.id ? `<div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Atenção:</b> faltam dados para criar Recipient Pagar.me: ${esc(missing.join(', '))}.</div>` : ''}
+    ${!rec.id ? `<div class="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+      <div class="font-black text-blue-900 mb-2"><i class="fa-solid fa-credit-card"></i> Seller já tem Recipient ID?</div>
+      <div class="flex flex-col md:flex-row gap-2">
+        <input id="recipient-${esc(id)}" class="input flex-1 bg-white" placeholder="Cole aqui o Recipient ID do Pagar.me. Ex: re_xxxxxxxxx" autocomplete="off">
+        <button class="btn btn-green" onclick="saveRecipientAndApprove('${esc(id)}')"><i class="fa-solid fa-floppy-disk"></i> Salvar Recipient e aprovar</button>
+      </div>
+      <p class="text-xs text-blue-800 mt-2">Use este campo somente quando o seller já possuir Recipient criado no Pagar.me. O ID será salvo no Mongo e o cadastro será aprovado.</p>
+    </div>` : ''}
     <div class="details-grid mt-4">
       ${field('Responsável', pick(s,'ownerName','displayName','metadata.ownerName','metadata.responsavel','metadata.owner'))}
       ${field('CPF/CNPJ', pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpf'))}
@@ -149,15 +118,15 @@ function renderRequest(s){ const m=getMeta(s); const st=normalizeStatus(s); cons
         ${field('Transporte próprio', pick(s,'metadata.transpPropria','metadata.transportadoraPropria'))}
       </div></section>
       <section><h4 class="font-black text-slate-900 mb-3">Dados bancários / recebimento</h4><div class="details-grid">
-        ${(()=>{ const b=getBank(s); return field('Banco', b.bank); })()}
-        ${(()=>{ const b=getBank(s); return field('Agência', b.agency); })()}
-        ${(()=>{ const b=getBank(s); return field('Dígito agência', b.agencyDigit); })()}
-        ${(()=>{ const b=getBank(s); return field('Conta', moneySensitive(b.accountFull || b.accountNumber)); })()}
-        ${(()=>{ const b=getBank(s); return field('Dígito conta', b.accountDigit); })()}
-        ${(()=>{ const b=getBank(s); return field('Tipo de conta', b.accountType); })()}
-        ${(()=>{ const b=getBank(s); return field('Titular da conta', b.holderName); })()}
-        ${(()=>{ const b=getBank(s); return field('CPF/CNPJ titular', b.holderDocument); })()}
-        ${(()=>{ const b=getBank(s); return field('Chave Pix', b.pixKey); })()}
+        ${field('Banco', pick(s,'metadata.bankName','metadata.bankCode','metadata.bank','metadata.banco'))}
+        ${field('Agência', pick(s,'metadata.bankAgency','metadata.branchNumber','metadata.agency','metadata.agencia'))}
+        ${field('Dígito agência', pick(s,'metadata.branchCheckDigit','metadata.agencyDigit','metadata.agenciaDigito'))}
+        ${field('Conta', moneySensitive(pick(s,'metadata.bankAccount','metadata.accountNumber','metadata.conta')))}
+        ${field('Dígito conta', pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit'))}
+        ${field('Tipo de conta', pick(s,'metadata.accountType','metadata.bankAccountType','metadata.tipoConta'))}
+        ${field('Titular da conta', pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name'))}
+        ${field('CPF/CNPJ titular', pick(s,'metadata.bankHolderDocument','metadata.holderDocument'))}
+        ${field('Chave Pix', pick(s,'metadata.pixKey','metadata.chavePix'))}
       </div></section>
       <section><h4 class="font-black text-slate-900 mb-3">Pagar.me / Split</h4><div class="details-grid">
         ${field('Recipient ID', rec.id || 'Não criado')}
@@ -202,8 +171,17 @@ async function updateCommission(id){
   }
 }
 window.updateCommission=updateCommission;
-async function updateStatus(id,status){ const item=allRequests.find(s=>String(s.id||s._id||s.sellerId)===String(id)); if(status==='approved'){ const missing=missingBankFields(item||{}); if(missing.length && !confirm('Este seller ainda tem dados bancários incompletos para Pagar.me:\n\n'+missing.join(', ')+'\n\nDeseja aprovar mesmo assim?')) return; } try{ const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({status})}); const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error || data.message || 'Erro ao atualizar seller'); toast(status==='approved'?'Seller aprovado com sucesso.':'Seller recusado com sucesso.','success'); await loadRequests(); }catch(e){ toast(e.message,'error'); } }
+async function updateStatus(id,status,extra={}){ const item=allRequests.find(s=>String(s.id||s._id||s.sellerId)===String(id)); if(status==='approved' && !extra.recipientId && !extra.pagarmeRecipientId){ const missing=missingBankFields(item||{}); if(missing.length && !confirm('Este seller ainda tem dados bancários incompletos para Pagar.me:\n\n'+missing.join(', ')+'\n\nDeseja aprovar mesmo assim?')) return; } try{ const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({status,...extra})}); const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error || data.message || 'Erro ao atualizar seller'); const rid=data?.recipient?.id || extra.recipientId || extra.pagarmeRecipientId || ''; toast(status==='approved'?(rid?'Recipient salvo e seller aprovado com sucesso.':'Seller aprovado com sucesso.'):'Seller recusado com sucesso.','success'); await loadRequests(); }catch(e){ toast(e.message,'error'); } }
 window.updateStatus=updateStatus;
+async function saveRecipientAndApprove(id){
+  const input = document.getElementById('recipient-' + id);
+  const recipientId = String(input?.value || '').trim();
+  if (!recipientId) { toast('Informe o Recipient ID antes de salvar.', 'error'); return; }
+  if (!/^re_/i.test(recipientId) && !confirm('Esse Recipient ID não começa com re_. Deseja salvar mesmo assim?')) return;
+  if (!confirm('Salvar este Recipient ID no seller e aprovar o cadastro?')) return;
+  await updateStatus(id, 'approved', { recipientId, pagarmeRecipientId: recipientId, recipientStatus: 'manual' });
+}
+window.saveRecipientAndApprove=saveRecipientAndApprove;
 $('refresh-btn').addEventListener('click',loadRequests); $('search-btn').addEventListener('click',render); $('search-input').addEventListener('input',render); $('status-filter').addEventListener('change',render); $('logout-btn').addEventListener('click',(e)=>{e.preventDefault();localStorage.removeItem('admin_token');location.href='admin_painel.html';});
 loadRequests();
 </script>
