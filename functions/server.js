@@ -4295,39 +4295,123 @@ async function buildSellerSplitSummary(orderDoc = null, explicitSellerId = '') {
   const missingPagarmeRecipients = results.filter((r) => !r.recipients?.pagarme).map((r) => ({ sellerId: r.sellerId, sellerName: r.sellerName }));
   return { ok: true, gateway: 'pagarme', orderId: String(order._id || order.id || ''), sellers: results, totalGross, totalCommission, totalLabelFee, totalMarketplaceAmount, totalSellerNet, splitRequired: results.length > 0, splitReady: missingPagarmeRecipients.length === 0, missingPagarmeRecipients };
 }
+function getPagarmePayloadTotalCents(payload = {}) {
+  const items = ensureArray(payload.items);
+  const totalFromItems = items.reduce((sum, item) => {
+    const amount = Number(item?.amount || 0);
+    const quantity = Math.max(1, Number(item?.quantity || 1) || 1);
+    return sum + (Number.isFinite(amount) ? amount * quantity : 0);
+  }, 0);
+  if (totalFromItems > 0) return Math.round(totalFromItems);
+
+  const charges = ensureArray(payload.charges);
+  const totalFromCharges = charges.reduce((sum, charge) => {
+    const amount = Number(charge?.amount || 0);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+  if (totalFromCharges > 0) return Math.round(totalFromCharges);
+
+  const payments = ensureArray(payload.payments);
+  const totalFromPayments = payments.reduce((sum, payment) => {
+    const amount = Number(payment?.amount || payment?.value || 0);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+  return Math.round(totalFromPayments || 0);
+}
+
 function applyPagarmeSplitToPayload(payload = {}, splitSummary = {}) {
   const settings = payload.settings || {};
   const marketplaceRecipientId = String(settings.marketplaceRecipientId || process.env.PAGARME_MARKETPLACE_RECIPIENT_ID || '').trim();
   const sellers = ensureArray(splitSummary.sellers);
-  if (!sellers.length) return payload; // venda própria Ariana: sem split de seller
-  if (!marketplaceRecipientId) throw new Error('PAGARME_MARKETPLACE_RECIPIENT_ID não configurado para receber a comissão da Ariana.');
-  const missing = sellers.filter((item) => !item.recipients?.pagarme).map((item) => item.sellerName || item.sellerId).filter(Boolean);
-  if (missing.length) throw new Error(`Seller sem Recipient ID Pagar.me. Configure antes de vender: ${missing.join(', ')}.`);
+
+  // Venda própria da Ariana: não precisa split de seller.
+  if (!sellers.length) return payload;
+
+  if (!marketplaceRecipientId) {
+    throw new Error('PAGARME_MARKETPLACE_RECIPIENT_ID não configurado para receber a comissão da Ariana.');
+  }
+
+  const missing = sellers
+    .filter((item) => !item.recipients?.pagarme)
+    .map((item) => item.sellerName || item.sellerId)
+    .filter(Boolean);
+
+  if (missing.length) {
+    throw new Error(`Seller sem Recipient ID Pagar.me. Configure antes de vender: ${missing.join(', ')}.`);
+  }
 
   const split = [];
+
   for (const item of sellers) {
-    if (item.recipients?.pagarme && item.sellerNet > 0) {
+    if (item.recipients?.pagarme && Number(item.sellerNet || 0) > 0) {
       split.push({
         amount: paymentSplitCents(item.sellerNet),
         recipient_id: item.recipients.pagarme,
         type: 'flat',
-        options: { liable: true, charge_processing_fee: false, charge_remainder_fee: false }
+        options: {
+          liable: true,
+          charge_processing_fee: false,
+          charge_remainder_fee: false
+        }
       });
     }
   }
-  const marketplaceAmount = splitSummary.totalMarketplaceAmount || 0;
-  if (marketplaceAmount > 0) {
+
+  let marketplaceAmountCents = paymentSplitCents(splitSummary.totalMarketplaceAmount || 0);
+
+  // Garante que todo o valor da cobrança fique distribuído.
+  // Antes o split estava sendo calculado só sobre os itens do seller; frete/acréscimos podiam ficar fora.
+  const payloadTotalCents = getPagarmePayloadTotalCents(payload);
+  const sellerSplitCents = split.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const currentTotalSplitCents = sellerSplitCents + marketplaceAmountCents;
+
+  if (payloadTotalCents > 0 && currentTotalSplitCents < payloadTotalCents) {
+    marketplaceAmountCents += payloadTotalCents - currentTotalSplitCents;
+  }
+
+  if (marketplaceAmountCents > 0) {
     split.push({
-      amount: paymentSplitCents(marketplaceAmount),
+      amount: marketplaceAmountCents,
       recipient_id: marketplaceRecipientId,
       type: 'flat',
-      options: { liable: false, charge_processing_fee: true, charge_remainder_fee: true }
+      options: {
+        liable: false,
+        charge_processing_fee: true,
+        charge_remainder_fee: true
+      }
     });
   }
-  if (!split.length) throw new Error('Split Pagar.me obrigatório, mas nenhum recebedor foi montado.');
-  payload.charges = ensureArray(payload.charges).map((charge) => ({ ...charge, split }));
+
+  if (!split.length) {
+    throw new Error('Split Pagar.me obrigatório, mas nenhum recebedor foi montado.');
+  }
+
+  // IMPORTANTE:
+  // Este backend cria pedido Pagar.me por /orders usando "payments".
+  // O código anterior colocava o split em payload.charges, mas esse payload não tinha charges ainda.
+  // Por isso o Pagar.me aprovava a venda, porém não criava recebíveis para o seller.
+  if (Array.isArray(payload.payments) && payload.payments.length) {
+    payload.payments = payload.payments.map((payment) => ({ ...payment, split }));
+  } else if (Array.isArray(payload.charges) && payload.charges.length) {
+    payload.charges = payload.charges.map((charge) => ({ ...charge, split }));
+  } else {
+    payload.payments = [{ payment_method: 'credit_card', split }];
+  }
+
+  payload.metadata = {
+    ...(payload.metadata || {}),
+    splitApplied: true,
+    splitGateway: 'pagarme',
+    marketplaceRecipientId,
+    marketplaceAmountCents,
+    sellerSplitCents,
+    splitTotalCents: split.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    splitRecipients: split.map((item) => item.recipient_id).join(',')
+  };
+
   return payload;
 }
+
 async function buildCieloHeaders() {
   const settings = await getPaymentsSettings();
   const cielo = settings.cielo || {};
