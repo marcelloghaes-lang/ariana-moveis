@@ -138,7 +138,7 @@ function setLockedField(id, locked) {
 }
 function isApprovedSeller(seller = {}) {
   const status = String(seller.status || seller.metadata?.status || seller.approvalStatus || "").toLowerCase();
-  return ["approved", "aprovado", "ativo", "active"].includes(status) || seller.approved === true || seller.active === true;
+  return ["approved", "aprovado", "ativo", "active"].includes(status) || seller.approved === true;
 }
 function normalizeSellerPayload(data = {}) {
   const seller = data.seller || data.profile || data.user?.seller || data;
@@ -217,8 +217,8 @@ async function saveSeller(event) {
     // Após aprovação, o backend também deve bloquear este campo.
     if (!approved) payload.factoryName = $("factoryName").value.trim();
 
-    const res = await fetch(`${API_BASE}/seller/update`, {
-      method: "PUT",
+    const res = await fetch(`${API_BASE}/seller/profile`, {
+      method: "PATCH",
       headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });

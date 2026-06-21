@@ -5223,7 +5223,40 @@ async function sellerAuthRequired(req,res,next){
     next();
   }catch(e){ return res.status(401).json({ok:false,error:'Token inválido'}); }
 }
-function sellerProfile(s,u){ const o=toJSON(s)||{}; return {...o,id:String(o.sellerId||o._id||''),sellerId:String(o.sellerId||''),name:o.displayName||o.storeName||u?.name||'',factoryName:o.storeName||o.displayName||u?.name||'',email:o.email||u?.email||'',active:!['bloqueado','reprovado','blocked','rejected'].includes(String(o.status||'').toLowerCase())}; }
+function sellerProfile(s, u) {
+  const o = toJSON(s) || {};
+  const meta = o.metadata && typeof o.metadata === 'object' ? o.metadata : {};
+  const bankFromMeta = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
+  const bankAccount = {
+    bank: String(o.bankAccount?.bank || o.bankAccount?.bankName || meta.bank || meta.bankName || bankFromMeta.bank || bankFromMeta.bankName || '').trim(),
+    bankName: String(o.bankAccount?.bankName || o.bankAccount?.bank || meta.bankName || meta.bank || bankFromMeta.bankName || bankFromMeta.bank || '').trim(),
+    agency: String(o.bankAccount?.agency || meta.bankAgency || meta.agency || bankFromMeta.agency || bankFromMeta.bankAgency || '').trim(),
+    account: String(o.bankAccount?.account || meta.bankAccount || meta.account || bankFromMeta.account || bankFromMeta.number || bankFromMeta.bankAccount || '').trim(),
+    number: String(o.bankAccount?.number || meta.bankAccount || meta.account || bankFromMeta.number || bankFromMeta.account || '').trim(),
+    pixKey: String(o.bankAccount?.pixKey || meta.pixKey || bankFromMeta.pixKey || '').trim()
+  };
+  const status = String(o.status || meta.status || '').toLowerCase();
+  return {
+    ...o,
+    metadata: meta,
+    id: String(o.sellerId || o._id || ''),
+    sellerId: String(o.sellerId || ''),
+    name: o.displayName || o.storeName || u?.name || '',
+    factoryName: String(meta.factoryName || o.storeName || o.displayName || u?.name || '').trim(),
+    storeName: String(o.storeName || meta.storeName || meta.factoryName || o.displayName || '').trim(),
+    displayName: String(o.displayName || o.storeName || meta.factoryName || u?.name || '').trim(),
+    email: o.email || u?.email || meta.email || '',
+    phone: o.phone || u?.phone || meta.phone || '',
+    document: o.document || u?.cpf || meta.document || meta.cnpj || '',
+    cnpj: String(meta.cnpj || o.document || u?.cpf || '').trim(),
+    bio: String(meta.bio || meta.description || meta.descricao || o.bio || '').trim(),
+    description: String(meta.bio || meta.description || meta.descricao || o.description || '').trim(),
+    bankAccount,
+    cepColeta: String(meta.cepColeta || meta.pickupCep || meta.cep_coleta || '').replace(/\D/g, ''),
+    transpPropria: meta.transpPropria === true || meta.ownCarrier === true || meta.transportadoraPropria === true,
+    active: !['bloqueado','reprovado','blocked','rejected'].includes(status)
+  };
+}
 app.post('/api/seller/auth/login',async(req,res)=>{
   try{
     const email=String(req.body?.email||'').trim().toLowerCase(); const password=String(req.body?.password||'');
@@ -5252,45 +5285,84 @@ app.get('/api/seller/profile', sellerAuthRequired, async (req, res) => {
   }
 });
 
-app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
+
+async function saveSellerProfileSettings(req, res) {
   try {
     const body = req.body || {};
     const sellerUpdates = {};
     const userUpdates = {};
 
     const sellerStatus = String(req.seller?.status || '').trim().toLowerCase();
-    const sellerApproved = ['approved', 'aprovado'].includes(sellerStatus);
+    const sellerApproved = ['approved', 'aprovado', 'ativo', 'active'].includes(sellerStatus);
 
-    // Depois que o seller for aprovado, dados jurídicos ficam travados.
-    // O backend preserva os valores atuais mesmo que alguém tente alterar pelo painel, DevTools ou API.
+    const metadata = { ...(req.seller?.metadata || {}) };
+
+    const incomingFactoryName = body.factoryName ?? body.storeName ?? body.displayName;
+    if (!sellerApproved && incomingFactoryName !== undefined) {
+      const name = String(incomingFactoryName || '').trim();
+      sellerUpdates.storeName = name;
+      sellerUpdates.displayName = name || req.seller?.displayName || req.seller?.storeName || '';
+      metadata.factoryName = name;
+      metadata.storeName = name;
+    }
+
+    // Dados jurídicos continuam protegidos depois da aprovação.
     if (!sellerApproved) {
-      if (body.storeName !== undefined) sellerUpdates.storeName = String(body.storeName || '').trim();
-      if (body.displayName !== undefined) sellerUpdates.displayName = String(body.displayName || '').trim();
-      if (body.email !== undefined) {
-        sellerUpdates.email = String(body.email || '').trim().toLowerCase();
-        userUpdates.email = sellerUpdates.email;
+      const incomingDocument = body.cnpj ?? body.document ?? body.cpf;
+      if (incomingDocument !== undefined) {
+        const doc = String(incomingDocument || '').replace(/\D/g, '');
+        sellerUpdates.document = doc;
+        userUpdates.cpf = doc;
+        metadata.cnpj = doc;
+        metadata.document = doc;
       }
-      if (body.document !== undefined) {
-        sellerUpdates.document = String(body.document || '').trim();
-        userUpdates.cpf = sellerUpdates.document;
+      if (body.email !== undefined) {
+        const email = String(body.email || '').trim().toLowerCase();
+        sellerUpdates.email = email;
+        userUpdates.email = email;
+        metadata.email = email;
       }
     }
 
     if (body.phone !== undefined) {
       sellerUpdates.phone = String(body.phone || '').trim();
       userUpdates.phone = sellerUpdates.phone;
+      metadata.phone = sellerUpdates.phone;
     }
     if (body.city !== undefined) userUpdates.city = String(body.city || '').trim();
     if (body.uf !== undefined) userUpdates.uf = String(body.uf || '').trim().toUpperCase().slice(0, 2);
 
-    const metadata = { ...(req.seller?.metadata || {}) };
-    const metadataKeys = sellerApproved
-      ? ['address', 'cep', 'bairro', 'numero', 'complemento', 'bankName', 'bankAgency', 'bankAccount', 'pixKey']
-      : ['address', 'cep', 'bairro', 'numero', 'complemento', 'responsavel', 'bankName', 'bankAgency', 'bankAccount', 'pixKey'];
-
-    for (const key of metadataKeys) {
-      if (body[key] !== undefined) metadata[key] = String(body[key] || '').trim();
+    // Campos complementares da tela seller_configuracoes.html.
+    if (body.bio !== undefined || body.description !== undefined || body.descricao !== undefined) {
+      metadata.bio = String(body.bio ?? body.description ?? body.descricao ?? '').trim();
+      metadata.description = metadata.bio;
     }
+
+    const bankBody = body.bankAccount && typeof body.bankAccount === 'object' ? body.bankAccount : {};
+    if (body.bankAccount !== undefined || body.bankName !== undefined || body.bankAgency !== undefined || body.account !== undefined) {
+      const bankAccount = {
+        bank: String(bankBody.bank ?? bankBody.bankName ?? body.bankName ?? body.bank ?? '').trim(),
+        bankName: String(bankBody.bankName ?? bankBody.bank ?? body.bankName ?? body.bank ?? '').trim(),
+        agency: String(bankBody.agency ?? bankBody.bankAgency ?? body.bankAgency ?? body.agency ?? '').trim(),
+        account: String(bankBody.account ?? bankBody.number ?? bankBody.bankAccount ?? body.bankAccountNumber ?? body.account ?? '').trim(),
+        number: String(bankBody.number ?? bankBody.account ?? bankBody.bankAccount ?? body.bankAccountNumber ?? body.account ?? '').trim(),
+        pixKey: String(bankBody.pixKey ?? body.pixKey ?? '').trim()
+      };
+      metadata.bankAccount = bankAccount;
+      metadata.bankName = bankAccount.bankName || bankAccount.bank;
+      metadata.bankAgency = bankAccount.agency;
+      metadata.bankAccountNumber = bankAccount.account;
+      metadata.bankAccount = bankAccount;
+    }
+
+    if (body.cepColeta !== undefined || body.pickupCep !== undefined || body.cep_coleta !== undefined) {
+      metadata.cepColeta = String(body.cepColeta ?? body.pickupCep ?? body.cep_coleta ?? '').replace(/\D/g, '');
+    }
+    if (body.transpPropria !== undefined || body.ownCarrier !== undefined || body.transportadoraPropria !== undefined) {
+      metadata.transpPropria = body.transpPropria === true || body.ownCarrier === true || body.transportadoraPropria === true;
+    }
+
+    metadata.updatedFromSellerConfigAt = now();
     sellerUpdates.metadata = metadata;
 
     const seller = await Seller.findOneAndUpdate(
@@ -5312,7 +5384,12 @@ app.patch('/api/seller/profile', sellerAuthRequired, async (req, res) => {
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
   }
-});
+}
+
+app.patch('/api/seller/profile', sellerAuthRequired, saveSellerProfileSettings);
+app.put('/api/seller/profile', sellerAuthRequired, saveSellerProfileSettings);
+app.put('/api/seller/update', sellerAuthRequired, saveSellerProfileSettings);
+app.patch('/api/seller/update', sellerAuthRequired, saveSellerProfileSettings);
 
 app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
   try {
