@@ -41,7 +41,7 @@
           <div class="quote-box" id="quoteBox"><b>Opções de frete encontradas</b><div class="quote-list" id="quoteList"></div></div>
           <div class="form-grid"><div><label>Transportadora</label><select id="provider" onchange="onProviderChange()"><option value="manual">Transportadora manual</option><option value="ariana_local">Ariana Local</option><option value="correios">Correios</option><option value="frenet">Frenet/transportadora</option><option value="rodocap">Rodocap 12%</option></select></div><div><label>Serviço</label><input id="service" placeholder="PAC, Sedex, Rodocap..."></div><div><label>Código de rastreio</label><input id="trackingCode" placeholder="Opcional"></div><div><label>Status</label><select id="markStatus"><option value="">Não alterar</option><option value="preparando_envio">Preparando envio</option><option value="enviado">Enviado</option><option value="entregue">Entregue</option></select></div><div><label>Volumes</label><input id="volumes" type="number" value="1" min="1"></div><div><label>Peso kg</label><input id="weightKg" placeholder="Ex: 2,5"></div><div><label>Comprimento cm</label><input id="lengthCm"></div><div><label>Largura cm</label><input id="widthCm"></div><div><label>Altura cm</label><input id="heightCm"></div><div><label>Valor frete</label><input id="shippingCost" placeholder="0,00"></div></div>
           <label>Observações</label><textarea id="notes" rows="3" placeholder="Ex: coleta agendada, produto frágil, Rodocap 12% da nota..."></textarea>
-          <div class="action-bar"><button class="light" onclick="buscarFreteReal()">🔎 Buscar frete real</button><button class="yellow" onclick="prepararRodocap()">🚚 Rodocap 12%</button><button class="green" onclick="gerarEtiqueta(false)">🏷️ Gerar</button><button class="primary" onclick="gerarEtiqueta(true)">📲 Gerar + notificar</button><button class="gray" onclick="marcarEnviado()">📦 Marcar enviado</button><button class="light" onclick="abrirEtiqueta()">🖨️ Imprimir</button></div>
+          <div class="action-bar"><button class="light" onclick="buscarFreteReal()">🔎 Buscar frete real</button><button class="yellow" onclick="testarCorreios()">🧪 Testar Correios</button><button class="yellow" onclick="prepararRodocap()">🚚 Rodocap 12%</button><button class="green" onclick="gerarEtiqueta(false)">🏷️ Gerar</button><button class="primary" onclick="gerarEtiqueta(true)">📲 Gerar + notificar</button><button class="gray" onclick="marcarEnviado()">📦 Marcar enviado</button><button class="light" onclick="abrirEtiqueta()">🖨️ Imprimir</button></div>
         </div></div>
     </section>
     <section id="tab-romaneios" class="hidden"><div class="card"><h2>Romaneios</h2><p class="help">Use Rodocap para gerar romaneio com 12% da nota. Para entrega local, gere romaneio Ariana sem rastreio obrigatório.</p><div class="quick-grid"><div class="quick-card"><b>Rodocap</b><small>Frete calculado em 12% do valor da nota. Sem API, emissão por romaneio manual.</small></div><div class="quick-card"><b>Ariana Local</b><small>Guanhães grátis, até 30 km R$ 80, até 120 km R$ 120.</small></div><div class="quick-card"><b>Frenet</b><small>Usada para transportadoras quando o pedido passa dos limites dos Correios.</small></div><div class="quick-card"><b>Correios</b><small>PAC/SEDEX para até 30 kg e até 100 cm no maior lado.</small></div></div></div></section>
@@ -76,6 +76,43 @@ function selectPedido(i){selected=pedidos[i];if(!selected)return;currentQuotes=[
 function buildQuotePayload(){const a=selected?.address||{};return{orderId:orderId.value,cepDestino:cleanCep(a.cep||selected?.shippingAddress?.cep||''),shippingAddress:{cep:cleanCep(a.cep||''),cidade:a.cidade||'',uf:a.uf||''},productPrice:Number(selected?.total||selected?.subtotal||0),subtotal:Number(selected?.subtotal||selected?.total||0),invoiceValue:Number(selected?.total||0),weightKg:toNumber(weightKg.value)||Number(selected?.weightKg||1),lengthCm:toNumber(lengthCm.value)||Number(selected?.lengthCm||20),widthCm:toNumber(widthCm.value)||Number(selected?.widthCm||15),heightCm:toNumber(heightCm.value)||Number(selected?.heightCm||10),items:selected?.items||[],shippingRule:provider.value==='ariana_local'?'ariana_local':undefined,useArianaLogistics:['rodocap','ariana_local'].includes(provider.value)}}
 async function buscarFreteReal(){if(!selected){toast('Selecione um pedido primeiro.');return}quoteBox.style.display='block';quoteList.innerHTML='<div class="empty">Consultando frete...</div>';try{const r=await fetch(API_BASE+'/shipping/logistics/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildQuotePayload())});const j=await r.json();currentQuotes=j.quotes||j.options||[];if(!currentQuotes.length){quoteList.innerHTML='<div class="empty">Nenhuma opção retornada. Use etiqueta manual/romaneio.</div>';return}quoteList.innerHTML=currentQuotes.map((q,idx)=>`<div class="quote-item"><div><div class="quote-title">${esc(q.label||q.name||q.service||'Frete')}</div><div class="quote-meta">${esc(q.provider||'configurado')} • ${esc(q.prazo||q.deliveryTime||'prazo sob consulta')}</div></div><div style="text-align:right"><b>${money(q.price||0)}</b><br><button class="small light" onclick="usarCotacao(${idx})">Usar</button></div></div>`).join('')}catch(e){quoteList.innerHTML='<div class="empty">Erro ao consultar frete: '+esc(e.message||e)+'</div>'}}
 function usarCotacao(idx){const q=currentQuotes[idx];if(!q)return;provider.value=q.provider==='correios'?'correios':q.provider==='frenet'?'frenet':(String(q.service||'').includes('rodocap')?'rodocap':'manual');service.value=q.service||q.label||q.name||'';shippingCost.value=Number(q.price||0).toFixed(2).replace('.',',');notes.value=[notes.value, q.details||q.prazo||''].filter(Boolean).join('\n');toast('Cotação aplicada')}
+
+async function testarCorreios(){
+  try{
+    const endpoint = API_SCOPE + '/etiquetas/correios/teste';
+    toast('Testando Correios sem gerar compra real...');
+    const payload = {
+      teste: true,
+      cepOrigem: '39740000',
+      cepDestino: '01001000',
+      weightKg: 1,
+      lengthCm: 20,
+      widthCm: 20,
+      heightCm: 20,
+      productPrice: 10,
+      service: 'PAC/SEDEX TESTE'
+    };
+    const r = await fetch(API_BASE + endpoint, {
+      method: 'POST',
+      headers: headers({'Content-Type':'application/json'}),
+      body: JSON.stringify(payload)
+    });
+    const j = await r.json().catch(()=>({}));
+    if(r.status===401||r.status===403){ logout(); return; }
+    if(!r.ok || j.ok===false){
+      toast(j.error || j.message || 'Falha no teste Correios');
+      alert(JSON.stringify(j, null, 2));
+      return;
+    }
+    const quoteOk = j.quote && j.quote.ok !== false;
+    toast(quoteOk ? 'Teste Correios concluído com resposta de cotação.' : 'Rota Correios respondeu. Cotação oficial ainda não retornou preço.');
+    alert(JSON.stringify(j, null, 2));
+  }catch(e){
+    toast(e.message || 'Erro ao testar Correios');
+    alert(e.message || String(e));
+  }
+}
+
 function prepararRodocap(){if(!selected){return}const total=Number(selected.total||selected.subtotal||0);provider.value='rodocap';service.value='Rodocap - 12% da nota';shippingCost.value=(total*0.12).toFixed(2).replace('.',',');notes.value=`Rodocap sem API. Frete calculado em 12% do valor da nota (${money(total)}).`;toast('Rodocap calculada em 12% da nota')}
 function onProviderChange(){if(provider.value==='rodocap')prepararRodocap(); if(provider.value==='ariana_local'&&!service.value)service.value='Entrega Ariana/local'; if(provider.value==='correios'&&!service.value)service.value='PAC/SEDEX'; if(provider.value==='frenet'&&!service.value)service.value='Frenet/Transportadora'}
 async function gerarEtiqueta(notify){if(!orderId.value){toast('Selecione um pedido primeiro.');return}const payload={orderId:orderId.value,provider:provider.value,service:service.value,trackingCode:trackingCode.value,markStatus:markStatus.value,markStatusLabel:markStatus.value,volumes:Number(volumes.value||1),weightKg:toNumber(weightKg.value),lengthCm:toNumber(lengthCm.value),widthCm:toNumber(widthCm.value),heightCm:toNumber(heightCm.value),shippingCost:toNumber(shippingCost.value),notes:notes.value,notifyCustomer:notify};let endpoint=API_SCOPE+'/etiquetas/manual';if(provider.value==='correios')endpoint=API_SCOPE+'/etiquetas/correios/preparar';if(provider.value==='frenet')endpoint=API_SCOPE+'/etiquetas/frenet/preparar';const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});const j=await r.json().catch(()=>({}));if(!j.ok){toast(j.error||'Erro ao gerar etiqueta');return}const prepared=j.providerResult&&j.providerResult.preparedOnly;toast(prepared?'Rota criada e etiqueta preparada. Falta endpoint oficial do provedor no Render.':(notify?'Etiqueta/romaneio gerado e cliente notificado':'Etiqueta/romaneio gerado'));await loadPedidos();await abrirEtiqueta(orderId.value)}

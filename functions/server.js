@@ -7622,6 +7622,47 @@ app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, asyn
   }
 });
 
+
+app.post('/api/admin/logistica/etiquetas/correios/teste', adminRequired, async (req, res) => {
+  try {
+    const settings = await getShippingSettings().catch(() => ({}));
+    const testPayload = {
+      cepOrigem: cleanCep(req.body?.cepOrigem || settings?.correios?.origemCep || settings?.carriers?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || '39740000'),
+      cepDestino: cleanCep(req.body?.cepDestino || '01001000'),
+      weightKg: Number(req.body?.weightKg || 1),
+      lengthCm: Number(req.body?.lengthCm || 20),
+      widthCm: Number(req.body?.widthCm || 20),
+      heightCm: Number(req.body?.heightCm || 20),
+      productPrice: Number(req.body?.productPrice || 10),
+      shippingServiceCode: req.body?.shippingServiceCode || req.body?.serviceCode || undefined
+    };
+
+    const quote = await quoteCorreios(testPayload, settings).catch((error) => ({
+      ok: false,
+      error: error.message || String(error)
+    }));
+
+    return res.json({
+      ok: true,
+      teste: true,
+      provider: 'correios',
+      message: 'Teste executado sem gerar pedido, sem comprar frete e sem criar pré-postagem real.',
+      auth: 'admin_ok',
+      correios: {
+        enabled: settings?.carriers?.correios?.enabled !== false,
+        prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
+        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        originCep: testPayload.cepOrigem
+      },
+      request: testPayload,
+      quote
+    });
+  } catch (error) {
+    console.error('[logistica correios teste]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao testar Correios.' });
+  }
+});
+
 app.post('/api/admin/logistica/etiquetas/frenet/preparar', adminRequired, async (req, res) => {
   try {
     const orderId = String(req.body?.orderId || '').trim();
@@ -7836,6 +7877,48 @@ app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired
   } catch (error) {
     console.error('[seller logistica correios preparar]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Correios do seller.' });
+  }
+});
+
+
+app.post('/api/seller/logistica/etiquetas/correios/teste', sellerAuthRequired, async (req, res) => {
+  try {
+    const settings = await getShippingSettings().catch(() => ({}));
+    const testPayload = {
+      cepOrigem: cleanCep(req.body?.cepOrigem || settings?.correios?.origemCep || settings?.carriers?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || '39740000'),
+      cepDestino: cleanCep(req.body?.cepDestino || '01001000'),
+      weightKg: Number(req.body?.weightKg || 1),
+      lengthCm: Number(req.body?.lengthCm || 20),
+      widthCm: Number(req.body?.widthCm || 20),
+      heightCm: Number(req.body?.heightCm || 20),
+      productPrice: Number(req.body?.productPrice || 10),
+      shippingServiceCode: req.body?.shippingServiceCode || req.body?.serviceCode || undefined
+    };
+
+    const quote = await quoteCorreios(testPayload, settings).catch((error) => ({
+      ok: false,
+      error: error.message || String(error)
+    }));
+
+    return res.json({
+      ok: true,
+      teste: true,
+      provider: 'correios',
+      message: 'Teste executado pelo seller sem gerar pedido, sem comprar frete e sem criar pré-postagem real.',
+      auth: 'seller_ok',
+      sellerId: req.sellerId || '',
+      correios: {
+        enabled: settings?.carriers?.correios?.enabled !== false,
+        prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
+        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        originCep: testPayload.cepOrigem
+      },
+      request: testPayload,
+      quote
+    });
+  } catch (error) {
+    console.error('[seller logistica correios teste]', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao testar Correios do seller.' });
   }
 });
 
