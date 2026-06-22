@@ -6666,142 +6666,9 @@ app.post('/api/admin/banners', adminRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'banner_save_failed' });
   }
 });
-// ============================================================
-// ENDEREÇOS DO CLIENTE
-// Mantém compatibilidade com checkout.html e minha_conta.html.
-// ============================================================
-function normalizeAddressPayload(body = {}, user = {}) {
-  const cep = String(body.cep || body.zip || body.zipCode || body.postalCode || '').replace(/\D/g, '');
-  return {
-    userId: user._id,
-    name: String(body.name || body.label || body.titulo || body.apelido || 'Endereço').trim(),
-    phone: String(body.phone || body.telefone || user.phone || '').trim(),
-    cep,
-    logradouro: String(body.logradouro || body.street || body.rua || body.address || '').trim(),
-    numero: String(body.numero || body.number || body.numeroCasa || 'S/N').trim(),
-    bairro: String(body.bairro || body.neighborhood || body.district || '').trim(),
-    cidade: String(body.cidade || body.city || '').trim(),
-    uf: String(body.uf || body.state || '').trim().toUpperCase().slice(0, 2),
-    complemento: String(body.complemento || body.complement || body.line2 || '').trim(),
-    reference: String(body.reference || body.referencia || body.pontoReferencia || '').trim(),
-    isDefault: body.isDefault === true || body.default === true || body.principal === true
-  };
-}
-
-function normalizeAddressForResponse(doc) {
-  const obj = toJSON(doc) || {};
-  return {
-    ...obj,
-    id: String(obj.id || obj._id || ''),
-    label: obj.name || '',
-    street: obj.logradouro || '',
-    number: obj.numero || '',
-    neighborhood: obj.bairro || '',
-    city: obj.cidade || '',
-    state: obj.uf || '',
-    zipCode: obj.cep || '',
-    complement: obj.complemento || ''
-  };
-}
-
-app.get('/api/addresses', authRequired, async (req, res) => {
-  try {
-    const list = await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 });
-    const addresses = list.map(normalizeAddressForResponse);
-    return res.json({ ok: true, addresses, items: addresses, data: addresses });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao buscar endereços' });
-  }
-});
-
-app.get('/api/users/:id/addresses', authRequired, async (req, res) => {
-  try {
-    const requested = String(req.params.id || '');
-    if (requested && requested !== String(req.user._id) && requested !== String(req.user.id || '')) {
-      return res.status(403).json({ ok: false, error: 'Acesso negado' });
-    }
-    const list = await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 });
-    const addresses = list.map(normalizeAddressForResponse);
-    return res.json({ ok: true, addresses, items: addresses, data: addresses });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao buscar endereços' });
-  }
-});
-
-app.post('/api/addresses', authRequired, async (req, res) => {
-  try {
-    const payload = normalizeAddressPayload(req.body || {}, req.user);
-    if (!payload.cep || payload.cep.length !== 8) return res.status(400).json({ ok: false, error: 'CEP inválido' });
-    if (!payload.logradouro) return res.status(400).json({ ok: false, error: 'Rua/logradouro obrigatório' });
-    if (!payload.bairro) return res.status(400).json({ ok: false, error: 'Bairro obrigatório' });
-    if (!payload.cidade) return res.status(400).json({ ok: false, error: 'Cidade obrigatória' });
-    if (!payload.uf) return res.status(400).json({ ok: false, error: 'UF obrigatória' });
-
-    const count = await Address.countDocuments({ userId: req.user._id });
-    if (payload.isDefault || count === 0) {
-      await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } });
-      payload.isDefault = true;
-    }
-
-    const doc = await Address.create(payload);
-    const address = normalizeAddressForResponse(doc);
-    return res.json({ ok: true, address, item: address, data: address });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar endereço' });
-  }
-});
-
-app.put('/api/addresses/:id', authRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const payload = normalizeAddressPayload(req.body || {}, req.user);
-    delete payload.userId;
-    if (payload.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } });
-    const doc = await Address.findOneAndUpdate({ _id: oid, userId: req.user._id }, { $set: payload }, { new: true });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Endereço não encontrado' });
-    const address = normalizeAddressForResponse(doc);
-    return res.json({ ok: true, address, item: address, data: address });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar endereço' });
-  }
-});
-
-app.patch('/api/addresses/:id', authRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const payload = normalizeAddressPayload(req.body || {}, req.user);
-    delete payload.userId;
-    if (payload.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } });
-    const doc = await Address.findOneAndUpdate({ _id: oid, userId: req.user._id }, { $set: payload }, { new: true });
-    if (!doc) return res.status(404).json({ ok: false, error: 'Endereço não encontrado' });
-    const address = normalizeAddressForResponse(doc);
-    return res.json({ ok: true, address, item: address, data: address });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar endereço' });
-  }
-});
-
-app.delete('/api/addresses/:id', authRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    await Address.deleteOne({ _id: oid, userId: req.user._id });
-    return res.json({ ok: true });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao remover endereço' });
-  }
-});
-
-app.get('/api/settings/shipping', async (_req, res) => {
-  try {
-    const settings = await getShippingSettings();
-    return res.json({ ok: true, settings, shipping: settings });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao buscar configurações de frete' });
-  }
-});
+app.get('/api/addresses', authRequired, async (req, res) => res.json((await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 })).map(toJSON)));
+app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
+app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
 
 function normalizeOrderItemsForCheckout(body = {}) {
   const method = String(body?.payment?.method || body?.paymentMethod || body?.totals?.paymentMethod || '').toLowerCase();
@@ -7296,10 +7163,6 @@ function isProviderBaseUrlOnly(endpoint = '', provider = '') {
 
   return false;
 }
-
-func
-
-
 
 function buildProviderPreparedFallback({
   provider = 'correios',
