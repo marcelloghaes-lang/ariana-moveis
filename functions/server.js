@@ -2442,16 +2442,6 @@ app.get('/api/settings/payments', async (_req, res) => {
 });
 
 
-app.get('/api/settings/shipping', async (_req, res) => {
-  try {
-    const shipping = await getShippingSettings();
-    return res.json({ ok: true, shipping, item: shipping });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar configurações de frete' });
-  }
-});
-
-
 // ============================================================
 // ROTAS PARA BOTS DO WHATSAPP - FINANCEIRO E SAC
 // Usadas pelas automações Ariana_Financeiro e Ariana_SAC.
@@ -6676,118 +6666,9 @@ app.post('/api/admin/banners', adminRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'banner_save_failed' });
   }
 });
-function normalizeAddressPayload(body = {}) {
-  return {
-    name: String(body.name || body.label || body.nome || '').trim(),
-    phone: String(body.phone || body.telefone || '').trim(),
-    cep: String(body.cep || body.zipCode || body.zip || '').trim(),
-    logradouro: String(body.logradouro || body.street || body.rua || body.address || '').trim(),
-    numero: String(body.numero || body.number || body.numeroEndereco || '').trim(),
-    bairro: String(body.bairro || body.neighborhood || body.district || '').trim(),
-    cidade: String(body.cidade || body.city || '').trim(),
-    uf: String(body.uf || body.state || '').trim().toUpperCase().slice(0, 2),
-    complemento: String(body.complemento || body.complement || body.line2 || '').trim(),
-    reference: String(body.reference || body.referencia || body.pontoReferencia || '').trim(),
-    isDefault: body.isDefault === true || body.default === true || body.principal === true || body.isPrimary === true
-  };
-}
-
-async function listUserAddresses(userId) {
-  const oid = normalizeObjectId(userId);
-  if (!oid) return [];
-  return Address.find({ userId: oid }).sort({ isDefault: -1, createdAt: -1 });
-}
-
-app.get('/api/addresses', authRequired, async (req, res) => {
-  try {
-    const addresses = await listUserAddresses(req.user._id);
-    const items = addresses.map(toJSON);
-    // Mantém compatibilidade com telas antigas e novas: array direto + campos ok/addresses/items.
-    return res.json({ ok: true, addresses: items, items, data: items });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar endereços' });
-  }
-});
-
-app.get('/api/users/:id/addresses', authRequired, async (req, res) => {
-  try {
-    const requestedId = String(req.params.id || '').trim();
-    const currentId = String(req.user._id || req.user.id || '').trim();
-    const currentEmail = String(req.user.email || '').trim().toLowerCase();
-
-    // Segurança: cliente só pode consultar os próprios endereços.
-    const allowed = !requestedId || requestedId === currentId || requestedId === currentEmail || requestedId === String(req.user.id || '');
-    if (!allowed && String(req.user.role || '').toLowerCase() !== 'admin') {
-      return res.status(403).json({ ok: false, error: 'Acesso negado' });
-    }
-
-    const addresses = await listUserAddresses(req.user._id);
-    const items = addresses.map(toJSON);
-    return res.json({ ok: true, addresses: items, items, data: items });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar endereços' });
-  }
-});
-
-app.post('/api/addresses', authRequired, async (req, res) => {
-  try {
-    const body = normalizeAddressPayload(req.body || {});
-    if (!body.cep || !body.logradouro || !body.numero || !body.bairro || !body.cidade || !body.uf) {
-      return res.status(400).json({ ok: false, error: 'Preencha CEP, rua, número, bairro, cidade e UF.' });
-    }
-
-    const count = await Address.countDocuments({ userId: req.user._id });
-    const isDefault = body.isDefault || count === 0;
-    if (isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } });
-
-    const doc = await Address.create({
-      userId: req.user._id,
-      ...body,
-      isDefault
-    });
-
-    return res.json({ ok: true, address: toJSON(doc), item: toJSON(doc) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar endereço' });
-  }
-});
-
-app.patch('/api/addresses/:id', authRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-
-    const body = normalizeAddressPayload(req.body || {});
-    if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } });
-
-    const doc = await Address.findOneAndUpdate(
-      { _id: oid, userId: req.user._id },
-      { $set: body },
-      { new: true, runValidators: true }
-    );
-
-    if (!doc) return res.status(404).json({ ok: false, error: 'Endereço não encontrado' });
-    return res.json({ ok: true, address: toJSON(doc), item: toJSON(doc) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar endereço' });
-  }
-});
-
-app.put('/api/addresses/:id', authRequired, async (req, res) => {
-  req.method = 'PATCH';
-  return app._router.handle(req, res);
-});
-
-app.delete('/api/addresses/:id', authRequired, async (req, res) => {
-  try {
-    const oid = normalizeObjectId(req.params.id);
-    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    await Address.deleteOne({ _id: oid, userId: req.user._id });
-    return res.json({ ok: true });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir endereço' });
-  }
-});
+app.get('/api/addresses', authRequired, async (req, res) => res.json((await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 })).map(toJSON)));
+app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
+app.delete('/api/addresses/:id', authRequired, async (req, res) => { const oid = normalizeObjectId(req.params.id); if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' }); await Address.deleteOne({ _id: oid, userId: req.user._id }); return res.json({ ok: true }); });
 
 function normalizeOrderItemsForCheckout(body = {}) {
   const method = String(body?.payment?.method || body?.paymentMethod || body?.totals?.paymentMethod || '').toLowerCase();
@@ -7283,7 +7164,6 @@ function isProviderBaseUrlOnly(endpoint = '', provider = '') {
   return false;
 }
 
-func
 
 
 
