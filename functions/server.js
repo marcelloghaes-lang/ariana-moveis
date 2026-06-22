@@ -7030,9 +7030,21 @@ function inferLogisticsProvider(order = {}) {
   return provider || 'manual';
 }
 
-function hasCorreiosPrepostagemConfig(settings = {}) {
+function hasCorreiosCredentialsConfigured(settings = {}) {
   const cfg = correiosCfg(settings || {});
-  return Boolean(cfg.user && cfg.pass && cfg.cartao && (process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL));
+  return Boolean(
+    String(cfg.user || process.env.CORREIOS_USER || '').trim() &&
+    String(cfg.pass || process.env.CORREIOS_PASS || '').trim() &&
+    String(cfg.cartao || process.env.CORREIOS_CARTAO || '').trim() &&
+    String(cfg.contrato || process.env.CORREIOS_CONTRATO || '').trim()
+  );
+}
+
+function hasCorreiosPrepostagemConfig(settings = {}) {
+  return Boolean(
+    hasCorreiosCredentialsConfigured(settings || {}) &&
+    String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()
+  );
 }
 
 function hasFrenetOrderConfig(settings = {}) {
@@ -7164,7 +7176,11 @@ function isProviderBaseUrlOnly(endpoint = '', provider = '') {
   return false;
 }
 
-function buildProviderPreparedFallback({
+func
+
+
+
+tion buildProviderPreparedFallback({
   provider = 'correios',
   shipment = {},
   quote = {},
@@ -7346,7 +7362,19 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
 
     const data = response.data || {};
     if (response.status < 200 || response.status >= 300) {
-      const message = data?.message || data?.mensagem || data?.erro || data?.error || data?.errors || data?.msgs || `Correios pré-postagem HTTP ${response.status}`;
+      const providerErrorData = data?.message || data?.mensagem || data?.erro || data?.error || data?.errors || data?.msgs || data || `Correios pré-postagem HTTP ${response.status}`;
+      const message = typeof providerErrorData === 'string'
+        ? providerErrorData
+        : JSON.stringify(redact(providerErrorData)).slice(0, 1200);
+
+      console.error('[correios prepostagem erro]', {
+        status: response.status,
+        endpoint,
+        providerError: message,
+        payload: redact(providerPayload),
+        response: redact(data)
+      });
+
       return buildProviderPreparedFallback({
         provider: 'correios',
         shipment,
@@ -7370,6 +7398,19 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
       raw: data
     };
   } catch (error) {
+    const providerErrorData = error?.response?.data?.message || error?.response?.data?.mensagem || error?.response?.data || error?.message || String(error);
+    const message = typeof providerErrorData === 'string'
+      ? providerErrorData
+      : JSON.stringify(redact(providerErrorData)).slice(0, 1200);
+
+    console.error('[correios prepostagem falha]', {
+      status: error?.response?.status || null,
+      endpoint,
+      providerError: message,
+      payload: redact(providerPayload),
+      response: redact(error?.response?.data || null)
+    });
+
     return buildProviderPreparedFallback({
       provider: 'correios',
       shipment,
@@ -7377,7 +7418,7 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
       trackingCode: body.trackingCode,
       payload: providerPayload,
       reason: 'Falha ao comunicar com a API de pré-postagem dos Correios. O pedido foi salvo como preparado internamente.',
-      providerError: error?.response?.data?.message || error?.response?.data?.mensagem || error?.message || String(error),
+      providerError: message,
       statusCode: error?.response?.status || null
     });
   }
@@ -7785,7 +7826,7 @@ app.post('/api/admin/logistica/etiquetas/correios/teste', adminRequired, async (
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        tokenConfigured: hasCorreiosCredentialsConfigured(settings),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
@@ -8044,7 +8085,7 @@ app.post('/api/seller/logistica/etiquetas/correios/teste', sellerAuthRequired, a
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        tokenConfigured: hasCorreiosCredentialsConfigured(settings),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
