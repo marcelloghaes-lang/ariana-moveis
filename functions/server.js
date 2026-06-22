@@ -3474,7 +3474,34 @@ function parseMoneyBR(value) {
   const n = Number(normalized);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
-function pickPrice(item = {}) { const raw = item.pcFinal ?? item.vrServico ?? item.preco ?? item.valor ?? item.price ?? item.pcProduto ?? null; return parseMoneyBR(raw); }
+function parseCorreiosPrice(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  // A API dos Correios pode devolver valores como "12,71", "12.71" ou 1271.
+  // Quando vier número inteiro grande, tratamos como centavos para não virar R$ 1.271,00.
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (Number.isInteger(value) && value >= 1000) return Math.round(value) / 100;
+    return Math.round(value * 100) / 100;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const digitsOnly = raw.replace(/\D/g, '');
+  const hasComma = raw.includes(',');
+  const hasDot = raw.includes('.');
+
+  if (!hasComma && !hasDot && digitsOnly.length >= 4) {
+    const cents = Number(digitsOnly);
+    return Number.isFinite(cents) ? Math.round(cents) / 100 : null;
+  }
+
+  return parseMoneyBR(raw);
+}
+
+function pickPrice(item = {}) {
+  const raw = item.pcFinal ?? item.vrServico ?? item.preco ?? item.valor ?? item.price ?? item.pcProduto ?? null;
+  return parseCorreiosPrice(raw);
+}
 function pickDeadline(item = {}) {
   const raw = item.prazoEntrega ?? item.prazo ?? item.deadline ?? item.prazoDias ?? item.deliveryTime ?? item.delivery_time ?? item.dtPrazoEntrega ?? null;
   if (raw === null || raw === undefined || raw === '') return null;
@@ -7168,6 +7195,103 @@ function buildProviderPreparedFallback({
   };
 }
 
+
+function pickCorreiosServiceCode(body = {}, shipment = {}) {
+  const raw = String(body.shippingServiceCode || body.serviceCode || body.codigoServico || body.coProduto || body.service || shipment.service || '').trim();
+  if (/^\d{5}$/.test(raw)) return raw;
+  const normalized = normalizeShippingText(raw);
+  if (normalized.includes('SEDEX')) return '03328';
+  if (normalized.includes('PAC')) return '03298';
+  const cfgServices = parseServices(process.env.CORREIOS_SERVICOS || '03298,03328');
+  return cfgServices[0] || '03298';
+}
+
+function splitAddressNumber(address = '', fallbackNumber = '') {
+  const text = String(address || '').trim();
+  const fallback = String(fallbackNumber || '').trim() || 'S/N';
+  if (!text) return { logradouro: '', numero: fallback };
+  const parts = text.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const numero = String(parts[1] || fallback).replace(/[^0-9A-Za-z\-\/]/g, '').trim() || fallback;
+    return { logradouro: parts[0], numero };
+  }
+  return { logradouro: text, numero: fallback };
+}
+
+function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}, quote = {}) {
+  const settings = body.settings || {};
+  const cfg = correiosCfg(settings);
+  const serviceCode = pickCorreiosServiceCode(body, shipment);
+  const bestQuote = quote?.bestQuote || (Array.isArray(quote?.quotes) ? quote.quotes.find((q) => String(q.service) === serviceCode) || quote.quotes[0] : null) || {};
+  const declaredValue = Number(body.valorDeclarado || body.invoiceValue || body.productPrice || shipment.invoiceValue || 0) || 0;
+  const shippingPrice = Number(body.shippingCost || bestQuote.price || shipment.shippingCost || 0) || 0;
+  const weightKg = Number(shipment.weightKg || body.weightKg || body.pesoKg || 1) || 1;
+  const pesoGramas = Number(toGrams(weightKg) || 1000);
+  const lengthCm = Number(shipment.dimensions?.lengthCm || body.lengthCm || body.comprimentoCm || 20) || 20;
+  const widthCm = Number(shipment.dimensions?.widthCm || body.widthCm || body.larguraCm || 20) || 20;
+  const heightCm = Number(shipment.dimensions?.heightCm || body.heightCm || body.alturaCm || 20) || 20;
+  const senderAddress = splitAddressNumber(shipment.sender?.address, shipment.sender?.number);
+  const recipientAddress = splitAddressNumber(shipment.recipient?.address, shipment.recipient?.number);
+  const orderCode = String(shipment.orderCode || shipment.orderId || uid('ord')).slice(-20);
+
+  const itensDeclaracaoConteudo = ensureArray(shipment.items).length ? ensureArray(shipment.items).map((item) => ({
+    conteudo: String(item.name || item.sku || 'Produto').slice(0, 120),
+    quantidade: String(Math.max(1, Number(item.quantity || 1))),
+    valor: Number(item.totalPrice || item.unitPrice || declaredValue || 1).toFixed(2)
+  })) : [{ conteudo: 'Produto Ariana Móveis', quantidade: '1', valor: Number(declaredValue || 1).toFixed(2) }];
+
+  const payload = {
+    numeroCartaoPostagem: String(cfg.cartao || process.env.CORREIOS_CARTAO || '').trim(),
+    codigoServico: serviceCode,
+    precoServico: Number(shippingPrice || 0).toFixed(2),
+    pesoInformado: String(pesoGramas),
+    codigoFormatoObjetoInformado: '2',
+    alturaInformada: String(Math.round(heightCm)),
+    larguraInformada: String(Math.round(widthCm)),
+    comprimentoInformado: String(Math.round(lengthCm)),
+    diametroInformado: '0',
+    modalidadePagamento: '2',
+    logisticaReversa: 'N',
+    remetente: {
+      nome: String(shipment.sender?.name || 'Ariana Móveis').slice(0, 60),
+      cpfCnpj: normalizeDigits(shipment.sender?.document || process.env.LOJA_REMETENTE_DOCUMENTO || ''),
+      telefone: normalizeDigits(shipment.sender?.phone || process.env.LOJA_REMETENTE_TELEFONE || ''),
+      cep: normalizeCepValue(shipment.sender?.cep || process.env.LOJA_ORIGEM_CEP || ''),
+      logradouro: senderAddress.logradouro || String(process.env.LOJA_REMETENTE_ENDERECO || '').slice(0, 80),
+      numero: senderAddress.numero || String(process.env.LOJA_REMETENTE_NUMERO || 'S/N'),
+      complemento: String(process.env.LOJA_REMETENTE_COMPLEMENTO || '').slice(0, 60),
+      bairro: String(shipment.sender?.district || process.env.LOJA_REMETENTE_BAIRRO || '').slice(0, 60),
+      cidade: String(shipment.sender?.city || process.env.LOJA_REMETENTE_CIDADE || 'Guanhães').slice(0, 60),
+      uf: String(shipment.sender?.state || process.env.LOJA_REMETENTE_UF || 'MG').slice(0, 2).toUpperCase()
+    },
+    destinatario: {
+      nome: String(shipment.recipient?.name || 'Cliente').slice(0, 60),
+      cpfCnpj: normalizeDigits(shipment.recipient?.document || ''),
+      telefone: normalizeDigits(shipment.recipient?.phone || ''),
+      email: String(shipment.recipient?.email || '').slice(0, 80),
+      cep: normalizeCepValue(shipment.recipient?.cep || ''),
+      logradouro: recipientAddress.logradouro.slice(0, 80),
+      numero: recipientAddress.numero || 'S/N',
+      complemento: String(shipment.recipient?.complement || '').slice(0, 60),
+      bairro: String(shipment.recipient?.district || '').slice(0, 60),
+      cidade: String(shipment.recipient?.city || '').slice(0, 60),
+      uf: String(shipment.recipient?.state || '').slice(0, 2).toUpperCase()
+    },
+    itensDeclaracaoConteudo,
+    observacao: String(body.notes || body.observacoes || shipment.notes || `Pedido ${orderCode}`).slice(0, 120),
+    idAtendimento: orderCode
+  };
+
+  if (declaredValue > 0) {
+    payload.listaServicoAdicional = [{ codigoServicoAdicional: '019', valorDeclarado: Number(declaredValue).toFixed(2) }];
+  }
+
+  Object.keys(payload.remetente).forEach((key) => { if (payload.remetente[key] === '') delete payload.remetente[key]; });
+  Object.keys(payload.destinatario).forEach((key) => { if (payload.destinatario[key] === '') delete payload.destinatario[key]; });
+  return payload;
+}
+
+
 async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
   const settings = await getShippingSettings();
   const endpoint = String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim();
@@ -7208,7 +7332,9 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
     });
   }
 
-  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
+  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object'
+    ? body.providerPayload
+    : buildCorreiosPrepostagemPayload(orderDoc, body, shipment, quote);
 
   try {
     const token = await getCorreiosToken(settings);
@@ -7220,7 +7346,7 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
 
     const data = response.data || {};
     if (response.status < 200 || response.status >= 300) {
-      const message = data?.message || data?.mensagem || data?.erro || data?.error || `Correios pré-postagem HTTP ${response.status}`;
+      const message = data?.message || data?.mensagem || data?.erro || data?.error || data?.errors || data?.msgs || `Correios pré-postagem HTTP ${response.status}`;
       return buildProviderPreparedFallback({
         provider: 'correios',
         shipment,
@@ -7307,7 +7433,9 @@ async function callFrenetOrder(orderDoc = {}, body = {}) {
     });
   }
 
-  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object' ? body.providerPayload : shipment;
+  const providerPayload = body.providerPayload && typeof body.providerPayload === 'object'
+    ? body.providerPayload
+    : buildCorreiosPrepostagemPayload(orderDoc, body, shipment, quote);
 
   try {
     const response = await axios.post(endpoint, providerPayload, {
@@ -7657,15 +7785,7 @@ app.post('/api/admin/logistica/etiquetas/correios/teste', adminRequired, async (
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(
-          String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || '').trim() ||
-          (
-            String(process.env.CORREIOS_USER || process.env.CORREIOS_USUARIO || '').trim() &&
-            String(process.env.CORREIOS_PASS || process.env.CORREIOS_PASSWORD || '').trim() &&
-            String(process.env.CORREIOS_CARTAO || process.env.CORREIOS_CARTAO_POSTAGEM || '').trim() &&
-            String(process.env.CORREIOS_CONTRATO || '').trim()
-          )
-        ),
+        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
@@ -7924,15 +8044,7 @@ app.post('/api/seller/logistica/etiquetas/correios/teste', sellerAuthRequired, a
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(
-          String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || '').trim() ||
-          (
-            String(process.env.CORREIOS_USER || process.env.CORREIOS_USUARIO || '').trim() &&
-            String(process.env.CORREIOS_PASS || process.env.CORREIOS_PASSWORD || '').trim() &&
-            String(process.env.CORREIOS_CARTAO || process.env.CORREIOS_CARTAO_POSTAGEM || '').trim() &&
-            String(process.env.CORREIOS_CONTRATO || '').trim()
-          )
-        ),
+        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
