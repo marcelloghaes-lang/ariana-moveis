@@ -95,9 +95,7 @@ function correiosServiceLabel(code){
 function cleanProviderNotes(value, providerValue){
   let out = String(value || '').trim();
   if(providerValue === 'correios'){
-    out = out.split(/
-+/).filter(line => !/rodocap/i.test(line)).join('
-').trim();
+    out = out.split(/\n+/).filter(line => !/rodocap/i.test(line)).join('\n').trim();
   }
   return out;
 }
