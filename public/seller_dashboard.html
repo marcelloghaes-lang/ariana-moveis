@@ -33,12 +33,37 @@
         .toast { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); transition: opacity 0.3s ease-out; }
         #image-modal-overlay { background-color: rgba(0, 0, 0, 0.7); }
         #image-modal-content { max-height: 90vh; max-width: 90vw; }
+
+
+        /* Correção mobile: header, menu lateral e aviso de app */
+        .mobile-sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:25;}
+        .mobile-sidebar-overlay.show{display:block;}
+        .sidebar-close-btn{display:none;}
+        .app-install-banner{position:fixed;left:16px;right:16px;bottom:16px;z-index:9999;background:#0f172a;color:#fff;border-radius:22px;padding:16px;box-shadow:0 18px 45px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08);}
+        .app-install-banner.hidden{display:none;}
+        .app-install-actions{display:flex;gap:10px;margin-top:12px;}
+        .app-install-actions button{flex:1;border:0;border-radius:14px;padding:12px 14px;font-weight:900;}
+        .app-install-primary{background:#2E6DA4;color:#fff;}
+        .app-install-secondary{background:rgba(255,255,255,.10);color:#fff;}
+        @media (max-width: 767px){
+          body{display:block;min-height:100vh;}
+          #sidebar{position:fixed !important;top:0;left:0;height:100dvh;width:min(82vw,320px);overflow-y:auto;z-index:40;box-shadow:18px 0 45px rgba(0,0,0,.25);}
+          .sidebar-close-btn{display:flex;align-items:center;justify-content:center;position:absolute;right:12px;top:12px;width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.10);color:#fff;font-size:20px;}
+          header{min-height:76px;padding:14px 16px !important;gap:10px;}
+          header h1{font-size:22px !important;line-height:1.12 !important;white-space:normal !important;max-width:160px;}
+          #user-display-name{font-size:14px !important;line-height:1.15;max-width:135px;display:block;white-space:normal;text-align:left;}
+          main{padding:24px 16px !important;}
+          section > h2{font-size:32px !important;line-height:1.12;margin-bottom:22px;}
+        }
+
     </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
   <div id="toast-container" class="space-y-3"></div>
+  <div id="sidebar-overlay" class="mobile-sidebar-overlay"></div>
   
   <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
+        <button id="sidebar-close" type="button" class="sidebar-close-btn" aria-label="Fechar menu"><i class="fas fa-times"></i></button>
         <a href="#" class="text-white flex items-center space-x-2 px-4">
             <span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span>
         </a>
@@ -61,7 +86,7 @@
 
   <div class="flex-1 flex flex-col overflow-hidden">
     <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
+            <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden" type="button" aria-label="Abrir menu"><i class="fas fa-bars text-xl"></i></button>
             <h1 class="text-xl font-semibold text-text-dark">Painel do Seller</h1>
             <div class="flex items-center space-x-4">
                 <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo!</span>
@@ -194,7 +219,21 @@
     </main>
   </div>
 
-  
+
+  <div id="seller-app-install-banner" class="app-install-banner hidden" role="dialog" aria-live="polite">
+    <div style="display:flex;gap:12px;align-items:flex-start;">
+      <div style="width:42px;height:42px;border-radius:14px;background:#2E6DA4;display:flex;align-items:center;justify-content:center;flex:0 0 auto;"><i class="fas fa-mobile-alt"></i></div>
+      <div style="min-width:0;">
+        <div style="font-weight:900;font-size:16px;line-height:1.2;">Instale o app do Seller</div>
+        <div style="font-size:13px;line-height:1.35;color:#cbd5e1;margin-top:4px;">Acesse o painel mais rápido, receba alertas e acompanhe seus pedidos pelo celular.</div>
+      </div>
+    </div>
+    <div class="app-install-actions">
+      <button id="seller-install-app-btn" class="app-install-primary" type="button">Baixar app</button>
+      <button id="seller-install-dismiss-btn" class="app-install-secondary" type="button">Agora não</button>
+    </div>
+  </div>
+
 <script>
 const IS_LOCAL_HOST = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
 const API_BASE = IS_LOCAL_HOST ? "http://localhost:3000/api" : "https://ariana-backend.onrender.com/api";
@@ -274,6 +313,53 @@ async function copySellerStoreLink() {
     temp.remove();
     toast("Link da loja copiado com sucesso!", "success");
   }
+}
+
+
+let sellerDeferredInstallPrompt = null;
+function shouldShowSellerInstallBanner() {
+  if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return false;
+  if (window.navigator.standalone === true) return false;
+  const dismissedAt = Number(localStorage.getItem('seller_app_install_dismissed_at') || '0');
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  return !dismissedAt || (Date.now() - dismissedAt > sevenDays);
+}
+function showSellerInstallBanner(force = false) {
+  const banner = $('seller-app-install-banner');
+  if (!banner) return;
+  if (!force && !shouldShowSellerInstallBanner()) return;
+  banner.classList.remove('hidden');
+}
+function hideSellerInstallBanner() {
+  $('seller-app-install-banner')?.classList.add('hidden');
+}
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  sellerDeferredInstallPrompt = event;
+  showSellerInstallBanner();
+});
+window.addEventListener('appinstalled', () => {
+  localStorage.setItem('seller_app_installed', 'true');
+  hideSellerInstallBanner();
+  toast('App do Seller instalado com sucesso!', 'success');
+});
+async function installSellerApp() {
+  if (sellerDeferredInstallPrompt) {
+    sellerDeferredInstallPrompt.prompt();
+    await sellerDeferredInstallPrompt.userChoice.catch(() => null);
+    sellerDeferredInstallPrompt = null;
+    hideSellerInstallBanner();
+    return;
+  }
+  toast('No Chrome: toque nos três pontinhos e escolha “Instalar app” ou “Adicionar à tela inicial”.', 'info');
+}
+function initSellerInstallBanner() {
+  $('seller-install-app-btn')?.addEventListener('click', installSellerApp);
+  $('seller-install-dismiss-btn')?.addEventListener('click', () => {
+    localStorage.setItem('seller_app_install_dismissed_at', String(Date.now()));
+    hideSellerInstallBanner();
+  });
+  setTimeout(() => showSellerInstallBanner(), 1200);
 }
 
 
@@ -487,14 +573,32 @@ async function saveSellerProfile(event) {
         window.location.href = 'seller_login.html';
     });
 
-    $('sidebar-toggle')?.addEventListener('click', () => {
-        $('sidebar').classList.toggle("-translate-x-full");
+    function openSellerSidebar() {
+        $('sidebar')?.classList.remove('-translate-x-full');
+        $('sidebar-overlay')?.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeSellerSidebar() {
+        $('sidebar')?.classList.add('-translate-x-full');
+        $('sidebar-overlay')?.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+    $('sidebar-toggle')?.addEventListener('click', openSellerSidebar);
+    $('sidebar-close')?.addEventListener('click', closeSellerSidebar);
+    $('sidebar-overlay')?.addEventListener('click', closeSellerSidebar);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeSellerSidebar();
+    });
+    document.querySelectorAll('#sidebar a').forEach((link) => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth < 768) closeSellerSidebar();
+        });
     });
 
     $('seller-store-copy-btn')?.addEventListener('click', copySellerStoreLink);
     $('seller-profile-form')?.addEventListener('submit', saveSellerProfile);
 
-    window.onload = loadDashboard;
+    window.onload = () => { initSellerInstallBanner(); loadDashboard(); };
   </script>
 
 <script>

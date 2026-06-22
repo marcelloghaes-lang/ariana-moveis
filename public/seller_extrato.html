@@ -32,6 +32,40 @@
     .bg-primary-blue { background-color: #2E6DA4; }
     .bg-dark-bg { background-color: #1D2B3A; }
     #toast-container { position: fixed; top: 20px; right: 20px; z-index: 50; }
+
+    .seller-topbar{gap:.75rem}
+    .seller-page-title{white-space:nowrap}
+    .seller-user-name{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .extract-card{border-radius:1.25rem}
+    .kpi-grid .kpi-box{border-radius:1.25rem}
+
+    @media (max-width: 767px){
+      body{font-size:16px}
+      .seller-topbar{padding:.9rem 1rem!important;min-height:72px}
+      .seller-topbar #sidebar-toggle{flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+      .seller-page-title{font-size:1.15rem!important;line-height:1.15!important;font-weight:900!important;letter-spacing:-.02em;max-width:42vw;overflow:hidden;text-overflow:ellipsis}
+      .seller-user-wrap{gap:.55rem!important;min-width:0;justify-content:flex-end;flex:1}
+      .seller-user-name{font-size:.82rem!important;line-height:1.15!important;max-width:34vw;white-space:normal;text-align:right;font-weight:800}
+      .seller-user-icon{font-size:2rem!important;flex:0 0 auto}
+      main{padding:1rem!important}
+      .extract-card{padding:1.25rem!important;border-radius:1.35rem!important}
+      .extract-head{display:block!important;margin-bottom:1.25rem!important}
+      .extract-title{font-size:2rem!important;line-height:1.05!important;letter-spacing:-.035em}
+      .extract-subtitle{font-size:1rem!important;line-height:1.45!important}
+      #btn-refresh{width:auto;margin-top:1rem;padding:.85rem 1.25rem!important;border-radius:1rem!important;font-size:1rem}
+      .kpi-grid{grid-template-columns:1fr!important;gap:1rem!important}
+      .kpi-box{padding:1.25rem!important}
+      .kpi-box .kpi-value{font-size:2rem!important;line-height:1.1!important}
+      .extract-table-wrap{overflow:visible!important}
+      .extract-table{display:block;min-width:0!important}
+      .extract-table thead{display:none}
+      .extract-table tbody{display:block}
+      .extract-table tr{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:1.25rem;margin-bottom:1rem;padding:1rem;box-shadow:0 8px 22px rgba(15,23,42,.05)}
+      .extract-table td{display:flex;align-items:center;justify-content:space-between;gap:1rem;border:0!important;padding:.55rem 0!important;text-align:right!important;font-size:.95rem!important}
+      .extract-table td::before{content:attr(data-label);font-weight:900;text-transform:uppercase;color:#64748b;font-size:.72rem;text-align:left}
+      .extract-table td:first-child{display:block;text-align:left!important;border-bottom:1px solid #eef2f7!important;padding-bottom:.8rem!important;margin-bottom:.25rem}
+      .extract-table td:first-child::before{display:block;margin-bottom:.25rem}
+    }
   </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
@@ -58,48 +92,48 @@
   </aside>
 
   <div class="flex-1 flex flex-col overflow-hidden">
-    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+    <header class="seller-topbar flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
       <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
-      <h1 class="text-xl font-semibold text-gray-800">Painel do Seller</h1>
-      <div class="relative flex items-center space-x-4">
-        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
-        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+      <h1 class="seller-page-title text-xl font-semibold text-gray-800">Extrato</h1>
+      <div class="seller-user-wrap relative flex items-center space-x-4">
+        <span id="user-display-name" class="seller-user-name text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
+        <i class="seller-user-icon fas fa-user-circle text-2xl text-primary-blue"></i>
       </div>
     </header>
 
     <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 space-y-6">
-      <section class="bg-white p-6 rounded-lg shadow-md animate-fade">
-        <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
+      <section class="extract-card bg-white p-6 rounded-lg shadow-md animate-fade">
+        <div class="extract-head flex items-center justify-between gap-4 flex-wrap mb-6">
           <div>
-            <h2 class="text-2xl font-bold text-gray-800">Extrato</h2>
-            <p class="text-sm text-gray-500 mt-1">Bruto base do seller, comissão, etiqueta Ariana e líquido final por pedido.</p>
+            <h2 class="extract-title text-2xl font-bold text-gray-800">Extrato</h2>
+            <p class="extract-subtitle text-sm text-gray-500 mt-1">Bruto base do seller, comissão, etiqueta Ariana e líquido final por pedido.</p>
           </div>
           <button id="btn-refresh" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:opacity-95 transition">
             <i class="fas fa-rotate mr-2"></i>Atualizar
           </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+        <div class="kpi-grid grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="kpi-box bg-gray-50 rounded-2xl p-5 border border-gray-100">
             <div class="text-xs font-bold text-gray-500 uppercase">Bruto</div>
-            <div id="kpi-gross" class="text-2xl font-black text-gray-800 mt-2">R$ 0,00</div>
+            <div id="kpi-gross" class="kpi-value text-2xl font-black text-gray-800 mt-2">R$ 0,00</div>
           </div>
-          <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+          <div class="kpi-box bg-gray-50 rounded-2xl p-5 border border-gray-100">
             <div class="text-xs font-bold text-gray-500 uppercase">Comissão</div>
-            <div id="kpi-fee" class="text-2xl font-black text-error-red mt-2">R$ 0,00</div>
+            <div id="kpi-fee" class="kpi-value text-2xl font-black text-error-red mt-2">R$ 0,00</div>
           </div>
-          <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+          <div class="kpi-box bg-gray-50 rounded-2xl p-5 border border-gray-100">
             <div class="text-xs font-bold text-gray-500 uppercase">Etiqueta Ariana</div>
-            <div id="kpi-label" class="text-2xl font-black text-yellow-600 mt-2">R$ 0,00</div>
+            <div id="kpi-label" class="kpi-value text-2xl font-black text-yellow-600 mt-2">R$ 0,00</div>
           </div>
-          <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+          <div class="kpi-box bg-gray-50 rounded-2xl p-5 border border-gray-100">
             <div class="text-xs font-bold text-gray-500 uppercase">Líquido</div>
-            <div id="kpi-net" class="text-2xl font-black text-success-green mt-2">R$ 0,00</div>
+            <div id="kpi-net" class="kpi-value text-2xl font-black text-success-green mt-2">R$ 0,00</div>
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
+        <div class="extract-table-wrap overflow-x-auto">
+          <table class="extract-table min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pedido</th>
@@ -157,8 +191,37 @@ function applySellerHeaderName() {
 
 <script>
 
+    function normalizeCurrencyValue(value) {
+      if (value === null || value === undefined || value === '') return 0;
+
+      if (typeof value === 'string') {
+        const raw = value.trim();
+        if (!raw) return 0;
+
+        // Aceita valores BR: "10,99", "1.099,90", "R$ 10,99"
+        if (raw.includes(',')) {
+          const parsed = Number(raw.replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.'));
+          return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        const numeric = Number(raw.replace(/[^0-9.-]/g, ''));
+        if (!Number.isFinite(numeric)) return 0;
+
+        // Corrige valores que vêm do Mongo/API em centavos: 1099 => 10,99 / 2198 => 21,98.
+        if (Number.isInteger(numeric) && Math.abs(numeric) >= 1000) return numeric / 100;
+        return numeric;
+      }
+
+      const n = Number(value || 0);
+      if (!Number.isFinite(n)) return 0;
+
+      // Corrige valores inteiros em centavos sem quebrar valores normais menores.
+      if (Number.isInteger(n) && Math.abs(n) >= 1000) return n / 100;
+      return n;
+    }
+
     function money(v) {
-      return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      return normalizeCurrencyValue(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     }
 
     async function renderExtrato() {
@@ -184,18 +247,23 @@ function applySellerHeaderName() {
         tb.innerHTML = "";
 
         items.forEach((item) => {
-          grossTotal += Number(item.gross || 0);
-          feeTotal += Number(item.fee || item.commission || 0);
-          labelTotal += item.label;
-          netTotal += item.net;
+          const gross = normalizeCurrencyValue(item.gross ?? item.sellerBaseTotal ?? item.bruto ?? 0);
+          const fee = normalizeCurrencyValue(item.fee ?? item.commission ?? item.comissao ?? 0);
+          const label = normalizeCurrencyValue(item.label ?? item.labelCost ?? item.etiquetaAriana ?? 0);
+          const net = normalizeCurrencyValue(item.net ?? item.liquid ?? item.liquido ?? (gross - fee - label));
+
+          grossTotal += gross;
+          feeTotal += fee;
+          labelTotal += label;
+          netTotal += net;
 
           tb.insertAdjacentHTML("beforeend", `
             <tr>
-              <td class="px-6 py-4 text-sm font-mono text-gray-900">#${String(item.id).substring(0,8).toUpperCase()}</td>
-              <td class="px-6 py-4 text-sm text-gray-900 text-right">${money(item.gross)}</td>
-              <td class="px-6 py-4 text-sm text-error-red text-right">-${money(item.fee)}</td>
-              <td class="px-6 py-4 text-sm text-yellow-700 text-right">-${money(item.label)}</td>
-              <td class="px-6 py-4 text-sm text-success-green text-right font-bold">${money(item.net)}</td>
+              <td data-label="Pedido" class="px-6 py-4 text-sm font-mono text-gray-900">#${String(item.id || item.orderId || '').substring(0,8).toUpperCase()}</td>
+              <td data-label="Bruto" class="px-6 py-4 text-sm text-gray-900 text-right">${money(gross)}</td>
+              <td data-label="Comissão" class="px-6 py-4 text-sm text-error-red text-right">-${money(fee)}</td>
+              <td data-label="Etiqueta Ariana" class="px-6 py-4 text-sm text-yellow-700 text-right">-${money(label)}</td>
+              <td data-label="Líquido" class="px-6 py-4 text-sm text-success-green text-right font-bold">${money(net)}</td>
             </tr>
           `);
         });

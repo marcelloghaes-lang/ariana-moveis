@@ -40,6 +40,143 @@
     .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}
     .sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
     .muted{color:#64748b} .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
+
+    /* ===== Correção mobile Ariana - cabeçalho e cards ===== */
+    @media (max-width: 767px) {
+      body { overflow-x: hidden; }
+      body > .flex-1 > header {
+        padding: 14px 16px !important;
+        gap: 10px !important;
+        min-height: 70px;
+      }
+      body > .flex-1 > header #sidebar-toggle {
+        flex: 0 0 auto;
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      body > .flex-1 > header h1 {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 1.12rem !important;
+        line-height: 1.15 !important;
+        letter-spacing: -0.04em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      body > .flex-1 > header .flex.items-center.gap-3 {
+        flex: 0 0 auto;
+        gap: 8px !important;
+      }
+      #user-display-name { display: none !important; }
+      body > .flex-1 > header .fa-user-circle {
+        font-size: 2rem !important;
+      }
+
+      .page-main { padding: 22px 16px !important; }
+      .page-main .max-w-6xl { max-width: 100% !important; }
+      .page-main h2 {
+        font-size: 2.05rem !important;
+        line-height: 1.05 !important;
+        letter-spacing: -0.045em;
+      }
+      .page-main p.muted {
+        font-size: 1rem !important;
+        line-height: 1.45 !important;
+      }
+      .page-main > .max-w-6xl > .flex.items-start {
+        display: block !important;
+      }
+      .page-main > .max-w-6xl > .flex.items-start > div:last-child {
+        margin-top: 18px;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .page-main .btn {
+        width: 100%;
+        min-height: 56px;
+        border-radius: 18px;
+        padding: 14px 12px !important;
+        font-size: .98rem;
+      }
+      .page-main .card {
+        border-radius: 24px !important;
+      }
+      .page-main .card.p-6 {
+        padding: 18px !important;
+      }
+      .page-main .card > .flex.items-center.justify-between {
+        align-items: stretch !important;
+        gap: 14px !important;
+      }
+      #countPill {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+        padding: 10px 14px;
+        font-size: .85rem;
+      }
+      #filter {
+        width: 100% !important;
+        min-height: 58px;
+        border-radius: 20px;
+        font-size: 1rem;
+      }
+      #list { margin-top: 18px; }
+      #list > a {
+        padding: 18px !important;
+        border-radius: 24px !important;
+      }
+      #list > a > div {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 14px !important;
+      }
+      #list > a > div > .flex.items-center.gap-4 {
+        align-items: flex-start !important;
+        gap: 12px !important;
+        width: 100%;
+      }
+      #list > a > div > .flex.items-center.gap-4 > div:last-child {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      #list > a .font-black.text-dark-bg {
+        font-size: 1.05rem;
+        line-height: 1.25;
+      }
+      #list > a .text-sm {
+        font-size: .95rem;
+        line-height: 1.42;
+      }
+      #list > a .pill {
+        align-self: flex-start;
+        max-width: 100%;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.15;
+        padding: 10px 14px;
+      }
+      #ariana-enable-alerts-btn {
+        left: 16px !important;
+        right: 16px !important;
+        bottom: 18px !important;
+        width: calc(100vw - 32px) !important;
+        text-align: center;
+      }
+      #ariana-device-alert-box {
+        left: 14px !important;
+        right: 14px !important;
+        top: 84px !important;
+        width: auto !important;
+      }
+    }
+
   </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
@@ -47,13 +184,13 @@
 
 <aside id="sidebar" class="bg-dark-bg w-64 min-h-screen space-y-6 py-7 px-3 absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition z-40">
   <nav class="flex flex-col space-y-2">
-            <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
             <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
             <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
             <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
             <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
             <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
-            <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
+            <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
             <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
             <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
             <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
@@ -77,7 +214,7 @@
     <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div>
         <h2 class="text-3xl font-black text-dark-bg uppercase tracking-tight">Suas Notificações</h2>
-        <p class="muted mt-1 font-medium">Acompanhe as atualizações de status e novos pedidos da sua fábrica.</p>
+        <p class="muted mt-1 font-medium">Acompanhe novos pedidos, pagamentos aprovados e atualizações importantes da sua conta.</p>
       </div>
       <div class="flex gap-2">
         <a href="seller_pedidos.html" class="btn btn-light shadow-sm"><i class="fas fa-receipt"></i> Ver Pedidos</a>
@@ -345,6 +482,7 @@
     } catch(_) {}
   }
   function playSound(){
+    try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch(_) {}
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       const ctx = audioCtx || (Ctx ? new Ctx() : null);
@@ -378,7 +516,7 @@
       const title = n?.title || 'Nova movimentação no painel';
       const body = n?.message || 'Há uma nova venda ou atualização de pedido.';
       const notify = new Notification(title, { body, icon: './favicon.png', tag: idOf(n), requireInteraction: true });
-      notify.onclick = () => { window.focus(); notify.close(); if (role === 'seller') location.href = 'seller_pedidos.html'; else if (window.changeView) window.changeView('orders'); };
+      notify.onclick = () => { window.focus(); notify.close(); const oid = n?.relatedId || n?.metadata?.orderId || ''; if (role === 'seller' && oid) location.href = 'seller_pedido_detalhe.html?id=' + encodeURIComponent(oid); else if (role === 'seller') location.href = 'seller_notificacoes.html'; else if (window.changeView) window.changeView('orders'); };
     } catch(_) {}
   }
   function addEnableButton(){
@@ -386,7 +524,7 @@
     const btn = document.createElement('button');
     btn.id = 'ariana-enable-alerts-btn';
     btn.type = 'button';
-    btn.textContent = '🔔 Ativar alertas';
+    btn.textContent = '🔔 Ativar alertas no celular';
     btn.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:999999;background:#1d4ed8;color:white;border:0;border-radius:999px;padding:12px 16px;font-weight:900;box-shadow:0 12px 30px rgba(0,0,0,.24);cursor:pointer;font-family:Inter,Arial,sans-serif;';
     btn.onclick = askPermission;
     document.body.appendChild(btn);

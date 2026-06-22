@@ -38,11 +38,36 @@
     .sidebar-link{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:.9rem;color:#fff;opacity:.95}
     .sidebar-link:hover,.sidebar-link.active{background:rgba(255,255,255,.08)}
     .muted{color:#64748b} .page-main{flex:1;overflow:auto;padding:1.5rem} @media (max-width:767px){ .page-main{padding:1rem} }
+
+    /* Ajustes mobile Ariana Seller */
+    .mobile-menu-overlay{display:none}
+    .mobile-menu-overlay.active{display:block;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:35}
+    .sidebar-close-btn{display:none}
+    .locked-notice{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:1rem;padding:1rem;font-weight:700}
+    .locked-notice i{margin-right:.5rem}
+    @media (max-width:767px){
+      body{font-size:16px}
+      #sidebar{position:fixed;height:100dvh;max-width:82vw;overflow-y:auto}
+      .sidebar-close-btn{display:flex;position:absolute;right:12px;top:12px;width:42px;height:42px;border-radius:999px;align-items:center;justify-content:center;background:rgba(255,255,255,.10);color:#fff;font-size:20px}
+      header{gap:.75rem}
+      header h1{font-size:1.15rem !important;line-height:1.2;white-space:normal}
+      #user-display-name{max-width:140px;display:block;line-height:1.15;text-align:right}
+      .page-main{padding:1rem}
+      .page-main > .flex{align-items:flex-start}
+      .page-main h2{font-size:2rem !important;line-height:1.08}
+      .card{border-radius:1.5rem}
+      .card.p-6{padding:1.35rem}
+      .input{min-height:58px;font-size:16px}
+      #save-btn{width:100%;justify-content:center}
+    }
+
   </style>
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
 <div id="toast-container"></div>
+<div id="sidebar-overlay" class="mobile-menu-overlay"></div>
 <aside id="sidebar" class="bg-dark-bg w-64 min-h-screen space-y-6 py-7 px-3 absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition z-40">
+  <button id="sidebar-close" type="button" class="sidebar-close-btn" aria-label="Fechar menu"><i class="fas fa-times"></i></button>
   <nav class="flex flex-col space-y-2">
             <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
             <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
@@ -73,6 +98,7 @@
     <button type="submit" form="settings-form" id="save-btn" class="btn btn-primary"><i class="fas fa-check-double"></i>Salvar alterações</button>
   </div>
   <form id="settings-form" class="space-y-6 max-w-5xl">
+    <div id="approved-lock-notice" class="locked-notice hidden"><i class="fas fa-lock"></i> Cadastro aprovado: os dados enviados na solicitação ficam bloqueados para segurança do marketplace. Para alterar qualquer informação, solicite a mudança diretamente à Ariana Móveis.</div>
     <div class="card p-6"><h3 class="text-xl font-black mb-5">Dados gerais</h3>
       <div class="grid md:grid-cols-2 gap-5">
         <div><label class="block text-xs font-black mb-2">Nome Fantasia</label><input id="factoryName" class="input" required autocomplete="off"></div>
@@ -185,8 +211,24 @@ function setLockedField(id, locked) {
   el.title = locked ? "Campo bloqueado após aprovação/salvamento do seller." : "";
 }
 function isApprovedSeller(seller = {}) {
-  const status = String(seller.status || seller.metadata?.status || seller.approvalStatus || "").toLowerCase();
-  return ["approved", "aprovado", "ativo", "active"].includes(status) || seller.approved === true;
+  const meta = seller.metadata || {};
+  const status = String(
+    seller.status ||
+    seller.sellerStatus ||
+    seller.approvalStatus ||
+    meta.status ||
+    meta.approvalStatus ||
+    localStorage.getItem("seller_status") ||
+    ""
+  ).trim().toLowerCase();
+
+  return (
+    ["approved", "aprovado", "ativo", "active", "approve"].includes(status) ||
+    seller.approved === true ||
+    seller.active === true ||
+    meta.approved === true ||
+    localStorage.getItem("seller_active") === "true"
+  );
 }
 function normalizeBankAccount(source = {}, meta = {}) {
   const bankObj = source.bankAccount && typeof source.bankAccount === "object" ? source.bankAccount : {};
@@ -248,30 +290,46 @@ function fillSeller(seller) {
   $("transportadoraPrazo").value = seller.transportadoraPrazo || "";
   $("freteObs").value = seller.freteObs || "";
 
-  // Seller aprovado: trava os dados para não alterar depois de salvo/aprovado.
-  setLockedField("factoryName", approved);
-  setLockedField("cnpj", true);
-  setLockedField("bio", approved);
-  setLockedField("bankName", approved);
-  setLockedField("bankCode", approved);
-  setLockedField("accountType", approved);
-  setLockedField("bankAgency", approved);
-  setLockedField("agencyDigit", approved);
-  setLockedField("bankAccount", approved);
-  setLockedField("accountDigit", approved);
-  setLockedField("bankHolderName", approved);
-  setLockedField("bankHolderDocument", approved);
-  // Frete e coleta continuam editáveis mesmo após aprovação,
-  // porque o seller pode trocar CEP de coleta ou transportadora.
-  setLockedField("cepColeta", false);
-  setLockedField("tipoLogistica", false);
-  setLockedField("transpPropria", false);
-  setLockedField("transportadoraNome", false);
-  setLockedField("transportadoraTelefone", false);
-  setLockedField("transportadoraPrazo", false);
-  setLockedField("freteObs", false);
+  // Seller aprovado: trava todos os dados preenchidos no cadastro inicial.
+  // As regras financeiras, bancárias e logísticas passam a ser controladas pela Ariana Móveis.
+  [
+    "factoryName",
+    "cnpj",
+    "bio",
+    "bankName",
+    "bankCode",
+    "accountType",
+    "bankAgency",
+    "agencyDigit",
+    "bankAccount",
+    "accountDigit",
+    "bankHolderName",
+    "bankHolderDocument",
+    "cepColeta",
+    "tipoLogistica",
+    "transpPropria",
+    "transportadoraNome",
+    "transportadoraTelefone",
+    "transportadoraPrazo",
+    "freteObs"
+  ].forEach((id) => setLockedField(id, approved || id === "cnpj"));
 
-  localStorage.setItem("seller_profile", JSON.stringify(seller));
+  const notice = $("approved-lock-notice");
+  if (notice) notice.classList.toggle("hidden", !approved);
+
+  const saveBtn = $("save-btn");
+  if (saveBtn) {
+    saveBtn.classList.toggle("hidden", approved);
+    saveBtn.disabled = !!approved;
+  }
+
+  try {
+    localStorage.setItem("seller_profile", JSON.stringify(seller));
+    if (approved) {
+      localStorage.setItem("seller_status", "approved");
+      localStorage.setItem("seller_active", "true");
+    }
+  } catch (_) {}
 }
 async function loadSeller() {
   try {
@@ -291,14 +349,19 @@ async function loadSeller() {
 }
 async function saveSeller(event) {
   event.preventDefault();
+  const current = getSellerProfile();
+  const approved = isApprovedSeller(current);
+
+  if (approved) {
+    toast("Cadastro aprovado. Para alterar esses dados, solicite a mudança à Ariana Móveis.", "error");
+    return;
+  }
+
   const btn = $("save-btn");
   btn.disabled = true;
   btn.innerHTML = "Salvando...";
 
   try {
-    const current = getSellerProfile();
-    const approved = isApprovedSeller(current);
-
     const payload = {
       bio: $("bio").value.trim(),
       bankAccount: {
@@ -363,7 +426,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if ($("transpPropria").checked) $("tipoLogistica").value = "propria";
     else if ($("tipoLogistica").value === "propria") $("tipoLogistica").value = "marketplace";
   });
-  $("sidebar-toggle")?.addEventListener("click", () => $("sidebar").classList.toggle("-translate-x-full"));
+  function openSidebar() {
+    $("sidebar")?.classList.remove("-translate-x-full");
+    $("sidebar-overlay")?.classList.add("active");
+  }
+  function closeSidebar() {
+    $("sidebar")?.classList.add("-translate-x-full");
+    $("sidebar-overlay")?.classList.remove("active");
+  }
+  $("sidebar-toggle")?.addEventListener("click", openSidebar);
+  $("sidebar-close")?.addEventListener("click", closeSidebar);
+  $("sidebar-overlay")?.addEventListener("click", closeSidebar);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeSidebar();
+  });
+  document.querySelectorAll("#sidebar a").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (window.innerWidth < 768) closeSidebar();
+    });
+  });
+
   $("btn-sair")?.addEventListener("click", (e) => {
     e.preventDefault();
     clearSellerSession();
