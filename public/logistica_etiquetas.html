@@ -68,23 +68,44 @@ function statusClass(status){const s=String(status||'').toLowerCase(); if(s.incl
 function toNumber(v){
   const raw = String(v ?? '').trim();
   if(!raw) return 0;
-  const clean = raw.replace(/R\$/gi,'').replace(/\s+/g,'');
-  if(clean.includes(',')) return Number(clean.replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,'')) || 0;
-  if(clean.includes('.')) return Number(clean.replace(/[^0-9.-]/g,'')) || 0;
-  return Number(clean.replace(/[^0-9-]/g,'')) || 0;
+  const clean = raw.replace(/R\$/gi,'').replace(/\s+/g,'').replace(/[^0-9,.-]/g,'');
+  if(!clean) return 0;
+  let normalized = clean;
+  if(clean.includes(',')){
+    normalized = clean.replace(/\./g,'').replace(',', '.');
+  } else if(/^\d+\.\d{1,2}$/.test(clean)){
+    normalized = clean;
+  } else if(/^\d{1,3}(\.\d{3})+$/.test(clean)){
+    normalized = clean.replace(/\./g,'');
+  }
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
 }
 function cleanCep(v){return String(v||'').replace(/\D/g,'').slice(0,8)}
-function correiosServiceCode(value){
-  const s = String(value || '').toLowerCase();
-  if(s.includes('03328') || s.includes('03220') || s.includes('sedex')) return '03328';
-  if(s.includes('03298') || s.includes('pac') || s.includes('correios') || s.includes('pac/sedex')) return '03298';
-  const m = s.match(/\b\d{5}\b/);
-  return m ? m[0] : '03298';
+function normalizeCorreiosService(value){
+  const s = String(value || '').trim().toLowerCase();
+  if(['03298','3298','pac'].includes(s) || s.includes('pac')) return '03298';
+  if(['03328','3328','03220','3220','sedex'].includes(s) || s.includes('sedex')) return '03328';
+  return '03298';
 }
 function correiosServiceLabel(code){
-  const c = String(code || '');
-  if(c === '03328' || c === '03220') return 'SEDEX';
-  return 'PAC';
+  const c = normalizeCorreiosService(code);
+  return c === '03328' ? 'SEDEX - 03328' : 'PAC - 03298';
+}
+function cleanProviderNotes(value, providerValue){
+  let out = String(value || '').trim();
+  if(providerValue === 'correios'){
+    out = out.split(/
++/).filter(line => !/rodocap/i.test(line)).join('
+').trim();
+  }
+  return out;
+}
+function normalizeShippingCostForProvider(value){
+  let n = toNumber(value);
+  // Proteção para valores que vieram em centavos e foram digitados/gravados sem separador.
+  if(n >= 100 && Number.isInteger(n)) n = n / 100;
+  return n;
 }
 async function login(){const r=await fetch(API_BASE+loginEndpoint(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:loginEmail.value.trim(),password:loginPass.value})});const j=await r.json().catch(()=>({}));const tk=j.token||j.sellerToken||j.accessToken;if(!j.ok||!tk){toast(j.error||'Login não autorizado');return}localStorage.setItem(IS_SELLER_MODE?'seller_token':'admin_token',tk);if(IS_SELLER_MODE && j.seller)localStorage.setItem('seller_profile',JSON.stringify(j.seller));loginView.style.display='none';appView.style.display='block';loadPedidos();loadProvedores()}
 function logout(){localStorage.removeItem(IS_SELLER_MODE?'seller_token':'admin_token');if(IS_SELLER_MODE)localStorage.removeItem('seller_profile');location.href=IS_SELLER_MODE?'seller_login.html':'admin_painel.html'}
@@ -99,16 +120,17 @@ function usarCotacao(idx){
   const q=currentQuotes[idx];
   if(!q)return;
   provider.value=q.provider==='correios'?'correios':q.provider==='frenet'?'frenet':(String(q.service||'').toLowerCase().includes('rodocap')?'rodocap':'manual');
-  if(provider.value==='correios'){
-    const code = correiosServiceCode(q.service || q.code || q.coProduto || q.label || q.name || '03298');
-    service.value = code;
-    notes.value = q.prazo || q.deliveryTime || '';
+  if(provider.value === 'correios'){
+    const code = q.service || q.code || q.coProduto || q.raw?.coProduto || q.raw?.codigo || '';
+    service.value = normalizeCorreiosService(code);
+    notes.value = cleanProviderNotes(notes.value, 'correios');
   } else {
     service.value=q.service||q.label||q.name||'';
-    notes.value=[notes.value, q.details||q.prazo||''].filter(Boolean).join('\n');
   }
   shippingCost.value=Number(q.price||0).toFixed(2).replace('.',',');
-  onProviderChange();
+  const extraNote = q.details || q.prazo || '';
+  notes.value=[cleanProviderNotes(notes.value, provider.value), extraNote].filter(Boolean).join('\n');
+  onProviderChange(false);
   toast('Cotação aplicada')
 }
 
@@ -149,44 +171,31 @@ async function testarCorreios(){
 }
 
 function prepararRodocap(){if(!selected){return}const total=Number(selected.total||selected.subtotal||0);provider.value='rodocap';service.value='Rodocap - 12% da nota';shippingCost.value=(total*0.12).toFixed(2).replace('.',',');notes.value=`Rodocap sem API. Frete calculado em 12% do valor da nota (${money(total)}).`;toast('Rodocap calculada em 12% da nota')}
-function onProviderChange(){
-  if(provider.value==='rodocap'){
-    prepararRodocap();
-    return;
-  }
-  if(provider.value==='correios'){
-    const code = correiosServiceCode(service.value);
-    service.value = code;
-    if(String(notes.value||'').toLowerCase().includes('rodocap sem api')) notes.value = '';
-    return;
-  }
+function onProviderChange(autoRodocap=true){
+  if(provider.value==='rodocap' && autoRodocap){prepararRodocap(); return;}
   if(provider.value==='ariana_local'&&!service.value)service.value='Entrega Ariana/local';
-  if(provider.value==='frenet'&&!service.value)service.value='Frenet/Transportadora'
+  if(provider.value==='correios'){
+    service.value = normalizeCorreiosService(service.value);
+    notes.value = cleanProviderNotes(notes.value, 'correios');
+  }
+  if(provider.value==='frenet'&&!service.value)service.value='Frenet/Transportadora';
 }
 async function gerarEtiqueta(notify){
   if(!orderId.value){toast('Selecione um pedido primeiro.');return}
-
-  let providerValue = provider.value;
-  let serviceValue = service.value;
-  let serviceCodeValue = '';
-  let notesValue = notes.value;
-
-  if(providerValue === 'correios'){
-    serviceCodeValue = correiosServiceCode(serviceValue);
-    serviceValue = serviceCodeValue;
-    service.value = serviceCodeValue;
-    if(String(notesValue||'').toLowerCase().includes('rodocap sem api')){
-      notesValue = '';
-      notes.value = '';
-    }
+  let chosenProvider = provider.value;
+  let chosenService = service.value;
+  let chosenNotes = notes.value;
+  if(chosenProvider === 'correios'){
+    chosenService = normalizeCorreiosService(chosenService);
+    service.value = chosenService;
+    chosenNotes = cleanProviderNotes(chosenNotes, 'correios');
+    notes.value = chosenNotes;
   }
-
   const payload={
     orderId:orderId.value,
-    provider:providerValue,
-    service:serviceValue,
-    serviceCode:serviceCodeValue || undefined,
-    shippingServiceCode:serviceCodeValue || undefined,
+    provider:chosenProvider,
+    service:chosenService,
+    shippingServiceCode: chosenProvider === 'correios' ? chosenService : undefined,
     trackingCode:trackingCode.value,
     markStatus:markStatus.value,
     markStatusLabel:markStatus.value,
@@ -195,33 +204,22 @@ async function gerarEtiqueta(notify){
     lengthCm:toNumber(lengthCm.value),
     widthCm:toNumber(widthCm.value),
     heightCm:toNumber(heightCm.value),
-    shippingCost:toNumber(shippingCost.value),
-    notes:notesValue,
+    shippingCost:normalizeShippingCostForProvider(shippingCost.value),
+    notes:chosenNotes,
     notifyCustomer:notify
   };
-
   let endpoint=API_SCOPE+'/etiquetas/manual';
-  if(providerValue==='correios')endpoint=API_SCOPE+'/etiquetas/correios/preparar';
-  if(providerValue==='frenet')endpoint=API_SCOPE+'/etiquetas/frenet/preparar';
-
+  if(chosenProvider==='correios')endpoint=API_SCOPE+'/etiquetas/correios/preparar';
+  if(chosenProvider==='frenet')endpoint=API_SCOPE+'/etiquetas/frenet/preparar';
   const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
   const j=await r.json().catch(()=>({}));
-  if(!j.ok){
-    toast(j.error||'Erro ao gerar etiqueta');
-    alert(JSON.stringify(j,null,2));
-    return
-  }
-
+  if(!j.ok){toast(j.error||'Erro ao gerar etiqueta');alert(JSON.stringify(j,null,2));return}
   const prepared=j.providerResult&&j.providerResult.preparedOnly;
   if(prepared){
-    const reason = j.providerResult?.raw?.reason || j.providerResult?.raw?.providerError || j.providerResult?.message || 'Pré-postagem oficial não retornou etiqueta real.';
-    toast('Etiqueta interna gerada. Veja o detalhe do provedor.');
-    console.warn('[LOGISTICA PROVIDER RESULT]', j.providerResult);
-    alert('Correios ainda gerou etiqueta interna. Detalhe:
-
-' + reason + '
-
-Resposta completa no console do navegador.');
+    const raw = j.providerResult?.raw || j.etiqueta?.rawProviderResponse || {};
+    const detail = raw.providerError || raw.reason || j.providerResult?.message || 'Correios não criou pré-postagem oficial. Romaneio interno gerado.';
+    toast('Etiqueta interna gerada. Veja o detalhe na tela.');
+    alert(JSON.stringify({aviso:'Etiqueta interna gerada', detalhe: detail, providerResult:j.providerResult}, null, 2));
   } else {
     toast(notify?'Etiqueta/romaneio gerado e cliente notificado':'Etiqueta/romaneio gerado');
   }
