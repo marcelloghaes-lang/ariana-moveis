@@ -7657,7 +7657,15 @@ app.post('/api/admin/logistica/etiquetas/correios/teste', adminRequired, async (
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        tokenConfigured: Boolean(
+          String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || '').trim() ||
+          (
+            String(process.env.CORREIOS_USER || process.env.CORREIOS_USUARIO || '').trim() &&
+            String(process.env.CORREIOS_PASS || process.env.CORREIOS_PASSWORD || '').trim() &&
+            String(process.env.CORREIOS_CARTAO || process.env.CORREIOS_CARTAO_POSTAGEM || '').trim() &&
+            String(process.env.CORREIOS_CONTRATO || '').trim()
+          )
+        ),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
@@ -7916,7 +7924,15 @@ app.post('/api/seller/logistica/etiquetas/correios/teste', sellerAuthRequired, a
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        tokenConfigured: Boolean(
+          String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || '').trim() ||
+          (
+            String(process.env.CORREIOS_USER || process.env.CORREIOS_USUARIO || '').trim() &&
+            String(process.env.CORREIOS_PASS || process.env.CORREIOS_PASSWORD || '').trim() &&
+            String(process.env.CORREIOS_CARTAO || process.env.CORREIOS_CARTAO_POSTAGEM || '').trim() &&
+            String(process.env.CORREIOS_CONTRATO || '').trim()
+          )
+        ),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
