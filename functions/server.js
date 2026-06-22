@@ -7030,6 +7030,23 @@ function inferLogisticsProvider(order = {}) {
   return provider || 'manual';
 }
 
+function hasCorreiosAuthCredentials() {
+  return Boolean(
+    String(
+      process.env.CORREIOS_TOKEN ||
+      process.env.CORREIOS_ACCESS_TOKEN ||
+      process.env.CORREIOS_BASIC_TOKEN ||
+      process.env.CORREIOS_USUARIO ||
+      process.env.CORREIOS_USER ||
+      ''
+    ).trim() ||
+    (
+      String(process.env.CORREIOS_USER || process.env.CORREIOS_USUARIO || '').trim() &&
+      String(process.env.CORREIOS_PASS || process.env.CORREIOS_PASSWORD || process.env.CORREIOS_SENHA || '').trim()
+    )
+  );
+}
+
 function hasCorreiosPrepostagemConfig(settings = {}) {
   const cfg = correiosCfg(settings || {});
   return Boolean(cfg.user && cfg.pass && cfg.cartao && (process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL));
@@ -7163,10 +7180,6 @@ function isProviderBaseUrlOnly(endpoint = '', provider = '') {
 
   return false;
 }
-
-func
-
-
 
 function buildProviderPreparedFallback({
   provider = 'correios',
@@ -7789,7 +7802,7 @@ app.post('/api/admin/logistica/etiquetas/correios/teste', adminRequired, async (
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        tokenConfigured: hasCorreiosAuthCredentials(),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
@@ -8048,7 +8061,7 @@ app.post('/api/seller/logistica/etiquetas/correios/teste', sellerAuthRequired, a
       correios: {
         enabled: settings?.carriers?.correios?.enabled !== false,
         prepostagemEndpointConfigured: Boolean(String(process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim()),
-        tokenConfigured: Boolean(String(process.env.CORREIOS_TOKEN || process.env.CORREIOS_ACCESS_TOKEN || process.env.CORREIOS_BASIC_TOKEN || process.env.CORREIOS_USUARIO || '').trim()),
+        tokenConfigured: hasCorreiosAuthCredentials(),
         originCep: testPayload.cepOrigem
       },
       request: testPayload,
