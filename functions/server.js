@@ -2474,6 +2474,12 @@ function onlyDigits(value = '') {
   return String(value || '').replace(/\D/g, '');
 }
 
+// Normaliza CEP para chamadas de logística/Correios.
+// Mantém somente números e limita em 8 dígitos para evitar erro no teste de etiquetas.
+function cleanCep(value = '') {
+  return String(value || '').replace(/\D/g, '').slice(0, 8);
+}
+
 function isLikelyCpf(value = '') {
   return onlyDigits(value).length === 11;
 }
