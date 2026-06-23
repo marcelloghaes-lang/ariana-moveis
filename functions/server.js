@@ -7393,6 +7393,7 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
     diametroInformado: '0',
     modalidadePagamento: '2',
     logisticaReversa: 'N',
+    objetosProibidos: 'N',
     remetente: {
       nome: String(shipment.sender?.name || 'Ariana Móveis').slice(0, 60),
       cpfCnpj: normalizeDigits(shipment.sender?.document || process.env.LOJA_REMETENTE_DOCUMENTO || process.env.CORREIOS_CNPJ || ''),
@@ -7413,12 +7414,14 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
     idAtendimento: orderCode
   };
 
-  if (declaredValue > 0) {
-    payload.listaServicoAdicional = [{
-      codigoServicoAdicional: '019',
-      valorDeclarado: Number(declaredValue).toFixed(2)
-    }];
-  }
+  // Serviço adicional 019 removido porque não está vinculado ao serviço 03298 no contrato atual.
+  // Se futuramente os Correios habilitarem valor declarado no contrato/serviço, este bloco pode ser reativado.
+  // if (declaredValue > 0) {
+  //   payload.listaServicoAdicional = [{
+  //     codigoServicoAdicional: '019',
+  //     valorDeclarado: Number(declaredValue).toFixed(2)
+  //   }];
+  // }
 
   const removeEmpty = (obj = {}) => {
     Object.keys(obj).forEach((key) => {
