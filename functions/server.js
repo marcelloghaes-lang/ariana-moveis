@@ -3919,7 +3919,7 @@ async function calculateShipping(body = {}) {
 
   const arianaTier1Km = Number(arianaRule.localMaxKmTier1 || 30);
   const arianaTier1Price = Number(arianaRule.localPriceTier1 || 80);
-  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 50);
+  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 70);
   const arianaTier2Price = Number(arianaRule.localPriceTier2 || 120);
   let hasArianaDistanceDelivery = false;
 
@@ -3978,13 +3978,21 @@ async function calculateShipping(body = {}) {
   let rodocapAvailable = false;
   let rodocapEligibleByDistance = false;
   let rodocapCityAllowed = false;
-  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || arianaTier2Km || 50);
+  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || rodocapRule.minKmExclusive || arianaTier2Km || 70);
   const rodocapEnvFlag = String(process.env.RODOCAP_ENABLED || '').trim().toLowerCase();
   const rodocapEnabled =
     rodocapEnvFlag === 'true' ||
     (rodocapEnvFlag !== 'false' && rodocapRule.enabled !== false);
 
-  if (usesArianaLogistics && !hasPhoneFlatDelivery && rodocapEnabled && !hasArianaFree && !hasArianaDistanceDelivery && distanceKm > rodocapMinKmExclusive) {
+  const correiosLimitWeightKg = Number(settings.carriers?.correios?.maxWeightKg || settings.correios?.maxWeightKg || 30);
+  const correiosLimitDimensionCm = Number(settings.carriers?.correios?.maxDimensionCm || settings.correios?.maxDimensionCm || 100);
+  const exceedsCorreiosLimit =
+    (Number(weightKg || 0) > correiosLimitWeightKg) ||
+    (Number(maxDimensionCm || 0) > correiosLimitDimensionCm);
+
+  // Rodocap só entra depois de 70 km quando o produto ultrapassa limite dos Correios.
+  // Produto até 30kg e até 100cm deve dar preferência para Correios, mesmo se Rodocap for mais barato.
+  if (usesArianaLogistics && !hasPhoneFlatDelivery && rodocapEnabled && !hasArianaFree && !hasArianaDistanceDelivery && distanceKm > rodocapMinKmExclusive && exceedsCorreiosLimit) {
     rodocapEligibleByDistance = true;
     const allowedCity = isRodocapCityAllowed(location.city, rodocapRule);
     rodocapCityAllowed = allowedCity;
@@ -4098,14 +4106,53 @@ async function calculateShipping(body = {}) {
     if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }));
   }
 
-  options.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
+  const shippingPriority = (option = {}) => {
+    const txt = `${option.provider || ''} ${option.service || ''} ${option.label || ''} ${option.name || ''}`.toLowerCase();
+
+    // 1) Ariana Entrega / frete local
+    if (
+      txt.includes('ariana') ||
+      txt.includes('free_local') ||
+      txt.includes('own_delivery') ||
+      txt.includes('entrega propria') ||
+      txt.includes('entrega própria')
+    ) return 1;
+
+    // 2) Correios: preferência depois que Ariana Entrega não se encaixar
+    if (
+      txt.includes('correios') ||
+      txt.includes('pac') ||
+      txt.includes('sedex') ||
+      txt.includes('03298') ||
+      txt.includes('03328') ||
+      txt.includes('03220') ||
+      txt.includes('03212')
+    ) return 2;
+
+    // 3) Rodocap: apenas para pesado/grande acima de 70km
+    if (txt.includes('rodocap')) return 3;
+
+    // 4) Frenet: fallback quando Correios/Rodocap não atenderem
+    if (txt.includes('frenet')) return 4;
+
+    return 99;
+  };
+
+  options.sort((a, b) => {
+    const pa = shippingPriority(a);
+    const pb = shippingPriority(b);
+    if (pa !== pb) return pa - pb;
+    return Number(a.price ?? 1e9) - Number(b.price ?? 1e9);
+  });
+
   const normalizedOptions = options.map((option) => ({
     ...option,
     name: option.name || option.label || 'Logística',
     prazo: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
     deliveryTime: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
     prazoEntrega: option.prazo || (option.deadlineDays ? `${option.deadlineDays} dia(s) úteis` : null),
-    deadlineDays: option.deadlineDays || parsePrazoToDeadlineDays(option.prazo || '')
+    deadlineDays: option.deadlineDays || parsePrazoToDeadlineDays(option.prazo || ''),
+    priority: shippingPriority(option)
   }));
   const quotes = normalizedOptions.filter((o) => !o.unavailable && Number.isFinite(Number(o.price)));
   const cheapest = quotes[0] || null;
