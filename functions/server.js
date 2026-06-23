@@ -7207,7 +7207,7 @@ function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') 
     sender: {
       name: process.env.LOJA_REMETENTE_NOME || 'Ariana Móveis',
       phone: process.env.LOJA_REMETENTE_TELEFONE || '',
-      document: process.env.LOJA_REMETENTE_DOCUMENTO || '',
+      document: process.env.LOJA_REMETENTE_DOCUMENTO || process.env.CORREIOS_CNPJ || '',
       cep: normalizeCepValue(process.env.LOJA_ORIGEM_CEP || ''),
       address: process.env.LOJA_REMETENTE_ENDERECO || '',
       number: process.env.LOJA_REMETENTE_NUMERO || '',
@@ -7256,6 +7256,16 @@ function isProviderBaseUrlOnly(endpoint = '', provider = '') {
   return false;
 }
 
+function stringifyProviderError(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch (_error) {
+    return String(value);
+  }
+}
+
 function buildProviderPreparedFallback({
   provider = 'correios',
   shipment = {},
@@ -7264,10 +7274,12 @@ function buildProviderPreparedFallback({
   payload = {},
   reason = '',
   providerError = null,
-  statusCode = null
+  statusCode = null,
+  providerData = null
 } = {}) {
   const isCorreios = provider === 'correios';
   const providerName = isCorreios ? 'Correios' : 'Frenet';
+  const providerErrorText = stringifyProviderError(providerError).slice(0, 4000);
 
   return {
     ok: true,
@@ -7282,11 +7294,11 @@ function buildProviderPreparedFallback({
       skippedProviderCall: true,
       reason,
       statusCode,
-      providerError: providerError ? String(providerError).slice(0, 800) : ''
+      providerError: providerErrorText,
+      providerData: providerData || null
     }
   };
 }
-
 
 function pickCorreiosServiceCode(body = {}, shipment = {}) {
   const raw = String(body.shippingServiceCode || body.serviceCode || body.codigoServico || body.coProduto || body.service || shipment.service || '').trim();
@@ -7428,6 +7440,21 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
     ? body.providerPayload
     : buildCorreiosPrepostagemPayload(orderDoc, body, shipment, quote);
 
+  const remetenteDocumento = normalizeDigits(providerPayload?.remetente?.cpfCnpj || '');
+  if (!remetenteDocumento) {
+    return buildProviderPreparedFallback({
+      provider: 'correios',
+      shipment,
+      quote,
+      trackingCode: body.trackingCode,
+      payload: providerPayload,
+      reason: 'Documento do remetente ausente. Configure LOJA_REMETENTE_DOCUMENTO ou CORREIOS_CNPJ no Render.',
+      providerError: 'Remetente sem CPF/CNPJ no payload da pré-postagem.',
+      statusCode: 400,
+      providerData: { missingField: 'remetente.cpfCnpj' }
+    });
+  }
+
   try {
     const token = await getCorreiosToken(settings);
     const response = await axios.post(endpoint, providerPayload, {
@@ -7438,7 +7465,12 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
 
     const data = response.data || {};
     if (response.status < 200 || response.status >= 300) {
-      const message = data?.message || data?.mensagem || data?.erro || data?.error || data?.errors || data?.msgs || `Correios pré-postagem HTTP ${response.status}`;
+      const message = data?.message || data?.mensagem || data?.erro || data?.error || data?.errors || data?.msgs || data || `Correios pré-postagem HTTP ${response.status}`;
+      console.error('[Correios pré-postagem HTTP erro]', {
+        status: response.status,
+        data,
+        payload: providerPayload
+      });
       return buildProviderPreparedFallback({
         provider: 'correios',
         shipment,
@@ -7447,7 +7479,8 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
         payload: providerPayload,
         reason: 'Correios retornou erro na pré-postagem. O pedido foi salvo como preparado internamente.',
         providerError: message,
-        statusCode: response.status
+        statusCode: response.status,
+        providerData: data
       });
     }
 
@@ -7469,8 +7502,9 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
       trackingCode: body.trackingCode,
       payload: providerPayload,
       reason: 'Falha ao comunicar com a API de pré-postagem dos Correios. O pedido foi salvo como preparado internamente.',
-      providerError: error?.response?.data?.message || error?.response?.data?.mensagem || error?.message || String(error),
-      statusCode: error?.response?.status || null
+      providerError: error?.response?.data || error?.message || String(error),
+      statusCode: error?.response?.status || null,
+      providerData: error?.response?.data || null
     });
   }
 }
