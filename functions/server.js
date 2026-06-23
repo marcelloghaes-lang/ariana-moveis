@@ -7382,7 +7382,7 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
       uf: String(shipment.recipient?.state || '').slice(0, 2).toUpperCase()
     },
     itensDeclaracaoConteudo,
-    observacao: String(body.notes || body.observacoes || shipment.notes || `Pedido ${orderCode}`).slice(0, 120),
+   observacao: `Pedido ${orderCode}`.slice(0, 50),
     idAtendimento: orderCode
   };
 
