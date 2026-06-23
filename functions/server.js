@@ -7216,18 +7216,28 @@ function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') 
       state: process.env.LOJA_REMETENTE_UF || 'MG'
     },
     recipient: {
-      name: address.name || order.customerName || 'Cliente',
-      phone: address.phone || order.customerPhone || '',
-      email: order.customerEmail || '',
-      document: order.customerCpf || order.cpf || '',
-      cep: normalizeCepValue(address.cep || ''),
-      address: address.logradouro || '',
-      number: address.numero || 'S/N',
-      complement: address.complemento || '',
-      district: address.bairro || '',
-      city: address.cidade || '',
-      state: address.uf || ''
-    },
+  name: address.name || order.customerName || 'Cliente',
+  phone: address.phone || order.customerPhone || '',
+  email: order.customerEmail || '',
+  document: order.customerCpf || order.cpf || '',
+  cep: normalizeCepValue(address.cep || ''),
+  address: address.logradouro || '',
+  number: address.numero || 'S/N',
+  complement: address.complemento || '',
+  district: String(
+    address.bairro ||
+    address.district ||
+    address.neighborhood ||
+    order.shippingAddress?.bairro ||
+    order.shippingAddress?.district ||
+    order.shippingAddress?.neighborhood ||
+    order.shipping?.address?.bairro ||
+    order.shipping?.address?.district ||
+    ''
+  ).trim(),
+  city: address.cidade || '',
+  state: address.uf || ''
+},
     items,
     notes: String(body.notes || body.observacoes || '').trim()
   };
