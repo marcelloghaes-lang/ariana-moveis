@@ -3517,8 +3517,53 @@ let correiosTokenCache = { token: null, exp: 0 };
 function correiosCfg(settings = null) { const cfg = settings && settings.correios ? settings.correios : {}; return { user: envFirst('CORREIOS_USER'), pass: envFirst('CORREIOS_PASS'), cartao: envFirst('CORREIOS_CARTAO'), contrato: envFirst('CORREIOS_CONTRATO'), dr: envFirst('CORREIOS_DR') || '0', originCep: normalizeDigits(cfg.origemCep || envFirst('LOJA_ORIGEM_CEP')), services: (Array.isArray(cfg.servicos) && cfg.servicos.length ? cfg.servicos : parseServices(envFirst('CORREIOS_SERVICOS'))), pesoKgPadrao: Number(cfg.pesoKgPadrao || 1), alturaCmPadrao: Number(cfg.alturaCmPadrao || 10), larguraCmPadrao: Number(cfg.larguraCmPadrao || 15), comprimentoCmPadrao: Number(cfg.comprimentoCmPadrao || 20), valorDeclaradoPadrao: Number(cfg.valorDeclaradoPadrao || 0), tokenUrl: 'https://api.correios.com.br/token/v1/autentica/cartaopostagem', precoUrl: 'https://api.correios.com.br/preco/v1/nacional' }; }
 async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token não retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
 async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
-      const resolvedPrazo = resolvedDeadlineDays ? `${resolvedDeadlineDays} dia(s) úteis` : ((coProduto === '03298') ? '3 a 7 dias úteis' : (coProduto === '03328' || coProduto === '03220') ? '1 a 3 dias úteis' : 'sob consulta');
-      quotes.push({ service: coProduto, label: SERVICE_NAMES[coProduto] || coProduto, name: SERVICE_NAMES[coProduto] || coProduto, price: pickPrice(item), prazo: resolvedPrazo, deadlineDays: resolvedDeadlineDays, raw: item }); } quotes.sort((a,b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9)); return { ok: true, quotes, errors, bestQuote: quotes[0] || null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: hasDims ? { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } : null, servicesRequested: cfg.services, limits: { maxWeightKg: Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30), maxSideCm: Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100) } } }; }
+            const resolvedPrazo = resolvedDeadlineDays
+        ? `${resolvedDeadlineDays} dia(s) úteis`
+        : ((coProduto === '03298')
+          ? '3 a 7 dias úteis'
+          : (coProduto === '03328' || coProduto === '03220')
+            ? '1 a 3 dias úteis'
+            : 'sob consulta');
+
+      quotes.push({
+        service: coProduto,
+        label: SERVICE_NAMES[coProduto] || coProduto,
+        name: SERVICE_NAMES[coProduto] || coProduto,
+        price: pickPrice(item),
+        prazo: resolvedPrazo,
+        deadlineDays: resolvedDeadlineDays,
+        provider: 'correios',
+        raw: item
+      });
+    }
+
+    quotes.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
+
+    return {
+      ok: true,
+      quotes,
+      errors,
+      bestQuote: quotes[0] || null,
+      meta: {
+        cepOrigem,
+        cepDestino,
+        pesoKg: pesoKgNum,
+        dimensionsUsed: hasDims
+          ? {
+            comprimento: Number(comprimento),
+            largura: Number(largura),
+            altura: Number(altura)
+          }
+          : null,
+        servicesRequested: cfg.services,
+        limits: {
+          maxWeightKg: Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30),
+          maxSideCm: Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)
+        }
+      }
+    };
+  }
+
 const viaCepCache = new Map();
 const geoCache = new Map();
 
