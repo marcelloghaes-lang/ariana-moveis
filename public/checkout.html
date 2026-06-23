@@ -809,7 +809,46 @@ async function quoteShippingForCep(cepDestino) {
         ...(data?.quote ? [data.quote] : []),
       ].map((q) => normalizeCheckoutShippingOption(q, data)).filter(Boolean);
       if (candidates.length) {
-        candidates.sort((a, b) => a.price - b.price);
+        const shippingPriority = (q) => {
+          const txt = `${q.provider || ''} ${q.service || ''} ${q.name || ''}`.toLowerCase();
+
+          // 1) Ariana Entrega / frete local
+          if (
+            txt.includes('ariana') ||
+            txt.includes('free_local') ||
+            txt.includes('ariana_free_local') ||
+            txt.includes('own_delivery') ||
+            txt.includes('entrega própria') ||
+            txt.includes('entrega propria')
+          ) return 1;
+
+          // 2) Correios tem preferência quando a Ariana Entrega não se encaixar
+          if (
+            txt.includes('correios') ||
+            txt.includes('pac') ||
+            txt.includes('sedex') ||
+            txt.includes('03298') ||
+            txt.includes('03328') ||
+            txt.includes('03220') ||
+            txt.includes('03212')
+          ) return 2;
+
+          // 3) Rodocap
+          if (txt.includes('rodocap')) return 3;
+
+          // 4) Frenet
+          if (txt.includes('frenet')) return 4;
+
+          return 99;
+        };
+
+        candidates.sort((a, b) => {
+          const pa = shippingPriority(a);
+          const pb = shippingPriority(b);
+          if (pa !== pb) return pa - pb;
+          return Number(a.price ?? 1e9) - Number(b.price ?? 1e9);
+        });
+
         best = candidates[0];
         full = data;
         break;
@@ -853,21 +892,11 @@ async function quoteShippingForCep(cepDestino) {
 async function quoteShippingForSelectedAddress(addrObj) {
   await loadSettings();
   const cep = String(addrObj?.cep || addrObj?.zip || '').replace(/\D/g,'');
-  try {
-    const saved = JSON.parse(localStorage.getItem('ariana_selected_shipping') || 'null');
-    if (saved && String(saved.cep || '') === cep && Number.isFinite(Number(saved.effectivePrice ?? saved.quotedPrice))) {
-      shippingQuote = {
-        provider: 'shipping',
-        price: Number(saved.quotedPrice ?? 0),
-        service: saved.service || null,
-        name: saved.name || saved.service || 'Frete',
-        cepDestino: cep,
-        effectivePrice: Number(saved.effectivePrice ?? saved.quotedPrice ?? 0),
-        full: saved.raw || null
-      };
-      return shippingQuote;
-    }
-  } catch (_) {}
+
+  // Não usa cache antigo, porque o cache pode ter salvo a opção mais barata
+  // antes da nova regra de prioridade: Ariana Entrega -> Correios -> Rodocap -> Frenet.
+  try { localStorage.removeItem('ariana_selected_shipping'); } catch (_) {}
+
   return quoteShippingForCep(cep);
 }
 
