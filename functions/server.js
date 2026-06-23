@@ -7336,23 +7336,50 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
   const settings = body.settings || {};
   const cfg = correiosCfg(settings);
   const serviceCode = pickCorreiosServiceCode(body, shipment);
-  const bestQuote = quote?.bestQuote || (Array.isArray(quote?.quotes) ? quote.quotes.find((q) => String(q.service) === serviceCode) || quote.quotes[0] : null) || {};
+  const bestQuote = quote?.bestQuote || (Array.isArray(quote?.quotes)
+    ? quote.quotes.find((q) => String(q.service) === serviceCode) || quote.quotes[0]
+    : null) || {};
+
   const declaredValue = Number(body.valorDeclarado || body.invoiceValue || body.productPrice || shipment.invoiceValue || 0) || 0;
-  const shippingPrice = Number(body.shippingCost || bestQuote.price || shipment.shippingCost || 0) || 0;
+  const shippingPrice = Number(bestQuote.price || body.shippingCost || shipment.shippingCost || 0) || 0;
   const weightKg = Number(shipment.weightKg || body.weightKg || body.pesoKg || 1) || 1;
   const pesoGramas = Number(toGrams(weightKg) || 1000);
+
   const lengthCm = Number(shipment.dimensions?.lengthCm || body.lengthCm || body.comprimentoCm || 20) || 20;
   const widthCm = Number(shipment.dimensions?.widthCm || body.widthCm || body.larguraCm || 20) || 20;
   const heightCm = Number(shipment.dimensions?.heightCm || body.heightCm || body.alturaCm || 20) || 20;
+
   const senderAddress = splitAddressNumber(shipment.sender?.address, shipment.sender?.number);
   const recipientAddress = splitAddressNumber(shipment.recipient?.address, shipment.recipient?.number);
   const orderCode = String(shipment.orderCode || shipment.orderId || uid('ord')).slice(-20);
 
-  const itensDeclaracaoConteudo = ensureArray(shipment.items).length ? ensureArray(shipment.items).map((item) => ({
-    conteudo: String(item.name || item.sku || 'Produto').slice(0, 120),
-    quantidade: String(Math.max(1, Number(item.quantity || 1))),
-    valor: Number(item.totalPrice || item.unitPrice || declaredValue || 1).toFixed(2)
-  })) : [{ conteudo: 'Produto Ariana Móveis', quantidade: '1', valor: Number(declaredValue || 1).toFixed(2) }];
+  const itensDeclaracaoConteudo = ensureArray(shipment.items).length
+    ? ensureArray(shipment.items).map((item) => ({
+      conteudo: String(item.name || item.sku || 'Produto').slice(0, 120),
+      quantidade: String(Math.max(1, Number(item.quantity || 1))),
+      valor: Number(item.totalPrice || item.unitPrice || declaredValue || 1).toFixed(2)
+    }))
+    : [{ conteudo: 'Produto Ariana Móveis', quantidade: '1', valor: Number(declaredValue || 1).toFixed(2) }];
+
+  const remetenteEndereco = {
+    cep: normalizeCepValue(shipment.sender?.cep || process.env.LOJA_ORIGEM_CEP || ''),
+    logradouro: senderAddress.logradouro || String(process.env.LOJA_REMETENTE_ENDERECO || '').slice(0, 80),
+    numero: senderAddress.numero || String(process.env.LOJA_REMETENTE_NUMERO || 'S/N'),
+    complemento: String(process.env.LOJA_REMETENTE_COMPLEMENTO || '').slice(0, 60),
+    bairro: String(shipment.sender?.district || process.env.LOJA_REMETENTE_BAIRRO || '').slice(0, 60),
+    cidade: String(shipment.sender?.city || process.env.LOJA_REMETENTE_CIDADE || 'Guanhães').slice(0, 60),
+    uf: String(shipment.sender?.state || process.env.LOJA_REMETENTE_UF || 'MG').slice(0, 2).toUpperCase()
+  };
+
+  const destinatarioEndereco = {
+    cep: normalizeCepValue(shipment.recipient?.cep || ''),
+    logradouro: recipientAddress.logradouro.slice(0, 80),
+    numero: recipientAddress.numero || 'S/N',
+    complemento: String(shipment.recipient?.complement || '').slice(0, 60),
+    bairro: String(shipment.recipient?.district || '').slice(0, 60),
+    cidade: String(shipment.recipient?.city || '').slice(0, 60),
+    uf: String(shipment.recipient?.state || '').slice(0, 2).toUpperCase()
+  };
 
   const payload = {
     numeroCartaoPostagem: String(cfg.cartao || process.env.CORREIOS_CARTAO || '').trim(),
@@ -7368,43 +7395,44 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
     logisticaReversa: 'N',
     remetente: {
       nome: String(shipment.sender?.name || 'Ariana Móveis').slice(0, 60),
-      cpfCnpj: normalizeDigits(shipment.sender?.document || process.env.LOJA_REMETENTE_DOCUMENTO || ''),
+      cpfCnpj: normalizeDigits(shipment.sender?.document || process.env.LOJA_REMETENTE_DOCUMENTO || process.env.CORREIOS_CNPJ || ''),
       telefone: normalizeDigits(shipment.sender?.phone || process.env.LOJA_REMETENTE_TELEFONE || ''),
-      cep: normalizeCepValue(shipment.sender?.cep || process.env.LOJA_ORIGEM_CEP || ''),
-      logradouro: senderAddress.logradouro || String(process.env.LOJA_REMETENTE_ENDERECO || '').slice(0, 80),
-      numero: senderAddress.numero || String(process.env.LOJA_REMETENTE_NUMERO || 'S/N'),
-      complemento: String(process.env.LOJA_REMETENTE_COMPLEMENTO || '').slice(0, 60),
-      bairro: String(shipment.sender?.district || process.env.LOJA_REMETENTE_BAIRRO || '').slice(0, 60),
-      cidade: String(shipment.sender?.city || process.env.LOJA_REMETENTE_CIDADE || 'Guanhães').slice(0, 60),
-      uf: String(shipment.sender?.state || process.env.LOJA_REMETENTE_UF || 'MG').slice(0, 2).toUpperCase()
+      ...remetenteEndereco,
+      endereco: { ...remetenteEndereco }
     },
     destinatario: {
       nome: String(shipment.recipient?.name || 'Cliente').slice(0, 60),
       cpfCnpj: normalizeDigits(shipment.recipient?.document || ''),
       telefone: normalizeDigits(shipment.recipient?.phone || ''),
       email: String(shipment.recipient?.email || '').slice(0, 80),
-      cep: normalizeCepValue(shipment.recipient?.cep || ''),
-      logradouro: recipientAddress.logradouro.slice(0, 80),
-      numero: recipientAddress.numero || 'S/N',
-      complemento: String(shipment.recipient?.complement || '').slice(0, 60),
-      bairro: String(shipment.recipient?.district || '').slice(0, 60),
-      cidade: String(shipment.recipient?.city || '').slice(0, 60),
-      uf: String(shipment.recipient?.state || '').slice(0, 2).toUpperCase()
+      ...destinatarioEndereco,
+      endereco: { ...destinatarioEndereco }
     },
     itensDeclaracaoConteudo,
-   observacao: `Pedido ${orderCode}`.slice(0, 50),
+    observacao: `Pedido ${orderCode}`.slice(0, 50),
     idAtendimento: orderCode
   };
 
   if (declaredValue > 0) {
-    payload.listaServicoAdicional = [{ codigoServicoAdicional: '019', valorDeclarado: Number(declaredValue).toFixed(2) }];
+    payload.listaServicoAdicional = [{
+      codigoServicoAdicional: '019',
+      valorDeclarado: Number(declaredValue).toFixed(2)
+    }];
   }
 
-  Object.keys(payload.remetente).forEach((key) => { if (payload.remetente[key] === '') delete payload.remetente[key]; });
-  Object.keys(payload.destinatario).forEach((key) => { if (payload.destinatario[key] === '') delete payload.destinatario[key]; });
+  const removeEmpty = (obj = {}) => {
+    Object.keys(obj).forEach((key) => {
+      if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) removeEmpty(obj[key]);
+      if (obj[key] === '') delete obj[key];
+    });
+    return obj;
+  };
+
+  removeEmpty(payload.remetente);
+  removeEmpty(payload.destinatario);
+
   return payload;
 }
-
 
 async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
   const settings = await getShippingSettings();
