@@ -7255,9 +7255,10 @@ function normalizeCorreiosRotuloHtml(data = '') {
   return '';
 }
 
-async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRotulo = 'P' } = {}) {
+async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], codigoRastreamento = '', tipoRotulo = 'P' } = {}) {
   const rotuloEndpoint = buildCorreiosRotuloEndpoint(endpoint);
   const ids = ensureArray(idsPrePostagem).map((id) => String(id || '').trim()).filter(Boolean);
+  const trackingCodes = ensureArray(codigoRastreamento).map((id) => String(id || '').trim()).filter(Boolean);
   const tipo = String(tipoRotulo || 'P').toUpperCase() === 'R' ? 'R' : 'P';
 
   if (!rotuloEndpoint || !ids.length) {
@@ -7359,6 +7360,27 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
     : `${rotuloEndpointBase}/assincrono/pdf`;
   const officialHtmlEndpoint = `${rotuloEndpointBase}/assincrono/html`;
 
+  const basePrepostagemEndpoint = String(endpoint || process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rotulo(?:\/assincrono\/(?:pdf|html))?$/i, '');
+
+  // Tentativa 0: formato GET informado pela documentação/suporte dos Correios.
+  // A API de pré-postagem pode devolver o PDF oficial em /prepostagem/v1/prepostagens
+  // usando idPrePostagem + tipoChave + retorno=PDF.
+  const addGetPdfConsultaAttempt = (id, tipoChave) => {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return;
+    const paramsPdf = new URLSearchParams();
+    paramsPdf.set('idPrePostagem', cleanId);
+    paramsPdf.set('tipoChave', tipoChave);
+    paramsPdf.set('retorno', 'PDF');
+    addAttempt('GET', `${basePrepostagemEndpoint}?${paramsPdf.toString()}`, null, 'arraybuffer');
+  };
+
+  trackingCodes.forEach((codigo) => addGetPdfConsultaAttempt(codigo, 'CODIGO_RASTREAMENTO'));
+  ids.forEach((id) => addGetPdfConsultaAttempt(id, 'ID_PRE_POSTAGEM'));
+
   // Tentativa 1: formato atual do manual Correios API para rótulo oficial PDF.
   addAttempt('POST', officialPdfEndpoint, { idsPrePostagem: ids, tipoRotulo: tipo, formatoRotulo: 'ET' });
 
@@ -7374,12 +7396,6 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
   ids.forEach((id) => params.append('idsPrePostagem', id));
   params.set('tipoRotulo', tipo);
   addAttempt('GET', `${rotuloEndpointBase}?${params.toString()}`);
-
-  // Tentativa 3: endpoint por ID da pré-postagem, usado em ambientes que não aceitam POST no /rotulo.
-  const basePrepostagemEndpoint = String(endpoint || process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '')
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/rotulo(?:\/assincrono\/(?:pdf|html))?$/i, '');
 
   ids.forEach((id) => {
     if (String(process.env.CORREIOS_ROTULO_URL || process.env.CORREIOS_PREPOSTAGEM_ROTULO_URL || '').includes('{')) {
@@ -7805,10 +7821,12 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
     let rotulo = { ok: false, skipped: true, reason: 'idsPrePostagem ausentes no retorno da pré-postagem' };
     let labelHtml = '';
     try {
+      const trackingCodeFromPrepostagem = extractProviderTrackingCode(data) || String(body.trackingCode || '').trim();
       rotulo = await callCorreiosRotulo({
         token,
         endpoint,
         idsPrePostagem,
+        codigoRastreamento: trackingCodeFromPrepostagem,
         tipoRotulo: body.tipoRotulo || body.labelSize || 'P'
       });
       if (rotulo.ok && rotulo.html) labelHtml = rotulo.html;
