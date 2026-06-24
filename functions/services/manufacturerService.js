@@ -388,6 +388,130 @@ export async function bulkEnterprisePrices(items = [], context = {}) {
 
 
 // ============================================================
+// ETAPA 6 - Enterprise Catalog Sync
+// Importação/sincronização de catálogo, estoque e preços em massa
+// ============================================================
+export async function bulkEnterpriseProducts(items = [], context = {}) {
+  const rows = Array.isArray(items) ? items : [];
+  const results = [];
+  for (const item of rows) {
+    try {
+      const product = await upsertEnterpriseProduct({
+        ...item,
+        manufacturer: item.manufacturer || context.manufacturer,
+        sellerId: item.sellerId || context.sellerId || item.manufacturer || context.manufacturer,
+        sellerName: item.sellerName || context.sellerName || item.manufacturer || context.manufacturer
+      }, context.manufacturer || item.manufacturer || 'enterprise');
+      results.push({ ok: true, sku: item.sku || item.codigo || item.ean || '', id: String(product._id || product.id || '') });
+    } catch (error) {
+      results.push({ ok: false, sku: item.sku || item.codigo || item.ean || '', error: error.message });
+    }
+  }
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_catalog_bulk_upsert',
+    manufacturer: normalizeManufacturer(context.manufacturer || ''),
+    status: results.some(r => !r.ok) ? 'partial' : 'ok',
+    request: { total: rows.length, context },
+    response: {
+      total: results.length,
+      success: results.filter(r => r.ok).length,
+      errors: results.filter(r => !r.ok).length
+    }
+  });
+  return results;
+}
+
+export async function syncEnterpriseCatalog(input = {}, user = '') {
+  const manufacturer = normalizeManufacturer(input.manufacturer || input.fabricante || input.sellerId || 'enterprise');
+  if (!manufacturer) throw new Error('manufacturer é obrigatório');
+
+  const dryRun = input.dryRun === true;
+  const items = Array.isArray(input.items || input.products || input.produtos)
+    ? (input.items || input.products || input.produtos)
+    : [];
+
+  if (!items.length) {
+    await IntegrationAuditLog.create({
+      eventType: 'enterprise_catalog_sync_empty',
+      manufacturer,
+      status: 'empty',
+      message: 'Nenhum produto recebido para sincronizar',
+      request: { manufacturer, user, dryRun }
+    });
+    return { manufacturer, dryRun, total: 0, success: 0, errors: 0, results: [] };
+  }
+
+  if (dryRun) {
+    const preview = items.slice(0, 20).map(item => ({
+      sku: item.sku || item.codigo || item.ean || '',
+      name: item.name || item.nome || item.title || '',
+      price: item.price ?? item.preco ?? item.valor ?? '',
+      stock: item.stock ?? item.estoque ?? item.quantity ?? ''
+    }));
+    await IntegrationAuditLog.create({
+      eventType: 'enterprise_catalog_sync_dry_run',
+      manufacturer,
+      status: 'preview',
+      request: { total: items.length, user },
+      response: { preview }
+    });
+    return { manufacturer, dryRun, total: items.length, success: 0, errors: 0, preview };
+  }
+
+  const results = await bulkEnterpriseProducts(items, {
+    manufacturer,
+    sellerId: input.sellerId || manufacturer,
+    sellerName: input.sellerName || input.nomeFabricante || manufacturer
+  });
+
+  const success = results.filter(r => r.ok).length;
+  const errors = results.filter(r => !r.ok).length;
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_catalog_sync_completed',
+    manufacturer,
+    status: errors ? 'partial' : 'ok',
+    message: `Catálogo sincronizado: ${success} ok, ${errors} erro(s)`,
+    request: { total: items.length, user },
+    response: { total: results.length, success, errors }
+  });
+
+  return { manufacturer, dryRun: false, total: results.length, success, errors, results: results.slice(0, 100) };
+}
+
+export async function getEnterpriseCatalogSummary(params = {}) {
+  const Product = getProductModel();
+  const manufacturer = params.manufacturer ? normalizeManufacturer(params.manufacturer) : '';
+  const query = {};
+  if (manufacturer) {
+    query.$or = [
+      { sellerId: manufacturer },
+      { brand: new RegExp(`^${manufacturer}$`, 'i') },
+      { sellerName: new RegExp(manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }
+    ];
+  }
+
+  const [totalProducts, activeProducts, outOfStock, lastProducts, byManufacturer] = await Promise.all([
+    Product.countDocuments(query),
+    Product.countDocuments({ ...query, active: { $ne: false } }),
+    Product.countDocuments({ ...query, stock: { $lte: 0 } }),
+    Product.find(query).sort({ updatedAt: -1, createdAt: -1 }).limit(20).lean(),
+    Product.aggregate([
+      { $match: manufacturer ? query : { sellerId: { $exists: true, $ne: '' } } },
+      { $group: { _id: '$sellerId', total: { $sum: 1 }, active: { $sum: { $cond: [{ $ne: ['$active', false] }, 1, 0] } }, stock: { $sum: '$stock' }, lastUpdate: { $max: '$updatedAt' } } },
+      { $sort: { total: -1 } },
+      { $limit: 50 }
+    ])
+  ]);
+
+  return {
+    summary: { totalProducts, activeProducts, outOfStock },
+    manufacturers: byManufacturer.map(item => ({ manufacturer: item._id || 'sem_seller', total: item.total || 0, active: item.active || 0, stock: item.stock || 0, lastUpdate: item.lastUpdate || null })),
+    lastProducts
+  };
+}
+
+
+// ============================================================
 // ETAPA 3 - Enterprise API: pedidos, status, tracking e NF-e
 // ============================================================
 export async function listEnterpriseOrders(params = {}) {

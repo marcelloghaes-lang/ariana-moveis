@@ -13,6 +13,9 @@ import {
   updateEnterprisePrice,
   bulkEnterpriseStock,
   bulkEnterprisePrices,
+  bulkEnterpriseProducts,
+  syncEnterpriseCatalog,
+  getEnterpriseCatalogSummary,
   listEnterpriseOrders,
   receiveEnterpriseOrder,
   updateEnterpriseOrderStatus,
@@ -166,6 +169,34 @@ router.post('/products/bulk-prices', partnerKeyRequired, async (req, res) => {
   }
 });
 
+router.post('/products/bulk-upsert', partnerKeyRequired, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items || req.body?.products || req.body?.produtos)
+      ? (req.body.items || req.body.products || req.body.produtos)
+      : [];
+    return ok(res, { results: await bulkEnterpriseProducts(items, { manufacturer: req.body?.manufacturer, sellerId: req.body?.sellerId, sellerName: req.body?.sellerName }) });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao cadastrar produtos em lote');
+  }
+});
+
+// ============================================================
+// ETAPA 6 - Enterprise API: sincronização de catálogo
+// ============================================================
+router.get('/catalog/summary', adminOnly, async (req, res) => {
+  try { return ok(res, await getEnterpriseCatalogSummary(req.query)); }
+  catch (error) { return fail(res, 500, error.message || 'Erro ao carregar resumo do catálogo enterprise'); }
+});
+
+router.post('/catalog/sync', adminOnly, async (req, res) => {
+  try { return ok(res, await syncEnterpriseCatalog(req.body, req.admin?.email || req.admin?.id || 'admin'), 201); }
+  catch (error) { return fail(res, 400, error.message || 'Erro ao sincronizar catálogo enterprise'); }
+});
+
+router.post('/catalog/push', partnerKeyRequired, async (req, res) => {
+  try { return ok(res, await syncEnterpriseCatalog(req.body, req.body?.manufacturer || 'partner'), 201); }
+  catch (error) { return fail(res, 400, error.message || 'Erro ao receber catálogo enterprise'); }
+});
 
 
 // ============================================================
