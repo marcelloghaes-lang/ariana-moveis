@@ -163,6 +163,10 @@ function normalizeManufacturer(value = '') {
   return String(value || '').trim().toLowerCase();
 }
 
+function escapeRegExp(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\]/g, '\$&');
+}
+
 function buildProductQuery(params = {}) {
   const query = {};
   const manufacturer = normalizeManufacturer(params.manufacturer || params.brand || params.marca || '');
@@ -405,9 +409,23 @@ export async function syncEnterpriseProductState({ sku, sellerId, manufacturer =
   const normalizedSku = normalizeSku(sku || payload.sku || payload.codigo || payload.ean || '');
   if (!normalizedSku) throw new Error('sku é obrigatório');
 
-  const query = { sku: normalizedSku };
-  const safeSellerId = String(sellerId || payload.sellerId || payload.seller_id || manufacturer || '').trim();
-  if (safeSellerId) query.sellerId = safeSellerId;
+  // Busca flexível: alguns produtos Enterprise antigos podem ter sido criados com sellerId
+  // diferente do manufacturer, ou sem sellerId. Primeiro tentamos o filtro mais preciso;
+  // se não achar, caímos para SKU puro e depois SKU case-insensitive.
+  const safeSellerId = String(sellerId || payload.sellerId || payload.seller_id || '').trim();
+  const safeManufacturer = String(manufacturer || payload.manufacturer || payload.fabricante || '').trim();
+  const preciseQuery = { sku: normalizedSku };
+  if (safeSellerId) preciseQuery.sellerId = safeSellerId;
+  else if (safeManufacturer) preciseQuery.$or = [
+    { sellerId: safeManufacturer },
+    { sellerId: safeManufacturer.toLowerCase() },
+    { sellerName: safeManufacturer },
+    { brand: safeManufacturer },
+    { brand: safeManufacturer.toLowerCase() }
+  ];
+
+  const skuOnlyQuery = { sku: normalizedSku };
+  const skuRegexQuery = { sku: { $regex: `^${escapeRegExp(normalizedSku)}$`, $options: 'i' } };
 
   const set = { updatedAt: new Date() };
   const syncInfo = {
@@ -440,8 +458,20 @@ export async function syncEnterpriseProductState({ sku, sellerId, manufacturer =
     enterpriseSync: syncInfo
   };
 
-  const doc = await Product.findOneAndUpdate(query, { $set: compactObject(set) }, { new: true }).lean();
-  if (!doc) throw new Error('Produto não encontrado para sincronizar');
+  let doc = await Product.findOneAndUpdate(preciseQuery, { $set: compactObject(set) }, { new: true }).lean();
+  if (!doc) doc = await Product.findOneAndUpdate(skuOnlyQuery, { $set: compactObject(set) }, { new: true }).lean();
+  if (!doc) doc = await Product.findOneAndUpdate(skuRegexQuery, { $set: compactObject(set) }, { new: true }).lean();
+  if (!doc) {
+    await IntegrationAuditLog.create({
+      eventType: 'enterprise_product_state_sync_not_found',
+      manufacturer: syncInfo.manufacturer,
+      status: 'error',
+      message: 'Produto não encontrado para sincronizar',
+      request: { sku: normalizedSku, sellerId: safeSellerId, manufacturer: safeManufacturer, payload },
+      response: { preciseQuery, skuOnlyQuery }
+    }).catch(() => null);
+    throw new Error(`Produto não encontrado para sincronizar: ${normalizedSku}`);
+  }
 
   await IntegrationAuditLog.create({
     eventType: 'enterprise_product_state_sync',
