@@ -7263,60 +7263,139 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
   const timeout = Number(process.env.CORREIOS_ROTULO_TIMEOUT_MS || 30000);
   const baseHeaders = {
     Authorization: `Bearer ${token}`,
-    Accept: 'text/html,application/json,*/*'
+    Accept: 'text/html,application/pdf,application/json,*/*'
   };
 
-  const parseResult = (response, method, attemptedEndpoint) => {
-    const html = normalizeCorreiosRotuloHtml(response.data);
-    const ok = response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(html);
-    if (ok) {
-      return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html };
+  const normalizeEndpointTemplate = (url = '', id = '') => String(url || '')
+    .replace(/\{idPrePostagem\}/gi, encodeURIComponent(id))
+    .replace(/\{id\}/gi, encodeURIComponent(id));
+
+  const parseResult = (response, method, attemptedEndpoint, requestPayload = null) => {
+    const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+    const rawData = response.data;
+
+    if (Buffer.isBuffer(rawData)) {
+      const buffer = rawData;
+      const isPdf = contentType.includes('application/pdf') || buffer.slice(0, 4).toString() === '%PDF';
+      if (response.status >= 200 && response.status < 300 && isPdf) {
+        const pdfDataUrl = `data:application/pdf;base64,${buffer.toString('base64')}`;
+        return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html: '', labelUrl: pdfDataUrl, contentType };
+      }
+      return {
+        ok: false,
+        method,
+        statusCode: response.status,
+        endpoint: attemptedEndpoint,
+        idsPrePostagem: ids,
+        contentType,
+        data: buffer.toString('utf8').slice(0, 2000),
+        requestPayload
+      };
     }
+
+    const html = normalizeCorreiosRotuloHtml(rawData);
+    const okHtml = response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(html);
+    if (okHtml) {
+      return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html, contentType };
+    }
+
+    let dataText = '';
+    if (typeof rawData === 'string') dataText = rawData;
+    else {
+      try { dataText = JSON.stringify(rawData); } catch (_error) { dataText = String(rawData || ''); }
+    }
+
     return {
       ok: false,
       method,
       statusCode: response.status,
       endpoint: attemptedEndpoint,
       idsPrePostagem: ids,
-      data: String(response.data || '').slice(0, 2000)
+      contentType,
+      data: dataText.slice(0, 2000),
+      requestPayload
     };
   };
 
-  const postResponse = await axios.post(rotuloEndpoint, {
-    idsPrePostagem: ids,
-    tipoRotulo: tipo
-  }, {
-    headers: { ...baseHeaders, 'Content-Type': 'application/json' },
-    timeout,
-    responseType: 'text',
-    transformResponse: [(data) => data],
-    validateStatus: () => true
-  });
+  const attempts = [];
 
-  const postResult = parseResult(postResponse, 'POST', rotuloEndpoint);
-  if (postResult.ok || postResponse.status !== 405) return postResult;
+  const addAttempt = (method, url, payload = null, responseType = 'text') => {
+    const cleanUrl = String(url || '').trim();
+    if (!cleanUrl) return;
+    const key = `${method}:${cleanUrl}:${payload ? JSON.stringify(payload) : ''}`;
+    if (attempts.some((item) => item.key === key)) return;
+    attempts.push({ key, method, url: cleanUrl, payload, responseType });
+  };
 
-  // Em alguns contratos/ambientes de produção dos Correios o endpoint de rótulo aceita GET,
-  // mesmo o manual antigo mostrar POST. Se o POST voltar 405, tentamos GET com query string.
+  // Tentativa 1: formato indicado em manuais antigos.
+  addAttempt('POST', rotuloEndpoint, { idsPrePostagem: ids, tipoRotulo: tipo });
+
+  // Tentativa 2: GET com query string no mesmo endpoint quando o POST retorna 405.
   const params = new URLSearchParams();
   ids.forEach((id) => params.append('idsPrePostagem', id));
   params.set('tipoRotulo', tipo);
-  const getEndpoint = `${rotuloEndpoint}?${params.toString()}`;
+  addAttempt('GET', `${rotuloEndpoint}?${params.toString()}`);
 
-  const getResponse = await axios.get(getEndpoint, {
-    headers: baseHeaders,
-    timeout,
-    responseType: 'text',
-    transformResponse: [(data) => data],
-    validateStatus: () => true
+  // Tentativa 3: endpoint por ID da pré-postagem, usado em ambientes que não aceitam POST no /rotulo.
+  const basePrepostagemEndpoint = String(endpoint || process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rotulo$/i, '');
+
+  ids.forEach((id) => {
+    if (String(process.env.CORREIOS_ROTULO_URL || process.env.CORREIOS_PREPOSTAGEM_ROTULO_URL || '').includes('{')) {
+      addAttempt('GET', normalizeEndpointTemplate(process.env.CORREIOS_ROTULO_URL || process.env.CORREIOS_PREPOSTAGEM_ROTULO_URL, id));
+    }
+    addAttempt('GET', `${basePrepostagemEndpoint}/${encodeURIComponent(id)}/rotulo?tipoRotulo=${encodeURIComponent(tipo)}`);
+    addAttempt('GET', `${basePrepostagemEndpoint}/${encodeURIComponent(id)}/rotulo`);
+    addAttempt('GET', `${basePrepostagemEndpoint}/rotulo/${encodeURIComponent(id)}?tipoRotulo=${encodeURIComponent(tipo)}`);
+    addAttempt('GET', `${basePrepostagemEndpoint}/rotulo/${encodeURIComponent(id)}`);
   });
 
-  const getResult = parseResult(getResponse, 'GET', getEndpoint);
-  if (getResult.ok) return getResult;
+  const errors = [];
+  for (const attempt of attempts) {
+    let response;
+    try {
+      if (attempt.method === 'POST') {
+        response = await axios.post(attempt.url, attempt.payload, {
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+          timeout,
+          responseType: attempt.responseType,
+          transformResponse: [(data) => data],
+          validateStatus: () => true
+        });
+      } else {
+        response = await axios.get(attempt.url, {
+          headers: baseHeaders,
+          timeout,
+          responseType: attempt.responseType,
+          transformResponse: [(data) => data],
+          validateStatus: () => true
+        });
+      }
+
+      const result = parseResult(response, attempt.method, attempt.url, attempt.payload);
+      if (result.ok) return result;
+      errors.push(result);
+    } catch (error) {
+      errors.push({
+        ok: false,
+        method: attempt.method,
+        endpoint: attempt.url,
+        idsPrePostagem: ids,
+        error: error?.response?.data || error?.message || String(error),
+        statusCode: error?.response?.status || null
+      });
+    }
+  }
 
   return {
-    ...getResult,
-    postFallback: postResult
+    ok: false,
+    statusCode: errors[errors.length - 1]?.statusCode || null,
+    endpoint: errors[errors.length - 1]?.endpoint || rotuloEndpoint,
+    idsPrePostagem: ids,
+    data: errors[errors.length - 1]?.data || errors[errors.length - 1]?.error || 'Rótulo oficial não retornado pelos Correios.',
+    attempts: errors
   };
 }
 
@@ -7707,7 +7786,7 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
       preparedOnly: false,
       message: labelHtml ? 'Pré-postagem Correios enviada e rótulo oficial gerado.' : 'Pré-postagem Correios enviada ao provedor.',
       trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
-      labelUrl: extractProviderLabelUrl(data),
+      labelUrl: String(rotulo?.labelUrl || extractProviderLabelUrl(data) || ''),
       labelHtml,
       idsPrePostagem,
       rotulo,
@@ -7850,16 +7929,17 @@ async function saveProviderLogisticsResult({ order, body = {}, provider = 'manua
     widthCm: Number(body.widthCm || body.larguraCm || 0),
     lengthCm: Number(body.lengthCm || body.comprimentoCm || 0),
     notes: String(
-      body.notes ||
-      body.observacoes ||
       (providerResult.labelHtml
         ? 'Etiqueta oficial dos Correios emitida com sucesso.'
         : (providerResult.preparedOnly === false
           ? `Pré-postagem oficial dos Correios emitida com sucesso.${trackingCode ? ` Rastreio: ${trackingCode}.` : ''}`
-          : providerResult.message)) ||
+          : '')) ||
+      body.notes ||
+      body.observacoes ||
+      providerResult.message ||
       ''
     ).trim(),
-    labelType: providerResult.labelHtml ? 'correios_rotulo_oficial_html' : (providerResult.preparedOnly === false ? 'correios_prepostagem_oficial' : labelType),
+    labelType: (providerResult.labelHtml || providerResult.labelUrl) ? 'correios_rotulo_oficial' : (providerResult.preparedOnly === false ? 'correios_prepostagem_oficial' : labelType),
     labelUrl: String(providerResult.labelUrl || ''),
     rawProviderResponse: redact(providerResult.raw || providerResult),
     updatedBy: actor
@@ -7870,7 +7950,11 @@ async function saveProviderLogisticsResult({ order, body = {}, provider = 'manua
     { $set: patch, $setOnInsert: { createdBy: actor } },
     { upsert: true, new: true }
   );
-  const html = String(providerResult.labelHtml || '').trim() || buildManualLogisticsLabelHtml(order, label);
+  const officialPdfUrl = String(providerResult.labelUrl || '').trim();
+  const officialPdfHtml = officialPdfUrl && officialPdfUrl.startsWith('data:application/pdf')
+    ? `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta oficial Correios</title><style>html,body{margin:0;height:100%;background:#f3f4f6}.bar{padding:12px;text-align:right;background:#fff;border-bottom:1px solid #ddd}.bar button{padding:10px 16px;border:0;border-radius:8px;background:#0047AB;color:#fff;font-weight:700;cursor:pointer}iframe{width:100%;height:calc(100% - 58px);border:0}</style></head><body><div class="bar"><button onclick="window.print()">Imprimir etiqueta oficial</button></div><iframe src="${officialPdfUrl}"></iframe></body></html>`
+    : '';
+  const html = String(providerResult.labelHtml || '').trim() || officialPdfHtml || buildManualLogisticsLabelHtml(order, label);
   label = await LogisticsLabel.findByIdAndUpdate(label._id, { $set: { labelHtml: html } }, { new: true });
 
   const orderPatch = {
