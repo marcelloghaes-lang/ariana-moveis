@@ -24,6 +24,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import { generateProductPosterBuffer } from './poster-generator.js';
+import manufacturerIntegrationRoutes from './routes/manufacturerIntegrationRoutes.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11015,6 +11016,12 @@ function startSigeAutoCobrancaScheduler() {
     }
   }, 60 * 1000);
 }
+
+// ============================================================
+// MÓDULO ENTERPRISE / INTEGRAÇÕES COM FABRICANTES
+// Rota isolada da Etapa 1 de modularização.
+// ============================================================
+app.use('/api/enterprise', manufacturerIntegrationRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
