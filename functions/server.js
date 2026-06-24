@@ -7232,7 +7232,11 @@ function buildCorreiosRotuloEndpoint(prepostagemEndpoint = '') {
   if (explicit) return explicit;
   const endpoint = String(prepostagemEndpoint || process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim();
   if (!endpoint) return '';
-  return endpoint.replace(/\/prepostagem\/v1\/prepostagens(?:\/.*)?$/i, '/prepostagem/v1/prepostagens/rotulo');
+
+  // Manual Correios API 04/2025: o rótulo oficial PDF é solicitado em
+  // /prepostagem/v1/prepostagens/rotulo/assincrono/pdf.
+  // O endpoint antigo /rotulo sozinho pode existir, mas em produção costuma devolver 405 para POST.
+  return endpoint.replace(/\/prepostagem\/v1\/prepostagens(?:\/.*)?$/i, '/prepostagem/v1/prepostagens/rotulo/assincrono/pdf');
 }
 
 function normalizeCorreiosRotuloHtml(data = '') {
@@ -7281,6 +7285,25 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
         const pdfDataUrl = `data:application/pdf;base64,${buffer.toString('base64')}`;
         return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html: '', labelUrl: pdfDataUrl, contentType };
       }
+
+      const textData = buffer.toString('utf8');
+      const okHtmlFromBuffer = response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(textData);
+      if (okHtmlFromBuffer) {
+        return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html: textData, contentType };
+      }
+
+      try {
+        const parsed = JSON.parse(textData);
+        const htmlFromJson = normalizeCorreiosRotuloHtml(parsed);
+        if (response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(htmlFromJson)) {
+          return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html: htmlFromJson, contentType };
+        }
+        const jsonLabelUrl = extractProviderLabelUrl(parsed);
+        if (response.status >= 200 && response.status < 300 && jsonLabelUrl) {
+          return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html: '', labelUrl: jsonLabelUrl, contentType };
+        }
+      } catch (_error) {}
+
       return {
         ok: false,
         method,
@@ -7288,7 +7311,7 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
         endpoint: attemptedEndpoint,
         idsPrePostagem: ids,
         contentType,
-        data: buffer.toString('utf8').slice(0, 2000),
+        data: textData.slice(0, 2000),
         requestPayload
       };
     }
@@ -7319,7 +7342,7 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
 
   const attempts = [];
 
-  const addAttempt = (method, url, payload = null, responseType = 'text') => {
+  const addAttempt = (method, url, payload = null, responseType = 'arraybuffer') => {
     const cleanUrl = String(url || '').trim();
     if (!cleanUrl) return;
     const key = `${method}:${cleanUrl}:${payload ? JSON.stringify(payload) : ''}`;
@@ -7327,20 +7350,36 @@ async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRo
     attempts.push({ key, method, url: cleanUrl, payload, responseType });
   };
 
-  // Tentativa 1: formato indicado em manuais antigos.
-  addAttempt('POST', rotuloEndpoint, { idsPrePostagem: ids, tipoRotulo: tipo });
+  const rotuloEndpointBase = rotuloEndpoint
+    .replace(/\/assincrono\/pdf$/i, '')
+    .replace(/\/assincrono\/html$/i, '')
+    .replace(/\/+$/, '');
+  const officialPdfEndpoint = /\/assincrono\/pdf$/i.test(rotuloEndpoint)
+    ? rotuloEndpoint
+    : `${rotuloEndpointBase}/assincrono/pdf`;
+  const officialHtmlEndpoint = `${rotuloEndpointBase}/assincrono/html`;
+
+  // Tentativa 1: formato atual do manual Correios API para rótulo oficial PDF.
+  addAttempt('POST', officialPdfEndpoint, { idsPrePostagem: ids, tipoRotulo: tipo, formatoRotulo: 'ET' });
+
+  // Tentativa 2: alguns ambientes retornam o rótulo em HTML.
+  addAttempt('POST', officialHtmlEndpoint, { idsPrePostagem: ids, tipoRotulo: tipo, formatoRotulo: 'ET' });
+
+  // Tentativa 3: formato antigo do /rotulo. Mantido por compatibilidade.
+  addAttempt('POST', rotuloEndpointBase, { idsPrePostagem: ids, tipoRotulo: tipo, formatoRotulo: 'ET' });
+  addAttempt('POST', rotuloEndpointBase, { idsPrePostagem: ids, tipoRotulo: tipo });
 
   // Tentativa 2: GET com query string no mesmo endpoint quando o POST retorna 405.
   const params = new URLSearchParams();
   ids.forEach((id) => params.append('idsPrePostagem', id));
   params.set('tipoRotulo', tipo);
-  addAttempt('GET', `${rotuloEndpoint}?${params.toString()}`);
+  addAttempt('GET', `${rotuloEndpointBase}?${params.toString()}`);
 
   // Tentativa 3: endpoint por ID da pré-postagem, usado em ambientes que não aceitam POST no /rotulo.
   const basePrepostagemEndpoint = String(endpoint || process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '')
     .trim()
     .replace(/\/+$/, '')
-    .replace(/\/rotulo$/i, '');
+    .replace(/\/rotulo(?:\/assincrono\/(?:pdf|html))?$/i, '');
 
   ids.forEach((id) => {
     if (String(process.env.CORREIOS_ROTULO_URL || process.env.CORREIOS_PREPOSTAGEM_ROTULO_URL || '').includes('{')) {
@@ -8138,14 +8177,33 @@ app.post('/api/admin/logistica/etiquetas/manual', adminRequired, async (req, res
   }
 });
 
+
+function sendStoredLogisticsLabel(res, label = {}, fallbackHtml = '') {
+  const labelUrl = String(label?.labelUrl || '').trim();
+
+  if (labelUrl.startsWith('data:application/pdf;base64,')) {
+    const base64 = labelUrl.split(',')[1] || '';
+    const buffer = Buffer.from(base64, 'base64');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="etiqueta-${String(label?.trackingCode || label?.orderId || 'correios')}.pdf"`);
+    return res.send(buffer);
+  }
+
+  if (/^https?:\/\//i.test(labelUrl)) {
+    return res.redirect(labelUrl);
+  }
+
+  if (label?.labelHtml) return res.type('html').send(label.labelHtml);
+  return res.type('html').send(fallbackHtml);
+}
+
 app.get('/api/admin/logistica/etiquetas/:orderId/html', adminRequired, async (req, res) => {
   try {
     const orderId = String(req.params.orderId || '').trim();
     const label = await LogisticsLabel.findOne({ orderId }).sort({ updatedAt: -1 });
     if (!label) return res.status(404).send('Etiqueta não encontrada para este pedido.');
-    if (label.labelHtml) return res.type('html').send(label.labelHtml);
     const order = mongoose.Types.ObjectId.isValid(orderId) ? await Order.findById(orderId) : null;
-    return res.type('html').send(buildManualLogisticsLabelHtml(order || {}, label));
+    return sendStoredLogisticsLabel(res, label, buildManualLogisticsLabelHtml(order || {}, label));
   } catch (error) {
     return res.status(500).send(error.message || 'Erro ao abrir etiqueta.');
   }
@@ -8540,8 +8598,7 @@ app.get('/api/seller/logistica/etiquetas/:orderId/html', sellerAuthRequired, asy
 
     const label = await LogisticsLabel.findOne({ orderId }).sort({ updatedAt: -1 });
     if (!label) return res.status(404).send('Etiqueta não encontrada para este pedido.');
-    if (label.labelHtml) return res.type('html').send(label.labelHtml);
-    return res.type('html').send(buildManualLogisticsLabelHtml(order, label));
+    return sendStoredLogisticsLabel(res, label, buildManualLogisticsLabelHtml(order, label));
   } catch (error) {
     return res.status(500).send(error.message || 'Erro ao abrir etiqueta do seller.');
   }
