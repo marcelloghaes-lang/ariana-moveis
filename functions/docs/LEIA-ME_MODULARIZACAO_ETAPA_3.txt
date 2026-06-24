@@ -1,0 +1,76 @@
+ARIANA MÓVEIS - MODULARIZAÇÃO ETAPA 3
+
+Módulo Enterprise: Pedidos, Status, Tracking, NF-e e Logs.
+
+O que foi adicionado:
+
+1) GET /api/enterprise/orders
+   Lista pedidos recebidos pela camada enterprise. Uso interno/admin.
+
+2) POST /api/enterprise/orders
+   Recebe ou atualiza um pedido vindo de fabricante/ERP.
+   Requer header:
+   x-ariana-key: ENTERPRISE_WEBHOOK_SECRET
+
+3) POST /api/enterprise/orders/:orderId/status
+   Atualiza status do pedido por ID interno ou externalOrderId.
+
+4) POST /api/enterprise/orders/:orderId/tracking
+   Recebe rastreio e transportadora do fabricante/seller/ERP.
+
+5) POST /api/enterprise/orders/:orderId/invoice
+   Recebe dados de NF-e/DANFE/XML do fabricante.
+
+6) GET /api/enterprise/logs
+   Lista logs das integrações.
+
+7) GET /api/enterprise/queue
+   Lista fila de envio para fabricantes.
+
+IMPORTANTE:
+Esta etapa não altera checkout, pagamentos, seller, Correios ou carrinho.
+Ela apenas adiciona uma camada nova para integração empresarial.
+
+TESTE RÁPIDO:
+
+1. Confirmar módulo online:
+https://ariana-backend.onrender.com/api/enterprise/health
+
+2. Testar recebimento de pedido via API com Postman/Insomnia:
+POST https://ariana-backend.onrender.com/api/enterprise/orders
+Header: x-ariana-key: valor_do_ENTERPRISE_WEBHOOK_SECRET
+Content-Type: application/json
+
+Body exemplo:
+{
+  "manufacturer": "whirlpool",
+  "externalOrderId": "WHIRLPOOL-TESTE-001",
+  "customerName": "Cliente Teste",
+  "customerEmail": "cliente@teste.com",
+  "customerPhone": "31999999999",
+  "items": [
+    {
+      "sku": "BRM44TESTE",
+      "name": "Geladeira Teste Whirlpool",
+      "qty": 1,
+      "unitPrice": 2500,
+      "sellerId": "whirlpool"
+    }
+  ],
+  "shippingAddress": {
+    "cep": "39740000",
+    "logradouro": "Rua Teste",
+    "numero": "123",
+    "bairro": "Centro",
+    "cidade": "Guanhães",
+    "uf": "MG"
+  },
+  "shippingCost": 0,
+  "total": 2500
+}
+
+COMANDOS DE DEPLOY:
+
+git add functions/routes/manufacturerIntegrationRoutes.js functions/services/manufacturerService.js LEIA-ME_MODULARIZACAO_ETAPA_3.txt
+git commit -m "Adiciona etapa 3 enterprise pedidos tracking nfe"
+git push origin main

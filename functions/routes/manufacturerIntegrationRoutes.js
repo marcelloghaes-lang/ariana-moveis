@@ -12,7 +12,14 @@ import {
   updateEnterpriseStock,
   updateEnterprisePrice,
   bulkEnterpriseStock,
-  bulkEnterprisePrices
+  bulkEnterprisePrices,
+  listEnterpriseOrders,
+  receiveEnterpriseOrder,
+  updateEnterpriseOrderStatus,
+  updateEnterpriseOrderTracking,
+  attachEnterpriseInvoice,
+  listEnterpriseLogs,
+  listEnterpriseQueue
 } from '../services/manufacturerService.js';
 
 const router = express.Router();
@@ -156,6 +163,76 @@ router.post('/products/bulk-prices', partnerKeyRequired, async (req, res) => {
   } catch (error) {
     return fail(res, 400, error.message || 'Erro ao atualizar preços em lote');
   }
+});
+
+
+
+// ============================================================
+// ETAPA 3 - Enterprise API: pedidos, status, tracking e NF-e
+// ============================================================
+router.get('/orders', adminOnly, async (req, res) => {
+  try { return ok(res, await listEnterpriseOrders(req.query)); }
+  catch (error) { return fail(res, 500, error.message || 'Erro ao listar pedidos enterprise'); }
+});
+
+router.post('/orders', partnerKeyRequired, async (req, res) => {
+  try { return ok(res, { order: await receiveEnterpriseOrder(req.body) }, 201); }
+  catch (error) { return fail(res, 400, error.message || 'Erro ao receber pedido enterprise'); }
+});
+
+router.post('/orders/:orderId/status', partnerKeyRequired, async (req, res) => {
+  try {
+    const order = await updateEnterpriseOrderStatus({
+      orderId: req.params.orderId,
+      status: req.body?.status || req.body?.status_integracao,
+      statusLabel: req.body?.statusLabel || req.body?.label || req.body?.mensagem,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
+    });
+    return ok(res, { order });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar status enterprise');
+  }
+});
+
+router.post('/orders/:orderId/tracking', partnerKeyRequired, async (req, res) => {
+  try {
+    const order = await updateEnterpriseOrderTracking({
+      orderId: req.params.orderId,
+      trackingCode: req.body?.trackingCode || req.body?.codigoRastreio || req.body?.rastreio,
+      carrier: req.body?.carrier || req.body?.transportadora,
+      trackingUrl: req.body?.trackingUrl || req.body?.urlRastreio,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
+    });
+    return ok(res, { order });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar rastreio enterprise');
+  }
+});
+
+router.post('/orders/:orderId/invoice', partnerKeyRequired, async (req, res) => {
+  try {
+    const order = await attachEnterpriseInvoice({
+      orderId: req.params.orderId,
+      invoice: req.body?.invoice || req.body?.nfe || req.body,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
+    });
+    return ok(res, { order });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao anexar NF-e enterprise');
+  }
+});
+
+router.get('/logs', adminOnly, async (req, res) => {
+  try { return ok(res, await listEnterpriseLogs(req.query)); }
+  catch (error) { return fail(res, 500, error.message || 'Erro ao listar logs enterprise'); }
+});
+
+router.get('/queue', adminOnly, async (req, res) => {
+  try { return ok(res, await listEnterpriseQueue(req.query)); }
+  catch (error) { return fail(res, 500, error.message || 'Erro ao listar fila enterprise'); }
 });
 
 export default router;

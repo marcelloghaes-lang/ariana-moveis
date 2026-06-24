@@ -56,6 +56,72 @@ function getProductModel() {
   throw new Error('Modelo Product ainda não carregado pelo server.js');
 }
 
+
+function getOrderModel() {
+  if (mongoose.modelNames().includes('Order')) return mongoose.model('Order');
+  throw new Error('Modelo Order ainda não carregado pelo server.js');
+}
+
+function buildOrderQuery(params = {}) {
+  const query = {};
+  const manufacturer = normalizeManufacturer(params.manufacturer || '');
+  const status = String(params.status || '').trim();
+  const search = String(params.search || params.q || '').trim();
+  if (manufacturer) {
+    query.$or = [
+      { manufacturer: new RegExp(manufacturer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
+      { sellerIds: manufacturer },
+      { 'items.sellerId': manufacturer }
+    ];
+  }
+  if (status) query.status = status;
+  if (search) {
+    query.$and = query.$and || [];
+    query.$and.push({ $or: [
+      { customerName: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
+      { customerEmail: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
+      { trackingCode: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
+      { status_integracao: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }
+    ]});
+  }
+  return query;
+}
+
+function normalizeEnterpriseOrderItems(items = []) {
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const qty = Number(item.qty ?? item.quantity ?? item.quantidade ?? 1) || 1;
+    const unitPrice = parseMoneyBR(item.unitPrice ?? item.price ?? item.preco ?? item.valorUnitario ?? 0);
+    return {
+      productId: String(item.productId || item.sku || item.codigo || '').trim(),
+      sellerId: String(item.sellerId || item.manufacturer || item.fabricante || '').trim(),
+      name: String(item.name || item.nome || item.title || item.sku || 'Produto').trim(),
+      sku: String(item.sku || item.codigo || '').trim(),
+      qty,
+      unitPrice,
+      totalPrice: parseMoneyBR(item.totalPrice ?? item.total ?? (unitPrice * qty)),
+      sellerBaseUnitPrice: parseMoneyBR(item.sellerBaseUnitPrice ?? item.basePrice ?? unitPrice),
+      sellerBaseTotal: parseMoneyBR(item.sellerBaseTotal ?? item.baseTotal ?? (unitPrice * qty)),
+      image: String(item.image || item.imageUrl || '').trim()
+    };
+  });
+}
+
+function normalizeShippingAddress(input = {}) {
+  const a = input.shippingAddress || input.enderecoEntrega || input.address || {};
+  return {
+    name: String(a.name || a.nome || input.customerName || '').trim(),
+    phone: String(a.phone || a.telefone || input.customerPhone || '').trim(),
+    cep: String(a.cep || a.zipCode || '').replace(/\D/g, ''),
+    logradouro: String(a.logradouro || a.street || a.rua || '').trim(),
+    numero: String(a.numero || a.number || '').trim(),
+    bairro: String(a.bairro || a.district || '').trim(),
+    cidade: String(a.cidade || a.city || '').trim(),
+    uf: String(a.uf || a.state || '').trim().toUpperCase(),
+    complemento: String(a.complemento || a.complement || '').trim(),
+    reference: String(a.reference || a.referencia || '').trim()
+  };
+}
+
 function parseMoneyBR(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   const raw = String(value ?? '').trim();
@@ -294,4 +360,200 @@ export async function bulkEnterprisePrices(items = [], context = {}) {
     }
   }
   return results;
+}
+
+
+// ============================================================
+// ETAPA 3 - Enterprise API: pedidos, status, tracking e NF-e
+// ============================================================
+export async function listEnterpriseOrders(params = {}) {
+  const Order = getOrderModel();
+  const page = Math.max(1, Number(params.page || 1));
+  const limit = Math.min(200, Math.max(1, Number(params.limit || 50)));
+  const query = buildOrderQuery(params);
+  const [items, total] = await Promise.all([
+    Order.find(query).sort({ updatedAt: -1, createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Order.countDocuments(query)
+  ]);
+  return { items, page, limit, total, pages: Math.ceil(total / limit) };
+}
+
+export async function receiveEnterpriseOrder(input = {}) {
+  const Order = getOrderModel();
+  const manufacturer = normalizeManufacturer(input.manufacturer || input.fabricante || input.sellerId || 'enterprise');
+  const externalOrderId = String(input.externalOrderId || input.orderId || input.numeroPedido || input.id || '').trim();
+  if (!externalOrderId) throw new Error('externalOrderId/orderId é obrigatório');
+
+  const items = normalizeEnterpriseOrderItems(input.items || input.produtos || []);
+  if (!items.length) throw new Error('items/produtos é obrigatório');
+
+  const subtotal = parseMoneyBR(input.subtotal ?? items.reduce((acc, item) => acc + Number(item.totalPrice || 0), 0));
+  const shippingCost = parseMoneyBR(input.shippingCost ?? input.frete ?? 0);
+  const total = parseMoneyBR(input.total ?? (subtotal + shippingCost));
+  const sellerIds = Array.from(new Set(items.map((item) => item.sellerId || manufacturer).filter(Boolean)));
+
+  const payload = {
+    sellerIds,
+    customerName: String(input.customerName || input.nomeCliente || input.customer?.name || '').trim(),
+    customerEmail: String(input.customerEmail || input.emailCliente || input.customer?.email || '').trim(),
+    customerPhone: String(input.customerPhone || input.telefoneCliente || input.customer?.phone || '').trim(),
+    status: String(input.status || 'enterprise_received').trim(),
+    statusLabel: String(input.statusLabel || 'Pedido recebido via integração enterprise').trim(),
+    items,
+    subtotal,
+    shippingCost,
+    total,
+    currency: String(input.currency || 'BRL').trim(),
+    payment: input.payment || { provider: 'enterprise', status: input.paymentStatus || 'external' },
+    shippingAddress: normalizeShippingAddress(input),
+    shipping: input.shipping || input.logistics || {},
+    trackingCode: String(input.trackingCode || input.codigoRastreio || '').trim(),
+    notes: String(input.notes || input.observacoes || '').trim(),
+    manufacturer,
+    status_integracao: String(input.status_integracao || 'received').trim(),
+    manufacturerDispatch: {
+      externalOrderId,
+      source: 'enterprise_api',
+      raw: input,
+      receivedAt: new Date()
+    }
+  };
+
+  const doc = await Order.findOneAndUpdate(
+    { 'manufacturerDispatch.externalOrderId': externalOrderId, manufacturer },
+    { $set: payload, $setOnInsert: { createdAt: new Date() } },
+    { upsert: true, new: true }
+  ).lean();
+
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_order_received',
+    manufacturer,
+    orderId: String(doc._id || doc.id || externalOrderId),
+    status: 'ok',
+    request: input,
+    response: { externalOrderId, orderId: String(doc._id || doc.id || '') }
+  });
+
+  return doc;
+}
+
+export async function updateEnterpriseOrderStatus({ orderId, status, statusLabel = '', manufacturer = '', payload = {} }) {
+  const Order = getOrderModel();
+  const normalizedStatus = String(status || '').trim();
+  if (!orderId) throw new Error('orderId é obrigatório');
+  if (!normalizedStatus) throw new Error('status é obrigatório');
+
+  const query = mongoose.Types.ObjectId.isValid(orderId)
+    ? { _id: new mongoose.Types.ObjectId(orderId) }
+    : { $or: [{ 'manufacturerDispatch.externalOrderId': String(orderId) }, { trackingCode: String(orderId) }] };
+
+  const doc = await Order.findOneAndUpdate(query, {
+    $set: {
+      status: normalizedStatus,
+      statusLabel: statusLabel || normalizedStatus,
+      status_integracao: normalizedStatus,
+      'manufacturerDispatch.lastStatusPayload': payload,
+      'manufacturerDispatch.lastStatusAt': new Date(),
+      updatedAt: new Date()
+    }
+  }, { new: true }).lean();
+
+  if (!doc) throw new Error('Pedido não encontrado para atualizar status');
+  await IntegrationAuditLog.create({ eventType: 'enterprise_order_status_update', manufacturer: normalizeManufacturer(manufacturer || doc.manufacturer || ''), orderId: String(doc._id || doc.id || orderId), status: 'ok', request: payload, response: { status: normalizedStatus } });
+  return doc;
+}
+
+export async function updateEnterpriseOrderTracking({ orderId, trackingCode, carrier = '', trackingUrl = '', manufacturer = '', payload = {} }) {
+  const Order = getOrderModel();
+  const code = String(trackingCode || '').trim();
+  if (!orderId) throw new Error('orderId é obrigatório');
+  if (!code) throw new Error('trackingCode é obrigatório');
+
+  const query = mongoose.Types.ObjectId.isValid(orderId)
+    ? { _id: new mongoose.Types.ObjectId(orderId) }
+    : { $or: [{ 'manufacturerDispatch.externalOrderId': String(orderId) }, { trackingCode: String(orderId) }] };
+
+  const trackingEntry = {
+    code,
+    carrier: String(carrier || '').trim(),
+    trackingUrl: String(trackingUrl || '').trim(),
+    status: String(payload.status || 'tracking_received').trim(),
+    date: new Date(),
+    source: 'enterprise_api',
+    raw: payload
+  };
+
+  const doc = await Order.findOneAndUpdate(query, {
+    $set: {
+      trackingCode: code,
+      status: payload.status || 'enviado',
+      statusLabel: payload.statusLabel || 'Pedido enviado',
+      status_integracao: payload.status_integracao || 'tracking_received',
+      'manufacturerDispatch.tracking': trackingEntry,
+      updatedAt: new Date()
+    },
+    $push: { trackingHistory: trackingEntry }
+  }, { new: true }).lean();
+
+  if (!doc) throw new Error('Pedido não encontrado para atualizar rastreio');
+  await IntegrationAuditLog.create({ eventType: 'enterprise_tracking_update', manufacturer: normalizeManufacturer(manufacturer || doc.manufacturer || ''), orderId: String(doc._id || doc.id || orderId), status: 'ok', request: payload, response: { trackingCode: code, carrier } });
+  return doc;
+}
+
+export async function attachEnterpriseInvoice({ orderId, invoice = {}, manufacturer = '', payload = {} }) {
+  const Order = getOrderModel();
+  if (!orderId) throw new Error('orderId é obrigatório');
+  const query = mongoose.Types.ObjectId.isValid(orderId)
+    ? { _id: new mongoose.Types.ObjectId(orderId) }
+    : { $or: [{ 'manufacturerDispatch.externalOrderId': String(orderId) }, { trackingCode: String(orderId) }] };
+
+  const invoicePayload = {
+    number: String(invoice.number || invoice.numero || invoice.nNF || '').trim(),
+    serie: String(invoice.serie || invoice.series || '').trim(),
+    key: String(invoice.key || invoice.chave || invoice.chaveNfe || invoice.chaveNFe || '').trim(),
+    xmlUrl: String(invoice.xmlUrl || invoice.xml || '').trim(),
+    pdfUrl: String(invoice.pdfUrl || invoice.danfe || '').trim(),
+    issuedAt: invoice.issuedAt || invoice.emissao || new Date(),
+    raw: invoice
+  };
+
+  const doc = await Order.findOneAndUpdate(query, {
+    $set: {
+      'manufacturerDispatch.invoice': invoicePayload,
+      'manufacturerDispatch.invoiceReceivedAt': new Date(),
+      status_integracao: 'invoice_received',
+      updatedAt: new Date()
+    }
+  }, { new: true }).lean();
+
+  if (!doc) throw new Error('Pedido não encontrado para anexar NF-e');
+  await IntegrationAuditLog.create({ eventType: 'enterprise_invoice_received', manufacturer: normalizeManufacturer(manufacturer || doc.manufacturer || ''), orderId: String(doc._id || doc.id || orderId), status: 'ok', request: payload, response: { invoice: invoicePayload } });
+  return doc;
+}
+
+export async function listEnterpriseLogs(params = {}) {
+  const page = Math.max(1, Number(params.page || 1));
+  const limit = Math.min(200, Math.max(1, Number(params.limit || 50)));
+  const query = {};
+  if (params.manufacturer) query.manufacturer = normalizeManufacturer(params.manufacturer);
+  if (params.eventType) query.eventType = String(params.eventType);
+  if (params.status) query.status = String(params.status);
+  const [items, total] = await Promise.all([
+    IntegrationAuditLog.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    IntegrationAuditLog.countDocuments(query)
+  ]);
+  return { items, page, limit, total, pages: Math.ceil(total / limit) };
+}
+
+export async function listEnterpriseQueue(params = {}) {
+  const page = Math.max(1, Number(params.page || 1));
+  const limit = Math.min(200, Math.max(1, Number(params.limit || 50)));
+  const query = {};
+  if (params.manufacturer) query.manufacturer = normalizeManufacturer(params.manufacturer);
+  if (params.status) query.status = String(params.status);
+  const [items, total] = await Promise.all([
+    ManufacturerDispatchQueue.find(query).sort({ updatedAt: -1, createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    ManufacturerDispatchQueue.countDocuments(query)
+  ]);
+  return { items, page, limit, total, pages: Math.ceil(total / limit) };
 }
