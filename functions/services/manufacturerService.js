@@ -581,3 +581,76 @@ export async function listEnterpriseQueue(params = {}) {
   ]);
   return { items, page, limit, total, pages: Math.ceil(total / limit) };
 }
+
+
+export async function getEnterpriseDashboard(params = {}) {
+  const manufacturer = params.manufacturer ? normalizeManufacturer(params.manufacturer) : '';
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const orderQuery = { 'manufacturerDispatch.source': 'enterprise_api' };
+  const logQuery = {};
+  const queueQuery = {};
+  if (manufacturer) {
+    orderQuery.manufacturer = manufacturer;
+    logQuery.manufacturer = manufacturer;
+    queueQuery.manufacturer = manufacturer;
+  }
+
+  const Order = getOrderModel();
+  const [
+    totalOrders,
+    ordersToday,
+    sentOrders,
+    invoiceReceived,
+    trackingReceived,
+    logsTotal,
+    logsToday,
+    queueTotal,
+    queuePending,
+    queueFailed,
+    lastOrders,
+    lastLogs,
+    manufacturersRaw
+  ] = await Promise.all([
+    Order.countDocuments(orderQuery),
+    Order.countDocuments({ ...orderQuery, createdAt: { $gte: startToday } }),
+    Order.countDocuments({ ...orderQuery, status: 'enviado' }),
+    Order.countDocuments({ ...orderQuery, status_integracao: 'invoice_received' }),
+    Order.countDocuments({ ...orderQuery, trackingCode: { $nin: ['', null] } }),
+    IntegrationAuditLog.countDocuments(logQuery),
+    IntegrationAuditLog.countDocuments({ ...logQuery, createdAt: { $gte: startToday } }),
+    ManufacturerDispatchQueue.countDocuments(queueQuery),
+    ManufacturerDispatchQueue.countDocuments({ ...queueQuery, status: { $in: ['pending', 'queued'] } }),
+    ManufacturerDispatchQueue.countDocuments({ ...queueQuery, $or: [{ status: 'failed' }, { deadLetter: true }] }),
+    Order.find(orderQuery).sort({ updatedAt: -1, createdAt: -1 }).limit(10).lean(),
+    IntegrationAuditLog.find(logQuery).sort({ createdAt: -1 }).limit(20).lean(),
+    Order.aggregate([
+      { $match: { 'manufacturerDispatch.source': 'enterprise_api' } },
+      { $group: { _id: '$manufacturer', total: { $sum: 1 }, lastUpdate: { $max: '$updatedAt' } } },
+      { $sort: { total: -1 } },
+      { $limit: 50 }
+    ])
+  ]);
+
+  return {
+    summary: {
+      totalOrders,
+      ordersToday,
+      sentOrders,
+      trackingReceived,
+      invoiceReceived,
+      logsTotal,
+      logsToday,
+      queueTotal,
+      queuePending,
+      queueFailed
+    },
+    manufacturers: manufacturersRaw.map(item => ({
+      manufacturer: item._id || 'sem_fabricante',
+      total: item.total || 0,
+      lastUpdate: item.lastUpdate || null
+    })),
+    lastOrders,
+    lastLogs
+  };
+}

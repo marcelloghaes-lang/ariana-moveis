@@ -19,7 +19,8 @@ import {
   updateEnterpriseOrderTracking,
   attachEnterpriseInvoice,
   listEnterpriseLogs,
-  listEnterpriseQueue
+  listEnterpriseQueue,
+  getEnterpriseDashboard
 } from '../services/manufacturerService.js';
 
 const router = express.Router();
@@ -223,6 +224,12 @@ router.post('/orders/:orderId/invoice', partnerKeyRequired, async (req, res) => 
   } catch (error) {
     return fail(res, 400, error.message || 'Erro ao anexar NF-e enterprise');
   }
+});
+
+
+router.get('/dashboard', adminOnly, async (req, res) => {
+  try { return ok(res, await getEnterpriseDashboard(req.query)); }
+  catch (error) { return fail(res, 500, error.message || 'Erro ao carregar dashboard enterprise'); }
 });
 
 router.get('/logs', adminOnly, async (req, res) => {

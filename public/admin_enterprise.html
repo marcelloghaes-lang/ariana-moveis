@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Enterprise | Ariana Móveis</title>
+  <style>
+    body{font-family:Inter,Arial,sans-serif;background:#f3f6fb;margin:0;color:#0f172a}.wrap{max-width:1180px;margin:0 auto;padding:22px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 8px 24px #0f172a0c}.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:14px}.stat small{color:#64748b;font-weight:800}.stat b{display:block;color:#0047AB;font-size:25px;margin-top:4px}button{background:#1d4ed8;color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}input{border:1px solid #dbe3ef;border-radius:12px;padding:10px;width:100%}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e5e7eb;text-align:left;padding:9px;font-size:13px}th{color:#64748b}.muted{color:#64748b}.ok{color:#16a34a;font-weight:900}.bad{color:#dc2626;font-weight:900}@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}.top{display:block}}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><h1>Integrações Enterprise</h1><p class="muted">Whirlpool, Samsung, Electrolux e demais fabricantes integrados por API.</p></div><button onclick="loadAll()">Atualizar</button></div>
+  <div class="card"><label>Token admin JWT</label><input id="token" placeholder="Cole aqui o token admin se não estiver salvo no navegador"><p class="muted">Esta tela tenta usar automaticamente admin_token, token_admin ou token do localStorage.</p></div>
+  <div class="grid" id="stats"></div>
+  <div class="card"><h2>Fabricantes</h2><div id="manufacturers">Carregando...</div></div>
+  <div class="card"><h2>Últimos pedidos Enterprise</h2><div id="orders">Carregando...</div></div>
+  <div class="card"><h2>Últimos logs</h2><div id="logs">Carregando...</div></div>
+</div>
+<script>
+const API_BASE = location.hostname.includes('localhost') ? 'http://localhost:3000/api' : 'https://ariana-backend.onrender.com/api';
+function getToken(){return document.getElementById('token').value.trim()||localStorage.getItem('admin_token')||localStorage.getItem('token_admin')||localStorage.getItem('token')||''}
+function fmtDate(v){try{return v?new Date(v).toLocaleString('pt-BR'):'-'}catch{return '-'}}
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+async function api(path){const token=getToken();const res=await fetch(`${API_BASE}${path}`,{headers:{Authorization:`Bearer ${token}`}});const data=await res.json().catch(()=>({ok:false,error:'Resposta inválida'}));if(!res.ok||data.ok===false) throw new Error(data.error||`HTTP ${res.status}`);return data}
+function renderStats(s){const labels=[['Pedidos',s.totalOrders],['Hoje',s.ordersToday],['Enviados',s.sentOrders],['Tracking',s.trackingReceived],['NF-e',s.invoiceReceived],['Logs hoje',s.logsToday],['Fila',s.queueTotal],['Pendentes',s.queuePending],['Falhas',s.queueFailed]];document.getElementById('stats').innerHTML=labels.map(([a,b])=>`<div class="stat"><small>${a}</small><b>${b??0}</b></div>`).join('')}
+function table(rows,cols){if(!rows?.length)return '<p class="muted">Nenhum registro encontrado.</p>';return `<table><thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
+async function loadAll(){try{const d=await api('/enterprise/dashboard');renderStats(d.summary||{});document.getElementById('manufacturers').innerHTML=table(d.manufacturers||[],[['Fabricante',r=>r.manufacturer],['Pedidos',r=>r.total],['Última atualização',r=>fmtDate(r.lastUpdate)]]);document.getElementById('orders').innerHTML=table(d.lastOrders||[],[['Pedido externo',r=>r.manufacturerDispatch?.externalOrderId||'-'],['Fabricante',r=>r.manufacturer||'-'],['Cliente',r=>r.customerName||'-'],['Status',r=>r.status_integracao||r.status||'-'],['Total',r=>money(r.total)],['Atualizado',r=>fmtDate(r.updatedAt)]]);document.getElementById('logs').innerHTML=table(d.lastLogs||[],[['Evento',r=>r.eventType||'-'],['Fabricante',r=>r.manufacturer||'-'],['Status',r=>r.status||'-'],['Pedido',r=>r.orderId||'-'],['Data',r=>fmtDate(r.createdAt)]]);}catch(e){document.getElementById('stats').innerHTML='';document.getElementById('manufacturers').innerHTML=`<p class="bad">${e.message}</p>`;document.getElementById('orders').innerHTML='';document.getElementById('logs').innerHTML='';}}
+loadAll();
+</script>
+</body>
+</html>
