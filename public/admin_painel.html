@@ -765,6 +765,28 @@ window.enterpriseSyncCatalogSample = async function(){
     displayMessage(`Erro ao sincronizar catálogo: ${error.message}`, 'error');
   }
 }
+
+window.enterpriseSyncProductSample = async function(){
+  if(!confirm('Atualizar o produto WH-BRM44TESTE para testar estoque/preço/status?')) return;
+  try{
+    const payload = {
+      manufacturer: 'whirlpool',
+      sellerId: 'whirlpool',
+      price: 2299,
+      stock: 3,
+      active: true,
+      availability: 'available',
+      status: 'updated_by_enterprise_test'
+    };
+    const data = await apiRequest('/enterprise/products/WH-BRM44TESTE/sync', { method:'POST', headers:buildHeadersAuth({'x-ariana-key': localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || ''}), body:JSON.stringify(payload) });
+    displayMessage('Estoque/preço sincronizados no produto teste.', 'success');
+    await renderEnterpriseView();
+    return data;
+  }catch(e){
+    displayMessage(`Erro no teste de estoque/preço: ${e.message}`, 'error');
+  }
+}
+
 async function renderEnterpriseView(){
   const box = document.getElementById('enterprise-content');
   if(!box) return;
@@ -797,7 +819,7 @@ async function renderEnterpriseView(){
   box.innerHTML = `
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-network-wired text-primary-blue"></i> Integrações Enterprise</h2><p class="text-gray-500 text-sm">Whirlpool, Samsung, Electrolux e demais fabricantes integrados por API.</p></div>
-      <div class="flex flex-wrap gap-2"><button type="button" onclick="window.enterpriseSyncCatalogSample()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-cloud-arrow-down mr-2"></i>Sincronizar catálogo teste</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
+      <div class="flex flex-wrap gap-2"><button type="button" onclick="window.enterpriseSyncCatalogSample()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-cloud-arrow-down mr-2"></i>Sincronizar catálogo teste</button><button type="button" onclick="window.enterpriseSyncProductSample()" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-arrows-rotate mr-2"></i>Teste estoque/preço</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
     </div>${errorBlock}
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fabricantes</div><div class="text-3xl font-black text-primary-blue mt-2">${totalManufacturers}</div><div class="text-xs text-gray-500 mt-1">Integrações configuradas</div></div>

@@ -11,6 +11,9 @@ import {
   upsertEnterpriseProduct,
   updateEnterpriseStock,
   updateEnterprisePrice,
+  syncEnterpriseProductState,
+  bulkEnterpriseProductState,
+  listEnterpriseProductSyncHistory,
   bulkEnterpriseStock,
   bulkEnterprisePrices,
   bulkEnterpriseProducts,
@@ -148,6 +151,56 @@ router.put('/products/:sku/price', partnerKeyRequired, async (req, res) => {
     return ok(res, { product });
   } catch (error) {
     return fail(res, 400, error.message || 'Erro ao atualizar preço');
+  }
+});
+
+
+// ============================================================
+// ETAPA 7 - Enterprise API: sincronização de estoque, preço e status
+// ============================================================
+router.post('/products/:sku/sync', partnerKeyRequired, async (req, res) => {
+  try {
+    const product = await syncEnterpriseProductState({
+      sku: req.params.sku,
+      sellerId: req.body?.sellerId || req.query?.sellerId,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      price: req.body?.price ?? req.body?.preco ?? req.body?.valor,
+      stock: req.body?.stock ?? req.body?.quantity ?? req.body?.estoque,
+      active: req.body?.active ?? req.body?.ativo,
+      availability: req.body?.availability || req.body?.disponibilidade,
+      status: req.body?.status || req.body?.productStatus,
+      discontinued: req.body?.discontinued ?? req.body?.descontinuado,
+      payload: req.body
+    });
+    return ok(res, { product });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao sincronizar produto enterprise');
+  }
+});
+
+router.post('/products/bulk-sync', partnerKeyRequired, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items || req.body?.products || req.body?.produtos)
+      ? (req.body.items || req.body.products || req.body.produtos)
+      : [];
+    return ok(res, await bulkEnterpriseProductState(items, {
+      manufacturer: req.body?.manufacturer,
+      sellerId: req.body?.sellerId
+    }));
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao sincronizar produtos em lote');
+  }
+});
+
+router.get('/products/:sku/sync-history', adminOnly, async (req, res) => {
+  try {
+    return ok(res, await listEnterpriseProductSyncHistory({
+      sku: req.params.sku,
+      manufacturer: req.query?.manufacturer,
+      limit: req.query?.limit
+    }));
+  } catch (error) {
+    return fail(res, 500, error.message || 'Erro ao listar histórico de sincronização do produto');
   }
 });
 

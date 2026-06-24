@@ -360,6 +360,164 @@ export async function updateEnterprisePrice({ sku, sellerId, price, manufacturer
   return doc;
 }
 
+
+function parseBooleanLike(value, fallback = undefined) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const text = String(value).trim().toLowerCase();
+  if (['true','1','sim','yes','ativo','active','available','disponivel','disponível'].includes(text)) return true;
+  if (['false','0','nao','não','no','inativo','inactive','unavailable','indisponivel','indisponível','descontinuado','discontinued'].includes(text)) return false;
+  return fallback;
+}
+
+function availabilityToActive({ active, availability, status, discontinued, stock }) {
+  const discontinuedBool = parseBooleanLike(discontinued, undefined);
+  if (discontinuedBool === true) return false;
+
+  const activeBool = parseBooleanLike(active, undefined);
+  if (activeBool !== undefined) return activeBool;
+
+  const words = [availability, status].map(v => String(v || '').trim().toLowerCase()).filter(Boolean).join(' ');
+  if (words) {
+    if (/(descontinuado|discontinued|inativo|inactive|bloqueado|blocked|fora de linha)/i.test(words)) return false;
+    if (/(indispon[ií]vel|unavailable|sem estoque|out_of_stock|out-of-stock)/i.test(words)) return false;
+    if (/(ativo|active|dispon[ií]vel|available|em estoque|in_stock|in-stock)/i.test(words)) return true;
+  }
+
+  if (stock !== undefined && stock !== null && stock !== '') {
+    const n = Number(stock);
+    if (Number.isFinite(n) && n <= 0) return false;
+  }
+  return undefined;
+}
+
+function compactObject(obj = {}) {
+  const out = {};
+  for (const [key, value] of Object.entries(obj || {})) {
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
+export async function syncEnterpriseProductState({ sku, sellerId, manufacturer = '', price, stock, active, availability = '', status = '', discontinued, payload = {} }) {
+  const Product = getProductModel();
+  const normalizedSku = normalizeSku(sku || payload.sku || payload.codigo || payload.ean || '');
+  if (!normalizedSku) throw new Error('sku é obrigatório');
+
+  const query = { sku: normalizedSku };
+  const safeSellerId = String(sellerId || payload.sellerId || payload.seller_id || manufacturer || '').trim();
+  if (safeSellerId) query.sellerId = safeSellerId;
+
+  const set = { updatedAt: new Date() };
+  const syncInfo = {
+    source: 'enterprise_api',
+    manufacturer: normalizeManufacturer(manufacturer || payload.manufacturer || payload.fabricante || safeSellerId || ''),
+    lastSyncAt: new Date(),
+    availability: String(availability || '').trim(),
+    status: String(status || '').trim(),
+    discontinued: parseBooleanLike(discontinued, undefined),
+    raw: payload || {}
+  };
+
+  if (price !== undefined && price !== null && price !== '') {
+    const value = parseMoneyBR(price);
+    if (!Number.isFinite(value) || value <= 0) throw new Error('price inválido');
+    set.price = value;
+  }
+
+  if (stock !== undefined && stock !== null && stock !== '') {
+    const value = Number(stock);
+    if (!Number.isFinite(value)) throw new Error('stock inválido');
+    set.stock = value;
+  }
+
+  const nextActive = availabilityToActive({ active, availability, status, discontinued, stock: set.stock ?? stock });
+  if (nextActive !== undefined) set.active = nextActive;
+
+  set.logistics = {
+    ...(payload.logistics || {}),
+    enterpriseSync: syncInfo
+  };
+
+  const doc = await Product.findOneAndUpdate(query, { $set: compactObject(set) }, { new: true }).lean();
+  if (!doc) throw new Error('Produto não encontrado para sincronizar');
+
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_product_state_sync',
+    manufacturer: syncInfo.manufacturer || normalizeManufacturer(doc.brand || doc.sellerId || ''),
+    status: 'ok',
+    message: 'Produto sincronizado: estoque/preço/status',
+    request: payload,
+    response: {
+      sku: normalizedSku,
+      sellerId: doc.sellerId || safeSellerId || '',
+      price: doc.price,
+      stock: doc.stock,
+      active: doc.active
+    },
+    metadata: {
+      changed: Object.keys(set).filter(k => k !== 'updatedAt' && k !== 'logistics')
+    }
+  });
+
+  return doc;
+}
+
+export async function bulkEnterpriseProductState(items = [], context = {}) {
+  const rows = Array.isArray(items) ? items : [];
+  const results = [];
+  for (const item of rows) {
+    try {
+      const product = await syncEnterpriseProductState({
+        sku: item.sku || item.codigo || item.ean,
+        sellerId: item.sellerId || context.sellerId,
+        manufacturer: item.manufacturer || context.manufacturer,
+        price: item.price ?? item.preco ?? item.valor,
+        stock: item.stock ?? item.quantity ?? item.estoque,
+        active: item.active ?? item.ativo,
+        availability: item.availability || item.disponibilidade,
+        status: item.status || item.productStatus,
+        discontinued: item.discontinued ?? item.descontinuado,
+        payload: item
+      });
+      results.push({ ok: true, sku: item.sku || item.codigo || item.ean || '', id: String(product._id || product.id || ''), price: product.price, stock: product.stock, active: product.active });
+    } catch (error) {
+      results.push({ ok: false, sku: item.sku || item.codigo || item.ean || '', error: error.message });
+    }
+  }
+
+  const success = results.filter(r => r.ok).length;
+  const errors = results.filter(r => !r.ok).length;
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_product_bulk_state_sync',
+    manufacturer: normalizeManufacturer(context.manufacturer || ''),
+    status: errors ? 'partial' : 'ok',
+    message: `Sincronização de estoque/preço/status: ${success} ok, ${errors} erro(s)`,
+    request: { total: rows.length, context },
+    response: { total: results.length, success, errors }
+  });
+
+  return { total: results.length, success, errors, results };
+}
+
+export async function listEnterpriseProductSyncHistory({ sku = '', manufacturer = '', limit = 20 } = {}) {
+  const query = { eventType: { $in: ['enterprise_product_state_sync', 'enterprise_product_bulk_state_sync', 'enterprise_stock_update', 'enterprise_price_update', 'enterprise_catalog_sync_completed', 'enterprise_catalog_bulk_upsert'] } };
+  if (manufacturer) query.manufacturer = normalizeManufacturer(manufacturer);
+  if (sku) {
+    const safeSku = String(sku).trim();
+    query.$or = [
+      { 'response.sku': safeSku },
+      { 'request.sku': safeSku },
+      { 'request.codigo': safeSku },
+      { 'request.ean': safeSku }
+    ];
+  }
+  const max = Math.min(100, Math.max(1, Number(limit || 20)));
+  const logs = await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(max).lean();
+  return { logs, total: logs.length };
+}
+
 export async function bulkEnterpriseStock(items = [], context = {}) {
   const results = [];
   for (const item of Array.isArray(items) ? items : []) {
