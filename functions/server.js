@@ -7332,6 +7332,27 @@ function splitAddressNumber(address = '', fallbackNumber = '') {
   return { logradouro: text, numero: fallback };
 }
 
+
+function splitCorreiosPhoneParts(value = '') {
+  let digits = normalizeDigits(value || '');
+  if (digits.startsWith('55') && digits.length > 11) digits = digits.slice(2);
+  if (digits.length < 10) return {};
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  const out = {};
+  if (ddd) {
+    out.dddTelefone = ddd;
+    out.dddCelular = ddd;
+  }
+  if (rest.length >= 9) {
+    out.telefone = rest.slice(-8);
+    out.celular = rest.slice(-9);
+  } else if (rest.length >= 8) {
+    out.telefone = rest.slice(-8);
+  }
+  return out;
+}
+
 function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}, quote = {}) {
   const settings = body.settings || {};
   const cfg = correiosCfg(settings);
@@ -7393,18 +7414,18 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
     diametroInformado: '0',
     modalidadePagamento: '2',
     logisticaReversa: 'N',
-    objetosProibidos: 'N',
+    cienteObjetoNaoProibido: '1',
     remetente: {
       nome: String(shipment.sender?.name || 'Ariana Móveis').slice(0, 60),
       cpfCnpj: normalizeDigits(shipment.sender?.document || process.env.LOJA_REMETENTE_DOCUMENTO || process.env.CORREIOS_CNPJ || ''),
-      telefone: normalizeDigits(shipment.sender?.phone || process.env.LOJA_REMETENTE_TELEFONE || ''),
+      ...splitCorreiosPhoneParts(shipment.sender?.phone || process.env.LOJA_REMETENTE_TELEFONE || ''),
       ...remetenteEndereco,
       endereco: { ...remetenteEndereco }
     },
     destinatario: {
       nome: String(shipment.recipient?.name || 'Cliente').slice(0, 60),
       cpfCnpj: normalizeDigits(shipment.recipient?.document || ''),
-      telefone: normalizeDigits(shipment.recipient?.phone || ''),
+      ...splitCorreiosPhoneParts(shipment.recipient?.phone || ''),
       email: String(shipment.recipient?.email || '').slice(0, 80),
       ...destinatarioEndereco,
       endereco: { ...destinatarioEndereco }
@@ -7414,14 +7435,9 @@ function buildCorreiosPrepostagemPayload(orderDoc = {}, body = {}, shipment = {}
     idAtendimento: orderCode
   };
 
-  // Serviço adicional 019 removido porque não está vinculado ao serviço 03298 no contrato atual.
-  // Se futuramente os Correios habilitarem valor declarado no contrato/serviço, este bloco pode ser reativado.
-  // if (declaredValue > 0) {
-  //   payload.listaServicoAdicional = [{
-  //     codigoServicoAdicional: '019',
-  //     valorDeclarado: Number(declaredValue).toFixed(2)
-  //   }];
-  // }
+  // Não enviar serviço adicional 019 por padrão.
+  // No contrato atual ele não está vinculado ao PAC 03298 e causa erro na pré-postagem.
+  payload.listaServicoAdicional = [];
 
   const removeEmpty = (obj = {}) => {
     Object.keys(obj).forEach((key) => {
