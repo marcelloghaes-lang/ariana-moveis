@@ -49,6 +49,7 @@
         <a href="#" onclick="window.changeView('orders')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="orders"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
         <a href="logistica_etiquetas.html?from=admin" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-truck"></i><span>Logística</span></a>
         <a href="admin_partner_requests.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-store"></i><span>Aprovar Sellers</span><span id="badge-partner-requests" class="hidden ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">0</span></a>
+        <a href="#" onclick="window.changeView('enterprise')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="enterprise"><i class="fas fa-network-wired"></i><span>Enterprise</span></a>
         <a href="#" onclick="window.changeView('users')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="users"><i class="fas fa-users"></i><span>Usuários</span></a>
         <a href="#" onclick="window.changeView('categories')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="categories"><i class="fas fa-tags"></i><span>Categorias</span></a>
         <a href="#" onclick="window.changeView('payments')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="payments"><i class="fas fa-money-check-alt"></i><span>Pagamentos</span></a>
@@ -87,6 +88,7 @@
         <div id="users-view" class="view hidden animate-fade"><div id="users-content"></div></div>
         <div id="categories-view" class="view hidden animate-fade"><div id="categories-content"></div></div>
         <div id="payments-view" class="view hidden animate-fade"><div id="payments-content"></div></div>
+        <div id="enterprise-view" class="view hidden animate-fade"><div id="enterprise-content"></div></div>
         <div class="flex-1 p-4 md:p-8 overflow-y-auto">
           <div id="atendimentos-view" class="view hidden animate-fade">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"><div><h2 class="text-2xl font-black text-gray-800">SAC & Ouvidoria</h2><p class="text-gray-500 text-sm">Gerencie as mensagens, protocolos, fila e avaliações do atendimento</p></div><button type="button" id="atendimento-refresh-btn" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
@@ -392,6 +394,7 @@ window.changeView = async function(viewName, force=false){
   if(viewName==='users') await renderUsersView();
   if(viewName==='categories') await renderCategoriesView();
   if(viewName==='payments') await renderPaymentsView();
+  if(viewName==='enterprise') await renderEnterpriseView();
   if(viewName==='atendimentos') await renderAtendimentosView();
   if(window.innerWidth<768) document.getElementById('sidebar').classList.add('-translate-x-full');
 }
@@ -718,6 +721,69 @@ window.openNotificationRelated = async function(relatedId=''){
 }
 async function markNotificationsRead(){
   try{ for(const n of allNotificationsCache){ if(String(n.status||'').toLowerCase()!=='read'){ await apiRequest(`/admin/notifications/${encodeURIComponent(n.id||n._id)}`,{method:'PATCH',headers:buildHeadersAuth(),body:JSON.stringify({status:'read'})}); } } await loadNotifications(); }catch(e){ displayMessage(e.message,'error'); }
+}
+
+
+async function fetchEnterpriseData(endpoint, fallback = {}){
+  try {
+    const data = await apiRequest(endpoint, { headers: buildHeadersAuth() });
+    return data || fallback;
+  } catch (error) {
+    console.warn('Enterprise endpoint error:', endpoint, error.message);
+    return { ok:false, error:error.message, ...fallback };
+  }
+}
+function enterpriseRows(data, keys = []){
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data?.[key])) return data[key];
+  return data?.items || data?.docs || data?.results || data?.orders || data?.logs || data?.queue || [];
+}
+function enterpriseStatusBadge(status=''){
+  const s = String(status || '').toLowerCase();
+  const cls = s.includes('error') || s.includes('fail') || s.includes('dead') ? 'bg-red-100 text-red-700' : s.includes('pend') ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700';
+  return `<span class="px-2 py-1 rounded-full text-xs font-bold ${cls}">${escHtml(status || 'ok')}</span>`;
+}
+async function renderEnterpriseView(){
+  const box = document.getElementById('enterprise-content');
+  if(!box) return;
+  box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"><div class="flex items-center gap-3 text-primary-blue font-bold"><i class="fas fa-spinner fa-spin"></i> Carregando integrações Enterprise...</div></div>`;
+
+  const [dashboard, logsData, queueData] = await Promise.all([
+    fetchEnterpriseData('/enterprise/dashboard', {}),
+    fetchEnterpriseData('/enterprise/logs?limit=10', {}),
+    fetchEnterpriseData('/enterprise/queue?limit=10', {})
+  ]);
+
+  const orders = enterpriseRows(dashboard, ['latestOrders','orders','recentOrders']).slice(0, 10);
+  const manufacturers = enterpriseRows(dashboard, ['manufacturers','integrations']).slice(0, 20);
+  const logs = enterpriseRows(logsData, ['logs']).slice(0, 10);
+  const queue = enterpriseRows(queueData, ['queue']).slice(0, 10);
+  const summary = dashboard.summary || dashboard.metrics || dashboard || {};
+  const totalOrders = Number(summary.totalOrders ?? summary.ordersTotal ?? orders.length ?? 0);
+  const totalManufacturers = Number(summary.totalManufacturers ?? summary.manufacturersTotal ?? manufacturers.length ?? 0);
+  const pendingQueue = Number(summary.pendingQueue ?? summary.queuePending ?? queue.filter(q => String(q.status||'').toLowerCase().includes('pend')).length ?? 0);
+  const totalLogs = Number(summary.totalLogs ?? summary.logsTotal ?? logs.length ?? 0);
+  const errorBlock = dashboard?.error ? `<div class="mb-4 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 font-bold">${escHtml(dashboard.error)}</div>` : '';
+
+  box.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-network-wired text-primary-blue"></i> Integrações Enterprise</h2><p class="text-gray-500 text-sm">Whirlpool, Samsung, Electrolux e demais fabricantes integrados por API.</p></div>
+      <button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button>
+    </div>${errorBlock}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fabricantes</div><div class="text-3xl font-black text-primary-blue mt-2">${totalManufacturers}</div><div class="text-xs text-gray-500 mt-1">Integrações configuradas</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Pedidos Enterprise</div><div class="text-3xl font-black text-success-green mt-2">${totalOrders}</div><div class="text-xs text-gray-500 mt-1">Recebidos via API</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fila pendente</div><div class="text-3xl font-black text-yellow-500 mt-2">${pendingQueue}</div><div class="text-xs text-gray-500 mt-1">Envios/retentativas</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Logs</div><div class="text-3xl font-black text-gray-800 mt-2">${totalLogs}</div><div class="text-xs text-gray-500 mt-1">Eventos recentes</div></div>
+    </div>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status das integrações cadastradas</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos pedidos Enterprise</h3><p class="text-xs text-gray-500">Pedidos recebidos por fabricantes/ERPs</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${orders.map(o=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(o.manufacturerDispatch?.externalOrderId||o.externalOrderId||o.id||o._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.manufacturer||o.sellerIds?.[0]||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(o.status_integracao||o.status||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum pedido Enterprise encontrado.</td></tr>'}</tbody></table></div></div>
+    </div>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos logs</h3><p class="text-xs text-gray-500">Eventos de integração</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Evento</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Mensagem</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th></tr></thead><tbody>${logs.map(l=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(l.eventType||l.type||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(l.manufacturer||'—')}</td><td class="px-4 py-3 text-xs text-gray-600">${escHtml(l.message||l.status||'—')}</td><td class="px-4 py-3 text-xs text-gray-500">${formatDateTime(l.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum log encontrado.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fila Enterprise</h3><p class="text-xs text-gray-500">Pedidos e retentativas de envio para fabricantes</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fila</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Tentativas</th></tr></thead><tbody>${queue.map(q=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(q.queueId||q.id||q._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(q.manufacturer||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(q.status||'—')}</td><td class="px-4 py-3 text-sm">${Number(q.attempts||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Fila vazia.</td></tr>'}</tbody></table></div></div>
+    </div>`;
 }
 
 async function renderDashboardView(){
