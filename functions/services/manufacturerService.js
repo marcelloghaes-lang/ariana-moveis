@@ -2,12 +2,36 @@ import mongoose from 'mongoose';
 import axios from 'axios';
 import crypto from 'crypto';
 
-function model(name, schemaDef) {
-  if (mongoose.modelNames().includes(name)) return mongoose.model(name);
-  return mongoose.model(name, new mongoose.Schema(schemaDef, { timestamps: true, versionKey: false }));
+function buildSchema(schemaDef = {}) {
+  return new mongoose.Schema(schemaDef, { timestamps: true, versionKey: false });
 }
 
-export const ManufacturerIntegration = model('ManufacturerIntegration', {
+function getOrCreateModel(name, schemaDef = null) {
+  if (mongoose.modelNames().includes(name)) return mongoose.model(name);
+  if (!schemaDef) throw new Error(`Modelo ${name} ainda não carregado pelo server.js`);
+  return mongoose.model(name, buildSchema(schemaDef));
+}
+
+function lazyModel(name, schemaDef = null) {
+  return new Proxy(function LazyMongooseModelProxy() {}, {
+    get(_target, prop) {
+      const model = getOrCreateModel(name, schemaDef);
+      const value = model[prop];
+      return typeof value === 'function' ? value.bind(model) : value;
+    },
+    apply(_target, _thisArg, args) {
+      const model = getOrCreateModel(name, schemaDef);
+      return model(...args);
+    }
+  });
+}
+
+// Importante:
+// Estes proxies NÃO compilam models no carregamento do arquivo.
+// Eles apenas reutilizam os models que o server.js já criou.
+// Isso evita o erro: OverwriteModelError: Cannot overwrite model once compiled.
+
+export const ManufacturerIntegration = lazyModel('ManufacturerIntegration', {
   manufacturer: { type: String, unique: true, index: true },
   enabled: { type: Boolean, default: true },
   endpoint: String,
@@ -21,7 +45,7 @@ export const ManufacturerIntegration = model('ManufacturerIntegration', {
   metadata: mongoose.Schema.Types.Mixed
 });
 
-export const ManufacturerDispatchQueue = model('ManufacturerDispatchQueue', {
+export const ManufacturerDispatchQueue = lazyModel('ManufacturerDispatchQueue', {
   queueId: { type: String, unique: true, index: true },
   orderId: { type: String, required: true, index: true },
   manufacturer: { type: String, required: true, index: true },
@@ -36,7 +60,7 @@ export const ManufacturerDispatchQueue = model('ManufacturerDispatchQueue', {
   deadLetter: { type: Boolean, default: false }
 });
 
-export const IntegrationAuditLog = model('IntegrationAuditLog', {
+export const IntegrationAuditLog = lazyModel('IntegrationAuditLog', {
   scope: { type: String, default: 'integration' },
   eventType: { type: String, default: 'unspecified', index: true },
   orderId: { type: String, default: null, index: true },
