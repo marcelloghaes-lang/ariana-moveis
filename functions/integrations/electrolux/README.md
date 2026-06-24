@@ -1,2 +1,2 @@
 # Integração Electrolux
-Pasta preparada para adaptadores de API/ERP.
+Pasta preparada para adaptadores de API/ERP da Electrolux.

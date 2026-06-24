@@ -1,2 +1,2 @@
-# Integração Lg
-Pasta preparada para adaptadores de API/ERP.
+# Integração LG
+Pasta preparada para adaptadores de API/ERP da LG.

@@ -6,7 +6,13 @@ import {
   upsertIntegration,
   enqueueManufacturerOrder,
   dispatchQueueItem,
-  registerWebhookEvent
+  registerWebhookEvent,
+  listEnterpriseProducts,
+  upsertEnterpriseProduct,
+  updateEnterpriseStock,
+  updateEnterprisePrice,
+  bulkEnterpriseStock,
+  bulkEnterprisePrices
 } from '../services/manufacturerService.js';
 
 const router = express.Router();
@@ -32,6 +38,14 @@ function adminOnly(req, res, next) {
 function partnerKey(req, res, next) {
   const expected = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
   if (!expected) return next();
+  const received = String(req.headers['x-ariana-key'] || req.query.key || '').trim();
+  if (received !== expected) return fail(res, 401, 'Chave de integração inválida');
+  return next();
+}
+
+function partnerKeyRequired(req, res, next) {
+  const expected = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
+  if (!expected) return fail(res, 403, 'Configure ENTERPRISE_WEBHOOK_SECRET no Render para liberar esta API externa');
   const received = String(req.headers['x-ariana-key'] || req.query.key || '').trim();
   if (received !== expected) return fail(res, 401, 'Chave de integração inválida');
   return next();
@@ -80,6 +94,67 @@ router.post('/webhooks/:manufacturer', partnerKey, async (req, res) => {
     return ok(res, { received: true, id: String(event._id) });
   } catch (error) {
     return fail(res, 500, error.message || 'Erro ao registrar webhook');
+  }
+});
+
+// ============================================================
+// ETAPA 2 - Enterprise API: produtos, estoque e preços
+// ============================================================
+router.get('/products', adminOnly, async (req, res) => {
+  try { return ok(res, await listEnterpriseProducts(req.query)); }
+  catch (error) { return fail(res, 500, error.message || 'Erro ao listar produtos enterprise'); }
+});
+
+router.post('/products/upsert', partnerKeyRequired, async (req, res) => {
+  try { return ok(res, { product: await upsertEnterpriseProduct(req.body, req.body?.manufacturer || 'enterprise') }, 201); }
+  catch (error) { return fail(res, 400, error.message || 'Erro ao cadastrar/atualizar produto enterprise'); }
+});
+
+router.put('/products/:sku/stock', partnerKeyRequired, async (req, res) => {
+  try {
+    const product = await updateEnterpriseStock({
+      sku: req.params.sku,
+      sellerId: req.body?.sellerId || req.query?.sellerId,
+      stock: req.body?.stock ?? req.body?.quantity ?? req.body?.estoque,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
+    });
+    return ok(res, { product });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar estoque');
+  }
+});
+
+router.put('/products/:sku/price', partnerKeyRequired, async (req, res) => {
+  try {
+    const product = await updateEnterprisePrice({
+      sku: req.params.sku,
+      sellerId: req.body?.sellerId || req.query?.sellerId,
+      price: req.body?.price ?? req.body?.preco ?? req.body?.valor,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body
+    });
+    return ok(res, { product });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar preço');
+  }
+});
+
+router.post('/products/bulk-stock', partnerKeyRequired, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    return ok(res, { results: await bulkEnterpriseStock(items, { manufacturer: req.body?.manufacturer }) });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar estoque em lote');
+  }
+});
+
+router.post('/products/bulk-prices', partnerKeyRequired, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    return ok(res, { results: await bulkEnterprisePrices(items, { manufacturer: req.body?.manufacturer }) });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar preços em lote');
   }
 });
 

@@ -11018,8 +11018,8 @@ function startSigeAutoCobrancaScheduler() {
 }
 
 // ============================================================
-// MÓDULO ENTERPRISE / INTEGRAÇÕES COM FABRICANTES
-// Rota isolada da Etapa 1 de modularização.
+// MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
+// Novas APIs empresariais para fabricantes/sellers grandes.
 // ============================================================
 app.use('/api/enterprise', manufacturerIntegrationRoutes);
 
