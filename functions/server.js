@@ -7178,6 +7178,112 @@ function extractProviderLabelUrl(data = {}) {
   return '';
 }
 
+
+function extractPrePostagemIds(data = {}) {
+  const ids = new Set();
+  const add = (value = '') => {
+    const str = String(value || '').trim();
+    if (!str) return;
+    // IDs de pré-postagem normalmente começam com PR. Evita usar o rastreio AP...BR como id.
+    if (/^PR[A-Za-z0-9_-]{8,}$/i.test(str) || /^[A-Za-z0-9_-]{16,}$/.test(str)) ids.add(str);
+  };
+
+  const visit = (value, key = '') => {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      const normalizedKey = String(key || '').toLowerCase();
+      if (
+        normalizedKey.includes('idpre') ||
+        normalizedKey.includes('id_pre') ||
+        normalizedKey.includes('idprepostagem') ||
+        normalizedKey === 'id' ||
+        normalizedKey === 'idprepostagem'
+      ) add(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, key));
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const [k, v] of Object.entries(value)) visit(v, k);
+    }
+  };
+
+  [
+    data.id,
+    data.idPrePostagem,
+    data.idPrepostagem,
+    data.id_pre_postagem,
+    data?.prepostagem?.id,
+    data?.prepostagem?.idPrePostagem,
+    data?.prePostagem?.id,
+    data?.prePostagem?.idPrePostagem,
+    data?.data?.id,
+    data?.data?.idPrePostagem
+  ].forEach(add);
+
+  visit(data);
+  return Array.from(ids).filter((id) => !/^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(id));
+}
+
+function buildCorreiosRotuloEndpoint(prepostagemEndpoint = '') {
+  const explicit = String(process.env.CORREIOS_ROTULO_URL || process.env.CORREIOS_PREPOSTAGEM_ROTULO_URL || '').trim();
+  if (explicit) return explicit;
+  const endpoint = String(prepostagemEndpoint || process.env.CORREIOS_PREPOSTAGEM_URL || process.env.CORREIOS_PRE_POSTAGEM_URL || '').trim();
+  if (!endpoint) return '';
+  return endpoint.replace(/\/prepostagem\/v1\/prepostagens(?:\/.*)?$/i, '/prepostagem/v1/prepostagens/rotulo');
+}
+
+function normalizeCorreiosRotuloHtml(data = '') {
+  if (typeof data === 'string') return data;
+  const candidates = [
+    data?.html,
+    data?.rotulo,
+    data?.labelHtml,
+    data?.data,
+    data?.conteudo,
+    data?.retorno
+  ];
+  for (const item of candidates) {
+    if (typeof item === 'string' && item.trim()) return item;
+  }
+  return '';
+}
+
+async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRotulo = 'P' } = {}) {
+  const rotuloEndpoint = buildCorreiosRotuloEndpoint(endpoint);
+  const ids = ensureArray(idsPrePostagem).map((id) => String(id || '').trim()).filter(Boolean);
+  if (!rotuloEndpoint || !ids.length) {
+    return { ok: false, skipped: true, reason: !rotuloEndpoint ? 'CORREIOS_ROTULO_URL ausente' : 'idsPrePostagem ausentes' };
+  }
+
+  const response = await axios.post(rotuloEndpoint, {
+    idsPrePostagem: ids,
+    tipoRotulo: String(tipoRotulo || 'P').toUpperCase() === 'R' ? 'R' : 'P'
+  }, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'text/html,application/json,*/*', 'Content-Type': 'application/json' },
+    timeout: Number(process.env.CORREIOS_ROTULO_TIMEOUT_MS || 30000),
+    responseType: 'text',
+    transformResponse: [(data) => data],
+    validateStatus: () => true
+  });
+
+  const html = normalizeCorreiosRotuloHtml(response.data);
+  const ok = response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(html);
+  if (!ok) {
+    return {
+      ok: false,
+      statusCode: response.status,
+      endpoint: rotuloEndpoint,
+      idsPrePostagem: ids,
+      data: String(response.data || '').slice(0, 2000)
+    };
+  }
+
+  return { ok: true, statusCode: response.status, endpoint: rotuloEndpoint, idsPrePostagem: ids, html };
+}
+
 function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') {
   const order = toJSON(orderDoc) || orderDoc || {};
   const address = getOrderAddress(order);
@@ -7541,15 +7647,37 @@ async function callCorreiosPrepostagem(orderDoc = {}, body = {}) {
       });
     }
 
+    const idsPrePostagem = extractPrePostagemIds(data);
+    let rotulo = { ok: false, skipped: true, reason: 'idsPrePostagem ausentes no retorno da pré-postagem' };
+    let labelHtml = '';
+    try {
+      rotulo = await callCorreiosRotulo({
+        token,
+        endpoint,
+        idsPrePostagem,
+        tipoRotulo: body.tipoRotulo || body.labelSize || 'P'
+      });
+      if (rotulo.ok && rotulo.html) labelHtml = rotulo.html;
+    } catch (rotuloError) {
+      rotulo = {
+        ok: false,
+        error: rotuloError?.response?.data || rotuloError?.message || String(rotuloError),
+        statusCode: rotuloError?.response?.status || null
+      };
+    }
+
     return {
       ok: true,
       preparedOnly: false,
-      message: 'Pré-postagem Correios enviada ao provedor.',
+      message: labelHtml ? 'Pré-postagem Correios enviada e rótulo oficial gerado.' : 'Pré-postagem Correios enviada ao provedor.',
       trackingCode: extractProviderTrackingCode(data) || String(body.trackingCode || '').trim(),
       labelUrl: extractProviderLabelUrl(data),
+      labelHtml,
+      idsPrePostagem,
+      rotulo,
       payload: providerPayload,
       quote,
-      raw: data
+      raw: { prepostagem: data, rotulo: redact(rotulo) }
     };
   } catch (error) {
     return buildProviderPreparedFallback({
@@ -7685,8 +7813,8 @@ async function saveProviderLogisticsResult({ order, body = {}, provider = 'manua
     heightCm: Number(body.heightCm || body.alturaCm || 0),
     widthCm: Number(body.widthCm || body.larguraCm || 0),
     lengthCm: Number(body.lengthCm || body.comprimentoCm || 0),
-    notes: String(body.notes || body.observacoes || providerResult.message || '').trim(),
-    labelType,
+    notes: String(body.notes || body.observacoes || (providerResult.labelHtml ? 'Etiqueta oficial dos Correios emitida com sucesso.' : providerResult.message) || '').trim(),
+    labelType: providerResult.labelHtml ? 'correios_rotulo_oficial_html' : labelType,
     labelUrl: String(providerResult.labelUrl || ''),
     rawProviderResponse: redact(providerResult.raw || providerResult),
     updatedBy: actor
@@ -7697,7 +7825,7 @@ async function saveProviderLogisticsResult({ order, body = {}, provider = 'manua
     { $set: patch, $setOnInsert: { createdBy: actor } },
     { upsert: true, new: true }
   );
-  const html = buildManualLogisticsLabelHtml(order, label);
+  const html = String(providerResult.labelHtml || '').trim() || buildManualLogisticsLabelHtml(order, label);
   label = await LogisticsLabel.findByIdAndUpdate(label._id, { $set: { labelHtml: html } }, { new: true });
 
   const orderPatch = {
