@@ -1,0 +1,51 @@
+ARIANA MÓVEIS - BACKEND MODULARIZADO ETAPA 1
+
+Objetivo desta entrega:
+- Começar a modularização sem quebrar o que já funciona.
+- Manter o server.js como entrada principal do Render.
+- Criar uma nova camada isolada para integrações empresariais com fabricantes/fornecedores grandes.
+
+Arquivos adicionados:
+- routes/manufacturerIntegrationRoutes.js
+- services/manufacturerService.js
+- utils/http.js
+- integrations/samsung/README.md
+- integrations/whirlpool/README.md
+- integrations/electrolux/README.md
+- integrations/lg/README.md
+- integrations/midea/README.md
+- config/README.md
+
+Alteração feita no server.js:
+1) Adicionado import:
+import manufacturerIntegrationRoutes from './routes/manufacturerIntegrationRoutes.js';
+
+2) Adicionado antes do app.listen:
+app.use('/api/enterprise', manufacturerIntegrationRoutes);
+
+Rotas novas:
+GET  /api/enterprise/health
+GET  /api/enterprise/manufacturers
+POST /api/enterprise/manufacturers
+POST /api/enterprise/manufacturers/:manufacturer/orders
+POST /api/enterprise/queue/:queueId/dispatch
+POST /api/enterprise/webhooks/:manufacturer
+
+Segurança:
+- Rotas administrativas exigem token admin/staff.
+- Webhooks externos podem usar a variável ENTERPRISE_WEBHOOK_SECRET.
+- Se ENTERPRISE_WEBHOOK_SECRET estiver vazia, o webhook aceita chamada sem chave. Recomenda-se configurar essa variável antes de expor para parceiros reais.
+
+Variável recomendada no Render:
+ENTERPRISE_WEBHOOK_SECRET=crie_uma_chave_grande_aqui
+
+Como testar depois do deploy:
+1) Abrir:
+https://ariana-backend.onrender.com/api/enterprise/health
+
+Resposta esperada:
+{ "ok": true, "module": "enterprise", "status": "online" }
+
+Importante:
+Esta etapa NÃO removeu rotas antigas.
+Esta etapa NÃO mexeu nas regras atuais de checkout, seller, frete, pagamento ou Correios.
