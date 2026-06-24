@@ -7106,7 +7106,7 @@ function buildManualLogisticsLabelHtml(orderDoc = {}, labelDoc = {}) {
     <section class="box" style="margin-top:12px"><h3>Produtos</h3><div class="line">${escapeHtmlBasic(items || 'Produtos do pedido')}</div></section>
     <div class="grid"><section class="box"><h3>Volumes</h3><div class="line"><b>Volumes:</b> ${label.volumes || 1}</div><div class="line"><b>Peso:</b> ${label.weightKg || 0} kg</div><div class="line"><b>Dimensões:</b> ${escapeHtmlBasic(dims || 'não informado')} cm</div></section><section class="box"><h3>Observações</h3><div class="line">${escapeHtmlBasic(label.notes || 'Sem observações.')}</div></section></div>
     <div class="barcode">*${escapeHtmlBasic(label.trackingCode || shortId)}*</div>
-    <div class="footer">Gerado em ${escapeHtmlBasic(generatedAt)}. Esta etiqueta manual deixa o painel pronto para integração com Correios, Frenet e transportadoras parceiras.</div>
+    <div class="footer">Gerado em ${escapeHtmlBasic(generatedAt)}. ${label.labelType === 'correios_prepostagem_oficial' ? 'Pré-postagem oficial emitida pelos Correios. Use este romaneio interno apenas se o rótulo oficial não estiver disponível.' : 'Esta etiqueta manual deixa o painel pronto para integração com Correios, Frenet e transportadoras parceiras.'}</div>
   </main></body></html>`;
 }
 
@@ -7254,34 +7254,70 @@ function normalizeCorreiosRotuloHtml(data = '') {
 async function callCorreiosRotulo({ token, endpoint, idsPrePostagem = [], tipoRotulo = 'P' } = {}) {
   const rotuloEndpoint = buildCorreiosRotuloEndpoint(endpoint);
   const ids = ensureArray(idsPrePostagem).map((id) => String(id || '').trim()).filter(Boolean);
+  const tipo = String(tipoRotulo || 'P').toUpperCase() === 'R' ? 'R' : 'P';
+
   if (!rotuloEndpoint || !ids.length) {
     return { ok: false, skipped: true, reason: !rotuloEndpoint ? 'CORREIOS_ROTULO_URL ausente' : 'idsPrePostagem ausentes' };
   }
 
-  const response = await axios.post(rotuloEndpoint, {
+  const timeout = Number(process.env.CORREIOS_ROTULO_TIMEOUT_MS || 30000);
+  const baseHeaders = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'text/html,application/json,*/*'
+  };
+
+  const parseResult = (response, method, attemptedEndpoint) => {
+    const html = normalizeCorreiosRotuloHtml(response.data);
+    const ok = response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(html);
+    if (ok) {
+      return { ok: true, method, statusCode: response.status, endpoint: attemptedEndpoint, idsPrePostagem: ids, html };
+    }
+    return {
+      ok: false,
+      method,
+      statusCode: response.status,
+      endpoint: attemptedEndpoint,
+      idsPrePostagem: ids,
+      data: String(response.data || '').slice(0, 2000)
+    };
+  };
+
+  const postResponse = await axios.post(rotuloEndpoint, {
     idsPrePostagem: ids,
-    tipoRotulo: String(tipoRotulo || 'P').toUpperCase() === 'R' ? 'R' : 'P'
+    tipoRotulo: tipo
   }, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'text/html,application/json,*/*', 'Content-Type': 'application/json' },
-    timeout: Number(process.env.CORREIOS_ROTULO_TIMEOUT_MS || 30000),
+    headers: { ...baseHeaders, 'Content-Type': 'application/json' },
+    timeout,
     responseType: 'text',
     transformResponse: [(data) => data],
     validateStatus: () => true
   });
 
-  const html = normalizeCorreiosRotuloHtml(response.data);
-  const ok = response.status >= 200 && response.status < 300 && /<html|<body|<!doctype/i.test(html);
-  if (!ok) {
-    return {
-      ok: false,
-      statusCode: response.status,
-      endpoint: rotuloEndpoint,
-      idsPrePostagem: ids,
-      data: String(response.data || '').slice(0, 2000)
-    };
-  }
+  const postResult = parseResult(postResponse, 'POST', rotuloEndpoint);
+  if (postResult.ok || postResponse.status !== 405) return postResult;
 
-  return { ok: true, statusCode: response.status, endpoint: rotuloEndpoint, idsPrePostagem: ids, html };
+  // Em alguns contratos/ambientes de produção dos Correios o endpoint de rótulo aceita GET,
+  // mesmo o manual antigo mostrar POST. Se o POST voltar 405, tentamos GET com query string.
+  const params = new URLSearchParams();
+  ids.forEach((id) => params.append('idsPrePostagem', id));
+  params.set('tipoRotulo', tipo);
+  const getEndpoint = `${rotuloEndpoint}?${params.toString()}`;
+
+  const getResponse = await axios.get(getEndpoint, {
+    headers: baseHeaders,
+    timeout,
+    responseType: 'text',
+    transformResponse: [(data) => data],
+    validateStatus: () => true
+  });
+
+  const getResult = parseResult(getResponse, 'GET', getEndpoint);
+  if (getResult.ok) return getResult;
+
+  return {
+    ...getResult,
+    postFallback: postResult
+  };
 }
 
 function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') {
@@ -7813,8 +7849,17 @@ async function saveProviderLogisticsResult({ order, body = {}, provider = 'manua
     heightCm: Number(body.heightCm || body.alturaCm || 0),
     widthCm: Number(body.widthCm || body.larguraCm || 0),
     lengthCm: Number(body.lengthCm || body.comprimentoCm || 0),
-    notes: String(body.notes || body.observacoes || (providerResult.labelHtml ? 'Etiqueta oficial dos Correios emitida com sucesso.' : providerResult.message) || '').trim(),
-    labelType: providerResult.labelHtml ? 'correios_rotulo_oficial_html' : labelType,
+    notes: String(
+      body.notes ||
+      body.observacoes ||
+      (providerResult.labelHtml
+        ? 'Etiqueta oficial dos Correios emitida com sucesso.'
+        : (providerResult.preparedOnly === false
+          ? `Pré-postagem oficial dos Correios emitida com sucesso.${trackingCode ? ` Rastreio: ${trackingCode}.` : ''}`
+          : providerResult.message)) ||
+      ''
+    ).trim(),
+    labelType: providerResult.labelHtml ? 'correios_rotulo_oficial_html' : (providerResult.preparedOnly === false ? 'correios_prepostagem_oficial' : labelType),
     labelUrl: String(providerResult.labelUrl || ''),
     rawProviderResponse: redact(providerResult.raw || providerResult),
     updatedBy: actor
