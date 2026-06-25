@@ -190,6 +190,7 @@ let allUsersCache = [];
 let allNotificationsCache = [];
 let enterpriseHomologationRequestsCache = [];
 let currentHomologationRequestId = null;
+let enterpriseLastSimulatorCertificate = null;
 let notificationsBooted = false;
 let knownNotificationIds = new Set();
 let editingProductId = null;
@@ -1082,6 +1083,50 @@ window.enterpriseSetHomologationStatus = async function(requestId, status, optio
 }
 
 
+
+function enterpriseBuildCertificateCode(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  const rand = Math.random().toString(36).slice(2,8).toUpperCase();
+  return `ARI-ENT-${y}${m}${day}-${rand}`;
+}
+function enterpriseSetCertificateButton(enabled){
+  const btn = document.getElementById('enterprise-sim-certificate-btn');
+  if(!btn) return;
+  btn.disabled = !enabled;
+  btn.classList.toggle('opacity-50', !enabled);
+  btn.classList.toggle('cursor-not-allowed', !enabled);
+}
+function enterpriseCreateSimulatorCertificate(seconds=''){
+  const adminEmail = localStorage.getItem('admin_email') || localStorage.getItem('admin_name') || 'admin';
+  enterpriseLastSimulatorCertificate = {
+    code: enterpriseBuildCertificateCode(),
+    companyName: 'Ariana Demo / Homologação Sandbox',
+    cnpj: 'Ambiente de teste',
+    environment: 'Sandbox',
+    status: 'Homologação aprovada',
+    generatedAt: new Date(),
+    generatedBy: adminEmail,
+    duration: seconds,
+    modules: ['Catálogo', 'Estoque', 'Preço', 'Pedidos', 'NF-e', 'XML', 'DANFE', 'Rastreio', 'Webhooks']
+  };
+  enterpriseSetCertificateButton(true);
+  return enterpriseLastSimulatorCertificate;
+}
+window.enterprisePrintSimulatorCertificate = function(){
+  const cert = enterpriseLastSimulatorCertificate || enterpriseCreateSimulatorCertificate('');
+  const date = cert.generatedAt ? new Date(cert.generatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+  const modules = (cert.modules || []).map(m => `<span class="pill">✓ ${escHtml(m)}</span>`).join('');
+  const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Certificado de Homologação - Ariana Enterprise</title><style>
+    *{box-sizing:border-box} body{margin:0;background:#eef2ff;font-family:Arial,Helvetica,sans-serif;color:#0f172a;padding:28px}.sheet{max-width:980px;margin:0 auto;background:#fff;border:1px solid #dbeafe;border-radius:24px;overflow:hidden;box-shadow:0 18px 60px rgba(15,23,42,.16)}.hero{background:linear-gradient(135deg,#073b8e,#1d4ed8,#38bdf8);color:white;padding:42px 46px}.brand{font-size:15px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;opacity:.92}.title{font-size:42px;line-height:1.05;font-weight:900;margin:14px 0 8px}.subtitle{font-size:17px;opacity:.95}.content{padding:38px 46px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.box{border:1px solid #e5e7eb;background:#f8fafc;border-radius:16px;padding:18px}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em;margin-bottom:8px}.value{font-size:19px;font-weight:900;color:#111827;word-break:break-word}.status{display:inline-block;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:12px 18px;border-radius:999px;font-size:18px;font-weight:900}.modules{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.pill{display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:9px 12px;font-weight:800;font-size:13px}.footer{padding:22px 46px;background:#f8fafc;border-top:1px solid #e5e7eb;color:#64748b;font-size:12px;display:flex;justify-content:space-between;gap:16px}.code{font-family:monospace;font-weight:900;color:#0f172a}.actions{text-align:center;margin:22px 0}.actions button{background:#1d4ed8;color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:900;cursor:pointer}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;border:0}.actions{display:none}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}.pill,.status{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><section class="sheet"><div class="hero"><div class="brand">Ariana Enterprise</div><div class="title">Certificado de Homologação</div><div class="subtitle">Validação de integração Sandbox concluída com sucesso.</div></div><div class="content"><div class="grid"><div class="box"><div class="label">Empresa / Ambiente</div><div class="value">${escHtml(cert.companyName)}</div></div><div class="box"><div class="label">CNPJ</div><div class="value">${escHtml(cert.cnpj)}</div></div><div class="box"><div class="label">Ambiente</div><div class="value">${escHtml(cert.environment)}</div></div><div class="box"><div class="label">Status</div><div class="status">${escHtml(cert.status)}</div></div><div class="box"><div class="label">Código do certificado</div><div class="value code">${escHtml(cert.code)}</div></div><div class="box"><div class="label">Data da homologação</div><div class="value">${escHtml(date)}</div></div></div><div style="margin-top:24px" class="box"><div class="label">Módulos homologados</div><div class="modules">${modules}</div></div><div style="margin-top:24px" class="box"><div class="label">Resumo técnico</div><div class="value" style="font-size:15px;line-height:1.6;font-weight:700">Catálogo, estoque, preço, pedido, NF-e, XML, DANFE, rastreio e webhooks foram testados no simulador Enterprise. ${cert.duration ? `Tempo total: ${escHtml(cert.duration)}s.` : ''}</div></div></div><div class="footer"><div>Ariana Móveis • contato@arianamoveis.com.br</div><div>Gerado por ${escHtml(cert.generatedBy)}</div></div></section></body></html>`;
+  const win = window.open('', '_blank');
+  if(!win){ displayMessage('O navegador bloqueou a janela do certificado. Libere pop-ups para este site.', 'error'); return; }
+  win.document.open(); win.document.write(html); win.document.close(); setTimeout(()=>{ try{ win.focus(); }catch(_e){} }, 300);
+}
+
 function enterpriseSimulatorSetStep(step, status, message){
   const row = document.getElementById(`enterprise-sim-step-${step}`);
   if(!row) return;
@@ -1150,12 +1195,15 @@ window.enterpriseRunSimulatorAll = async function(){
   }
   const seconds = ((performance.now() - started) / 1000).toFixed(2).replace('.', ',');
   enterpriseSimulatorLog(`🏁 Homologação completa aprovada em ${seconds}s.`, 'ok');
-  displayMessage(`Homologação simulada aprovada em ${seconds}s.`, 'success');
+  enterpriseCreateSimulatorCertificate(seconds);
+  displayMessage(`Homologação simulada aprovada em ${seconds}s. Agora você já pode gerar o certificado.`, 'success');
   // Mantém o painel do simulador visível com os cards verdes, barra 100% e log final.
 }
 window.enterpriseResetSimulator = function(){
   ['catalog','stock_price','order','invoice','tracking'].forEach(step => enterpriseSimulatorSetStep(step, 'idle', 'Aguardando execução.'));
   enterpriseSimulatorProgress(0);
+  enterpriseLastSimulatorCertificate = null;
+  enterpriseSetCertificateButton(false);
   const box = document.getElementById('enterprise-sim-log');
   if(box) box.innerHTML = '<div class="text-gray-500">Nenhum teste executado ainda.</div>';
 }
@@ -1176,6 +1224,7 @@ function enterpriseSimulatorCard(){
       <div class="flex flex-wrap gap-2">
         <button type="button" onclick="window.enterpriseRunSimulatorAll()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-black shadow hover:opacity-90"><i class="fas fa-play mr-2"></i>Executar todos os testes</button>
         <button type="button" onclick="window.enterpriseResetSimulator()" class="px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50"><i class="fas fa-rotate-left mr-2"></i>Limpar painel</button>
+        <button id="enterprise-sim-certificate-btn" type="button" onclick="window.enterprisePrintSimulatorCertificate()" disabled class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-black shadow hover:bg-secondary-light-blue opacity-50 cursor-not-allowed"><i class="fas fa-certificate mr-2"></i>Gerar certificado</button>
       </div>
     </div>
     <div class="p-5">
