@@ -3438,7 +3438,196 @@ async function waNotifyOrderChatMessage(orderId, order = {}, message = {}, origi
 async function getManufacturerIntegration(manufacturer) { return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() }); }
 function computeNextAttempt(attempts) { const backoff = Math.pow(2, Math.max(0, attempts - 1)) * DISPATCH_RETRY_BASE_MS; return new Date(Date.now() + backoff); }
 async function dispatchOrderToManufacturer(orderPayload = {}) { const manufacturer = String(orderPayload.manufacturer || orderPayload.fabricante || orderPayload.sellerIds?.[0] || orderPayload.sellerId || '').trim(); if (!manufacturer) throw new Error('Fabricante não informado no pedido.'); const integration = await getManufacturerIntegration(manufacturer); if (!integration || !integration.enabled) throw new Error(`Integração do fabricante ${manufacturer} não configurada ou desativada.`); const endpoint = String(integration.endpoint || '').trim(); if (!endpoint) throw new Error(`Endpoint do fabricante ${manufacturer} não configurado.`); const method = String(integration.method || 'POST').toUpperCase(); const sendAs = String(integration.sendAs || 'json').toLowerCase(); const headers = { ...(integration.headers || {}) }; if (integration.apiKey) headers.apikey = integration.apiKey; if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`; let response; if (sendAs === 'form') { const body = new URLSearchParams(); Object.entries(orderPayload || {}).forEach(([k, v]) => { if (v === undefined || v === null) return; body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); }); response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, data: body.toString(), timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } else { response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/json', ...headers }, data: orderPayload, timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } const ok = response.status >= 200 && response.status < 300; await writeAuditLog({ scope: 'manufacturer_integration', eventType: 'manufacturer_dispatch_http', orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''), manufacturer, status: ok ? 'success' : 'error', statusCode: response.status, request: orderPayload, response: response.data, metadata: { endpoint, method, sendAs } }); return { ok, manufacturer, endpoint, status: response.status, data: response.data, sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json' }; }
-async function enqueueManufacturerDispatch(orderDoc) { const order = toJSON(orderDoc); const manufacturer = String(order.manufacturer || order.sellerIds?.[0] || '').trim(); if (!manufacturer) return { skipped: true, reason: 'missing_manufacturer' }; const queueId = uid('mq'); const payload = { orderId: String(order._id || order.id), id: String(order._id || order.id), manufacturer, customerName: order.customerName, customerPhone: order.customerPhone, customerEmail: order.customerEmail, shippingAddress: order.shippingAddress, items: order.items, total: order.total, notes: order.notes }; const queueRow = await ManufacturerDispatchQueue.create({ queueId, orderId: String(order._id || order.id), manufacturer, payload, status: 'pending', attempts: 0, maxAttempts: MAX_DISPATCH_ATTEMPTS, nextAttemptAt: now() }); await Order.findByIdAndUpdate(order._id || order.id, { $set: { manufacturer, manufacturerDispatch: { queueId, status: 'pending', attempts: 0, updatedAt: now() }, status_integracao: 'fila_pendente_fabricante' } }); await writeAuditLog({ scope: 'manufacturer_queue', eventType: 'manufacturer_dispatch_enqueued', orderId: String(order._id || order.id), manufacturer, queueId, status: 'queued', request: payload }); return { ok: true, queueId: queueRow.queueId }; }
+
+function normalizeEnterpriseManufacturerKey(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function isInternalArianaSeller(value = '') {
+  const key = normalizeEnterpriseManufacturerKey(value);
+  return ['arianamoveis', 'ariana_moveis', 'ariana', 'loja', 'admin'].includes(key);
+}
+
+async function resolveEnterpriseManufacturerForItem(item = {}, product = null) {
+  const prod = product ? toJSON(product) : null;
+  const candidates = [
+    prod?.logistics?.enterpriseSync?.manufacturer,
+    prod?.manufacturer,
+    prod?.brand,
+    item.manufacturer,
+    item.fabricante,
+    item.sellerId,
+    prod?.sellerId
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const key = normalizeEnterpriseManufacturerKey(candidate);
+    if (!key || isInternalArianaSeller(key)) continue;
+    return key;
+  }
+
+  return '';
+}
+
+async function buildEnterpriseOutboundGroups(orderDoc = {}) {
+  const order = toJSON(orderDoc) || {};
+  const groups = new Map();
+  const items = ensureArray(order.items);
+
+  for (const rawItem of items) {
+    const item = { ...(rawItem || {}) };
+    let product = null;
+
+    const oid = normalizeObjectId(item.productId);
+    if (oid) product = await Product.findById(oid).lean().catch(() => null);
+    if (!product && item.sku) product = await Product.findOne({ sku: String(item.sku).trim() }).lean().catch(() => null);
+
+    const manufacturer = await resolveEnterpriseManufacturerForItem(item, product);
+    if (!manufacturer) continue;
+
+    if (!groups.has(manufacturer)) {
+      groups.set(manufacturer, []);
+    }
+
+    groups.get(manufacturer).push({
+      productId: String(item.productId || product?._id || product?.id || ''),
+      sku: String(item.sku || product?.sku || '').trim(),
+      name: String(item.name || product?.name || '').trim(),
+      qty: Math.max(1, Number(item.qty || item.quantity || 1) || 1),
+      unitPrice: Number(item.unitPrice || item.sellerBaseUnitPrice || product?.price || 0) || 0,
+      totalPrice: Number(item.totalPrice || item.sellerBaseTotal || 0) || 0,
+      sellerBaseUnitPrice: Number(item.sellerBaseUnitPrice || product?.price || item.unitPrice || 0) || 0,
+      sellerBaseTotal: Number(item.sellerBaseTotal || item.totalPrice || 0) || 0,
+      image: String(item.image || product?.imageUrl || product?.image || product?.mainImageUrl || '').trim(),
+      manufacturer,
+      brand: String(product?.brand || '').trim()
+    });
+  }
+
+  return groups;
+}
+
+function buildEnterpriseOutboundPayload(order = {}, manufacturer = '', items = []) {
+  const orderId = String(order._id || order.id || '').trim();
+  return {
+    source: 'ariana_marketplace',
+    event: 'order_paid',
+    manufacturer,
+    orderId,
+    externalOrderId: orderId,
+    createdAt: order.createdAt || now(),
+    paidAt: order.payment?.adminSaleNotifiedAt || now(),
+    status: order.status || 'pago',
+    statusLabel: order.statusLabel || 'Pagamento aprovado',
+    currency: order.currency || DEFAULT_CURRENCY,
+    customer: {
+      name: order.customerName || order.shippingAddress?.name || '',
+      email: order.customerEmail || '',
+      phone: order.customerPhone || order.shippingAddress?.phone || ''
+    },
+    shippingAddress: order.shippingAddress || {},
+    shipping: order.shipping || {},
+    items,
+    totals: {
+      subtotal: Number(order.subtotal || 0) || 0,
+      shippingCost: Number(order.shippingCost || 0) || 0,
+      montagemCost: Number(order.montagemCost || 0) || 0,
+      total: Number(order.total || 0) || 0
+    },
+    payment: {
+      provider: order.payment?.provider || '',
+      method: order.payment?.method || order.payment?.type || '',
+      status: order.payment?.status || ''
+    },
+    notes: order.notes || ''
+  };
+}
+
+async function enqueueManufacturerDispatch(orderDoc) {
+  const order = toJSON(orderDoc);
+  if (!order) return { skipped: true, reason: 'missing_order' };
+
+  const orderId = String(order._id || order.id || '').trim();
+  if (!orderId) return { skipped: true, reason: 'missing_order_id' };
+
+  const groups = await buildEnterpriseOutboundGroups(order);
+  if (!groups.size) {
+    await writeAuditLog({
+      scope: 'manufacturer_queue',
+      eventType: 'manufacturer_dispatch_skipped',
+      orderId,
+      status: 'skipped',
+      message: 'Pedido sem itens Enterprise para enviar ao fabricante',
+      request: { sellerIds: order.sellerIds || [], items: order.items || [] }
+    }).catch(() => null);
+    return { skipped: true, reason: 'no_enterprise_items' };
+  }
+
+  const queues = [];
+  for (const [manufacturer, items] of groups.entries()) {
+    const existing = await ManufacturerDispatchQueue.findOne({
+      orderId,
+      manufacturer,
+      status: { $in: ['pending', 'processing', 'retry_processing', 'retrying', 'sent'] }
+    }).sort({ createdAt: -1 }).lean();
+
+    if (existing) {
+      queues.push({ ok: true, queueId: existing.queueId, manufacturer, status: existing.status, reused: true });
+      continue;
+    }
+
+    const payload = buildEnterpriseOutboundPayload(order, manufacturer, items);
+    const queueId = uid('mq');
+    const queueRow = await ManufacturerDispatchQueue.create({
+      queueId,
+      orderId,
+      manufacturer,
+      payload,
+      status: 'pending',
+      attempts: 0,
+      maxAttempts: MAX_DISPATCH_ATTEMPTS,
+      nextAttemptAt: now()
+    });
+
+    queues.push({ ok: true, queueId: queueRow.queueId, manufacturer, status: 'pending' });
+
+    await writeAuditLog({
+      scope: 'manufacturer_queue',
+      eventType: 'manufacturer_dispatch_enqueued',
+      orderId,
+      manufacturer,
+      queueId,
+      status: 'queued',
+      request: payload,
+      metadata: { items: items.length, origin: 'payment_approved_outbound_enterprise' }
+    }).catch(() => null);
+  }
+
+  const primary = queues[0] || null;
+  await Order.findByIdAndUpdate(orderId, {
+    $set: {
+      manufacturer: primary?.manufacturer || order.manufacturer || '',
+      manufacturerDispatch: {
+        ...(order.manufacturerDispatch || {}),
+        outbound: {
+          status: 'pending',
+          queues,
+          updatedAt: now()
+        }
+      },
+      status_integracao: 'fila_pendente_fabricante'
+    }
+  }).catch(() => null);
+
+  return { ok: true, totalQueues: queues.length, queues };
+}
+
 async function processSingleQueueItem(queueRow) { const row = typeof queueRow.toObject === 'function' ? queueRow : await ManufacturerDispatchQueue.findOne({ queueId: queueRow.queueId }); if (!row) return { ok: false, error: 'Queue item não encontrado' }; row.status = row.attempts > 0 ? 'retry_processing' : 'processing'; row.lastAttemptAt = now(); await row.save(); try { const result = await dispatchOrderToManufacturer(row.payload || {}); row.attempts = Number(row.attempts || 0) + 1; row.lastResponse = redact(result.data || null); if (result.ok) { row.status = 'sent'; row.deadLetter = false; row.nextAttemptAt = null; await row.save(); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: 'enviado', manufacturerDispatch: { queueId: row.queueId, status: 'sent', attempts: row.attempts, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data || null), updatedAt: now() } } }); await resolveOperationalAlert('dispatch_dead_letter', row.queueId); await resolveOperationalAlert('dispatch_retry_pressure', row.queueId); await resolveOperationalAlert('order_dispatch_error', row.orderId); return { ok: true, result }; } row.lastError = `HTTP ${result.status}`; if (row.attempts >= Number(row.maxAttempts || MAX_DISPATCH_ATTEMPTS)) { row.status = 'dead_letter'; row.deadLetter = true; row.nextAttemptAt = null; } else { row.status = 'retrying'; row.nextAttemptAt = computeNextAttempt(row.attempts); } await row.save(); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: row.status === 'dead_letter' ? 'fila_erro_fabricante' : 'retry_fabricante', manufacturerDispatch: { queueId: row.queueId, status: row.status === 'dead_letter' ? 'error' : row.status, attempts: row.attempts, endpoint: result.endpoint, httpStatus: result.status, response: redact(result.data || null), updatedAt: now(), lastError: row.lastError } } }); return { ok: false, result }; } catch (error) { row.attempts = Number(row.attempts || 0) + 1; row.lastError = error.message; if (row.attempts >= Number(row.maxAttempts || MAX_DISPATCH_ATTEMPTS)) { row.status = 'dead_letter'; row.deadLetter = true; row.nextAttemptAt = null; } else { row.status = 'retrying'; row.nextAttemptAt = computeNextAttempt(row.attempts); } await row.save(); await writeAuditLog({ scope: 'manufacturer_queue', eventType: 'manufacturer_dispatch_processing_error', orderId: row.orderId, manufacturer: row.manufacturer, queueId: row.queueId, status: 'error', message: error.message, request: row.payload || null }); await Order.findByIdAndUpdate(row.orderId, { $set: { status_integracao: row.status === 'dead_letter' ? 'fila_erro_fabricante' : 'retry_fabricante', manufacturerDispatch: { queueId: row.queueId, status: row.status === 'dead_letter' ? 'error' : row.status, attempts: row.attempts, updatedAt: now(), lastError: error.message } } }); return { ok: false, error: error.message }; } }
 async function processManufacturerQueue(limit = 10) { const rows = await ManufacturerDispatchQueue.find({ status: { $in: ['pending', 'retrying'] }, $or: [{ nextAttemptAt: { $lte: now() } }, { nextAttemptAt: null }] }).sort({ nextAttemptAt: 1, createdAt: 1 }).limit(Math.max(1, Number(limit || 10))); const results = []; for (const row of rows) results.push(await processSingleQueueItem(row)); return results; }
 
@@ -11017,6 +11206,23 @@ function startSigeAutoCobrancaScheduler() {
   }, 60 * 1000);
 }
 
+
+function startEnterpriseQueueWorker() {
+  const enabled = String(process.env.ENTERPRISE_QUEUE_WORKER_ENABLED || 'true').toLowerCase() !== 'false';
+  if (!enabled) {
+    console.log('🏭 Enterprise queue worker desativado por ENTERPRISE_QUEUE_WORKER_ENABLED=false');
+    return;
+  }
+  const intervalMs = Math.max(15000, Number(process.env.ENTERPRISE_QUEUE_WORKER_INTERVAL_MS || 60000));
+  const limit = Math.max(1, Number(process.env.ENTERPRISE_QUEUE_WORKER_LIMIT || 5));
+  console.log(`🏭 Enterprise queue worker ativo: a cada ${intervalMs}ms, limite ${limit}`);
+  setInterval(() => {
+    processManufacturerQueue(limit).catch((error) => {
+      console.error('[ENTERPRISE QUEUE WORKER] ERRO', error.message || error);
+    });
+  }, intervalMs);
+}
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
@@ -11026,6 +11232,7 @@ app.use('/api/enterprise', manufacturerIntegrationRoutes);
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
   startSigeAutoCobrancaScheduler();
+  startEnterpriseQueueWorker();
   console.log(`📁 Uploads em: ${uploadsDir}`);
   console.log(`🌐 Base local: http://localhost:${PORT}/api`);
 });
