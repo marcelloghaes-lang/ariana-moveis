@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Swagger | Ariana Enterprise</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body{margin:0;background:#f3f7fb;font-family:Inter,Arial,sans-serif}.top{background:linear-gradient(135deg,#0047AB,#0ea5e9);color:#fff;padding:24px 34px;display:flex;justify-content:space-between;gap:14px;align-items:center}.top h1{margin:0;font-size:30px}.top p{margin:5px 0 0;opacity:.95}.top a{background:#fff;color:#0047AB;text-decoration:none;font-weight:900;border-radius:12px;padding:12px 15px;display:inline-block;margin-left:8px}#swagger-ui{max-width:1280px;margin:0 auto;padding:22px}.swagger-ui .topbar{display:none}@media(max-width:800px){.top{display:block}.top a{margin:10px 6px 0 0}}
+  </style>
+</head>
+<body>
+  <div class="top"><div><h1>Ariana Enterprise API</h1><p>Swagger/OpenAPI automático para fabricantes, distribuidores e ERPs.</p></div><div><a href="https://ariana-backend.onrender.com/api/enterprise/openapi.json" target="_blank">Baixar OpenAPI JSON</a><a href="/portal_fabricante.html">Portal</a></div></div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: 'https://ariana-backend.onrender.com/api/enterprise/openapi.json',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      tryItOutEnabled: true
+    });
+  </script>
+</body>
+</html>
