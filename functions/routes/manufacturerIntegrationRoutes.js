@@ -34,17 +34,49 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
 
 function adminOnly(req, res, next) {
   try {
-    const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const header = String(req.headers.authorization || '').trim();
+    const token = header.toLowerCase().startsWith('bearer ')
+      ? header.slice(7).trim()
+      : '';
+
     if (!token) return fail(res, 401, 'Token ausente');
+
     const decoded = jwt.verify(token, JWT_SECRET);
-    const role = String(decoded.role || '').toLowerCase();
-    if (decoded.admin === true || role === 'admin' || role === 'staff') {
+
+    const role = String(decoded.role || decoded.tipo || decoded.type || '').toLowerCase().trim();
+    const id = String(decoded.id || decoded.userId || decoded.uid || decoded.sub || '').trim();
+    const email = String(decoded.email || '').toLowerCase().trim();
+    const adminEmail = String(process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+
+    const isAdminToken =
+      decoded.admin === true ||
+      decoded.isAdmin === true ||
+      decoded.active === true && role === 'admin' ||
+      role === 'admin' ||
+      role === 'staff' ||
+      role === 'superadmin' ||
+      id === 'env-admin' ||
+      id === 'admin' ||
+      Boolean(adminEmail && email === adminEmail);
+
+    if (isAdminToken) {
       req.admin = decoded;
+      req.user = decoded;
+      req.auth = decoded;
       return next();
     }
+
+    console.warn('[enterprise/adminOnly] Acesso negado para token decodificado:', {
+      role,
+      id,
+      email,
+      admin: decoded.admin,
+      isAdmin: decoded.isAdmin
+    });
+
     return fail(res, 403, 'Acesso negado');
-  } catch (_error) {
+  } catch (error) {
+    console.warn('[enterprise/adminOnly] Token inválido:', error?.message || error);
     return fail(res, 401, 'Token inválido');
   }
 }
