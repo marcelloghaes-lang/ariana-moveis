@@ -38,7 +38,7 @@
         </div>
         <div class="field"><label class="label">Chave / Token</label><input id="token-input" class="input" type="password" placeholder="Cole a chave Sandbox, ENTERPRISE_WEBHOOK_SECRET ou token admin"><div class="tiny" style="margin-top:8px">Para endpoints externos do seu backend atual, normalmente use <b>x-ariana-key</b>. Para endpoints administrativos, use <b>Bearer</b>.</div></div>
         <div class="field"><label class="label">Request JSON</label><textarea id="request-body"></textarea></div>
-        <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><button id="execute-btn" class="btn btn-green"><i class="fas fa-play"></i> Executar</button><button id="copy-curl-btn" class="btn btn-gray"><i class="fas fa-copy"></i> Copiar cURL</button><button id="save-key-btn" class="btn btn-blue"><i class="fas fa-save"></i> Salvar chave neste navegador</button></div>
+        <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><button id="execute-btn" class="btn btn-green"><i class="fas fa-play"></i> Executar</button><button id="run-all-btn" class="btn btn-blue"><i class="fas fa-list-check"></i> Executar fluxo completo</button><button id="copy-curl-btn" class="btn btn-gray"><i class="fas fa-copy"></i> Copiar cURL</button><button id="save-key-btn" class="btn btn-blue"><i class="fas fa-save"></i> Salvar chave neste navegador</button></div>
       </div>
     </section>
     <section class="card">
@@ -89,8 +89,92 @@ function updateSdk(){ const e=selectedEndpoint(); const url=finalUrl(); const bo
 'cURL':curlCommand()
 }; $('sdk-output').textContent=code[currentLang] || code['cURL']; }
 function logLine(method,status,path,ms,ok){ const box=$('console-log'); if(box.querySelector('.tiny')) box.innerHTML=''; const time=new Date().toLocaleTimeString('pt-BR'); const div=document.createElement('div'); div.className='log'; div.innerHTML=`<b>${time}</b><span class="${ok?'status-ok':'status-err'}">${status}</span><span>${method} ${path} • ${ms} ms</span>`; box.prepend(div); }
-async function execute(){ const e=selectedEndpoint(); $('execute-btn').disabled=true; $('execute-btn').innerHTML='<i class="fas fa-spinner fa-spin"></i> Executando...'; const start=performance.now(); try{ let body; if(e.body){ try{ body=JSON.stringify(JSON.parse($('request-body').value || '{}')); }catch(err){ throw new Error('JSON inválido: '+err.message); }} const res=await fetch(finalUrl(),{method:e.method,headers:headersFor(e),body}); const ms=Math.round(performance.now()-start); const ct=res.headers.get('content-type')||''; const data=ct.includes('json')?await res.json().catch(()=>null):await res.text(); $('http-status').textContent=`HTTP ${res.status}`; $('http-status').className=`pill ${res.ok?'ok':'err'}`; $('http-time').textContent=`${ms} ms`; $('response-output').textContent=typeof data==='string'?data:pretty(data); logLine(e.method,res.status,e.path,ms,res.ok); }catch(err){ const ms=Math.round(performance.now()-start); $('http-status').textContent='Erro'; $('http-status').className='pill err'; $('http-time').textContent=`${ms} ms`; $('response-output').textContent=String(err.message||err); logLine(e.method,'ERRO',e.path,ms,false); } finally{ $('execute-btn').disabled=false; $('execute-btn').innerHTML='<i class="fas fa-play"></i> Executar'; }}
-function boot(){ $('base-url').value=API_DEFAULT; $('token-input').value=localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || localStorage.getItem('admin_token') || ''; $('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join(''); $('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join(''); $('endpoint-select').addEventListener('change',updateEndpoint); $('base-url').addEventListener('input',()=>{ $('final-url').textContent=finalUrl(); updateSdk(); }); $('auth-mode').addEventListener('change',updateSdk); $('token-input').addEventListener('input',updateSdk); $('request-body').addEventListener('input',updateSdk); $('execute-btn').addEventListener('click',execute); $('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand()); alert('cURL copiado.');}); $('save-key-btn').addEventListener('click',()=>{localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET',$('token-input').value.trim()); alert('Chave salva neste navegador.');}); $('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';}); $('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang)); updateSdk();}}); $('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox'; $('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn';}); updateEndpoint(); }
+
+function buildUrlFor(endpoint){ return `${$('base-url').value.replace(/\/+$/,'')}${endpoint.path}`; }
+async function sendEndpoint(endpoint, customBody = null, customPath = null){
+  const url = `${$('base-url').value.replace(/\/+$/,'')}${customPath || endpoint.path}`;
+  const start = performance.now();
+  let requestBody;
+  if (endpoint.body || customBody) requestBody = JSON.stringify(customBody || JSON.parse($('request-body').value || '{}'));
+  const res = await fetch(url, { method: endpoint.method, headers: headersFor(endpoint), body: requestBody });
+  const ms = Math.round(performance.now() - start);
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => '');
+  logLine(endpoint.method, res.status, customPath || endpoint.path, ms, res.ok);
+  return { res, ms, data, url };
+}
+async function execute(){
+  const e=selectedEndpoint();
+  $('execute-btn').disabled=true;
+  $('execute-btn').innerHTML='<i class="fas fa-spinner fa-spin"></i> Executando...';
+  try{
+    let customBody = null;
+    if(e.body){
+      try{ customBody = JSON.parse($('request-body').value || '{}'); }
+      catch(err){ throw new Error('JSON inválido: '+err.message); }
+    }
+    const result = await sendEndpoint(e, customBody);
+    $('http-status').textContent=`HTTP ${result.res.status}`;
+    $('http-status').className=`pill ${result.res.ok?'ok':'err'}`;
+    $('http-time').textContent=`${result.ms} ms`;
+    $('response-output').textContent=typeof result.data==='string'?result.data:pretty(result.data);
+  }catch(err){
+    $('http-status').textContent='Erro';
+    $('http-status').className='pill err';
+    $('http-time').textContent='0 ms';
+    $('response-output').textContent=String(err.message||err);
+    logLine(e.method,'ERRO',e.path,0,false);
+  } finally{
+    $('execute-btn').disabled=false;
+    $('execute-btn').innerHTML='<i class="fas fa-play"></i> Executar';
+  }
+}
+function makeRunIds(){
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);
+  return { sku:`ARI-EXP-${stamp}`, orderId:`ARI-PED-${stamp}` };
+}
+async function runFullFlow(){
+  const btn = $('run-all-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando fluxo...';
+  const ids = makeRunIds();
+  const startAll = performance.now();
+  const steps = [
+    {id:'health', label:'Health check'},
+    {id:'catalog', label:'Catálogo', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',sellerName:'Ariana Demo',items:[{sku:ids.sku,name:'Produto Demo API Explorer',description:'Produto criado no fluxo completo do API Explorer Ariana Enterprise.',category:'Eletrodomésticos',brand:'Ariana Demo',price:2500,stock:12,weight:10,height:60,width:60,length:60,imageUrl:'https://placehold.co/600x600/eef2ff/1d4ed8?text=API+Explorer'}]}},
+    {id:'sync', label:'Estoque e preço', path:`/enterprise/products/${encodeURIComponent(ids.sku)}/sync`, body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299,stock:8,active:true,availability:'available',status:'updated_by_api_explorer'}},
+    {id:'order', label:'Pedido', body:{manufacturer:'ariana_demo',externalOrderId:ids.orderId,customerName:'Cliente Teste API Explorer',customerEmail:'cliente.teste@exemplo.com',customerPhone:'31999999999',items:[{sku:ids.sku,name:'Produto Demo API Explorer',qty:1,unitPrice:2299,sellerId:'ariana_demo'}],shippingAddress:{name:'Cliente Teste',cep:'39740000',logradouro:'Rua Teste',numero:'100',bairro:'Centro',cidade:'Guanhães',uf:'MG'}}},
+    {id:'invoice', label:'NF-e', path:`/enterprise/orders/${encodeURIComponent(ids.orderId)}/invoice`, body:{manufacturer:'ariana_demo',invoice:{number:'12345',series:'1',accessKey:'31260600000000000000550010000123451000012345',danfeUrl:'https://exemplo.com/danfe-12345.pdf',xmlUrl:'https://exemplo.com/nfe-12345.xml',total:2299}}},
+    {id:'tracking', label:'Rastreio', path:`/enterprise/orders/${encodeURIComponent(ids.orderId)}/tracking`, body:{manufacturer:'ariana_demo',trackingCode:'BR123456789BR',carrier:'Transportadora Demo',trackingUrl:'https://rastreamento.exemplo.com/BR123456789BR'}}
+  ];
+  const results = [];
+  try{
+    for(const step of steps){
+      const ep = endpoints.find(x => x.id === step.id);
+      if(!ep) throw new Error(`Endpoint ${step.id} não encontrado`);
+      const r = await sendEndpoint(ep, step.body || null, step.path || null);
+      results.push({ etapa: step.label, status: r.res.status, ok: r.res.ok, resposta: r.data });
+      if(!r.res.ok) throw new Error(`${step.label} retornou HTTP ${r.res.status}`);
+    }
+    const totalMs = Math.round(performance.now() - startAll);
+    $('http-status').textContent='Fluxo aprovado';
+    $('http-status').className='pill ok';
+    $('http-time').textContent=`${totalMs} ms`;
+    $('response-output').textContent=pretty({ ok:true, message:'Fluxo completo aprovado', sku:ids.sku, externalOrderId:ids.orderId, totalMs, etapas:results.map(r=>({etapa:r.etapa,status:r.status,ok:r.ok})) });
+    logLine('FLOW','OK','Homologação completa pelo Explorer',totalMs,true);
+  }catch(err){
+    const totalMs = Math.round(performance.now() - startAll);
+    $('http-status').textContent='Fluxo com erro';
+    $('http-status').className='pill err';
+    $('http-time').textContent=`${totalMs} ms`;
+    $('response-output').textContent=pretty({ ok:false, error:String(err.message||err), etapas:results });
+    logLine('FLOW','ERRO','Homologação completa pelo Explorer',totalMs,false);
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-list-check"></i> Executar fluxo completo';
+  }
+}
+function boot(){ $('base-url').value=API_DEFAULT; $('token-input').value=localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || localStorage.getItem('admin_token') || ''; $('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join(''); $('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join(''); $('endpoint-select').addEventListener('change',updateEndpoint); $('base-url').addEventListener('input',()=>{ $('final-url').textContent=finalUrl(); updateSdk(); }); $('auth-mode').addEventListener('change',updateSdk); $('token-input').addEventListener('input',updateSdk); $('request-body').addEventListener('input',updateSdk); $('execute-btn').addEventListener('click',execute); $('run-all-btn').addEventListener('click',runFullFlow); $('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand()); alert('cURL copiado.');}); $('save-key-btn').addEventListener('click',()=>{localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET',$('token-input').value.trim()); alert('Chave salva neste navegador.');}); $('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';}); $('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang)); updateSdk();}}); $('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox'; $('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn';}); updateEndpoint(); }
 boot();
 </script>
 </body>
