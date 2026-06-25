@@ -12094,6 +12094,172 @@ app.get('/api/enterprise/partner/dashboard', enterprisePartnerRequired, async (r
 
 
 // ============================================================
+// PORTAL DO FABRICANTE - GESTÃO DE API KEYS / LOGS / WEBHOOKS
+// Etapa 17: autoatendimento Enterprise sem acesso ao Admin.
+// ============================================================
+function enterprisePartnerGenerateKey(environment = 'sandbox', partner = {}) {
+  const env = String(environment || 'sandbox').toLowerCase() === 'production' ? 'live' : 'sbx';
+  const baseName = sanitizeIdPart(partner.tradeName || partner.companyName || partner.requestId || 'fabricante').slice(0, 60);
+  return `ari_${env}_${baseName}_${crypto.randomBytes(8).toString('hex')}`;
+}
+
+async function enterprisePartnerFindCurrentDoc(portal = {}) {
+  if (portal.partnerId && mongoose.Types.ObjectId.isValid(portal.partnerId)) {
+    const doc = await EnterpriseHomologationRequestCompat.findById(portal.partnerId);
+    if (doc) return doc;
+  }
+  const or = [];
+  if (portal.requestId) or.push({ requestId: portal.requestId });
+  if (portal.companyName) or.push({ companyName: portal.companyName });
+  if (portal.tradeName) or.push({ tradeName: portal.tradeName });
+  if (!or.length) return null;
+  return EnterpriseHomologationRequestCompat.findOne({ $or: or });
+}
+
+function enterprisePartnerEnvironmentPath(environment = 'sandbox') {
+  return String(environment || '').toLowerCase() === 'production' ? 'productionCredentials' : 'sandboxCredentials';
+}
+
+app.post('/api/enterprise/partner/api-keys/:environment/rotate', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const environment = String(req.params.environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+    const partner = await enterprisePartnerFindCurrentDoc(req.enterprisePortal || {});
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+
+    if (environment === 'production') {
+      const status = String(partner.status || '').toLowerCase();
+      const allowedProduction = ['production', 'active', 'aprovado', 'aprovada'];
+      if (!allowedProduction.includes(status)) {
+        return res.status(403).json({ ok: false, error: 'Produção ainda não liberada para este fabricante' });
+      }
+    }
+
+    const key = enterprisePartnerGenerateKey(environment, partner);
+    const path = enterprisePartnerEnvironmentPath(environment);
+    await EnterpriseHomologationRequestCompat.updateOne(
+      { _id: partner._id },
+      {
+        $set: {
+          [`${path}.apiKey`]: key,
+          [`${path}.active`]: true,
+          [`${path}.environment`]: environment,
+          [`${path}.rotatedAt`]: new Date(),
+          [`${path}.lastAccessAt`]: null,
+          [`${path}.requestCount`]: 0
+        }
+      }
+    );
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: 'partner_api_key_rotated',
+      manufacturer: partner.requestId || partner.tradeName || partner.companyName || '',
+      status: 'success',
+      statusCode: 200,
+      message: `API Key ${environment} renovada pelo portal do fabricante`,
+      metadata: { environment, companyName: partner.companyName || '', tradeName: partner.tradeName || '' }
+    }).catch(() => null);
+
+    return res.json({ ok: true, environment, apiKey: key, message: 'API Key renovada com sucesso' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao renovar API Key' });
+  }
+});
+
+app.post('/api/enterprise/partner/api-keys/:environment/revoke', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const environment = String(req.params.environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+    const partner = await enterprisePartnerFindCurrentDoc(req.enterprisePortal || {});
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+
+    const path = enterprisePartnerEnvironmentPath(environment);
+    await EnterpriseHomologationRequestCompat.updateOne(
+      { _id: partner._id },
+      { $set: { [`${path}.active`]: false, [`${path}.revokedAt`]: new Date() } }
+    );
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: 'partner_api_key_revoked',
+      manufacturer: partner.requestId || partner.tradeName || partner.companyName || '',
+      status: 'success',
+      statusCode: 200,
+      message: `API Key ${environment} revogada pelo portal do fabricante`,
+      metadata: { environment, companyName: partner.companyName || '', tradeName: partner.tradeName || '' }
+    }).catch(() => null);
+
+    return res.json({ ok: true, environment, message: 'API Key revogada com sucesso' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao revogar API Key' });
+  }
+});
+
+app.get('/api/enterprise/partner/usage', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const logs = await IntegrationAuditLog.find(enterprisePartnerLogQuery(req.enterprisePortal || {}))
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+
+    const byEndpoint = {};
+    const byStatus = { ok2xx: 0, bad4xx: 0, err5xx: 0, other: 0 };
+    let totalMs = 0;
+    let timed = 0;
+
+    for (const log of logs) {
+      const endpoint = String(log.metadata?.endpoint || log.metadata?.path || log.request?.path || log.eventType || 'unknown');
+      byEndpoint[endpoint] = (byEndpoint[endpoint] || 0) + 1;
+      const code = Number(log.statusCode || log.response?.status || 0);
+      if (code >= 200 && code < 300) byStatus.ok2xx += 1;
+      else if (code >= 400 && code < 500) byStatus.bad4xx += 1;
+      else if (code >= 500) byStatus.err5xx += 1;
+      else byStatus.other += 1;
+      const ms = Number(log.metadata?.durationMs || log.metadata?.totalMs || 0);
+      if (ms > 0) { totalMs += ms; timed += 1; }
+    }
+
+    return res.json({
+      ok: true,
+      usage: {
+        total: logs.length,
+        byStatus,
+        byEndpoint: Object.entries(byEndpoint).map(([endpoint, count]) => ({ endpoint, count })).sort((a,b)=>b.count-a.count).slice(0, 20),
+        avgMs: timed ? Math.round(totalMs / timed) : 0,
+        generatedAt: new Date()
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar consumo da API' });
+  }
+});
+
+app.get('/api/enterprise/partner/webhooks', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const logs = await IntegrationAuditLog.find({
+      ...enterprisePartnerLogQuery(req.enterprisePortal || {}),
+      eventType: { $in: ['webhook_test', 'webhook_received', 'webhook_sent', 'webhook_retry'] }
+    }).sort({ createdAt: -1 }).limit(50).lean().catch(() => []);
+
+    return res.json({
+      ok: true,
+      events: ['order_created', 'payment_approved', 'invoice_received', 'tracking_updated', 'order_cancelled'],
+      webhooks: logs.map((log) => ({
+        id: String(log._id),
+        eventType: log.eventType || '',
+        statusCode: log.statusCode || null,
+        status: log.status || '',
+        message: log.message || '',
+        createdAt: log.createdAt || null,
+        metadata: log.metadata || null
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar webhooks' });
+  }
+});
+
+
+// ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
 // ============================================================
