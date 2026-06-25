@@ -13238,6 +13238,292 @@ app.get('/api/enterprise/docs', (_req, res) => {
 });
 
 
+
+
+// ============================================================
+// PASSO 23 - PORTAL ADMIN ENTERPRISE
+// Visão administrativa consolidada de fabricantes, homologação,
+// API Keys, consumo, logs, certificados e status da integração.
+// Mantém as rotas antigas e adiciona endpoints exclusivos do Admin.
+// ============================================================
+function adminEnterpriseMaskKey(value = '') {
+  const key = String(value || '').trim();
+  if (!key) return '';
+  if (key.length <= 16) return `${key.slice(0, 4)}...${key.slice(-4)}`;
+  return `${key.slice(0, 12)}...${key.slice(-8)}`;
+}
+
+function adminEnterpriseCredentialFromPartner(partner = {}, environment = 'sandbox') {
+  const env = String(environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+  if (env === 'production') {
+    return partner.productionCredentials || partner.production || partner.credentials?.production || {};
+  }
+  return partner.sandboxCredentials || partner.sandbox || partner.credentials?.sandbox || {};
+}
+
+function adminEnterprisePartnerDTO(partner = {}, extra = {}) {
+  const obj = typeof partner.toObject === 'function' ? partner.toObject({ virtuals: true }) : { ...(partner || {}) };
+  const sandbox = adminEnterpriseCredentialFromPartner(obj, 'sandbox');
+  const production = adminEnterpriseCredentialFromPartner(obj, 'production');
+  const id = String(obj._id || obj.id || '');
+  return {
+    id,
+    requestId: obj.requestId || obj.protocol || id,
+    companyName: obj.companyName || obj.razaoSocial || obj.company || '',
+    tradeName: obj.tradeName || obj.nomeFantasia || obj.fantasyName || '',
+    cnpj: obj.cnpj || obj.document || '',
+    email: obj.email || obj.responsibleEmail || '',
+    phone: obj.phone || obj.responsiblePhone || '',
+    responsibleName: obj.responsibleName || obj.responsavel || '',
+    erp: obj.erp || obj.erpName || 'Outro',
+    status: obj.status || 'pending',
+    statusLabel: obj.statusLabel || obj.status || 'pending',
+    environment: obj.environment || (production?.active ? 'production' : (sandbox?.active ? 'sandbox' : 'pending')),
+    integrationTypes: obj.integrationTypes || obj.integrations || obj.modules || [],
+    createdAt: obj.createdAt || null,
+    updatedAt: obj.updatedAt || null,
+    sandbox: {
+      active: sandbox?.active !== false && Boolean(sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey),
+      apiKeyMasked: adminEnterpriseMaskKey(sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey || ''),
+      requestCount: Number(sandbox?.requestCount || 0),
+      lastAccessAt: sandbox?.lastAccessAt || null,
+      rotatedAt: sandbox?.rotatedAt || null,
+      revokedAt: sandbox?.revokedAt || null
+    },
+    production: {
+      active: production?.active === true && Boolean(production?.apiKey || obj.enterpriseApiKey || obj.apiKey),
+      apiKeyMasked: adminEnterpriseMaskKey(production?.apiKey || obj.enterpriseApiKey || obj.apiKey || ''),
+      requestCount: Number(production?.requestCount || 0),
+      lastAccessAt: production?.lastAccessAt || null,
+      rotatedAt: production?.rotatedAt || null,
+      revokedAt: production?.revokedAt || null
+    },
+    metrics: extra.metrics || { calls: 0, success: 0, errors: 0, successRate: 0, avgMs: 0, lastEventAt: null, lastEventType: '' },
+    certificates: extra.certificates || []
+  };
+}
+
+function adminEnterprisePartnerMatchQuery(search = '') {
+  const q = String(search || '').trim();
+  if (!q) return {};
+  const re = new RegExp(escapeRegex(q), 'i');
+  return { $or: [{ companyName: re }, { tradeName: re }, { requestId: re }, { cnpj: re }, { email: re }, { status: re }] };
+}
+
+function adminEnterprisePartnerLogQuery(partner = {}) {
+  const dto = adminEnterprisePartnerDTO(partner);
+  const ors = [];
+  [dto.requestId, dto.companyName, dto.tradeName, dto.cnpj, dto.id].filter(Boolean).forEach((v) => {
+    ors.push({ manufacturer: v });
+    ors.push({ orderId: v });
+    ors.push({ integrationId: v });
+    ors.push({ 'metadata.requestId': v });
+    ors.push({ 'metadata.companyName': v });
+    ors.push({ 'metadata.tradeName': v });
+    ors.push({ 'metadata.partnerId': v });
+  });
+  return ors.length ? { scope: 'enterprise', $or: ors } : { scope: 'enterprise' };
+}
+
+async function adminEnterpriseMetricsForPartner(partner = {}, days = 30) {
+  const since = new Date(Date.now() - Math.max(1, Number(days || 30)) * 24 * 60 * 60 * 1000);
+  const query = { ...adminEnterprisePartnerLogQuery(partner), createdAt: { $gte: since } };
+  const logs = await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(2000).lean().catch(() => []);
+  const calls = logs.length;
+  const success = logs.filter((l) => Number(l.statusCode || l.response?.status || 0) < 400 || String(l.status || '').toLowerCase() === 'success').length;
+  const errors = logs.filter((l) => Number(l.statusCode || l.response?.status || 0) >= 400 || String(l.status || '').toLowerCase() === 'error').length;
+  let totalMs = 0;
+  let timed = 0;
+  const byEndpoint = {};
+  const byStatus = { ok2xx: 0, bad4xx: 0, err5xx: 0, other: 0 };
+  for (const log of logs) {
+    const code = Number(log.statusCode || log.response?.status || 0);
+    if (code >= 200 && code < 300) byStatus.ok2xx += 1;
+    else if (code >= 400 && code < 500) byStatus.bad4xx += 1;
+    else if (code >= 500) byStatus.err5xx += 1;
+    else byStatus.other += 1;
+    const ms = Number(log.metadata?.durationMs || log.metadata?.totalMs || log.response?.durationMs || 0);
+    if (ms > 0) { totalMs += ms; timed += 1; }
+    const endpoint = String(log.metadata?.endpoint || log.metadata?.path || log.request?.path || log.eventType || 'unknown');
+    byEndpoint[endpoint] = (byEndpoint[endpoint] || 0) + 1;
+  }
+  return {
+    calls,
+    success,
+    errors,
+    successRate: calls ? Math.round((success / calls) * 10000) / 100 : 0,
+    avgMs: timed ? Math.round(totalMs / timed) : 0,
+    lastEventAt: logs[0]?.createdAt || null,
+    lastEventType: logs[0]?.eventType || '',
+    byStatus,
+    byEndpoint: Object.entries(byEndpoint).map(([endpoint, count]) => ({ endpoint, count })).sort((a, b) => b.count - a.count).slice(0, 20)
+  };
+}
+
+app.get('/api/admin/enterprise/pro/overview', adminRequired, async (req, res) => {
+  try {
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [partnersTotal, pending, sandbox, production, logs24h, errors24h, queuePending, queueDead] = await Promise.all([
+      EnterpriseHomologationRequestCompat.countDocuments({}).catch(() => 0),
+      EnterpriseHomologationRequestCompat.countDocuments({ status: { $in: ['pending', 'in_review', 'aguardando', 'aguardando_analise'] } }).catch(() => 0),
+      EnterpriseHomologationRequestCompat.countDocuments({ $or: [{ status: 'sandbox' }, { 'sandboxCredentials.active': true }, { 'sandbox.active': true }, { apiKeySandbox: { $exists: true, $ne: '' } }] }).catch(() => 0),
+      EnterpriseHomologationRequestCompat.countDocuments({ $or: [{ status: { $in: ['production', 'active'] } }, { 'productionCredentials.active': true }, { 'production.active': true }, { enterpriseApiKey: { $exists: true, $ne: '' } }] }).catch(() => 0),
+      IntegrationAuditLog.countDocuments({ scope: 'enterprise', createdAt: { $gte: since24h } }).catch(() => 0),
+      IntegrationAuditLog.countDocuments({ scope: 'enterprise', createdAt: { $gte: since24h }, $or: [{ status: 'error' }, { statusCode: { $gte: 400 } }] }).catch(() => 0),
+      ManufacturerDispatchQueue.countDocuments({ status: { $in: ['pending', 'retry'] }, deadLetter: { $ne: true } }).catch(() => 0),
+      ManufacturerDispatchQueue.countDocuments({ $or: [{ status: 'dead_letter' }, { deadLetter: true }] }).catch(() => 0)
+    ]);
+
+    const recentLogs = await IntegrationAuditLog.find({ scope: 'enterprise' }).sort({ createdAt: -1 }).limit(10).lean().catch(() => []);
+    const recentPartners = await EnterpriseHomologationRequestCompat.find({}).sort({ updatedAt: -1, createdAt: -1 }).limit(8).lean().catch(() => []);
+
+    return res.json({
+      ok: true,
+      summary: { partnersTotal, pending, sandbox, production, logs24h, errors24h, queuePending, queueDead, successRate24h: logs24h ? Math.round(((logs24h - errors24h) / logs24h) * 10000) / 100 : 0 },
+      recentLogs: recentLogs.map((l) => ({ id: String(l._id), eventType: l.eventType, manufacturer: l.manufacturer, status: l.status, statusCode: l.statusCode, message: l.message, createdAt: l.createdAt })),
+      recentPartners: recentPartners.map((p) => adminEnterprisePartnerDTO(p))
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar overview Enterprise' });
+  }
+});
+
+app.get('/api/admin/enterprise/pro/partners', adminRequired, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const status = String(req.query.status || '').trim();
+    const query = adminEnterprisePartnerMatchQuery(req.query.q || '');
+    if (status) query.status = status;
+    const [total, docs] = await Promise.all([
+      EnterpriseHomologationRequestCompat.countDocuments(query).catch(() => 0),
+      EnterpriseHomologationRequestCompat.find(query).sort({ updatedAt: -1, createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean().catch(() => [])
+    ]);
+    const partners = [];
+    for (const doc of docs) {
+      const metrics = await adminEnterpriseMetricsForPartner(doc, Number(req.query.days || 30));
+      partners.push(adminEnterprisePartnerDTO(doc, { metrics }));
+    }
+    return res.json({ ok: true, page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), partners });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar fabricantes Enterprise' });
+  }
+});
+
+app.get('/api/admin/enterprise/pro/partners/:id', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { requestId: id };
+    const doc = await EnterpriseHomologationRequestCompat.findOne(query).lean();
+    if (!doc) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    const [metrics, logs, queue] = await Promise.all([
+      adminEnterpriseMetricsForPartner(doc, Number(req.query.days || 30)),
+      IntegrationAuditLog.find(adminEnterprisePartnerLogQuery(doc)).sort({ createdAt: -1 }).limit(25).lean().catch(() => []),
+      ManufacturerDispatchQueue.find({ manufacturer: { $in: [doc.requestId, doc.tradeName, doc.companyName].filter(Boolean) } }).sort({ updatedAt: -1, createdAt: -1 }).limit(20).lean().catch(() => [])
+    ]);
+    return res.json({
+      ok: true,
+      partner: adminEnterprisePartnerDTO(doc, { metrics }),
+      raw: redact(doc),
+      logs: logs.map((l) => ({ id: String(l._id), eventType: l.eventType, manufacturer: l.manufacturer, status: l.status, statusCode: l.statusCode, message: l.message, createdAt: l.createdAt, metadata: redact(l.metadata || {}) })),
+      queue: queue.map((q) => ({ id: String(q._id), queueId: q.queueId, orderId: q.orderId, manufacturer: q.manufacturer, status: q.status, attempts: q.attempts, deadLetter: q.deadLetter, lastError: q.lastError, updatedAt: q.updatedAt }))
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar fabricante Enterprise' });
+  }
+});
+
+app.get('/api/admin/enterprise/pro/partners/:id/logs', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const queryPartner = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { requestId: id };
+    const partner = await EnterpriseHomologationRequestCompat.findOne(queryPartner).lean();
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+    const query = adminEnterprisePartnerLogQuery(partner);
+    if (req.query.status) {
+      const status = String(req.query.status);
+      if (status === '2xx') query.statusCode = { $gte: 200, $lt: 300 };
+      else if (status === '4xx') query.statusCode = { $gte: 400, $lt: 500 };
+      else if (status === '5xx') query.statusCode = { $gte: 500 };
+    }
+    if (req.query.q) {
+      const re = new RegExp(escapeRegex(String(req.query.q)), 'i');
+      query.$and = [{ $or: [{ eventType: re }, { message: re }, { manufacturer: re }, { orderId: re }] }];
+    }
+    const [total, logs] = await Promise.all([
+      IntegrationAuditLog.countDocuments(query).catch(() => 0),
+      IntegrationAuditLog.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean().catch(() => [])
+    ]);
+    return res.json({ ok: true, page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), logs: logs.map((l) => ({ id: String(l._id), eventType: l.eventType, status: l.status, statusCode: l.statusCode, message: l.message, createdAt: l.createdAt, metadata: redact(l.metadata || {}), request: redact(l.request || {}), response: redact(l.response || {}) })) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar logs do fabricante' });
+  }
+});
+
+app.post('/api/admin/enterprise/pro/partners/:id/status', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const status = String(req.body?.status || '').trim();
+    const allowed = ['pending', 'in_review', 'sandbox', 'approved', 'production', 'active', 'rejected'];
+    if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Status inválido' });
+    const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { requestId: id };
+    const doc = await EnterpriseHomologationRequestCompat.findOneAndUpdate(query, { $set: { status, statusLabel: status, environment: status === 'production' || status === 'active' ? 'production' : (status === 'sandbox' || status === 'approved' ? 'sandbox' : 'pending') }, $push: { history: { status, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } }, { new: true });
+    if (!doc) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_partner_status_changed', manufacturer: doc.requestId || doc.tradeName || doc.companyName || '', status: 'success', statusCode: 200, message: `Status Enterprise alterado para ${status}`, metadata: { status, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
+    return res.json({ ok: true, partner: adminEnterprisePartnerDTO(doc), message: 'Status atualizado' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao alterar status' });
+  }
+});
+
+app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/rotate', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const environment = String(req.params.environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+    const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { requestId: id };
+    const partner = await EnterpriseHomologationRequestCompat.findOne(query);
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    const key = enterprisePartnerGenerateKey(environment, partner);
+    const path = enterprisePartnerEnvironmentPath(environment);
+    const set = {
+      [`${path}.apiKey`]: key,
+      [`${path}.active`]: true,
+      [`${path}.environment`]: environment,
+      [`${path}.rotatedAt`]: new Date(),
+      [`${path}.lastAccessAt`]: null,
+      [`${path}.requestCount`]: 0
+    };
+    if (environment === 'sandbox') Object.assign(set, { 'sandbox.apiKey': key, 'sandbox.active': true, 'credentials.sandbox.apiKey': key, 'credentials.sandbox.active': true, apiKeySandbox: key, sandboxApiKey: key, status: partner.status || 'sandbox', environment: 'sandbox' });
+    else Object.assign(set, { 'production.apiKey': key, 'production.active': true, 'credentials.production.apiKey': key, 'credentials.production.active': true, enterpriseApiKey: key, apiKey: key, status: 'production', environment: 'production' });
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $push: { history: { status: `${environment}_key_rotated`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } });
+    await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_api_key_rotated', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', status: 'success', statusCode: 200, message: `API Key ${environment} renovada pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
+    return res.json({ ok: true, environment, apiKey: key, message: 'API Key renovada' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao renovar chave' });
+  }
+});
+
+app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/revoke', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const environment = String(req.params.environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+    const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { requestId: id };
+    const partner = await EnterpriseHomologationRequestCompat.findOne(query);
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    const path = enterprisePartnerEnvironmentPath(environment);
+    const set = { [`${path}.active`]: false, [`${path}.revokedAt`]: new Date() };
+    if (environment === 'sandbox') Object.assign(set, { 'sandbox.active': false, 'credentials.sandbox.active': false });
+    else Object.assign(set, { 'production.active': false, 'credentials.production.active': false });
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $push: { history: { status: `${environment}_key_revoked`, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' } } });
+    await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'admin_api_key_revoked', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', status: 'success', statusCode: 200, message: `API Key ${environment} revogada pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
+    return res.json({ ok: true, environment, message: 'API Key revogada' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao revogar chave' });
+  }
+});
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.

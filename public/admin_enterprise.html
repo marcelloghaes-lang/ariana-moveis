@@ -1,31 +1,81 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Enterprise | Ariana Móveis</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Enterprise Pro | Ariana Móveis</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
-    body{font-family:Inter,Arial,sans-serif;background:#f3f6fb;margin:0;color:#0f172a}.wrap{max-width:1180px;margin:0 auto;padding:22px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center}.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 8px 24px #0f172a0c}.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:14px}.stat small{color:#64748b;font-weight:800}.stat b{display:block;color:#0047AB;font-size:25px;margin-top:4px}button{background:#1d4ed8;color:#fff;border:0;border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}input{border:1px solid #dbe3ef;border-radius:12px;padding:10px;width:100%}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e5e7eb;text-align:left;padding:9px;font-size:13px}th{color:#64748b}.muted{color:#64748b}.ok{color:#16a34a;font-weight:900}.bad{color:#dc2626;font-weight:900}@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}.top{display:block}}</style>
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#132235;--bg:#f3f7fb;--card:#fff;--muted:#64748b;--ok:#16a34a;--warn:#f59e0b;--danger:#dc2626;--border:#dbe5f0}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:#0f172a}.app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}.side{background:#132235;color:#fff;padding:28px 20px}.brand{font-weight:900;letter-spacing:3px;margin-bottom:28px}.nav{display:grid;gap:8px}.nav a,.nav button{color:#dbeafe;background:transparent;border:0;text-decoration:none;font-weight:900;text-align:left;padding:13px 14px;border-radius:13px;cursor:pointer;font-size:15px}.nav a:hover,.nav button.active,.nav button:hover{background:#1d4ed8;color:#fff}.main{padding:30px}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border-radius:26px;padding:34px;display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:22px}.hero h1{margin:0;font-size:40px}.hero p{margin:8px 0 0}.pill{background:#dcfce7;color:#166534;border-radius:999px;padding:10px 14px;font-weight:900}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:18px 0}.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:20px;box-shadow:0 14px 35px rgba(15,23,42,.06)}.stat{font-size:32px;font-weight:900}.muted{color:var(--muted)}.ok{color:var(--ok);font-weight:900}.warn{color:var(--warn);font-weight:900}.danger{color:var(--danger);font-weight:900}.filters{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.input,.select{border:1px solid #cbd5e1;border-radius:12px;padding:11px 12px;background:#fff;font:inherit}.btn{border:0;background:var(--blue);color:#fff;border-radius:12px;padding:11px 14px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-block}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.btn.warn{background:#f59e0b}.btn.danger{background:#dc2626}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:13px;border-bottom:1px solid #edf2f7;font-size:14px;vertical-align:top}.table th{background:#f8fafc;color:#64748b;text-transform:uppercase;font-size:12px}.badge{padding:6px 9px;border-radius:999px;font-weight:900;font-size:12px;display:inline-block}.green{background:#dcfce7;color:#166534}.red{background:#fee2e2;color:#991b1b}.yellow{background:#fef3c7;color:#92400e}.blue{background:#dbeafe;color:#1d4ed8}.modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:20;padding:24px;align-items:center;justify-content:center}.modal.show{display:flex}.modal-card{background:#fff;border-radius:22px;max-width:1180px;width:100%;max-height:88vh;overflow:auto;padding:22px}.modal-head{display:flex;justify-content:space-between;gap:16px;align-items:center}.pre{background:#0b1220;color:#fff;border-radius:16px;padding:16px;white-space:pre-wrap;overflow:auto;font-family:Consolas,monospace;font-size:13px}.code{font-family:Consolas,monospace;word-break:break-all}.toast{position:fixed;right:20px;bottom:20px;background:#0f172a;color:white;padding:14px 16px;border-radius:14px;display:none;z-index:40}.toast.show{display:block}@media(max-width:1000px){.app{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.side{position:relative}.hero{display:block}.hero h1{font-size:32px}}@media(max-width:650px){.grid{grid-template-columns:1fr}.main{padding:16px}}
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top"><div><h1>Integrações Enterprise</h1><p class="muted">Whirlpool, Samsung, Electrolux e demais fabricantes integrados por API.</p></div><button onclick="loadAll()">Atualizar</button></div>
-  <div class="card"><label>Token admin JWT</label><input id="token" placeholder="Cole aqui o token admin se não estiver salvo no navegador"><p class="muted">Esta tela tenta usar automaticamente admin_token, token_admin ou token do localStorage.</p></div>
-  <div class="grid" id="stats"></div>
-  <div class="card"><h2>Fabricantes</h2><div id="manufacturers">Carregando...</div></div>
-  <div class="card"><h2>Últimos pedidos Enterprise</h2><div id="orders">Carregando...</div></div>
-  <div class="card"><h2>Últimos logs</h2><div id="logs">Carregando...</div></div>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ADMIN ENTERPRISE</div>
+    <nav class="nav">
+      <button class="active" onclick="showTab('overview',this)">📊 Visão geral</button>
+      <button onclick="showTab('partners',this)">🏭 Fabricantes</button>
+      <button onclick="showTab('errors',this)">⚠️ Erros e fila</button>
+      <a href="admin_painel.html#">← Painel Admin</a>
+      <a href="portal_fabricante.html">Portal Fabricante</a>
+      <a href="enterprise_swagger.html">Swagger / OpenAPI</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="hero"><div><h1>Portal Admin Enterprise</h1><p>Controle fabricantes, homologações, API Keys, consumo, logs, certificados e filas.</p></div><span class="pill">PRO</span></header>
+
+    <section id="overview" class="section">
+      <div class="grid">
+        <div class="card"><div id="stPartners" class="stat">0</div><div class="muted">Fabricantes</div></div>
+        <div class="card"><div id="stSandbox" class="stat ok">0</div><div class="muted">Sandbox</div></div>
+        <div class="card"><div id="stProduction" class="stat">0</div><div class="muted">Produção</div></div>
+        <div class="card"><div id="stErrors" class="stat danger">0</div><div class="muted">Erros 24h</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h2>Fabricantes recentes</h2><table class="table"><thead><tr><th>Empresa</th><th>Status</th><th>Sucesso</th><th>Ação</th></tr></thead><tbody id="recentPartners"></tbody></table></div>
+        <div class="card"><h2>Logs recentes</h2><table class="table"><thead><tr><th>Evento</th><th>Status</th><th>Data</th></tr></thead><tbody id="recentLogs"></tbody></table></div>
+      </div>
+    </section>
+
+    <section id="partners" class="section" style="display:none">
+      <h2>Fabricantes Enterprise</h2>
+      <div class="filters"><input id="q" class="input" placeholder="Pesquisar empresa, CNPJ, e-mail..." onkeydown="if(event.key==='Enter') loadPartners()"><select id="status" class="select" onchange="loadPartners()"><option value="">Todos os status</option><option value="pending">Pendente</option><option value="in_review">Em análise</option><option value="sandbox">Sandbox</option><option value="approved">Aprovado</option><option value="production">Produção</option><option value="rejected">Reprovado</option></select><button class="btn light" onclick="loadPartners()">Atualizar</button></div>
+      <div class="card"><table class="table"><thead><tr><th>Fabricante</th><th>Status</th><th>Sandbox</th><th>Produção</th><th>Chamadas</th><th>Sucesso</th><th>Ações</th></tr></thead><tbody id="partnersBody"></tbody></table></div>
+    </section>
+
+    <section id="errors" class="section" style="display:none">
+      <div class="grid">
+        <div class="card"><div id="queuePending" class="stat warn">0</div><div class="muted">Fila pendente</div></div>
+        <div class="card"><div id="queueDead" class="stat danger">0</div><div class="muted">Dead letter</div></div>
+        <div class="card"><div id="logs24h" class="stat">0</div><div class="muted">Chamadas 24h</div></div>
+        <div class="card"><div id="successRate24h" class="stat ok">0%</div><div class="muted">Sucesso 24h</div></div>
+      </div>
+      <div class="card"><p class="muted">Use a aba Fabricantes para abrir detalhes, verificar logs, renovar/revogar chaves e liberar produção.</p></div>
+    </section>
+  </main>
 </div>
+<div id="partnerModal" class="modal"><div class="modal-card"><div class="modal-head"><div><h2 id="modalTitle">Fabricante</h2><p id="modalSub" class="muted"></p></div><button class="btn light" onclick="closeModal()">Fechar</button></div><div id="modalContent"></div></div></div>
+<div id="toast" class="toast"></div>
 <script>
-const API_BASE = location.hostname.includes('localhost') ? 'http://localhost:3000/api' : 'https://ariana-backend.onrender.com/api';
-function getToken(){return document.getElementById('token').value.trim()||localStorage.getItem('admin_token')||localStorage.getItem('token_admin')||localStorage.getItem('token')||''}
-function fmtDate(v){try{return v?new Date(v).toLocaleString('pt-BR'):'-'}catch{return '-'}}
-function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-async function api(path){const token=getToken();const res=await fetch(`${API_BASE}${path}`,{headers:{Authorization:`Bearer ${token}`}});const data=await res.json().catch(()=>({ok:false,error:'Resposta inválida'}));if(!res.ok||data.ok===false) throw new Error(data.error||`HTTP ${res.status}`);return data}
-function renderStats(s){const labels=[['Pedidos',s.totalOrders],['Hoje',s.ordersToday],['Enviados',s.sentOrders],['Tracking',s.trackingReceived],['NF-e',s.invoiceReceived],['Logs hoje',s.logsToday],['Fila',s.queueTotal],['Pendentes',s.queuePending],['Falhas',s.queueFailed]];document.getElementById('stats').innerHTML=labels.map(([a,b])=>`<div class="stat"><small>${a}</small><b>${b??0}</b></div>`).join('')}
-function table(rows,cols){if(!rows?.length)return '<p class="muted">Nenhum registro encontrado.</p>';return `<table><thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
-async function loadAll(){try{const d=await api('/enterprise/dashboard');renderStats(d.summary||{});document.getElementById('manufacturers').innerHTML=table(d.manufacturers||[],[['Fabricante',r=>r.manufacturer],['Pedidos',r=>r.total],['Última atualização',r=>fmtDate(r.lastUpdate)]]);document.getElementById('orders').innerHTML=table(d.lastOrders||[],[['Pedido externo',r=>r.manufacturerDispatch?.externalOrderId||'-'],['Fabricante',r=>r.manufacturer||'-'],['Cliente',r=>r.customerName||'-'],['Status',r=>r.status_integracao||r.status||'-'],['Total',r=>money(r.total)],['Atualizado',r=>fmtDate(r.updatedAt)]]);document.getElementById('logs').innerHTML=table(d.lastLogs||[],[['Evento',r=>r.eventType||'-'],['Fabricante',r=>r.manufacturer||'-'],['Status',r=>r.status||'-'],['Pedido',r=>r.orderId||'-'],['Data',r=>fmtDate(r.createdAt)]]);}catch(e){document.getElementById('stats').innerHTML='';document.getElementById('manufacturers').innerHTML=`<p class="bad">${e.message}</p>`;document.getElementById('orders').innerHTML='';document.getElementById('logs').innerHTML='';}}
-loadAll();
+const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+function token(){return localStorage.getItem('admin_token')||''}
+if(!token()){ alert('Faça login no Painel Admin primeiro.'); location.href='admin_painel.html'; }
+function h(){return {'Authorization':'Bearer '+token(),'Content-Type':'application/json'}}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function dt(v){try{return v?new Date(v).toLocaleString('pt-BR'):'—'}catch{return '—'}}
+function badgeStatus(s){s=String(s||'pending');let c=s.includes('prod')||s.includes('active')?'green':s.includes('rejected')?'red':s.includes('sandbox')||s.includes('approved')?'blue':'yellow';return `<span class="badge ${c}">${esc(s)}</span>`}
+function toastMsg(t){toast.textContent=t;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500)}
+async function api(path,opt={}){const r=await fetch(API_BASE+path,{...opt,headers:{...h(),...(opt.headers||{})}});const d=await r.json().catch(()=>({ok:false,error:'Resposta inválida'}));if(!r.ok||d.ok===false)throw new Error(d.error||'Erro HTTP '+r.status);return d}
+function showTab(id,btn){document.querySelectorAll('.section').forEach(s=>s.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active'); if(id==='partners') loadPartners(); if(id==='overview'||id==='errors') loadOverview();}
+async function loadOverview(){const d=await api('/admin/enterprise/pro/overview');const s=d.summary||{};stPartners.textContent=s.partnersTotal||0;stSandbox.textContent=s.sandbox||0;stProduction.textContent=s.production||0;stErrors.textContent=s.errors24h||0;queuePending.textContent=s.queuePending||0;queueDead.textContent=s.queueDead||0;logs24h.textContent=s.logs24h||0;successRate24h.textContent=(s.successRate24h||0)+'%';recentPartners.innerHTML=(d.recentPartners||[]).map(p=>`<tr><td><b>${esc(p.tradeName||p.companyName||p.requestId)}</b><br><span class="muted">${esc(p.cnpj||p.email)}</span></td><td>${badgeStatus(p.status)}</td><td>${p.metrics?.successRate||0}%</td><td><button class="btn light" onclick="openPartner('${esc(p.id||p.requestId)}')">Abrir</button></td></tr>`).join('')||'<tr><td colspan="4">Nenhum fabricante.</td></tr>';recentLogs.innerHTML=(d.recentLogs||[]).map(l=>`<tr><td>${esc(l.eventType)}</td><td class="${Number(l.statusCode||0)>=400?'danger':'ok'}">${l.statusCode||l.status||'-'}</td><td>${dt(l.createdAt)}</td></tr>`).join('')||'<tr><td colspan="3">Sem logs.</td></tr>'}
+async function loadPartners(){const qs=new URLSearchParams({limit:'50',q:q.value||'',status:status.value||''});const d=await api('/admin/enterprise/pro/partners?'+qs.toString());partnersBody.innerHTML=(d.partners||[]).map(p=>`<tr><td><b>${esc(p.tradeName||p.companyName||p.requestId)}</b><br><span class="muted">${esc(p.companyName||'')} • ${esc(p.cnpj||p.email||'')}</span></td><td>${badgeStatus(p.status)}</td><td>${p.sandbox.active?'<span class="badge green">Ativa</span>':'<span class="badge red">Inativa</span>'}<br><span class="code muted">${esc(p.sandbox.apiKeyMasked||'')}</span></td><td>${p.production.active?'<span class="badge green">Ativa</span>':'<span class="badge red">Inativa</span>'}<br><span class="code muted">${esc(p.production.apiKeyMasked||'')}</span></td><td>${p.metrics?.calls||0}</td><td>${p.metrics?.successRate||0}%</td><td><button class="btn" onclick="openPartner('${esc(p.id||p.requestId)}')">Gerenciar</button></td></tr>`).join('')||'<tr><td colspan="7">Nenhum fabricante encontrado.</td></tr>'}
+async function openPartner(id){const d=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id));const p=d.partner||{};modalTitle.textContent=p.tradeName||p.companyName||p.requestId;modalSub.textContent=(p.companyName||'')+' • '+(p.cnpj||p.email||'');partnerModal.classList.add('show');modalContent.innerHTML=`<div class="grid"><div class="card"><div class="stat">${p.metrics?.calls||0}</div><div class="muted">Chamadas</div></div><div class="card"><div class="stat ok">${p.metrics?.successRate||0}%</div><div class="muted">Sucesso</div></div><div class="card"><div class="stat danger">${p.metrics?.errors||0}</div><div class="muted">Erros</div></div><div class="card"><div class="stat">${p.metrics?.avgMs||0}ms</div><div class="muted">Tempo médio</div></div></div><div class="card"><h3>Status e ambiente</h3><div class="filters"><select id="newStatus" class="select"><option value="pending">Pendente</option><option value="in_review">Em análise</option><option value="sandbox">Sandbox</option><option value="approved">Aprovado</option><option value="production">Produção</option><option value="active">Ativo</option><option value="rejected">Reprovado</option></select><button class="btn" onclick="changeStatus('${esc(p.id)}')">Salvar status</button></div></div><div class="grid2"><div class="card"><h3>API Keys</h3><p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.sandbox.apiKeyMasked||'')}</span></p><p><b>Produção:</b> ${p.production.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.production.apiKeyMasked||'')}</span></p><button class="btn warn" onclick="rotateKey('${esc(p.id)}','sandbox')">Renovar Sandbox</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','sandbox')">Revogar Sandbox</button> <button class="btn warn" onclick="rotateKey('${esc(p.id)}','production')">Renovar Produção</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','production')">Revogar Produção</button><p class="muted" id="newKeyOut"></p></div><div class="card"><h3>Fila de envio</h3>${(d.queue||[]).map(q=>`<p><b>${esc(q.queueId)}</b> • ${esc(q.status)} • tentativas ${q.attempts||0}<br><span class="danger">${esc(q.lastError||'')}</span></p>`).join('')||'<p class="muted">Sem fila recente.</p>'}</div></div><div class="card"><h3>Logs recentes</h3><table class="table"><thead><tr><th>Data</th><th>Evento</th><th>Status</th><th>Mensagem</th></tr></thead><tbody>${(d.logs||[]).map(l=>`<tr><td>${dt(l.createdAt)}</td><td><b>${esc(l.eventType)}</b></td><td class="${Number(l.statusCode||0)>=400?'danger':'ok'}">${l.statusCode||l.status||'-'}</td><td>${esc(l.message||'-')}</td></tr>`).join('')||'<tr><td colspan="4">Sem logs.</td></tr>'}</tbody></table></div><details class="card"><summary><b>Dados técnicos</b></summary><pre class="pre">${esc(JSON.stringify(d.raw||{},null,2))}</pre></details>`;document.getElementById('newStatus').value=p.status||'pending'}
+function closeModal(){partnerModal.classList.remove('show')}
+async function changeStatus(id){await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/status',{method:'POST',body:JSON.stringify({status:newStatus.value})});toastMsg('Status atualizado.');await openPartner(id);await loadPartners();}
+async function rotateKey(id,env){if(!confirm('Renovar chave '+env+'?'))return;const d=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/api-keys/'+env+'/rotate',{method:'POST',body:'{}'});document.getElementById('newKeyOut').innerHTML='<b>Nova chave '+env+':</b><br><span class="code">'+esc(d.apiKey||'')+'</span>';toastMsg('Chave renovada. Copie agora.');}
+async function revokeKey(id,env){if(!confirm('Revogar chave '+env+'?'))return;await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/api-keys/'+env+'/revoke',{method:'POST',body:'{}'});toastMsg('Chave revogada.');await openPartner(id);await loadPartners();}
+loadOverview().catch(e=>alert(e.message));
 </script>
 </body>
 </html>
