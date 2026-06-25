@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { ok, fail } from '../utils/http.js';
 import {
   listIntegrations,
@@ -54,6 +55,10 @@ const homologationRequestSchema = new mongoose.Schema({
   status: { type: String, default: 'pending', index: true },
   statusLabel: { type: String, default: 'Aguardando análise' },
   adminNotes: String,
+  environment: { type: String, default: 'pending', index: true },
+  sandboxCredentials: mongoose.Schema.Types.Mixed,
+  productionCredentials: mongoose.Schema.Types.Mixed,
+  statusHistory: { type: [mongoose.Schema.Types.Mixed], default: [] },
   reviewedBy: String,
   reviewedAt: Date,
   source: { type: String, default: 'developers_page' },
@@ -79,6 +84,43 @@ function createRequestId() {
   const d = String(date.getDate()).padStart(2, '0');
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `HML-${y}${m}${d}-${random}`;
+}
+
+function createSandboxCredentials(request = {}, admin = {}) {
+  const cleanCompany = String(request.companyName || request.tradeName || request.requestId || 'empresa')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40) || 'empresa';
+
+  const suffix = crypto.randomBytes(5).toString('hex');
+  const apiKey = `ari_sbx_${cleanCompany}_${suffix}`;
+  const webhookSecret = `whsec_sbx_${crypto.randomBytes(24).toString('hex')}`;
+  const clientId = `ari_client_sbx_${crypto.randomBytes(8).toString('hex')}`;
+
+  return {
+    environment: 'sandbox',
+    apiKey,
+    clientId,
+    webhookSecret,
+    baseUrl: String(process.env.ENTERPRISE_SANDBOX_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
+    docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/developers.html').trim(),
+    generatedAt: new Date(),
+    generatedBy: admin?.email || admin?.id || 'admin',
+    active: true
+  };
+}
+
+function buildStatusHistoryEntry({ status, statusLabel, admin, note = '' } = {}) {
+  return {
+    status,
+    label: statusLabel,
+    note: cleanText(note, 1000),
+    by: admin?.email || admin?.id || 'admin',
+    at: new Date()
+  };
 }
 
 function normalizeHomologationStatus(status = '') {
@@ -195,7 +237,8 @@ router.post('/homologation/request', async (req, res) => {
       orderVolume: cleanText(body.orderVolume || body.volumePedidos, 80),
       message: cleanText(body.message || body.mensagem || body.observacoes, 2000),
       source: cleanText(body.source || 'developers_page', 80),
-      metadata: { userAgent: req.headers['user-agent'] || '', ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '' }
+      metadata: { userAgent: req.headers['user-agent'] || '', ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '' },
+      statusHistory: [{ status: 'pending', label: 'Solicitação enviada', note: 'Solicitação criada pelo formulário público.', at: new Date(), by: 'formulario_publico' }]
     });
 
     return ok(res, { request: { id: String(request._id), requestId: request.requestId, status: request.status, statusLabel: request.statusLabel, companyName: request.companyName, email: request.email, createdAt: request.createdAt } }, 201);
@@ -230,9 +273,42 @@ router.patch('/homologation-requests/:id/status', adminOnly, async (req, res) =>
     const id = String(req.params.id || '').trim();
     const normalized = normalizeHomologationStatus(req.body?.status);
     const adminNotes = cleanText(req.body?.adminNotes || req.body?.notes || '', 2000);
+    const regenerate = req.body?.regenerate === true || String(req.body?.regenerate || '').toLowerCase() === 'true';
     const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: new mongoose.Types.ObjectId(id) } : { requestId: id };
-    const request = await EnterpriseHomologationRequest.findOneAndUpdate(filter, { $set: { status: normalized.status, statusLabel: normalized.statusLabel, adminNotes, reviewedBy: req.admin?.email || req.admin?.id || 'admin', reviewedAt: new Date() } }, { new: true }).lean();
-    if (!request) return fail(res, 404, 'Solicitação não encontrada');
+
+    const current = await EnterpriseHomologationRequest.findOne(filter);
+    if (!current) return fail(res, 404, 'Solicitação não encontrada');
+
+    const update = {
+      status: normalized.status,
+      statusLabel: normalized.statusLabel,
+      adminNotes,
+      reviewedBy: req.admin?.email || req.admin?.id || 'admin',
+      reviewedAt: new Date()
+    };
+
+    if (normalized.status === 'sandbox') {
+      update.environment = 'sandbox';
+      if (!current.sandboxCredentials?.apiKey || regenerate) {
+        update.sandboxCredentials = createSandboxCredentials(current, req.admin);
+      }
+    } else if (normalized.status === 'production') {
+      update.environment = 'production';
+    } else if (normalized.status === 'rejected') {
+      update.environment = 'rejected';
+    }
+
+    current.set(update);
+    current.statusHistory = Array.isArray(current.statusHistory) ? current.statusHistory : [];
+    current.statusHistory.push(buildStatusHistoryEntry({
+      status: normalized.status,
+      statusLabel: normalized.statusLabel,
+      admin: req.admin,
+      note: adminNotes || (normalized.status === 'sandbox' ? 'Sandbox liberado e credenciais de teste geradas.' : '')
+    }));
+
+    await current.save();
+    const request = current.toObject();
     return ok(res, { request });
   } catch (error) {
     return fail(res, 400, error.message || 'Erro ao atualizar solicitação');

@@ -147,6 +147,27 @@
     </div>
   </div>
 
+
+  <div id="homologation-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[9999] p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade overflow-hidden">
+      <div class="p-5 border-b flex justify-between items-start gap-4 bg-gray-50">
+        <div>
+          <h3 class="text-xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-clipboard-check text-primary-blue"></i> Detalhes da Homologação</h3>
+          <p id="homologation-modal-subtitle" class="text-xs text-gray-500 mt-1">Ficha completa da solicitação Enterprise</p>
+        </div>
+        <button onclick="window.enterpriseCloseHomologationModal()" class="text-gray-400 hover:text-gray-700 text-3xl font-bold leading-none">&times;</button>
+      </div>
+      <div id="homologation-modal-content" class="p-6 max-h-[76vh] overflow-y-auto"></div>
+      <div class="p-5 border-t bg-gray-50 flex flex-wrap justify-end gap-2">
+        <button type="button" onclick="window.enterprisePrintHomologationDetails()" class="px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-100"><i class="fas fa-print mr-2"></i>Imprimir ficha</button>
+        <button type="button" onclick="window.enterpriseSetHomologationStatusFromModal('in_review')" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold hover:opacity-90"><i class="fas fa-magnifying-glass mr-2"></i>Em análise</button>
+        <button type="button" onclick="window.enterpriseSetHomologationStatusFromModal('sandbox')" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold hover:opacity-90"><i class="fas fa-flask mr-2"></i>Sandbox</button><button type="button" onclick="window.enterpriseRegenerateSandboxFromModal()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:opacity-90"><i class="fas fa-key mr-2"></i>Nova chave</button>
+        <button type="button" onclick="window.enterpriseSetHomologationStatusFromModal('rejected')" class="px-4 py-2 rounded-xl bg-error-red text-white text-sm font-bold hover:opacity-90"><i class="fas fa-ban mr-2"></i>Reprovar</button>
+        <button type="button" onclick="window.enterpriseCloseHomologationModal()" class="px-4 py-2 rounded-xl bg-gray-700 text-white text-sm font-bold hover:bg-gray-800">Fechar</button>
+      </div>
+    </div>
+  </div>
+
 <script src="js/api-config.js"></script>
 
 <script>
@@ -167,6 +188,8 @@ let allCategoriesCache = [];
 let allOrdersCache = [];
 let allUsersCache = [];
 let allNotificationsCache = [];
+let enterpriseHomologationRequestsCache = [];
+let currentHomologationRequestId = null;
 let notificationsBooted = false;
 let knownNotificationIds = new Set();
 let editingProductId = null;
@@ -745,17 +768,17 @@ function enterpriseStatusBadge(status=''){
 }
 
 window.enterpriseSyncCatalogSample = async function(){
-  if(!confirm('Criar/atualizar 3 produtos Enterprise de teste da Whirlpool?')) return;
+  if(!confirm('Criar/atualizar 3 produtos Enterprise de teste da Ariana Demo?')) return;
   try {
     displayMessage('Sincronizando catálogo Enterprise de teste...', 'info');
     const payload = {
-      manufacturer: 'whirlpool',
-      sellerId: 'whirlpool',
-      sellerName: 'Whirlpool',
+      manufacturer: 'ariana_demo',
+      sellerId: 'ariana_demo',
+      sellerName: 'Ariana Demo',
       items: [
-        { sku: 'WH-BRM44TESTE', name: 'Geladeira Teste Whirlpool Enterprise', description: 'Produto de teste recebido via catálogo Enterprise.', category: 'Geladeiras & Refrigeradores', brand: 'Whirlpool', price: 2500, stock: 12, weight: 60, length: 70, height: 175, width: 70, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Whirlpool' },
-        { sku: 'WH-LAV12TESTE', name: 'Lavadora Teste Whirlpool Enterprise', description: 'Lavadora de teste recebida via catálogo Enterprise.', category: 'Eletrodomésticos', brand: 'Whirlpool', price: 1899, stock: 7, weight: 45, length: 65, height: 100, width: 65, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Lavadora' },
-        { sku: 'WH-MICROTESTE', name: 'Micro-ondas Teste Whirlpool Enterprise', description: 'Micro-ondas de teste recebido via catálogo Enterprise.', category: 'Eletroportáteis', brand: 'Whirlpool', price: 699, stock: 20, weight: 12, length: 45, height: 30, width: 55, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Microondas' }
+        { sku: 'AD-GEL44TESTE', name: 'Geladeira Teste Ariana Demo Enterprise', description: 'Produto de teste recebido via catálogo Enterprise.', category: 'Geladeiras & Refrigeradores', brand: 'Ariana Demo', price: 2500, stock: 12, weight: 60, length: 70, height: 175, width: 70, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Ariana+Demo' },
+        { sku: 'AD-LAV12TESTE', name: 'Lavadora Teste Ariana Demo Enterprise', description: 'Lavadora de teste recebida via catálogo Enterprise.', category: 'Eletrodomésticos', brand: 'Ariana Demo', price: 1899, stock: 7, weight: 45, length: 65, height: 100, width: 65, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Lavadora' },
+        { sku: 'AD-MICROTESTE', name: 'Micro-ondas Teste Ariana Demo Enterprise', description: 'Micro-ondas de teste recebido via catálogo Enterprise.', category: 'Eletroportáteis', brand: 'Ariana Demo', price: 699, stock: 20, weight: 12, length: 45, height: 30, width: 55, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Microondas' }
       ]
     };
     const data = await apiRequest('/enterprise/catalog/sync', { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify(payload) });
@@ -767,18 +790,18 @@ window.enterpriseSyncCatalogSample = async function(){
 }
 
 window.enterpriseSyncProductSample = async function(){
-  if(!confirm('Atualizar o produto WH-BRM44TESTE para testar estoque/preço/status?')) return;
+  if(!confirm('Atualizar o produto AD-GEL44TESTE para testar estoque/preço/status?')) return;
   try{
     const payload = {
-      manufacturer: 'whirlpool',
-      sellerId: 'whirlpool',
+      manufacturer: 'ariana_demo',
+      sellerId: 'ariana_demo',
       price: 2299,
       stock: 3,
       active: true,
       availability: 'available',
       status: 'updated_by_enterprise_test'
     };
-    const data = await apiRequest('/enterprise/products/WH-BRM44TESTE/sync', { method:'POST', headers:buildHeadersAuth({'x-ariana-key': localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || ''}), body:JSON.stringify(payload) });
+    const data = await apiRequest('/enterprise/products/AD-GEL44TESTE/sync', { method:'POST', headers:buildHeadersAuth({'x-ariana-key': localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || ''}), body:JSON.stringify(payload) });
     displayMessage('Estoque/preço sincronizados no produto teste.', 'success');
     await renderEnterpriseView();
     return data;
@@ -840,7 +863,170 @@ window.enterpriseDispatchQueueItem = async function(queueId){
 }
 
 
-window.enterpriseSetHomologationStatus = async function(requestId, status){
+
+function enterpriseStatusText(status=''){
+  const map = {
+    pending: 'Aguardando análise',
+    in_review: 'Em análise',
+    sandbox: 'Sandbox liberado',
+    approved: 'Aprovado',
+    production: 'Produção liberada',
+    rejected: 'Reprovado'
+  };
+  const key = String(status || '').toLowerCase().trim();
+  return map[key] || status || 'Aguardando análise';
+}
+function enterpriseArrayText(value){
+  if(Array.isArray(value)) return value.filter(Boolean).join(', ');
+  if(typeof value === 'string') return value;
+  return '';
+}
+function enterpriseGetHomologationId(r){
+  return String(r?._id || r?.id || r?.requestId || '').trim();
+}
+function enterpriseFindHomologationRequest(requestId){
+  const id = String(requestId || '').trim();
+  return enterpriseHomologationRequestsCache.find((r) =>
+    String(r?._id || '') === id ||
+    String(r?.id || '') === id ||
+    String(r?.requestId || '') === id
+  ) || null;
+}
+function enterpriseDetailRow(label, value){
+  return `<div class="p-4 rounded-xl bg-gray-50 border border-gray-100"><div class="text-[11px] uppercase font-black text-gray-400 mb-1">${escHtml(label)}</div><div class="text-sm font-bold text-gray-800 break-words whitespace-pre-wrap">${escHtml(value || '—')}</div></div>`;
+}
+
+function enterpriseCredentialValue(value){
+  return String(value || '').trim();
+}
+function enterpriseCredentialBlock(label, value){
+  const v = enterpriseCredentialValue(value);
+  const safe = escHtml(v || 'Não gerado');
+  const copyArg = escHtml(v).replace(/'/g, '&#39;');
+  return `<div class="p-4 rounded-xl bg-slate-900 text-white border border-slate-700">
+    <div class="text-[11px] uppercase font-black text-slate-400 mb-2">${escHtml(label)}</div>
+    <div class="font-mono text-xs break-all bg-black/25 rounded-lg p-3 border border-white/10">${safe}</div>
+    ${v ? `<button type="button" onclick="window.enterpriseCopyText('${copyArg}')" class="mt-3 px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black hover:bg-slate-100"><i class="fas fa-copy mr-1"></i>Copiar</button>` : ''}
+  </div>`;
+}
+function enterpriseSandboxCredentials(request){
+  return request?.sandboxCredentials || request?.sandbox || request?.credentials?.sandbox || {};
+}
+window.enterpriseOpenHomologationDetails = function(requestId){
+  const r = enterpriseFindHomologationRequest(requestId);
+  if(!r){ displayMessage('Não encontrei os dados desta solicitação. Atualize o painel e tente novamente.', 'error'); return; }
+  currentHomologationRequestId = enterpriseGetHomologationId(r);
+  const modal = document.getElementById('homologation-detail-modal');
+  const content = document.getElementById('homologation-modal-content');
+  const subtitle = document.getElementById('homologation-modal-subtitle');
+  if(!modal || !content) return;
+  const protocol = r.requestId || r.protocol || r._id || '—';
+  if(subtitle) subtitle.textContent = `Protocolo ${protocol} • ${enterpriseStatusText(r.statusLabel || r.status || 'pending')}`;
+  const integrations = enterpriseArrayText(r.integrationTypes || r.integrations || r.modules || r.integrationType);
+  const status = enterpriseStatusText(r.statusLabel || r.status || 'pending');
+  const createdAt = formatDateTime(r.createdAt || r.requestedAt || r.created_at);
+  const updatedAt = formatDateTime(r.updatedAt || r.updated_at);
+  const history = Array.isArray(r.history || r.statusHistory) ? (r.history || r.statusHistory) : [];
+  content.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+      <div class="lg:col-span-2 p-5 rounded-2xl bg-blue-50 border border-blue-100">
+        <div class="text-xs uppercase font-black text-blue-500 mb-1">Protocolo</div>
+        <div class="text-2xl font-black text-blue-900">${escHtml(protocol)}</div>
+        <div class="text-sm text-blue-700 mt-2">Solicitação enviada em ${escHtml(createdAt)}.</div>
+      </div>
+      <div class="p-5 rounded-2xl bg-gray-50 border border-gray-100">
+        <div class="text-xs uppercase font-black text-gray-400 mb-1">Status atual</div>
+        <div>${enterpriseStatusBadge(status)}</div>
+        <div class="text-xs text-gray-500 mt-3">Atualizado em ${escHtml(updatedAt)}</div>
+      </div>
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Dados da empresa</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      ${enterpriseDetailRow('Razão social / Empresa', r.companyName)}
+      ${enterpriseDetailRow('Nome fantasia', r.tradeName)}
+      ${enterpriseDetailRow('CNPJ', r.cnpj)}
+      ${enterpriseDetailRow('Site', r.website)}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Responsável</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      ${enterpriseDetailRow('Nome', r.responsibleName)}
+      ${enterpriseDetailRow('Cargo', r.responsibleRole)}
+      ${enterpriseDetailRow('E-mail', r.email)}
+      ${enterpriseDetailRow('Telefone / WhatsApp', r.phone)}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Integração</h4>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+      ${enterpriseDetailRow('ERP utilizado', r.erp)}
+      ${enterpriseDetailRow('Volume de produtos', r.productVolume)}
+      ${enterpriseDetailRow('Volume mensal de pedidos', r.orderVolume)}
+      <div class="md:col-span-3">${enterpriseDetailRow('Integrações desejadas', integrations)}</div>
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Mensagem / observações</h4>
+    <div class="p-4 rounded-xl bg-gray-50 border border-gray-100 mb-5 text-sm text-gray-700 whitespace-pre-wrap">${escHtml(r.message || 'Nenhuma observação informada.')}</div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      ${enterpriseDetailRow('Observação interna', r.adminNotes || r.notes)}
+      ${enterpriseDetailRow('Ambiente', r.environment || (String(r.status||'').toLowerCase()==='sandbox' ? 'Sandbox' : 'Aguardando liberação'))}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Credenciais Sandbox</h4>
+    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-5">
+      ${Object.keys(enterpriseSandboxCredentials(r)).length ? `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          ${enterpriseCredentialBlock('API Key de teste', enterpriseSandboxCredentials(r).apiKey)}
+          ${enterpriseCredentialBlock('Webhook Secret de teste', enterpriseSandboxCredentials(r).webhookSecret)}
+          ${enterpriseCredentialBlock('Client ID', enterpriseSandboxCredentials(r).clientId)}
+          ${enterpriseCredentialBlock('Base URL', enterpriseSandboxCredentials(r).baseUrl)}
+        </div>
+        <div class="mt-3 text-xs text-slate-500">Gerado em ${escHtml(formatDateTime(enterpriseSandboxCredentials(r).generatedAt))} por ${escHtml(enterpriseSandboxCredentials(r).generatedBy || 'admin')}. Essas credenciais são apenas para homologação, não liberam produção.</div>
+      ` : `
+        <div class="text-sm text-slate-600"><b>Nenhuma chave Sandbox gerada ainda.</b><br>Clique em <b>Sandbox</b> para gerar automaticamente API Key, Client ID e Webhook Secret de teste.</div>
+      `}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Histórico</h4>
+    <div class="rounded-xl border border-gray-100 overflow-hidden">
+      ${history.length ? history.map((h) => `<div class="p-3 border-b last:border-b-0 text-sm"><b>${escHtml(enterpriseStatusText(h.status || h.label || h.action))}</b><div class="text-xs text-gray-500">${escHtml(formatDateTime(h.date || h.createdAt || h.at))} ${h.by ? '• '+escHtml(h.by) : ''}</div>${h.note ? `<div class="text-gray-600 mt-1">${escHtml(h.note)}</div>` : ''}</div>`).join('') : '<div class="p-4 text-sm text-gray-500">Nenhum histórico detalhado registrado ainda.</div>'}
+    </div>
+  `;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+window.enterpriseCloseHomologationModal = function(){
+  const modal = document.getElementById('homologation-detail-modal');
+  if(modal){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
+}
+window.enterpriseSetHomologationStatusFromModal = async function(status){
+  if(!currentHomologationRequestId){ displayMessage('Nenhuma solicitação selecionada.', 'error'); return; }
+  await window.enterpriseSetHomologationStatus(currentHomologationRequestId, status);
+  const modal = document.getElementById('homologation-detail-modal');
+  if(modal && !modal.classList.contains('hidden')){
+    const refreshed = enterpriseFindHomologationRequest(currentHomologationRequestId);
+    if(refreshed) window.enterpriseOpenHomologationDetails(currentHomologationRequestId);
+  }
+}
+
+window.enterpriseRegenerateSandboxFromModal = async function(){
+  if(!currentHomologationRequestId){ displayMessage('Nenhuma solicitação selecionada.', 'error'); return; }
+  if(!confirm('Gerar uma NOVA chave Sandbox para esta solicitação? A chave anterior deixará de ser a recomendada para novos testes.')) return;
+  await window.enterpriseSetHomologationStatus(currentHomologationRequestId, 'sandbox', { regenerate: true });
+}
+window.enterprisePrintHomologationDetails = function(){
+  const r = enterpriseFindHomologationRequest(currentHomologationRequestId);
+  if(!r){ displayMessage('Abra uma solicitação antes de imprimir.', 'error'); return; }
+  const protocol = r.requestId || r.protocol || r._id || '—';
+  const integrations = enterpriseArrayText(r.integrationTypes || r.integrations || r.modules || r.integrationType);
+  const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Ficha de Homologação ${escHtml(protocol)}</title><style>body{font-family:Arial,sans-serif;color:#111827;margin:28px}h1{color:#0047ab;margin:0 0 6px}.muted{color:#64748b}.box{border:1px solid #dbe3ef;border-radius:12px;padding:14px;margin:12px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:14px;font-weight:700;white-space:pre-wrap}.footer{margin-top:28px;font-size:12px;color:#64748b;border-top:1px solid #e5e7eb;padding-top:12px}@media print{button{display:none}}</style></head><body><button onclick="window.print()" style="padding:10px 14px;background:#0047ab;color:#fff;border:0;border-radius:8px;font-weight:700;margin-bottom:18px">Imprimir / Salvar PDF</button><h1>Ariana Enterprise</h1><div class="muted">Ficha de Solicitação de Homologação</div><div class="box"><div class="label">Protocolo</div><div class="value">${escHtml(protocol)}</div></div><div class="grid"><div class="box"><div class="label">Empresa</div><div class="value">${escHtml(r.companyName||'—')}</div></div><div class="box"><div class="label">Nome fantasia</div><div class="value">${escHtml(r.tradeName||'—')}</div></div><div class="box"><div class="label">CNPJ</div><div class="value">${escHtml(r.cnpj||'—')}</div></div><div class="box"><div class="label">Site</div><div class="value">${escHtml(r.website||'—')}</div></div><div class="box"><div class="label">Responsável</div><div class="value">${escHtml(r.responsibleName||'—')}</div></div><div class="box"><div class="label">E-mail</div><div class="value">${escHtml(r.email||'—')}</div></div><div class="box"><div class="label">Telefone</div><div class="value">${escHtml(r.phone||'—')}</div></div><div class="box"><div class="label">ERP</div><div class="value">${escHtml(r.erp||'—')}</div></div><div class="box"><div class="label">Volume de produtos</div><div class="value">${escHtml(r.productVolume||'—')}</div></div><div class="box"><div class="label">Volume de pedidos</div><div class="value">${escHtml(r.orderVolume||'—')}</div></div></div><div class="box"><div class="label">Integrações desejadas</div><div class="value">${escHtml(integrations||'—')}</div></div><div class="box"><div class="label">Mensagem</div><div class="value">${escHtml(r.message||'—')}</div></div><div class="box"><div class="label">Status</div><div class="value">${escHtml(enterpriseStatusText(r.statusLabel||r.status||'pending'))}</div></div><div class="footer">Ariana Móveis • contato@arianamoveis.com.br • Gerado em ${escHtml(new Date().toLocaleString('pt-BR'))}</div><script>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const win = window.open('', '_blank');
+  if(!win){ displayMessage('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.', 'error'); return; }
+  win.document.open(); win.document.write(html); win.document.close();
+}
+
+window.enterpriseSetHomologationStatus = async function(requestId, status, options = {}){
   const id = String(requestId || '').trim();
   const nextStatus = String(status || '').trim();
 
@@ -876,163 +1062,22 @@ window.enterpriseSetHomologationStatus = async function(requestId, status){
   }
 
   try{
-    await apiRequest(`/enterprise/homologation-requests/${encodeURIComponent(id)}/status`, {
+    const updated = await apiRequest(`/enterprise/homologation-requests/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
       headers: buildHeadersAuth(),
-      body: JSON.stringify({ status: nextStatus, adminNotes })
+      body: JSON.stringify({ status: nextStatus, adminNotes, regenerate: options.regenerate === true })
     });
+
+    const updatedRequest = updated?.request;
+    if(updatedRequest){
+      const idx = enterpriseHomologationRequestsCache.findIndex((r) => enterpriseGetHomologationId(r) === id || String(r.requestId||'') === id);
+      if(idx >= 0) enterpriseHomologationRequestsCache[idx] = updatedRequest;
+    }
 
     displayMessage(`Solicitação atualizada para: ${label}.`, 'success');
     await renderEnterpriseView();
   }catch(error){
     displayMessage(`Erro ao atualizar homologação: ${error.message}`, 'error');
-  }
-}
-
-
-function enterpriseGetHomologationRequest(id){
-  const key = String(id || '').trim();
-  const rows = Array.isArray(window.enterpriseHomologationRequestsCache) ? window.enterpriseHomologationRequestsCache : [];
-  return rows.find(r => String(r._id || r.id || r.requestId || '') === key || String(r.requestId || '') === key || String(r._id || '') === key) || null;
-}
-
-function enterpriseLabelStatus(status=''){
-  const labels = {
-    pending: 'Aguardando análise',
-    in_review: 'Em análise',
-    sandbox: 'Sandbox liberado',
-    approved: 'Aprovado',
-    production: 'Produção liberada',
-    rejected: 'Reprovado'
-  };
-  return labels[String(status || '').trim()] || String(status || '—');
-}
-
-function enterpriseDetailValue(value){
-  if (Array.isArray(value)) return value.length ? value.map(v => escHtml(v)).join(', ') : '—';
-  if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'object') return `<pre class="text-xs bg-gray-900 text-gray-100 rounded-xl p-3 overflow-auto">${escHtml(JSON.stringify(value, null, 2))}</pre>`;
-  return escHtml(value);
-}
-
-function enterpriseDetailRow(label, value){
-  return `<div class="bg-gray-50 border border-gray-100 rounded-xl p-3"><div class="text-[11px] uppercase font-black text-gray-400 mb-1">${escHtml(label)}</div><div class="text-sm font-bold text-gray-800 break-words">${enterpriseDetailValue(value)}</div></div>`;
-}
-
-window.enterpriseOpenHomologationDetails = function(requestId){
-  const r = enterpriseGetHomologationRequest(requestId);
-  if(!r){
-    displayMessage('Não encontrei os dados desta solicitação. Atualize o painel e tente novamente.', 'error');
-    return;
-  }
-
-  let modal = document.getElementById('enterprise-homologation-modal');
-  if(!modal){
-    modal = document.createElement('div');
-    modal.id = 'enterprise-homologation-modal';
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[99999] p-4';
-    document.body.appendChild(modal);
-  }
-
-  const id = escHtml(r._id || r.id || r.requestId || '');
-  const protocol = escHtml(r.requestId || r.protocol || r._id || '—');
-  const company = escHtml(r.companyName || '—');
-  const status = r.statusLabel || enterpriseLabelStatus(r.status || 'pending');
-  const integrations = r.integrationTypes || r.integrations || r.modules || [];
-  const createdAt = r.createdAt || r.requestedAt || r.created_at || '';
-  const updatedAt = r.updatedAt || r.updated_at || '';
-
-  modal.innerHTML = `
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade overflow-hidden">
-      <div class="p-5 border-b flex items-start justify-between gap-4 bg-gray-50">
-        <div>
-          <h3 class="text-xl font-black text-gray-800">Solicitação de homologação</h3>
-          <p class="text-sm text-gray-500 mt-1">Protocolo <b class="text-primary-blue">${protocol}</b> • ${enterpriseStatusBadge(status)}</p>
-        </div>
-        <button onclick="window.enterpriseCloseHomologationDetails()" class="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none">&times;</button>
-      </div>
-
-      <div class="p-5 max-h-[78vh] overflow-y-auto">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-          <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-4">
-            <h4 class="font-black text-gray-800 mb-3">Dados da empresa</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              ${enterpriseDetailRow('Razão social / Empresa', r.companyName)}
-              ${enterpriseDetailRow('Nome fantasia', r.tradeName)}
-              ${enterpriseDetailRow('CNPJ', r.cnpj)}
-              ${enterpriseDetailRow('Site', r.website)}
-              ${enterpriseDetailRow('ERP utilizado', r.erp)}
-              ${enterpriseDetailRow('Status', status)}
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl border border-gray-100 p-4">
-            <h4 class="font-black text-gray-800 mb-3">Responsável</h4>
-            <div class="space-y-3">
-              ${enterpriseDetailRow('Nome', r.responsibleName)}
-              ${enterpriseDetailRow('Cargo', r.responsibleRole)}
-              ${enterpriseDetailRow('E-mail', r.email)}
-              ${enterpriseDetailRow('Telefone / WhatsApp', r.phone)}
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
-          <div class="bg-white rounded-2xl border border-gray-100 p-4">
-            <h4 class="font-black text-gray-800 mb-3">Escopo da integração</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              ${enterpriseDetailRow('Volume de produtos', r.productVolume)}
-              ${enterpriseDetailRow('Volume mensal de pedidos', r.orderVolume)}
-              ${enterpriseDetailRow('Integrações desejadas', integrations)}
-              ${enterpriseDetailRow('Origem', r.source || 'Formulário público')}
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl border border-gray-100 p-4">
-            <h4 class="font-black text-gray-800 mb-3">Controle interno</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              ${enterpriseDetailRow('Criado em', createdAt ? formatDateTime(createdAt) : '')}
-              ${enterpriseDetailRow('Atualizado em', updatedAt ? formatDateTime(updatedAt) : '')}
-              ${enterpriseDetailRow('Observação admin', r.adminNotes)}
-              ${enterpriseDetailRow('ID interno', r._id || r.id)}
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
-          <h4 class="font-black text-gray-800 mb-3">Mensagem / observações enviadas</h4>
-          <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 border border-gray-100 rounded-xl p-4">${escHtml(r.message || 'Nenhuma mensagem enviada.')}</div>
-        </div>
-
-        <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-5">
-          <h4 class="font-black text-blue-900 mb-2">Próximas ações recomendadas</h4>
-          <ol class="list-decimal ml-5 text-sm text-blue-900 space-y-1">
-            <li>Conferir CNPJ, site, contato e ERP informado.</li>
-            <li>Responder ao responsável confirmando recebimento e prazo de análise.</li>
-            <li>Se aprovado para testes, clicar em <b>Sandbox</b> para liberar a próxima etapa.</li>
-            <li>Produção só depois de contrato e homologação técnica concluída.</li>
-          </ol>
-        </div>
-
-        <div class="flex flex-wrap gap-2 justify-end border-t pt-4">
-          <button onclick="window.enterpriseCopyText('${protocol}')" class="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold"><i class="fas fa-copy mr-2"></i>Copiar protocolo</button>
-          <button onclick="window.enterpriseSetHomologationStatus('${id}', 'in_review')" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold">Marcar em análise</button>
-          <button onclick="window.enterpriseSetHomologationStatus('${id}', 'sandbox')" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold">Liberar Sandbox</button>
-          <button onclick="window.enterpriseSetHomologationStatus('${id}', 'rejected')" class="px-4 py-2 rounded-xl bg-error-red text-white text-sm font-bold">Reprovar</button>
-          <button onclick="window.enterpriseCloseHomologationDetails()" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold">Fechar</button>
-        </div>
-      </div>
-    </div>`;
-
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-}
-
-window.enterpriseCloseHomologationDetails = function(){
-  const modal = document.getElementById('enterprise-homologation-modal');
-  if(modal){
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
   }
 }
 
@@ -1058,7 +1103,8 @@ async function renderEnterpriseView(){
   const catalogFallbackProducts = enterpriseRows(catalogData, ['lastProducts','products']).slice(0, 12);
   const productsToShow = catalogProducts.length ? catalogProducts : catalogFallbackProducts;
   const homologationRequests = enterpriseRows(homologationRequestsData, ['items','requests']).slice(0, 20);
-  window.enterpriseHomologationRequestsCache = homologationRequests;
+  enterpriseHomologationRequestsCache = homologationRequests;
+  window.enterpriseHomologationRequestsCache = enterpriseHomologationRequestsCache;
   const homologationSummary = homologationRequestsData.summary || {};
   const catalogManufacturers = enterpriseRows(catalogData, ['manufacturers']).slice(0, 20);
   const catalogSummary = catalogData.summary || {};
@@ -1100,7 +1146,7 @@ async function renderEnterpriseView(){
         <div><h3 class="font-black text-gray-800">Solicitações de homologação</h3><p class="text-xs text-gray-500">Pedidos enviados pelo formulário público Ariana Developers • Pendentes: ${pendingHomologations}</p></div>
         <a href="solicitacao-homologacao.html" target="_blank" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold"><i class="fas fa-arrow-up-right-from-square mr-2"></i>Ver formulário</a>
       </div>
-      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Protocolo</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Empresa</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Contato</th><th class="px-4 py-3 text-xs uppercase text-gray-500">ERP</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${homologationRequests.map(r=>{ const rid = escHtml(r._id||r.id||r.requestId||''); return `<tr class="border-t"><td class="px-4 py-3 text-xs font-bold"><button type="button" onclick="window.enterpriseOpenHomologationDetails('${rid}')" class="text-left text-primary-blue hover:underline font-black">${escHtml(r.requestId||r._id||'—')}</button></td><td class="px-4 py-3 text-sm"><div class="font-bold">${escHtml(r.companyName||'—')}</div><div class="text-xs text-gray-500">${escHtml(r.cnpj||'')}</div></td><td class="px-4 py-3 text-xs"><div>${escHtml(r.responsibleName||'—')}</div><div class="text-gray-500">${escHtml(r.email||'')}</div><div class="text-gray-500">${escHtml(r.phone||'')}</div></td><td class="px-4 py-3 text-sm">${escHtml(r.erp||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(r.statusLabel||r.status||'pending')}</td><td class="px-4 py-3"><div class="flex flex-wrap gap-2"><button type="button" onclick="window.enterpriseOpenHomologationDetails('${rid}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Detalhes</button><button type="button" onclick="window.enterpriseSetHomologationStatus('${rid}', 'in_review')" class="px-3 py-1 rounded-lg bg-yellow-500 text-white text-xs font-bold">Analisar</button><button type="button" onclick="window.enterpriseSetHomologationStatus('${rid}', 'sandbox')" class="px-3 py-1 rounded-lg bg-success-green text-white text-xs font-bold">Sandbox</button><button type="button" onclick="window.enterpriseSetHomologationStatus('${rid}', 'rejected')" class="px-3 py-1 rounded-lg bg-error-red text-white text-xs font-bold">Reprovar</button></div></td></tr>`; }).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">Nenhuma solicitação de homologação encontrada.</td></tr>'}</tbody></table></div></tbody></table></div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Protocolo</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Empresa</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Contato</th><th class="px-4 py-3 text-xs uppercase text-gray-500">ERP</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${homologationRequests.map(r=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(r.requestId||r._id||'—')}</td><td class="px-4 py-3 text-sm"><div class="font-bold">${escHtml(r.companyName||'—')}</div><div class="text-xs text-gray-500">${escHtml(r.cnpj||'')}</div></td><td class="px-4 py-3 text-xs"><div>${escHtml(r.responsibleName||'—')}</div><div class="text-gray-500">${escHtml(r.email||'')}</div><div class="text-gray-500">${escHtml(r.phone||'')}</div></td><td class="px-4 py-3 text-sm">${escHtml(r.erp||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(r.statusLabel||r.status||'pending')}</td><td class="px-4 py-3"><div class="flex flex-wrap gap-2"><button onclick="window.enterpriseOpenHomologationDetails('${escHtml(r._id||r.id||r.requestId||'')}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Detalhes</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'in_review')" class="px-3 py-1 rounded-lg bg-yellow-500 text-white text-xs font-bold">Analisar</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'sandbox')" class="px-3 py-1 rounded-lg bg-success-green text-white text-xs font-bold">Sandbox</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'rejected')" class="px-3 py-1 rounded-lg bg-error-red text-white text-xs font-bold">Reprovar</button></div></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">Nenhuma solicitação de homologação encontrada.</td></tr>'}</tbody></table></div>
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
@@ -1113,7 +1159,7 @@ async function renderEnterpriseView(){
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Logs recentes</h3><p class="text-xs text-gray-500">Eventos de integração</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Evento</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Mensagem</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th></tr></thead><tbody>${logs.map(l=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(l.eventType||l.type||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(l.manufacturer||'—')}</td><td class="px-4 py-3 text-xs text-gray-600">${escHtml(l.message||l.status||'—')}</td><td class="px-4 py-3 text-xs text-gray-500">${formatDateTime(l.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum log encontrado.</td></tr>'}</tbody></table></div></div>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Credenciais e endpoints API</h3><p class="text-xs text-gray-500">Documentação rápida para fabricantes. A chave real fica no Render como ENTERPRISE_WEBHOOK_SECRET.</p></div><div class="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 text-sm"><div class="space-y-3"><label class="block text-xs font-bold uppercase text-gray-500">Chave de teste neste navegador</label><div class="flex gap-2"><input id="enterprise-webhook-secret" type="password" class="flex-1 border rounded-xl px-3 py-2" value="${escHtml(enterpriseKey)}" placeholder="Cole ENTERPRISE_WEBHOOK_SECRET para testes externos"><button onclick="window.enterpriseSaveWebhookSecret()" class="px-4 py-2 rounded-xl bg-success-green text-white font-bold">Salvar</button></div><p class="text-xs text-gray-500">Essa chave não é exibida pelo backend; este campo só guarda no seu navegador para facilitar testes.</p></div><div class="space-y-2"><div class="font-bold text-gray-800">Endpoints principais</div>${['POST /enterprise/catalog/push','POST /enterprise/products/{sku}/sync','POST /enterprise/orders','POST /enterprise/orders/{orderId}/tracking','POST /enterprise/orders/{orderId}/invoice','GET /enterprise/queue'].map(e=>`<button class="block w-full text-left px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-mono" onclick="window.enterpriseCopyText('${escHtml(base + '/api/' + e.replace(/^[A-Z]+\s+\//,'').replace('{sku}','WH-BRM44TESTE').replace('{orderId}','WHIRLPOOL-TESTE-001'))}')">${escHtml(e)}</button>`).join('')}</div></div></div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Credenciais e endpoints API</h3><p class="text-xs text-gray-500">Documentação rápida para fabricantes. A chave real fica no Render como ENTERPRISE_WEBHOOK_SECRET.</p></div><div class="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 text-sm"><div class="space-y-3"><label class="block text-xs font-bold uppercase text-gray-500">Chave de teste neste navegador</label><div class="flex gap-2"><input id="enterprise-webhook-secret" type="password" class="flex-1 border rounded-xl px-3 py-2" value="${escHtml(enterpriseKey)}" placeholder="Cole ENTERPRISE_WEBHOOK_SECRET para testes externos"><button onclick="window.enterpriseSaveWebhookSecret()" class="px-4 py-2 rounded-xl bg-success-green text-white font-bold">Salvar</button></div><p class="text-xs text-gray-500">Essa chave não é exibida pelo backend; este campo só guarda no seu navegador para facilitar testes.</p></div><div class="space-y-2"><div class="font-bold text-gray-800">Endpoints principais</div>${['POST /enterprise/catalog/push','POST /enterprise/products/{sku}/sync','POST /enterprise/orders','POST /enterprise/orders/{orderId}/tracking','POST /enterprise/orders/{orderId}/invoice','GET /enterprise/queue'].map(e=>`<button class="block w-full text-left px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-mono" onclick="window.enterpriseCopyText('${escHtml(base + '/api/' + e.replace(/^[A-Z]+\s+\//,'').replace('{sku}','AD-GEL44TESTE').replace('{orderId}','WHIRLPOOL-TESTE-001'))}')">${escHtml(e)}</button>`).join('')}</div></div></div>
   `;
 }
 
