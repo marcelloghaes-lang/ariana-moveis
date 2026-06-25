@@ -8,220 +8,87 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <style>
-    :root{--blue:#0047AB;--blue2:#1d4ed8;--green:#16a34a;--red:#dc2626;--dark:#0f172a;--muted:#64748b;--bg:#f3f6fb;--card:#fff;--border:#e5e7eb}
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:#111827}
-    header{background:linear-gradient(135deg,#003580,#0ea5e9);color:#fff;padding:34px 5vw;border-bottom-left-radius:32px;border-bottom-right-radius:32px;box-shadow:0 18px 40px rgba(0,71,171,.18)}
-    header .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap} .brand{letter-spacing:.22em;font-weight:900;font-size:13px;opacity:.95}.hero h1{font-size:clamp(32px,5vw,56px);line-height:.95;margin:22px 0 10px;font-weight:950}.hero p{max-width:760px;font-size:17px;line-height:1.55;opacity:.94}.btn{border:0;border-radius:14px;padding:12px 16px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none}.btn-blue{background:var(--blue2);color:white}.btn-green{background:var(--green);color:white}.btn-white{background:#fff;color:var(--blue)}.btn-gray{background:#eef2f7;color:#334155;border:1px solid #dbe3ef}.btn-red{background:var(--red);color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}
-    main{max-width:1280px;margin:28px auto;padding:0 18px 40px}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:22px}.card{background:var(--card);border:1px solid var(--border);border-radius:22px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}.card-h{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.card-h h2{margin:0;font-size:20px;font-weight:950}.card-h p{margin:6px 0 0;color:var(--muted);font-size:13px}.card-b{padding:20px 22px}.field{margin-bottom:16px}.label{display:block;font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;margin-bottom:8px}.input,.select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:13px 14px;font:inherit;background:#fff;outline:none}textarea{min-height:340px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;line-height:1.55;resize:vertical;background:#0b1220;color:#e2e8f0;border-color:#1e293b}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#eef6ff;color:var(--blue);font-size:12px;font-weight:900;padding:8px 12px}.pill.ok{background:#dcfce7;color:#166534}.pill.warn{background:#fef3c7;color:#92400e}.pill.err{background:#fee2e2;color:#991b1b}.response{background:#0b1220;color:#e2e8f0;border-radius:18px;padding:16px;min-height:330px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow:auto}.meta{display:flex;gap:8px;flex-wrap:wrap}.console{max-height:290px;overflow:auto}.log{display:grid;grid-template-columns:76px 74px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #eef2f7;font-size:12px}.log .status-ok{color:var(--green);font-weight:900}.log .status-err{color:var(--red);font-weight:900}.sample-code{background:#0b1220;color:#e2e8f0;border-radius:18px;padding:16px;min-height:210px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;white-space:pre-wrap;overflow:auto}.tiny{font-size:12px;color:#64748b}.endpoint-line{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;word-break:break-all}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{padding:9px 12px;border-radius:12px;border:1px solid #dbe3ef;background:white;color:#334155;font-weight:850;cursor:pointer}.tab.active{background:var(--blue2);color:white;border-color:var(--blue2)}
-    @media(max-width:980px){.grid,.row{grid-template-columns:1fr}.hero h1{font-size:38px}textarea{min-height:260px}}
-    @media print{header,.no-print,.console-card,.sdk-card{display:none!important}main{margin:0;padding:0}.grid{display:block}.card{box-shadow:none;border:0}.response{color:#111;background:#fff;border:1px solid #ddd}}
+    :root{--blue:#0047AB;--blue2:#1d4ed8;--green:#16a34a;--red:#dc2626;--dark:#0f172a;--muted:#64748b;--bg:#f3f6fb;--card:#fff;--border:#e5e7eb;--amber:#f59e0b}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:#111827}header{background:linear-gradient(135deg,#003580,#0ea5e9);color:#fff;padding:30px 5vw;border-bottom-left-radius:30px;border-bottom-right-radius:30px;box-shadow:0 18px 40px rgba(0,71,171,.18)}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.brand{letter-spacing:.22em;font-weight:900;font-size:13px}.hero h1{font-size:clamp(30px,5vw,54px);line-height:.95;margin:20px 0 10px;font-weight:950}.hero p{max-width:820px;font-size:16px;line-height:1.55;opacity:.95}
+    main{max-width:1320px;margin:24px auto;padding:0 18px 40px}.grid{display:grid;grid-template-columns:1.02fr .98fr;gap:20px}.card{background:var(--card);border:1px solid var(--border);border-radius:22px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}.card-h{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.card-h h2{margin:0;font-size:20px;font-weight:950}.card-h p{margin:6px 0 0;color:var(--muted);font-size:13px}.card-b{padding:18px 20px}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{margin-bottom:14px}.label{display:block;font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;margin-bottom:8px}.input,.select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:12px 13px;font:inherit;background:#fff;outline:none}textarea{min-height:300px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12.5px;line-height:1.55;resize:vertical;background:#0b1220;color:#e2e8f0;border-color:#1e293b}.btn{border:0;border-radius:14px;padding:12px 15px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none}.btn-blue{background:var(--blue2);color:#fff}.btn-green{background:var(--green);color:#fff}.btn-white{background:#fff;color:var(--blue)}.btn-gray{background:#eef2f7;color:#334155;border:1px solid #dbe3ef}.btn-red{background:var(--red);color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}.tiny{font-size:12px;color:#64748b}.pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#eef6ff;color:var(--blue);font-size:12px;font-weight:900;padding:8px 12px}.pill.ok{background:#dcfce7;color:#166534}.pill.warn{background:#fef3c7;color:#92400e}.pill.err{background:#fee2e2;color:#991b1b}.endpoint-line{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;word-break:break-all}.response,.sample-code{background:#0b1220;color:#e2e8f0;border-radius:18px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12.5px;line-height:1.55;white-space:pre-wrap;overflow:auto}.response{min-height:330px}.sample-code{min-height:190px}.console{max-height:300px;overflow:auto}.log{display:grid;grid-template-columns:76px 74px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #eef2f7;font-size:12px}.status-ok{color:var(--green);font-weight:900}.status-err{color:var(--red);font-weight:900}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{padding:9px 12px;border-radius:12px;border:1px solid #dbe3ef;background:white;color:#334155;font-weight:850;cursor:pointer}.tab.active{background:var(--blue2);color:white;border-color:var(--blue2)}
+    .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}.step{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px;box-shadow:0 8px 20px rgba(15,23,42,.04)}.step .topline{display:flex;justify-content:space-between;align-items:center;gap:8px}.dot{width:12px;height:12px;border-radius:99px;background:#cbd5e1}.dot.ok{background:#22c55e}.dot.err{background:#ef4444}.dot.run{background:#f59e0b}.step h3{margin:12px 0 6px;font-size:15px}.step p{margin:0 0 12px;color:#64748b;font-size:12px;line-height:1.35}.step button{width:100%;justify-content:center;padding:10px 12px}.progress{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden}.bar{height:100%;width:0%;background:linear-gradient(90deg,#16a34a,#22c55e);transition:.25s}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}.stat{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px}.stat b{display:block;font-size:23px}.stat span{color:#64748b;font-size:12px;font-weight:700}.meta{display:flex;gap:8px;flex-wrap:wrap}.quick-actions{display:flex;gap:10px;flex-wrap:wrap}.divider{height:1px;background:#e5e7eb;margin:16px 0}
+    @media(max-width:1100px){.grid,.row{grid-template-columns:1fr}.steps,.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.steps,.stats{grid-template-columns:1fr}.hero h1{font-size:36px}textarea{min-height:230px}}@media print{header,.no-print,.console-card,.sdk-card,.steps-card{display:none!important}main{margin:0;padding:0}.grid{display:block}.card{box-shadow:none;border:0}.response{color:#111;background:#fff;border:1px solid #ddd}}
   </style>
 </head>
 <body>
 <header>
-  <div class="top"><div><div class="brand">ARIANA ENTERPRISE</div><div class="tiny" style="color:#dbeafe;margin-top:8px">Ambiente de testes para fabricantes, distribuidores e ERPs</div></div><div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-white" href="developers.html"><i class="fas fa-book"></i> Documentação</a><a class="btn btn-white" href="admin_painel.html"><i class="fas fa-arrow-left"></i> Painel Admin</a></div></div>
-  <div class="hero"><h1>API Explorer</h1><p>Teste endpoints da Ariana Enterprise diretamente pelo navegador, com exemplos prontos de catálogo, estoque, preço, pedido, NF-e, XML, DANFE, rastreio e webhooks.</p></div>
+  <div class="top"><div><div class="brand">ARIANA ENTERPRISE</div><div class="tiny" style="color:#dbeafe;margin-top:8px">Plataforma de testes para fabricantes, distribuidores e ERPs</div></div><div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-white" href="developers.html"><i class="fas fa-book"></i> Documentação</a><a class="btn btn-white" href="admin_painel.html"><i class="fas fa-arrow-left"></i> Painel Admin</a></div></div>
+  <div class="hero"><h1>API Explorer</h1><p>Teste catálogo, estoque, preço, pedido, NF-e, XML, DANFE, rastreio e webhooks diretamente pelo navegador.</p></div>
 </header>
 <main>
-  <div class="grid">
+  <section class="card steps-card">
+    <div class="card-h"><div><h2><i class="fas fa-route" style="color:var(--blue2)"></i> Homologação guiada</h2><p>Execute cada etapa individualmente ou rode o fluxo completo.</p></div><div class="meta"><span id="env-pill" class="pill warn">Sandbox</span><span id="flow-percent" class="pill">0%</span></div></div>
+    <div class="card-b">
+      <div class="stats">
+        <div class="stat"><b id="stat-calls">0</b><span>Chamadas</span></div><div class="stat"><b id="stat-ok">0</b><span>Aprovadas</span></div><div class="stat"><b id="stat-error">0</b><span>Erros</span></div><div class="stat"><b id="stat-time">0 ms</b><span>Tempo total</span></div>
+      </div>
+      <div class="progress"><div id="progress-bar" class="bar"></div></div>
+      <div class="divider"></div>
+      <div id="step-cards" class="steps"></div>
+      <div class="quick-actions no-print"><button id="run-all-btn-top" class="btn btn-blue"><i class="fas fa-list-check"></i> Executar homologação completa</button><button id="reset-flow" class="btn btn-gray"><i class="fas fa-rotate-left"></i> Limpar progresso</button></div>
+    </div>
+  </section>
+
+  <div class="grid" style="margin-top:20px">
     <section class="card">
-      <div class="card-h"><div><h2><i class="fas fa-terminal" style="color:var(--blue2)"></i> Requisição</h2><p>Escolha o endpoint, informe a chave e execute o teste.</p></div><span id="env-pill" class="pill warn">Sandbox</span></div>
+      <div class="card-h"><div><h2><i class="fas fa-terminal" style="color:var(--blue2)"></i> Requisição</h2><p>Escolha o endpoint, informe a chave e execute.</p></div></div>
       <div class="card-b">
-        <div class="row">
-          <div class="field"><label class="label">Endpoint</label><select id="endpoint-select" class="select"></select></div>
-          <div class="field"><label class="label">Ambiente</label><select id="environment-select" class="select"><option value="sandbox">Sandbox</option><option value="production">Produção</option></select></div>
-        </div>
+        <div class="row"><div class="field"><label class="label">Endpoint</label><select id="endpoint-select" class="select"></select></div><div class="field"><label class="label">Ambiente</label><select id="environment-select" class="select"><option value="sandbox">Sandbox</option><option value="production">Produção</option></select></div></div>
         <div class="field"><label class="label">URL final</label><div id="final-url" class="endpoint-line"></div></div>
-        <div class="row">
-          <div class="field"><label class="label">Base URL</label><input id="base-url" class="input" placeholder="https://ariana-backend.onrender.com/api"></div>
-          <div class="field"><label class="label">Autenticação</label><select id="auth-mode" class="select"><option value="x-key">x-ariana-key</option><option value="bearer">Bearer admin/sandbox</option><option value="none">Sem autenticação</option></select></div>
-        </div>
-        <div class="field"><label class="label">Chave / Token</label><input id="token-input" class="input" type="password" placeholder="Cole a chave Sandbox, ENTERPRISE_WEBHOOK_SECRET ou token admin"><div class="tiny" style="margin-top:8px">Para endpoints externos do seu backend atual, normalmente use <b>x-ariana-key</b>. Para endpoints administrativos, use <b>Bearer</b>.</div></div>
+        <div class="row"><div class="field"><label class="label">Base URL</label><input id="base-url" class="input" placeholder="https://ariana-backend.onrender.com/api"></div><div class="field"><label class="label">Autenticação</label><select id="auth-mode" class="select"><option value="x-key">x-ariana-key</option><option value="bearer">Bearer admin/sandbox</option><option value="none">Sem autenticação</option></select></div></div>
+        <div class="field"><label class="label">Chave / Token</label><input id="token-input" class="input" type="password" placeholder="Cole a API Key Sandbox"><div class="tiny" style="margin-top:8px">Use a <b>API Key de teste</b> gerada no modal de homologação.</div></div>
         <div class="field"><label class="label">Request JSON</label><textarea id="request-body"></textarea></div>
-        <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><button id="execute-btn" class="btn btn-green"><i class="fas fa-play"></i> Executar</button><button id="run-all-btn" class="btn btn-blue"><i class="fas fa-list-check"></i> Executar fluxo completo</button><button id="copy-curl-btn" class="btn btn-gray"><i class="fas fa-copy"></i> Copiar cURL</button><button id="save-key-btn" class="btn btn-blue"><i class="fas fa-save"></i> Salvar chave neste navegador</button></div>
+        <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><button id="execute-btn" class="btn btn-green"><i class="fas fa-play"></i> Executar</button><button id="run-all-btn" class="btn btn-blue"><i class="fas fa-list-check"></i> Executar fluxo completo</button><button id="copy-curl-btn" class="btn btn-gray"><i class="fas fa-copy"></i> Copiar cURL</button><button id="save-key-btn" class="btn btn-blue"><i class="fas fa-save"></i> Salvar chave</button></div>
       </div>
     </section>
     <section class="card">
-      <div class="card-h"><div><h2><i class="fas fa-reply" style="color:var(--green)"></i> Resposta</h2><p>Resultado em tempo real da chamada para a API.</p></div><div class="meta"><span id="http-status" class="pill">Aguardando</span><span id="http-time" class="pill">0 ms</span></div></div>
+      <div class="card-h"><div><h2><i class="fas fa-reply" style="color:var(--green)"></i> Resposta</h2><p>Resultado em tempo real da chamada.</p></div><div class="meta"><span id="http-status" class="pill">Aguardando</span><span id="http-time" class="pill">0 ms</span></div></div>
       <div class="card-b"><pre id="response-output" class="response">Clique em Executar para testar um endpoint.</pre></div>
     </section>
   </div>
-  <div class="grid" style="margin-top:22px">
-    <section class="card sdk-card">
-      <div class="card-h"><div><h2><i class="fas fa-code" style="color:var(--blue2)"></i> Exemplos de código</h2><p>Copie o exemplo na linguagem desejada.</p></div></div>
-      <div class="card-b"><div class="tabs no-print" id="sdk-tabs"></div><pre id="sdk-output" class="sample-code"></pre></div>
-    </section>
-    <section class="card console-card">
-      <div class="card-h"><div><h2><i class="fas fa-list-check" style="color:var(--blue2)"></i> Console da API</h2><p>Histórico dos testes executados nesta tela.</p></div><button id="clear-console" class="btn btn-gray no-print"><i class="fas fa-trash"></i> Limpar</button></div>
-      <div class="card-b"><div id="console-log" class="console"><div class="tiny">Nenhuma chamada executada ainda.</div></div></div>
-    </section>
+
+  <div class="grid" style="margin-top:20px">
+    <section class="card sdk-card"><div class="card-h"><div><h2><i class="fas fa-code" style="color:var(--blue2)"></i> Exemplos de código</h2><p>Copie o exemplo na linguagem desejada.</p></div></div><div class="card-b"><div class="tabs no-print" id="sdk-tabs"></div><pre id="sdk-output" class="sample-code"></pre></div></section>
+    <section class="card console-card"><div class="card-h"><div><h2><i class="fas fa-list-check" style="color:var(--blue2)"></i> Console da API</h2><p>Histórico dos testes executados nesta tela.</p></div><button id="clear-console" class="btn btn-gray no-print"><i class="fas fa-trash"></i> Limpar</button></div><div class="card-b"><div id="console-log" class="console"><div class="tiny">Nenhuma chamada executada ainda.</div></div></div></section>
   </div>
 </main>
 <script src="js/api-config.js"></script>
 <script>
-const API_DEFAULT = (window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
-const endpoints = [
-  {id:'health', title:'Health check', method:'GET', path:'/enterprise/health', auth:'none', body:null, desc:'Verifica se o módulo Enterprise está online.'},
-  {id:'authcheck', title:'Testar API Key', method:'GET', path:'/enterprise/auth/check', auth:'x-key', body:null, desc:'Valida a chave Sandbox/Produção gerada na homologação.'},
-  {id:'catalog', title:'Enviar catálogo', method:'POST', path:'/enterprise/catalog/push', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',sellerName:'Ariana Demo',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',description:'Produto de teste recebido pelo API Explorer.',category:'Eletrodomésticos',brand:'Ariana Demo',price:2500,stock:12,weight:10,height:60,width:60,length:60,imageUrl:'https://placehold.co/600x600/eef2ff/1d4ed8?text=Ariana+Demo'}]}},
-  {id:'sync', title:'Sincronizar estoque, preço e status', method:'POST', path:'/enterprise/products/ARI-DEMO-001/sync', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299,stock:8,active:true,availability:'available',status:'updated_by_api_explorer'}},
-  {id:'stock', title:'Atualizar estoque', method:'PUT', path:'/enterprise/products/ARI-DEMO-001/stock', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',stock:5}},
-  {id:'price', title:'Atualizar preço', method:'PUT', path:'/enterprise/products/ARI-DEMO-001/price', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2199}},
-  {id:'order', title:'Enviar pedido', method:'POST', path:'/enterprise/orders', auth:'x-key', body:{manufacturer:'ariana_demo',externalOrderId:'ARI-ORDER-TESTE-001',customerName:'Cliente Teste',customerEmail:'cliente.teste@exemplo.com',customerPhone:'31999999999',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',qty:1,unitPrice:2299,sellerId:'ariana_demo'}],shippingAddress:{name:'Cliente Teste',cep:'39740000',logradouro:'Rua Teste',numero:'100',bairro:'Centro',cidade:'Guanhães',uf:'MG'}}},
-  {id:'invoice', title:'Enviar NF-e / DANFE / XML', method:'POST', path:'/enterprise/orders/ARI-ORDER-TESTE-001/invoice', auth:'x-key', body:{manufacturer:'ariana_demo',invoice:{number:'12345',series:'1',accessKey:'31260600000000000000550010000123451000012345',danfeUrl:'https://exemplo.com/danfe-12345.pdf',xmlUrl:'https://exemplo.com/nfe-12345.xml',total:2299}}},
-  {id:'tracking', title:'Enviar rastreio', method:'POST', path:'/enterprise/orders/ARI-ORDER-TESTE-001/tracking', auth:'x-key', body:{manufacturer:'ariana_demo',trackingCode:'BR123456789BR',carrier:'Transportadora Demo',trackingUrl:'https://rastreamento.exemplo.com/BR123456789BR'}},
-  {id:'queue', title:'Listar fila Enterprise', method:'GET', path:'/enterprise/queue?limit=10', auth:'bearer', body:null},
-  {id:'logs', title:'Listar logs Enterprise', method:'GET', path:'/enterprise/logs?limit=10', auth:'bearer', body:null}
+const $=id=>document.getElementById(id);const pretty=v=>JSON.stringify(v,null,2);const API_DEFAULT=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+const state={sku:'ARI-EXP-DEMO',orderId:'ARI-PED-DEMO',calls:0,ok:0,error:0,totalMs:0,steps:{}};
+const endpoints=[
+{id:'health',title:'Health',label:'Health',method:'GET',path:'/enterprise/health',auth:'none',body:null,desc:'Verifica se a API está online.'},
+{id:'authcheck',title:'Testar API Key',label:'API Key',method:'GET',path:'/enterprise/auth/check',auth:'x-key',body:null,desc:'Valida a chave Sandbox.'},
+{id:'catalog',title:'Criar produto / catálogo',label:'Catálogo',method:'POST',path:'/enterprise/catalog/push',auth:'x-key',body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',sellerName:'Ariana Demo',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',description:'Produto de teste recebido pelo API Explorer.',category:'Eletrodomésticos',brand:'Ariana Demo',price:2500,stock:12,weight:10,height:60,width:60,length:60,imageUrl:'https://placehold.co/600x600/eef2ff/1d4ed8?text=API+Explorer'}]},desc:'Cria ou atualiza produto via catálogo.'},
+{id:'stock',title:'Atualizar estoque',label:'Estoque',method:'PUT',path:'/enterprise/products/{sku}/stock',auth:'x-key',body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',stock:8},desc:'Atualiza somente o estoque do SKU.'},
+{id:'price',title:'Atualizar preço',label:'Preço',method:'PUT',path:'/enterprise/products/{sku}/price',auth:'x-key',body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299},desc:'Atualiza somente o preço do SKU.'},
+{id:'sync',title:'Estoque + preço + status',label:'Estoque/preço',method:'POST',path:'/enterprise/products/{sku}/sync',auth:'x-key',body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299,stock:8,active:true,availability:'available',status:'updated_by_api_explorer'},desc:'Atualiza preço, estoque, disponibilidade e status.'},
+{id:'order',title:'Criar pedido',label:'Pedido',method:'POST',path:'/enterprise/orders',auth:'x-key',body:{manufacturer:'ariana_demo',externalOrderId:'ARI-PED-DEMO',customerName:'Cliente Teste API Explorer',customerEmail:'cliente.teste@exemplo.com',customerPhone:'31999999999',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',qty:1,unitPrice:2299,sellerId:'ariana_demo'}],shippingAddress:{name:'Cliente Teste',cep:'39740000',logradouro:'Rua Teste',numero:'100',bairro:'Centro',cidade:'Guanhães',uf:'MG'}},desc:'Cria pedido Enterprise.'},
+{id:'invoice',title:'Enviar NF-e / XML / DANFE',label:'NF-e',method:'POST',path:'/enterprise/orders/{orderId}/invoice',auth:'x-key',body:{manufacturer:'ariana_demo',invoice:{number:'12345',series:'1',accessKey:'31260600000000000000550010000123451000012345',danfeUrl:'https://exemplo.com/danfe-12345.pdf',xmlUrl:'https://exemplo.com/nfe-12345.xml',total:2299}},desc:'Anexa NF-e, XML e DANFE ao pedido.'},
+{id:'tracking',title:'Enviar rastreio',label:'Rastreio',method:'POST',path:'/enterprise/orders/{orderId}/tracking',auth:'x-key',body:{manufacturer:'ariana_demo',trackingCode:'BR123456789BR',carrier:'Transportadora Demo',trackingUrl:'https://rastreamento.exemplo.com/BR123456789BR'},desc:'Atualiza transportadora e rastreio.'},
+{id:'webhook',title:'Testar webhook',label:'Webhook',method:'POST',path:'/enterprise/webhooks/test',auth:'x-key',body:{manufacturer:'ariana_demo',event:'order_ack',externalOrderId:'ARI-PED-DEMO',status:'received',message:'Webhook de teste enviado pelo API Explorer'},desc:'Registra um evento de webhook de teste.'}
 ];
-const languages = ['JavaScript','Node.js','PHP','Python','cURL'];
-let currentLang = 'JavaScript';
-const $ = id => document.getElementById(id);
-function pretty(v){ return v === null || v === undefined ? '' : JSON.stringify(v,null,2); }
-function finalUrl(){ return `${$('base-url').value.replace(/\/+$/,'')}${endpoints.find(e=>e.id===$('endpoint-select').value).path}`; }
-function selectedEndpoint(){ return endpoints.find(e=>e.id===$('endpoint-select').value) || endpoints[0]; }
-function updateEndpoint(){ const e=selectedEndpoint(); $('auth-mode').value=e.auth || 'x-key'; $('request-body').value=e.body ? pretty(e.body) : ''; $('final-url').textContent=finalUrl(); updateSdk(); }
-function headersFor(e, options = {}){
-  const h = {};
-  const endpoint = e || selectedEndpoint();
-  const mode = options.useEndpointAuth ? (endpoint.auth || 'x-key') : ($('auth-mode').value || endpoint.auth || 'x-key');
-  const token = $('token-input').value.trim();
-  if(endpoint.body || options.hasBody) h['Content-Type'] = 'application/json';
-  if(mode === 'x-key' && token) h['x-ariana-key'] = token;
-  if(mode === 'bearer' && token) h.Authorization = `Bearer ${token}`;
-  return h;
-}
-function curlCommand(){ const e=selectedEndpoint(); const headers=headersFor(e); let cmd=`curl -X ${e.method} "${finalUrl()}"`; Object.entries(headers).forEach(([k,v])=>cmd+=` \\\n  -H "${k}: ${v}"`); const body=$('request-body').value.trim(); if(e.body && body) cmd+=` \\\n  -d '${body.replace(/'/g,"'\\''")}'`; return cmd; }
-function updateSdk(){ const e=selectedEndpoint(); const url=finalUrl(); const body=$('request-body').value.trim() || '{}'; const headers=headersFor(e); const headersJson=JSON.stringify(headers,null,2); const code={
-'JavaScript':`const response = await fetch(${JSON.stringify(url)}, {\n  method: ${JSON.stringify(e.method)},\n  headers: ${headersJson.replace(/\n/g,'\n  ')},${e.body ? `\n  body: JSON.stringify(${body})` : ''}\n});\n\nconst data = await response.json();\nconsole.log(data);`,
-'Node.js':`import axios from 'axios';\n\nconst response = await axios.request({\n  method: ${JSON.stringify(e.method)},\n  url: ${JSON.stringify(url)},\n  headers: ${headersJson.replace(/\n/g,'\n  ')},${e.body ? `\n  data: ${body}` : ''}\n});\n\nconsole.log(response.data);`,
-'PHP':`$curl = curl_init();\ncurl_setopt_array($curl, [\n  CURLOPT_URL => ${JSON.stringify(url)},\n  CURLOPT_RETURNTRANSFER => true,\n  CURLOPT_CUSTOMREQUEST => ${JSON.stringify(e.method)},\n  CURLOPT_HTTPHEADER => [${Object.entries(headers).map(([k,v])=>`\n    ${JSON.stringify(k+': '+v)}`).join(',')}\n  ],${e.body ? `\n  CURLOPT_POSTFIELDS => json_encode(${body}),` : ''}\n]);\n$response = curl_exec($curl);\ncurl_close($curl);\necho $response;`,
-'Python':`import requests\n\nurl = ${JSON.stringify(url)}\nheaders = ${headersJson}\n${e.body ? `payload = ${body}\nresponse = requests.request(${JSON.stringify(e.method)}, url, headers=headers, json=payload)` : `response = requests.request(${JSON.stringify(e.method)}, url, headers=headers)`}\nprint(response.status_code)\nprint(response.json())`,
-'cURL':curlCommand()
-}; $('sdk-output').textContent=code[currentLang] || code['cURL']; }
-function logLine(method,status,path,ms,ok){ const box=$('console-log'); if(box.querySelector('.tiny')) box.innerHTML=''; const time=new Date().toLocaleTimeString('pt-BR'); const div=document.createElement('div'); div.className='log'; div.innerHTML=`<b>${time}</b><span class="${ok?'status-ok':'status-err'}">${status}</span><span>${method} ${path} • ${ms} ms</span>`; box.prepend(div); }
-
-function buildUrlFor(endpoint){ return `${$('base-url').value.replace(/\/+$/,'')}${endpoint.path}`; }
-async function sendEndpoint(endpoint, customBody = null, customPath = null, options = {}){
-  const url = `${$('base-url').value.replace(/\/+$/,'')}${customPath || endpoint.path}`;
-  const start = performance.now();
-  let requestBody;
-  if (endpoint.body || customBody) requestBody = JSON.stringify(customBody || JSON.parse($('request-body').value || '{}'));
-  const res = await fetch(url, {
-    method: endpoint.method,
-    headers: headersFor(endpoint, { useEndpointAuth: options.useEndpointAuth === true, hasBody: Boolean(requestBody) }),
-    body: requestBody
-  });
-  const ms = Math.round(performance.now() - start);
-  const ct = res.headers.get('content-type') || '';
-  const data = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => '');
-  logLine(endpoint.method, res.status, customPath || endpoint.path, ms, res.ok);
-  return { res, ms, data, url };
-}
-async function execute(){
-  const e=selectedEndpoint();
-  $('execute-btn').disabled=true;
-  $('execute-btn').innerHTML='<i class="fas fa-spinner fa-spin"></i> Executando...';
-  try{
-    let customBody = null;
-    if(e.body){
-      try{ customBody = JSON.parse($('request-body').value || '{}'); }
-      catch(err){ throw new Error('JSON inválido: '+err.message); }
-    }
-    const result = await sendEndpoint(e, customBody);
-    $('http-status').textContent=`HTTP ${result.res.status}`;
-    $('http-status').className=`pill ${result.res.ok?'ok':'err'}`;
-    $('http-time').textContent=`${result.ms} ms`;
-    $('response-output').textContent=typeof result.data==='string'?result.data:pretty(result.data);
-  }catch(err){
-    $('http-status').textContent='Erro';
-    $('http-status').className='pill err';
-    $('http-time').textContent='0 ms';
-    $('response-output').textContent=String(err.message||err);
-    logLine(e.method,'ERRO',e.path,0,false);
-  } finally{
-    $('execute-btn').disabled=false;
-    $('execute-btn').innerHTML='<i class="fas fa-play"></i> Executar';
-  }
-}
-function makeRunIds(){
-  const stamp = new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);
-  return { sku:`ARI-EXP-${stamp}`, orderId:`ARI-PED-${stamp}` };
-}
-async function runFullFlow(){
-  const token = $('token-input').value.trim();
-  if(!token){
-    $('http-status').textContent='Chave ausente';
-    $('http-status').className='pill err';
-    $('http-time').textContent='0 ms';
-    $('response-output').textContent=pretty({ ok:false, error:'Cole a API Key Sandbox no campo Chave / Token antes de executar o fluxo completo.' });
-    logLine('FLOW','ERRO','Homologação completa pelo Explorer',0,false);
-    return;
-  }
-  const btn = $('run-all-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando fluxo...';
-  const ids = makeRunIds();
-  const startAll = performance.now();
-  const steps = [
-    {id:'health', label:'Health check'},
-    {id:'catalog', label:'Catálogo', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',sellerName:'Ariana Demo',items:[{sku:ids.sku,name:'Produto Demo API Explorer',description:'Produto criado no fluxo completo do API Explorer Ariana Enterprise.',category:'Eletrodomésticos',brand:'Ariana Demo',price:2500,stock:12,weight:10,height:60,width:60,length:60,imageUrl:'https://placehold.co/600x600/eef2ff/1d4ed8?text=API+Explorer'}]}},
-    {id:'sync', label:'Estoque e preço', path:`/enterprise/products/${encodeURIComponent(ids.sku)}/sync`, body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299,stock:8,active:true,availability:'available',status:'updated_by_api_explorer'}},
-    {id:'order', label:'Pedido', body:{manufacturer:'ariana_demo',externalOrderId:ids.orderId,customerName:'Cliente Teste API Explorer',customerEmail:'cliente.teste@exemplo.com',customerPhone:'31999999999',items:[{sku:ids.sku,name:'Produto Demo API Explorer',qty:1,unitPrice:2299,sellerId:'ariana_demo'}],shippingAddress:{name:'Cliente Teste',cep:'39740000',logradouro:'Rua Teste',numero:'100',bairro:'Centro',cidade:'Guanhães',uf:'MG'}}},
-    {id:'invoice', label:'NF-e', path:`/enterprise/orders/${encodeURIComponent(ids.orderId)}/invoice`, body:{manufacturer:'ariana_demo',invoice:{number:'12345',series:'1',accessKey:'31260600000000000000550010000123451000012345',danfeUrl:'https://exemplo.com/danfe-12345.pdf',xmlUrl:'https://exemplo.com/nfe-12345.xml',total:2299}}},
-    {id:'tracking', label:'Rastreio', path:`/enterprise/orders/${encodeURIComponent(ids.orderId)}/tracking`, body:{manufacturer:'ariana_demo',trackingCode:'BR123456789BR',carrier:'Transportadora Demo',trackingUrl:'https://rastreamento.exemplo.com/BR123456789BR'}}
-  ];
-  const results = [];
-  try{
-    for(const step of steps){
-      const ep = endpoints.find(x => x.id === step.id);
-      if(!ep) throw new Error(`Endpoint ${step.id} não encontrado`);
-      const r = await sendEndpoint(ep, step.body || null, step.path || null, { useEndpointAuth: true });
-      results.push({ etapa: step.label, status: r.res.status, ok: r.res.ok, resposta: r.data });
-      if(!r.res.ok) throw new Error(`${step.label} retornou HTTP ${r.res.status}`);
-    }
-    const totalMs = Math.round(performance.now() - startAll);
-    $('http-status').textContent='Fluxo aprovado';
-    $('http-status').className='pill ok';
-    $('http-time').textContent=`${totalMs} ms`;
-    $('response-output').textContent=pretty({ ok:true, message:'Fluxo completo aprovado', sku:ids.sku, externalOrderId:ids.orderId, totalMs, etapas:results.map(r=>({etapa:r.etapa,status:r.status,ok:r.ok})) });
-    logLine('FLOW','OK','Homologação completa pelo Explorer',totalMs,true);
-  }catch(err){
-    const totalMs = Math.round(performance.now() - startAll);
-    $('http-status').textContent='Fluxo com erro';
-    $('http-status').className='pill err';
-    $('http-time').textContent=`${totalMs} ms`;
-    $('response-output').textContent=pretty({ ok:false, error:String(err.message||err), etapas:results });
-    logLine('FLOW','ERRO','Homologação completa pelo Explorer',totalMs,false);
-  }finally{
-    btn.disabled=false;
-    btn.innerHTML='<i class="fas fa-list-check"></i> Executar fluxo completo';
-  }
-}
-function boot(){
-  $('base-url').value=API_DEFAULT;
-  $('token-input').value=localStorage.getItem('ENTERPRISE_API_KEY') || localStorage.getItem('ENTERPRISE_SANDBOX_API_KEY') || localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || '';
-  $('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join('');
-  $('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join('');
-  $('endpoint-select').addEventListener('change',updateEndpoint);
-  $('base-url').addEventListener('input',()=>{ $('final-url').textContent=finalUrl(); updateSdk(); });
-  $('auth-mode').addEventListener('change',updateSdk);
-  $('token-input').addEventListener('input',updateSdk);
-  $('request-body').addEventListener('input',updateSdk);
-  $('execute-btn').addEventListener('click',execute);
-  $('run-all-btn').addEventListener('click',runFullFlow);
-  $('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand()); alert('cURL copiado.');});
-  $('save-key-btn').addEventListener('click',()=>{
-    const key = $('token-input').value.trim();
-    localStorage.setItem('ENTERPRISE_API_KEY', key);
-    localStorage.setItem('ENTERPRISE_SANDBOX_API_KEY', key);
-    alert('Chave salva neste navegador.');
-  });
-  $('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';});
-  $('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang)); updateSdk();}});
-  $('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox'; $('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn';});
-  updateEndpoint();
-}
-boot();
+const guided=['health','catalog','stock','price','order','invoice','tracking','webhook'];let currentLang='JavaScript';const languages=['JavaScript','Node.js','PHP','Python','cURL'];
+function stamp(){return new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14)}function newIds(){const s=stamp();state.sku=`ARI-EXP-${s}`;state.orderId=`ARI-PED-${s}`}
+function endpointById(id){return endpoints.find(e=>e.id===id)}function selectedEndpoint(){return endpointById($('endpoint-select').value)||endpoints[0]}function resolvePath(path){return path.replace('{sku}',encodeURIComponent(state.sku)).replace('{orderId}',encodeURIComponent(state.orderId))}function finalUrl(e=selectedEndpoint()){return `${$('base-url').value.replace(/\/+$/,'')}${resolvePath(e.path)}`}
+function currentToken(){return ($('token-input').value||'').trim()}function headersFor(e,{hasBody=false}={}){const h={};if(hasBody)h['Content-Type']='application/json';const mode=$('auth-mode').value==='none'?e.auth||'none':$('auth-mode').value;const token=currentToken();if(mode==='x-key'&&token)h['x-ariana-key']=token;if(mode==='bearer'&&token)h.Authorization=`Bearer ${token}`;return h}
+function makeBody(e, overrides={}){let b=e.body?JSON.parse(JSON.stringify(e.body)):null;if(!b)return null;const replace=v=>typeof v==='string'?v.replaceAll('ARI-DEMO-001',state.sku).replaceAll('ARI-PED-DEMO',state.orderId):v;const walk=o=>{if(Array.isArray(o))return o.map(walk);if(o&&typeof o==='object'){for(const k of Object.keys(o))o[k]=walk(o[k]);return o}return replace(o)};b=walk(b);return Object.assign(b,overrides||{})}
+function updateEndpoint(){const e=selectedEndpoint();$('auth-mode').value=e.auth||'x-key';$('final-url').textContent=finalUrl(e);$('request-body').value=e.body?pretty(makeBody(e)):'';updateSdk()}
+function updateStats(){const done=guided.filter(id=>state.steps[id]?.ok).length;const pct=Math.round((done/guided.length)*100);$('flow-percent').textContent=pct+'%';$('progress-bar').style.width=pct+'%';$('stat-calls').textContent=state.calls;$('stat-ok').textContent=state.ok;$('stat-error').textContent=state.error;$('stat-time').textContent=state.totalMs+' ms';document.querySelectorAll('[data-dot]').forEach(dot=>{const id=dot.dataset.dot;dot.className='dot '+(state.steps[id]?.ok?'ok':state.steps[id]?.error?'err':'')});document.querySelectorAll('[data-badge]').forEach(b=>{const id=b.dataset.badge;const st=state.steps[id];b.textContent=st?.ok?'OK':st?.error?'ERRO':'Aguardando';b.className='pill '+(st?.ok?'ok':st?.error?'err':'')});}
+function logLine(method,status,path,ms,ok){const box=$('console-log');if(box.querySelector('.tiny'))box.innerHTML='';const div=document.createElement('div');div.className='log';div.innerHTML=`<b>${new Date().toLocaleTimeString('pt-BR')}</b><span class="${ok?'status-ok':'status-err'}">${status}</span><span>${method} ${path} • ${ms} ms</span>`;box.prepend(div)}
+async function sendEndpoint(e,customBody=null,customPath=null){const path=customPath||resolvePath(e.path);const bodyObj=customBody!==null?customBody:(e.body?JSON.parse($('request-body').value||'{}'):null);const body=bodyObj?JSON.stringify(bodyObj):undefined;const start=performance.now();const res=await fetch(`${$('base-url').value.replace(/\/+$/,'')}${path}`,{method:e.method,headers:headersFor(e,{hasBody:Boolean(body)}),body});const ms=Math.round(performance.now()-start);const ct=res.headers.get('content-type')||'';const data=ct.includes('json')?await res.json().catch(()=>null):await res.text().catch(()=>'');state.calls++;state.totalMs+=ms;if(res.ok)state.ok++;else state.error++;logLine(e.method,res.status,path,ms,res.ok);updateStats();return{res,ms,data,path}}
+async function execute(id=null){const e=id?endpointById(id):selectedEndpoint();if(!e)return;const btn=$('execute-btn');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Executando...';try{let body=null;if(e.body){body=id?makeBody(e):JSON.parse($('request-body').value||'{}')}const r=await sendEndpoint(e,body);$('http-status').textContent=`HTTP ${r.res.status}`;$('http-status').className=`pill ${r.res.ok?'ok':'err'}`;$('http-time').textContent=`${r.ms} ms`;$('response-output').textContent=typeof r.data==='string'?r.data:pretty(r.data);if(id){state.steps[id]=r.res.ok?{ok:true}:{error:true};updateStats()}return r}catch(err){$('http-status').textContent='Erro';$('http-status').className='pill err';$('http-time').textContent='0 ms';$('response-output').textContent=String(err.message||err);logLine(e.method,'ERRO',resolvePath(e.path),0,false);if(id){state.steps[id]={error:true};updateStats()}throw err}finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-play"></i> Executar'}}
+async function runGuidedStep(id){if(!currentToken()&&id!=='health'){alert('Cole a API Key Sandbox antes de executar este teste.');return}const e=endpointById(id);$('endpoint-select').value=id;updateEndpoint();state.steps[id]={run:true};updateStats();return execute(id)}
+async function runFullFlow(){const token=currentToken();if(!token){$('http-status').textContent='Chave ausente';$('http-status').className='pill err';$('response-output').textContent=pretty({ok:false,error:'Cole a API Key Sandbox no campo Chave / Token antes de executar.'});return}newIds();state.steps={};updateStats();const btns=[$('run-all-btn'),$('run-all-btn-top')];btns.forEach(b=>{b.disabled=true;b.innerHTML='<i class="fas fa-spinner fa-spin"></i> Executando...'});const start=performance.now();const results=[];try{for(const id of guided){state.steps[id]={run:true};updateStats();const e=endpointById(id);const body=e.body?makeBody(e):null;const r=await sendEndpoint(e,body,resolvePath(e.path));state.steps[id]=r.res.ok?{ok:true}:{error:true};results.push({etapa:e.label,status:r.res.status,ok:r.res.ok,resposta:r.data});updateStats();if(!r.res.ok)throw new Error(`${e.label} retornou HTTP ${r.res.status}`)}const totalMs=Math.round(performance.now()-start);$('http-status').textContent='Fluxo aprovado';$('http-status').className='pill ok';$('http-time').textContent=totalMs+' ms';$('response-output').textContent=pretty({ok:true,message:'Fluxo completo aprovado',sku:state.sku,externalOrderId:state.orderId,totalMs,etapas:results.map(r=>({etapa:r.etapa,status:r.status,ok:r.ok}))});logLine('FLOW','OK','Homologação completa pelo Explorer',totalMs,true)}catch(err){const totalMs=Math.round(performance.now()-start);$('http-status').textContent='Fluxo com erro';$('http-status').className='pill err';$('http-time').textContent=totalMs+' ms';$('response-output').textContent=pretty({ok:false,error:String(err.message||err),etapas:results});logLine('FLOW','ERRO','Homologação completa pelo Explorer',totalMs,false)}finally{btns.forEach(b=>{b.disabled=false;b.innerHTML=b.id==='run-all-btn-top'?'<i class="fas fa-list-check"></i> Executar homologação completa':'<i class="fas fa-list-check"></i> Executar fluxo completo'});updateStats()}}
+function curlCommand(e=selectedEndpoint()){const body=e.body?$('request-body').value:'';const headers=headersFor(e,{hasBody:Boolean(e.body)});let cmd=`curl -X ${e.method} ${JSON.stringify(finalUrl(e))}`;Object.entries(headers).forEach(([k,v])=>cmd+=` \\\n  -H ${JSON.stringify(k+': '+v)}`);if(body)cmd+=` \\\n  -d ${JSON.stringify(body)}`;return cmd}
+function updateSdk(){const e=selectedEndpoint();const url=finalUrl(e);const headers=headersFor(e,{hasBody:Boolean(e.body)});const h=pretty(headers);const body=e.body?$('request-body').value:'';const codes={JavaScript:`const response = await fetch(${JSON.stringify(url)}, {\n  method: ${JSON.stringify(e.method)},\n  headers: ${h.replace(/\n/g,'\n  ')}${body?`,\n  body: JSON.stringify(${body})`:''}\n});\nconst data = await response.json();\nconsole.log(data);`, 'Node.js':`import axios from 'axios';\n\nconst response = await axios.request({\n  method: ${JSON.stringify(e.method)},\n  url: ${JSON.stringify(url)},\n  headers: ${h.replace(/\n/g,'\n  ')}${body?`,\n  data: ${body}`:''}\n});\nconsole.log(response.data);`,PHP:`$curl = curl_init();\ncurl_setopt_array($curl, [\n  CURLOPT_URL => ${JSON.stringify(url)},\n  CURLOPT_RETURNTRANSFER => true,\n  CURLOPT_CUSTOMREQUEST => ${JSON.stringify(e.method)},\n  CURLOPT_HTTPHEADER => [${Object.entries(headers).map(([k,v])=>'\n    '+JSON.stringify(k+': '+v)).join(',')}\n  ],${body?'\n  CURLOPT_POSTFIELDS => json_encode('+body+'),':''}\n]);\n$response = curl_exec($curl);\ncurl_close($curl);\necho $response;`,Python:`import requests\n\nurl = ${JSON.stringify(url)}\nheaders = ${h}\n${body?'payload = '+body+'\nresponse = requests.request('+JSON.stringify(e.method)+', url, headers=headers, json=payload)':'response = requests.request('+JSON.stringify(e.method)+', url, headers=headers)'}\nprint(response.status_code)\nprint(response.json())`,cURL:curlCommand(e)};$('sdk-output').textContent=codes[currentLang]||codes.cURL}
+function boot(){newIds();$('base-url').value=API_DEFAULT;$('token-input').value=localStorage.getItem('ENTERPRISE_API_KEY')||localStorage.getItem('ENTERPRISE_SANDBOX_API_KEY')||'';$('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join('');$('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join('');$('step-cards').innerHTML=guided.map(id=>{const e=endpointById(id);return `<div class="step"><div class="topline"><span data-dot="${id}" class="dot"></span><span data-badge="${id}" class="pill">Aguardando</span></div><h3>${e.label}</h3><p>${e.desc}</p><button class="btn btn-blue" data-step="${id}">Testar</button></div>`}).join('');$('endpoint-select').addEventListener('change',updateEndpoint);$('base-url').addEventListener('input',()=>{$('final-url').textContent=finalUrl();updateSdk()});$('auth-mode').addEventListener('change',updateSdk);$('token-input').addEventListener('input',updateSdk);$('request-body').addEventListener('input',updateSdk);$('execute-btn').addEventListener('click',()=>execute());$('run-all-btn').addEventListener('click',runFullFlow);$('run-all-btn-top').addEventListener('click',runFullFlow);$('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand());alert('cURL copiado.')});$('save-key-btn').addEventListener('click',()=>{const k=currentToken();localStorage.setItem('ENTERPRISE_API_KEY',k);localStorage.setItem('ENTERPRISE_SANDBOX_API_KEY',k);alert('Chave salva neste navegador.')});$('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';});$('reset-flow').addEventListener('click',()=>{state.steps={};state.calls=0;state.ok=0;state.error=0;state.totalMs=0;updateStats();$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';});$('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang));updateSdk()}});$('step-cards').addEventListener('click',e=>{const btn=e.target.closest('[data-step]');if(btn)runGuidedStep(btn.dataset.step)});$('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox';$('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn'});updateEndpoint();updateStats()}boot();
 </script>
 </body>
 </html>

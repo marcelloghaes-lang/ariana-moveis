@@ -11736,6 +11736,41 @@ app.post('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async
 });
 
 
+app.post('/api/enterprise/webhooks/test', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const event = String(req.body?.event || req.body?.type || 'webhook_test').trim();
+    const manufacturer = String(req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: event,
+      manufacturer,
+      status: 'success',
+      statusCode: 200,
+      message: 'Webhook de teste recebido pelo API Explorer',
+      request: redact(req.body),
+      response: { ok: true, event, manufacturer },
+      metadata: {
+        source: 'api_explorer',
+        environment: req.enterprisePartner?.environment || 'sandbox',
+        companyName: req.enterprisePartner?.companyName || '',
+        tradeName: req.enterprisePartner?.tradeName || ''
+      }
+    }).catch(() => null);
+
+    return res.json({
+      ok: true,
+      event,
+      manufacturer,
+      status: 'received',
+      message: 'Webhook de teste recebido com sucesso'
+    });
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao receber webhook de teste' });
+  }
+});
+
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
