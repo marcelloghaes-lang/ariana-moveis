@@ -164,7 +164,7 @@ function normalizeManufacturer(value = '') {
 }
 
 function escapeRegExp(value = '') {
-  return String(value || '').replace(/[.*+?^${}()|[\]\]/g, '\$&');
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function buildProductQuery(params = {}) {
