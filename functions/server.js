@@ -101,13 +101,40 @@ const corsOptions = {
     return callback(new Error(`CORS bloqueado: ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'x-ariana-key',
+    'X-Ariana-Key',
+    'x-api-key',
+    'X-API-Key',
+    'x-webhook-signature',
+    'X-Webhook-Signature'
+  ],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
   credentials: false,
   optionsSuccessStatus: 204,
 };
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// Headers extras para o API Explorer Ariana Enterprise.
+// Permite que o navegador envie x-ariana-key, Bearer e assinaturas de webhook sem bloquear no preflight CORS.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-ariana-key, X-Ariana-Key, x-api-key, X-API-Key, x-webhook-signature, X-Webhook-Signature');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  return next();
+});
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(uploadsDir, {
