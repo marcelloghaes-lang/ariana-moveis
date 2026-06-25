@@ -182,23 +182,156 @@ function adminOnly(req, res, next) {
   }
 }
 
-function partnerKey(req, res, next) {
-  const expected = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
-  if (!expected) return next();
-  const received = String(req.headers['x-ariana-key'] || req.query.key || '').trim();
-  if (received !== expected) return fail(res, 401, 'Chave de integração inválida');
-  return next();
+function getPartnerApiKey(req) {
+  const fromHeader = String(
+    req.headers['x-ariana-key'] ||
+    req.headers['x-api-key'] ||
+    req.headers['x-enterprise-key'] ||
+    ''
+  ).trim();
+  if (fromHeader) return fromHeader;
+
+  const fromQuery = String(req.query?.key || req.query?.apiKey || req.query?.api_key || '').trim();
+  if (fromQuery) return fromQuery;
+
+  const auth = String(req.headers.authorization || '').trim();
+  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+  return '';
 }
 
-function partnerKeyRequired(req, res, next) {
+function getRequestIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '')
+    .split(',')[0]
+    .trim();
+}
+
+function isLegacyEnterpriseSecret(key = '') {
   const expected = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
-  if (!expected) return fail(res, 403, 'Configure ENTERPRISE_WEBHOOK_SECRET no Render para liberar esta API externa');
-  const received = String(req.headers['x-ariana-key'] || req.query.key || '').trim();
-  if (received !== expected) return fail(res, 401, 'Chave de integração inválida');
-  return next();
+  return Boolean(expected && key && key === expected);
+}
+
+function buildPartnerAuthQuery(key = '') {
+  return {
+    $or: [
+      { 'sandboxCredentials.apiKey': key },
+      { 'productionCredentials.apiKey': key }
+    ]
+  };
+}
+
+function resolvePartnerEnvironment(doc = {}, key = '') {
+  if (doc?.sandboxCredentials?.apiKey === key) return 'sandbox';
+  if (doc?.productionCredentials?.apiKey === key) return 'production';
+  return 'unknown';
+}
+
+function partnerIsAllowed(doc = {}, environment = 'unknown') {
+  const status = String(doc.status || '').toLowerCase();
+  const env = String(environment || '').toLowerCase();
+
+  if (env === 'sandbox') {
+    return Boolean(doc.sandboxCredentials?.active !== false && ['sandbox', 'approved', 'production'].includes(status));
+  }
+
+  if (env === 'production') {
+    return Boolean(doc.productionCredentials?.active !== false && ['approved', 'production'].includes(status));
+  }
+
+  return false;
+}
+
+async function findEnterprisePartnerByKey(key = '') {
+  if (!key) return null;
+  return EnterpriseHomologationRequest.findOne(buildPartnerAuthQuery(key)).lean();
+}
+
+async function touchEnterprisePartnerUsage(doc = {}, environment = 'unknown', req = {}) {
+  try {
+    if (!doc?._id) return;
+    const fieldPrefix = environment === 'production' ? 'productionCredentials' : 'sandboxCredentials';
+    await EnterpriseHomologationRequest.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          [`${fieldPrefix}.lastAccessAt`]: new Date(),
+          [`${fieldPrefix}.lastAccessIp`]: getRequestIp(req),
+          [`${fieldPrefix}.lastAccessPath`]: req.originalUrl || req.url || '',
+          [`${fieldPrefix}.lastAccessMethod`]: req.method || ''
+        },
+        $inc: { [`${fieldPrefix}.requestCount`]: 1 }
+      }
+    );
+  } catch (error) {
+    console.warn('[enterprise/partnerAuth] Não foi possível atualizar uso da API Key:', error?.message || error);
+  }
+}
+
+async function partnerKey(req, res, next) {
+  try {
+    const key = getPartnerApiKey(req);
+
+    // Compatibilidade com a chave global antiga do Render.
+    if (isLegacyEnterpriseSecret(key)) {
+      req.enterprisePartner = {
+        mode: 'legacy_env_secret',
+        environment: 'legacy',
+        companyName: 'Chave global Enterprise',
+        permissions: ['*']
+      };
+      return next();
+    }
+
+    // Webhooks antigos continuam opcionais quando nenhuma chave global foi configurada.
+    if (!key && !String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim()) return next();
+    if (!key) return fail(res, 401, 'Chave de integração ausente');
+
+    const partner = await findEnterprisePartnerByKey(key);
+    if (!partner) return fail(res, 401, 'Chave de integração inválida');
+
+    const environment = resolvePartnerEnvironment(partner, key);
+    if (!partnerIsAllowed(partner, environment)) {
+      return fail(res, 403, 'Chave de integração sem permissão para este ambiente ou status');
+    }
+
+    await touchEnterprisePartnerUsage(partner, environment, req);
+    req.enterprisePartner = {
+      id: String(partner._id),
+      requestId: partner.requestId,
+      companyName: partner.companyName,
+      tradeName: partner.tradeName,
+      cnpj: partner.cnpj,
+      email: partner.email,
+      environment,
+      status: partner.status,
+      permissions: partner.integrationTypes || [],
+      credential: environment === 'production' ? partner.productionCredentials : partner.sandboxCredentials
+    };
+    return next();
+  } catch (error) {
+    console.warn('[enterprise/partnerKey] Erro na autenticação:', error?.message || error);
+    return fail(res, 500, 'Erro ao validar chave de integração');
+  }
+}
+
+async function partnerKeyRequired(req, res, next) {
+  const key = getPartnerApiKey(req);
+  if (!key) return fail(res, 401, 'Chave de integração ausente');
+  return partnerKey(req, res, next);
 }
 
 router.get('/health', (_req, res) => ok(res, { module: 'enterprise', status: 'online' }));
+
+router.get('/auth/check', partnerKeyRequired, (req, res) => ok(res, {
+  valid: true,
+  environment: req.enterprisePartner?.environment || 'unknown',
+  partner: {
+    requestId: req.enterprisePartner?.requestId || '',
+    companyName: req.enterprisePartner?.companyName || '',
+    tradeName: req.enterprisePartner?.tradeName || '',
+    status: req.enterprisePartner?.status || '',
+    permissions: req.enterprisePartner?.permissions || []
+  }
+}));
 
 // ============================================================
 // ETAPA 10 - Homologação Enterprise

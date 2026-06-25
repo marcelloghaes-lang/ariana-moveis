@@ -62,6 +62,7 @@
 const API_DEFAULT = (window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
 const endpoints = [
   {id:'health', title:'Health check', method:'GET', path:'/enterprise/health', auth:'none', body:null, desc:'Verifica se o módulo Enterprise está online.'},
+  {id:'authcheck', title:'Testar API Key', method:'GET', path:'/enterprise/auth/check', auth:'x-key', body:null, desc:'Valida a chave Sandbox/Produção gerada na homologação.'},
   {id:'catalog', title:'Enviar catálogo', method:'POST', path:'/enterprise/catalog/push', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',sellerName:'Ariana Demo',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',description:'Produto de teste recebido pelo API Explorer.',category:'Eletrodomésticos',brand:'Ariana Demo',price:2500,stock:12,weight:10,height:60,width:60,length:60,imageUrl:'https://placehold.co/600x600/eef2ff/1d4ed8?text=Ariana+Demo'}]}},
   {id:'sync', title:'Sincronizar estoque, preço e status', method:'POST', path:'/enterprise/products/ARI-DEMO-001/sync', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299,stock:8,active:true,availability:'available',status:'updated_by_api_explorer'}},
   {id:'stock', title:'Atualizar estoque', method:'PUT', path:'/enterprise/products/ARI-DEMO-001/stock', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',stock:5}},
