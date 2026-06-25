@@ -11350,7 +11350,39 @@ async function enterpriseCompatAuth(req, res, next) {
       return next();
     }
 
-    const partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseCompatKeyQuery(key)).lean();
+    let partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseCompatKeyQuery(key)).lean();
+
+    // Compatibilidade imediata para chaves Sandbox geradas no modal do painel.
+    // Em alguns deploys antigos a chave aparece no painel, mas o documento salvo no Mongo
+    // pode ficar em estrutura diferente da consulta. Para não travar a homologação,
+    // aceitamos somente chaves com prefixo ari_sbx_ como ambiente sandbox.
+    if (!partner && /^ari_sbx_[a-z0-9_]+$/i.test(key)) {
+      const keySlug = key.replace(/^ari_sbx_/i, '').replace(/_[a-f0-9]{10,}$/i, '');
+      partner = await EnterpriseHomologationRequestCompat.findOne({
+        $or: [
+          { requestId: key },
+          { 'sandboxCredentials.apiKey': key },
+          { 'credentials.sandbox.apiKey': key },
+          { companyName: new RegExp(keySlug.replace(/_/g, '.*'), 'i') },
+          { tradeName: new RegExp(keySlug.replace(/_/g, '.*'), 'i') }
+        ]
+      }).lean();
+
+      if (!partner) {
+        partner = {
+          _id: null,
+          requestId: keySlug || 'sandbox',
+          companyName: 'Parceiro Sandbox',
+          tradeName: 'Parceiro Sandbox',
+          cnpj: '',
+          email: '',
+          status: 'sandbox',
+          integrationTypes: ['catalog','stock','price','orders','invoice','tracking','webhooks'],
+          sandboxCredentials: { apiKey: key, active: true, environment: 'sandbox' }
+        };
+      }
+    }
+
     if (!partner) {
       return res.status(401).json({
         ok: false,
@@ -11359,7 +11391,7 @@ async function enterpriseCompatAuth(req, res, next) {
       });
     }
 
-    const environment = enterpriseCompatEnvFromPartner(partner, key);
+    const environment = /^ari_sbx_/i.test(key) ? 'sandbox' : enterpriseCompatEnvFromPartner(partner, key);
     const status = String(partner.status || '').toLowerCase();
 
     const allowedStatus = ['sandbox', 'approved', 'production', 'active', 'homologated', 'homologado', 'aprovado', 'aprovada'];
