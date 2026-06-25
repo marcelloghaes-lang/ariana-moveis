@@ -80,7 +80,16 @@ function pretty(v){ return v === null || v === undefined ? '' : JSON.stringify(v
 function finalUrl(){ return `${$('base-url').value.replace(/\/+$/,'')}${endpoints.find(e=>e.id===$('endpoint-select').value).path}`; }
 function selectedEndpoint(){ return endpoints.find(e=>e.id===$('endpoint-select').value) || endpoints[0]; }
 function updateEndpoint(){ const e=selectedEndpoint(); $('auth-mode').value=e.auth || 'x-key'; $('request-body').value=e.body ? pretty(e.body) : ''; $('final-url').textContent=finalUrl(); updateSdk(); }
-function headersFor(e){ const h={}; const mode=$('auth-mode').value; const token=$('token-input').value.trim(); if(e.body) h['Content-Type']='application/json'; if(mode==='x-key' && token) h['x-ariana-key']=token; if(mode==='bearer' && token) h.Authorization=`Bearer ${token}`; return h; }
+function headersFor(e, options = {}){
+  const h = {};
+  const endpoint = e || selectedEndpoint();
+  const mode = options.useEndpointAuth ? (endpoint.auth || 'x-key') : ($('auth-mode').value || endpoint.auth || 'x-key');
+  const token = $('token-input').value.trim();
+  if(endpoint.body || options.hasBody) h['Content-Type'] = 'application/json';
+  if(mode === 'x-key' && token) h['x-ariana-key'] = token;
+  if(mode === 'bearer' && token) h.Authorization = `Bearer ${token}`;
+  return h;
+}
 function curlCommand(){ const e=selectedEndpoint(); const headers=headersFor(e); let cmd=`curl -X ${e.method} "${finalUrl()}"`; Object.entries(headers).forEach(([k,v])=>cmd+=` \\\n  -H "${k}: ${v}"`); const body=$('request-body').value.trim(); if(e.body && body) cmd+=` \\\n  -d '${body.replace(/'/g,"'\\''")}'`; return cmd; }
 function updateSdk(){ const e=selectedEndpoint(); const url=finalUrl(); const body=$('request-body').value.trim() || '{}'; const headers=headersFor(e); const headersJson=JSON.stringify(headers,null,2); const code={
 'JavaScript':`const response = await fetch(${JSON.stringify(url)}, {\n  method: ${JSON.stringify(e.method)},\n  headers: ${headersJson.replace(/\n/g,'\n  ')},${e.body ? `\n  body: JSON.stringify(${body})` : ''}\n});\n\nconst data = await response.json();\nconsole.log(data);`,
@@ -92,12 +101,16 @@ function updateSdk(){ const e=selectedEndpoint(); const url=finalUrl(); const bo
 function logLine(method,status,path,ms,ok){ const box=$('console-log'); if(box.querySelector('.tiny')) box.innerHTML=''; const time=new Date().toLocaleTimeString('pt-BR'); const div=document.createElement('div'); div.className='log'; div.innerHTML=`<b>${time}</b><span class="${ok?'status-ok':'status-err'}">${status}</span><span>${method} ${path} • ${ms} ms</span>`; box.prepend(div); }
 
 function buildUrlFor(endpoint){ return `${$('base-url').value.replace(/\/+$/,'')}${endpoint.path}`; }
-async function sendEndpoint(endpoint, customBody = null, customPath = null){
+async function sendEndpoint(endpoint, customBody = null, customPath = null, options = {}){
   const url = `${$('base-url').value.replace(/\/+$/,'')}${customPath || endpoint.path}`;
   const start = performance.now();
   let requestBody;
   if (endpoint.body || customBody) requestBody = JSON.stringify(customBody || JSON.parse($('request-body').value || '{}'));
-  const res = await fetch(url, { method: endpoint.method, headers: headersFor(endpoint), body: requestBody });
+  const res = await fetch(url, {
+    method: endpoint.method,
+    headers: headersFor(endpoint, { useEndpointAuth: options.useEndpointAuth === true, hasBody: Boolean(requestBody) }),
+    body: requestBody
+  });
   const ms = Math.round(performance.now() - start);
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => '');
@@ -135,6 +148,15 @@ function makeRunIds(){
   return { sku:`ARI-EXP-${stamp}`, orderId:`ARI-PED-${stamp}` };
 }
 async function runFullFlow(){
+  const token = $('token-input').value.trim();
+  if(!token){
+    $('http-status').textContent='Chave ausente';
+    $('http-status').className='pill err';
+    $('http-time').textContent='0 ms';
+    $('response-output').textContent=pretty({ ok:false, error:'Cole a API Key Sandbox no campo Chave / Token antes de executar o fluxo completo.' });
+    logLine('FLOW','ERRO','Homologação completa pelo Explorer',0,false);
+    return;
+  }
   const btn = $('run-all-btn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando fluxo...';
@@ -153,7 +175,7 @@ async function runFullFlow(){
     for(const step of steps){
       const ep = endpoints.find(x => x.id === step.id);
       if(!ep) throw new Error(`Endpoint ${step.id} não encontrado`);
-      const r = await sendEndpoint(ep, step.body || null, step.path || null);
+      const r = await sendEndpoint(ep, step.body || null, step.path || null, { useEndpointAuth: true });
       results.push({ etapa: step.label, status: r.res.status, ok: r.res.ok, resposta: r.data });
       if(!r.res.ok) throw new Error(`${step.label} retornou HTTP ${r.res.status}`);
     }
@@ -175,7 +197,30 @@ async function runFullFlow(){
     btn.innerHTML='<i class="fas fa-list-check"></i> Executar fluxo completo';
   }
 }
-function boot(){ $('base-url').value=API_DEFAULT; $('token-input').value=localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || localStorage.getItem('admin_token') || ''; $('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join(''); $('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join(''); $('endpoint-select').addEventListener('change',updateEndpoint); $('base-url').addEventListener('input',()=>{ $('final-url').textContent=finalUrl(); updateSdk(); }); $('auth-mode').addEventListener('change',updateSdk); $('token-input').addEventListener('input',updateSdk); $('request-body').addEventListener('input',updateSdk); $('execute-btn').addEventListener('click',execute); $('run-all-btn').addEventListener('click',runFullFlow); $('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand()); alert('cURL copiado.');}); $('save-key-btn').addEventListener('click',()=>{localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET',$('token-input').value.trim()); alert('Chave salva neste navegador.');}); $('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';}); $('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang)); updateSdk();}}); $('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox'; $('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn';}); updateEndpoint(); }
+function boot(){
+  $('base-url').value=API_DEFAULT;
+  $('token-input').value=localStorage.getItem('ENTERPRISE_API_KEY') || localStorage.getItem('ENTERPRISE_SANDBOX_API_KEY') || localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || '';
+  $('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join('');
+  $('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join('');
+  $('endpoint-select').addEventListener('change',updateEndpoint);
+  $('base-url').addEventListener('input',()=>{ $('final-url').textContent=finalUrl(); updateSdk(); });
+  $('auth-mode').addEventListener('change',updateSdk);
+  $('token-input').addEventListener('input',updateSdk);
+  $('request-body').addEventListener('input',updateSdk);
+  $('execute-btn').addEventListener('click',execute);
+  $('run-all-btn').addEventListener('click',runFullFlow);
+  $('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand()); alert('cURL copiado.');});
+  $('save-key-btn').addEventListener('click',()=>{
+    const key = $('token-input').value.trim();
+    localStorage.setItem('ENTERPRISE_API_KEY', key);
+    localStorage.setItem('ENTERPRISE_SANDBOX_API_KEY', key);
+    alert('Chave salva neste navegador.');
+  });
+  $('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';});
+  $('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang)); updateSdk();}});
+  $('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox'; $('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn';});
+  updateEndpoint();
+}
 boot();
 </script>
 </body>
