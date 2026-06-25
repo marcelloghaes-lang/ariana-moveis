@@ -787,59 +787,123 @@ window.enterpriseSyncProductSample = async function(){
   }
 }
 
+
+window.enterpriseSaveWebhookSecret = function(){
+  const el = document.getElementById('enterprise-webhook-secret');
+  const value = String(el?.value || '').trim();
+  if(!value){ displayMessage('Informe a chave ENTERPRISE_WEBHOOK_SECRET antes de salvar.', 'error'); return; }
+  localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET', value);
+  displayMessage('Chave de teste salva neste navegador.', 'success');
+}
+
+window.enterpriseCopyText = async function(text){
+  try{
+    await navigator.clipboard.writeText(String(text || ''));
+    displayMessage('Copiado para a área de transferência.', 'success');
+  }catch(_e){
+    displayMessage('Não foi possível copiar automaticamente. Selecione e copie manualmente.', 'info');
+  }
+}
+
+window.enterpriseSaveManufacturer = async function(){
+  const manufacturer = String(document.getElementById('enterprise-form-manufacturer')?.value || '').trim().toLowerCase();
+  const endpoint = String(document.getElementById('enterprise-form-endpoint')?.value || '').trim();
+  const method = String(document.getElementById('enterprise-form-method')?.value || 'POST').trim().toUpperCase();
+  const enabled = document.getElementById('enterprise-form-enabled')?.checked !== false;
+  const authType = String(document.getElementById('enterprise-form-auth-type')?.value || '').trim();
+  const authToken = String(document.getElementById('enterprise-form-auth-token')?.value || '').trim();
+  if(!manufacturer){ displayMessage('Informe o nome do fabricante.', 'error'); return; }
+  try{
+    await apiRequest('/enterprise/manufacturers', {
+      method:'POST',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({ manufacturer, endpoint, method, enabled, authType, authToken })
+    });
+    displayMessage('Fabricante salvo com sucesso.', 'success');
+    await renderEnterpriseView();
+  }catch(error){
+    displayMessage(`Erro ao salvar fabricante: ${error.message}`, 'error');
+  }
+}
+
+window.enterpriseDispatchQueueItem = async function(queueId){
+  const id = String(queueId || '').trim();
+  if(!id) return;
+  if(!confirm(`Enviar agora a fila ${id}?`)) return;
+  try{
+    await apiRequest(`/enterprise/queue/${encodeURIComponent(id)}/dispatch`, { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify({}) });
+    displayMessage('Envio manual executado.', 'success');
+    await renderEnterpriseView();
+  }catch(error){
+    displayMessage(`Erro ao enviar fila: ${error.message}`, 'error');
+  }
+}
+
 async function renderEnterpriseView(){
   const box = document.getElementById('enterprise-content');
   if(!box) return;
   box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"><div class="flex items-center gap-3 text-primary-blue font-bold"><i class="fas fa-spinner fa-spin"></i> Carregando integrações Enterprise...</div></div>`;
 
-  const [dashboard, logsData, queueData, catalogData] = await Promise.all([
+  const [dashboard, logsData, queueData, catalogData, productsData] = await Promise.all([
     fetchEnterpriseData('/enterprise/dashboard', {}),
-    fetchEnterpriseData('/enterprise/logs?limit=10', {}),
-    fetchEnterpriseData('/enterprise/queue?limit=10', {}),
-    fetchEnterpriseData('/enterprise/catalog/summary', {})
+    fetchEnterpriseData('/enterprise/logs?limit=12', {}),
+    fetchEnterpriseData('/enterprise/queue?limit=12', {}),
+    fetchEnterpriseData('/enterprise/catalog/summary', {}),
+    fetchEnterpriseData('/enterprise/products?limit=12', {})
   ]);
 
   const orders = enterpriseRows(dashboard, ['latestOrders','orders','recentOrders']).slice(0, 10);
-  const manufacturers = enterpriseRows(dashboard, ['manufacturers','integrations']).slice(0, 20);
-  const logs = enterpriseRows(logsData, ['logs']).slice(0, 10);
-  const queue = enterpriseRows(queueData, ['queue']).slice(0, 10);
-  const catalogProducts = enterpriseRows(catalogData, ['lastProducts','products']).slice(0, 10);
+  const manufacturers = enterpriseRows(dashboard, ['manufacturers','integrations']).slice(0, 30);
+  const logs = enterpriseRows(logsData, ['logs','items']).slice(0, 12);
+  const queue = enterpriseRows(queueData, ['queue','items']).slice(0, 12);
+  const catalogProducts = enterpriseRows(productsData, ['products','items']).slice(0, 12);
+  const catalogFallbackProducts = enterpriseRows(catalogData, ['lastProducts','products']).slice(0, 12);
+  const productsToShow = catalogProducts.length ? catalogProducts : catalogFallbackProducts;
   const catalogManufacturers = enterpriseRows(catalogData, ['manufacturers']).slice(0, 20);
   const catalogSummary = catalogData.summary || {};
-  const totalCatalogProducts = Number(catalogSummary.totalProducts || catalogProducts.length || 0);
-  const activeCatalogProducts = Number(catalogSummary.activeProducts || 0);
-  const outOfStockCatalogProducts = Number(catalogSummary.outOfStock || 0);
+  const totalCatalogProducts = Number(catalogSummary.totalProducts || productsToShow.length || 0);
+  const activeCatalogProducts = Number(catalogSummary.activeProducts || productsToShow.filter(p=>p.active !== false).length || 0);
+  const outOfStockCatalogProducts = Number(catalogSummary.outOfStock || productsToShow.filter(p=>Number(p.stock||0)<=0).length || 0);
   const summary = dashboard.summary || dashboard.metrics || dashboard || {};
   const totalOrders = Number(summary.totalOrders ?? summary.ordersTotal ?? orders.length ?? 0);
   const totalManufacturers = Number(summary.totalManufacturers ?? summary.manufacturersTotal ?? manufacturers.length ?? 0);
   const pendingQueue = Number(summary.pendingQueue ?? summary.queuePending ?? queue.filter(q => String(q.status||'').toLowerCase().includes('pend')).length ?? 0);
   const totalLogs = Number(summary.totalLogs ?? summary.logsTotal ?? logs.length ?? 0);
-  const errorBlock = dashboard?.error ? `<div class="mb-4 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 font-bold">${escHtml(dashboard.error)}</div>` : '';
+  const erroredQueue = queue.filter(q => ['error','retrying','dead','failed'].some(s => String(q.status||'').toLowerCase().includes(s))).length;
+  const base = String(window.API_BASE || localStorage.getItem('API_BASE') || API_BASE || '').replace(/\/+$/, '');
+  const enterpriseKey = localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || '';
+  const errorBlock = [dashboard?.error, logsData?.error, queueData?.error, catalogData?.error, productsData?.error].filter(Boolean).map(e=>`<div class="mb-2 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 font-bold">${escHtml(e)}</div>`).join('');
 
   box.innerHTML = `
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-network-wired text-primary-blue"></i> Integrações Enterprise</h2><p class="text-gray-500 text-sm">Whirlpool, Samsung, Electrolux e demais fabricantes integrados por API.</p></div>
-      <div class="flex flex-wrap gap-2"><button type="button" onclick="window.enterpriseSyncCatalogSample()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-cloud-arrow-down mr-2"></i>Sincronizar catálogo teste</button><button type="button" onclick="window.enterpriseSyncProductSample()" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-arrows-rotate mr-2"></i>Teste estoque/preço</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
+      <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-network-wired text-primary-blue"></i> Integrações Enterprise</h2><p class="text-gray-500 text-sm">Fabricantes e ERPs integrados por API, sem alterar sellers, checkout, pagamentos, logística ou etiquetas atuais.</p></div>
+      <div class="flex flex-wrap gap-2"><button type="button" onclick="window.enterpriseSyncCatalogSample()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-cloud-arrow-down mr-2"></i>Catálogo teste</button><button type="button" onclick="window.enterpriseSyncProductSample()" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-arrows-rotate mr-2"></i>Teste estoque/preço</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
     </div>${errorBlock}
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fabricantes</div><div class="text-3xl font-black text-primary-blue mt-2">${totalManufacturers}</div><div class="text-xs text-gray-500 mt-1">Integrações configuradas</div></div>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Pedidos Enterprise</div><div class="text-3xl font-black text-success-green mt-2">${totalOrders}</div><div class="text-xs text-gray-500 mt-1">Recebidos via API</div></div>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fila pendente</div><div class="text-3xl font-black text-yellow-500 mt-2">${pendingQueue}</div><div class="text-xs text-gray-500 mt-1">Envios/retentativas</div></div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Logs</div><div class="text-3xl font-black text-gray-800 mt-2">${totalLogs}</div><div class="text-xs text-gray-500 mt-1">Eventos recentes</div></div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Catálogo Enterprise</div><div class="text-3xl font-black text-primary-blue mt-2">${totalCatalogProducts}</div><div class="text-xs text-gray-500 mt-1">${activeCatalogProducts} ativos • ${outOfStockCatalogProducts} sem estoque</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Falhas na fila</div><div class="text-3xl font-black ${erroredQueue ? 'text-error-red' : 'text-success-green'} mt-2">${erroredQueue}</div><div class="text-xs text-gray-500 mt-1">Itens com erro/retry</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Catálogo</div><div class="text-3xl font-black text-gray-800 mt-2">${totalCatalogProducts}</div><div class="text-xs text-gray-500 mt-1">${activeCatalogProducts} ativos • ${outOfStockCatalogProducts} sem estoque</div></div>
     </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status e endpoint configurado para cada parceiro</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Método</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs font-bold text-gray-600">${escHtml(m.method||'POST')}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"><h3 class="font-black text-gray-800 mb-1">Cadastrar fabricante</h3><p class="text-xs text-gray-500 mb-4">Use para criar/alterar endpoint de envio de pedidos.</p><div class="space-y-3"><input id="enterprise-form-manufacturer" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="fabricante: whirlpool, samsung..."><input id="enterprise-form-endpoint" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="https://api.fabricante.com/orders"><div class="grid grid-cols-2 gap-2"><select id="enterprise-form-method" class="border rounded-xl px-3 py-2 text-sm"><option>POST</option><option>PUT</option></select><select id="enterprise-form-auth-type" class="border rounded-xl px-3 py-2 text-sm"><option value="">Sem auth extra</option><option value="bearer">Bearer</option><option value="apiKey">API Key</option></select></div><input id="enterprise-form-auth-token" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="token/chave do fabricante"><label class="flex items-center gap-2 text-sm"><input id="enterprise-form-enabled" type="checkbox" checked> Ativo</label><button onclick="window.enterpriseSaveManufacturer()" class="w-full px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold">Salvar fabricante</button></div></div>
+    </div>
+
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status das integrações cadastradas</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="3" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos pedidos Enterprise</h3><p class="text-xs text-gray-500">Pedidos recebidos por fabricantes/ERPs</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${orders.map(o=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(o.manufacturerDispatch?.externalOrderId||o.externalOrderId||o.id||o._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.manufacturer||o.sellerIds?.[0]||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(o.status_integracao||o.status||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum pedido Enterprise encontrado.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fila Enterprise</h3><p class="text-xs text-gray-500">Pedidos e retentativas de envio para fabricantes</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fila</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Tentativas</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${queue.map(q=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(q.queueId||q.id||q._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(q.manufacturer||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(q.status||'—')}</td><td class="px-4 py-3 text-sm">${Number(q.attempts||0)}</td><td class="px-4 py-3"><button onclick="window.enterpriseDispatchQueueItem('${escHtml(q.queueId||q.id||q._id||'')}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Enviar</button></td></tr>`).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">Fila vazia.</td></tr>'}</tbody></table></div></div>
     </div>
+
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Catálogo por fabricante</h3><p class="text-xs text-gray-500">Produtos Enterprise agrupados por origem</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Produtos</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ativos</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th></tr></thead><tbody>${catalogManufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.sellerId||'—')}</td><td class="px-4 py-3 text-sm">${Number(m.total||0)}</td><td class="px-4 py-3 text-sm">${Number(m.active||0)}</td><td class="px-4 py-3 text-sm">${Number(m.stock||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum catálogo Enterprise encontrado.</td></tr>'}</tbody></table></div></div>
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos produtos sincronizados</h3><p class="text-xs text-gray-500">Produtos atualizados por API de fabricante</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">SKU</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th></tr></thead><tbody>${catalogProducts.map(p=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(p.sku||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(p.name||'—')}</td><td class="px-4 py-3 text-sm">${formatCurrency(p.price||0)}</td><td class="px-4 py-3 text-sm">${Number(p.stock||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum produto sincronizado ainda.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Produtos sincronizados</h3><p class="text-xs text-gray-500">Produtos atualizados por API de fabricante</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">SKU</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th></tr></thead><tbody>${productsToShow.map(p=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(p.sku||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(p.name||'—')}</td><td class="px-4 py-3 text-sm">${formatCurrency(p.price||0)}</td><td class="px-4 py-3 text-sm">${Number(p.stock||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum produto sincronizado ainda.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Logs recentes</h3><p class="text-xs text-gray-500">Eventos de integração</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Evento</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Mensagem</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th></tr></thead><tbody>${logs.map(l=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(l.eventType||l.type||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(l.manufacturer||'—')}</td><td class="px-4 py-3 text-xs text-gray-600">${escHtml(l.message||l.status||'—')}</td><td class="px-4 py-3 text-xs text-gray-500">${formatDateTime(l.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum log encontrado.</td></tr>'}</tbody></table></div></div>
     </div>
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos logs</h3><p class="text-xs text-gray-500">Eventos de integração</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Evento</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Mensagem</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th></tr></thead><tbody>${logs.map(l=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(l.eventType||l.type||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(l.manufacturer||'—')}</td><td class="px-4 py-3 text-xs text-gray-600">${escHtml(l.message||l.status||'—')}</td><td class="px-4 py-3 text-xs text-gray-500">${formatDateTime(l.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum log encontrado.</td></tr>'}</tbody></table></div></div>
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fila Enterprise</h3><p class="text-xs text-gray-500">Pedidos e retentativas de envio para fabricantes</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fila</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Tentativas</th></tr></thead><tbody>${queue.map(q=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(q.queueId||q.id||q._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(q.manufacturer||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(q.status||'—')}</td><td class="px-4 py-3 text-sm">${Number(q.attempts||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Fila vazia.</td></tr>'}</tbody></table></div></div>
-    </div>`;
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Credenciais e endpoints API</h3><p class="text-xs text-gray-500">Documentação rápida para fabricantes. A chave real fica no Render como ENTERPRISE_WEBHOOK_SECRET.</p></div><div class="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 text-sm"><div class="space-y-3"><label class="block text-xs font-bold uppercase text-gray-500">Chave de teste neste navegador</label><div class="flex gap-2"><input id="enterprise-webhook-secret" type="password" class="flex-1 border rounded-xl px-3 py-2" value="${escHtml(enterpriseKey)}" placeholder="Cole ENTERPRISE_WEBHOOK_SECRET para testes externos"><button onclick="window.enterpriseSaveWebhookSecret()" class="px-4 py-2 rounded-xl bg-success-green text-white font-bold">Salvar</button></div><p class="text-xs text-gray-500">Essa chave não é exibida pelo backend; este campo só guarda no seu navegador para facilitar testes.</p></div><div class="space-y-2"><div class="font-bold text-gray-800">Endpoints principais</div>${['POST /enterprise/catalog/push','POST /enterprise/products/{sku}/sync','POST /enterprise/orders','POST /enterprise/orders/{orderId}/tracking','POST /enterprise/orders/{orderId}/invoice','GET /enterprise/queue'].map(e=>`<button class="block w-full text-left px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-mono" onclick="window.enterpriseCopyText('${escHtml(base + '/api/' + e.replace(/^[A-Z]+\s+\//,'').replace('{sku}','WH-BRM44TESTE').replace('{orderId}','WHIRLPOOL-TESTE-001'))}')">${escHtml(e)}</button>`).join('')}</div></div></div>
+  `;
 }
 
 async function renderDashboardView(){
