@@ -11771,6 +11771,328 @@ app.post('/api/enterprise/webhooks/test', enterpriseCompatAuth, async (req, res)
 });
 
 
+
+// ============================================================
+// PORTAL DO FABRICANTE - ARIANA ENTERPRISE
+// Login por API Key Sandbox/Produção e área exclusiva do parceiro.
+// Mantém o Admin e o marketplace intactos.
+// ============================================================
+function enterpriseCompatSafePartner(partner = {}, key = '') {
+  const environment = /^ari_sbx_/i.test(key) ? 'sandbox' : enterpriseCompatEnvFromPartner(partner, key);
+  const credential = environment === 'production'
+    ? (partner.productionCredentials || partner.production || partner.credentials?.production || {})
+    : (partner.sandboxCredentials || partner.sandbox || partner.credentials?.sandbox || {});
+
+  return {
+    id: String(partner._id || ''),
+    requestId: String(partner.requestId || ''),
+    companyName: String(partner.companyName || partner.razaoSocial || ''),
+    tradeName: String(partner.tradeName || partner.nomeFantasia || partner.companyName || ''),
+    cnpj: String(partner.cnpj || partner.document || ''),
+    email: String(partner.email || partner.contactEmail || ''),
+    status: String(partner.status || ''),
+    statusLabel: String(partner.statusLabel || partner.status || ''),
+    environment,
+    permissions: Array.isArray(partner.integrationTypes) && partner.integrationTypes.length
+      ? partner.integrationTypes
+      : ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
+    credential: credential || {},
+    createdAt: partner.createdAt || null,
+    updatedAt: partner.updatedAt || null
+  };
+}
+
+async function enterpriseCompatFindPartnerByKey(key = '') {
+  key = String(key || '').trim();
+  if (!key) return null;
+
+  const legacySecret = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
+  if (legacySecret && key === legacySecret) {
+    return {
+      id: 'legacy',
+      requestId: 'legacy',
+      companyName: 'Chave global Enterprise',
+      tradeName: 'Chave global Enterprise',
+      cnpj: '',
+      email: '',
+      status: 'active',
+      statusLabel: 'Ativo',
+      environment: 'legacy',
+      permissions: ['*'],
+      credential: { apiKey: key, active: true }
+    };
+  }
+
+  let partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseCompatKeyQuery(key)).lean();
+
+  if (!partner && /^ari_sbx_[a-z0-9_]+$/i.test(key)) {
+    const keySlug = key.replace(/^ari_sbx_/i, '').replace(/_[a-f0-9]{10,}$/i, '');
+    partner = await EnterpriseHomologationRequestCompat.findOne({
+      $or: [
+        { requestId: key },
+        { 'sandboxCredentials.apiKey': key },
+        { 'credentials.sandbox.apiKey': key },
+        { companyName: new RegExp(keySlug.replace(/_/g, '.*'), 'i') },
+        { tradeName: new RegExp(keySlug.replace(/_/g, '.*'), 'i') }
+      ]
+    }).lean();
+
+    if (!partner) {
+      partner = {
+        _id: null,
+        requestId: keySlug || 'sandbox',
+        companyName: 'Parceiro Sandbox',
+        tradeName: 'Parceiro Sandbox',
+        cnpj: '',
+        email: '',
+        status: 'sandbox',
+        statusLabel: 'Sandbox',
+        integrationTypes: ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
+        sandboxCredentials: { apiKey: key, active: true, environment: 'sandbox' }
+      };
+    }
+  }
+
+  if (!partner) return null;
+
+  const safe = enterpriseCompatSafePartner(partner, key);
+  const status = String(safe.status || '').toLowerCase();
+  const allowedStatus = ['sandbox', 'approved', 'production', 'active', 'homologated', 'homologado', 'aprovado', 'aprovada'];
+  if (status && !allowedStatus.includes(status)) {
+    const err = new Error('Homologação ainda não liberada para acesso ao portal');
+    err.statusCode = 403;
+    err.partnerStatus = safe.status;
+    throw err;
+  }
+
+  if (safe.credential && safe.credential.active === false) {
+    const err = new Error('API Key desativada');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return safe;
+}
+
+function enterprisePartnerSign(partner = {}) {
+  return jwt.sign({
+    role: 'enterprise_partner',
+    partnerId: partner.id || '',
+    requestId: partner.requestId || '',
+    companyName: partner.companyName || '',
+    tradeName: partner.tradeName || '',
+    environment: partner.environment || 'sandbox',
+    permissions: partner.permissions || []
+  }, JWT_SECRET, { expiresIn: '12h' });
+}
+
+async function enterprisePartnerRequired(req, res, next) {
+  try {
+    const header = String(req.headers.authorization || '').trim();
+    const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+    if (!token) return res.status(401).json({ ok: false, error: 'Token do portal ausente' });
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || decoded.role !== 'enterprise_partner') {
+      return res.status(403).json({ ok: false, error: 'Token do portal inválido' });
+    }
+
+    req.enterprisePortal = decoded;
+    return next();
+  } catch (_error) {
+    return res.status(401).json({ ok: false, error: 'Sessão expirada ou inválida' });
+  }
+}
+
+function enterprisePartnerLogQuery(partner = {}) {
+  const keys = [partner.requestId, partner.companyName, partner.tradeName]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+  if (!keys.length) keys.push('enterprise');
+  return {
+    scope: 'enterprise',
+    $or: keys.flatMap((value) => [
+      { manufacturer: value },
+      { 'metadata.companyName': value },
+      { 'metadata.tradeName': value }
+    ])
+  };
+}
+
+app.post('/api/enterprise/partner/login', async (req, res) => {
+  try {
+    const apiKey = String(req.body?.apiKey || req.body?.key || req.headers['x-ariana-key'] || '').trim();
+    if (!apiKey) return res.status(400).json({ ok: false, error: 'API Key obrigatória' });
+
+    const partner = await enterpriseCompatFindPartnerByKey(apiKey);
+    if (!partner) return res.status(401).json({ ok: false, error: 'API Key inválida' });
+
+    const token = enterprisePartnerSign(partner);
+
+    return res.json({
+      ok: true,
+      token,
+      expiresIn: '12h',
+      partner: {
+        id: partner.id,
+        requestId: partner.requestId,
+        companyName: partner.companyName,
+        tradeName: partner.tradeName,
+        cnpj: partner.cnpj,
+        email: partner.email,
+        status: partner.status,
+        statusLabel: partner.statusLabel,
+        environment: partner.environment,
+        permissions: partner.permissions
+      }
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao acessar portal' });
+  }
+});
+
+app.get('/api/enterprise/partner/me', enterprisePartnerRequired, async (req, res) => {
+  const p = req.enterprisePortal || {};
+  return res.json({
+    ok: true,
+    partner: {
+      requestId: p.requestId || '',
+      companyName: p.companyName || '',
+      tradeName: p.tradeName || '',
+      environment: p.environment || 'sandbox',
+      permissions: p.permissions || []
+    }
+  });
+});
+
+app.get('/api/enterprise/partner/api-keys', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const p = req.enterprisePortal || {};
+    const partner = p.partnerId && mongoose.Types.ObjectId.isValid(p.partnerId)
+      ? await EnterpriseHomologationRequestCompat.findById(p.partnerId).lean()
+      : null;
+
+    const mask = (value = '') => {
+      value = String(value || '');
+      if (!value) return '';
+      if (value.length <= 12) return `${value.slice(0, 4)}••••`;
+      return `${value.slice(0, 10)}••••••••${value.slice(-6)}`;
+    };
+
+    const sandbox = partner?.sandboxCredentials || partner?.sandbox || partner?.credentials?.sandbox || {};
+    const production = partner?.productionCredentials || partner?.production || partner?.credentials?.production || {};
+
+    return res.json({
+      ok: true,
+      keys: {
+        sandbox: {
+          active: sandbox.active !== false,
+          environment: 'sandbox',
+          apiKeyMasked: mask(sandbox.apiKey || ''),
+          lastAccessAt: sandbox.lastAccessAt || null,
+          requestCount: Number(sandbox.requestCount || 0)
+        },
+        production: {
+          active: production.active === true,
+          environment: 'production',
+          apiKeyMasked: mask(production.apiKey || ''),
+          lastAccessAt: production.lastAccessAt || null,
+          requestCount: Number(production.requestCount || 0)
+        }
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar API Keys' });
+  }
+});
+
+app.get('/api/enterprise/partner/logs', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit || 30), 1), 100);
+    const logs = await IntegrationAuditLog.find(enterprisePartnerLogQuery(req.enterprisePortal || {}))
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.json({
+      ok: true,
+      total: logs.length,
+      logs: logs.map((log) => ({
+        id: String(log._id),
+        eventType: log.eventType || '',
+        status: log.status || '',
+        statusCode: log.statusCode || null,
+        message: log.message || '',
+        manufacturer: log.manufacturer || '',
+        createdAt: log.createdAt || null,
+        request: log.request || null,
+        response: log.response || null,
+        metadata: log.metadata || null
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar logs' });
+  }
+});
+
+app.get('/api/enterprise/partner/certificates', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const p = req.enterprisePortal || {};
+    const approvedLogs = await IntegrationAuditLog.find({
+      scope: 'enterprise',
+      eventType: { $in: ['homologation_completed', 'api_explorer_full_flow', 'catalog_push', 'webhook_test'] },
+      $or: [
+        { manufacturer: p.requestId || '' },
+        { 'metadata.companyName': p.companyName || '' },
+        { 'metadata.tradeName': p.tradeName || '' }
+      ]
+    }).sort({ createdAt: -1 }).limit(10).lean().catch(() => []);
+
+    return res.json({
+      ok: true,
+      certificates: [
+        {
+          id: `CERT-${String(p.requestId || 'ENTERPRISE').toUpperCase()}-SANDBOX`,
+          environment: 'sandbox',
+          status: 'available',
+          title: 'Certificado de Homologação Sandbox',
+          issuedAt: approvedLogs[0]?.createdAt || new Date(),
+          modules: ['Health', 'Catálogo', 'Estoque', 'Preço', 'Pedido', 'NF-e', 'Rastreio', 'Webhook'],
+          validationUrl: `${FRONTEND_URL}/enterprise_api_explorer.html`
+        }
+      ]
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar certificados' });
+  }
+});
+
+app.get('/api/enterprise/partner/dashboard', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const query = enterprisePartnerLogQuery(req.enterprisePortal || {});
+    const logs = await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(200).lean();
+    const total = logs.length;
+    const success = logs.filter((l) => String(l.status || '').toLowerCase() === 'success' || Number(l.statusCode || 0) < 400).length;
+    const errors = logs.filter((l) => Number(l.statusCode || 0) >= 400 || String(l.status || '').toLowerCase() === 'error').length;
+    const last = logs[0] || null;
+
+    return res.json({
+      ok: true,
+      summary: {
+        calls: total,
+        success,
+        errors,
+        successRate: total ? Math.round((success / total) * 10000) / 100 : 0,
+        lastEventAt: last?.createdAt || null,
+        lastEventType: last?.eventType || ''
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar dashboard' });
+  }
+});
+
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.

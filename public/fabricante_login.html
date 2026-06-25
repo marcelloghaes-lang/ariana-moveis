@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portal do Fabricante | Ariana Enterprise</title>
+  <style>
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--danger:#dc2626;--border:#dbe5f0}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}
+    .hero{min-height:100vh;display:grid;grid-template-columns:1.1fr .9fr;gap:0}.left{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:70px;display:flex;flex-direction:column;justify-content:center}.left h1{font-size:58px;line-height:1;margin:0 0 20px;font-weight:900}.left p{font-size:20px;line-height:1.55;max-width:640px;opacity:.96}.badge{letter-spacing:6px;font-weight:900;font-size:13px;margin-bottom:24px}.features{display:grid;gap:14px;margin-top:28px;max-width:620px}.feature{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);padding:14px 16px;border-radius:16px;font-weight:800}.right{padding:36px;display:flex;align-items:center;justify-content:center}.card{background:white;border:1px solid var(--border);border-radius:28px;box-shadow:0 22px 60px rgba(15,23,42,.10);padding:34px;max-width:520px;width:100%}.card h2{font-size:30px;margin:0 0 8px}.card p{color:var(--muted);margin:0 0 24px;line-height:1.5}.label{display:block;font-size:12px;text-transform:uppercase;color:var(--muted);font-weight:900;margin-bottom:8px}.input{width:100%;padding:16px;border:1px solid #cbd5e1;border-radius:15px;font-size:16px;outline:none}.input:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,71,171,.12)}.btn{width:100%;border:0;border-radius:15px;background:var(--blue);color:white;font-size:16px;font-weight:900;padding:16px;margin-top:16px;cursor:pointer}.btn:hover{filter:brightness(.96)}.btn2{display:inline-block;text-decoration:none;text-align:center;border:1px solid #cbd5e1;background:white;color:var(--blue);border-radius:15px;font-weight:900;padding:14px 18px;margin-top:12px}.msg{margin-top:14px;padding:12px;border-radius:13px;font-weight:700;display:none}.msg.ok{display:block;background:#dcfce7;color:#166534}.msg.err{display:block;background:#fee2e2;color:#991b1b}.hint{font-size:13px;color:var(--muted);margin-top:14px}.links{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.small{font-size:12px;color:#94a3b8;margin-top:20px}@media(max-width:900px){.hero{grid-template-columns:1fr}.left{padding:42px 24px}.left h1{font-size:42px}.right{padding:24px}}
+  </style>
+</head>
+<body>
+  <main class="hero">
+    <section class="left">
+      <div class="badge">ARIANA ENTERPRISE</div>
+      <h1>Portal do Fabricante</h1>
+      <p>Acesse suas credenciais, acompanhe logs da API, consulte certificados e teste a integração sem depender do Postman.</p>
+      <div class="features">
+        <div class="feature">🔑 API Keys Sandbox e Produção</div>
+        <div class="feature">📊 Dashboard de consumo da API</div>
+        <div class="feature">📜 Logs e histórico de chamadas</div>
+        <div class="feature">🧪 API Explorer integrado</div>
+      </div>
+    </section>
+    <section class="right">
+      <div class="card">
+        <h2>Entrar no portal</h2>
+        <p>Cole a API Key Sandbox liberada na homologação.</p>
+        <label class="label" for="apiKey">API Key Sandbox</label>
+        <input id="apiKey" class="input" type="password" placeholder="ari_sbx_..." autocomplete="off" />
+        <button class="btn" onclick="login()">Entrar</button>
+        <div class="links">
+          <a class="btn2" href="/developers.html">Documentação</a>
+          <a class="btn2" href="/enterprise_api_explorer.html">API Explorer</a>
+        </div>
+        <div id="msg" class="msg"></div>
+        <div class="hint">A sessão do portal expira automaticamente por segurança.</div>
+        <div class="small">Ariana Móveis • Enterprise Integration Platform</div>
+      </div>
+    </section>
+  </main>
+<script>
+const API_BASE = 'https://ariana-backend.onrender.com/api';
+function showMsg(text, ok=false){ const el=document.getElementById('msg'); el.textContent=text; el.className='msg '+(ok?'ok':'err'); }
+async function login(){
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if(!apiKey) return showMsg('Cole a API Key Sandbox para acessar.');
+  try{
+    const res = await fetch(`${API_BASE}/enterprise/partner/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey})});
+    const data = await res.json().catch(()=>({ok:false,error:'Resposta inválida'}));
+    if(!res.ok || !data.ok) return showMsg(data.error || `Erro HTTP ${res.status}`);
+    localStorage.setItem('ariana_enterprise_partner_token', data.token);
+    localStorage.setItem('ariana_enterprise_partner', JSON.stringify(data.partner || {}));
+    showMsg('Acesso autorizado. Abrindo portal...', true);
+    setTimeout(()=>{ location.href='/portal_fabricante.html'; }, 500);
+  }catch(err){ showMsg(err.message || 'Erro ao acessar portal.'); }
+}
+document.getElementById('apiKey').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+</script>
+</body>
+</html>

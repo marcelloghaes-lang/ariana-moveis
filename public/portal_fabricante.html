@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portal do Fabricante | Ariana Enterprise</title>
+  <style>
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--danger:#dc2626;--border:#dbe5f0}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}
+    .app{display:grid;grid-template-columns:270px 1fr;min-height:100vh}.side{background:#132235;color:white;padding:28px 20px;position:sticky;top:0;height:100vh}.brand{font-weight:900;letter-spacing:3px;margin-bottom:30px}.nav{display:grid;gap:8px}.nav button,.nav a{border:0;text-align:left;background:transparent;color:#dbeafe;padding:13px 14px;border-radius:13px;text-decoration:none;font-weight:800;cursor:pointer;font-size:15px}.nav button.active,.nav a:hover,.nav button:hover{background:#1d4ed8;color:white}.exit{margin-top:22px;color:#fecaca!important}.main{padding:30px}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;border-radius:26px;padding:34px;margin-bottom:24px;display:flex;justify-content:space-between;gap:20px;align-items:center}.hero h1{margin:0;font-size:42px;line-height:1}.hero p{margin:10px 0 0;opacity:.95}.pill{background:#dcfce7;color:#166534;border-radius:999px;padding:10px 14px;font-weight:900}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:20px;box-shadow:0 14px 35px rgba(15,23,42,.06)}.stat{font-size:30px;font-weight:900}.muted{color:var(--muted)}.section{display:none}.section.active{display:block}.section h2{margin:0 0 14px;font-size:26px}.table{width:100%;border-collapse:collapse;background:white;border-radius:18px;overflow:hidden;border:1px solid var(--border)}.table th,.table td{text-align:left;padding:14px;border-bottom:1px solid #edf2f7;font-size:14px}.table th{background:#f8fafc;color:#64748b;text-transform:uppercase;font-size:12px}.ok{color:var(--ok);font-weight:900}.danger{color:var(--danger);font-weight:900}.btn{border:0;background:var(--blue);color:white;border-radius:12px;padding:12px 16px;font-weight:900;text-decoration:none;display:inline-block;cursor:pointer}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.keybox{background:#0b1220;color:white;border-radius:18px;padding:18px;margin:10px 0}.keybox label{display:block;color:#94a3b8;font-size:12px;text-transform:uppercase;font-weight:900;margin-bottom:8px}.keyline{display:flex;gap:10px;align-items:center;justify-content:space-between}.code{font-family:Consolas,monospace;word-break:break-all}.logbody{max-height:520px;overflow:auto}.badge{padding:6px 9px;border-radius:999px;font-weight:900;font-size:12px}.badge.green{background:#dcfce7;color:#166534}.badge.red{background:#fee2e2;color:#991b1b}.empty{padding:30px;text-align:center;color:#64748b;background:white;border:1px dashed #cbd5e1;border-radius:18px}@media(max-width:950px){.app{grid-template-columns:1fr}.side{position:relative;height:auto}.grid{grid-template-columns:1fr 1fr}.hero{display:block}.main{padding:18px}}@media(max-width:560px){.grid{grid-template-columns:1fr}.hero h1{font-size:32px}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ARIANA ENTERPRISE</div>
+    <nav class="nav">
+      <button class="active" onclick="tab('dashboard',this)">📊 Dashboard</button>
+      <button onclick="tab('keys',this)">🔑 API Keys</button>
+      <button onclick="tab('logs',this)">📜 Logs da API</button>
+      <button onclick="tab('certs',this)">🏅 Certificados</button>
+      <a href="/enterprise_api_explorer.html">🧪 API Explorer</a>
+      <a href="/developers.html">📚 Documentação</a>
+      <button class="exit" onclick="logout()">🚪 Sair</button>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="hero">
+      <div><h1 id="companyTitle">Portal do Fabricante</h1><p id="companySub">Carregando dados da empresa...</p></div>
+      <span class="pill" id="envPill">Sandbox</span>
+    </header>
+
+    <section id="dashboard" class="section active">
+      <div class="grid">
+        <div class="card"><div class="stat" id="calls">0</div><div class="muted">Chamadas</div></div>
+        <div class="card"><div class="stat ok" id="success">0</div><div class="muted">Aprovadas</div></div>
+        <div class="card"><div class="stat danger" id="errors">0</div><div class="muted">Erros</div></div>
+        <div class="card"><div class="stat" id="rate">0%</div><div class="muted">Taxa de sucesso</div></div>
+      </div>
+      <div class="card"><h2>Resumo da integração</h2><p class="muted" id="lastEvent">Último evento: carregando...</p><a class="btn" href="/enterprise_api_explorer.html">Abrir API Explorer</a></div>
+    </section>
+
+    <section id="keys" class="section">
+      <h2>API Keys</h2>
+      <div class="card">
+        <div class="keybox"><label>Sandbox</label><div class="keyline"><span class="code" id="sandboxKey">Carregando...</span><span class="badge green" id="sandboxStatus">Ativo</span></div></div>
+        <div class="keybox"><label>Produção</label><div class="keyline"><span class="code" id="prodKey">Aguardando liberação</span><span class="badge red" id="prodStatus">Inativo</span></div></div>
+        <p class="muted">A chave completa não é exibida por segurança. Use a chave recebida na homologação.</p>
+      </div>
+    </section>
+
+    <section id="logs" class="section">
+      <h2>Logs da API</h2>
+      <div class="card logbody"><table class="table"><thead><tr><th>Data</th><th>Evento</th><th>Status</th><th>Mensagem</th></tr></thead><tbody id="logsBody"></tbody></table></div>
+    </section>
+
+    <section id="certs" class="section">
+      <h2>Certificados</h2>
+      <div class="card"><table class="table"><thead><tr><th>Certificado</th><th>Ambiente</th><th>Status</th><th>Emitido em</th></tr></thead><tbody id="certBody"></tbody></table></div>
+    </section>
+  </main>
+</div>
+<script>
+const API_BASE='https://ariana-backend.onrender.com/api';
+const token=localStorage.getItem('ariana_enterprise_partner_token');
+if(!token) location.href='/fabricante_login.html';
+function authHeaders(){return {'Authorization':'Bearer '+token,'Content-Type':'application/json'};}
+function fmtDate(v){ if(!v) return '-'; try{return new Date(v).toLocaleString('pt-BR')}catch{return '-'} }
+function logout(){localStorage.removeItem('ariana_enterprise_partner_token');localStorage.removeItem('ariana_enterprise_partner');location.href='/fabricante_login.html'}
+function tab(id,btn){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active')}
+async function api(path){ const r=await fetch(API_BASE+path,{headers:authHeaders()}); const d=await r.json().catch(()=>({ok:false,error:'Resposta inválida'})); if(!r.ok||!d.ok){ if(r.status===401) logout(); throw new Error(d.error||'Erro HTTP '+r.status)} return d; }
+async function loadMe(){ const d=await api('/enterprise/partner/me'); const p=d.partner||{}; document.getElementById('companyTitle').textContent=p.tradeName||p.companyName||'Portal do Fabricante'; document.getElementById('companySub').textContent=(p.companyName||'Parceiro Enterprise')+' • '+(p.permissions||[]).join(', '); document.getElementById('envPill').textContent=(p.environment||'sandbox').toUpperCase(); }
+async function loadDashboard(){ const d=await api('/enterprise/partner/dashboard'); const s=d.summary||{}; calls.textContent=s.calls||0; success.textContent=s.success||0; errors.textContent=s.errors||0; rate.textContent=(s.successRate||0)+'%'; lastEvent.textContent='Último evento: '+(s.lastEventType||'nenhum')+' • '+fmtDate(s.lastEventAt); }
+async function loadKeys(){ const d=await api('/enterprise/partner/api-keys'); const k=d.keys||{}; sandboxKey.textContent=k.sandbox?.apiKeyMasked||'Não encontrada'; prodKey.textContent=k.production?.apiKeyMasked||'Aguardando liberação'; sandboxStatus.textContent=k.sandbox?.active?'Ativo':'Inativo'; sandboxStatus.className='badge '+(k.sandbox?.active?'green':'red'); prodStatus.textContent=k.production?.active?'Ativo':'Inativo'; prodStatus.className='badge '+(k.production?.active?'green':'red'); }
+async function loadLogs(){ const d=await api('/enterprise/partner/logs?limit=50'); const logs=d.logs||[]; logsBody.innerHTML=logs.length?logs.map(l=>`<tr><td>${fmtDate(l.createdAt)}</td><td><b>${l.eventType||'-'}</b></td><td class="${Number(l.statusCode||0)>=400?'danger':'ok'}">${l.statusCode||l.status||'-'}</td><td>${l.message||'-'}</td></tr>`).join(''):`<tr><td colspan="4"><div class="empty">Nenhum log encontrado.</div></td></tr>`; }
+async function loadCerts(){ const d=await api('/enterprise/partner/certificates'); const list=d.certificates||[]; certBody.innerHTML=list.length?list.map(c=>`<tr><td><b>${c.title}</b><br><span class="muted">${c.id}</span></td><td>${c.environment}</td><td class="ok">${c.status}</td><td>${fmtDate(c.issuedAt)}</td></tr>`).join(''):`<tr><td colspan="4"><div class="empty">Nenhum certificado encontrado.</div></td></tr>`; }
+(async function init(){try{await loadMe();await Promise.all([loadDashboard(),loadKeys(),loadLogs(),loadCerts()]);}catch(e){alert(e.message);}})();
+</script>
+</body>
+</html>
