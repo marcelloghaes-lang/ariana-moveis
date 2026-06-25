@@ -11773,6 +11773,7 @@ app.post('/api/enterprise/webhooks/test', enterpriseCompatAuth, async (req, res)
 
 
 // ============================================================
+// PASSO 18 REFEITO - Gestão real de API Keys com persistência compatível Sandbox/Produção
 // PORTAL DO FABRICANTE - ARIANA ENTERPRISE
 // Login por API Key Sandbox/Produção e área exclusiva do parceiro.
 // Mantém o Admin e o marketplace intactos.
@@ -11838,18 +11839,32 @@ async function enterpriseCompatFindPartnerByKey(key = '') {
     }).lean();
 
     if (!partner) {
-      partner = {
-        _id: null,
-        requestId: keySlug || 'sandbox',
-        companyName: 'Parceiro Sandbox',
-        tradeName: 'Parceiro Sandbox',
-        cnpj: '',
-        email: '',
-        status: 'sandbox',
-        statusLabel: 'Sandbox',
-        integrationTypes: ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
-        sandboxCredentials: { apiKey: key, active: true, environment: 'sandbox' }
-      };
+      // PASSO 18 REFEITO: quando a chave Sandbox foi gerada por tela antiga
+      // e ainda não existe no formato novo no Mongo, criamos/normalizamos
+      // o registro para que o Portal consiga exibir, renovar e revogar.
+      const normalizedRequestId = keySlug || `sandbox_${crypto.randomBytes(4).toString('hex')}`;
+      partner = await EnterpriseHomologationRequestCompat.findOneAndUpdate(
+        { requestId: normalizedRequestId },
+        {
+          $setOnInsert: {
+            requestId: normalizedRequestId,
+            companyName: 'Parceiro Sandbox',
+            tradeName: 'Parceiro Sandbox',
+            cnpj: '',
+            email: '',
+            status: 'sandbox',
+            statusLabel: 'Sandbox',
+            environment: 'sandbox',
+            integrationTypes: ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
+            sandboxCredentials: { apiKey: key, active: true, environment: 'sandbox', createdAt: new Date() },
+            sandbox: { apiKey: key, active: true, environment: 'sandbox', createdAt: new Date() },
+            credentials: { sandbox: { apiKey: key, active: true, environment: 'sandbox', createdAt: new Date() } },
+            apiKeySandbox: key,
+            sandboxApiKey: key
+          }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).lean();
     }
   }
 
@@ -11979,8 +11994,24 @@ app.get('/api/enterprise/partner/api-keys', enterprisePartnerRequired, async (re
       return `${value.slice(0, 10)}••••••••${value.slice(-6)}`;
     };
 
-    const sandbox = partner?.sandboxCredentials || partner?.sandbox || partner?.credentials?.sandbox || {};
-    const production = partner?.productionCredentials || partner?.production || partner?.credentials?.production || {};
+    const sandbox = partner
+      ? {
+          ...(partner.sandbox || {}),
+          ...(partner.credentials?.sandbox || {}),
+          ...(partner.metadata?.sandboxCredentials || {}),
+          ...(partner.sandboxCredentials || {}),
+          apiKey: partner.sandboxCredentials?.apiKey || partner.sandbox?.apiKey || partner.credentials?.sandbox?.apiKey || partner.metadata?.sandboxCredentials?.apiKey || partner.apiKeySandbox || partner.sandboxApiKey || ''
+        }
+      : {};
+    const production = partner
+      ? {
+          ...(partner.production || {}),
+          ...(partner.credentials?.production || {}),
+          ...(partner.metadata?.productionCredentials || {}),
+          ...(partner.productionCredentials || {}),
+          apiKey: partner.productionCredentials?.apiKey || partner.production?.apiKey || partner.credentials?.production?.apiKey || partner.metadata?.productionCredentials?.apiKey || partner.enterpriseApiKey || partner.apiKey || ''
+        }
+      : {};
 
     return res.json({
       ok: true,
@@ -12145,7 +12176,26 @@ app.post('/api/enterprise/partner/api-keys/:environment/rotate', enterprisePartn
           [`${path}.environment`]: environment,
           [`${path}.rotatedAt`]: new Date(),
           [`${path}.lastAccessAt`]: null,
-          [`${path}.requestCount`]: 0
+          [`${path}.requestCount`]: 0,
+          ...(environment === 'sandbox' ? {
+            'sandbox.apiKey': key,
+            'sandbox.active': true,
+            'sandbox.environment': 'sandbox',
+            'credentials.sandbox.apiKey': key,
+            'credentials.sandbox.active': true,
+            'credentials.sandbox.environment': 'sandbox',
+            apiKeySandbox: key,
+            sandboxApiKey: key
+          } : {
+            'production.apiKey': key,
+            'production.active': true,
+            'production.environment': 'production',
+            'credentials.production.apiKey': key,
+            'credentials.production.active': true,
+            'credentials.production.environment': 'production',
+            enterpriseApiKey: key,
+            apiKey: key
+          })
         }
       }
     );
@@ -12175,7 +12225,19 @@ app.post('/api/enterprise/partner/api-keys/:environment/revoke', enterprisePartn
     const path = enterprisePartnerEnvironmentPath(environment);
     await EnterpriseHomologationRequestCompat.updateOne(
       { _id: partner._id },
-      { $set: { [`${path}.active`]: false, [`${path}.revokedAt`]: new Date() } }
+      {
+        $set: {
+          [`${path}.active`]: false,
+          [`${path}.revokedAt`]: new Date(),
+          ...(environment === 'sandbox' ? {
+            'sandbox.active': false,
+            'credentials.sandbox.active': false
+          } : {
+            'production.active': false,
+            'credentials.production.active': false
+          })
+        }
+      }
     );
 
     await IntegrationAuditLog.create({
