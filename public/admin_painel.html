@@ -839,6 +839,56 @@ window.enterpriseDispatchQueueItem = async function(queueId){
   }
 }
 
+
+window.enterpriseSetHomologationStatus = async function(requestId, status){
+  const id = String(requestId || '').trim();
+  const nextStatus = String(status || '').trim();
+
+  if(!id){
+    displayMessage('Solicitação inválida. Atualize a página e tente novamente.', 'error');
+    return;
+  }
+
+  const labels = {
+    pending: 'Aguardando análise',
+    in_review: 'Em análise',
+    sandbox: 'Sandbox liberado',
+    approved: 'Aprovado',
+    production: 'Produção liberada',
+    rejected: 'Reprovado'
+  };
+
+  const label = labels[nextStatus] || nextStatus || 'novo status';
+  const confirmMessages = {
+    in_review: 'Marcar esta solicitação como EM ANÁLISE?',
+    sandbox: 'Liberar esta solicitação para SANDBOX?',
+    approved: 'Aprovar esta solicitação?',
+    production: 'Liberar esta solicitação para PRODUÇÃO?',
+    rejected: 'Reprovar esta solicitação?'
+  };
+
+  const shouldConfirm = confirmMessages[nextStatus] || `Alterar status para ${label}?`;
+  if(!confirm(shouldConfirm)) return;
+
+  let adminNotes = '';
+  if(nextStatus === 'rejected'){
+    adminNotes = prompt('Informe o motivo da reprovação, se desejar:', '') || '';
+  }
+
+  try{
+    await apiRequest(`/enterprise/homologation-requests/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify({ status: nextStatus, adminNotes })
+    });
+
+    displayMessage(`Solicitação atualizada para: ${label}.`, 'success');
+    await renderEnterpriseView();
+  }catch(error){
+    displayMessage(`Erro ao atualizar homologação: ${error.message}`, 'error');
+  }
+}
+
 async function renderEnterpriseView(){
   const box = document.getElementById('enterprise-content');
   if(!box) return;
