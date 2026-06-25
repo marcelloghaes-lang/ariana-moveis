@@ -11251,6 +11251,459 @@ function startEnterpriseQueueWorker() {
   }, intervalMs);
 }
 
+
+
+// ============================================================
+// CORREÇÃO ENTERPRISE - API KEY SANDBOX DINÂMICA
+// Mantém o módulo antigo, mas garante que o API Explorer consiga
+// autenticar e executar o fluxo completo usando as chaves geradas
+// na homologação do painel.
+// ============================================================
+const enterpriseHomologationRequestCompatSchema = new mongoose.Schema({
+  requestId: { type: String, index: true },
+  companyName: String,
+  tradeName: String,
+  cnpj: String,
+  email: String,
+  status: { type: String, index: true },
+  statusLabel: String,
+  environment: String,
+  integrationTypes: [String],
+  sandboxCredentials: mongoose.Schema.Types.Mixed,
+  productionCredentials: mongoose.Schema.Types.Mixed,
+  sandbox: mongoose.Schema.Types.Mixed,
+  production: mongoose.Schema.Types.Mixed,
+  credentials: mongoose.Schema.Types.Mixed,
+  metadata: mongoose.Schema.Types.Mixed
+}, { timestamps: true, versionKey: false, strict: false });
+
+const EnterpriseHomologationRequestCompat =
+  mongoose.models.EnterpriseHomologationRequest ||
+  mongoose.model('EnterpriseHomologationRequest', enterpriseHomologationRequestCompatSchema);
+
+function getEnterpriseCompatKey(req) {
+  const headerKey = String(
+    req.headers['x-ariana-key'] ||
+    req.headers['x-api-key'] ||
+    req.headers['x-enterprise-key'] ||
+    ''
+  ).trim();
+  if (headerKey) return headerKey;
+
+  const queryKey = String(req.query?.key || req.query?.apiKey || req.query?.api_key || '').trim();
+  if (queryKey) return queryKey;
+
+  const auth = String(req.headers.authorization || '').trim();
+  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+
+  return '';
+}
+
+function enterpriseCompatKeyQuery(key = '') {
+  return {
+    $or: [
+      { 'sandboxCredentials.apiKey': key },
+      { 'productionCredentials.apiKey': key },
+      { 'sandbox.apiKey': key },
+      { 'production.apiKey': key },
+      { 'credentials.sandbox.apiKey': key },
+      { 'credentials.production.apiKey': key },
+      { 'metadata.sandboxCredentials.apiKey': key },
+      { 'metadata.productionCredentials.apiKey': key },
+      { apiKeySandbox: key },
+      { sandboxApiKey: key },
+      { enterpriseApiKey: key },
+      { apiKey: key }
+    ]
+  };
+}
+
+function enterpriseCompatEnvFromPartner(partner = {}, key = '') {
+  if (partner?.sandboxCredentials?.apiKey === key) return 'sandbox';
+  if (partner?.sandbox?.apiKey === key) return 'sandbox';
+  if (partner?.credentials?.sandbox?.apiKey === key) return 'sandbox';
+  if (partner?.metadata?.sandboxCredentials?.apiKey === key) return 'sandbox';
+  if (partner?.apiKeySandbox === key || partner?.sandboxApiKey === key) return 'sandbox';
+
+  if (partner?.productionCredentials?.apiKey === key) return 'production';
+  if (partner?.production?.apiKey === key) return 'production';
+  if (partner?.credentials?.production?.apiKey === key) return 'production';
+  if (partner?.metadata?.productionCredentials?.apiKey === key) return 'production';
+
+  if (partner?.enterpriseApiKey === key || partner?.apiKey === key) return String(partner.environment || 'sandbox');
+  return 'sandbox';
+}
+
+async function enterpriseCompatAuth(req, res, next) {
+  try {
+    const key = getEnterpriseCompatKey(req);
+    if (!key) return res.status(401).json({ ok: false, error: 'Chave de integração ausente' });
+
+    const legacySecret = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
+    if (legacySecret && key === legacySecret) {
+      req.enterprisePartner = {
+        environment: 'legacy',
+        companyName: 'Chave global Enterprise',
+        status: 'legacy',
+        permissions: ['*']
+      };
+      return next();
+    }
+
+    const partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseCompatKeyQuery(key)).lean();
+    if (!partner) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Chave de integração inválida',
+        hint: 'A chave enviada no header x-ariana-key não foi encontrada nas credenciais Sandbox/Produção.'
+      });
+    }
+
+    const environment = enterpriseCompatEnvFromPartner(partner, key);
+    const status = String(partner.status || '').toLowerCase();
+
+    const allowedStatus = ['sandbox', 'approved', 'production', 'active', 'homologated', 'homologado', 'aprovado', 'aprovada'];
+    if (status && !allowedStatus.includes(status)) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Chave encontrada, mas a homologação ainda não está liberada para uso',
+        status: partner.status
+      });
+    }
+
+    const credential = environment === 'production'
+      ? (partner.productionCredentials || partner.production || partner.credentials?.production || {})
+      : (partner.sandboxCredentials || partner.sandbox || partner.credentials?.sandbox || {});
+
+    if (credential && credential.active === false) {
+      return res.status(403).json({ ok: false, error: 'API Key desativada' });
+    }
+
+    req.enterprisePartner = {
+      id: String(partner._id || ''),
+      requestId: partner.requestId || '',
+      companyName: partner.companyName || '',
+      tradeName: partner.tradeName || '',
+      cnpj: partner.cnpj || '',
+      email: partner.email || '',
+      environment,
+      status: partner.status || '',
+      permissions: partner.integrationTypes || [],
+      credential
+    };
+
+    try {
+      const prefix = environment === 'production' ? 'productionCredentials' : 'sandboxCredentials';
+      await EnterpriseHomologationRequestCompat.updateOne(
+        { _id: partner._id },
+        {
+          $set: {
+            [`${prefix}.lastAccessAt`]: new Date(),
+            [`${prefix}.lastAccessPath`]: req.originalUrl || req.url || '',
+            [`${prefix}.lastAccessMethod`]: req.method || ''
+          },
+          $inc: { [`${prefix}.requestCount`]: 1 }
+        }
+      );
+    } catch (_touchError) {}
+
+    return next();
+  } catch (error) {
+    console.error('[enterpriseCompatAuth] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro ao validar chave Enterprise' });
+  }
+}
+
+function enterpriseCompatNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function enterpriseCompatProductPayload(item = {}, parent = {}, partner = {}) {
+  const sku = String(item.sku || item.codigo || item.productSku || uid('ent_sku')).trim();
+  const name = String(item.name || item.nome || item.title || sku).trim();
+  const sellerId = String(item.sellerId || parent.sellerId || parent.manufacturer || partner.requestId || 'enterprise').trim();
+  const sellerName = String(item.sellerName || parent.sellerName || partner.tradeName || partner.companyName || parent.manufacturer || 'Enterprise').trim();
+  const price = enterpriseCompatNumber(item.price ?? item.preco ?? item.unitPrice, 0);
+  const stock = enterpriseCompatNumber(item.stock ?? item.estoque ?? item.quantity, 0);
+
+  return {
+    sellerId,
+    sellerName,
+    name,
+    slug: sanitizeIdPart(name),
+    description: String(item.description || item.descricao || '').trim(),
+    category: String(item.category || item.categoria || item.categoryName || '').trim(),
+    categoryName: String(item.categoryName || item.category || item.categoria || '').trim(),
+    brand: String(item.brand || item.marca || parent.manufacturer || '').trim(),
+    sku,
+    price,
+    oldPrice: item.oldPrice !== undefined ? enterpriseCompatNumber(item.oldPrice, null) : null,
+    image: String(item.imageUrl || item.image || item.imagem || '').trim(),
+    imageUrl: String(item.imageUrl || item.image || item.imagem || '').trim(),
+    imagem: String(item.imageUrl || item.image || item.imagem || '').trim(),
+    mainImageUrl: String(item.imageUrl || item.image || item.imagem || '').trim(),
+    stock,
+    active: item.active !== false,
+    specs: item.specs || item.especificacoes || {},
+    dimensions: item.dimensions || {},
+    logistics: item.logistics || {},
+    weight: item.weight !== undefined ? Number(item.weight) : undefined,
+    height: item.height !== undefined ? Number(item.height) : undefined,
+    width: item.width !== undefined ? Number(item.width) : undefined,
+    length: item.length !== undefined ? Number(item.length) : undefined,
+    updatedAt: new Date()
+  };
+}
+
+async function enterpriseCompatFindOrder(orderId = '') {
+  const id = String(orderId || '').trim();
+  if (!id) return null;
+
+  const oid = normalizeObjectId(id);
+  if (oid) {
+    const byId = await Order.findById(oid);
+    if (byId) return byId;
+  }
+
+  return Order.findOne({
+    $or: [
+      { 'manufacturerDispatch.externalOrderId': id },
+      { 'manufacturerDispatch.orderId': id },
+      { 'manufacturerDispatch.enterpriseOrderId': id },
+      { status_integracao: id },
+      { trackingCode: id }
+    ]
+  });
+}
+
+app.get('/api/enterprise/auth/check', enterpriseCompatAuth, async (req, res) => {
+  return res.json({
+    ok: true,
+    valid: true,
+    environment: req.enterprisePartner?.environment || 'sandbox',
+    partner: {
+      requestId: req.enterprisePartner?.requestId || '',
+      companyName: req.enterprisePartner?.companyName || '',
+      tradeName: req.enterprisePartner?.tradeName || '',
+      status: req.enterprisePartner?.status || '',
+      permissions: req.enterprisePartner?.permissions || []
+    }
+  });
+});
+
+app.post('/api/enterprise/catalog/push', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items || req.body?.products || req.body?.produtos)
+      ? (req.body.items || req.body.products || req.body.produtos)
+      : [];
+
+    if (!items.length) return res.status(400).json({ ok: false, error: 'Nenhum produto enviado no catálogo' });
+
+    const results = [];
+    for (const item of items) {
+      const payload = enterpriseCompatProductPayload(item, req.body, req.enterprisePartner);
+      const filter = { sku: payload.sku, sellerId: payload.sellerId };
+      const product = await Product.findOneAndUpdate(
+        filter,
+        { $set: payload, $setOnInsert: { createdAt: new Date() } },
+        { upsert: true, new: true }
+      );
+      results.push({ ok: true, sku: payload.sku, id: String(product._id), stock: product.stock, price: product.price });
+    }
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: 'catalog_push',
+      manufacturer: req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise',
+      status: 'success',
+      statusCode: 201,
+      message: `Catálogo recebido: ${results.length} produto(s)`,
+      request: redact(req.body),
+      response: { total: results.length }
+    }).catch(() => null);
+
+    return res.status(201).json({
+      ok: true,
+      manufacturer: req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise',
+      total: results.length,
+      success: results.length,
+      errors: 0,
+      results
+    });
+  } catch (error) {
+    console.error('[enterprise/catalog/push] erro:', error.message || error);
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao receber catálogo Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/products/:sku/sync', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const sku = String(req.params.sku || req.body?.sku || '').trim();
+    if (!sku) return res.status(400).json({ ok: false, error: 'SKU obrigatório' });
+
+    const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+    const update = {
+      sku,
+      sellerId,
+      stock: enterpriseCompatNumber(req.body?.stock, 0),
+      active: req.body?.active !== false,
+      updatedAt: new Date()
+    };
+    if (req.body?.price !== undefined) update.price = enterpriseCompatNumber(req.body.price, 0);
+    if (req.body?.status) update.status_integracao = String(req.body.status);
+
+    const product = await Product.findOneAndUpdate(
+      { sku, sellerId },
+      { $set: update, $setOnInsert: { name: sku, sellerName: req.enterprisePartner?.tradeName || req.enterprisePartner?.companyName || 'Enterprise' } },
+      { upsert: true, new: true }
+    );
+
+    return res.json({ ok: true, sku, productId: String(product._id), stock: product.stock, price: product.price, active: product.active });
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao sincronizar produto' });
+  }
+});
+
+app.put('/api/enterprise/products/:sku/stock', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const sku = String(req.params.sku || '').trim();
+    const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+    const stock = enterpriseCompatNumber(req.body?.stock ?? req.body?.estoque, 0);
+
+    const product = await Product.findOneAndUpdate(
+      { sku, sellerId },
+      { $set: { stock, updatedAt: new Date() }, $setOnInsert: { name: sku, sellerId, sellerName: req.enterprisePartner?.tradeName || 'Enterprise', price: 0, active: true } },
+      { upsert: true, new: true }
+    );
+
+    return res.json({ ok: true, sku, stock: product.stock });
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao atualizar estoque' });
+  }
+});
+
+app.put('/api/enterprise/products/:sku/price', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const sku = String(req.params.sku || '').trim();
+    const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+    const price = enterpriseCompatNumber(req.body?.price ?? req.body?.preco, 0);
+
+    const product = await Product.findOneAndUpdate(
+      { sku, sellerId },
+      { $set: { price, updatedAt: new Date() }, $setOnInsert: { name: sku, sellerId, sellerName: req.enterprisePartner?.tradeName || 'Enterprise', stock: 0, active: true } },
+      { upsert: true, new: true }
+    );
+
+    return res.json({ ok: true, sku, price: product.price });
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao atualizar preço' });
+  }
+});
+
+app.post('/api/enterprise/orders', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const normalizedItems = items.map((item) => {
+      const qty = enterpriseCompatNumber(item.qty ?? item.quantity, 1);
+      const unitPrice = enterpriseCompatNumber(item.unitPrice ?? item.price, 0);
+      return {
+        productId: String(item.productId || ''),
+        sellerId: String(item.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise'),
+        name: String(item.name || item.nome || item.sku || 'Produto Enterprise'),
+        sku: String(item.sku || ''),
+        qty,
+        unitPrice,
+        totalPrice: qty * unitPrice
+      };
+    });
+
+    const subtotal = normalizedItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+    const order = await Order.create({
+      sellerIds: Array.from(new Set(normalizedItems.map((i) => i.sellerId).filter(Boolean))),
+      customerName: String(req.body?.customerName || req.body?.customer?.name || 'Cliente Enterprise'),
+      customerEmail: String(req.body?.customerEmail || req.body?.customer?.email || ''),
+      customerPhone: String(req.body?.customerPhone || req.body?.customer?.phone || ''),
+      status: 'enterprise_recebido',
+      statusLabel: 'Pedido Enterprise recebido',
+      items: normalizedItems,
+      subtotal,
+      total: subtotal,
+      currency: DEFAULT_CURRENCY,
+      shippingAddress: req.body?.shippingAddress || req.body?.customer?.shippingAddress || {},
+      manufacturer: String(req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise'),
+      manufacturerDispatch: {
+        source: 'api_enterprise',
+        externalOrderId: String(req.body?.externalOrderId || req.body?.orderId || ''),
+        payload: req.body,
+        receivedAt: new Date()
+      },
+      status_integracao: String(req.body?.externalOrderId || req.body?.orderId || '')
+    });
+
+    return res.status(201).json({
+      ok: true,
+      orderId: String(order._id),
+      externalOrderId: req.body?.externalOrderId || req.body?.orderId || '',
+      status: order.status
+    });
+  } catch (error) {
+    console.error('[enterprise/orders] erro:', error.message || error);
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao receber pedido Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/invoice', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para anexar NF-e' });
+
+    order.manufacturerDispatch = {
+      ...(order.manufacturerDispatch || {}),
+      invoice: req.body?.invoice || req.body,
+      invoiceReceivedAt: new Date()
+    };
+    order.status = 'enterprise_nfe_recebida';
+    order.statusLabel = 'NF-e recebida';
+    await order.save();
+
+    return res.json({ ok: true, orderId: String(order._id), status: order.status, invoice: order.manufacturerDispatch.invoice });
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao anexar NF-e' });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar rastreio' });
+
+    const trackingCode = String(req.body?.trackingCode || req.body?.codigoRastreio || req.body?.rastreio || '').trim();
+    order.trackingCode = trackingCode || order.trackingCode;
+    order.trackingHistory = Array.isArray(order.trackingHistory) ? order.trackingHistory : [];
+    order.trackingHistory.push({
+      status: 'Rastreio recebido via Enterprise',
+      trackingCode,
+      carrier: req.body?.carrier || req.body?.transportadora || '',
+      trackingUrl: req.body?.trackingUrl || req.body?.urlRastreio || '',
+      at: new Date()
+    });
+    order.status = 'enterprise_rastreio_recebido';
+    order.statusLabel = 'Rastreio recebido';
+    order.manufacturerDispatch = {
+      ...(order.manufacturerDispatch || {}),
+      tracking: req.body,
+      trackingReceivedAt: new Date()
+    };
+    await order.save();
+
+    return res.json({ ok: true, orderId: String(order._id), trackingCode: order.trackingCode, status: order.status });
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message || 'Erro ao atualizar rastreio' });
+  }
+});
+
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
