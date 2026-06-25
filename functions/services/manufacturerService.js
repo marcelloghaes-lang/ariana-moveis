@@ -405,6 +405,14 @@ function compactObject(obj = {}) {
 }
 
 export async function syncEnterpriseProductState({ sku, sellerId, manufacturer = '', price, stock, active, availability = '', status = '', discontinued, payload = {} }) {
+  console.log('========== ENTERPRISE SYNC ==========');
+  console.log({
+    sku,
+    sellerId,
+    manufacturer,
+    payload
+  });
+
   const Product = getProductModel();
   const normalizedSku = normalizeSku(sku || payload.sku || payload.codigo || payload.ean || '');
   if (!normalizedSku) throw new Error('sku é obrigatório');
@@ -415,6 +423,8 @@ export async function syncEnterpriseProductState({ sku, sellerId, manufacturer =
   const safeSellerId = String(sellerId || payload.sellerId || payload.seller_id || '').trim();
   const safeManufacturer = String(manufacturer || payload.manufacturer || payload.fabricante || '').trim();
   const preciseQuery = { sku: normalizedSku };
+  console.log('QUERY INICIAL:', preciseQuery);
+
   if (safeSellerId) preciseQuery.sellerId = safeSellerId;
   else if (safeManufacturer) preciseQuery.$or = [
     { sellerId: safeManufacturer },
@@ -423,6 +433,8 @@ export async function syncEnterpriseProductState({ sku, sellerId, manufacturer =
     { brand: safeManufacturer },
     { brand: safeManufacturer.toLowerCase() }
   ];
+
+  console.log('QUERY FINAL:', JSON.stringify(preciseQuery, null, 2));
 
   const skuOnlyQuery = { sku: normalizedSku };
   const skuRegexQuery = { sku: { $regex: `^${escapeRegExp(normalizedSku)}$`, $options: 'i' } };
@@ -470,6 +482,14 @@ export async function syncEnterpriseProductState({ sku, sellerId, manufacturer =
       request: { sku: normalizedSku, sellerId: safeSellerId, manufacturer: safeManufacturer, payload },
       response: { preciseQuery, skuOnlyQuery }
     }).catch(() => null);
+
+    console.log('NÃO ENCONTROU PRODUTO');
+    console.log('SKU:', normalizedSku);
+    console.log('Seller:', safeSellerId);
+    console.log('Manufacturer:', safeManufacturer);
+    console.log('skuOnlyQuery:', skuOnlyQuery);
+    console.log('skuRegexQuery:', JSON.stringify(skuRegexQuery));
+
     throw new Error(`Produto não encontrado para sincronizar: ${normalizedSku}`);
   }
 
