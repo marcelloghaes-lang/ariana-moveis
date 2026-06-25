@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="./favicon.png">
   <script src="js/api-config.js"></script>
   <style>
-    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#0f172a}a{text-decoration:none}.wrap{width:min(1080px,calc(100% - 32px));margin:0 auto}.hero{background:linear-gradient(135deg,#061b3d 0%,#0047ab 55%,#19a7ff 100%);color:#fff;padding:64px 0 46px;position:relative;overflow:hidden}.hero:before{content:"";position:absolute;right:-140px;top:-160px;width:440px;height:440px;border-radius:999px;background:rgba(255,255,255,.12)}.hero h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.05;margin:14px 0 14px;font-weight:950;position:relative;z-index:1}.hero p{font-size:1.08rem;line-height:1.65;color:#e6efff;max-width:760px;position:relative;z-index:1}.kicker{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:8px 12px;font-weight:950;text-transform:uppercase;font-size:.8rem;letter-spacing:.04em;position:relative;z-index:1}.section{padding:42px 0}.grid{display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start}.card{background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:24px;box-shadow:0 14px 36px rgba(15,23,42,.06)}.card h2{font-size:1.45rem;font-weight:950;margin:0 0 8px}.muted{color:#64748b;line-height:1.6}label{font-size:.86rem;font-weight:850;color:#334155;display:block;margin-bottom:6px}input,select,textarea{width:100%;border:1px solid #dbe3ef;border-radius:13px;padding:12px 13px;font:inherit;outline:none;background:#fff}input:focus,select:focus,textarea:focus{border-color:#0047ab;box-shadow:0 0 0 3px rgba(0,71,171,.12)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}.checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.check{display:flex;align-items:center;gap:9px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:13px;padding:11px;font-weight:800;color:#334155}.check input{width:auto}.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:14px;padding:14px 18px;font-weight:950;cursor:pointer;transition:.18s ease}.btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.65;cursor:not-allowed;transform:none}.btn-primary{background:#0047ab;color:#fff}.btn-secondary{background:#eef4ff;color:#0047ab;border:1px solid #bfdbfe}.btn-success{background:#16a34a;color:#fff}.btn-ghost{background:#fff;color:#0047ab;border:1px solid #bfdbfe}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}.note{background:#eef4ff;border:1px solid #bfdbfe;border-radius:16px;padding:14px;color:#1e3a8a;font-weight:750;line-height:1.55}.steps{display:grid;gap:10px;margin-top:14px}.step{display:flex;gap:10px;align-items:flex-start}.step b{display:flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:#0047ab;color:#fff}.success{display:none;background:#ecfdf5;border:1px solid #bbf7d0;color:#166534;border-radius:18px;padding:18px;margin-bottom:18px}.error{display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:18px;padding:18px;margin-bottom:18px}.protocol-box{margin-top:14px;padding:14px;border-radius:14px;background:#fff;border:1px dashed #86efac}.protocol-code{display:inline-flex;align-items:center;gap:8px;font-size:1.1rem;font-weight:950;color:#065f46;background:#dcfce7;border-radius:999px;padding:8px 12px}.field-error{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)!important}.mini{font-size:.78rem;color:#64748b;margin-top:5px}.required{color:#dc2626}.hidden-ok{display:none!important}@media(max-width:900px){.grid,.form-grid,.checks{grid-template-columns:1fr}.btn{width:100%}.protocol-code{width:100%;justify-content:center}}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#0f172a}a{text-decoration:none}.wrap{width:min(1080px,calc(100% - 32px));margin:0 auto}.hero{background:linear-gradient(135deg,#061b3d 0%,#0047ab 55%,#19a7ff 100%);color:#fff;padding:64px 0 46px;position:relative;overflow:hidden}.hero:before{content:"";position:absolute;right:-140px;top:-160px;width:440px;height:440px;border-radius:999px;background:rgba(255,255,255,.12)}.hero h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.05;margin:14px 0 14px;font-weight:950;position:relative;z-index:1}.hero p{font-size:1.08rem;line-height:1.65;color:#e6efff;max-width:760px;position:relative;z-index:1}.kicker{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:8px 12px;font-weight:950;text-transform:uppercase;font-size:.8rem;letter-spacing:.04em;position:relative;z-index:1}.section{padding:42px 0}.grid{display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start}.card{background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:24px;box-shadow:0 14px 36px rgba(15,23,42,.06)}.card h2{font-size:1.45rem;font-weight:950;margin:0 0 8px}.muted{color:#64748b;line-height:1.6}label{font-size:.86rem;font-weight:850;color:#334155;display:block;margin-bottom:6px}input,select,textarea{width:100%;border:1px solid #dbe3ef;border-radius:13px;padding:12px 13px;font:inherit;outline:none;background:#fff}input:focus,select:focus,textarea:focus{border-color:#0047ab;box-shadow:0 0 0 3px rgba(0,71,171,.12)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}.checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.check{display:flex;align-items:center;gap:9px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:13px;padding:11px;font-weight:800;color:#334155}.check input{width:auto}.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:14px;padding:14px 18px;font-weight:950;cursor:pointer;transition:.18s ease}.btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.65;cursor:not-allowed;transform:none}.btn-primary{background:#0047ab;color:#fff}.btn-secondary{background:#eef4ff;color:#0047ab;border:1px solid #bfdbfe}.btn-success{background:#16a34a;color:#fff}.btn-ghost{background:#fff;color:#0047ab;border:1px solid #bfdbfe}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}.note{background:#eef4ff;border:1px solid #bfdbfe;border-radius:16px;padding:14px;color:#1e3a8a;font-weight:750;line-height:1.55}.steps{display:grid;gap:10px;margin-top:14px}.step{display:flex;gap:10px;align-items:flex-start}.step b{display:flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:#0047ab;color:#fff}.success{display:none;background:#ecfdf5;border:1px solid #bbf7d0;color:#166534;border-radius:18px;padding:18px;margin-bottom:18px}.error{display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:18px;padding:18px;margin-bottom:18px}.protocol-box{margin-top:14px;padding:14px;border-radius:14px;background:#fff;border:1px dashed #86efac}.protocol-code{display:inline-flex;align-items:center;gap:8px;font-size:1.1rem;font-weight:950;color:#065f46;background:#dcfce7;border-radius:999px;padding:8px 12px}.field-error{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)!important}.mini{font-size:.78rem;color:#64748b;margin-top:5px}.required{color:#dc2626}.hidden-ok{display:none!important}@media print{body{background:#fff!important}.hero,aside,footer,header,#message-container,#form-area,.actions,#print-protocol-btn,#copy-protocol-btn,#new-request-btn{display:none!important}.section{padding:0!important}.wrap{width:100%!important;margin:0!important}.grid{display:block!important}.card{box-shadow:none!important;border:0!important}.success{display:block!important;background:#fff!important;border:2px solid #16a34a!important;color:#0f172a!important}.protocol-box{text-align:center!important}.protocol-code{font-size:22px!important}.mini{color:#334155!important}}@media(max-width:900px){.grid,.form-grid,.checks{grid-template-columns:1fr}.btn{width:100%}.protocol-code{width:100%;justify-content:center}}
   </style>
 </head>
 <body>
@@ -264,6 +264,68 @@
       `;
     }
 
+    function printHomologationReceipt(){
+      const receipt = window.__lastHomologationReceipt || {};
+      const protocol = String(receipt.requestId || document.getElementById('protocol-code')?.textContent || 'gerado').trim();
+      const createdAt = receipt.createdAt ? new Date(receipt.createdAt) : new Date();
+      const companyName = receipt.companyName || 'Empresa solicitante';
+      const tradeName = receipt.tradeName || '';
+      const cnpj = receipt.cnpj ? formatCNPJ(receipt.cnpj) : 'Não informado';
+      const responsibleName = receipt.responsibleName || 'Não informado';
+      const email = receipt.email || 'Não informado';
+      const phone = receipt.phone || 'Não informado';
+      const erp = receipt.erp || 'Não informado';
+      const integrations = Array.isArray(receipt.integrationTypes) && receipt.integrationTypes.length ? receipt.integrationTypes.join(', ') : 'Não informado';
+      const printedAt = new Date().toLocaleString('pt-BR');
+      const requestDate = createdAt.toLocaleString('pt-BR');
+
+      const receiptHtml = `<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Comprovante de Homologação - ${protocol}</title>
+<style>
+  *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;background:#fff;padding:28px}.page{max-width:820px;margin:0 auto;border:1px solid #dbe3ef;border-radius:18px;padding:28px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:3px solid #0047ab;padding-bottom:18px;margin-bottom:22px}.brand{font-size:24px;font-weight:900;color:#0047ab}.tag{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:800;margin-top:4px}h1{font-size:28px;margin:0;color:#0f172a}.protocol{background:#ecfdf5;border:1px solid #86efac;border-radius:16px;padding:20px;text-align:center;margin:22px 0}.protocol small{display:block;color:#166534;font-weight:800;margin-bottom:8px}.protocol b{font-size:26px;color:#065f46}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.field{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#f8fafc}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:900;margin-bottom:4px}.value{font-size:14px;font-weight:700;word-break:break-word}.note{margin-top:22px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:14px;color:#1e3a8a;font-weight:700;line-height:1.5}.footer{margin-top:28px;border-top:1px solid #e5e7eb;padding-top:14px;font-size:12px;color:#64748b;display:flex;justify-content:space-between;gap:12px}.print-btn{margin:0 auto 16px;display:block;background:#0047ab;color:#fff;border:0;border-radius:10px;padding:11px 16px;font-weight:800;cursor:pointer}@media print{body{padding:0}.print-btn{display:none}.page{border:0;border-radius:0;max-width:none}.top{break-inside:avoid}.protocol{break-inside:avoid}}@media(max-width:700px){.grid,.top,.footer{grid-template-columns:1fr;display:block}.field{margin-bottom:10px}}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
+<div class="page">
+  <div class="top">
+    <div><div class="brand">ARIANA MÓVEIS</div><div class="tag">Ariana Enterprise</div></div>
+    <div style="text-align:right"><h1>Comprovante de Solicitação</h1><div class="tag">Homologação de Integração</div></div>
+  </div>
+  <p>Recebemos a solicitação de homologação para análise comercial e técnica da integração com a API Ariana Enterprise.</p>
+  <div class="protocol"><small>PROTOCOLO DA SOLICITAÇÃO</small><b>${protocol}</b></div>
+  <div class="grid">
+    <div class="field"><div class="label">Razão social / Empresa</div><div class="value">${escHtml(companyName)}</div></div>
+    <div class="field"><div class="label">Nome fantasia</div><div class="value">${escHtml(tradeName || 'Não informado')}</div></div>
+    <div class="field"><div class="label">CNPJ</div><div class="value">${escHtml(cnpj)}</div></div>
+    <div class="field"><div class="label">Responsável</div><div class="value">${escHtml(responsibleName)}</div></div>
+    <div class="field"><div class="label">E-mail</div><div class="value">${escHtml(email)}</div></div>
+    <div class="field"><div class="label">Telefone / WhatsApp</div><div class="value">${escHtml(phone)}</div></div>
+    <div class="field"><div class="label">ERP</div><div class="value">${escHtml(erp)}</div></div>
+    <div class="field"><div class="label">Data da solicitação</div><div class="value">${escHtml(requestDate)}</div></div>
+    <div class="field" style="grid-column:1/-1"><div class="label">Integrações desejadas</div><div class="value">${escHtml(integrations)}</div></div>
+  </div>
+  <div class="note">Esta solicitação não libera acesso automático à produção. A Ariana Móveis analisará os dados e poderá liberar ambiente Sandbox após aprovação inicial.</div>
+  <div class="footer"><div>Ariana Móveis • CNPJ: 48.126.915/0001-74</div><div>Impresso em ${escHtml(printedAt)}</div></div>
+</div>
+<script>setTimeout(function(){ window.focus(); window.print(); }, 350);<\/script>
+</body>
+</html>`;
+
+      const win = window.open('', '_blank', 'width=900,height=720');
+      if (!win) {
+        alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site e tente novamente.');
+        return;
+      }
+      win.document.open();
+      win.document.write(receiptHtml);
+      win.document.close();
+    }
+
+
     document.addEventListener('DOMContentLoaded', () => {
       const form = document.getElementById('homologation-form');
       const btn = document.getElementById('submit-btn');
@@ -293,7 +355,7 @@
           setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copiar protocolo'; }, 1800);
         }
 
-        if (event.target.closest('#print-protocol-btn')) window.print();
+        if (event.target.closest('#print-protocol-btn')) printHomologationReceipt();
 
         if (event.target.closest('#new-request-btn')) {
           hideBox('success-box');
@@ -347,6 +409,7 @@
           const req = data.request || data.homologationRequest || data.item || {};
           const requestId = req.requestId || req.protocol || req.protocolo || data.requestId || data.protocol || data.protocolo || 'gerado';
 
+          window.__lastHomologationReceipt = { ...payload, requestId, createdAt: new Date().toISOString() };
           showBox('success-box', buildSuccessHtml(requestId));
           formEl.reset();
           document.getElementById('form-area')?.classList.add('hidden-ok');
