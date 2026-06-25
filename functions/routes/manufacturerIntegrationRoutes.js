@@ -316,6 +316,155 @@ router.patch('/homologation-requests/:id/status', adminOnly, async (req, res) =>
 });
 
 
+
+// ============================================================
+// ETAPA 11 - Simulador Enterprise de Homologação
+// Uso interno do admin para validar catálogo, estoque/preço,
+// pedido, NF-e e rastreio sem depender de fábrica real.
+// ============================================================
+function simulatorManufacturer(body = {}) {
+  return String(body.manufacturer || body.fabricante || 'ariana_demo').trim().toLowerCase() || 'ariana_demo';
+}
+function simulatorBaseProduct(manufacturer = 'ariana_demo') {
+  return {
+    manufacturer,
+    sellerId: manufacturer,
+    sellerName: 'Ariana Demo Sandbox',
+    sku: 'AD-SBX-GEL001',
+    name: 'Geladeira Demo Sandbox Ariana Enterprise',
+    description: 'Produto criado automaticamente pelo Simulador Enterprise para homologação.',
+    category: 'Geladeiras & Refrigeradores',
+    brand: 'Ariana Demo',
+    price: 2500,
+    stock: 12,
+    weight: 60,
+    length: 70,
+    height: 175,
+    width: 70,
+    imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Ariana+Demo'
+  };
+}
+async function runEnterpriseSimulatorStep(step = '', body = {}, admin = {}) {
+  const manufacturer = simulatorManufacturer(body);
+  const product = simulatorBaseProduct(manufacturer);
+  const stamp = Date.now();
+  const externalOrderId = String(body.externalOrderId || body.orderId || `ARI-SBX-${stamp}`).trim();
+
+  if (step === 'catalog') {
+    const result = await syncEnterpriseCatalog({
+      manufacturer,
+      sellerId: manufacturer,
+      sellerName: 'Ariana Demo Sandbox',
+      items: [
+        product,
+        { ...product, sku: 'AD-SBX-LAV001', name: 'Lavadora Demo Sandbox Ariana Enterprise', category: 'Eletrodomésticos', price: 1899, stock: 7, weight: 45, height: 100, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Lavadora' },
+        { ...product, sku: 'AD-SBX-MIC001', name: 'Micro-ondas Demo Sandbox Ariana Enterprise', category: 'Eletroportáteis', price: 699, stock: 20, weight: 12, height: 30, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Microondas' }
+      ]
+    }, admin?.email || admin?.id || 'simulador');
+    return { step, ok: true, message: 'Catálogo demo sincronizado.', result };
+  }
+
+  if (step === 'stock_price') {
+    await syncEnterpriseCatalog({ manufacturer, sellerId: manufacturer, sellerName: 'Ariana Demo Sandbox', items: [product] }, admin?.email || admin?.id || 'simulador');
+    const result = await syncEnterpriseProductState({
+      sku: product.sku,
+      sellerId: manufacturer,
+      manufacturer,
+      price: 2299,
+      stock: 3,
+      active: true,
+      availability: 'available',
+      status: 'updated_by_enterprise_simulator',
+      payload: { source: 'enterprise_simulator', step }
+    });
+    return { step, ok: true, message: 'Preço e estoque atualizados.', result };
+  }
+
+  if (step === 'order') {
+    await syncEnterpriseCatalog({ manufacturer, sellerId: manufacturer, sellerName: 'Ariana Demo Sandbox', items: [product] }, admin?.email || admin?.id || 'simulador');
+    const order = await receiveEnterpriseOrder({
+      manufacturer,
+      externalOrderId,
+      customerName: 'Cliente Sandbox Ariana',
+      customerEmail: 'cliente.sandbox@teste.com',
+      customerPhone: '31999999999',
+      subtotal: 2299,
+      shippingCost: 80,
+      total: 2379,
+      status: 'enterprise_sandbox_order',
+      statusLabel: 'Pedido sandbox criado pelo simulador',
+      shippingAddress: { name: 'Cliente Sandbox Ariana', phone: '31999999999', cep: '39740000', logradouro: 'Rua Teste Sandbox', numero: '100', bairro: 'Centro', cidade: 'Guanhães', uf: 'MG' },
+      items: [{ sku: product.sku, name: product.name, qty: 1, unitPrice: 2299, totalPrice: 2299, sellerId: manufacturer }],
+      notes: 'Pedido criado automaticamente pelo Simulador Enterprise.'
+    });
+    return { step, ok: true, message: 'Pedido sandbox criado.', externalOrderId, orderId: String(order?._id || order?.id || ''), order };
+  }
+
+  if (step === 'invoice') {
+    let orderId = String(body.orderId || body.externalOrderId || '').trim();
+    if (!orderId) {
+      const created = await runEnterpriseSimulatorStep('order', { ...body, manufacturer, externalOrderId }, admin);
+      orderId = created.orderId || created.externalOrderId;
+    }
+    const result = await attachEnterpriseInvoice({
+      orderId,
+      manufacturer,
+      invoice: {
+        number: String(100000 + Math.floor(Math.random() * 899999)),
+        serie: '1',
+        key: '31260600000000000000550010001234510000123456',
+        xmlUrl: 'https://arianamoveis.com.br/sandbox/nfe-demo.xml',
+        pdfUrl: 'https://arianamoveis.com.br/sandbox/danfe-demo.pdf',
+        issuedAt: new Date()
+      },
+      payload: { source: 'enterprise_simulator', step }
+    });
+    return { step, ok: true, message: 'NF-e sandbox anexada ao pedido.', orderId, result };
+  }
+
+  if (step === 'tracking') {
+    let orderId = String(body.orderId || body.externalOrderId || '').trim();
+    if (!orderId) {
+      const created = await runEnterpriseSimulatorStep('order', { ...body, manufacturer, externalOrderId }, admin);
+      orderId = created.orderId || created.externalOrderId;
+    }
+    const result = await updateEnterpriseOrderTracking({
+      orderId,
+      manufacturer,
+      trackingCode: `SBX${String(Date.now()).slice(-9)}BR`,
+      carrier: 'Transportadora Sandbox Ariana',
+      trackingUrl: 'https://arianamoveis.com.br/rastreamento-demo',
+      payload: { source: 'enterprise_simulator', step, status: 'enviado', statusLabel: 'Pedido enviado pelo simulador' }
+    });
+    return { step, ok: true, message: 'Rastreio sandbox atualizado.', orderId, result };
+  }
+
+  throw new Error('Etapa do simulador inválida');
+}
+
+router.post('/simulator/:step', adminOnly, async (req, res) => {
+  try {
+    const step = String(req.params.step || '').toLowerCase().trim();
+    if (step === 'all') {
+      const manufacturer = simulatorManufacturer(req.body || {});
+      const externalOrderId = `ARI-SBX-${Date.now()}`;
+      const results = [];
+      results.push(await runEnterpriseSimulatorStep('catalog', { ...(req.body || {}), manufacturer }, req.admin));
+      results.push(await runEnterpriseSimulatorStep('stock_price', { ...(req.body || {}), manufacturer }, req.admin));
+      const order = await runEnterpriseSimulatorStep('order', { ...(req.body || {}), manufacturer, externalOrderId }, req.admin);
+      results.push(order);
+      results.push(await runEnterpriseSimulatorStep('invoice', { ...(req.body || {}), manufacturer, orderId: order.orderId || order.externalOrderId }, req.admin));
+      results.push(await runEnterpriseSimulatorStep('tracking', { ...(req.body || {}), manufacturer, orderId: order.orderId || order.externalOrderId }, req.admin));
+      return ok(res, { ok: true, message: 'Homologação completa simulada com sucesso.', results, externalOrderId });
+    }
+    const result = await runEnterpriseSimulatorStep(step, req.body || {}, req.admin);
+    return ok(res, result);
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao executar simulador Enterprise');
+  }
+});
+
+
 router.get('/manufacturers', adminOnly, async (_req, res) => {
   try { return ok(res, { integrations: await listIntegrations() }); }
   catch (error) { return fail(res, 500, error.message || 'Erro ao listar integrações'); }

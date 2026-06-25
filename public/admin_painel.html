@@ -1081,6 +1081,125 @@ window.enterpriseSetHomologationStatus = async function(requestId, status, optio
   }
 }
 
+
+function enterpriseSimulatorSetStep(step, status, message){
+  const row = document.getElementById(`enterprise-sim-step-${step}`);
+  if(!row) return;
+  const badge = row.querySelector('[data-sim-status]');
+  const msg = row.querySelector('[data-sim-message]');
+  const dot = row.querySelector('[data-sim-dot]');
+  const map = {
+    idle: ['Aguardando', 'bg-gray-100 text-gray-500', 'bg-gray-300'],
+    running: ['Executando...', 'bg-blue-100 text-blue-700', 'bg-blue-500'],
+    ok: ['OK', 'bg-green-100 text-green-700', 'bg-green-500'],
+    error: ['Erro', 'bg-red-100 text-red-700', 'bg-red-500']
+  };
+  const cfg = map[status] || map.idle;
+  if(badge){ badge.className = `px-2 py-1 rounded-full text-[11px] font-black ${cfg[1]}`; badge.textContent = cfg[0]; }
+  if(dot){ dot.className = `w-3 h-3 rounded-full ${cfg[2]}`; }
+  if(msg) msg.textContent = message || '';
+}
+function enterpriseSimulatorProgress(percent){
+  const bar = document.getElementById('enterprise-sim-progress-bar');
+  const text = document.getElementById('enterprise-sim-progress-text');
+  const p = Math.max(0, Math.min(100, Number(percent || 0)));
+  if(bar) bar.style.width = `${p}%`;
+  if(text) text.textContent = `${p}%`;
+}
+function enterpriseSimulatorLog(line, type='info'){
+  const box = document.getElementById('enterprise-sim-log');
+  if(!box) return;
+  const color = type === 'error' ? 'text-red-700' : type === 'ok' ? 'text-green-700' : 'text-gray-700';
+  const time = new Date().toLocaleTimeString('pt-BR');
+  box.innerHTML = `<div class="${color}"><b>${time}</b> • ${escHtml(line)}</div>` + box.innerHTML;
+}
+window.enterpriseRunSimulatorStep = async function(step){
+  const labels = { catalog:'Catálogo', stock_price:'Estoque e preço', order:'Pedido', invoice:'NF-e', tracking:'Rastreio' };
+  enterpriseSimulatorSetStep(step, 'running', 'Enviando teste...');
+  enterpriseSimulatorLog(`Iniciando teste: ${labels[step] || step}`);
+  try{
+    const data = await apiRequest(`/enterprise/simulator/${encodeURIComponent(step)}`, {
+      method:'POST',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({ manufacturer:'ariana_demo', sandbox:true })
+    });
+    enterpriseSimulatorSetStep(step, 'ok', data?.message || 'Teste concluído com sucesso.');
+    enterpriseSimulatorLog(`✅ ${labels[step] || step}: aprovado`, 'ok');
+    await renderEnterpriseView();
+    return data;
+  }catch(error){
+    enterpriseSimulatorSetStep(step, 'error', error.message || 'Falha no teste.');
+    enterpriseSimulatorLog(`❌ ${labels[step] || step}: ${error.message}`, 'error');
+    throw error;
+  }
+}
+window.enterpriseRunSimulatorAll = async function(){
+  const steps = ['catalog','stock_price','order','invoice','tracking'];
+  if(!confirm('Executar homologação completa de teste? Isso criará/atualizará produtos e pedido demo no ambiente Enterprise.')) return;
+  enterpriseSimulatorProgress(0);
+  enterpriseSimulatorLog('Homologação completa iniciada.');
+  const started = performance.now();
+  for(let i=0;i<steps.length;i++){
+    try{
+      await window.enterpriseRunSimulatorStep(steps[i]);
+      enterpriseSimulatorProgress(Math.round(((i+1)/steps.length)*100));
+    }catch(_e){
+      displayMessage('Homologação interrompida por erro. Veja o log do simulador.', 'error');
+      return;
+    }
+  }
+  const seconds = ((performance.now() - started) / 1000).toFixed(2).replace('.', ',');
+  enterpriseSimulatorLog(`🏁 Homologação completa aprovada em ${seconds}s.`, 'ok');
+  displayMessage(`Homologação simulada aprovada em ${seconds}s.`, 'success');
+  await renderEnterpriseView();
+}
+window.enterpriseResetSimulator = function(){
+  ['catalog','stock_price','order','invoice','tracking'].forEach(step => enterpriseSimulatorSetStep(step, 'idle', 'Aguardando execução.'));
+  enterpriseSimulatorProgress(0);
+  const box = document.getElementById('enterprise-sim-log');
+  if(box) box.innerHTML = '<div class="text-gray-500">Nenhum teste executado ainda.</div>';
+}
+function enterpriseSimulatorCard(){
+  const steps = [
+    ['catalog','Catálogo','Cria/atualiza produtos demo via API Enterprise.'],
+    ['stock_price','Estoque e preço','Altera preço, estoque, disponibilidade e status.'],
+    ['order','Pedido','Cria um pedido Enterprise de homologação.'],
+    ['invoice','NF-e / XML / DANFE','Anexa dados fiscais ao pedido demo.'],
+    ['tracking','Rastreio','Atualiza transportadora, código e link de rastreamento.']
+  ];
+  return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+    <div class="p-5 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div>
+        <h3 class="font-black text-gray-800 flex items-center gap-2"><i class="fas fa-vial-circle-check text-primary-blue"></i> Simulador de Homologação Enterprise</h3>
+        <p class="text-xs text-gray-500 mt-1">Execute testes de catálogo, estoque, preço, pedido, NF-e e rastreio sem depender de uma fábrica real.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="window.enterpriseRunSimulatorAll()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-black shadow hover:opacity-90"><i class="fas fa-play mr-2"></i>Executar todos os testes</button>
+        <button type="button" onclick="window.enterpriseResetSimulator()" class="px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50"><i class="fas fa-rotate-left mr-2"></i>Limpar painel</button>
+      </div>
+    </div>
+    <div class="p-5">
+      <div class="mb-5">
+        <div class="flex items-center justify-between text-xs font-black text-gray-500 mb-2"><span>Progresso da homologação</span><span id="enterprise-sim-progress-text">0%</span></div>
+        <div class="h-3 rounded-full bg-gray-100 overflow-hidden"><div id="enterprise-sim-progress-bar" class="h-full bg-success-green transition-all duration-300" style="width:0%"></div></div>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-5 gap-3 mb-5">
+        ${steps.map(([id,title,desc]) => `<div id="enterprise-sim-step-${id}" class="p-4 rounded-2xl border border-gray-100 bg-gray-50">
+          <div class="flex items-center justify-between gap-2 mb-2"><span data-sim-dot class="w-3 h-3 rounded-full bg-gray-300"></span><span data-sim-status class="px-2 py-1 rounded-full text-[11px] font-black bg-gray-100 text-gray-500">Aguardando</span></div>
+          <div class="font-black text-gray-800 text-sm">${escHtml(title)}</div>
+          <div class="text-xs text-gray-500 mt-1 min-h-[34px]">${escHtml(desc)}</div>
+          <div data-sim-message class="text-[11px] text-gray-400 mt-2">Aguardando execução.</div>
+          <button type="button" onclick="window.enterpriseRunSimulatorStep('${id}')" class="mt-3 w-full px-3 py-2 rounded-xl bg-primary-blue text-white text-xs font-black hover:bg-secondary-light-blue">Testar</button>
+        </div>`).join('')}
+      </div>
+      <div class="rounded-2xl border border-gray-100 overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b text-xs uppercase font-black text-gray-500">Log da execução</div>
+        <div id="enterprise-sim-log" class="p-4 text-xs space-y-1 max-h-40 overflow-y-auto bg-white"><div class="text-gray-500">Nenhum teste executado ainda.</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 async function renderEnterpriseView(){
   const box = document.getElementById('enterprise-content');
   if(!box) return;
@@ -1134,6 +1253,8 @@ async function renderEnterpriseView(){
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Falhas na fila</div><div class="text-3xl font-black ${erroredQueue ? 'text-error-red' : 'text-success-green'} mt-2">${erroredQueue}</div><div class="text-xs text-gray-500 mt-1">Itens com erro/retry</div></div>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Catálogo</div><div class="text-3xl font-black text-gray-800 mt-2">${totalCatalogProducts}</div><div class="text-xs text-gray-500 mt-1">${activeCatalogProducts} ativos • ${outOfStockCatalogProducts} sem estoque</div></div>
     </div>
+
+    ${enterpriseSimulatorCard()}
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
       <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status e endpoint configurado para cada parceiro</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Método</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs font-bold text-gray-600">${escHtml(m.method||'POST')}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
