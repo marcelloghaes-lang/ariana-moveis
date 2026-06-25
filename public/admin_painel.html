@@ -803,7 +803,7 @@ window.enterpriseSyncProductSample = async function(){
     };
     const data = await apiRequest('/enterprise/products/AD-GEL44TESTE/sync', { method:'POST', headers:buildHeadersAuth({'x-ariana-key': localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || ''}), body:JSON.stringify(payload) });
     displayMessage('Estoque/preço sincronizados no produto teste.', 'success');
-    await renderEnterpriseView();
+    // Não recarrega a tela aqui; recarregar apagava o progresso e o log do simulador.
     return data;
   }catch(e){
     displayMessage(`Erro no teste de estoque/preço: ${e.message}`, 'error');
@@ -1125,7 +1125,7 @@ window.enterpriseRunSimulatorStep = async function(step){
     });
     enterpriseSimulatorSetStep(step, 'ok', data?.message || 'Teste concluído com sucesso.');
     enterpriseSimulatorLog(`✅ ${labels[step] || step}: aprovado`, 'ok');
-    await renderEnterpriseView();
+    // Não recarrega a tela aqui; recarregar apagava o progresso e o log do simulador.
     return data;
   }catch(error){
     enterpriseSimulatorSetStep(step, 'error', error.message || 'Falha no teste.');
@@ -1151,7 +1151,7 @@ window.enterpriseRunSimulatorAll = async function(){
   const seconds = ((performance.now() - started) / 1000).toFixed(2).replace('.', ',');
   enterpriseSimulatorLog(`🏁 Homologação completa aprovada em ${seconds}s.`, 'ok');
   displayMessage(`Homologação simulada aprovada em ${seconds}s.`, 'success');
-  await renderEnterpriseView();
+  // Mantém o painel do simulador visível com os cards verdes, barra 100% e log final.
 }
 window.enterpriseResetSimulator = function(){
   ['catalog','stock_price','order','invoice','tracking'].forEach(step => enterpriseSimulatorSetStep(step, 'idle', 'Aguardando execução.'));
