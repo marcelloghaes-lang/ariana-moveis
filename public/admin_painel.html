@@ -844,12 +844,13 @@ async function renderEnterpriseView(){
   if(!box) return;
   box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"><div class="flex items-center gap-3 text-primary-blue font-bold"><i class="fas fa-spinner fa-spin"></i> Carregando integrações Enterprise...</div></div>`;
 
-  const [dashboard, logsData, queueData, catalogData, productsData] = await Promise.all([
+  const [dashboard, logsData, queueData, catalogData, productsData, homologationRequestsData] = await Promise.all([
     fetchEnterpriseData('/enterprise/dashboard', {}),
     fetchEnterpriseData('/enterprise/logs?limit=12', {}),
     fetchEnterpriseData('/enterprise/queue?limit=12', {}),
     fetchEnterpriseData('/enterprise/catalog/summary', {}),
-    fetchEnterpriseData('/enterprise/products?limit=12', {})
+    fetchEnterpriseData('/enterprise/products?limit=12', {}),
+    fetchEnterpriseData('/enterprise/homologation-requests?limit=20', {})
   ]);
 
   const orders = enterpriseRows(dashboard, ['latestOrders','orders','recentOrders']).slice(0, 10);
@@ -859,6 +860,8 @@ async function renderEnterpriseView(){
   const catalogProducts = enterpriseRows(productsData, ['products','items']).slice(0, 12);
   const catalogFallbackProducts = enterpriseRows(catalogData, ['lastProducts','products']).slice(0, 12);
   const productsToShow = catalogProducts.length ? catalogProducts : catalogFallbackProducts;
+  const homologationRequests = enterpriseRows(homologationRequestsData, ['items','requests']).slice(0, 20);
+  const homologationSummary = homologationRequestsData.summary || {};
   const catalogManufacturers = enterpriseRows(catalogData, ['manufacturers']).slice(0, 20);
   const catalogSummary = catalogData.summary || {};
   const totalCatalogProducts = Number(catalogSummary.totalProducts || productsToShow.length || 0);
@@ -869,6 +872,7 @@ async function renderEnterpriseView(){
   const totalManufacturers = Number(summary.totalManufacturers ?? summary.manufacturersTotal ?? manufacturers.length ?? 0);
   const pendingQueue = Number(summary.pendingQueue ?? summary.queuePending ?? queue.filter(q => String(q.status||'').toLowerCase().includes('pend')).length ?? 0);
   const totalLogs = Number(summary.totalLogs ?? summary.logsTotal ?? logs.length ?? 0);
+  const pendingHomologations = Number(homologationSummary.pending || homologationRequests.filter(r => String(r.status||'').toLowerCase()==='pending').length || 0);
   const erroredQueue = queue.filter(q => ['error','retrying','dead','failed'].some(s => String(q.status||'').toLowerCase().includes(s))).length;
   const base = String(window.API_BASE || localStorage.getItem('API_BASE') || API_BASE || '').replace(/\/+$/, '');
   const enterpriseKey = localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || '';
@@ -890,6 +894,15 @@ async function renderEnterpriseView(){
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
       <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status e endpoint configurado para cada parceiro</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Método</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs font-bold text-gray-600">${escHtml(m.method||'POST')}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"><h3 class="font-black text-gray-800 mb-1">Cadastrar fabricante</h3><p class="text-xs text-gray-500 mb-4">Use para criar/alterar endpoint de envio de pedidos.</p><div class="space-y-3"><input id="enterprise-form-manufacturer" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="fabricante: whirlpool, samsung..."><input id="enterprise-form-endpoint" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="https://api.fabricante.com/orders"><div class="grid grid-cols-2 gap-2"><select id="enterprise-form-method" class="border rounded-xl px-3 py-2 text-sm"><option>POST</option><option>PUT</option></select><select id="enterprise-form-auth-type" class="border rounded-xl px-3 py-2 text-sm"><option value="">Sem auth extra</option><option value="bearer">Bearer</option><option value="apiKey">API Key</option></select></div><input id="enterprise-form-auth-token" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="token/chave do fabricante"><label class="flex items-center gap-2 text-sm"><input id="enterprise-form-enabled" type="checkbox" checked> Ativo</label><button onclick="window.enterpriseSaveManufacturer()" class="w-full px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold">Salvar fabricante</button></div></div>
+    </div>
+
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+      <div class="p-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div><h3 class="font-black text-gray-800">Solicitações de homologação</h3><p class="text-xs text-gray-500">Pedidos enviados pelo formulário público Ariana Developers • Pendentes: ${pendingHomologations}</p></div>
+        <a href="solicitacao-homologacao.html" target="_blank" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold"><i class="fas fa-arrow-up-right-from-square mr-2"></i>Ver formulário</a>
+      </div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Protocolo</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Empresa</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Contato</th><th class="px-4 py-3 text-xs uppercase text-gray-500">ERP</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${homologationRequests.map(r=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(r.requestId||r._id||'—')}</td><td class="px-4 py-3 text-sm"><div class="font-bold">${escHtml(r.companyName||'—')}</div><div class="text-xs text-gray-500">${escHtml(r.cnpj||'')}</div></td><td class="px-4 py-3 text-xs"><div>${escHtml(r.responsibleName||'—')}</div><div class="text-gray-500">${escHtml(r.email||'')}</div><div class="text-gray-500">${escHtml(r.phone||'')}</div></td><td class="px-4 py-3 text-sm">${escHtml(r.erp||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(r.statusLabel||r.status||'pending')}</td><td class="px-4 py-3"><div class="flex flex-wrap gap-2"><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.requestId||'')}', 'in_review')" class="px-3 py-1 rounded-lg bg-yellow-500 text-white text-xs font-bold">Analisar</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.requestId||'')}', 'sandbox')" class="px-3 py-1 rounded-lg bg-success-green text-white text-xs font-bold">Sandbox</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.requestId||'')}', 'rejected')" class="px-3 py-1 rounded-lg bg-error-red text-white text-xs font-bold">Reprovar</button></div></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">Nenhuma solicitação de homologação encontrada.</td></tr>'}</tbody></table></div>
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">

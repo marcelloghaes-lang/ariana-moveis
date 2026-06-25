@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Fabricantes | Ariana Enterprise</title>
+  <link rel="canonical" href="https://arianamoveis.com.br/fabricantes.html">
+  <meta name="description" content="Integre sua fábrica, distribuidora ou ERP à Ariana Móveis via API REST: catálogo, estoque, preços, pedidos, NF-e e rastreio.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <script src="js/api-config.js"></script>
+  <style>
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#0f172a} a{text-decoration:none}
+    .enterprise-page{min-height:100vh;padding-top:0}.wrap{width:min(1180px,calc(100% - 32px));margin:0 auto}.hero{background:linear-gradient(135deg,#08285a 0%,#0047ab 52%,#1d75ff 100%);color:#fff;padding:72px 0 58px;position:relative;overflow:hidden}.hero:before{content:"";position:absolute;right:-120px;top:-120px;width:420px;height:420px;border-radius:999px;background:rgba(255,255,255,.12)}.hero:after{content:"";position:absolute;left:-160px;bottom:-220px;width:480px;height:480px;border-radius:999px;background:rgba(255,255,255,.08)}.hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:1.25fr .75fr;gap:34px;align-items:center}.kicker{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:8px 12px;font-weight:900;text-transform:uppercase;font-size:.8rem;letter-spacing:.04em}.hero h1{font-size:clamp(2.2rem,5vw,4.4rem);line-height:1.02;margin:18px 0 16px;font-weight:950}.hero p{font-size:1.12rem;line-height:1.65;color:#e6efff;max-width:780px}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:14px 18px;font-weight:900}.btn-primary{background:#fff;color:#0047ab}.btn-secondary{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25)}.hero-card{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:24px;padding:24px;box-shadow:0 22px 50px rgba(0,0,0,.18);backdrop-filter:blur(8px)}.hero-card h3{margin:0 0 14px;font-size:1.1rem}.flow{display:grid;gap:10px}.flow div{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.12);border-radius:14px;padding:12px;font-weight:800}.section{padding:50px 0}.section-title{font-size:clamp(1.7rem,3vw,2.5rem);font-weight:950;margin:0 0 10px}.section-sub{color:#64748b;margin:0 0 24px;line-height:1.6}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:24px;box-shadow:0 14px 36px rgba(15,23,42,.06)}.card i{font-size:1.7rem;color:#0047ab;margin-bottom:16px}.card h3{font-size:1.08rem;margin:0 0 8px;font-weight:950}.card p{color:#64748b;line-height:1.55;margin:0}.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.step{background:#fff;border-radius:18px;border:1px solid #e5e7eb;padding:18px}.step b{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;background:#0047ab;color:#fff;margin-bottom:12px}.api-box{background:#0f172a;color:#e2e8f0;border-radius:22px;padding:24px;overflow:auto}.api-box code{display:block;white-space:pre;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.92rem;line-height:1.8}.contact{background:#fff;border-radius:24px;padding:28px;border:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:24px}.contact p{color:#64748b;line-height:1.6;margin:8px 0 0}.footer-note{padding:24px 0;color:#64748b;text-align:center}.brand-strip{display:flex;flex-wrap:wrap;gap:10px}.brand-strip span{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:10px 14px;font-weight:900;color:#334155}
+    @media(max-width:900px){.hero-grid,.cards,.steps{grid-template-columns:1fr}.contact{flex-direction:column;align-items:flex-start}.btn{width:100%}.actions{width:100%}}
+  </style>
+</head>
+<body>
+  <div id="message-container"></div>
+  <main class="enterprise-page">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="kicker"><i class="fas fa-network-wired"></i> Ariana Enterprise</span>
+          <h1>Integre sua fábrica à Ariana Móveis</h1>
+          <p>Uma camada B2B para fabricantes, distribuidores e ERPs venderem no marketplace Ariana Móveis com catálogo, estoque, preços, pedidos, NF-e e rastreio conectados por API.</p>
+          <div class="actions">
+            <a class="btn btn-primary" href="https://wa.me/5531985147119?text=Ol%C3%A1%2C%20quero%20conhecer%20a%20integra%C3%A7%C3%A3o%20Ariana%20Enterprise" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Falar com a Ariana</a>
+            <a class="btn btn-secondary" href="developers.html"><i class="fas fa-code"></i> Ver documentação da API</a>
+            <a class="btn btn-secondary" href="#api"><i class="fas fa-plug"></i> Ver endpoints</a>
+          </div>
+        </div>
+        <div class="hero-card">
+          <h3>Fluxo da integração</h3>
+          <div class="flow">
+            <div><i class="fas fa-boxes-stacked"></i> Catálogo do fabricante</div>
+            <div><i class="fas fa-sync"></i> Estoque e preço em tempo real</div>
+            <div><i class="fas fa-cart-shopping"></i> Pedido automático</div>
+            <div><i class="fas fa-file-invoice"></i> NF-e, DANFE e XML</div>
+            <div><i class="fas fa-truck-fast"></i> Rastreio para o cliente</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2 class="section-title">Por que vender pela Ariana Móveis?</h2>
+        <p class="section-sub">A plataforma foi preparada para operar como marketplace, preservando os fluxos atuais de checkout, pagamentos, sellers, logística e atendimento.</p>
+        <div class="cards">
+          <div class="card"><i class="fas fa-store"></i><h3>Marketplace pronto</h3><p>Venda produtos para clientes finais usando a estrutura comercial da Ariana Móveis.</p></div>
+          <div class="card"><i class="fas fa-plug"></i><h3>Integração por API</h3><p>Envie catálogo, preço, estoque, pedidos, NF-e e rastreio por endpoints REST.</p></div>
+          <div class="card"><i class="fas fa-chart-line"></i><h3>Operação escalável</h3><p>Logs, fila, retry e auditoria para acompanhar o ciclo completo da integração.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" style="background:#eef4ff">
+      <div class="wrap">
+        <h2 class="section-title">Recursos disponíveis</h2>
+        <div class="cards">
+          <div class="card"><i class="fas fa-list"></i><h3>Catálogo</h3><p>Cadastro e atualização de produtos enviados pelo fabricante ou ERP.</p></div>
+          <div class="card"><i class="fas fa-warehouse"></i><h3>Estoque e preço</h3><p>Sincronização de disponibilidade, preço e status do produto.</p></div>
+          <div class="card"><i class="fas fa-receipt"></i><h3>Pedidos</h3><p>Recebimento e atualização de pedidos integrados por fabricante.</p></div>
+          <div class="card"><i class="fas fa-route"></i><h3>Rastreio</h3><p>Retorno de transportadora, código e link de acompanhamento.</p></div>
+          <div class="card"><i class="fas fa-file-code"></i><h3>NF-e</h3><p>Envio de chave, DANFE, XML, número e série da nota fiscal.</p></div>
+          <div class="card"><i class="fas fa-shield-halved"></i><h3>Segurança</h3><p>HTTPS, chave de integração, token admin e logs de auditoria.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2 class="section-title">Processo de integração</h2>
+        <div class="steps">
+          <div class="step"><b>1</b><strong>Cadastro</strong><p>Alinhamento comercial e técnico.</p></div>
+          <div class="step"><b>2</b><strong>Sandbox</strong><p>Testes com chave de integração.</p></div>
+          <div class="step"><b>3</b><strong>Catálogo</strong><p>Envio dos produtos iniciais.</p></div>
+          <div class="step"><b>4</b><strong>Homologação</strong><p>Pedidos, NF-e e rastreio.</p></div>
+          <div class="step"><b>5</b><strong>Produção</strong><p>Operação ativa no marketplace.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="api" class="section" style="background:#eef4ff">
+      <div class="wrap">
+        <h2 class="section-title">Endpoints principais</h2>
+        <p class="section-sub">Exemplos públicos para apresentação técnica. A chave real é configurada com segurança no ambiente da Ariana Móveis.</p>
+        <div class="api-box"><code>POST /enterprise/catalog/push
+POST /enterprise/products/{sku}/sync
+POST /enterprise/orders
+POST /enterprise/orders/{orderId}/tracking
+POST /enterprise/orders/{orderId}/invoice
+GET  /enterprise/health</code></div>
+        <div class="actions" style="margin-top:18px"><a class="btn btn-primary" style="background:#0047ab;color:#fff" href="developers.html"><i class="fas fa-book"></i> Abrir documentação técnica completa</a></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2 class="section-title">Marcas e categorias que buscamos</h2>
+        <p class="section-sub">Móveis, eletrodomésticos, colchões, eletrônicos, informática, climatização, utilidades domésticas e produtos para casa.</p>
+        <div class="brand-strip">
+          <span>Móveis</span><span>Eletrodomésticos</span><span>Colchões</span><span>Eletrônicos</span><span>Celulares</span><span>Informática</span><span>Climatização</span><span>Utilidades</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap contact">
+        <div>
+          <h2 class="section-title" style="font-size:1.8rem">Quer integrar sua empresa?</h2>
+          <p>Entre em contato com a equipe Ariana Móveis para iniciar a análise comercial e técnica.</p>
+        </div>
+        <a class="btn btn-primary" style="background:#0047ab;color:#fff" href="https://wa.me/5531985147119?text=Ol%C3%A1%2C%20quero%20integrar%20minha%20empresa%20%C3%A0%20Ariana%20M%C3%B3veis" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Chamar no WhatsApp</a>
+      </div>
+    </section>
+
+    <footer></footer>
+  </main>
+
+  <script src="./header.js"></script>
+  <script>
+    (function(){
+      function init(){
+        if(typeof window.carregarHeader !== 'function') return setTimeout(init,80);
+        if(document.querySelector('header[data-ariana="1"]')) return;
+        try{ window.carregarHeader(); const h=document.querySelector('header'); if(h) h.setAttribute('data-ariana','1'); }catch(e){ console.error(e); }
+      }
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+    })();
+  </script>
+  <script src="./footer.js"></script>
+  <script src="js/header_auth_fix.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Developers | Ariana Enterprise</title>
+  <link rel="canonical" href="https://arianamoveis.com.br/developers.html">
+  <meta name="description" content="Documentação da API Ariana Enterprise para fabricantes, distribuidores e ERPs: catálogo, estoque, preço, pedidos, NF-e, rastreio e webhooks.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <script src="js/api-config.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#0f172a}
+    a{text-decoration:none}
+    .dev-page{min-height:100vh}
+    .wrap{width:min(1180px,calc(100% - 32px));margin:0 auto}
+    .hero{background:linear-gradient(135deg,#061b3d 0%,#0047ab 55%,#19a7ff 100%);color:#fff;padding:72px 0 54px;position:relative;overflow:hidden}
+    .hero:before{content:"";position:absolute;right:-150px;top:-160px;width:470px;height:470px;border-radius:999px;background:rgba(255,255,255,.12)}
+    .hero:after{content:"";position:absolute;left:-180px;bottom:-230px;width:520px;height:520px;border-radius:999px;background:rgba(255,255,255,.08)}
+    .hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center}
+    .kicker{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:8px 12px;font-weight:950;text-transform:uppercase;font-size:.8rem;letter-spacing:.04em}
+    .hero h1{font-size:clamp(2.1rem,5vw,4.1rem);line-height:1.04;margin:18px 0 16px;font-weight:950}
+    .hero p{font-size:1.1rem;line-height:1.65;color:#e6efff;max-width:760px}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:14px 18px;font-weight:950}
+    .btn-primary{background:#fff;color:#0047ab}
+    .btn-secondary{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25)}
+    .hero-card{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:24px;box-shadow:0 22px 50px rgba(0,0,0,.18);backdrop-filter:blur(8px)}
+    .hero-card h3{margin:0 0 12px;font-size:1.1rem}
+    .quick-list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+    .quick-list li{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.12);border-radius:14px;padding:12px;font-weight:850}
+    .section{padding:48px 0}
+    .section-title{font-size:clamp(1.65rem,3vw,2.45rem);font-weight:950;margin:0 0 10px}
+    .section-sub{color:#64748b;margin:0 0 24px;line-height:1.6}
+    .layout{display:grid;grid-template-columns:280px 1fr;gap:22px;align-items:start}
+    .toc{position:sticky;top:18px;background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:18px;box-shadow:0 14px 36px rgba(15,23,42,.06)}
+    .toc h3{font-size:1rem;font-weight:950;margin:0 0 12px}
+    .toc a{display:block;color:#334155;font-weight:800;padding:9px 10px;border-radius:10px}
+    .toc a:hover{background:#eef4ff;color:#0047ab}
+    .doc-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:24px;box-shadow:0 14px 36px rgba(15,23,42,.06);margin-bottom:18px}
+    .doc-card h2{font-size:1.45rem;font-weight:950;margin:0 0 10px}
+    .doc-card h3{font-size:1.08rem;font-weight:950;margin:18px 0 8px}
+    .doc-card p,.doc-card li{color:#475569;line-height:1.62}
+    .endpoint{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;margin:12px 0}
+    .method{font-weight:950;font-size:.78rem;border-radius:999px;padding:5px 9px;color:#fff;background:#0047ab}
+    .method.post{background:#16a34a}.method.get{background:#2563eb}.method.put{background:#f59e0b}
+    code.inline{background:#eef2ff;color:#1d4ed8;border-radius:7px;padding:2px 6px;font-weight:850}
+    pre{background:#0f172a;color:#e2e8f0;border-radius:18px;padding:18px;overflow:auto;line-height:1.62;font-size:.88rem}
+    pre code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .note{background:#eef4ff;border:1px solid #bfdbfe;border-radius:16px;padding:14px;color:#1e3a8a;font-weight:750;line-height:1.55}
+    .warning{background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:14px;color:#9a3412;font-weight:750;line-height:1.55}
+    .footer-note{padding:24px 0;color:#64748b;text-align:center}
+    @media(max-width:900px){.hero-grid,.layout,.grid-2{grid-template-columns:1fr}.toc{position:relative;top:auto}.btn{width:100%}}
+  </style>
+</head>
+<body>
+  <div id="message-container"></div>
+  <main class="dev-page">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="kicker"><i class="fas fa-code"></i> Ariana Developers</span>
+          <h1>Documentação da API Ariana Enterprise</h1>
+          <p>Material técnico para fabricantes, distribuidores e ERPs integrarem catálogo, estoque, preços, pedidos, NF-e, rastreio e webhooks ao marketplace Ariana Móveis.</p>
+          <div class="actions">
+            <a class="btn btn-primary" href="#autenticacao"><i class="fas fa-key"></i> Ver autenticação</a>
+            <a class="btn btn-secondary" href="fabricantes.html"><i class="fas fa-industry"></i> Página comercial</a>
+          </div>
+        </div>
+        <div class="hero-card">
+          <h3>APIs disponíveis</h3>
+          <ul class="quick-list">
+            <li><i class="fas fa-list"></i> Catálogo de produtos</li>
+            <li><i class="fas fa-boxes-stacked"></i> Estoque e preço</li>
+            <li><i class="fas fa-cart-shopping"></i> Pedidos</li>
+            <li><i class="fas fa-file-invoice"></i> NF-e / DANFE / XML</li>
+            <li><i class="fas fa-truck-fast"></i> Rastreio</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap layout">
+        <aside class="toc">
+          <h3>Navegação</h3>
+          <a href="#visao-geral">Visão geral</a>
+          <a href="#autenticacao">Autenticação</a>
+          <a href="#catalogo">Catálogo</a>
+          <a href="#sync">Estoque e preço</a>
+          <a href="#pedidos">Pedidos</a>
+          <a href="#tracking">Rastreio</a>
+          <a href="#invoice">NF-e</a>
+          <a href="#webhooks">Webhooks</a>
+          <a href="#erros">Códigos de erro</a>
+          <a href="#homologacao">Homologação</a>
+        </aside>
+
+        <div>
+          <article id="visao-geral" class="doc-card">
+            <h2>Visão geral</h2>
+            <p>A API Ariana Enterprise permite que parceiros enviem produtos, atualizem preço e estoque, recebam pedidos e devolvam informações operacionais como NF-e e rastreio.</p>
+            <div class="note">Base de produção: <code class="inline">https://ariana-backend.onrender.com/api</code></div>
+            <h3>Formato</h3>
+            <p>Todas as requisições usam JSON e HTTPS.</p>
+            <div class="warning">Os dados exibidos nesta documentação são exemplos demonstrativos da Ariana Móveis. Não representam parceria oficial com marcas ou fabricantes terceiros.</div>
+            <pre><code>Content-Type: application/json</code></pre>
+          </article>
+
+          <article id="autenticacao" class="doc-card">
+            <h2>Autenticação</h2>
+            <p>As APIs externas de fabricantes usam a chave configurada pela Ariana Móveis. Essa chave deve ser enviada no header <code class="inline">x-ariana-key</code>.</p>
+            <pre><code>x-ariana-key: SUA_CHAVE_DE_INTEGRACAO
+Content-Type: application/json</code></pre>
+            <div class="warning">A chave real não deve ser compartilhada publicamente. Ela será fornecida durante a homologação técnica.</div>
+          </article>
+
+          <article id="catalogo" class="doc-card">
+            <h2>Catálogo de produtos</h2>
+            <div class="endpoint"><span class="method post">POST</span><strong>/enterprise/catalog/push</strong></div>
+            <p>Envia um ou mais produtos do fabricante para cadastro ou atualização no marketplace.</p>
+            <pre><code>{
+  "manufacturer": "ariana_moveis_demo",
+  "sellerId": "ariana_moveis_demo",
+  "sellerName": "Ariana Móveis Demo",
+  "items": [
+    {
+      "sku": "ARIANA-DEMO-001",
+      "name": "Produto Teste Ariana Enterprise",
+      "description": "Produto recebido via catálogo Enterprise.",
+      "category": "Geladeiras & Refrigeradores",
+      "brand": "Ariana Móveis Demo",
+      "price": 2500,
+      "stock": 12,
+      "weight": 60,
+      "height": 175,
+      "width": 70,
+      "length": 70,
+      "imageUrl": "https://exemplo.com/produto.jpg"
+    }
+  ]
+}</code></pre>
+            <h3>Resposta esperada</h3>
+            <pre><code>{
+  "ok": true,
+  "manufacturer": "ariana_moveis_demo",
+  "total": 1,
+  "success": 1,
+  "errors": 0
+}</code></pre>
+          </article>
+
+          <article id="sync" class="doc-card">
+            <h2>Sincronização de estoque, preço e status</h2>
+            <div class="endpoint"><span class="method post">POST</span><strong>/enterprise/products/{sku}/sync</strong></div>
+            <p>Atualiza preço, estoque, disponibilidade e status de um produto já cadastrado.</p>
+            <pre><code>{
+  "manufacturer": "ariana_moveis_demo",
+  "price": 2299,
+  "stock": 3,
+  "active": true,
+  "availability": "available",
+  "status": "updated_by_erp"
+}</code></pre>
+            <h3>Também disponíveis</h3>
+            <div class="endpoint"><span class="method put">PUT</span><strong>/enterprise/products/{sku}/stock</strong></div>
+            <div class="endpoint"><span class="method put">PUT</span><strong>/enterprise/products/{sku}/price</strong></div>
+          </article>
+
+          <article id="pedidos" class="doc-card">
+            <h2>Recebimento de pedidos</h2>
+            <div class="endpoint"><span class="method post">POST</span><strong>/enterprise/orders</strong></div>
+            <p>Recebe ou atualiza pedido vindo de fabricante, distribuidor ou ERP.</p>
+            <pre><code>{
+  "manufacturer": "ariana_moveis_demo",
+  "externalOrderId": "ARIANA-DEMO-001",
+  "customerName": "Cliente Teste",
+  "customerEmail": "cliente@teste.com",
+  "customerPhone": "31999999999",
+  "items": [
+    {
+      "sku": "ARIANA-DEMO-001",
+      "name": "Produto Teste Ariana Enterprise",
+      "qty": 1,
+      "unitPrice": 2500,
+      "sellerId": "ariana_moveis_demo"
+    }
+  ]
+}</code></pre>
+          </article>
+
+          <article id="tracking" class="doc-card">
+            <h2>Rastreamento</h2>
+            <div class="endpoint"><span class="method post">POST</span><strong>/enterprise/orders/{orderId}/tracking</strong></div>
+            <p>Atualiza transportadora, código e URL de rastreamento.</p>
+            <pre><code>{
+  "manufacturer": "ariana_moveis_demo",
+  "trackingCode": "TESTE123456789BR",
+  "carrier": "Transportadora Ariana",
+  "trackingUrl": "https://rastreamento.teste.com/TESTE123456789BR"
+}</code></pre>
+          </article>
+
+          <article id="invoice" class="doc-card">
+            <h2>NF-e, DANFE e XML</h2>
+            <div class="endpoint"><span class="method post">POST</span><strong>/enterprise/orders/{orderId}/invoice</strong></div>
+            <p>Envia dados fiscais do pedido.</p>
+            <pre><code>{
+  "manufacturer": "ariana_moveis_demo",
+  "invoice": {
+    "number": "12345",
+    "series": "1",
+    "accessKey": "31260600000000000000550010000123451000012345",
+    "danfeUrl": "https://teste.com/danfe-12345.pdf",
+    "xmlUrl": "https://teste.com/nfe-12345.xml",
+    "total": 2500
+  }
+}</code></pre>
+          </article>
+
+          <article id="webhooks" class="doc-card">
+            <h2>Webhooks</h2>
+            <div class="endpoint"><span class="method post">POST</span><strong>/enterprise/webhooks/{manufacturer}</strong></div>
+            <p>Endpoint para eventos gerais do fabricante, como confirmação de recebimento, separação, faturamento ou expedição.</p>
+            <pre><code>{
+  "event": "order_ack",
+  "externalOrderId": "ARIANA-DEMO-001",
+  "status": "received",
+  "message": "Pedido recebido pelo ERP de demonstração"
+}</code></pre>
+          </article>
+
+          <article id="erros" class="doc-card">
+            <h2>Códigos de erro</h2>
+            <div class="grid-2">
+              <div class="note"><strong>200 / 201</strong><br>Operação concluída com sucesso.</div>
+              <div class="warning"><strong>400</strong><br>Payload inválido ou campo obrigatório ausente.</div>
+              <div class="warning"><strong>401</strong><br>Chave de integração inválida ou ausente.</div>
+              <div class="warning"><strong>403</strong><br>API externa não liberada ou segredo não configurado.</div>
+              <div class="warning"><strong>404</strong><br>Pedido ou produto não encontrado.</div>
+              <div class="warning"><strong>500</strong><br>Erro interno de processamento.</div>
+            </div>
+          </article>
+
+          <article id="homologacao" class="doc-card">
+            <h2>Processo de homologação</h2>
+            <ol>
+              <li>Cadastro comercial do fabricante.</li>
+              <li>Liberação de chave de teste.</li>
+              <li>Envio de catálogo piloto.</li>
+              <li>Teste de estoque, preço e disponibilidade.</li>
+              <li>Teste de pedido, NF-e e rastreio.</li>
+              <li>Aprovação para produção.</li>
+            </ol>
+            <div class="actions">
+              <a class="btn btn-primary" style="background:#0047ab;color:#fff" href="solicitacao-homologacao.html"><i class="fas fa-paper-plane"></i> Solicitar homologação</a>
+              <a class="btn btn-secondary" style="background:#eef4ff;color:#0047ab;border-color:#bfdbfe" href="fabricantes.html"><i class="fas fa-industry"></i> Ver página para fabricantes</a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <footer></footer>
+  </main>
+
+  <script src="./header.js"></script>
+  <script>
+    (function(){
+      function init(){
+        if(typeof window.carregarHeader !== 'function') return setTimeout(init,80);
+        if(document.querySelector('header[data-ariana="1"]')) return;
+        try{ window.carregarHeader(); const h=document.querySelector('header'); if(h) h.setAttribute('data-ariana','1'); }catch(e){ console.error(e); }
+      }
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+    })();
+  </script>
+  <script src="./footer.js"></script>
+  <script src="js/header_auth_fix.js" defer></script>
+</body>
+</html>

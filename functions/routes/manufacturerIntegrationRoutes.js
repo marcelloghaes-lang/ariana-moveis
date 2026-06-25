@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { ok, fail } from '../utils/http.js';
 import {
@@ -31,6 +32,64 @@ import {
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
+
+// ============================================================
+// ETAPA 10 - Solicitações públicas de homologação Enterprise
+// ============================================================
+const homologationRequestSchema = new mongoose.Schema({
+  requestId: { type: String, unique: true, index: true },
+  companyName: { type: String, required: true, index: true },
+  tradeName: String,
+  cnpj: { type: String, index: true },
+  website: String,
+  responsibleName: { type: String, required: true },
+  responsibleRole: String,
+  email: { type: String, required: true, index: true },
+  phone: String,
+  erp: String,
+  integrationTypes: { type: [String], default: [] },
+  productVolume: String,
+  orderVolume: String,
+  message: String,
+  status: { type: String, default: 'pending', index: true },
+  statusLabel: { type: String, default: 'Aguardando análise' },
+  adminNotes: String,
+  reviewedBy: String,
+  reviewedAt: Date,
+  source: { type: String, default: 'developers_page' },
+  metadata: mongoose.Schema.Types.Mixed
+}, { timestamps: true, versionKey: false });
+
+const EnterpriseHomologationRequest =
+  mongoose.models.EnterpriseHomologationRequest ||
+  mongoose.model('EnterpriseHomologationRequest', homologationRequestSchema);
+
+function onlyDigits(value = '') {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function cleanText(value = '', max = 500) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function createRequestId() {
+  const date = new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `HML-${y}${m}${d}-${random}`;
+}
+
+function normalizeHomologationStatus(status = '') {
+  const s = String(status || '').toLowerCase().trim();
+  if (['approved', 'aprovada', 'aprovado', 'approve'].includes(s)) return { status: 'approved', statusLabel: 'Aprovada para homologação' };
+  if (['rejected', 'reprovada', 'reprovado', 'reject'].includes(s)) return { status: 'rejected', statusLabel: 'Reprovada' };
+  if (['in_review', 'analise', 'em_analise', 'review'].includes(s)) return { status: 'in_review', statusLabel: 'Em análise' };
+  if (['sandbox', 'teste', 'testing'].includes(s)) return { status: 'sandbox', statusLabel: 'Sandbox liberado' };
+  return { status: 'pending', statusLabel: 'Aguardando análise' };
+}
+
 
 function adminOnly(req, res, next) {
   try {
@@ -98,6 +157,88 @@ function partnerKeyRequired(req, res, next) {
 }
 
 router.get('/health', (_req, res) => ok(res, { module: 'enterprise', status: 'online' }));
+
+// ============================================================
+// ETAPA 10 - Homologação Enterprise
+// Formulário público + gestão no Admin Enterprise.
+// ============================================================
+router.post('/homologation/request', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const companyName = cleanText(body.companyName || body.razaoSocial || body.empresa, 180);
+    const responsibleName = cleanText(body.responsibleName || body.responsavel || body.nome, 140);
+    const email = cleanText(body.email || body.responsibleEmail, 160).toLowerCase();
+    const phone = cleanText(body.phone || body.telefone || body.whatsapp, 40);
+    const cnpj = onlyDigits(body.cnpj || body.document || body.documento);
+
+    if (!companyName) return fail(res, 400, 'Empresa/Razão social é obrigatória');
+    if (!responsibleName) return fail(res, 400, 'Nome do responsável é obrigatório');
+    if (!email || !email.includes('@')) return fail(res, 400, 'E-mail válido é obrigatório');
+
+    const integrationTypes = Array.isArray(body.integrationTypes)
+      ? body.integrationTypes.map((v) => cleanText(v, 60)).filter(Boolean)
+      : String(body.integrationTypes || '').split(',').map((v) => cleanText(v, 60)).filter(Boolean);
+
+    const request = await EnterpriseHomologationRequest.create({
+      requestId: createRequestId(),
+      companyName,
+      tradeName: cleanText(body.tradeName || body.nomeFantasia, 180),
+      cnpj,
+      website: cleanText(body.website || body.site, 220),
+      responsibleName,
+      responsibleRole: cleanText(body.responsibleRole || body.cargo, 120),
+      email,
+      phone,
+      erp: cleanText(body.erp || body.erpName || body.sistema, 100),
+      integrationTypes,
+      productVolume: cleanText(body.productVolume || body.volumeProdutos, 80),
+      orderVolume: cleanText(body.orderVolume || body.volumePedidos, 80),
+      message: cleanText(body.message || body.mensagem || body.observacoes, 2000),
+      source: cleanText(body.source || 'developers_page', 80),
+      metadata: { userAgent: req.headers['user-agent'] || '', ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '' }
+    });
+
+    return ok(res, { request: { id: String(request._id), requestId: request.requestId, status: request.status, statusLabel: request.statusLabel, companyName: request.companyName, email: request.email, createdAt: request.createdAt } }, 201);
+  } catch (error) {
+    return fail(res, 500, error.message || 'Erro ao registrar solicitação de homologação');
+  }
+});
+
+router.get('/homologation-requests', adminOnly, async (req, res) => {
+  try {
+    const status = cleanText(req.query?.status || '', 40);
+    const q = cleanText(req.query?.q || req.query?.search || '', 120);
+    const limit = Math.min(Math.max(Number(req.query?.limit || 50), 1), 200);
+    const filter = {};
+    if (status) filter.status = status;
+    if (q) {
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ requestId: regex }, { companyName: regex }, { tradeName: regex }, { email: regex }, { cnpj: regex }];
+    }
+
+    const items = await EnterpriseHomologationRequest.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+    const summaryAgg = await EnterpriseHomologationRequest.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]);
+    const summary = summaryAgg.reduce((acc, row) => { acc[row._id || 'unknown'] = row.count; return acc; }, {});
+    return ok(res, { items, summary, total: items.length });
+  } catch (error) {
+    return fail(res, 500, error.message || 'Erro ao listar solicitações de homologação');
+  }
+});
+
+router.patch('/homologation-requests/:id/status', adminOnly, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const normalized = normalizeHomologationStatus(req.body?.status);
+    const adminNotes = cleanText(req.body?.adminNotes || req.body?.notes || '', 2000);
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: new mongoose.Types.ObjectId(id) } : { requestId: id };
+    const request = await EnterpriseHomologationRequest.findOneAndUpdate(filter, { $set: { status: normalized.status, statusLabel: normalized.statusLabel, adminNotes, reviewedBy: req.admin?.email || req.admin?.id || 'admin', reviewedAt: new Date() } }, { new: true }).lean();
+    if (!request) return fail(res, 404, 'Solicitação não encontrada');
+    return ok(res, { request });
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao atualizar solicitação');
+  }
+});
+
 
 router.get('/manufacturers', adminOnly, async (_req, res) => {
   try { return ok(res, { integrations: await listIntegrations() }); }
