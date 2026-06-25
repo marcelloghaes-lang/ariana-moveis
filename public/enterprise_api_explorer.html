@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ariana Enterprise API Explorer</title>
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <style>
+    :root{--blue:#0047AB;--blue2:#1d4ed8;--green:#16a34a;--red:#dc2626;--dark:#0f172a;--muted:#64748b;--bg:#f3f6fb;--card:#fff;--border:#e5e7eb}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:#111827}
+    header{background:linear-gradient(135deg,#003580,#0ea5e9);color:#fff;padding:34px 5vw;border-bottom-left-radius:32px;border-bottom-right-radius:32px;box-shadow:0 18px 40px rgba(0,71,171,.18)}
+    header .top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap} .brand{letter-spacing:.22em;font-weight:900;font-size:13px;opacity:.95}.hero h1{font-size:clamp(32px,5vw,56px);line-height:.95;margin:22px 0 10px;font-weight:950}.hero p{max-width:760px;font-size:17px;line-height:1.55;opacity:.94}.btn{border:0;border-radius:14px;padding:12px 16px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none}.btn-blue{background:var(--blue2);color:white}.btn-green{background:var(--green);color:white}.btn-white{background:#fff;color:var(--blue)}.btn-gray{background:#eef2f7;color:#334155;border:1px solid #dbe3ef}.btn-red{background:var(--red);color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}
+    main{max-width:1280px;margin:28px auto;padding:0 18px 40px}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:22px}.card{background:var(--card);border:1px solid var(--border);border-radius:22px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}.card-h{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.card-h h2{margin:0;font-size:20px;font-weight:950}.card-h p{margin:6px 0 0;color:var(--muted);font-size:13px}.card-b{padding:20px 22px}.field{margin-bottom:16px}.label{display:block;font-size:12px;text-transform:uppercase;color:#64748b;font-weight:900;margin-bottom:8px}.input,.select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:13px 14px;font:inherit;background:#fff;outline:none}textarea{min-height:340px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;line-height:1.55;resize:vertical;background:#0b1220;color:#e2e8f0;border-color:#1e293b}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#eef6ff;color:var(--blue);font-size:12px;font-weight:900;padding:8px 12px}.pill.ok{background:#dcfce7;color:#166534}.pill.warn{background:#fef3c7;color:#92400e}.pill.err{background:#fee2e2;color:#991b1b}.response{background:#0b1220;color:#e2e8f0;border-radius:18px;padding:16px;min-height:330px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;line-height:1.55;white-space:pre-wrap;overflow:auto}.meta{display:flex;gap:8px;flex-wrap:wrap}.console{max-height:290px;overflow:auto}.log{display:grid;grid-template-columns:76px 74px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #eef2f7;font-size:12px}.log .status-ok{color:var(--green);font-weight:900}.log .status-err{color:var(--red);font-weight:900}.sample-code{background:#0b1220;color:#e2e8f0;border-radius:18px;padding:16px;min-height:210px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;white-space:pre-wrap;overflow:auto}.tiny{font-size:12px;color:#64748b}.endpoint-line{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;word-break:break-all}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{padding:9px 12px;border-radius:12px;border:1px solid #dbe3ef;background:white;color:#334155;font-weight:850;cursor:pointer}.tab.active{background:var(--blue2);color:white;border-color:var(--blue2)}
+    @media(max-width:980px){.grid,.row{grid-template-columns:1fr}.hero h1{font-size:38px}textarea{min-height:260px}}
+    @media print{header,.no-print,.console-card,.sdk-card{display:none!important}main{margin:0;padding:0}.grid{display:block}.card{box-shadow:none;border:0}.response{color:#111;background:#fff;border:1px solid #ddd}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="top"><div><div class="brand">ARIANA ENTERPRISE</div><div class="tiny" style="color:#dbeafe;margin-top:8px">Ambiente de testes para fabricantes, distribuidores e ERPs</div></div><div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-white" href="developers.html"><i class="fas fa-book"></i> Documentação</a><a class="btn btn-white" href="admin_painel.html"><i class="fas fa-arrow-left"></i> Painel Admin</a></div></div>
+  <div class="hero"><h1>API Explorer</h1><p>Teste endpoints da Ariana Enterprise diretamente pelo navegador, com exemplos prontos de catálogo, estoque, preço, pedido, NF-e, XML, DANFE, rastreio e webhooks.</p></div>
+</header>
+<main>
+  <div class="grid">
+    <section class="card">
+      <div class="card-h"><div><h2><i class="fas fa-terminal" style="color:var(--blue2)"></i> Requisição</h2><p>Escolha o endpoint, informe a chave e execute o teste.</p></div><span id="env-pill" class="pill warn">Sandbox</span></div>
+      <div class="card-b">
+        <div class="row">
+          <div class="field"><label class="label">Endpoint</label><select id="endpoint-select" class="select"></select></div>
+          <div class="field"><label class="label">Ambiente</label><select id="environment-select" class="select"><option value="sandbox">Sandbox</option><option value="production">Produção</option></select></div>
+        </div>
+        <div class="field"><label class="label">URL final</label><div id="final-url" class="endpoint-line"></div></div>
+        <div class="row">
+          <div class="field"><label class="label">Base URL</label><input id="base-url" class="input" placeholder="https://ariana-backend.onrender.com/api"></div>
+          <div class="field"><label class="label">Autenticação</label><select id="auth-mode" class="select"><option value="x-key">x-ariana-key</option><option value="bearer">Bearer admin/sandbox</option><option value="none">Sem autenticação</option></select></div>
+        </div>
+        <div class="field"><label class="label">Chave / Token</label><input id="token-input" class="input" type="password" placeholder="Cole a chave Sandbox, ENTERPRISE_WEBHOOK_SECRET ou token admin"><div class="tiny" style="margin-top:8px">Para endpoints externos do seu backend atual, normalmente use <b>x-ariana-key</b>. Para endpoints administrativos, use <b>Bearer</b>.</div></div>
+        <div class="field"><label class="label">Request JSON</label><textarea id="request-body"></textarea></div>
+        <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap"><button id="execute-btn" class="btn btn-green"><i class="fas fa-play"></i> Executar</button><button id="copy-curl-btn" class="btn btn-gray"><i class="fas fa-copy"></i> Copiar cURL</button><button id="save-key-btn" class="btn btn-blue"><i class="fas fa-save"></i> Salvar chave neste navegador</button></div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-h"><div><h2><i class="fas fa-reply" style="color:var(--green)"></i> Resposta</h2><p>Resultado em tempo real da chamada para a API.</p></div><div class="meta"><span id="http-status" class="pill">Aguardando</span><span id="http-time" class="pill">0 ms</span></div></div>
+      <div class="card-b"><pre id="response-output" class="response">Clique em Executar para testar um endpoint.</pre></div>
+    </section>
+  </div>
+  <div class="grid" style="margin-top:22px">
+    <section class="card sdk-card">
+      <div class="card-h"><div><h2><i class="fas fa-code" style="color:var(--blue2)"></i> Exemplos de código</h2><p>Copie o exemplo na linguagem desejada.</p></div></div>
+      <div class="card-b"><div class="tabs no-print" id="sdk-tabs"></div><pre id="sdk-output" class="sample-code"></pre></div>
+    </section>
+    <section class="card console-card">
+      <div class="card-h"><div><h2><i class="fas fa-list-check" style="color:var(--blue2)"></i> Console da API</h2><p>Histórico dos testes executados nesta tela.</p></div><button id="clear-console" class="btn btn-gray no-print"><i class="fas fa-trash"></i> Limpar</button></div>
+      <div class="card-b"><div id="console-log" class="console"><div class="tiny">Nenhuma chamada executada ainda.</div></div></div>
+    </section>
+  </div>
+</main>
+<script src="js/api-config.js"></script>
+<script>
+const API_DEFAULT = (window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+const endpoints = [
+  {id:'health', title:'Health check', method:'GET', path:'/enterprise/health', auth:'none', body:null, desc:'Verifica se o módulo Enterprise está online.'},
+  {id:'catalog', title:'Enviar catálogo', method:'POST', path:'/enterprise/catalog/push', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',sellerName:'Ariana Demo',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',description:'Produto de teste recebido pelo API Explorer.',category:'Eletrodomésticos',brand:'Ariana Demo',price:2500,stock:12,weight:10,height:60,width:60,length:60,imageUrl:'https://placehold.co/600x600/eef2ff/1d4ed8?text=Ariana+Demo'}]}},
+  {id:'sync', title:'Sincronizar estoque, preço e status', method:'POST', path:'/enterprise/products/ARI-DEMO-001/sync', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2299,stock:8,active:true,availability:'available',status:'updated_by_api_explorer'}},
+  {id:'stock', title:'Atualizar estoque', method:'PUT', path:'/enterprise/products/ARI-DEMO-001/stock', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',stock:5}},
+  {id:'price', title:'Atualizar preço', method:'PUT', path:'/enterprise/products/ARI-DEMO-001/price', auth:'x-key', body:{manufacturer:'ariana_demo',sellerId:'ariana_demo',price:2199}},
+  {id:'order', title:'Enviar pedido', method:'POST', path:'/enterprise/orders', auth:'x-key', body:{manufacturer:'ariana_demo',externalOrderId:'ARI-ORDER-TESTE-001',customerName:'Cliente Teste',customerEmail:'cliente.teste@exemplo.com',customerPhone:'31999999999',items:[{sku:'ARI-DEMO-001',name:'Produto Demo Ariana Enterprise',qty:1,unitPrice:2299,sellerId:'ariana_demo'}],shippingAddress:{name:'Cliente Teste',cep:'39740000',logradouro:'Rua Teste',numero:'100',bairro:'Centro',cidade:'Guanhães',uf:'MG'}}},
+  {id:'invoice', title:'Enviar NF-e / DANFE / XML', method:'POST', path:'/enterprise/orders/ARI-ORDER-TESTE-001/invoice', auth:'x-key', body:{manufacturer:'ariana_demo',invoice:{number:'12345',series:'1',accessKey:'31260600000000000000550010000123451000012345',danfeUrl:'https://exemplo.com/danfe-12345.pdf',xmlUrl:'https://exemplo.com/nfe-12345.xml',total:2299}}},
+  {id:'tracking', title:'Enviar rastreio', method:'POST', path:'/enterprise/orders/ARI-ORDER-TESTE-001/tracking', auth:'x-key', body:{manufacturer:'ariana_demo',trackingCode:'BR123456789BR',carrier:'Transportadora Demo',trackingUrl:'https://rastreamento.exemplo.com/BR123456789BR'}},
+  {id:'queue', title:'Listar fila Enterprise', method:'GET', path:'/enterprise/queue?limit=10', auth:'bearer', body:null},
+  {id:'logs', title:'Listar logs Enterprise', method:'GET', path:'/enterprise/logs?limit=10', auth:'bearer', body:null}
+];
+const languages = ['JavaScript','Node.js','PHP','Python','cURL'];
+let currentLang = 'JavaScript';
+const $ = id => document.getElementById(id);
+function pretty(v){ return v === null || v === undefined ? '' : JSON.stringify(v,null,2); }
+function finalUrl(){ return `${$('base-url').value.replace(/\/+$/,'')}${endpoints.find(e=>e.id===$('endpoint-select').value).path}`; }
+function selectedEndpoint(){ return endpoints.find(e=>e.id===$('endpoint-select').value) || endpoints[0]; }
+function updateEndpoint(){ const e=selectedEndpoint(); $('auth-mode').value=e.auth || 'x-key'; $('request-body').value=e.body ? pretty(e.body) : ''; $('final-url').textContent=finalUrl(); updateSdk(); }
+function headersFor(e){ const h={}; const mode=$('auth-mode').value; const token=$('token-input').value.trim(); if(e.body) h['Content-Type']='application/json'; if(mode==='x-key' && token) h['x-ariana-key']=token; if(mode==='bearer' && token) h.Authorization=`Bearer ${token}`; return h; }
+function curlCommand(){ const e=selectedEndpoint(); const headers=headersFor(e); let cmd=`curl -X ${e.method} "${finalUrl()}"`; Object.entries(headers).forEach(([k,v])=>cmd+=` \\\n  -H "${k}: ${v}"`); const body=$('request-body').value.trim(); if(e.body && body) cmd+=` \\\n  -d '${body.replace(/'/g,"'\\''")}'`; return cmd; }
+function updateSdk(){ const e=selectedEndpoint(); const url=finalUrl(); const body=$('request-body').value.trim() || '{}'; const headers=headersFor(e); const headersJson=JSON.stringify(headers,null,2); const code={
+'JavaScript':`const response = await fetch(${JSON.stringify(url)}, {\n  method: ${JSON.stringify(e.method)},\n  headers: ${headersJson.replace(/\n/g,'\n  ')},${e.body ? `\n  body: JSON.stringify(${body})` : ''}\n});\n\nconst data = await response.json();\nconsole.log(data);`,
+'Node.js':`import axios from 'axios';\n\nconst response = await axios.request({\n  method: ${JSON.stringify(e.method)},\n  url: ${JSON.stringify(url)},\n  headers: ${headersJson.replace(/\n/g,'\n  ')},${e.body ? `\n  data: ${body}` : ''}\n});\n\nconsole.log(response.data);`,
+'PHP':`$curl = curl_init();\ncurl_setopt_array($curl, [\n  CURLOPT_URL => ${JSON.stringify(url)},\n  CURLOPT_RETURNTRANSFER => true,\n  CURLOPT_CUSTOMREQUEST => ${JSON.stringify(e.method)},\n  CURLOPT_HTTPHEADER => [${Object.entries(headers).map(([k,v])=>`\n    ${JSON.stringify(k+': '+v)}`).join(',')}\n  ],${e.body ? `\n  CURLOPT_POSTFIELDS => json_encode(${body}),` : ''}\n]);\n$response = curl_exec($curl);\ncurl_close($curl);\necho $response;`,
+'Python':`import requests\n\nurl = ${JSON.stringify(url)}\nheaders = ${headersJson}\n${e.body ? `payload = ${body}\nresponse = requests.request(${JSON.stringify(e.method)}, url, headers=headers, json=payload)` : `response = requests.request(${JSON.stringify(e.method)}, url, headers=headers)`}\nprint(response.status_code)\nprint(response.json())`,
+'cURL':curlCommand()
+}; $('sdk-output').textContent=code[currentLang] || code['cURL']; }
+function logLine(method,status,path,ms,ok){ const box=$('console-log'); if(box.querySelector('.tiny')) box.innerHTML=''; const time=new Date().toLocaleTimeString('pt-BR'); const div=document.createElement('div'); div.className='log'; div.innerHTML=`<b>${time}</b><span class="${ok?'status-ok':'status-err'}">${status}</span><span>${method} ${path} • ${ms} ms</span>`; box.prepend(div); }
+async function execute(){ const e=selectedEndpoint(); $('execute-btn').disabled=true; $('execute-btn').innerHTML='<i class="fas fa-spinner fa-spin"></i> Executando...'; const start=performance.now(); try{ let body; if(e.body){ try{ body=JSON.stringify(JSON.parse($('request-body').value || '{}')); }catch(err){ throw new Error('JSON inválido: '+err.message); }} const res=await fetch(finalUrl(),{method:e.method,headers:headersFor(e),body}); const ms=Math.round(performance.now()-start); const ct=res.headers.get('content-type')||''; const data=ct.includes('json')?await res.json().catch(()=>null):await res.text(); $('http-status').textContent=`HTTP ${res.status}`; $('http-status').className=`pill ${res.ok?'ok':'err'}`; $('http-time').textContent=`${ms} ms`; $('response-output').textContent=typeof data==='string'?data:pretty(data); logLine(e.method,res.status,e.path,ms,res.ok); }catch(err){ const ms=Math.round(performance.now()-start); $('http-status').textContent='Erro'; $('http-status').className='pill err'; $('http-time').textContent=`${ms} ms`; $('response-output').textContent=String(err.message||err); logLine(e.method,'ERRO',e.path,ms,false); } finally{ $('execute-btn').disabled=false; $('execute-btn').innerHTML='<i class="fas fa-play"></i> Executar'; }}
+function boot(){ $('base-url').value=API_DEFAULT; $('token-input').value=localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || localStorage.getItem('admin_token') || ''; $('endpoint-select').innerHTML=endpoints.map(e=>`<option value="${e.id}">${e.method} ${e.path} — ${e.title}</option>`).join(''); $('sdk-tabs').innerHTML=languages.map(l=>`<button class="tab ${l===currentLang?'active':''}" data-lang="${l}">${l}</button>`).join(''); $('endpoint-select').addEventListener('change',updateEndpoint); $('base-url').addEventListener('input',()=>{ $('final-url').textContent=finalUrl(); updateSdk(); }); $('auth-mode').addEventListener('change',updateSdk); $('token-input').addEventListener('input',updateSdk); $('request-body').addEventListener('input',updateSdk); $('execute-btn').addEventListener('click',execute); $('copy-curl-btn').addEventListener('click',async()=>{await navigator.clipboard.writeText(curlCommand()); alert('cURL copiado.');}); $('save-key-btn').addEventListener('click',()=>{localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET',$('token-input').value.trim()); alert('Chave salva neste navegador.');}); $('clear-console').addEventListener('click',()=>{$('console-log').innerHTML='<div class="tiny">Nenhuma chamada executada ainda.</div>';}); $('sdk-tabs').addEventListener('click',e=>{if(e.target.dataset.lang){currentLang=e.target.dataset.lang; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.lang===currentLang)); updateSdk();}}); $('environment-select').addEventListener('change',()=>{$('env-pill').textContent=$('environment-select').value==='production'?'Produção':'Sandbox'; $('env-pill').className=$('environment-select').value==='production'?'pill err':'pill warn';}); updateEndpoint(); }
+boot();
+</script>
+</body>
+</html>
