@@ -14403,7 +14403,7 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     name: 'Ariana Enterprise SDK',
     version: '1.0.0',
     status: 'preview',
-    languages: ['javascript', 'nodejs', 'curl'],
+    languages: ['javascript', 'nodejs', 'php', 'curl'],
     baseUrl: 'https://ariana-backend.onrender.com/api',
     stableVersion: 'v1',
     previewVersion: 'v2'
@@ -14411,12 +14411,14 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
   downloads: {
     browser: '/sdk/js/ariana-enterprise-sdk.js',
     node: '/sdk/node/ariana-enterprise-node-sdk.zip',
+    php: '/sdk/php/ariana-enterprise-php-sdk.zip',
+    phpDocs: '/sdk/php/ariana-enterprise-php/README.md',
     docs: '/ariana_enterprise_sdk.html'
   },
   features: [
     'health', 'auth_check', 'catalog_push', 'stock_update', 'price_update',
     'order_create', 'invoice_attach', 'tracking_update', 'webhook_test',
-    'api_key_auth', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling'
+    'api_key_auth', 'oauth2_client_credentials', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling', 'php_sdk', 'composer_ready'
   ],
   endpoints: {
     health: 'GET /api/v1/enterprise/health',
@@ -14448,11 +14450,55 @@ app.get('/api/enterprise/sdk/examples', (_req, res) => {
     examples: {
       javascript: `const api = new ArianaEnterpriseSDK({ apiKey: 'ari_sbx_xxxxx', environment: 'sandbox' });\nawait api.health();`,
       nodejs: `const { ArianaEnterpriseClient } = require('./ariana-enterprise-sdk');\nconst api = new ArianaEnterpriseClient({ apiKey: 'ari_live_xxxxx', environment: 'production' });\nawait api.catalog.push([{ sku:'ARI-0001', name:'Produto Teste', price:2299, stock:10 }]);`,
+      php: `use ArianaEnterprise\\Client;\n$api = new Client(['apiKey' => 'ari_live_xxxxx', 'environment' => 'production']);\n$api->catalog()->push([['sku'=>'ARI-0001','name'=>'Produto Teste','price'=>2299,'stock'=>10]]);`,
       curl: `curl -H "x-ariana-key: ari_live_xxxxx" https://ariana-backend.onrender.com/api/v1/enterprise/health`
     }
   });
 });
 
+
+
+// ============================================================
+// PASSO 31 - SDK PHP OFICIAL ARIANA ENTERPRISE
+// Manifest específico do pacote PHP/Composer para ERPs brasileiros
+// ============================================================
+const ARIANA_ENTERPRISE_PHP_SDK_MANIFEST = {
+  ok: true,
+  sdk: {
+    name: 'Ariana Enterprise PHP SDK',
+    package: 'ariana/enterprise-sdk',
+    version: '1.0.0',
+    status: 'preview',
+    php: '>=8.1',
+    compatibleWith: ['PHP puro', 'Laravel', 'Symfony', 'CodeIgniter', 'Slim', 'Magento', 'WooCommerce custom integrations']
+  },
+  downloads: {
+    zip: '/sdk/php/ariana-enterprise-php-sdk.zip',
+    readme: '/sdk/php/ariana-enterprise-php/README.md',
+    examples: '/sdk/php/ariana-enterprise-php/examples/full_flow.php'
+  },
+  install: {
+    composer: 'composer require ariana/enterprise-sdk',
+    local: 'composer config repositories.ariana-enterprise path ./ariana-enterprise-php && composer require ariana/enterprise-sdk:*'
+  },
+  features: [
+    'api_key_auth', 'oauth2_client_credentials', 'retry', 'timeout', 'error_handling',
+    'catalog_push', 'stock_update', 'price_update', 'order_create', 'invoice_attach',
+    'tracking_update', 'webhook_test'
+  ]
+};
+
+app.get('/api/enterprise/sdk/php/manifest', (_req, res) => {
+  return res.json(ARIANA_ENTERPRISE_PHP_SDK_MANIFEST);
+});
+
+app.get('/api/v1/enterprise/sdk/php/manifest', enterpriseVersionHeaders('v1'), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_PHP_SDK_MANIFEST, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/sdk/php/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_PHP_SDK_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
+});
 
 
 // ============================================================
@@ -14467,7 +14513,8 @@ const ARIANA_ENTERPRISE_DEVELOPER_MANIFEST = {
     status: 'active',
     docsUrl: 'https://arianamoveis.com.br/ariana_enterprise_docs.html',
     swaggerUrl: 'https://arianamoveis.com.br/enterprise_swagger.html',
-    sdkUrl: 'https://arianamoveis.com.br/ariana_enterprise_sdk.html'
+    sdkUrl: 'https://arianamoveis.com.br/ariana_enterprise_sdk.html',
+    phpSdkUrl: 'https://arianamoveis.com.br/sdk/php/ariana-enterprise-php-sdk.zip'
   },
   quickStart: [
     'Solicitar homologação',
