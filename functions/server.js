@@ -14453,6 +14453,63 @@ app.get('/api/enterprise/sdk/examples', (_req, res) => {
   });
 });
 
+
+
+// ============================================================
+// PASSO 30 - PORTAL DE DOCUMENTAÇÃO INTERATIVA ENTERPRISE
+// Manifest oficial de documentação para desenvolvedores, ERPs e fabricantes
+// ============================================================
+const ARIANA_ENTERPRISE_DEVELOPER_MANIFEST = {
+  ok: true,
+  portal: {
+    name: 'Ariana Enterprise Developer Portal',
+    version: '1.0.0',
+    status: 'active',
+    docsUrl: 'https://arianamoveis.com.br/ariana_enterprise_docs.html',
+    swaggerUrl: 'https://arianamoveis.com.br/enterprise_swagger.html',
+    sdkUrl: 'https://arianamoveis.com.br/ariana_enterprise_sdk.html'
+  },
+  quickStart: [
+    'Solicitar homologação',
+    'Receber API Key Sandbox',
+    'Executar testes no API Explorer',
+    'Finalizar homologação automática',
+    'Receber liberação de produção',
+    'Ativar webhooks e monitorar logs'
+  ],
+  authentication: {
+    apiKey: 'Header x-ariana-key',
+    oauth2: 'Client Credentials com Bearer Token',
+    hmac: 'Assinatura para webhooks'
+  },
+  versions: {
+    stable: '/api/v1/enterprise',
+    preview: '/api/v2/enterprise'
+  },
+  resources: {
+    health: 'GET /api/v1/enterprise/health',
+    catalog: 'POST /api/v1/enterprise/catalog/push',
+    stock: 'PUT /api/v1/enterprise/products/{sku}/stock',
+    price: 'PUT /api/v1/enterprise/products/{sku}/price',
+    orders: 'POST /api/v1/enterprise/orders',
+    invoice: 'POST /api/v1/enterprise/orders/{orderId}/invoice',
+    tracking: 'POST /api/v1/enterprise/orders/{orderId}/tracking',
+    webhooks: 'POST /api/v1/enterprise/webhooks/test'
+  }
+};
+
+app.get('/api/enterprise/developer/manifest', (_req, res) => {
+  return res.json(ARIANA_ENTERPRISE_DEVELOPER_MANIFEST);
+});
+
+app.get('/api/v1/enterprise/developer/manifest', enterpriseVersionHeaders('v1'), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_DEVELOPER_MANIFEST, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/developer/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_DEVELOPER_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
+});
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
