@@ -152,6 +152,45 @@ function buildPublicFileUrl(req, filename) {
 }
 function now() { return new Date(); }
 function uid(prefix = 'id') { return `${prefix}_${crypto.randomBytes(8).toString('hex')}`; }
+
+function randomKey(size = 32){
+
+    return crypto
+      .randomBytes(size)
+      .toString("hex");
+
+}
+
+function createPartnerId(){
+
+    return "ENT-" +
+           Date.now() +
+           "-" +
+           Math.floor(Math.random()*9999);
+
+}
+
+function createApiKey(env){
+
+    return env +
+           "_" +
+           randomKey(20);
+
+}
+
+function createOAuthId(){
+
+    return "cli_" +
+           randomKey(12);
+
+}
+
+function createWebhookSecret(){
+
+    return "whsec_" +
+           randomKey(24);
+
+}
 function cleanPhone(value = '') { return String(value).replace(/\D/g, ''); }
 function normalizePhone(value = '', defaultCountryCode = '55') {
   let digits = cleanPhone(value);
@@ -592,6 +631,75 @@ const whatsappWebhookSchema = new mongoose.Schema({ event: String, remoteJid: St
 const notificationSchema = new mongoose.Schema({ type: String, title: String, message: String, status: { type: String, default: 'unread' }, relatedId: String, severity: { type: String, default: 'info' }, audience: { type: String, default: 'admin', index: true }, sellerId: { type: String, default: '', index: true }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
 
+const enterprisePartnerSchema = new mongoose.Schema({
+  partnerId: {
+    type: String,
+    unique: true,
+    index: true
+  },
+
+  companyName: String,
+  tradeName: String,
+  brand: String,
+
+  cnpj: {
+    type: String,
+    index: true
+  },
+
+  technicalEmail: String,
+  commercialEmail: String,
+  supportEmail: String,
+
+  phone: String,
+  website: String,
+
+  status: {
+    type: String,
+    default: "sandbox",
+    enum: [
+      "sandbox",
+      "homologation",
+      "production",
+      "blocked"
+    ]
+  },
+
+  sandboxEnabled: {
+    type: Boolean,
+    default: true
+  },
+
+  productionEnabled: {
+    type: Boolean,
+    default: false
+  },
+
+  certificationLevel: {
+    type: String,
+    default: "Bronze"
+  },
+
+  score: {
+    type: Number,
+    default: 0
+  },
+
+  apiKeySandbox: String,
+  apiKeyProduction: String,
+
+  oauthClientId: String,
+  oauthClientSecret: String,
+
+  webhookSecret: String,
+
+  signingSecret: String,
+
+  metadata: mongoose.Schema.Types.Mixed
+
+}, baseOptions);
+
+
 const User = mongoose.model('User', userSchema);
 const Seller = mongoose.model('Seller', sellerSchema);
 const Category = mongoose.model('Category', categorySchema);
@@ -609,6 +717,11 @@ const ManufacturerDispatchQueue = mongoose.model('ManufacturerDispatchQueue', ma
 const OperationalAlert = mongoose.model('OperationalAlert', operationalAlertSchema);
 const WhatsAppWebhook = mongoose.model('WhatsAppWebhook', whatsappWebhookSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
+const EnterprisePartner =
+mongoose.model(
+   "EnterprisePartner",
+   enterprisePartnerSchema
+);
 
 async function createAdminNotification(data = {}) {
   try {
@@ -11629,6 +11742,654 @@ async function enterpriseCompatFindOrder(orderId = '') {
     ]
   });
 }
+
+
+app.post(
+"/api/enterprise/partners",
+adminRequired,
+
+async(req,res)=>{
+
+try{
+
+const partner=
+await EnterprisePartner.create({
+
+partnerId:
+createPartnerId(),
+
+companyName:
+req.body.companyName,
+
+tradeName:
+req.body.tradeName,
+
+brand:
+req.body.brand,
+
+cnpj:
+req.body.cnpj,
+
+technicalEmail:
+req.body.technicalEmail,
+
+commercialEmail:
+req.body.commercialEmail,
+
+supportEmail:
+req.body.supportEmail,
+
+phone:
+req.body.phone,
+
+website:
+req.body.website,
+
+apiKeySandbox:
+createApiKey("ari_sbx"),
+
+apiKeyProduction:
+createApiKey("ari_live"),
+
+oauthClientId:
+createOAuthId(),
+
+oauthClientSecret:
+randomKey(24),
+
+webhookSecret:
+createWebhookSecret(),
+
+signingSecret:
+randomKey(24)
+
+});
+
+res.json({
+
+ok:true,
+
+partner
+
+});
+
+}catch(err){
+
+console.error(err);
+
+res.status(500).json({
+
+ok:false,
+
+error:err.message
+
+});
+
+}
+
+});
+
+
+
+app.get(
+"/api/enterprise/partners",
+adminRequired,
+async(req,res)=>{
+
+try{
+
+const partners=
+await EnterprisePartner
+.find()
+.sort({
+createdAt:-1
+});
+
+res.json({
+
+ok:true,
+
+total:partners.length,
+
+partners
+
+});
+
+}catch(err){
+
+res.status(500).json({
+
+ok:false,
+
+error:err.message
+
+});
+
+}
+
+});
+
+app.get(
+"/api/enterprise/partners/:id",
+adminRequired,
+async(req,res)=>{
+
+try{
+
+const partner=
+await EnterprisePartner.findOne({
+
+partnerId:req.params.id
+
+});
+
+if(!partner){
+
+return res.status(404).json({
+
+ok:false,
+
+error:"Parceiro não encontrado"
+
+});
+
+}
+
+res.json({
+
+ok:true,
+
+partner
+
+});
+
+}catch(err){
+
+res.status(500).json({
+
+ok:false,
+
+error:err.message
+
+});
+
+}
+
+});
+
+app.put(
+"/api/enterprise/partners/:id",
+adminRequired,
+async(req,res)=>{
+
+try{
+
+const partner=
+await EnterprisePartner.findOneAndUpdate(
+
+{
+
+partnerId:req.params.id
+
+},
+
+{
+
+$set:req.body
+
+},
+
+{
+
+new:true
+
+}
+
+);
+
+res.json({
+
+ok:true,
+
+partner
+
+});
+
+}catch(err){
+
+res.status(500).json({
+
+ok:false,
+
+error:err.message
+
+});
+
+}
+
+});
+
+app.delete(
+"/api/enterprise/partners/:id",
+adminRequired,
+async(req,res)=>{
+
+try{
+
+await EnterprisePartner.deleteOne({
+
+partnerId:req.params.id
+
+});
+
+res.json({
+
+ok:true
+
+});
+
+}catch(err){
+
+res.status(500).json({
+
+ok:false,
+
+error:err.message
+
+});
+
+}
+
+});
+
+app.post(
+"/api/enterprise/partners/:id/regenerate-api-key",
+adminRequired,
+async(req,res)=>{
+
+const partner=
+await EnterprisePartner.findOne({
+
+partnerId:req.params.id
+
+});
+
+if(!partner){
+
+return res.status(404).json({
+
+ok:false
+
+});
+
+}
+
+partner.apiKeySandbox=
+createApiKey("ari_sbx");
+
+partner.apiKeyProduction=
+createApiKey("ari_live");
+
+await partner.save();
+
+res.json({
+
+ok:true,
+
+partner
+
+});
+
+});
+
+app.post(
+"/api/enterprise/partners/:id/regenerate-oauth",
+adminRequired,
+async(req,res)=>{
+
+const partner=
+await EnterprisePartner.findOne({
+
+partnerId:req.params.id
+
+});
+
+partner.oauthClientId=
+createOAuthId();
+
+partner.oauthClientSecret=
+randomKey(24);
+
+await partner.save();
+
+res.json({
+
+ok:true,
+
+partner
+
+});
+
+});
+
+app.post(
+"/api/enterprise/partners/:id/regenerate-webhook",
+adminRequired,
+async(req,res)=>{
+
+const partner=
+await EnterprisePartner.findOne({
+
+partnerId:req.params.id
+
+});
+
+partner.webhookSecret=
+createWebhookSecret();
+
+await partner.save();
+
+res.json({
+
+ok:true,
+
+partner
+
+});
+
+});
+
+app.get(
+"/api/enterprise/partners/:id/dashboard",
+adminRequired,
+async(req,res)=>{
+
+const partner=
+await EnterprisePartner.findOne({
+
+partnerId:req.params.id
+
+});
+
+if(!partner){
+
+return res.status(404).json({
+
+ok:false
+
+});
+
+}
+
+res.json({
+
+ok:true,
+
+partner,
+
+metrics:{
+
+orders:0,
+
+products:0,
+
+apiCalls:0,
+
+revenue:0,
+
+webhooks:0,
+
+errors:0,
+
+latency:0
+
+}
+
+});
+
+});
+
+
+// ============================================================
+// PASSO 39.3 — ENTERPRISE ANALYTICS / CERTIFICAÇÃO COM PARCEIROS REAIS
+// ============================================================
+
+async function getEnterprisePartnersSafe() {
+  try {
+    return await EnterprisePartner.find().sort({ createdAt: -1 }).lean();
+  } catch (_err) {
+    return [];
+  }
+}
+
+function partnerLevel(score = 0) {
+  const n = Number(score || 0);
+  if (n >= 95) return 'Gold';
+  if (n >= 80) return 'Silver';
+  return 'Bronze';
+}
+
+app.get('/api/enterprise/analytics/overview', adminRequired, async (req, res) => {
+  try {
+    const partners = await getEnterprisePartnersSafe();
+
+    const productionPartners = partners.filter(p => p.productionEnabled || p.status === 'production');
+    const sandboxPartners = partners.filter(p => p.sandboxEnabled);
+
+    return res.json({
+      ok: true,
+      period: req.query.period || '30d',
+      summary: {
+        revenue: 0,
+        orders: 0,
+        products: 0,
+        successRate: 100,
+        manufacturers: partners.length,
+        apiCalls: 0,
+        errors: 0,
+        webhooks: 0,
+        productionPartners: productionPartners.length,
+        sandboxPartners: sandboxPartners.length
+      },
+      partners: partners.map(p => ({
+        partnerId: p.partnerId,
+        companyName: p.companyName || p.tradeName || p.brand || 'Parceiro Enterprise',
+        tradeName: p.tradeName || '',
+        brand: p.brand || '',
+        status: p.status || 'sandbox',
+        score: Number(p.score || 0),
+        certificationLevel: p.certificationLevel || partnerLevel(p.score),
+        productionEnabled: !!p.productionEnabled,
+        sandboxEnabled: !!p.sandboxEnabled,
+        revenue: 0,
+        orders: 0,
+        products: 0,
+        apiCalls: 0,
+        errors: 0
+      })),
+      charts: {
+        revenue: [],
+        orders: [],
+        apiCalls: [],
+        products: []
+      }
+    });
+  } catch (err) {
+    console.error('Erro analytics overview:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/enterprise/analytics/export', adminRequired, async (req, res) => {
+  try {
+    const format = String(req.query.format || 'json').toLowerCase();
+    const partners = await getEnterprisePartnersSafe();
+
+    const rows = partners.map(p => ({
+      partnerId: p.partnerId || '',
+      companyName: p.companyName || '',
+      tradeName: p.tradeName || '',
+      brand: p.brand || '',
+      cnpj: p.cnpj || '',
+      status: p.status || '',
+      score: p.score || 0,
+      certificationLevel: p.certificationLevel || partnerLevel(p.score),
+      sandboxEnabled: !!p.sandboxEnabled,
+      productionEnabled: !!p.productionEnabled,
+      createdAt: p.createdAt || ''
+    }));
+
+    if (format === 'csv') {
+      const header = Object.keys(rows[0] || {
+        partnerId: '',
+        companyName: '',
+        tradeName: '',
+        brand: '',
+        cnpj: '',
+        status: '',
+        score: '',
+        certificationLevel: '',
+        sandboxEnabled: '',
+        productionEnabled: '',
+        createdAt: ''
+      });
+
+      const csv = [
+        header.join(';'),
+        ...rows.map(row => header.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(';'))
+      ].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="ariana-enterprise-analytics.csv"');
+      return res.send('\uFEFF' + csv);
+    }
+
+    return res.json({ ok: true, rows });
+  } catch (err) {
+    console.error('Erro analytics export:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/enterprise/certification/overview', adminRequired, async (req, res) => {
+  try {
+    const partners = await getEnterprisePartnersSafe();
+
+    const certified = partners.filter(p =>
+      p.certificationLevel ||
+      Number(p.score || 0) >= 80 ||
+      p.status === 'production'
+    );
+
+    const production = partners.filter(p => p.productionEnabled || p.status === 'production');
+
+    const avgScore = partners.length
+      ? Math.round(partners.reduce((sum, p) => sum + Number(p.score || 0), 0) / partners.length)
+      : 0;
+
+    const partnerRows = partners.map(p => {
+      const score = Number(p.score || 0);
+      const level = p.certificationLevel || partnerLevel(score);
+
+      return {
+        partnerId: p.partnerId,
+        companyName: p.companyName || p.tradeName || p.brand || 'Parceiro Enterprise',
+        tradeName: p.tradeName || '',
+        brand: p.brand || '',
+        status: p.status || 'sandbox',
+        score,
+        level,
+        certificationLevel: level,
+        certified: score >= 80 || p.status === 'production',
+        productionEnabled: !!p.productionEnabled,
+        issuedAt: p.updatedAt || p.createdAt || null
+      };
+    });
+
+    return res.json({
+      ok: true,
+      summary: {
+        partners: partners.length,
+        certified: certified.length,
+        avgScore,
+        production: production.length
+      },
+      levels: {
+        gold: partnerRows.filter(p => p.level === 'Gold').length,
+        silver: partnerRows.filter(p => p.level === 'Silver').length,
+        bronze: partnerRows.filter(p => p.level === 'Bronze').length
+      },
+      partners: partnerRows,
+      certificates: partnerRows
+        .filter(p => p.certified)
+        .map(p => ({
+          id: `CERT-${p.partnerId}`,
+          partnerId: p.partnerId,
+          title: `Certificação Ariana Enterprise - ${p.companyName}`,
+          companyName: p.companyName,
+          level: p.level,
+          score: p.score,
+          environment: p.productionEnabled ? 'production' : 'sandbox',
+          status: 'active',
+          issuedAt: p.issuedAt
+        }))
+    });
+  } catch (err) {
+    console.error('Erro certification overview:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/enterprise/certification/export', adminRequired, async (req, res) => {
+  try {
+    const format = String(req.query.format || 'json').toLowerCase();
+    const partners = await getEnterprisePartnersSafe();
+
+    const rows = partners.map(p => ({
+      partnerId: p.partnerId || '',
+      companyName: p.companyName || '',
+      tradeName: p.tradeName || '',
+      brand: p.brand || '',
+      cnpj: p.cnpj || '',
+      status: p.status || '',
+      score: p.score || 0,
+      level: p.certificationLevel || partnerLevel(p.score),
+      certified: Number(p.score || 0) >= 80 || p.status === 'production',
+      productionEnabled: !!p.productionEnabled,
+      issuedAt: p.updatedAt || p.createdAt || ''
+    }));
+
+    if (format === 'csv') {
+      const header = Object.keys(rows[0] || {
+        partnerId: '',
+        companyName: '',
+        tradeName: '',
+        brand: '',
+        cnpj: '',
+        status: '',
+        score: '',
+        level: '',
+        certified: '',
+        productionEnabled: '',
+        issuedAt: ''
+      });
+
+      const csv = [
+        header.join(';'),
+        ...rows.map(row => header.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(';'))
+      ].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="ariana-enterprise-certification.csv"');
+      return res.send('\uFEFF' + csv);
+    }
+
+    return res.json({ ok: true, rows });
+  } catch (err) {
+    console.error('Erro certification export:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 app.get('/api/enterprise/auth/check', enterpriseCompatAuth, async (req, res) => {
   return res.json({
