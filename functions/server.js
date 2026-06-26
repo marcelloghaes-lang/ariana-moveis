@@ -12022,6 +12022,148 @@ function enterprisePartnerSign(partner = {}) {
   }, JWT_SECRET, { expiresIn: '12h' });
 }
 
+
+// ============================================================
+// PASSO 27 - OAuth 2.0 Client Credentials para Ariana Enterprise
+// Permite que fabricantes usem client_id/client_secret para obter
+// Bearer Token temporário, além da API Key tradicional.
+// ============================================================
+function enterpriseOAuthGenerateCredentials(partner = {}, environment = 'sandbox') {
+  const slug = sanitizeIdPart(partner.tradeName || partner.companyName || partner.requestId || 'partner').slice(0, 40);
+  const env = environment === 'production' ? 'live' : 'sbx';
+  return {
+    clientId: `ari_${env}_client_${slug}_${crypto.randomBytes(5).toString('hex')}`,
+    clientSecret: `ari_${env}_secret_${crypto.randomBytes(24).toString('hex')}`,
+    environment,
+    active: true,
+    createdAt: new Date()
+  };
+}
+
+function enterpriseOAuthQuery(clientId = '', clientSecret = '') {
+  const or = [
+    { 'oauth.sandbox.clientId': clientId },
+    { 'oauth.production.clientId': clientId },
+    { 'sandboxCredentials.oauth.clientId': clientId },
+    { 'productionCredentials.oauth.clientId': clientId },
+    { 'credentials.sandbox.oauth.clientId': clientId },
+    { 'credentials.production.oauth.clientId': clientId }
+  ];
+  if (clientSecret) {
+    return { $or: or, $and: [{ $or: [
+      { 'oauth.sandbox.clientSecret': clientSecret },
+      { 'oauth.production.clientSecret': clientSecret },
+      { 'sandboxCredentials.oauth.clientSecret': clientSecret },
+      { 'productionCredentials.oauth.clientSecret': clientSecret },
+      { 'credentials.sandbox.oauth.clientSecret': clientSecret },
+      { 'credentials.production.oauth.clientSecret': clientSecret }
+    ] }] };
+  }
+  return { $or: or };
+}
+
+function enterpriseOAuthPickCredential(partner = {}, clientId = '') {
+  const candidates = [
+    ['sandbox', partner.oauth?.sandbox],
+    ['production', partner.oauth?.production],
+    ['sandbox', partner.sandboxCredentials?.oauth],
+    ['production', partner.productionCredentials?.oauth],
+    ['sandbox', partner.credentials?.sandbox?.oauth],
+    ['production', partner.credentials?.production?.oauth]
+  ];
+  for (const [environment, credential] of candidates) {
+    if (credential && credential.clientId === clientId) return { environment, credential };
+  }
+  return { environment: 'sandbox', credential: null };
+}
+
+function enterpriseOAuthSignAccessToken(partner = {}, environment = 'sandbox', scopes = []) {
+  return jwt.sign({
+    role: 'enterprise_oauth',
+    partnerId: String(partner._id || ''),
+    requestId: partner.requestId || '',
+    companyName: partner.companyName || '',
+    tradeName: partner.tradeName || '',
+    environment,
+    scopes: Array.isArray(scopes) && scopes.length ? scopes : ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks']
+  }, JWT_SECRET, { expiresIn: '1h' });
+}
+
+async function enterpriseOAuthRequired(req, res, next) {
+  try {
+    const header = String(req.headers.authorization || '').trim();
+    const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+    if (!token) return res.status(401).json({ ok: false, error: 'Bearer Token ausente' });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || decoded.role !== 'enterprise_oauth') return res.status(403).json({ ok: false, error: 'Bearer Token inválido para Enterprise OAuth' });
+    const partner = await EnterpriseHomologationRequestCompat.findById(decoded.partnerId).lean();
+    if (!partner) return res.status(401).json({ ok: false, error: 'Parceiro OAuth não encontrado' });
+    req.enterpriseOAuth = decoded;
+    req.enterprisePartner = {
+      id: String(partner._id || ''),
+      requestId: partner.requestId || '',
+      companyName: partner.companyName || '',
+      tradeName: partner.tradeName || '',
+      cnpj: partner.cnpj || '',
+      email: partner.email || '',
+      environment: decoded.environment || 'sandbox',
+      status: partner.status || '',
+      permissions: decoded.scopes || [],
+      credential: { oauth: true, active: true },
+      rateLimit: null
+    };
+    return next();
+  } catch (_error) {
+    return res.status(401).json({ ok: false, error: 'Bearer Token expirado ou inválido' });
+  }
+}
+
+app.post('/api/enterprise/oauth/token', async (req, res) => {
+  try {
+    const auth = String(req.headers.authorization || '');
+    let clientId = String(req.body?.client_id || req.body?.clientId || '').trim();
+    let clientSecret = String(req.body?.client_secret || req.body?.clientSecret || '').trim();
+    if (auth.toLowerCase().startsWith('basic ')) {
+      const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf8');
+      const idx = decoded.indexOf(':');
+      if (idx >= 0) {
+        clientId = clientId || decoded.slice(0, idx);
+        clientSecret = clientSecret || decoded.slice(idx + 1);
+      }
+    }
+    const grantType = String(req.body?.grant_type || req.body?.grantType || 'client_credentials').trim();
+    if (grantType !== 'client_credentials') return res.status(400).json({ ok: false, error: 'grant_type não suportado', supported: 'client_credentials' });
+    if (!clientId || !clientSecret) return res.status(400).json({ ok: false, error: 'client_id e client_secret são obrigatórios' });
+
+    const partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseOAuthQuery(clientId, clientSecret)).lean();
+    if (!partner) return res.status(401).json({ ok: false, error: 'client_id ou client_secret inválido' });
+
+    const picked = enterpriseOAuthPickCredential(partner, clientId);
+    if (!picked.credential || picked.credential.clientSecret !== clientSecret || picked.credential.active === false) {
+      return res.status(401).json({ ok: false, error: 'credencial OAuth desativada ou inválida' });
+    }
+    if (picked.environment === 'production') {
+      const prodActive = partner.productionCredentials?.active !== false && (partner.productionActive === true || String(partner.environment || '').toLowerCase() === 'production' || String(partner.status || '').toLowerCase() === 'production');
+      if (!prodActive) return res.status(403).json({ ok: false, error: 'Produção não está ativa para este parceiro' });
+    }
+
+    const scopes = Array.isArray(picked.credential.scopes) && picked.credential.scopes.length ? picked.credential.scopes : (partner.integrationTypes || []);
+    const accessToken = enterpriseOAuthSignAccessToken(partner, picked.environment, scopes);
+    await IntegrationAuditLog.create({
+      scope: 'enterprise', eventType: 'oauth_token_issued', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '',
+      integrationId: String(partner._id || ''), status: 'success', statusCode: 200, message: `OAuth token emitido para ${picked.environment}`,
+      metadata: { environment: picked.environment, clientId, scopes }
+    }).catch(() => null);
+    return res.json({ ok: true, token_type: 'Bearer', access_token: accessToken, expires_in: 3600, scope: scopes.join(' '), environment: picked.environment });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao emitir token OAuth' });
+  }
+});
+
+app.get('/api/enterprise/oauth/check', enterpriseOAuthRequired, async (req, res) => {
+  return res.json({ ok: true, valid: true, environment: req.enterprisePartner?.environment || 'sandbox', partner: { requestId: req.enterprisePartner?.requestId || '', tradeName: req.enterprisePartner?.tradeName || '', scopes: req.enterpriseOAuth?.scopes || [] } });
+});
+
 async function enterprisePartnerRequired(req, res, next) {
   try {
     const header = String(req.headers.authorization || '').trim();
@@ -13040,6 +13182,7 @@ function buildEnterpriseOpenApiSpec(req = null) {
           name: 'x-ariana-key',
           description: 'API Key Sandbox ou Produção liberada na homologação.'
         },
+        EnterpriseOAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'OAuth 2.0 Client Credentials - Bearer Token Enterprise' },
         PartnerBearer: {
           type: 'http',
           scheme: 'bearer',
@@ -13258,6 +13401,8 @@ function buildEnterpriseOpenApiSpec(req = null) {
           responses: { 200: { description: 'Webhook de teste registrado', content: { 'application/json': { schema: okSchema } } } }
         }
       },
+      '/enterprise/oauth/token': { post: { tags: ['OAuth 2.0'], summary: 'Emite Bearer Token usando Client Credentials', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { grant_type: { type: 'string', example: 'client_credentials' }, client_id: { type: 'string' }, client_secret: { type: 'string' } } } } } }, responses: { '200': { description: 'Token emitido' }, '401': { description: 'Credenciais inválidas' } } } },
+      '/enterprise/oauth/check': { get: { tags: ['OAuth 2.0'], summary: 'Valida Bearer Token OAuth Enterprise', security: [{ EnterpriseOAuth: [] }], responses: { '200': { description: 'Token válido' }, '401': { description: 'Token inválido' } } } },
       '/enterprise/partner/login': {
         post: {
           tags: ['Portal do Fabricante'],
@@ -13422,6 +13567,20 @@ function adminEnterprisePartnerDTO(partner = {}, extra = {}) {
     rateLimit: {
       sandbox: enterpriseCompatRateLimitConfig(obj, sandbox, 'sandbox'),
       production: enterpriseCompatRateLimitConfig(obj, production, 'production')
+    },
+    oauth: {
+      sandbox: {
+        active: (obj.oauth?.sandbox?.active !== false) && Boolean(obj.oauth?.sandbox?.clientId || sandbox?.oauth?.clientId || obj.credentials?.sandbox?.oauth?.clientId),
+        clientId: obj.oauth?.sandbox?.clientId || sandbox?.oauth?.clientId || obj.credentials?.sandbox?.oauth?.clientId || '',
+        clientIdMasked: adminEnterpriseMaskKey(obj.oauth?.sandbox?.clientId || sandbox?.oauth?.clientId || obj.credentials?.sandbox?.oauth?.clientId || ''),
+        createdAt: obj.oauth?.sandbox?.createdAt || sandbox?.oauth?.createdAt || null
+      },
+      production: {
+        active: (obj.oauth?.production?.active !== false) && Boolean(obj.oauth?.production?.clientId || production?.oauth?.clientId || obj.credentials?.production?.oauth?.clientId),
+        clientId: obj.oauth?.production?.clientId || production?.oauth?.clientId || obj.credentials?.production?.oauth?.clientId || '',
+        clientIdMasked: adminEnterpriseMaskKey(obj.oauth?.production?.clientId || production?.oauth?.clientId || obj.credentials?.production?.oauth?.clientId || ''),
+        createdAt: obj.oauth?.production?.createdAt || production?.oauth?.createdAt || null
+      }
     },
     metrics: extra.metrics || { calls: 0, success: 0, errors: 0, successRate: 0, avgMs: 0, lastEventAt: null, lastEventType: '' },
     certificates: extra.certificates || []
@@ -14040,6 +14199,36 @@ app.post('/api/admin/enterprise/pro/partners/:id/rate-limit', adminRequired, asy
 // PASSO 25 - PRODUÇÃO ENTERPRISE
 // Gestão completa de liberação, suspensão e reativação de produção.
 // ============================================================
+
+app.post('/api/admin/enterprise/pro/partners/:id/oauth/:environment/rotate', adminRequired, async (req, res) => {
+  try {
+    const environment = String(req.params.environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+    const partner = await EnterpriseHomologationRequestCompat.findById(req.params.id);
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    if (environment === 'production') {
+      const prodActive = partner.productionCredentials?.active !== false && (partner.productionActive === true || String(partner.environment || '').toLowerCase() === 'production' || String(partner.status || '').toLowerCase() === 'production');
+      if (!prodActive) return res.status(403).json({ ok: false, error: 'Libere Produção antes de gerar OAuth de produção' });
+    }
+    const oauth = enterpriseOAuthGenerateCredentials(partner, environment);
+    const scopes = Array.isArray(req.body?.scopes) && req.body.scopes.length ? req.body.scopes : (partner.integrationTypes || ['catalog','stock','price','orders','invoice','tracking','webhooks']);
+    oauth.scopes = scopes;
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: { [`oauth.${environment}`]: oauth, [`${environment}Credentials.oauth`]: oauth, [`credentials.${environment}.oauth`]: oauth }, $push: { history: { status: 'oauth_rotated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin' } } });
+    await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'oauth_credentials_rotated', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', integrationId: String(partner._id || ''), status: 'success', statusCode: 200, message: `OAuth ${environment} gerado pelo Admin Enterprise`, metadata: { environment, clientId: oauth.clientId, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
+    return res.json({ ok: true, environment, oauth, message: 'Credenciais OAuth geradas com sucesso' });
+  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar OAuth' }); }
+});
+
+app.post('/api/admin/enterprise/pro/partners/:id/oauth/:environment/revoke', adminRequired, async (req, res) => {
+  try {
+    const environment = String(req.params.environment || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+    const partner = await EnterpriseHomologationRequestCompat.findById(req.params.id);
+    if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: { [`oauth.${environment}.active`]: false, [`${environment}Credentials.oauth.active`]: false, [`credentials.${environment}.oauth.active`]: false }, $push: { history: { status: 'oauth_revoked', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin' } } });
+    await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'oauth_credentials_revoked', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', integrationId: String(partner._id || ''), status: 'success', statusCode: 200, message: `OAuth ${environment} revogado pelo Admin Enterprise`, metadata: { environment, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
+    return res.json({ ok: true, environment, message: 'Credenciais OAuth revogadas' });
+  } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao revogar OAuth' }); }
+});
+
 app.get('/api/admin/enterprise/pro/partners/:id/production/status', adminRequired, async (req, res) => {
   try {
     const partner = await adminEnterpriseFindPartnerOr404(req.params.id);

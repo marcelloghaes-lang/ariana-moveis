@@ -144,6 +144,28 @@ async function openPartner(id){
       </div>
     </div>
 
+    <div class="card">
+      <h3>OAuth 2.0 / Client Credentials</h3>
+      <p class="muted">Permite que o fabricante gere Bearer Token temporário usando client_id e client_secret, padrão exigido por integrações corporativas.</p>
+      <div class="grid2">
+        <div>
+          <h4>Sandbox OAuth</h4>
+          <p><b>Status:</b> ${p.oauth?.sandbox?.active?'<span class="ok">Ativo</span>':'<span class="danger">Inativo</span>'}</p>
+          <p><b>Client ID:</b> <span class="code">${esc(p.oauth?.sandbox?.clientIdMasked||'não gerado')}</span></p>
+          <button class="btn warn" onclick="rotateOAuth('${esc(p.id)}','sandbox')">Gerar/Renovar Sandbox OAuth</button>
+          <button class="btn danger" onclick="revokeOAuth('${esc(p.id)}','sandbox')">Revogar Sandbox OAuth</button>
+        </div>
+        <div>
+          <h4>Produção OAuth</h4>
+          <p><b>Status:</b> ${p.oauth?.production?.active?'<span class="ok">Ativo</span>':'<span class="danger">Inativo</span>'}</p>
+          <p><b>Client ID:</b> <span class="code">${esc(p.oauth?.production?.clientIdMasked||'não gerado')}</span></p>
+          <button class="btn warn" onclick="rotateOAuth('${esc(p.id)}','production')">Gerar/Renovar Produção OAuth</button>
+          <button class="btn danger" onclick="revokeOAuth('${esc(p.id)}','production')">Revogar Produção OAuth</button>
+        </div>
+      </div>
+      <div id="oauthOut" class="secretBox" style="display:none"></div>
+    </div>
+
     <div class="grid2">
       <div class="card"><h3>API Keys</h3><p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.sandbox.apiKeyMasked||'')}</span></p><p><b>Produção:</b> ${p.production.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.production.apiKeyMasked||'')}</span></p><button class="btn warn" onclick="rotateKey('${esc(p.id)}','sandbox')">Renovar Sandbox</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','sandbox')">Revogar Sandbox</button> <button class="btn warn" onclick="rotateKey('${esc(p.id)}','production')">Renovar Produção</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','production')">Revogar Produção</button><p class="muted" id="newKeyOut"></p></div>
       <div class="card"><h3>Fila de envio</h3>${(d.queue||[]).map(q=>`<p><b>${esc(q.queueId)}</b> • ${esc(q.status)} • tentativas ${q.attempts||0}<br><span class="danger">${esc(q.lastError||'')}</span></p>`).join('')||'<p class="muted">Sem fila recente.</p>'}</div>
@@ -208,6 +230,20 @@ async function saveRateLimit(id,env){
 }
 
 function closeModal(){partnerModal.classList.remove('show')}
+
+async function rotateOAuth(id,env){
+  const data=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/oauth/'+env+'/rotate',{method:'POST',body:JSON.stringify({})});
+  const box=document.getElementById('oauthOut');
+  if(box){box.style.display='block';box.innerHTML='<b>Guarde estas credenciais agora:</b><br><br><b>Environment:</b> '+esc(data.environment)+'<br><b>Client ID:</b><br><span class="code">'+esc(data.oauth?.clientId||'')+'</span><br><br><b>Client Secret:</b><br><span class="code">'+esc(data.oauth?.clientSecret||'')+'</span><br><br><b>Token URL:</b><br><span class="code">https://ariana-backend.onrender.com/api/enterprise/oauth/token</span>';}
+  toastMsg('OAuth '+env+' gerado.');
+  await loadPartners();
+}
+async function revokeOAuth(id,env){
+  if(!confirm('Revogar OAuth '+env+'?'))return;
+  await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/oauth/'+env+'/revoke',{method:'POST',body:'{}'});
+  toastMsg('OAuth '+env+' revogado.');
+  await openPartner(id);await loadPartners();
+}
 async function changeStatus(id){await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/status',{method:'POST',body:JSON.stringify({status:newStatus.value})});toastMsg('Status atualizado.');await openPartner(id);await loadPartners();}
 async function rotateKey(id,env){if(!confirm('Renovar chave '+env+'?'))return;const d=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/api-keys/'+env+'/rotate',{method:'POST',body:'{}'});document.getElementById('newKeyOut').innerHTML='<b>Nova chave '+env+':</b><br><span class="code">'+esc(d.apiKey||'')+'</span>';toastMsg('Chave renovada. Copie agora.');}
 async function revokeKey(id,env){if(!confirm('Revogar chave '+env+'?'))return;await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/api-keys/'+env+'/revoke',{method:'POST',body:'{}'});toastMsg('Chave revogada.');await openPartner(id);await loadPartners();}
