@@ -2330,6 +2330,249 @@ document.addEventListener('DOMContentLoaded', init);
   window.addEventListener('focus', checkAlerts);
   document.addEventListener('DOMContentLoaded', function(){ addEnableButton(); setTimeout(checkAlerts, 800); setInterval(checkAlerts, 10000); });
 })();
+
+
+// ============================================================
+// PAINEL ADMIN — ENTERPRISE PARTNERS / PASSO 39 HOMOLOGADO
+// Adicionado sem remover as funções antigas do painel.
+// ============================================================
+(function(){
+  function enterpriseAdminEsc(value){
+    if (typeof escHtml === 'function') return escHtml(value);
+    return String(value || '').replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+  }
+  function enterpriseAdminMoney(value){
+    try { return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value||0)); } catch(_e){ return 'R$ 0,00'; }
+  }
+  function enterpriseAdminDate(value){
+    try { const d = value ? new Date(value) : null; return d && !isNaN(d) ? d.toLocaleString('pt-BR') : '—'; } catch(_e){ return '—'; }
+  }
+  function enterpriseAdminPartnerId(){
+    return String(window.enterpriseSelectedPartnerId || '').trim();
+  }
+  function enterpriseAdminBadge(status){
+    const s = String(status || 'sandbox').toLowerCase();
+    const map = {
+      production: 'bg-green-100 text-green-700 border-green-200',
+      sandbox: 'bg-blue-100 text-blue-700 border-blue-200',
+      homologation: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+      blocked: 'bg-red-100 text-red-700 border-red-200'
+    };
+    return `<span class="px-2.5 py-1 rounded-full text-xs font-black border ${map[s] || 'bg-gray-100 text-gray-700 border-gray-200'}">${enterpriseAdminEsc(status || 'sandbox')}</span>`;
+  }
+  function enterpriseAdminLevelBadge(level){
+    const l = String(level || 'Bronze');
+    const map = {
+      Gold: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+      Silver: 'bg-slate-100 text-slate-700 border-slate-200',
+      Bronze: 'bg-orange-100 text-orange-700 border-orange-200'
+    };
+    return `<span class="px-2.5 py-1 rounded-full text-xs font-black border ${map[l] || 'bg-gray-100 text-gray-700 border-gray-200'}">${enterpriseAdminEsc(l)}</span>`;
+  }
+  async function enterpriseAdminFetch(endpoint, fallback){
+    try { return await apiRequest(endpoint, { headers: buildHeadersAuth() }); }
+    catch(error){ console.warn('Enterprise Admin erro:', endpoint, error); return fallback || { ok:false, error:error.message }; }
+  }
+  function enterpriseAdminMetric(label, value, icon, colorClass, hint){
+    return `<div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+      <div class="flex items-center justify-between gap-3"><div class="text-xs uppercase font-black text-gray-400">${enterpriseAdminEsc(label)}</div><i class="${enterpriseAdminEsc(icon)} ${enterpriseAdminEsc(colorClass)}"></i></div>
+      <div class="text-3xl font-black text-gray-800 mt-2">${enterpriseAdminEsc(value)}</div>
+      <div class="text-xs text-gray-500 mt-1">${enterpriseAdminEsc(hint || '')}</div>
+    </div>`;
+  }
+  function enterpriseAdminCredentialBlock(label, value){
+    const v = String(value || '').trim();
+    const id = 'cred_' + Math.random().toString(16).slice(2);
+    setTimeout(() => { window[id] = v; }, 0);
+    return `<div class="p-4 rounded-2xl bg-slate-900 text-white border border-slate-700">
+      <div class="text-[11px] uppercase font-black text-slate-400 mb-2">${enterpriseAdminEsc(label)}</div>
+      <div class="font-mono text-xs break-all bg-black/25 rounded-xl p-3 border border-white/10">${enterpriseAdminEsc(v || 'Não gerado')}</div>
+      ${v ? `<button type="button" onclick="window.enterpriseCopyText(window['${id}'])" class="mt-3 px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black hover:bg-slate-100"><i class="fas fa-copy mr-1"></i>Copiar</button>` : ''}
+    </div>`;
+  }
+  async function enterpriseAdminLoadData(){
+    const [partnersData, analyticsData, certificationData] = await Promise.all([
+      enterpriseAdminFetch('/enterprise/partners', { ok:false, partners:[], total:0 }),
+      enterpriseAdminFetch('/enterprise/analytics/overview', { ok:false, summary:{}, partners:[] }),
+      enterpriseAdminFetch('/enterprise/certification/overview', { ok:false, summary:{}, levels:{}, partners:[] })
+    ]);
+    const partners = Array.isArray(partnersData.partners) ? partnersData.partners : [];
+    return { partnersData, analyticsData, certificationData, partners };
+  }
+  async function renderEnterpriseAdminPanel(){
+    const box = document.getElementById('enterprise-content');
+    if(!box) return;
+    box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"><div class="flex items-center gap-3 text-primary-blue font-bold"><i class="fas fa-spinner fa-spin"></i> Carregando Painel Enterprise...</div></div>`;
+    const { partnersData, analyticsData, certificationData, partners } = await enterpriseAdminLoadData();
+    const summary = analyticsData.summary || {};
+    const certSummary = certificationData.summary || {};
+    const levels = certificationData.levels || {};
+    const selectedId = enterpriseAdminPartnerId() || (partners[0] && partners[0].partnerId) || '';
+    window.enterpriseSelectedPartnerId = selectedId;
+    const selectedPartner = partners.find(p => String(p.partnerId) === String(selectedId)) || partners[0] || null;
+    const errorBlock = [partnersData.error, analyticsData.error, certificationData.error].filter(Boolean).map(e => `<div class="mb-2 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 font-bold">${enterpriseAdminEsc(e)}</div>`).join('');
+    const rows = partners.map(p => {
+      const id = String(p.partnerId || '');
+      return `<tr class="border-b border-gray-100 hover:bg-gray-50">
+        <td class="px-4 py-3"><div class="font-black text-gray-800">${enterpriseAdminEsc(p.companyName || p.tradeName || p.brand || 'Parceiro Enterprise')}</div><div class="text-xs text-gray-500">${enterpriseAdminEsc(id)}</div></td>
+        <td class="px-4 py-3">${enterpriseAdminEsc(p.brand || p.tradeName || '—')}</td>
+        <td class="px-4 py-3">${enterpriseAdminBadge(p.status)}</td>
+        <td class="px-4 py-3">${enterpriseAdminLevelBadge(p.certificationLevel || 'Bronze')}</td>
+        <td class="px-4 py-3 text-center font-black text-gray-700">${Number(p.score || 0)}</td>
+        <td class="px-4 py-3 text-right"><button type="button" onclick="window.enterpriseSelectPartner('${enterpriseAdminEsc(id)}')" class="px-3 py-2 rounded-xl bg-primary-blue text-white text-xs font-black hover:bg-secondary-light-blue"><i class="fas fa-eye mr-1"></i>Gerenciar</button></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Nenhum parceiro Enterprise cadastrado ainda.</td></tr>`;
+    const partnerPanel = selectedPartner ? `
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+        <div class="p-5 border-b flex flex-col lg:flex-row lg:items-start justify-between gap-4 bg-gray-50">
+          <div><div class="text-xs uppercase font-black text-gray-400">Parceiro selecionado</div><h3 class="text-xl font-black text-gray-800 mt-1">${enterpriseAdminEsc(selectedPartner.companyName || selectedPartner.tradeName || selectedPartner.brand)}</h3><p class="text-xs text-gray-500 mt-1">${enterpriseAdminEsc(selectedPartner.partnerId)} • ${enterpriseAdminEsc(selectedPartner.cnpj || 'CNPJ não informado')}</p></div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="window.enterpriseSetPartnerStatus('production')" class="px-3 py-2 rounded-xl bg-success-green text-white text-xs font-black"><i class="fas fa-rocket mr-1"></i>Produção</button>
+            <button type="button" onclick="window.enterpriseSetPartnerStatus('homologation')" class="px-3 py-2 rounded-xl bg-yellow-500 text-white text-xs font-black"><i class="fas fa-vial mr-1"></i>Homologação</button>
+            <button type="button" onclick="window.enterpriseSetPartnerStatus('sandbox')" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-black"><i class="fas fa-flask mr-1"></i>Sandbox</button>
+            <button type="button" onclick="window.enterpriseSetPartnerStatus('blocked')" class="px-3 py-2 rounded-xl bg-error-red text-white text-xs font-black"><i class="fas fa-ban mr-1"></i>Bloquear</button>
+          </div>
+        </div>
+        <div class="p-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-1 space-y-3">
+            <div class="p-4 rounded-2xl bg-blue-50 border border-blue-100"><div class="text-xs uppercase font-black text-blue-500">Status</div><div class="mt-2">${enterpriseAdminBadge(selectedPartner.status)}</div></div>
+            <div class="p-4 rounded-2xl bg-yellow-50 border border-yellow-100"><div class="text-xs uppercase font-black text-yellow-600">Certificação</div><div class="mt-2">${enterpriseAdminLevelBadge(selectedPartner.certificationLevel || 'Bronze')}</div><div class="text-sm mt-2 font-black text-gray-700">Score ${Number(selectedPartner.score || 0)}</div></div>
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100 text-sm text-gray-600"><div><b>Contato técnico:</b> ${enterpriseAdminEsc(selectedPartner.technicalEmail || '—')}</div><div><b>Comercial:</b> ${enterpriseAdminEsc(selectedPartner.commercialEmail || '—')}</div><div><b>Suporte:</b> ${enterpriseAdminEsc(selectedPartner.supportEmail || '—')}</div><div><b>Telefone:</b> ${enterpriseAdminEsc(selectedPartner.phone || '—')}</div></div>
+          </div>
+          <div class="lg:col-span-2">
+            <div class="flex flex-wrap gap-2 mb-4">
+              <button type="button" onclick="window.enterpriseLoadPartnerCredentials()" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-black"><i class="fas fa-key mr-1"></i>Ver credenciais</button>
+              <button type="button" onclick="window.enterpriseLoadPartnerTimeline()" class="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-xs font-black"><i class="fas fa-clock-rotate-left mr-1"></i>Timeline</button>
+              <button type="button" onclick="window.enterpriseCertifyPartner()" class="px-3 py-2 rounded-xl bg-yellow-500 text-white text-xs font-black"><i class="fas fa-certificate mr-1"></i>Certificar Gold</button>
+              <button type="button" onclick="window.enterpriseRegeneratePartner('api-key')" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black"><i class="fas fa-rotate mr-1"></i>Nova API Key</button>
+              <button type="button" onclick="window.enterpriseRegeneratePartner('oauth')" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black"><i class="fas fa-rotate mr-1"></i>Novo OAuth</button>
+              <button type="button" onclick="window.enterpriseRegeneratePartner('webhook')" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black"><i class="fas fa-rotate mr-1"></i>Novo Webhook</button>
+              <a target="_blank" href="${String(API_BASE).replace(/\/api\/?$/i,'')}/api/enterprise/partners-public/${encodeURIComponent(selectedPartner.partnerId)}/certificate" class="px-3 py-2 rounded-xl bg-success-green text-white text-xs font-black"><i class="fas fa-link mr-1"></i>Certificado público</a>
+            </div>
+            <div id="enterprise-partner-details" class="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">Clique em <b>Ver credenciais</b> ou <b>Timeline</b> para abrir os detalhes deste parceiro.</div>
+          </div>
+        </div>
+      </div>` : '';
+    box.innerHTML = `
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-building-shield text-primary-blue"></i> Enterprise Admin</h2><p class="text-gray-500 text-sm">Controle de parceiros, credenciais, status, certificação, analytics e lifecycle do Passo 39.</p></div>
+        <div class="flex flex-wrap gap-2"><button type="button" onclick="window.enterpriseOpenCreatePartnerForm()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-black shadow"><i class="fas fa-plus mr-2"></i>Novo parceiro</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-black shadow"><i class="fas fa-rotate mr-2"></i>Atualizar</button><a href="${String(API_BASE).replace(/\/api\/?$/i,'')}/api/enterprise/certification/export?format=csv" target="_blank" class="px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-black"><i class="fas fa-file-csv mr-2"></i>Export CSV</a></div>
+      </div>
+      ${errorBlock}
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
+        ${enterpriseAdminMetric('Parceiros', certSummary.partners ?? partners.length, 'fas fa-handshake', 'text-primary-blue', 'Total Enterprise')}
+        ${enterpriseAdminMetric('Produção', certSummary.production ?? summary.productionPartners ?? 0, 'fas fa-rocket', 'text-success-green', 'Liberados em produção')}
+        ${enterpriseAdminMetric('Sandbox', summary.sandboxPartners ?? 0, 'fas fa-flask', 'text-blue-500', 'Ambiente de teste')}
+        ${enterpriseAdminMetric('Score médio', certSummary.avgScore ?? 0, 'fas fa-gauge-high', 'text-yellow-500', 'Certificação')}
+        ${enterpriseAdminMetric('Gold', levels.gold ?? 0, 'fas fa-medal', 'text-yellow-500', 'Parceiros Gold')}
+        ${enterpriseAdminMetric('API Calls', summary.apiCalls ?? 0, 'fas fa-code', 'text-indigo-500', 'Métrica futura')}
+      </div>
+      <div id="enterprise-create-partner-form" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6"></div>
+      ${partnerPanel}
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-5 border-b flex items-center justify-between gap-3"><div><h3 class="font-black text-gray-800">Parceiros Enterprise</h3><p class="text-xs text-gray-500">Cadastro, status e certificação dos parceiros reais.</p></div></div>
+        <div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="bg-gray-50 border-b border-gray-100"><th class="px-4 py-3 text-xs uppercase font-black text-gray-400">Empresa</th><th class="px-4 py-3 text-xs uppercase font-black text-gray-400">Marca</th><th class="px-4 py-3 text-xs uppercase font-black text-gray-400">Status</th><th class="px-4 py-3 text-xs uppercase font-black text-gray-400">Nível</th><th class="px-4 py-3 text-xs uppercase font-black text-gray-400 text-center">Score</th><th class="px-4 py-3 text-xs uppercase font-black text-gray-400 text-right">Ações</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </div>`;
+  }
+  window.enterpriseSelectPartner = async function(partnerId){
+    window.enterpriseSelectedPartnerId = String(partnerId || '').trim();
+    await renderEnterpriseAdminPanel();
+  };
+  window.enterpriseOpenCreatePartnerForm = function(){
+    const box = document.getElementById('enterprise-create-partner-form');
+    if(!box) return;
+    box.classList.remove('hidden');
+    box.innerHTML = `<div class="flex items-start justify-between gap-3 mb-4"><div><h3 class="font-black text-gray-800">Novo parceiro Enterprise</h3><p class="text-xs text-gray-500">Cria o parceiro e gera credenciais automaticamente.</p></div><button type="button" onclick="document.getElementById('enterprise-create-partner-form').classList.add('hidden')" class="text-gray-400 hover:text-gray-700 text-2xl">&times;</button></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <input id="ent-companyName" class="border rounded-xl px-3 py-2 text-sm" placeholder="Razão social / Empresa">
+        <input id="ent-tradeName" class="border rounded-xl px-3 py-2 text-sm" placeholder="Nome fantasia">
+        <input id="ent-brand" class="border rounded-xl px-3 py-2 text-sm" placeholder="Marca">
+        <input id="ent-cnpj" class="border rounded-xl px-3 py-2 text-sm" placeholder="CNPJ">
+        <input id="ent-technicalEmail" class="border rounded-xl px-3 py-2 text-sm" placeholder="E-mail técnico">
+        <input id="ent-commercialEmail" class="border rounded-xl px-3 py-2 text-sm" placeholder="E-mail comercial">
+        <input id="ent-supportEmail" class="border rounded-xl px-3 py-2 text-sm" placeholder="E-mail suporte">
+        <input id="ent-phone" class="border rounded-xl px-3 py-2 text-sm" placeholder="Telefone">
+        <input id="ent-website" class="border rounded-xl px-3 py-2 text-sm" placeholder="Website">
+      </div>
+      <div class="mt-4 flex justify-end"><button type="button" onclick="window.enterpriseCreatePartnerFromPanel()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-black"><i class="fas fa-save mr-2"></i>Cadastrar parceiro</button></div>`;
+  };
+  window.enterpriseCreatePartnerFromPanel = async function(){
+    try{
+      const ids = ['companyName','tradeName','brand','cnpj','technicalEmail','commercialEmail','supportEmail','phone','website'];
+      const payload = {};
+      ids.forEach(k => payload[k] = String(document.getElementById('ent-' + k)?.value || '').trim());
+      if(!payload.companyName && !payload.tradeName && !payload.brand) throw new Error('Informe pelo menos o nome da empresa, nome fantasia ou marca.');
+      const data = await apiRequest('/enterprise/partners', { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify(payload) });
+      window.enterpriseSelectedPartnerId = data?.partner?.partnerId || '';
+      displayMessage('Parceiro Enterprise criado com sucesso.', 'success');
+      await renderEnterpriseAdminPanel();
+    }catch(error){ displayMessage(`Erro ao criar parceiro: ${error.message}`, 'error'); }
+  };
+  window.enterpriseSetPartnerStatus = async function(status){
+    const id = enterpriseAdminPartnerId();
+    if(!id) return displayMessage('Selecione um parceiro.', 'error');
+    try{
+      await apiRequest(`/enterprise/partners/${encodeURIComponent(id)}/status`, { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify({ status }) });
+      displayMessage(`Status alterado para ${status}.`, 'success');
+      await renderEnterpriseAdminPanel();
+    }catch(error){ displayMessage(`Erro ao alterar status: ${error.message}`, 'error'); }
+  };
+  window.enterpriseCertifyPartner = async function(){
+    const id = enterpriseAdminPartnerId();
+    if(!id) return displayMessage('Selecione um parceiro.', 'error');
+    try{
+      await apiRequest(`/enterprise/partners/${encodeURIComponent(id)}/certify`, { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify({ score:100 }) });
+      displayMessage('Parceiro certificado como Gold.', 'success');
+      await renderEnterpriseAdminPanel();
+    }catch(error){ displayMessage(`Erro ao certificar: ${error.message}`, 'error'); }
+  };
+  window.enterpriseRegeneratePartner = async function(kind){
+    const id = enterpriseAdminPartnerId();
+    if(!id) return displayMessage('Selecione um parceiro.', 'error');
+    const route = kind === 'oauth' ? 'regenerate-oauth' : kind === 'webhook' ? 'regenerate-webhook' : 'regenerate-api-key';
+    if(!confirm('Regenerar credenciais deste parceiro?')) return;
+    try{
+      await apiRequest(`/enterprise/partners/${encodeURIComponent(id)}/${route}`, { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify({}) });
+      displayMessage('Credenciais regeneradas.', 'success');
+      await window.enterpriseLoadPartnerCredentials();
+    }catch(error){ displayMessage(`Erro ao regenerar: ${error.message}`, 'error'); }
+  };
+  window.enterpriseLoadPartnerCredentials = async function(){
+    const id = enterpriseAdminPartnerId();
+    const box = document.getElementById('enterprise-partner-details');
+    if(!id || !box) return;
+    box.innerHTML = '<div class="text-primary-blue font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando credenciais...</div>';
+    try{
+      const data = await apiRequest(`/enterprise/partners/${encodeURIComponent(id)}/credentials`, { headers:buildHeadersAuth() });
+      const c = data.credentials || {};
+      box.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        ${enterpriseAdminCredentialBlock('Partner ID', c.partnerId)}
+        ${enterpriseAdminCredentialBlock('API Key Sandbox', c.apiKeySandbox)}
+        ${enterpriseAdminCredentialBlock('API Key Production', c.apiKeyProduction)}
+        ${enterpriseAdminCredentialBlock('OAuth Client ID', c.oauthClientId)}
+        ${enterpriseAdminCredentialBlock('OAuth Client Secret', c.oauthClientSecret)}
+        ${enterpriseAdminCredentialBlock('Webhook Secret', c.webhookSecret)}
+        ${enterpriseAdminCredentialBlock('Signing Secret', c.signingSecret)}
+        <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100"><div class="text-xs uppercase font-black text-gray-400 mb-2">Ambientes</div><div class="text-sm text-gray-700">Sandbox: <b>${c.sandboxEnabled ? 'Ativo' : 'Inativo'}</b><br>Produção: <b>${c.productionEnabled ? 'Ativo' : 'Inativo'}</b></div></div>
+      </div>`;
+    }catch(error){ box.innerHTML = `<div class="text-red-600 font-bold">${enterpriseAdminEsc(error.message)}</div>`; }
+  };
+  window.enterpriseLoadPartnerTimeline = async function(){
+    const id = enterpriseAdminPartnerId();
+    const box = document.getElementById('enterprise-partner-details');
+    if(!id || !box) return;
+    box.innerHTML = '<div class="text-primary-blue font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando timeline...</div>';
+    try{
+      const data = await apiRequest(`/enterprise/partners/${encodeURIComponent(id)}/timeline`, { headers:buildHeadersAuth() });
+      const rows = Array.isArray(data.timeline) ? data.timeline : [];
+      box.innerHTML = `<div class="space-y-2">${rows.map(item => `<div class="p-4 rounded-xl bg-white border border-gray-100"><div class="flex flex-wrap items-center justify-between gap-2"><div class="font-black text-gray-800">${enterpriseAdminEsc(item.event || 'Evento')}</div>${enterpriseAdminBadge(item.status || 'success')}</div><div class="text-xs text-gray-500 mt-1">${enterpriseAdminDate(item.date)} • HTTP ${enterpriseAdminEsc(item.statusCode || '—')}</div><div class="text-sm text-gray-600 mt-2">${enterpriseAdminEsc(item.message || '')}</div></div>`).join('') || '<div class="text-gray-500">Nenhum evento encontrado.</div>'}</div>`;
+    }catch(error){ box.innerHTML = `<div class="text-red-600 font-bold">${enterpriseAdminEsc(error.message)}</div>`; }
+  };
+  window.renderEnterpriseAdminPanel = renderEnterpriseAdminPanel;
+  window.renderEnterpriseView = renderEnterpriseAdminPanel;
+  try { renderEnterpriseView = renderEnterpriseAdminPanel; } catch(_e) {}
+})();
+
 </script>
 
 </body>
