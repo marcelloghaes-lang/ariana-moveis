@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Analytics Enterprise | Ariana Enterprise</title>
+<style>
+:root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--danger:#dc2626;--border:#dbe5f0}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:38px 6vw;border-radius:0 0 30px 30px}.hero h1{font-size:48px;margin:8px 0}.hero p{font-size:18px;max-width:920px}.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:4px}.btn{border:0;background:var(--blue);color:white;border-radius:13px;padding:12px 16px;font-weight:900;text-decoration:none;display:inline-block;cursor:pointer}.btn.white{background:white;color:var(--blue)}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.wrap{max-width:1240px;margin:26px auto;padding:0 18px}.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}.filters select,.filters input{border:1px solid #cbd5e1;border-radius:12px;padding:12px;background:white;font:inherit}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:20px;box-shadow:0 14px 35px rgba(15,23,42,.06)}.stat{font-size:34px;font-weight:900}.ok{color:var(--ok)}.warn{color:var(--warn)}.danger{color:var(--danger)}.muted{color:var(--muted)}.chart{height:270px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff;padding:18px;display:flex;align-items:end;gap:10px;overflow:auto}.bar{min-width:42px;background:#1d4ed8;border-radius:9px 9px 0 0;position:relative}.bar span{position:absolute;bottom:100%;left:0;right:0;text-align:center;font-weight:900;font-size:12px}.bar small{position:absolute;top:100%;left:50%;transform:translateX(-50%) rotate(-35deg);transform-origin:center;white-space:nowrap;color:#64748b;font-size:11px}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:12px;border-bottom:1px solid #edf2f7;font-size:14px}.table th{background:#f8fafc;color:#64748b;text-transform:uppercase;font-size:12px}.pre{background:#0b1220;color:white;border-radius:16px;padding:16px;overflow:auto;max-height:360px;font-family:Consolas,monospace;font-size:13px;white-space:pre-wrap}.badge{display:inline-block;border-radius:999px;padding:6px 9px;background:#dcfce7;color:#166534;font-weight:900;font-size:12px}@media(max-width:950px){.grid,.grid2{grid-template-columns:1fr}.hero h1{font-size:34px}}
+</style>
+</head>
+<body>
+<header class="hero"><div class="top"><div><div class="brand">ARIANA ENTERPRISE</div><h1>Analytics Enterprise</h1><p>Inteligência comercial para fabricantes: receita, pedidos, produtos, rankings, chamadas da API e exportações técnicas.</p></div><div><a class="btn white" href="/developer_portal.html">Developer</a> <a class="btn white" href="/enterprise_console.html">Console</a> <a class="btn white" href="/admin_enterprise.html">Admin</a></div></div></header>
+<main class="wrap">
+  <div class="filters"><select id="period" onchange="load()"><option value="today">Hoje</option><option value="yesterday">Ontem</option><option value="7d">7 dias</option><option value="30d" selected>30 dias</option><option value="90d">90 dias</option><option value="1y">1 ano</option></select><button class="btn" onclick="load()">Atualizar</button><button class="btn light" onclick="exportData('csv')">Exportar CSV</button><button class="btn light" onclick="exportData('json')">Exportar JSON</button></div>
+  <section class="grid">
+    <div class="card"><div id="revenue" class="stat ok">R$ 0,00</div><div class="muted">Receita no período</div></div>
+    <div class="card"><div id="orders" class="stat">0</div><div class="muted">Pedidos</div></div>
+    <div class="card"><div id="products" class="stat">0</div><div class="muted">Produtos sincronizados</div></div>
+    <div class="card"><div id="success" class="stat ok">100%</div><div class="muted">Sucesso API</div></div>
+  </section>
+  <section class="grid">
+    <div class="card"><div id="manufacturers" class="stat">0</div><div class="muted">Fabricantes</div></div>
+    <div class="card"><div id="apiCalls" class="stat">0</div><div class="muted">Chamadas API</div></div>
+    <div class="card"><div id="avg" class="stat">0ms</div><div class="muted">Tempo médio</div></div>
+    <div class="card"><div id="queue" class="stat warn">0</div><div class="muted">Fila / Dead letter</div></div>
+  </section>
+  <section class="grid2"><div class="card"><h2>Receita por dia</h2><div id="chartRevenue" class="chart"></div></div><div class="card"><h2>Status HTTP</h2><div id="chartStatus" class="chart"></div></div></section>
+  <section class="grid2"><div class="card"><h2>Ranking de fabricantes</h2><table class="table"><thead><tr><th>Fabricante</th><th>Pedidos</th><th>Receita</th><th>API</th></tr></thead><tbody id="partners"></tbody></table></div><div class="card"><h2>Produtos mais vendidos</h2><table class="table"><thead><tr><th>SKU</th><th>Produto</th><th>Qtd</th><th>Receita</th></tr></thead><tbody id="topProducts"></tbody></table></div></section>
+  <section class="grid2"><div class="card"><h2>Endpoints mais usados</h2><table class="table"><thead><tr><th>Endpoint / Evento</th><th>Chamadas</th></tr></thead><tbody id="endpoints"></tbody></table></div><div class="card"><h2>Pedidos recentes</h2><table class="table"><thead><tr><th>Cliente</th><th>Total</th><th>Status</th></tr></thead><tbody id="recentOrders"></tbody></table></div></section>
+  <section class="card"><h2>JSON técnico</h2><pre id="json" class="pre">Carregando...</pre></section>
+</main>
+<script>
+const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+function money(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function bars(el,rows,label,value){const max=Math.max(1,...rows.map(r=>Number(r[value]||0)));el.innerHTML=rows.length?rows.map(r=>`<div class="bar" style="height:${Math.max(6,Number(r[value]||0)/max*210)}px"><span>${esc(r[value])}</span><small>${esc(r[label])}</small></div>`).join(''):'<p class="muted">Sem dados.</p>'}
+async function load(){const p=document.getElementById('period').value;const r=await fetch(`${API_BASE}/enterprise/analytics/overview?period=${encodeURIComponent(p)}`);const d=await r.json();document.getElementById('json').textContent=JSON.stringify(d,null,2);if(!d.ok)return;const s=d.summary||{};revenue.textContent=money(s.revenue);orders.textContent=s.orders||0;products.textContent=s.syncedProducts||0;success.textContent=(s.successRate??100)+'%';manufacturers.textContent=s.manufacturers||0;apiCalls.textContent=s.apiCalls||0;avg.textContent=(s.avgResponseMs||0)+'ms';queue.textContent=(s.queuePending||0)+' / '+(s.queueDead||0);bars(chartRevenue,d.charts.revenueByDay||[],'date','revenue');const st=d.charts.statusMap||{};bars(chartStatus,[{k:'2xx',v:st['2xx']||0},{k:'4xx',v:st['4xx']||0},{k:'5xx',v:st['5xx']||0}],'k','v');partners.innerHTML=(d.charts.partnersRanking||[]).map(x=>`<tr><td><b>${esc(x.manufacturer)}</b></td><td>${x.orders}</td><td>${money(x.revenue)}</td><td>${x.apiCalls}</td></tr>`).join('')||'<tr><td colspan="4">Sem dados.</td></tr>';topProducts.innerHTML=(d.charts.topProducts||[]).map(x=>`<tr><td>${esc(x.sku)}</td><td>${esc(x.name)}</td><td>${x.qty}</td><td>${money(x.revenue)}</td></tr>`).join('')||'<tr><td colspan="4">Sem dados.</td></tr>';endpoints.innerHTML=(d.charts.endpoints||[]).map(x=>`<tr><td>${esc(x.endpoint)}</td><td>${x.calls}</td></tr>`).join('')||'<tr><td colspan="2">Sem dados.</td></tr>';recentOrders.innerHTML=(d.recent.orders||[]).map(x=>`<tr><td>${esc(x.customerName)}</td><td>${money(x.total)}</td><td><span class="badge">${esc(x.status)}</span></td></tr>`).join('')||'<tr><td colspan="3">Sem pedidos recentes.</td></tr>'}
+function exportData(format){location.href=`${API_BASE}/enterprise/analytics/export?period=${encodeURIComponent(period.value)}&format=${format}`}
+load();setInterval(load,60000);
+</script>
+</body>
+</html>
