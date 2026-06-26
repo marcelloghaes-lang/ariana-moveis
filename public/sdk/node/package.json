@@ -1,0 +1,9 @@
+{
+  "name": "ariana-enterprise-sdk",
+  "version": "1.0.0",
+  "description": "SDK oficial Ariana Enterprise para fabricantes, distribuidores e ERPs.",
+  "main": "ariana-enterprise-sdk.js",
+  "type": "commonjs",
+  "license": "UNLICENSED",
+  "keywords": ["ariana", "enterprise", "marketplace", "api", "sdk"]
+}

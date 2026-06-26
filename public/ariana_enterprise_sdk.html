@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SDK Oficial | Ariana Enterprise</title>
+  <style>
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--border:#dbe5f0}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:34px 42px;border-radius:0 0 28px 28px}.hero h1{margin:0;font-size:42px}.hero p{font-size:18px;max-width:900px}.wrap{max-width:1180px;margin:28px auto;padding:0 18px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:22px;box-shadow:0 14px 35px rgba(15,23,42,.06);margin-bottom:18px}.btn{display:inline-block;background:var(--blue);color:white;text-decoration:none;border-radius:12px;padding:12px 16px;font-weight:900;margin:4px}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.pre{background:#0b1220;color:white;border-radius:16px;padding:18px;overflow:auto;font-family:Consolas,monospace;font-size:14px;white-space:pre}.muted{color:var(--muted)}.badge{display:inline-block;padding:7px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:900;font-size:12px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.tabs button{border:1px solid #bfdbfe;background:white;color:var(--blue);border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}.tabs button.active{background:var(--blue);color:white}.tab{display:none}.tab.active{display:block}@media(max-width:900px){.grid{grid-template-columns:1fr}.hero h1{font-size:32px}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div style="display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:900;letter-spacing:3px">ARIANA ENTERPRISE</div>
+        <h1>SDK Oficial</h1>
+        <p>Bibliotecas e exemplos para integrar catálogo, estoque, preço, pedidos, NF-e, rastreio e webhooks sem montar requisições HTTP manualmente.</p>
+      </div>
+      <div><a class="btn light" href="/portal_fabricante.html">Portal</a><a class="btn light" href="/enterprise_swagger.html">Swagger</a></div>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="grid">
+      <div class="card"><h2>JavaScript / Browser</h2><p class="muted">SDK pronto para uso no navegador ou em páginas de teste.</p><a class="btn" href="/sdk/js/ariana-enterprise-sdk.js" download>Baixar JS</a></div>
+      <div class="card"><h2>Node.js</h2><p class="muted">Pacote base para ERPs e integrações backend.</p><a class="btn" href="/sdk/node/ariana-enterprise-node-sdk.zip" download>Baixar Node SDK</a></div>
+      <div class="card"><h2>Manifest</h2><p class="muted">Metadados do SDK e endpoints suportados.</p><a class="btn" href="/api/enterprise/sdk/manifest" target="_blank">Abrir Manifest</a></div>
+    </section>
+
+    <section class="card">
+      <h2>Instalação rápida</h2>
+      <div class="tabs">
+        <button class="active" onclick="showTab('node',this)">Node.js</button>
+        <button onclick="showTab('js',this)">JavaScript</button>
+        <button onclick="showTab('curl',this)">cURL</button>
+      </div>
+      <div id="node" class="tab active"><pre class="pre">const { ArianaEnterpriseClient } = require('./ariana-enterprise-sdk');
+
+const ariana = new ArianaEnterpriseClient({
+  apiKey: 'ari_live_xxxxx',
+  environment: 'production'
+});
+
+await ariana.catalog.push([
+  { sku:'ARI-0001', name:'Produto Teste', price:2299, stock:10 }
+]);
+
+await ariana.products.updateStock('ARI-0001', { stock: 8 });
+await ariana.products.updatePrice('ARI-0001', { price: 2199 });</pre></div>
+      <div id="js" class="tab"><pre class="pre">&lt;script src="/sdk/js/ariana-enterprise-sdk.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+const ariana = new ArianaEnterpriseSDK({
+  apiKey: 'ari_sbx_xxxxx',
+  environment: 'sandbox'
+});
+
+ariana.health().then(console.log);
+&lt;/script&gt;</pre></div>
+      <div id="curl" class="tab"><pre class="pre">curl -X POST https://ariana-backend.onrender.com/api/v1/enterprise/catalog/push \
+  -H "Content-Type: application/json" \
+  -H "x-ariana-key: ari_live_xxxxx" \
+  -d '{"manufacturer":"ariana_moveis","products":[{"sku":"ARI-0001","name":"Produto Teste","price":2299,"stock":10}]}'</pre></div>
+    </section>
+
+    <section class="card">
+      <h2>Recursos incluídos</h2>
+      <p><span class="badge">OAuth 2.0</span> <span class="badge">API Keys</span> <span class="badge">Retry</span> <span class="badge">Rate Limit</span> <span class="badge">v1/v2</span> <span class="badge">Webhooks</span></p>
+      <p class="muted">O SDK padroniza erros, headers, timeout, versionamento e autenticação para reduzir retrabalho dos fabricantes e ERPs.</p>
+    </section>
+  </main>
+  <script>
+    function showTab(id, btn){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');btn.classList.add('active');}
+  </script>
+</body>
+</html>

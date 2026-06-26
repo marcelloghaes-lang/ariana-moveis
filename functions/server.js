@@ -14392,6 +14392,67 @@ app.get('/api/admin/enterprise/pro/versions', adminRequired, async (_req, res) =
   return res.json({ ok: true, versions: ENTERPRISE_API_VERSIONS });
 });
 
+
+// ============================================================
+// PASSO 29 - SDK OFICIAL ARIANA ENTERPRISE
+// Manifest e exemplos para Portal do Desenvolvedor / Fabricante
+// ============================================================
+const ARIANA_ENTERPRISE_SDK_MANIFEST = {
+  ok: true,
+  sdk: {
+    name: 'Ariana Enterprise SDK',
+    version: '1.0.0',
+    status: 'preview',
+    languages: ['javascript', 'nodejs', 'curl'],
+    baseUrl: 'https://ariana-backend.onrender.com/api',
+    stableVersion: 'v1',
+    previewVersion: 'v2'
+  },
+  downloads: {
+    browser: '/sdk/js/ariana-enterprise-sdk.js',
+    node: '/sdk/node/ariana-enterprise-node-sdk.zip',
+    docs: '/ariana_enterprise_sdk.html'
+  },
+  features: [
+    'health', 'auth_check', 'catalog_push', 'stock_update', 'price_update',
+    'order_create', 'invoice_attach', 'tracking_update', 'webhook_test',
+    'api_key_auth', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling'
+  ],
+  endpoints: {
+    health: 'GET /api/v1/enterprise/health',
+    catalog: 'POST /api/v1/enterprise/catalog/push',
+    stock: 'PUT /api/v1/enterprise/products/{sku}/stock',
+    price: 'PUT /api/v1/enterprise/products/{sku}/price',
+    order: 'POST /api/v1/enterprise/orders',
+    invoice: 'POST /api/v1/enterprise/orders/{orderId}/invoice',
+    tracking: 'POST /api/v1/enterprise/orders/{orderId}/tracking',
+    webhook: 'POST /api/v1/enterprise/webhooks/test'
+  }
+};
+
+app.get('/api/enterprise/sdk/manifest', (_req, res) => {
+  return res.json(ARIANA_ENTERPRISE_SDK_MANIFEST);
+});
+
+app.get('/api/v1/enterprise/sdk/manifest', enterpriseVersionHeaders('v1'), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_SDK_MANIFEST, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/sdk/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_SDK_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
+});
+
+app.get('/api/enterprise/sdk/examples', (_req, res) => {
+  return res.json({
+    ok: true,
+    examples: {
+      javascript: `const api = new ArianaEnterpriseSDK({ apiKey: 'ari_sbx_xxxxx', environment: 'sandbox' });\nawait api.health();`,
+      nodejs: `const { ArianaEnterpriseClient } = require('./ariana-enterprise-sdk');\nconst api = new ArianaEnterpriseClient({ apiKey: 'ari_live_xxxxx', environment: 'production' });\nawait api.catalog.push([{ sku:'ARI-0001', name:'Produto Teste', price:2299, stock:10 }]);`,
+      curl: `curl -H "x-ariana-key: ari_live_xxxxx" https://ariana-backend.onrender.com/api/v1/enterprise/health`
+    }
+  });
+});
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
