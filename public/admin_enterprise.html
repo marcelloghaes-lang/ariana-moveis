@@ -121,6 +121,29 @@ async function openPartner(id){
       </div>
     </div>
 
+    <div class="card">
+      <h3>Rate Limit / API Gateway</h3>
+      <p class="muted">Controle o volume de chamadas por ambiente. Quando o limite for ultrapassado, a API retorna HTTP 429 com Retry-After.</p>
+      <div class="grid2">
+        <div>
+          <h4>Sandbox</h4>
+          <div class="filters">
+            <input class="input" id="rlSbxMinute" type="number" min="1" value="${Number(p.rateLimit?.sandbox?.requestsPerMinute||300)}" placeholder="Req/min">
+            <input class="input" id="rlSbxDay" type="number" min="1" value="${Number(p.rateLimit?.sandbox?.requestsPerDay||20000)}" placeholder="Req/dia">
+            <button class="btn light" onclick="saveRateLimit('${esc(p.id)}','sandbox')">Salvar Sandbox</button>
+          </div>
+        </div>
+        <div>
+          <h4>Produção</h4>
+          <div class="filters">
+            <input class="input" id="rlProdMinute" type="number" min="1" value="${Number(p.rateLimit?.production?.requestsPerMinute||1000)}" placeholder="Req/min">
+            <input class="input" id="rlProdDay" type="number" min="1" value="${Number(p.rateLimit?.production?.requestsPerDay||100000)}" placeholder="Req/dia">
+            <button class="btn light" onclick="saveRateLimit('${esc(p.id)}','production')">Salvar Produção</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid2">
       <div class="card"><h3>API Keys</h3><p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.sandbox.apiKeyMasked||'')}</span></p><p><b>Produção:</b> ${p.production.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.production.apiKeyMasked||'')}</span></p><button class="btn warn" onclick="rotateKey('${esc(p.id)}','sandbox')">Renovar Sandbox</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','sandbox')">Revogar Sandbox</button> <button class="btn warn" onclick="rotateKey('${esc(p.id)}','production')">Renovar Produção</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','production')">Revogar Produção</button><p class="muted" id="newKeyOut"></p></div>
       <div class="card"><h3>Fila de envio</h3>${(d.queue||[]).map(q=>`<p><b>${esc(q.queueId)}</b> • ${esc(q.status)} • tentativas ${q.attempts||0}<br><span class="danger">${esc(q.lastError||'')}</span></p>`).join('')||'<p class="muted">Sem fila recente.</p>'}</div>
@@ -173,6 +196,15 @@ async function reactivateProduction(id){
   await openPartner(id);
   await loadPartners();
   await loadOverview();
+}
+
+async function saveRateLimit(id,env){
+  const minute = env === 'production' ? Number(document.getElementById('rlProdMinute')?.value||1000) : Number(document.getElementById('rlSbxMinute')?.value||300);
+  const day = env === 'production' ? Number(document.getElementById('rlProdDay')?.value||100000) : Number(document.getElementById('rlSbxDay')?.value||20000);
+  if(!minute || !day){alert('Informe limites válidos.');return;}
+  await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/rate-limit',{method:'POST',body:JSON.stringify({environment:env,requestsPerMinute:minute,requestsPerDay:day})});
+  toastMsg('Rate limit '+env+' atualizado.');
+  await openPartner(id);
 }
 
 function closeModal(){partnerModal.classList.remove('show')}
