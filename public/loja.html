@@ -575,17 +575,31 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 
     function decorateProductWithPayments(product) {
       const p = { ...(product || {}) };
-      const basePrice = Number(p.price || 0);
+
+      // REGRA OFICIAL ARIANA:
+      // preço cadastrado/base = preço PIX / à vista
+      // preço cartão/parcelado = preço base + percentual configurado
+      const discountPercent = Math.max(0, __num(__paymentsConfig?.cash?.discountPercent, 17) || 17);
+      const basePrice = __num(
+        p.sellerBasePrice ?? p.pixPrice ?? p.price ?? p.preco ?? p.valor ?? 0,
+        0
+      );
+
+      const explicitCardPrice = __num(
+        p.marketplacePrice ?? p.cardPrice ?? p.fullPrice ?? p.precoPrazo ?? p.preco_prazo,
+        0
+      );
+
+      const cardPrice = explicitCardPrice > 0
+        ? explicitCardPrice
+        : +(basePrice * (1 + discountPercent / 100)).toFixed(2);
 
       const cash = { ...(__paymentsConfig.cash || {}) };
-      if (cash.enabled) {
-        const disc = __num(cash.discountPercent, 0);
-        cash.price = Math.max(0, basePrice * ((100 - disc) / 100));
-      } else {
-        cash.price = basePrice;
-      }
+      cash.price = basePrice;
 
       const card = { ...(__paymentsConfig.card || {}) };
+      card.price = cardPrice;
+
       p.__payments = { cash, card };
       return p;
     }
@@ -624,26 +638,39 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
       const name = raw.nome || raw.name || raw.title || "Produto";
       const img = raw.imageUrl || resolveMainImageUrl(raw) || "https://placehold.co/400x400?text=SEM+IMAGEM";
 
-      const fullPrice = __num(raw.price ?? raw.preco ?? raw.valor ?? raw.precoCheio ?? raw.regularPrice, 0);
+      const discountPercent = Math.max(0, Math.round(__num(__paymentsConfig?.cash?.discountPercent, 17) || 17));
+      const installments = Math.max(1, Math.round(__num(__paymentsConfig?.card?.installments, 12) || 12));
+
+      // REGRA OFICIAL ARIANA:
+      // preço cadastrado/base = preço PIX / à vista
+      // preço cartão/parcelado = preço base + percentual configurado
+      const sellerBasePrice = __num(
+        raw.sellerBasePrice ?? raw.pixPrice ?? raw.price ?? raw.preco ?? raw.valor ?? 0,
+        0
+      );
+
+      const explicitCardPrice = __num(
+        raw.marketplacePrice ?? raw.cardPrice ?? raw.fullPrice ?? raw.precoPrazo ?? raw.preco_prazo,
+        0
+      );
+
+      const fullPrice = explicitCardPrice > 0
+        ? explicitCardPrice
+        : +(sellerBasePrice * (1 + discountPercent / 100)).toFixed(2);
+
       const explicitOldPrice = __num(
         raw.oldPrice ?? raw.old_price ?? raw.precoAntigo ?? raw.precoDe ?? raw.originalPrice ?? raw.listPrice ?? raw.compareAtPrice,
         0
       );
 
-      const discountPercent = Math.max(0, Math.round(__num(__paymentsConfig?.cash?.discountPercent, 17) || 17));
-      const installments = Math.max(1, Math.round(__num(__paymentsConfig?.card?.installments, 12) || 12));
-
-      // Padrão Ariana / Index:
-      // preço salvo no Mongo = preço cheio/parcelado.
-      // preço PIX = preço cheio com desconto.
       const oldPriceValue = explicitOldPrice > fullPrice ? explicitOldPrice : fullPrice;
-      const pixPrice = oldPriceValue > 0 ? +(oldPriceValue * ((100 - discountPercent) / 100)).toFixed(2) : 0;
-      const installmentValue = oldPriceValue > 0 ? oldPriceValue / installments : 0;
+      const pixPrice = sellerBasePrice;
+      const installmentValue = fullPrice > 0 ? fullPrice / installments : 0;
 
       const priceParts = window.formatPriceParts(pixPrice);
       const oldPriceFormatted = window.formatCurrency(oldPriceValue);
       const installmentText = `ou ${installments}x de ${window.formatCurrency(installmentValue)} s/ juros`;
-      const totalPrazoText = `Total parcelado: ${window.formatCurrency(oldPriceValue)}`;
+      const totalPrazoText = `Total parcelado: ${window.formatCurrency(fullPrice)}`;
       const safeName = String(name || "Produto").replace(/"/g, "&quot;");
 
       const card = document.createElement("a");
