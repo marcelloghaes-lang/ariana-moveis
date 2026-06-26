@@ -166,6 +166,31 @@ async function openPartner(id){
       <div id="oauthOut" class="secretBox" style="display:none"></div>
     </div>
 
+
+
+    <div class="card">
+      <h3>Versionamento da API</h3>
+      <p class="muted">Controle de versões para evoluir a API sem quebrar integrações existentes.</p>
+      <div class="grid2">
+        <div>
+          <h4>Versão estável</h4>
+          <p><b>Base:</b> <span class="code">/api/v1/enterprise</span></p>
+          <p><b>Status:</b> <span class="ok">stable</span></p>
+          <p class="muted">Use esta versão para fabricantes em produção.</p>
+        </div>
+        <div>
+          <h4>Próxima versão</h4>
+          <p><b>Base:</b> <span class="code">/api/v2/enterprise</span></p>
+          <p><b>Status:</b> <span class="warn">preview</span></p>
+          <p class="muted">Reservada para evoluções futuras, sem quebrar a v1.</p>
+        </div>
+      </div>
+      <div class="btnrow">
+        <a class="btn light" href="/api/enterprise/versions" target="_blank">Ver versões</a>
+        <a class="btn light" href="/enterprise_swagger.html" target="_blank">Abrir Swagger</a>
+      </div>
+    </div>
+
     <div class="grid2">
       <div class="card"><h3>API Keys</h3><p><b>Sandbox:</b> ${p.sandbox.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.sandbox.apiKeyMasked||'')}</span></p><p><b>Produção:</b> ${p.production.active?'<span class="ok">Ativa</span>':'<span class="danger">Inativa</span>'} <span class="code">${esc(p.production.apiKeyMasked||'')}</span></p><button class="btn warn" onclick="rotateKey('${esc(p.id)}','sandbox')">Renovar Sandbox</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','sandbox')">Revogar Sandbox</button> <button class="btn warn" onclick="rotateKey('${esc(p.id)}','production')">Renovar Produção</button> <button class="btn danger" onclick="revokeKey('${esc(p.id)}','production')">Revogar Produção</button><p class="muted" id="newKeyOut"></p></div>
       <div class="card"><h3>Fila de envio</h3>${(d.queue||[]).map(q=>`<p><b>${esc(q.queueId)}</b> • ${esc(q.status)} • tentativas ${q.attempts||0}<br><span class="danger">${esc(q.lastError||'')}</span></p>`).join('')||'<p class="muted">Sem fila recente.</p>'}</div>

@@ -13159,7 +13159,7 @@ function buildEnterpriseOpenApiSpec(req = null) {
     info: {
       title: 'Ariana Enterprise API',
       version,
-      description: 'API oficial da Ariana Enterprise para integração de catálogo, estoque, preço, pedidos, NF-e, rastreio, webhooks e portal do fabricante.'
+      description: 'API oficial da Ariana Enterprise para integração de catálogo, estoque, preço, pedidos, NF-e, rastreio, webhooks, OAuth 2.0 e versionamento v1/v2.'
     },
     servers: [
       { url: baseUrl, description: 'Produção / Sandbox Ariana Backend' }
@@ -13402,6 +13402,9 @@ function buildEnterpriseOpenApiSpec(req = null) {
         }
       },
       '/enterprise/oauth/token': { post: { tags: ['OAuth 2.0'], summary: 'Emite Bearer Token usando Client Credentials', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { grant_type: { type: 'string', example: 'client_credentials' }, client_id: { type: 'string' }, client_secret: { type: 'string' } } } } } }, responses: { '200': { description: 'Token emitido' }, '401': { description: 'Credenciais inválidas' } } } },
+      '/enterprise/versions': { get: { tags: ['Versionamento'], summary: 'Lista versões suportadas da API Enterprise', responses: { '200': { description: 'Versões retornadas' } } } },
+      '/v1/enterprise/versions': { get: { tags: ['Versionamento'], summary: 'Versões via v1', responses: { '200': { description: 'Versões retornadas' } } } },
+      '/v2/enterprise/versions': { get: { tags: ['Versionamento'], summary: 'Versões via v2 preview', responses: { '200': { description: 'Versões retornadas' } } } },
       '/enterprise/oauth/check': { get: { tags: ['OAuth 2.0'], summary: 'Valida Bearer Token OAuth Enterprise', security: [{ EnterpriseOAuth: [] }], responses: { '200': { description: 'Token válido' }, '401': { description: 'Token inválido' } } } },
       '/enterprise/partner/login': {
         post: {
@@ -14317,6 +14320,76 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/reactivate', adminRe
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao reativar produção' });
   }
+});
+
+
+
+// ============================================================
+// PASSO 28 - VERSIONAMENTO DA API ENTERPRISE (v1/v2)
+// Mantém compatibilidade com /api/enterprise e adiciona /api/v1/enterprise e /api/v2/enterprise.
+// ============================================================
+const ENTERPRISE_API_VERSIONS = {
+  current: 'v1',
+  latest: 'v1',
+  supported: ['v1'],
+  preview: ['v2'],
+  defaultVersion: 'v1',
+  deprecationPolicy: 'Rotas sem versão continuam funcionando, mas novos fabricantes devem usar /api/v1/enterprise.',
+  routes: {
+    v1: {
+      status: 'stable',
+      basePath: '/api/v1/enterprise',
+      releasedAt: '2026-06-26',
+      notes: 'Versão estável inicial da Ariana Enterprise API.'
+    },
+    v2: {
+      status: 'preview',
+      basePath: '/api/v2/enterprise',
+      releasedAt: null,
+      notes: 'Prévia reservada para evoluções futuras sem quebrar integrações v1.'
+    }
+  }
+};
+
+function enterpriseVersionHeaders(version = 'v1', preview = false) {
+  return (req, res, next) => {
+    res.setHeader('X-Ariana-API-Version', version);
+    res.setHeader('X-Ariana-API-Latest-Version', ENTERPRISE_API_VERSIONS.latest);
+    res.setHeader('X-Ariana-API-Version-Status', preview ? 'preview' : 'stable');
+    return next();
+  };
+}
+
+// Reescreve internamente chamadas versionadas para as rotas Enterprise existentes.
+// Exemplo: /api/v1/enterprise/catalog/push -> /api/enterprise/catalog/push
+function enterpriseVersionProxy(version = 'v1', preview = false) {
+  return (req, res) => {
+    res.setHeader('X-Ariana-API-Version', version);
+    res.setHeader('X-Ariana-API-Latest-Version', ENTERPRISE_API_VERSIONS.latest);
+    res.setHeader('X-Ariana-API-Version-Status', preview ? 'preview' : 'stable');
+    res.setHeader('X-Ariana-API-Original-Path', req.originalUrl || req.url || '');
+    req.url = `/api/enterprise${req.url || ''}`;
+    return app.handle(req, res);
+  };
+}
+
+app.get('/api/enterprise/versions', (req, res) => {
+  return res.json({ ok: true, ...ENTERPRISE_API_VERSIONS });
+});
+
+app.get('/api/v1/enterprise/versions', enterpriseVersionHeaders('v1'), (req, res) => {
+  return res.json({ ok: true, ...ENTERPRISE_API_VERSIONS, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/versions', enterpriseVersionHeaders('v2', true), (req, res) => {
+  return res.json({ ok: true, ...ENTERPRISE_API_VERSIONS, requestedVersion: 'v2', warning: 'v2 ainda é preview. Use v1 para integrações em produção.' });
+});
+
+app.use('/api/v1/enterprise', enterpriseVersionProxy('v1'));
+app.use('/api/v2/enterprise', enterpriseVersionProxy('v2', true));
+
+app.get('/api/admin/enterprise/pro/versions', adminRequired, async (_req, res) => {
+  return res.json({ ok: true, versions: ENTERPRISE_API_VERSIONS });
 });
 
 // ============================================================
