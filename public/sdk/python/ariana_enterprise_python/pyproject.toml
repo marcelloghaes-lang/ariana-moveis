@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ariana-enterprise"
+version = "1.0.0"
+description = "SDK Python oficial para integração com a Ariana Enterprise API"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Ariana Móveis", email = "contato@arianamoveis.com.br" }]
+license = { text = "MIT" }
+dependencies = ["requests>=2.31.0"]
+
+[project.urls]
+Homepage = "https://arianamoveis.com.br/ariana_enterprise_sdk.html"
+Documentation = "https://arianamoveis.com.br/ariana_enterprise_docs.html"
+OpenAPI = "https://arianamoveis.com.br/enterprise_swagger.html"

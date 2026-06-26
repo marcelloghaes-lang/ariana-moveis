@@ -14403,7 +14403,7 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     name: 'Ariana Enterprise SDK',
     version: '1.0.0',
     status: 'preview',
-    languages: ['javascript', 'nodejs', 'php', 'curl'],
+    languages: ['javascript', 'nodejs', 'php', 'python', 'curl'],
     baseUrl: 'https://ariana-backend.onrender.com/api',
     stableVersion: 'v1',
     previewVersion: 'v2'
@@ -14413,12 +14413,14 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     node: '/sdk/node/ariana-enterprise-node-sdk.zip',
     php: '/sdk/php/ariana-enterprise-php-sdk.zip',
     phpDocs: '/sdk/php/ariana-enterprise-php/README.md',
+    python: '/sdk/python/ariana-enterprise-python-sdk.zip',
+    pythonDocs: '/sdk/python/ariana_enterprise_python/README.md',
     docs: '/ariana_enterprise_sdk.html'
   },
   features: [
     'health', 'auth_check', 'catalog_push', 'stock_update', 'price_update',
     'order_create', 'invoice_attach', 'tracking_update', 'webhook_test',
-    'api_key_auth', 'oauth2_client_credentials', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling', 'php_sdk', 'composer_ready'
+    'api_key_auth', 'oauth2_client_credentials', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling', 'php_sdk', 'composer_ready', 'python_sdk', 'pip_ready'
   ],
   endpoints: {
     health: 'GET /api/v1/enterprise/health',
@@ -14450,6 +14452,7 @@ app.get('/api/enterprise/sdk/examples', (_req, res) => {
     examples: {
       javascript: `const api = new ArianaEnterpriseSDK({ apiKey: 'ari_sbx_xxxxx', environment: 'sandbox' });\nawait api.health();`,
       nodejs: `const { ArianaEnterpriseClient } = require('./ariana-enterprise-sdk');\nconst api = new ArianaEnterpriseClient({ apiKey: 'ari_live_xxxxx', environment: 'production' });\nawait api.catalog.push([{ sku:'ARI-0001', name:'Produto Teste', price:2299, stock:10 }]);`,
+      python: `from ariana_enterprise import ArianaEnterpriseClient\napi = ArianaEnterpriseClient(api_key='ari_live_xxxxx', environment='production')\napi.catalog.push([{'sku':'ARI-0001','name':'Produto Teste','price':2299,'stock':10}])`,
       php: `use ArianaEnterprise\\Client;\n$api = new Client(['apiKey' => 'ari_live_xxxxx', 'environment' => 'production']);\n$api->catalog()->push([['sku'=>'ARI-0001','name'=>'Produto Teste','price'=>2299,'stock'=>10]]);`,
       curl: `curl -H "x-ariana-key: ari_live_xxxxx" https://ariana-backend.onrender.com/api/v1/enterprise/health`
     }
@@ -14502,6 +14505,49 @@ app.get('/api/v2/enterprise/sdk/php/manifest', enterpriseVersionHeaders('v2', tr
 
 
 // ============================================================
+// PASSO 32 - SDK PYTHON OFICIAL ARIANA ENTERPRISE
+// Manifest específico do pacote Python/Pip para ERPs, automações e integrações de dados
+// ============================================================
+const ARIANA_ENTERPRISE_PYTHON_SDK_MANIFEST = {
+  ok: true,
+  sdk: {
+    name: 'Ariana Enterprise Python SDK',
+    package: 'ariana-enterprise',
+    version: '1.0.0',
+    status: 'preview',
+    python: '>=3.9',
+    compatibleWith: ['Python puro', 'Django', 'FastAPI', 'Flask', 'Airflow', 'Pandas pipelines', 'ERPs customizados', 'integrações de dados']
+  },
+  downloads: {
+    zip: '/sdk/python/ariana-enterprise-python-sdk.zip',
+    readme: '/sdk/python/ariana_enterprise_python/README.md',
+    examples: '/sdk/python/ariana_enterprise_python/examples/full_flow.py'
+  },
+  install: {
+    pip: 'pip install ariana-enterprise',
+    local: 'pip install ./ariana_enterprise_python'
+  },
+  features: [
+    'api_key_auth', 'oauth2_client_credentials', 'retry', 'timeout', 'error_handling',
+    'catalog_push', 'stock_update', 'price_update', 'order_create', 'invoice_attach',
+    'tracking_update', 'webhook_test', 'versioned_api_v1_v2'
+  ]
+};
+
+app.get('/api/enterprise/sdk/python/manifest', (_req, res) => {
+  return res.json(ARIANA_ENTERPRISE_PYTHON_SDK_MANIFEST);
+});
+
+app.get('/api/v1/enterprise/sdk/python/manifest', enterpriseVersionHeaders('v1'), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_PYTHON_SDK_MANIFEST, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/sdk/python/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_PYTHON_SDK_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
+});
+
+
+// ============================================================
 // PASSO 30 - PORTAL DE DOCUMENTAÇÃO INTERATIVA ENTERPRISE
 // Manifest oficial de documentação para desenvolvedores, ERPs e fabricantes
 // ============================================================
@@ -14514,7 +14560,8 @@ const ARIANA_ENTERPRISE_DEVELOPER_MANIFEST = {
     docsUrl: 'https://arianamoveis.com.br/ariana_enterprise_docs.html',
     swaggerUrl: 'https://arianamoveis.com.br/enterprise_swagger.html',
     sdkUrl: 'https://arianamoveis.com.br/ariana_enterprise_sdk.html',
-    phpSdkUrl: 'https://arianamoveis.com.br/sdk/php/ariana-enterprise-php-sdk.zip'
+    phpSdkUrl: 'https://arianamoveis.com.br/sdk/php/ariana-enterprise-php-sdk.zip',
+    pythonSdkUrl: 'https://arianamoveis.com.br/sdk/python/ariana-enterprise-python-sdk.zip'
   },
   quickStart: [
     'Solicitar homologação',
