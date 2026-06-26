@@ -66,7 +66,18 @@ api.catalog.push([{'sku':'ARI-0001','name':'Produto Teste','price':2299,'stock':
 ariana.catalog().push(List.of(
     Map.of("sku", "ARI-0001", "name", "Produto Teste", "price", 2299, "stock", 10)
 ));</div><p><a class="btn" href="/sdk/java/ariana-enterprise-java-sdk.zip" download>Baixar SDK Java</a> <a class="btn light" href="/api/enterprise/sdk/java/manifest" target="_blank">Manifest Java</a></p></div>
-<div class="card" id="erros"><h2>Códigos de erro</h2><div class="endpoint"><span class="method DELETE">401</span><b>Chave ausente ou inválida</b></div><div class="endpoint"><span class="method PUT">429</span><b>Rate limit excedido</b></div><div class="endpoint"><span class="method DELETE">500</span><b>Erro interno ou falha temporária</b></div></div>
+
+      <div class="card" id="sdkdotnet"><h2>SDK .NET</h2><p class="muted">SDK oficial para integrações C#, ASP.NET Core, Windows Service e ERPs corporativos Microsoft.</p><div class="code">dotnet add package ArianaEnterprise.Sdk --version 1.0.0
+
+using ArianaEnterprise;
+
+var ariana = new ArianaEnterpriseClient(new ArianaEnterpriseOptions {
+  ApiKey = "ari_live_xxxxx",
+  Environment = "production"
+});
+
+await ariana.Catalog.PushAsync(products);</div><p><a class="btn" href="/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip" download>Baixar SDK .NET</a> <a class="btn light" href="/api/enterprise/sdk/dotnet/manifest" target="_blank">Manifest .NET</a></p></div>
+      <div class="card" id="erros"><h2>Códigos de erro</h2><div class="endpoint"><span class="method DELETE">401</span><b>Chave ausente ou inválida</b></div><div class="endpoint"><span class="method PUT">429</span><b>Rate limit excedido</b></div><div class="endpoint"><span class="method DELETE">500</span><b>Erro interno ou falha temporária</b></div></div>
       <div class="card" id="checklist"><h2>Checklist de homologação</h2><p>Antes da produção, validar:</p><p><span class="pill">Catálogo</span> <span class="pill">Estoque</span> <span class="pill">Preço</span> <span class="pill">Pedido</span> <span class="pill">NF-e</span> <span class="pill">XML</span> <span class="pill">DANFE</span> <span class="pill">Rastreio</span> <span class="pill">Webhook</span></p></div>
     </section>
   </main><div id="toast" class="toast"></div>

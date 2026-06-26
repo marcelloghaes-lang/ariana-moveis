@@ -14596,6 +14596,55 @@ app.get('/api/v2/enterprise/sdk/java/manifest', enterpriseVersionHeaders('v2', t
 
 
 
+
+
+// ============================================================
+// PASSO 34 - SDK .NET OFICIAL ARIANA ENTERPRISE
+// Manifest específico do pacote .NET/NuGet para ERPs corporativos, C#, ASP.NET Core e integrações Windows
+// ============================================================
+const ARIANA_ENTERPRISE_DOTNET_SDK_MANIFEST = {
+  ok: true,
+  sdk: {
+    name: 'Ariana Enterprise .NET SDK',
+    package: 'ArianaEnterprise.Sdk',
+    version: '1.0.0',
+    status: 'preview',
+    dotnet: '>=8.0',
+    language: 'C#',
+    buildTools: ['dotnet cli', 'NuGet', 'Visual Studio'],
+    frameworks: ['ASP.NET Core', '.NET Worker Service', 'Windows Service', 'Blazor', 'C# puro']
+  },
+  downloads: {
+    zip: '/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip',
+    readme: '/sdk/dotnet/ariana_enterprise_dotnet/README.md',
+    project: '/sdk/dotnet/ariana_enterprise_dotnet/ArianaEnterprise.Sdk.csproj',
+    examples: '/sdk/dotnet/ariana_enterprise_dotnet/examples/FullFlowExample.cs'
+  },
+  install: {
+    nuget: 'dotnet add package ArianaEnterprise.Sdk --version 1.0.0',
+    local: 'dotnet add reference ./ariana_enterprise_dotnet/ArianaEnterprise.Sdk.csproj',
+    restore: 'dotnet restore'
+  },
+  features: [
+    'api_key_auth', 'oauth2_client_credentials', 'bearer_token', 'retry', 'timeout', 'error_handling',
+    'catalog_push', 'stock_update', 'price_update', 'order_create', 'invoice_attach',
+    'tracking_update', 'webhook_test', 'versioned_api_v1_v2', 'aspnet_core_ready', 'httpclient_factory_ready'
+  ]
+};
+
+app.get('/api/enterprise/sdk/dotnet/manifest', (_req, res) => {
+  return res.json(ARIANA_ENTERPRISE_DOTNET_SDK_MANIFEST);
+});
+
+app.get('/api/v1/enterprise/sdk/dotnet/manifest', enterpriseVersionHeaders('v1'), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_DOTNET_SDK_MANIFEST, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/sdk/dotnet/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_DOTNET_SDK_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
+});
+
+
 // ============================================================
 // PASSO 30 - PORTAL DE DOCUMENTAÇÃO INTERATIVA ENTERPRISE
 // Manifest oficial de documentação para desenvolvedores, ERPs e fabricantes

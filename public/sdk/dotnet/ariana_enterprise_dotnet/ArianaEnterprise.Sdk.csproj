@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>ArianaEnterprise.Sdk</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Ariana Móveis</Authors>
+    <Description>SDK oficial Ariana Enterprise para integrações B2B.</Description>
+  </PropertyGroup>
+</Project>

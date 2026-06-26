@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SDK Oficial | Ariana Enterprise</title>
   <style>
-    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--border:#dbe5f0}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:34px 42px;border-radius:0 0 28px 28px}.hero h1{margin:0;font-size:42px}.hero p{font-size:18px;max-width:900px}.wrap{max-width:1180px;margin:28px auto;padding:0 18px}.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:18px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:22px;box-shadow:0 14px 35px rgba(15,23,42,.06);margin-bottom:18px}.btn{display:inline-block;background:var(--blue);color:white;text-decoration:none;border-radius:12px;padding:12px 16px;font-weight:900;margin:4px}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.pre{background:#0b1220;color:white;border-radius:16px;padding:18px;overflow:auto;font-family:Consolas,monospace;font-size:14px;white-space:pre}.muted{color:var(--muted)}.badge{display:inline-block;padding:7px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:900;font-size:12px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.tabs button{border:1px solid #bfdbfe;background:white;color:var(--blue);border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}.tabs button.active{background:var(--blue);color:white}.tab{display:none}.tab.active{display:block}@media(max-width:900px){.grid{grid-template-columns:1fr}.hero h1{font-size:32px}}
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--border:#dbe5f0}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:34px 42px;border-radius:0 0 28px 28px}.hero h1{margin:0;font-size:42px}.hero p{font-size:18px;max-width:900px}.wrap{max-width:1180px;margin:28px auto;padding:0 18px}.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:22px;box-shadow:0 14px 35px rgba(15,23,42,.06);margin-bottom:18px}.btn{display:inline-block;background:var(--blue);color:white;text-decoration:none;border-radius:12px;padding:12px 16px;font-weight:900;margin:4px}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.pre{background:#0b1220;color:white;border-radius:16px;padding:18px;overflow:auto;font-family:Consolas,monospace;font-size:14px;white-space:pre}.muted{color:var(--muted)}.badge{display:inline-block;padding:7px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:900;font-size:12px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.tabs button{border:1px solid #bfdbfe;background:white;color:var(--blue);border-radius:12px;padding:10px 14px;font-weight:900;cursor:pointer}.tabs button.active{background:var(--blue);color:white}.tab{display:none}.tab.active{display:block}@media(max-width:900px){.grid{grid-template-columns:1fr}.hero h1{font-size:32px}}
   </style>
 </head>
 <body>
@@ -26,6 +26,7 @@
       <div class="card"><h2>PHP / Composer</h2><p class="muted">SDK oficial para ERPs em PHP, Laravel, Symfony, Magento e WooCommerce custom.</p><a class="btn" href="/sdk/php/ariana-enterprise-php-sdk.zip" download>Baixar PHP SDK</a><a class="btn light" href="/api/enterprise/sdk/php/manifest" target="_blank">Manifest PHP</a></div>
       <div class="card"><h2>Python / Pip</h2><p class="muted">SDK oficial para ERPs, automações, integrações de dados, Django, Flask e FastAPI.</p><a class="btn" href="/sdk/python/ariana-enterprise-python-sdk.zip" download>Baixar Python SDK</a><a class="btn light" href="/api/enterprise/sdk/python/manifest" target="_blank">Manifest Python</a></div>
       <div class="card"><h2>Java / Maven</h2><p class="muted">SDK oficial para ERPs Java, Spring Boot, Jakarta EE e integrações corporativas JVM.</p><a class="btn" href="/sdk/java/ariana-enterprise-java-sdk.zip" download>Baixar Java SDK</a><a class="btn light" href="/api/enterprise/sdk/java/manifest" target="_blank">Manifest Java</a></div>
+      <div class="card"><h2>.NET / NuGet</h2><p class="muted">SDK oficial para ERPs C#, ASP.NET Core, serviços Windows e integrações corporativas Microsoft.</p><a class="btn" href="/sdk/dotnet/ariana-enterprise-dotnet-sdk.zip" download>Baixar .NET SDK</a><a class="btn light" href="/api/enterprise/sdk/dotnet/manifest" target="_blank">Manifest .NET</a></div>
       <div class="card"><h2>Manifest</h2><p class="muted">Metadados do SDK e endpoints suportados.</p><a class="btn" href="/api/enterprise/sdk/manifest" target="_blank">Abrir Manifest</a></div>
     </section>
 
@@ -37,6 +38,7 @@
         <button onclick="showTab('php',this)">PHP</button>
         <button onclick="showTab('python',this)">Python</button>
         <button onclick="showTab('java',this)">Java</button>
+        <button onclick="showTab('dotnet',this)">.NET</button>
         <button onclick="showTab('curl',this)">cURL</button>
       </div>
       <div id="node" class="tab active"><pre class="pre">const { ArianaEnterpriseClient } = require('./ariana-enterprise-sdk');
@@ -104,6 +106,22 @@ ariana.catalog().push(List.of(
 
 ariana.products().updateStock("ARI-0001", 8);
 ariana.products().updatePrice("ARI-0001", 2199);</pre></div>
+      
+      <div id="dotnet" class="tab"><pre class="pre">using ArianaEnterprise;
+
+var ariana = new ArianaEnterpriseClient(new ArianaEnterpriseOptions
+{
+    ApiKey = "ari_live_xxxxx",
+    Environment = "production"
+});
+
+await ariana.Catalog.PushAsync(new []
+{
+    new ArianaProduct { Sku = "ARI-0001", Name = "Produto Teste", Price = 2299, Stock = 10 }
+});
+
+await ariana.Products.UpdateStockAsync("ARI-0001", 8);
+await ariana.Products.UpdatePriceAsync("ARI-0001", 2199);</pre></div>
       <div id="curl" class="tab"><pre class="pre">curl -X POST https://ariana-backend.onrender.com/api/v1/enterprise/catalog/push \
   -H "Content-Type: application/json" \
   -H "x-ariana-key: ari_live_xxxxx" \
@@ -112,7 +130,7 @@ ariana.products().updatePrice("ARI-0001", 2199);</pre></div>
 
     <section class="card">
       <h2>Recursos incluídos</h2>
-      <p><span class="badge">OAuth 2.0</span> <span class="badge">API Keys</span> <span class="badge">Retry</span> <span class="badge">Rate Limit</span> <span class="badge">v1/v2</span> <span class="badge">Webhooks</span> <span class="badge">Java/Maven</span> <span class="badge">Spring Boot</span> <span class="badge">PHP 8.1+</span> <span class="badge">Composer</span> <span class="badge">Python 3.9+</span> <span class="badge">Pip</span></p>
+      <p><span class="badge">OAuth 2.0</span> <span class="badge">API Keys</span> <span class="badge">Retry</span> <span class="badge">Rate Limit</span> <span class="badge">v1/v2</span> <span class="badge">Webhooks</span> <span class="badge">Java/Maven</span> <span class="badge">.NET/NuGet</span> <span class="badge">ASP.NET Core</span> <span class="badge">Spring Boot</span> <span class="badge">PHP 8.1+</span> <span class="badge">Composer</span> <span class="badge">Python 3.9+</span> <span class="badge">Pip</span></p>
       <p class="muted">O SDK padroniza erros, headers, timeout, versionamento e autenticação para reduzir retrabalho dos fabricantes e ERPs.</p>
     </section>
   </main>
