@@ -1,0 +1,3 @@
+Passo 38 - Central de Certificacao Enterprise
+Rotas: /api/enterprise/certification/overview, /certificates, /export
+Pagina: /enterprise_certification.html
