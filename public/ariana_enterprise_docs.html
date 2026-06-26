@@ -20,10 +20,10 @@
   </header>
   <main class="wrap layout">
     <nav class="side">
-      <a href="#inicio">Visão geral</a><a href="#autenticacao">Autenticação</a><a href="#ambientes">Ambientes</a><a href="#fluxo">Fluxo recomendado</a><a href="#endpoints">Endpoints</a><a href="#payloads">Payloads</a><a href="#webhooks">Webhooks</a><a href="#tester">Testador rápido</a><a href="#sdkphp">SDK PHP</a><a href="#sdkpython">SDK Python</a><a href="#erros">Erros</a><a href="#checklist">Checklist</a>
+      <a href="#inicio">Visão geral</a><a href="#autenticacao">Autenticação</a><a href="#ambientes">Ambientes</a><a href="#fluxo">Fluxo recomendado</a><a href="#endpoints">Endpoints</a><a href="#payloads">Payloads</a><a href="#webhooks">Webhooks</a><a href="#tester">Testador rápido</a><a href="#sdkphp">SDK PHP</a><a href="#sdkpython">SDK Python</a><a href="#sdkjava">SDK Java</a><a href="#erros">Erros</a><a href="#checklist">Checklist</a>
     </nav>
     <section>
-      <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação automática e receber a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Testes e homologação sem impacto real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP e Python prontas para ERP.</p></div></div></div>
+      <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação automática e receber a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Testes e homologação sem impacto real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP, Python e Java prontas para ERP.</p></div></div></div>
       <div class="card" id="autenticacao"><h2>Autenticação</h2><p>Use <span class="kbd">x-ariana-key</span> ou <span class="kbd">Authorization: Bearer</span>.</p><div class="code">curl -H "x-ariana-key: ari_live_xxxxx" \
   https://ariana-backend.onrender.com/api/v1/enterprise/health</div><h3>OAuth 2.0</h3><div class="code">POST /api/enterprise/oauth/token
 {
@@ -53,7 +53,20 @@ $api->catalog()->push([['sku'=>'ARI-0001','name'=>'Produto Teste','price'=>2299,
 
 api = ArianaEnterpriseClient(api_key='ari_live_xxxxx', environment='production')
 api.catalog.push([{'sku':'ARI-0001','name':'Produto Teste','price':2299,'stock':10}])</pre><p><a class="btn" href="/sdk/python/ariana-enterprise-python-sdk.zip">Baixar SDK Python</a> <a class="btn" href="/api/enterprise/sdk/python/manifest" target="_blank">Manifest Python</a></p></div>
-      <div class="card" id="erros"><h2>Códigos de erro</h2><div class="endpoint"><span class="method DELETE">401</span><b>Chave ausente ou inválida</b></div><div class="endpoint"><span class="method PUT">429</span><b>Rate limit excedido</b></div><div class="endpoint"><span class="method DELETE">500</span><b>Erro interno ou falha temporária</b></div></div>
+      
+      <div class="card" id="sdkjava"><h2>SDK Java</h2><p class="muted">Indicado para ERPs corporativos, Spring Boot, Jakarta EE e integrações JVM.</p><div class="code">&lt;dependency&gt;
+  &lt;groupId&gt;br.com.arianamoveis&lt;/groupId&gt;
+  &lt;artifactId&gt;ariana-enterprise-java&lt;/artifactId&gt;
+  &lt;version&gt;1.0.0&lt;/version&gt;
+&lt;/dependency&gt;</div><div class="code">ArianaEnterpriseClient ariana = ArianaEnterpriseClient.builder()
+    .apiKey("ari_live_xxxxx")
+    .environment("production")
+    .build();
+
+ariana.catalog().push(List.of(
+    Map.of("sku", "ARI-0001", "name", "Produto Teste", "price", 2299, "stock", 10)
+));</div><p><a class="btn" href="/sdk/java/ariana-enterprise-java-sdk.zip" download>Baixar SDK Java</a> <a class="btn light" href="/api/enterprise/sdk/java/manifest" target="_blank">Manifest Java</a></p></div>
+<div class="card" id="erros"><h2>Códigos de erro</h2><div class="endpoint"><span class="method DELETE">401</span><b>Chave ausente ou inválida</b></div><div class="endpoint"><span class="method PUT">429</span><b>Rate limit excedido</b></div><div class="endpoint"><span class="method DELETE">500</span><b>Erro interno ou falha temporária</b></div></div>
       <div class="card" id="checklist"><h2>Checklist de homologação</h2><p>Antes da produção, validar:</p><p><span class="pill">Catálogo</span> <span class="pill">Estoque</span> <span class="pill">Preço</span> <span class="pill">Pedido</span> <span class="pill">NF-e</span> <span class="pill">XML</span> <span class="pill">DANFE</span> <span class="pill">Rastreio</span> <span class="pill">Webhook</span></p></div>
     </section>
   </main><div id="toast" class="toast"></div>

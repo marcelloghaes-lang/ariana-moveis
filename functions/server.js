@@ -14403,7 +14403,7 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     name: 'Ariana Enterprise SDK',
     version: '1.0.0',
     status: 'preview',
-    languages: ['javascript', 'nodejs', 'php', 'python', 'curl'],
+    languages: ['javascript', 'nodejs', 'php', 'python', 'java', 'curl'],
     baseUrl: 'https://ariana-backend.onrender.com/api',
     stableVersion: 'v1',
     previewVersion: 'v2'
@@ -14415,12 +14415,14 @@ const ARIANA_ENTERPRISE_SDK_MANIFEST = {
     phpDocs: '/sdk/php/ariana-enterprise-php/README.md',
     python: '/sdk/python/ariana-enterprise-python-sdk.zip',
     pythonDocs: '/sdk/python/ariana_enterprise_python/README.md',
+    java: '/sdk/java/ariana-enterprise-java-sdk.zip',
+    javaDocs: '/sdk/java/ariana_enterprise_java/README.md',
     docs: '/ariana_enterprise_sdk.html'
   },
   features: [
     'health', 'auth_check', 'catalog_push', 'stock_update', 'price_update',
     'order_create', 'invoice_attach', 'tracking_update', 'webhook_test',
-    'api_key_auth', 'oauth2_client_credentials', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling', 'php_sdk', 'composer_ready', 'python_sdk', 'pip_ready'
+    'api_key_auth', 'oauth2_client_credentials', 'bearer_token_ready', 'versioned_api_v1_v2', 'timeout_handling', 'php_sdk', 'composer_ready', 'python_sdk', 'pip_ready', 'java_sdk', 'maven_ready', 'spring_boot_ready'
   ],
   endpoints: {
     health: 'GET /api/v1/enterprise/health',
@@ -14545,6 +14547,53 @@ app.get('/api/v1/enterprise/sdk/python/manifest', enterpriseVersionHeaders('v1')
 app.get('/api/v2/enterprise/sdk/python/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
   return res.json({ ...ARIANA_ENTERPRISE_PYTHON_SDK_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
 });
+
+
+// ============================================================
+// PASSO 33 - SDK JAVA OFICIAL ARIANA ENTERPRISE
+// Manifest específico do pacote Java/Maven para ERPs corporativos, Spring Boot e integrações JVM
+// ============================================================
+const ARIANA_ENTERPRISE_JAVA_SDK_MANIFEST = {
+  ok: true,
+  sdk: {
+    name: 'Ariana Enterprise Java SDK',
+    package: 'br.com.arianamoveis:ariana-enterprise-java',
+    version: '1.0.0',
+    status: 'preview',
+    java: '>=17',
+    buildTools: ['maven', 'gradle'],
+    frameworks: ['Spring Boot', 'Jakarta EE', 'Quarkus', 'Micronaut', 'Java puro']
+  },
+  downloads: {
+    zip: '/sdk/java/ariana-enterprise-java-sdk.zip',
+    readme: '/sdk/java/ariana_enterprise_java/README.md',
+    pom: '/sdk/java/ariana_enterprise_java/pom.xml',
+    examples: '/sdk/java/ariana_enterprise_java/examples/FullFlowExample.java'
+  },
+  install: {
+    maven: '<dependency><groupId>br.com.arianamoveis</groupId><artifactId>ariana-enterprise-java</artifactId><version>1.0.0</version></dependency>',
+    gradle: "implementation 'br.com.arianamoveis:ariana-enterprise-java:1.0.0'",
+    local: 'mvn install'
+  },
+  features: [
+    'api_key_auth', 'oauth2_client_credentials', 'bearer_token', 'retry', 'timeout', 'error_handling',
+    'catalog_push', 'stock_update', 'price_update', 'order_create', 'invoice_attach',
+    'tracking_update', 'webhook_test', 'versioned_api_v1_v2', 'spring_boot_ready'
+  ]
+};
+
+app.get('/api/enterprise/sdk/java/manifest', (_req, res) => {
+  return res.json(ARIANA_ENTERPRISE_JAVA_SDK_MANIFEST);
+});
+
+app.get('/api/v1/enterprise/sdk/java/manifest', enterpriseVersionHeaders('v1'), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_JAVA_SDK_MANIFEST, requestedVersion: 'v1' });
+});
+
+app.get('/api/v2/enterprise/sdk/java/manifest', enterpriseVersionHeaders('v2', true), (_req, res) => {
+  return res.json({ ...ARIANA_ENTERPRISE_JAVA_SDK_MANIFEST, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
+});
+
 
 
 // ============================================================
