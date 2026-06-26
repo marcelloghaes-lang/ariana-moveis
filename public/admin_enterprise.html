@@ -151,6 +151,7 @@ async function releaseProduction(id){
     const out=document.getElementById('productionKeyOut');
     if(out){out.style.display='block';out.innerHTML='<b>API Key de produção gerada:</b><br><span class="code">'+esc(d.apiKey||'')+'</span><br><span class="muted">Copie e guarde agora. Por segurança, depois ela será exibida mascarada.</span>';}
     toastMsg('Produção liberada.');
+    await openPartner(id);
     await loadPartners();
     await loadOverview();
   }catch(e){alert(e.message)}
