@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Developer Portal Premium | Ariana Enterprise</title>
+  <style>
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--danger:#dc2626;--border:#dbe5f0}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}.hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:38px 6vw;border-radius:0 0 30px 30px}.hero h1{font-size:46px;margin:8px 0}.hero p{font-size:18px;max-width:930px}.top{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:4px}.btn{border:0;background:var(--blue);color:white;border-radius:13px;padding:12px 16px;font-weight:900;text-decoration:none;display:inline-block;cursor:pointer}.btn.white{background:white;color:var(--blue)}.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.wrap{max-width:1220px;margin:28px auto;padding:0 20px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:22px;box-shadow:0 14px 35px rgba(15,23,42,.06);margin-bottom:18px}.stat{font-size:30px;font-weight:900}.muted{color:var(--muted)}.pill{display:inline-block;border-radius:999px;padding:7px 10px;font-weight:900;font-size:12px;background:#dcfce7;color:#166534}.warn{background:#fef3c7;color:#92400e}.pre{background:#0b1220;color:white;border-radius:16px;padding:16px;white-space:pre-wrap;overflow:auto;font-family:Consolas,monospace;font-size:13px}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:13px;border-bottom:1px solid #edf2f7;vertical-align:top}.table th{background:#f8fafc;color:#64748b;text-transform:uppercase;font-size:12px}.check{display:flex;gap:10px;align-items:flex-start;margin:10px 0}.check b{color:var(--ok)}.resource{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid #dbeafe;background:#f8fbff;border-radius:14px;padding:13px;margin:10px 0}.sdk{border:1px solid #e2e8f0;border-radius:16px;padding:16px;background:#fff}.toast{position:fixed;right:18px;bottom:18px;background:#0f172a;color:white;padding:14px 16px;border-radius:14px;display:none}.toast.show{display:block}@media(max-width:1000px){.grid,.grid3,.grid2{grid-template-columns:1fr}.hero h1{font-size:34px}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="top"><div class="brand">ARIANA ENTERPRISE</div><div><a class="btn white" href="/portal_fabricante.html">Portal</a> <a class="btn white" href="/enterprise_console.html">Console</a> <a class="btn white" href="/enterprise_swagger.html">Swagger</a></div></div>
+    <h1>Developer Portal Premium</h1>
+    <p>Central única para equipes técnicas de fabricantes, distribuidores e ERPs integrarem com a Ariana Enterprise usando documentação, SDKs, Postman, API Explorer, Console e ambiente de homologação.</p>
+  </header>
+  <main class="wrap">
+    <section class="grid">
+      <div class="card"><div class="stat">v1</div><div class="muted">API estável</div></div>
+      <div class="card"><div class="stat" id="sdkCount">6</div><div class="muted">SDKs oficiais</div></div>
+      <div class="card"><div class="stat">OAuth</div><div class="muted">Client Credentials</div></div>
+      <div class="card"><div class="stat">HMAC</div><div class="muted">Webhooks assinados</div></div>
+    </section>
+
+    <section class="grid2">
+      <div class="card">
+        <span class="pill">produção</span> <span class="pill warn">sandbox</span>
+        <h2>Comece a integração</h2>
+        <p class="muted">Use esta página como ponto de partida para qualquer parceiro técnico. Ela reúne o caminho completo desde a primeira chamada até a liberação em produção.</p>
+        <div class="resource"><b>1. Documentação Interativa</b><a class="btn light" href="/ariana_enterprise_docs.html">Abrir</a></div>
+        <div class="resource"><b>2. Testar no API Explorer</b><a class="btn light" href="/enterprise_api_explorer.html">Abrir</a></div>
+        <div class="resource"><b>3. Conferir Swagger</b><a class="btn light" href="/enterprise_swagger.html">Abrir</a></div>
+        <div class="resource"><b>4. Monitorar no Console</b><a class="btn light" href="/enterprise_console.html">Abrir</a></div>
+      </div>
+      <div class="card">
+        <h2>Downloads técnicos</h2>
+        <p class="muted">Pacotes prontos para reduzir o tempo de integração dos ERPs.</p>
+        <a class="btn" href="/api/enterprise/developer/postman" target="_blank">Baixar Postman Collection</a>
+        <a class="btn light" href="/api/enterprise/openapi.json" target="_blank">OpenAPI JSON</a>
+        <a class="btn light" href="/api/enterprise/developer/downloads" target="_blank">Manifest Downloads</a>
+        <div class="pre" style="margin-top:14px">Base v1: https://ariana-backend.onrender.com/api/v1/enterprise
+Header: x-ariana-key: ari_sbx_xxxxx
+OAuth: POST /api/enterprise/oauth/token</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>SDKs oficiais</h2>
+      <div class="grid3" id="sdkGrid"></div>
+    </section>
+
+    <section class="grid2">
+      <div class="card">
+        <h2>Checklist de homologação</h2>
+        <div id="checklist"></div>
+      </div>
+      <div class="card">
+        <h2>Exemplo rápido</h2>
+        <div class="pre">curl -H "x-ariana-key: ari_sbx_xxxxx" \
+  https://ariana-backend.onrender.com/api/v1/enterprise/health
+
+POST /api/v1/enterprise/catalog/push
+{
+  "manufacturer":"ariana_moveis",
+  "products":[{"sku":"ARI-0001","name":"Produto Teste","price":2299,"stock":10}]
+}</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Status dos recursos</h2>
+      <table class="table"><thead><tr><th>Recurso</th><th>Tipo</th><th>URL</th></tr></thead><tbody id="resourcesBody"></tbody></table>
+    </section>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script>
+    const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+    const esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    async function load(){
+      const r=await fetch(API_BASE+'/enterprise/developer/premium/overview');
+      const d=await r.json();
+      const sdks=d.sdks||[]; document.getElementById('sdkCount').textContent=sdks.length;
+      document.getElementById('sdkGrid').innerHTML=sdks.map(s=>`<div class="sdk"><h3>${esc(s.language)}</h3><p><span class="pill">${esc(s.status)}</span></p><a class="btn" href="${esc(s.download)}" download>Baixar</a> <a class="btn light" href="${esc(s.manifest)}" target="_blank">Manifest</a></div>`).join('');
+      document.getElementById('checklist').innerHTML=(d.onboardingChecklist||[]).map((x,i)=>`<div class="check"><b>✓</b><span>${i+1}. ${esc(x)}</span></div>`).join('');
+      document.getElementById('resourcesBody').innerHTML=(d.resources||[]).map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.type)}</td><td><a href="${esc(x.url)}" target="_blank">${esc(x.url)}</a></td></tr>`).join('');
+    }
+    load().catch(e=>{document.getElementById('toast').textContent='Erro ao carregar portal: '+e.message;document.getElementById('toast').classList.add('show')});
+  </script>
+</body>
+</html>
