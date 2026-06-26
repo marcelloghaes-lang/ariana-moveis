@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Console Enterprise | Ariana Enterprise</title>
+  <style>
+    :root{--blue:#0047AB;--blue2:#0ea5e9;--dark:#0f172a;--muted:#64748b;--bg:#f3f7fb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--danger:#dc2626;--border:#dbe5f0}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--dark)}
+    .hero{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;padding:34px 42px;border-radius:0 0 30px 30px}.hero h1{font-size:44px;margin:8px 0}.brand{font-weight:900;letter-spacing:4px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.btn{border:0;background:var(--blue);color:#fff;text-decoration:none;border-radius:13px;padding:12px 16px;font-weight:900;cursor:pointer}.btn.white,.btn.light{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}.wrap{max-width:1280px;margin:24px auto;padding:0 18px}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:white;border:1px solid var(--border);border-radius:22px;padding:20px;box-shadow:0 14px 35px rgba(15,23,42,.06);margin-bottom:16px}.stat{font-size:34px;font-weight:900}.muted{color:var(--muted)}.ok{color:var(--ok)}.warn{color:var(--warn)}.danger{color:var(--danger)}.pill{display:inline-block;border-radius:999px;padding:8px 12px;font-weight:900;background:#dcfce7;color:#166534}.pill.warn{background:#fef3c7;color:#92400e}.pill.danger{background:#fee2e2;color:#991b1b}.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}.input,.select{border:1px solid #cbd5e1;border-radius:12px;padding:11px 12px;background:white;font:inherit}.chart{height:240px;border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc;padding:14px;display:flex;align-items:flex-end;gap:8px;overflow:hidden}.bar{flex:1;min-width:14px;background:#1d4ed8;border-radius:8px 8px 0 0;position:relative}.bar span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:11px;font-weight:900;color:#334155}.bar small{position:absolute;top:100%;left:50%;transform:translateX(-50%) rotate(-35deg);font-size:10px;color:#64748b;white-space:nowrap}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:12px;border-bottom:1px solid #edf2f7;font-size:14px;vertical-align:top}.table th{background:#f8fafc;color:#64748b;text-transform:uppercase;font-size:12px}.pre{background:#0b1220;color:white;border-radius:16px;padding:14px;white-space:pre-wrap;overflow:auto;max-height:380px}.statusline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.dot{width:12px;height:12px;border-radius:50%;background:#16a34a}.dot.warn{background:#f59e0b}.dot.danger{background:#dc2626}@media(max-width:1000px){.grid,.grid2{grid-template-columns:1fr 1fr}.hero h1{font-size:34px}}@media(max-width:650px){.grid,.grid2{grid-template-columns:1fr}.hero{padding:26px 18px}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="top">
+      <div>
+        <div class="brand">ARIANA ENTERPRISE</div>
+        <h1>Console Enterprise</h1>
+        <p>Monitoramento operacional em tempo real da API, fabricantes, webhooks, filas e saúde da plataforma.</p>
+      </div>
+      <div>
+        <a class="btn white" href="/admin_enterprise.html">Admin Enterprise</a>
+        <a class="btn white" href="/portal_fabricante.html">Portal</a>
+        <a class="btn white" href="/ariana_enterprise_docs.html">Docs</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <div class="statusline">
+        <span id="healthDot" class="dot"></span>
+        <b id="healthText">Carregando saúde da plataforma...</b>
+        <span class="muted" id="updatedAt"></span>
+      </div>
+      <div class="filters" style="margin-top:16px">
+        <select id="minutes" class="select">
+          <option value="15">Últimos 15 min</option>
+          <option value="60" selected>Última hora</option>
+          <option value="360">Últimas 6h</option>
+          <option value="1440">Últimas 24h</option>
+        </select>
+        <button class="btn" onclick="loadConsole()">Atualizar</button>
+        <button class="btn light" onclick="toggleAuto()">Auto atualizar: <span id="autoText">ON</span></button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card"><div class="stat" id="rpm">0</div><div class="muted">Requisições/min</div></div>
+      <div class="card"><div class="stat ok" id="successRate">0%</div><div class="muted">Taxa de sucesso</div></div>
+      <div class="card"><div class="stat" id="avgMs">0ms</div><div class="muted">Tempo médio</div></div>
+      <div class="card"><div class="stat danger" id="errors">0</div><div class="muted">Erros no período</div></div>
+      <div class="card"><div class="stat" id="partners">0</div><div class="muted">Fabricantes</div></div>
+      <div class="card"><div class="stat ok" id="prod">0</div><div class="muted">Produção</div></div>
+      <div class="card"><div class="stat warn" id="queue">0</div><div class="muted">Fila pendente</div></div>
+      <div class="card"><div class="stat danger" id="dead">0</div><div class="muted">Dead letter</div></div>
+    </section>
+
+    <section class="grid2">
+      <div class="card"><h2>Chamadas por minuto</h2><div id="chartMinute" class="chart"></div></div>
+      <div class="card"><h2>Status HTTP</h2><div id="chartStatus" class="chart"></div></div>
+      <div class="card"><h2>Endpoints mais usados</h2><table class="table"><thead><tr><th>Endpoint / evento</th><th>Chamadas</th></tr></thead><tbody id="endpointBody"></tbody></table></div>
+      <div class="card"><h2>Fabricantes com maior consumo</h2><table class="table"><thead><tr><th>Fabricante</th><th>Chamadas</th></tr></thead><tbody id="partnerBody"></tbody></table></div>
+    </section>
+
+    <section class="grid2">
+      <div class="card"><h2>Logs recentes</h2><table class="table"><thead><tr><th>Data</th><th>Evento</th><th>Status</th><th>Tempo</th></tr></thead><tbody id="logsBody"></tbody></table></div>
+      <div class="card"><h2>Alertas operacionais</h2><div id="alertsBody"></div></div>
+    </section>
+
+    <section class="card"><h2>JSON técnico</h2><pre id="rawJson" class="pre">{}</pre></section>
+  </main>
+
+<script>
+const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+let auto=true, timer=null;
+function fmt(v){return Number(v||0).toLocaleString('pt-BR')}
+function dt(v){try{return new Date(v).toLocaleString('pt-BR')}catch{return '—'}}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+async function fetchJson(path){const r=await fetch(API_BASE+path);const d=await r.json().catch(()=>({ok:false,error:'Resposta inválida'}));if(!r.ok||d.ok===false)throw new Error(d.error||'Erro HTTP '+r.status);return d}
+function chart(el, data){
+  const max=Math.max(...(data||[]).map(x=>Number(x.value||0)),1);
+  el.innerHTML=(data&&data.length?data:[{label:'sem dados',value:0}]).map(x=>{
+    const h=Math.max(8, Math.round((Number(x.value||0)/max)*190));
+    return `<div class="bar" style="height:${h}px"><span>${fmt(x.value)}</span><small>${esc(x.label)}</small></div>`;
+  }).join('');
+}
+function rows(list){return (list||[]).map(x=>`<tr><td><b>${esc(x.label)}</b></td><td>${fmt(x.value)}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">Sem dados.</td></tr>'}
+async function loadConsole(){
+  try{
+    const min=Number(document.getElementById('minutes').value||60);
+    const d=await fetchJson('/enterprise/monitor/overview?minutes='+min);
+    const m=d.metrics||{};
+    rpm.textContent=fmt(m.rpm);
+    successRate.textContent=fmt(m.successRate)+'%';
+    avgMs.textContent=fmt(m.avgResponseMs)+'ms';
+    errors.textContent=fmt(m.errors);
+    partners.textContent=fmt(m.partners);
+    prod.textContent=fmt(m.productionPartners);
+    queue.textContent=fmt(m.queuePending);
+    dead.textContent=fmt(m.queueDead);
+    updatedAt.textContent='Atualizado em '+dt(d.generatedAt);
+    healthText.textContent=d.health==='healthy'?'Plataforma saudável':(d.health==='attention'?'Atenção operacional':'Instabilidade detectada');
+    healthDot.className='dot '+(d.health==='healthy'?'':d.health==='attention'?'warn':'danger');
+    chart(chartMinute, d.charts?.byMinute||[]);
+    chart(chartStatus, d.charts?.byStatus||[]);
+    endpointBody.innerHTML=rows(d.charts?.byEndpoint||[]);
+    partnerBody.innerHTML=rows(d.charts?.byPartner||[]);
+    logsBody.innerHTML=(d.recentLogs||[]).map(l=>`<tr><td>${dt(l.date)}</td><td><b>${esc(l.event)}</b><br><span class="muted">${esc(l.manufacturer)}</span></td><td>${fmt(l.statusCode)}</td><td>${fmt(l.durationMs)}ms</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Sem logs recentes.</td></tr>';
+    alertsBody.innerHTML=(d.alerts||[]).map(a=>`<div class="card" style="margin:0 0 10px;padding:14px"><span class="pill ${a.severity==='high'?'danger':a.severity==='medium'?'warn':''}">${esc(a.severity)}</span><h3>${esc(a.title)}</h3><p class="muted">${esc(a.message)}</p><small>${dt(a.lastSeenAt)}</small></div>`).join('')||'<p class="muted">Nenhum alerta aberto.</p>';
+    rawJson.textContent=JSON.stringify(d,null,2);
+  }catch(e){
+    healthText.textContent=e.message;
+    healthDot.className='dot danger';
+  }
+}
+function toggleAuto(){auto=!auto;autoText.textContent=auto?'ON':'OFF'; if(auto) startTimer(); else clearInterval(timer);}
+function startTimer(){clearInterval(timer);timer=setInterval(()=>{if(auto)loadConsole()},30000)}
+loadConsole(); startTimer();
+</script>
+</body>
+</html>
