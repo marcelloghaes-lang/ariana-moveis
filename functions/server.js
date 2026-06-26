@@ -12391,6 +12391,189 @@ app.get('/api/enterprise/certification/export', adminRequired, async (req, res) 
   }
 });
 
+
+// ============================================================
+// PASSO 39.4 — PARTNER LIFECYCLE FINAL
+// ============================================================
+
+app.post('/api/enterprise/partners/:id/status', adminRequired, async (req, res) => {
+  try {
+    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id });
+    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
+
+    const status = String(req.body.status || '').trim();
+
+    const allowed = ['sandbox', 'homologation', 'production', 'blocked'];
+
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ ok: false, error: 'Status inválido' });
+    }
+
+    partner.status = status;
+
+    if (status === 'production') {
+      partner.productionEnabled = true;
+      partner.sandboxEnabled = true;
+      partner.score = Math.max(Number(partner.score || 0), 100);
+      partner.certificationLevel = 'Gold';
+    }
+
+    if (status === 'blocked') {
+      partner.productionEnabled = false;
+      partner.sandboxEnabled = false;
+    }
+
+    await partner.save();
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise_partner',
+      eventType: 'partner.status.changed',
+      manufacturer: partner.companyName || partner.tradeName || partner.partnerId,
+      status: 'success',
+      statusCode: 200,
+      message: `Status alterado para ${status}`,
+      metadata: {
+        partnerId: partner.partnerId,
+        status
+      }
+    });
+
+    res.json({ ok: true, partner });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/enterprise/partners/:id/certify', adminRequired, async (req, res) => {
+  try {
+    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id });
+    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
+
+    const score = Number(req.body.score || 100);
+
+    partner.score = score;
+    partner.certificationLevel = partnerLevel(score);
+    partner.status = score >= 80 ? 'production' : 'homologation';
+    partner.productionEnabled = score >= 80;
+
+    await partner.save();
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise_certification',
+      eventType: 'partner.certified',
+      manufacturer: partner.companyName || partner.tradeName || partner.partnerId,
+      status: 'success',
+      statusCode: 200,
+      message: `Parceiro certificado com score ${score}`,
+      metadata: {
+        partnerId: partner.partnerId,
+        score,
+        level: partner.certificationLevel
+      }
+    });
+
+    res.json({
+      ok: true,
+      partner,
+      certificate: {
+        id: `CERT-${partner.partnerId}`,
+        partnerId: partner.partnerId,
+        level: partner.certificationLevel,
+        score: partner.score,
+        issuedAt: new Date()
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/enterprise/partners/:id/timeline', adminRequired, async (req, res) => {
+  try {
+    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id }).lean();
+    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
+
+    const logs = await IntegrationAuditLog.find({
+      $or: [
+        { manufacturer: partner.companyName },
+        { manufacturer: partner.tradeName },
+        { 'metadata.partnerId': partner.partnerId }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({
+      ok: true,
+      partnerId: partner.partnerId,
+      timeline: logs.map(log => ({
+        date: log.createdAt,
+        event: log.eventType,
+        status: log.status,
+        statusCode: log.statusCode,
+        message: log.message
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/enterprise/partners/:id/credentials', adminRequired, async (req, res) => {
+  try {
+    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id }).lean();
+    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
+
+    res.json({
+      ok: true,
+      credentials: {
+        partnerId: partner.partnerId,
+        apiKeySandbox: partner.apiKeySandbox,
+        apiKeyProduction: partner.apiKeyProduction,
+        oauthClientId: partner.oauthClientId,
+        oauthClientSecret: partner.oauthClientSecret,
+        webhookSecret: partner.webhookSecret,
+        signingSecret: partner.signingSecret,
+        sandboxEnabled: partner.sandboxEnabled,
+        productionEnabled: partner.productionEnabled
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/enterprise/partners-public/:id/certificate', async (req, res) => {
+  try {
+    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id }).lean();
+
+    if (!partner) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Certificado não encontrado'
+      });
+    }
+
+    res.json({
+      ok: true,
+      certificate: {
+        id: `CERT-${partner.partnerId}`,
+        companyName: partner.companyName || partner.tradeName || partner.brand,
+        partnerId: partner.partnerId,
+        level: partner.certificationLevel || partnerLevel(partner.score),
+        score: Number(partner.score || 0),
+        status: partner.productionEnabled ? 'active' : 'sandbox',
+        environment: partner.productionEnabled ? 'production' : 'sandbox',
+        issuedAt: partner.updatedAt || partner.createdAt,
+        verifiedBy: 'Ariana Enterprise'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/enterprise/auth/check', enterpriseCompatAuth, async (req, res) => {
   return res.json({
     ok: true,
