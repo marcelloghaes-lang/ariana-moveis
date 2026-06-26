@@ -96,14 +96,28 @@ async function openPartner(id){
         <button class="btn" onclick="runHomologation('${esc(p.id)}')">Executar Homologação Completa</button>
         <button class="btn warn" onclick="releaseProduction('${esc(p.id)}')">Liberar Produção</button>
       </div>
-      <div id="productionKeyOut" class="secretBox" style="display:none"></div>
     </div>
 
-    <div class="card">
-      <h3>Status e ambiente</h3>
-      <div class="filters">
-        <select id="newStatus" class="select"><option value="pending">Pendente</option><option value="in_review">Em análise</option><option value="sandbox">Sandbox</option><option value="approved">Aprovado</option><option value="production">Produção</option><option value="active">Ativo</option><option value="rejected">Reprovado</option></select>
-        <button class="btn" onclick="changeStatus('${esc(p.id)}')">Salvar status</button>
+    <div class="grid2">
+      <div class="card">
+        <h3>Produção Enterprise</h3>
+        <p class="muted">Libere a operação real somente após homologação 100% aprovada.</p>
+        <p><b>Status:</b> ${p.production.active?'<span class="ok">Produção ativa</span>':'<span class="warn">Aguardando liberação</span>'}</p>
+        <p><b>API Key:</b> <span class="code">${esc(p.production.apiKeyMasked||'não gerada')}</span></p>
+        <p><b>Ambiente atual:</b> ${esc(p.environment||p.status||'-')}</p>
+        <div class="btnrow">
+          <button class="btn warn" onclick="releaseProduction('${esc(p.id)}')">Liberar Produção</button>
+          <button class="btn danger" onclick="suspendProduction('${esc(p.id)}')">Suspender Produção</button>
+          <button class="btn light" onclick="reactivateProduction('${esc(p.id)}')">Reativar Produção</button>
+        </div>
+        <div id="productionKeyOut" class="secretBox" style="display:none"></div>
+      </div>
+      <div class="card">
+        <h3>Status e ambiente</h3>
+        <div class="filters">
+          <select id="newStatus" class="select"><option value="pending">Pendente</option><option value="in_review">Em análise</option><option value="sandbox">Sandbox</option><option value="approved">Aprovado</option><option value="production">Produção</option><option value="active">Ativo</option><option value="production_suspended">Produção suspensa</option><option value="rejected">Reprovado</option></select>
+          <button class="btn" onclick="changeStatus('${esc(p.id)}')">Salvar status</button>
+        </div>
       </div>
     </div>
 
@@ -141,6 +155,25 @@ async function releaseProduction(id){
     await loadOverview();
   }catch(e){alert(e.message)}
 }
+
+async function suspendProduction(id){
+  const reason=prompt('Motivo da suspensão da produção:', 'Suspensão administrativa');
+  if(reason===null)return;
+  await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/production/suspend',{method:'POST',body:JSON.stringify({reason})});
+  toastMsg('Produção suspensa.');
+  await openPartner(id);
+  await loadPartners();
+  await loadOverview();
+}
+async function reactivateProduction(id){
+  if(!confirm('Reativar produção deste fabricante?'))return;
+  await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/production/reactivate',{method:'POST',body:'{}'});
+  toastMsg('Produção reativada.');
+  await openPartner(id);
+  await loadPartners();
+  await loadOverview();
+}
+
 function closeModal(){partnerModal.classList.remove('show')}
 async function changeStatus(id){await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/status',{method:'POST',body:JSON.stringify({status:newStatus.value})});toastMsg('Status atualizado.');await openPartner(id);await loadPartners();}
 async function rotateKey(id,env){if(!confirm('Renovar chave '+env+'?'))return;const d=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/api-keys/'+env+'/rotate',{method:'POST',body:'{}'});document.getElementById('newKeyOut').innerHTML='<b>Nova chave '+env+':</b><br><span class="code">'+esc(d.apiKey||'')+'</span>';toastMsg('Chave renovada. Copie agora.');}
