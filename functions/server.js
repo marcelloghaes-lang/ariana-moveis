@@ -592,6 +592,36 @@ const whatsappWebhookSchema = new mongoose.Schema({ event: String, remoteJid: St
 const notificationSchema = new mongoose.Schema({ type: String, title: String, message: String, status: { type: String, default: 'unread' }, relatedId: String, severity: { type: String, default: 'info' }, audience: { type: String, default: 'admin', index: true }, sellerId: { type: String, default: '', index: true }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
 
+// ============================================================
+// ENTERPRISE BILLING / FATURAMENTO - ETAPA 3
+// Registro incremental de faturamento por pedido, sem alterar
+// a estrutura principal de pedidos já homologada.
+// ============================================================
+const enterpriseBillingRecordSchema = new mongoose.Schema({
+  orderId: { type: String, required: true, index: true },
+  orderObjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', index: true, default: null },
+  manufacturer: { type: String, default: '', index: true },
+  partnerRequestId: { type: String, default: '', index: true },
+  environment: { type: String, default: 'sandbox', index: true },
+  status: { type: String, default: 'billed', index: true },
+  invoiceNumber: { type: String, default: '', index: true },
+  serie: { type: String, default: '' },
+  invoiceKey: { type: String, default: '', index: true },
+  amount: { type: Number, default: 0 },
+  currency: { type: String, default: DEFAULT_CURRENCY },
+  issuedAt: Date,
+  xmlUrl: { type: String, default: '' },
+  danfeUrl: { type: String, default: '' },
+  pdfUrl: { type: String, default: '' },
+  protocol: { type: String, default: '' },
+  cancelReason: { type: String, default: '' },
+  cancelledAt: Date,
+  payload: mongoose.Schema.Types.Mixed,
+  history: [mongoose.Schema.Types.Mixed]
+}, baseOptions);
+enterpriseBillingRecordSchema.index({ orderId: 1, invoiceKey: 1 });
+enterpriseBillingRecordSchema.index({ manufacturer: 1, createdAt: -1 });
+
 
 const User = mongoose.model('User', userSchema);
 const Seller = mongoose.model('Seller', sellerSchema);
@@ -710,6 +740,7 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 }
 
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
+const EnterpriseBillingRecord = mongoose.model('EnterpriseBillingRecord', enterpriseBillingRecordSchema);
 
 // ============================================================
 // LOGÍSTICA / ETIQUETAS - ARIANA MÓVEIS
@@ -13088,6 +13119,310 @@ app.post('/api/enterprise/order/cancel', enterpriseOrderOperationAuth, async (re
   }
 });
 
+
+
+// ============================================================
+// ETAPA 3 - ENTERPRISE BILLING / FATURAMENTO
+// Rotas incrementais adicionadas sem alterar as rotas existentes.
+// ============================================================
+function enterpriseBillingNormalizePayload(input = {}, order = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const invoice = source.billing || source.invoice || source.nfe || source.nf || source;
+  const issuedAtRaw = invoice.issuedAt || invoice.emittedAt || invoice.issueDate || invoice.dataEmissao || invoice.emissao || source.issuedAt;
+  const issuedAt = issuedAtRaw ? new Date(issuedAtRaw) : new Date();
+  const amountRaw = invoice.amount ?? invoice.value ?? invoice.valor ?? invoice.total ?? invoice.totalAmount ?? source.amount ?? order.total ?? 0;
+  const amount = Number(String(amountRaw).replace(/R\\$/gi, '').replace(/\s+/g, '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
+
+  return {
+    status: String(invoice.status || source.status || 'billed').trim() || 'billed',
+    invoiceNumber: String(invoice.invoiceNumber || invoice.number || invoice.numero || invoice.nfNumber || invoice.notaNumero || '').trim(),
+    serie: String(invoice.serie || invoice.series || invoice.série || invoice.nfSerie || '').trim(),
+    invoiceKey: String(invoice.invoiceKey || invoice.accessKey || invoice.key || invoice.chave || invoice.chaveNfe || invoice.chaveNF || '').trim(),
+    amount,
+    currency: String(invoice.currency || source.currency || order.currency || DEFAULT_CURRENCY || 'BRL').trim() || 'BRL',
+    issuedAt: Number.isNaN(issuedAt.getTime()) ? new Date() : issuedAt,
+    xmlUrl: String(invoice.xmlUrl || invoice.xmlURL || source.xmlUrl || '').trim(),
+    danfeUrl: String(invoice.danfeUrl || invoice.danfeURL || invoice.pdfUrl || invoice.invoiceUrl || source.danfeUrl || '').trim(),
+    pdfUrl: String(invoice.pdfUrl || invoice.danfeUrl || invoice.invoiceUrl || source.pdfUrl || '').trim(),
+    protocol: String(invoice.protocol || invoice.protocolo || invoice.sefazProtocol || invoice.protocoloSefaz || '').trim(),
+    raw: redact(source || {})
+  };
+}
+
+function enterpriseBillingNormalizeResponse(record = {}) {
+  const obj = toJSON(record) || {};
+  return {
+    id: String(obj.id || obj._id || ''),
+    orderId: String(obj.orderId || ''),
+    manufacturer: String(obj.manufacturer || ''),
+    partnerRequestId: String(obj.partnerRequestId || ''),
+    environment: String(obj.environment || 'sandbox'),
+    status: String(obj.status || ''),
+    invoiceNumber: String(obj.invoiceNumber || ''),
+    serie: String(obj.serie || ''),
+    invoiceKey: String(obj.invoiceKey || ''),
+    amount: Number(obj.amount || 0),
+    currency: String(obj.currency || DEFAULT_CURRENCY || 'BRL'),
+    issuedAt: obj.issuedAt || null,
+    xmlUrl: String(obj.xmlUrl || ''),
+    danfeUrl: String(obj.danfeUrl || ''),
+    pdfUrl: String(obj.pdfUrl || ''),
+    protocol: String(obj.protocol || ''),
+    cancelledAt: obj.cancelledAt || null,
+    cancelReason: String(obj.cancelReason || ''),
+    history: Array.isArray(obj.history) ? obj.history : [],
+    createdAt: obj.createdAt || null,
+    updatedAt: obj.updatedAt || null
+  };
+}
+
+async function enterpriseBillingUpsert(order, payload, req, action = 'billing_registered') {
+  const orderId = String(order._id || order.id || '').trim();
+  const normalized = enterpriseBillingNormalizePayload(payload, order);
+  if (!normalized.invoiceNumber && !normalized.invoiceKey) {
+    const err = new Error('Informe invoiceNumber/number ou invoiceKey/accessKey para registrar o faturamento');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const partner = req.enterprisePartner || {};
+  const manufacturer = String(order.manufacturer || order.manufacturerDispatch?.payload?.manufacturer || partner.requestId || partner.companyName || '').trim();
+  const historyEntry = {
+    action,
+    status: normalized.status,
+    at: new Date(),
+    by: partner.requestId || partner.companyName || req.auth?.email || 'enterprise_api',
+    payload: normalized.raw
+  };
+
+  const existing = await EnterpriseBillingRecord.findOne({ orderId }).sort({ updatedAt: -1 });
+  let record;
+  if (existing) {
+    existing.set({
+      orderObjectId: normalizeObjectId(orderId),
+      manufacturer,
+      partnerRequestId: String(partner.requestId || '').trim(),
+      environment: String(partner.environment || 'sandbox').trim() || 'sandbox',
+      status: normalized.status,
+      invoiceNumber: normalized.invoiceNumber,
+      serie: normalized.serie,
+      invoiceKey: normalized.invoiceKey,
+      amount: normalized.amount,
+      currency: normalized.currency,
+      issuedAt: normalized.issuedAt,
+      xmlUrl: normalized.xmlUrl || existing.xmlUrl || '',
+      danfeUrl: normalized.danfeUrl || existing.danfeUrl || '',
+      pdfUrl: normalized.pdfUrl || existing.pdfUrl || '',
+      protocol: normalized.protocol,
+      payload: normalized.raw,
+      history: [...(Array.isArray(existing.history) ? existing.history : []), historyEntry].slice(-100)
+    });
+    record = await existing.save();
+  } else {
+    record = await EnterpriseBillingRecord.create({
+      orderId,
+      orderObjectId: normalizeObjectId(orderId),
+      manufacturer,
+      partnerRequestId: String(partner.requestId || '').trim(),
+      environment: String(partner.environment || 'sandbox').trim() || 'sandbox',
+      status: normalized.status,
+      invoiceNumber: normalized.invoiceNumber,
+      serie: normalized.serie,
+      invoiceKey: normalized.invoiceKey,
+      amount: normalized.amount,
+      currency: normalized.currency,
+      issuedAt: normalized.issuedAt,
+      xmlUrl: normalized.xmlUrl,
+      danfeUrl: normalized.danfeUrl,
+      pdfUrl: normalized.pdfUrl,
+      protocol: normalized.protocol,
+      payload: normalized.raw,
+      history: [historyEntry]
+    });
+  }
+
+  const billingResponse = enterpriseBillingNormalizeResponse(record);
+  const currentDispatch = order.manufacturerDispatch || {};
+  const previousHistory = Array.isArray(currentDispatch.billingHistory) ? currentDispatch.billingHistory : [];
+  order.manufacturerDispatch = {
+    ...currentDispatch,
+    billing: billingResponse,
+    billingHistory: [...previousHistory, historyEntry].slice(-100),
+    billingReceivedAt: new Date(),
+    invoice: {
+      ...(currentDispatch.invoice || {}),
+      number: normalized.invoiceNumber,
+      serie: normalized.serie,
+      series: normalized.serie,
+      key: normalized.invoiceKey,
+      accessKey: normalized.invoiceKey,
+      total: normalized.amount,
+      issuedAt: normalized.issuedAt,
+      xmlUrl: normalized.xmlUrl || currentDispatch.invoice?.xmlUrl || '',
+      danfeUrl: normalized.danfeUrl || normalized.pdfUrl || currentDispatch.invoice?.danfeUrl || '',
+      raw: normalized.raw
+    }
+  };
+  order.status = normalized.status === 'cancelled' ? 'enterprise_faturamento_cancelado' : 'enterprise_faturado';
+  order.statusLabel = normalized.status === 'cancelled' ? 'Faturamento cancelado' : 'Pedido faturado';
+  order.status_integracao = normalized.status === 'cancelled' ? 'billing_cancelled' : 'billed';
+  await order.save();
+
+  await IntegrationAuditLog.create({
+    scope: 'enterprise',
+    eventType: action,
+    orderId,
+    manufacturer,
+    status: 'success',
+    statusCode: 200,
+    message: normalized.status === 'cancelled' ? 'Faturamento cancelado via Enterprise' : 'Faturamento registrado via Enterprise',
+    request: normalized.raw,
+    response: { ok: true, billing: billingResponse },
+    metadata: {
+      source: 'api_enterprise_billing',
+      environment: partner.environment || 'sandbox',
+      invoiceNumber: normalized.invoiceNumber,
+      invoiceKey: normalized.invoiceKey
+    }
+  }).catch(() => null);
+
+  return { record, billing: billingResponse, order };
+}
+
+app.post('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para registrar faturamento' });
+
+    const result = await enterpriseBillingUpsert(order, req.body || {}, req, 'enterprise_billing_registered');
+    return res.status(201).json({
+      ok: true,
+      action: 'billing_registered',
+      orderId: String(result.order._id),
+      billing: result.billing,
+      order: enterpriseNormalizeOrderForResponse(result.order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/billing] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao registrar faturamento Enterprise' });
+  }
+});
+
+app.get('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar faturamento' });
+
+    const orderId = String(order._id || '').trim();
+    const record = await EnterpriseBillingRecord.findOne({ orderId }).sort({ updatedAt: -1 }).lean();
+    const billing = record ? enterpriseBillingNormalizeResponse(record) : (order.manufacturerDispatch?.billing || null);
+
+    return res.json({
+      ok: true,
+      orderId,
+      billing,
+      history: Array.isArray(billing?.history) ? billing.history : (order.manufacturerDispatch?.billingHistory || []),
+      order: enterpriseNormalizeOrderForResponse(order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/billing:GET] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar faturamento Enterprise' });
+  }
+});
+
+app.patch('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar faturamento' });
+
+    const result = await enterpriseBillingUpsert(order, req.body || {}, req, 'enterprise_billing_updated');
+    return res.json({
+      ok: true,
+      action: 'billing_updated',
+      orderId: String(result.order._id),
+      billing: result.billing,
+      order: enterpriseNormalizeOrderForResponse(result.order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/billing:PATCH] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao atualizar faturamento Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/billing/cancel', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cancelar faturamento' });
+
+    const current = order.manufacturerDispatch?.billing || {};
+    const payload = {
+      ...(current || {}),
+      ...(req.body || {}),
+      status: 'cancelled',
+      cancelReason: req.body?.reason || req.body?.motivo || req.body?.cancelReason || 'Faturamento cancelado pelo parceiro Enterprise'
+    };
+    const result = await enterpriseBillingUpsert(order, payload, req, 'enterprise_billing_cancelled');
+
+    await EnterpriseBillingRecord.updateOne({ orderId: String(order._id) }, {
+      $set: {
+        status: 'cancelled',
+        cancelReason: String(payload.cancelReason || '').trim(),
+        cancelledAt: new Date()
+      },
+      $push: {
+        history: {
+          action: 'enterprise_billing_cancelled',
+          at: new Date(),
+          reason: String(payload.cancelReason || '').trim(),
+          payload: redact(req.body || {})
+        }
+      }
+    }).catch(() => null);
+
+    return res.json({
+      ok: true,
+      action: 'billing_cancelled',
+      orderId: String(result.order._id),
+      billing: { ...result.billing, status: 'cancelled', cancelReason: String(payload.cancelReason || '').trim() },
+      order: enterpriseNormalizeOrderForResponse(result.order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/billing/cancel] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao cancelar faturamento Enterprise' });
+  }
+});
+
+app.get('/api/enterprise/billing', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
+    const filter = {};
+    if (req.query.orderId) filter.orderId = String(req.query.orderId).trim();
+    if (req.query.status) filter.status = String(req.query.status).trim();
+    if (req.query.manufacturer) filter.manufacturer = new RegExp(escapeRegex(String(req.query.manufacturer).trim()), 'i');
+    if (req.query.invoiceNumber) filter.invoiceNumber = String(req.query.invoiceNumber).trim();
+    if (req.query.invoiceKey) filter.invoiceKey = String(req.query.invoiceKey).trim();
+
+    const items = await EnterpriseBillingRecord.find(filter).sort({ updatedAt: -1, createdAt: -1 }).limit(limit).lean();
+    const total = await EnterpriseBillingRecord.countDocuments(filter).catch(() => items.length);
+
+    return res.json({
+      ok: true,
+      total,
+      limit,
+      filters: {
+        orderId: req.query.orderId || '',
+        status: req.query.status || '',
+        manufacturer: req.query.manufacturer || '',
+        invoiceNumber: req.query.invoiceNumber || '',
+        invoiceKey: req.query.invoiceKey || ''
+      },
+      items: items.map(enterpriseBillingNormalizeResponse)
+    });
+  } catch (error) {
+    console.error('[enterprise/billing] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar faturamentos Enterprise' });
+  }
+});
 
 
 app.post('/api/enterprise/webhooks/test', enterpriseCompatAuth, async (req, res) => {
