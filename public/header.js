@@ -1210,8 +1210,7 @@ function carregarHeader() {
             <img 
               src="assets/imagens/avatar-ariana.png"
               alt="Ariana Móveis"
-              class="w-12 h-12 md:w-14 md:h-14 object-contain rounded-full bg-white shadow-lg ring-2 ring-white/30 transition-transform duration-300 group-hover:scale-[1.10]"
-              style="animation: arianaFloat 3s ease-in-out infinite;"
+              class="w-12 h-12 md:w-14 md:h-14 object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.10]"
             >
             <span
               class="hidden md:flex items-center gap-2 ml-3 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-[11px] font-black uppercase tracking-wider text-white backdrop-blur-sm transition-all duration-300 group-hover:bg-white/20 group-hover:border-white/25"

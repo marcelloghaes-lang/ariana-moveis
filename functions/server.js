@@ -152,45 +152,6 @@ function buildPublicFileUrl(req, filename) {
 }
 function now() { return new Date(); }
 function uid(prefix = 'id') { return `${prefix}_${crypto.randomBytes(8).toString('hex')}`; }
-
-function randomKey(size = 32){
-
-    return crypto
-      .randomBytes(size)
-      .toString("hex");
-
-}
-
-function createPartnerId(){
-
-    return "ENT-" +
-           Date.now() +
-           "-" +
-           Math.floor(Math.random()*9999);
-
-}
-
-function createApiKey(env){
-
-    return env +
-           "_" +
-           randomKey(20);
-
-}
-
-function createOAuthId(){
-
-    return "cli_" +
-           randomKey(12);
-
-}
-
-function createWebhookSecret(){
-
-    return "whsec_" +
-           randomKey(24);
-
-}
 function cleanPhone(value = '') { return String(value).replace(/\D/g, ''); }
 function normalizePhone(value = '', defaultCountryCode = '55') {
   let digits = cleanPhone(value);
@@ -631,74 +592,6 @@ const whatsappWebhookSchema = new mongoose.Schema({ event: String, remoteJid: St
 const notificationSchema = new mongoose.Schema({ type: String, title: String, message: String, status: { type: String, default: 'unread' }, relatedId: String, severity: { type: String, default: 'info' }, audience: { type: String, default: 'admin', index: true }, sellerId: { type: String, default: '', index: true }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
 
-const enterprisePartnerSchema = new mongoose.Schema({
-  partnerId: {
-    type: String,
-    unique: true,
-    index: true
-  },
-
-  companyName: String,
-  tradeName: String,
-  brand: String,
-
-  cnpj: {
-    type: String,
-    index: true
-  },
-
-  technicalEmail: String,
-  commercialEmail: String,
-  supportEmail: String,
-
-  phone: String,
-  website: String,
-
-  status: {
-    type: String,
-    default: "sandbox",
-    enum: [
-      "sandbox",
-      "homologation",
-      "production",
-      "blocked"
-    ]
-  },
-
-  sandboxEnabled: {
-    type: Boolean,
-    default: true
-  },
-
-  productionEnabled: {
-    type: Boolean,
-    default: false
-  },
-
-  certificationLevel: {
-    type: String,
-    default: "Bronze"
-  },
-
-  score: {
-    type: Number,
-    default: 0
-  },
-
-  apiKeySandbox: String,
-  apiKeyProduction: String,
-
-  oauthClientId: String,
-  oauthClientSecret: String,
-
-  webhookSecret: String,
-
-  signingSecret: String,
-
-  metadata: mongoose.Schema.Types.Mixed
-
-}, baseOptions);
-
 
 const User = mongoose.model('User', userSchema);
 const Seller = mongoose.model('Seller', sellerSchema);
@@ -717,11 +610,6 @@ const ManufacturerDispatchQueue = mongoose.model('ManufacturerDispatchQueue', ma
 const OperationalAlert = mongoose.model('OperationalAlert', operationalAlertSchema);
 const WhatsAppWebhook = mongoose.model('WhatsAppWebhook', whatsappWebhookSchema);
 const Notification = mongoose.model('Notification', notificationSchema);
-const EnterprisePartner =
-mongoose.model(
-   "EnterprisePartner",
-   enterprisePartnerSchema
-);
 
 async function createAdminNotification(data = {}) {
   try {
@@ -11743,837 +11631,6 @@ async function enterpriseCompatFindOrder(orderId = '') {
   });
 }
 
-
-app.post(
-"/api/enterprise/partners",
-adminRequired,
-
-async(req,res)=>{
-
-try{
-
-const partner=
-await EnterprisePartner.create({
-
-partnerId:
-createPartnerId(),
-
-companyName:
-req.body.companyName,
-
-tradeName:
-req.body.tradeName,
-
-brand:
-req.body.brand,
-
-cnpj:
-req.body.cnpj,
-
-technicalEmail:
-req.body.technicalEmail,
-
-commercialEmail:
-req.body.commercialEmail,
-
-supportEmail:
-req.body.supportEmail,
-
-phone:
-req.body.phone,
-
-website:
-req.body.website,
-
-apiKeySandbox:
-createApiKey("ari_sbx"),
-
-apiKeyProduction:
-createApiKey("ari_live"),
-
-oauthClientId:
-createOAuthId(),
-
-oauthClientSecret:
-randomKey(24),
-
-webhookSecret:
-createWebhookSecret(),
-
-signingSecret:
-randomKey(24)
-
-});
-
-res.json({
-
-ok:true,
-
-partner
-
-});
-
-}catch(err){
-
-console.error(err);
-
-res.status(500).json({
-
-ok:false,
-
-error:err.message
-
-});
-
-}
-
-});
-
-
-
-app.get(
-"/api/enterprise/partners",
-adminRequired,
-async(req,res)=>{
-
-try{
-
-const partners=
-await EnterprisePartner
-.find()
-.sort({
-createdAt:-1
-});
-
-res.json({
-
-ok:true,
-
-total:partners.length,
-
-partners
-
-});
-
-}catch(err){
-
-res.status(500).json({
-
-ok:false,
-
-error:err.message
-
-});
-
-}
-
-});
-
-app.get(
-"/api/enterprise/partners/:id",
-adminRequired,
-async(req,res)=>{
-
-try{
-
-const partner=
-await EnterprisePartner.findOne({
-
-partnerId:req.params.id
-
-});
-
-if(!partner){
-
-return res.status(404).json({
-
-ok:false,
-
-error:"Parceiro não encontrado"
-
-});
-
-}
-
-res.json({
-
-ok:true,
-
-partner
-
-});
-
-}catch(err){
-
-res.status(500).json({
-
-ok:false,
-
-error:err.message
-
-});
-
-}
-
-});
-
-app.put(
-"/api/enterprise/partners/:id",
-adminRequired,
-async(req,res)=>{
-
-try{
-
-const partner=
-await EnterprisePartner.findOneAndUpdate(
-
-{
-
-partnerId:req.params.id
-
-},
-
-{
-
-$set:req.body
-
-},
-
-{
-
-new:true
-
-}
-
-);
-
-res.json({
-
-ok:true,
-
-partner
-
-});
-
-}catch(err){
-
-res.status(500).json({
-
-ok:false,
-
-error:err.message
-
-});
-
-}
-
-});
-
-app.delete(
-"/api/enterprise/partners/:id",
-adminRequired,
-async(req,res)=>{
-
-try{
-
-await EnterprisePartner.deleteOne({
-
-partnerId:req.params.id
-
-});
-
-res.json({
-
-ok:true
-
-});
-
-}catch(err){
-
-res.status(500).json({
-
-ok:false,
-
-error:err.message
-
-});
-
-}
-
-});
-
-app.post(
-"/api/enterprise/partners/:id/regenerate-api-key",
-adminRequired,
-async(req,res)=>{
-
-const partner=
-await EnterprisePartner.findOne({
-
-partnerId:req.params.id
-
-});
-
-if(!partner){
-
-return res.status(404).json({
-
-ok:false
-
-});
-
-}
-
-partner.apiKeySandbox=
-createApiKey("ari_sbx");
-
-partner.apiKeyProduction=
-createApiKey("ari_live");
-
-await partner.save();
-
-res.json({
-
-ok:true,
-
-partner
-
-});
-
-});
-
-app.post(
-"/api/enterprise/partners/:id/regenerate-oauth",
-adminRequired,
-async(req,res)=>{
-
-const partner=
-await EnterprisePartner.findOne({
-
-partnerId:req.params.id
-
-});
-
-partner.oauthClientId=
-createOAuthId();
-
-partner.oauthClientSecret=
-randomKey(24);
-
-await partner.save();
-
-res.json({
-
-ok:true,
-
-partner
-
-});
-
-});
-
-app.post(
-"/api/enterprise/partners/:id/regenerate-webhook",
-adminRequired,
-async(req,res)=>{
-
-const partner=
-await EnterprisePartner.findOne({
-
-partnerId:req.params.id
-
-});
-
-partner.webhookSecret=
-createWebhookSecret();
-
-await partner.save();
-
-res.json({
-
-ok:true,
-
-partner
-
-});
-
-});
-
-app.get(
-"/api/enterprise/partners/:id/dashboard",
-adminRequired,
-async(req,res)=>{
-
-const partner=
-await EnterprisePartner.findOne({
-
-partnerId:req.params.id
-
-});
-
-if(!partner){
-
-return res.status(404).json({
-
-ok:false
-
-});
-
-}
-
-res.json({
-
-ok:true,
-
-partner,
-
-metrics:{
-
-orders:0,
-
-products:0,
-
-apiCalls:0,
-
-revenue:0,
-
-webhooks:0,
-
-errors:0,
-
-latency:0
-
-}
-
-});
-
-});
-
-
-// ============================================================
-// PASSO 39.3 — ENTERPRISE ANALYTICS / CERTIFICAÇÃO COM PARCEIROS REAIS
-// ============================================================
-
-async function getEnterprisePartnersSafe() {
-  try {
-    return await EnterprisePartner.find().sort({ createdAt: -1 }).lean();
-  } catch (_err) {
-    return [];
-  }
-}
-
-function partnerLevel(score = 0) {
-  const n = Number(score || 0);
-  if (n >= 95) return 'Gold';
-  if (n >= 80) return 'Silver';
-  return 'Bronze';
-}
-
-app.get('/api/enterprise/analytics/overview', adminRequired, async (req, res) => {
-  try {
-    const partners = await getEnterprisePartnersSafe();
-
-    const productionPartners = partners.filter(p => p.productionEnabled || p.status === 'production');
-    const sandboxPartners = partners.filter(p => p.sandboxEnabled);
-
-    return res.json({
-      ok: true,
-      period: req.query.period || '30d',
-      summary: {
-        revenue: 0,
-        orders: 0,
-        products: 0,
-        successRate: 100,
-        manufacturers: partners.length,
-        apiCalls: 0,
-        errors: 0,
-        webhooks: 0,
-        productionPartners: productionPartners.length,
-        sandboxPartners: sandboxPartners.length
-      },
-      partners: partners.map(p => ({
-        partnerId: p.partnerId,
-        companyName: p.companyName || p.tradeName || p.brand || 'Parceiro Enterprise',
-        tradeName: p.tradeName || '',
-        brand: p.brand || '',
-        status: p.status || 'sandbox',
-        score: Number(p.score || 0),
-        certificationLevel: p.certificationLevel || partnerLevel(p.score),
-        productionEnabled: !!p.productionEnabled,
-        sandboxEnabled: !!p.sandboxEnabled,
-        revenue: 0,
-        orders: 0,
-        products: 0,
-        apiCalls: 0,
-        errors: 0
-      })),
-      charts: {
-        revenue: [],
-        orders: [],
-        apiCalls: [],
-        products: []
-      }
-    });
-  } catch (err) {
-    console.error('Erro analytics overview:', err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/enterprise/analytics/export', adminRequired, async (req, res) => {
-  try {
-    const format = String(req.query.format || 'json').toLowerCase();
-    const partners = await getEnterprisePartnersSafe();
-
-    const rows = partners.map(p => ({
-      partnerId: p.partnerId || '',
-      companyName: p.companyName || '',
-      tradeName: p.tradeName || '',
-      brand: p.brand || '',
-      cnpj: p.cnpj || '',
-      status: p.status || '',
-      score: p.score || 0,
-      certificationLevel: p.certificationLevel || partnerLevel(p.score),
-      sandboxEnabled: !!p.sandboxEnabled,
-      productionEnabled: !!p.productionEnabled,
-      createdAt: p.createdAt || ''
-    }));
-
-    if (format === 'csv') {
-      const header = Object.keys(rows[0] || {
-        partnerId: '',
-        companyName: '',
-        tradeName: '',
-        brand: '',
-        cnpj: '',
-        status: '',
-        score: '',
-        certificationLevel: '',
-        sandboxEnabled: '',
-        productionEnabled: '',
-        createdAt: ''
-      });
-
-      const csv = [
-        header.join(';'),
-        ...rows.map(row => header.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(';'))
-      ].join('\n');
-
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', 'attachment; filename="ariana-enterprise-analytics.csv"');
-      return res.send('\uFEFF' + csv);
-    }
-
-    return res.json({ ok: true, rows });
-  } catch (err) {
-    console.error('Erro analytics export:', err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/enterprise/certification/overview', adminRequired, async (req, res) => {
-  try {
-    const partners = await getEnterprisePartnersSafe();
-
-    const certified = partners.filter(p =>
-      p.certificationLevel ||
-      Number(p.score || 0) >= 80 ||
-      p.status === 'production'
-    );
-
-    const production = partners.filter(p => p.productionEnabled || p.status === 'production');
-
-    const avgScore = partners.length
-      ? Math.round(partners.reduce((sum, p) => sum + Number(p.score || 0), 0) / partners.length)
-      : 0;
-
-    const partnerRows = partners.map(p => {
-      const score = Number(p.score || 0);
-      const level = p.certificationLevel || partnerLevel(score);
-
-      return {
-        partnerId: p.partnerId,
-        companyName: p.companyName || p.tradeName || p.brand || 'Parceiro Enterprise',
-        tradeName: p.tradeName || '',
-        brand: p.brand || '',
-        status: p.status || 'sandbox',
-        score,
-        level,
-        certificationLevel: level,
-        certified: score >= 80 || p.status === 'production',
-        productionEnabled: !!p.productionEnabled,
-        issuedAt: p.updatedAt || p.createdAt || null
-      };
-    });
-
-    return res.json({
-      ok: true,
-      summary: {
-        partners: partners.length,
-        certified: certified.length,
-        avgScore,
-        production: production.length
-      },
-      levels: {
-        gold: partnerRows.filter(p => p.level === 'Gold').length,
-        silver: partnerRows.filter(p => p.level === 'Silver').length,
-        bronze: partnerRows.filter(p => p.level === 'Bronze').length
-      },
-      partners: partnerRows,
-      certificates: partnerRows
-        .filter(p => p.certified)
-        .map(p => ({
-          id: `CERT-${p.partnerId}`,
-          partnerId: p.partnerId,
-          title: `Certificação Ariana Enterprise - ${p.companyName}`,
-          companyName: p.companyName,
-          level: p.level,
-          score: p.score,
-          environment: p.productionEnabled ? 'production' : 'sandbox',
-          status: 'active',
-          issuedAt: p.issuedAt
-        }))
-    });
-  } catch (err) {
-    console.error('Erro certification overview:', err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/enterprise/certification/export', adminRequired, async (req, res) => {
-  try {
-    const format = String(req.query.format || 'json').toLowerCase();
-    const partners = await getEnterprisePartnersSafe();
-
-    const rows = partners.map(p => ({
-      partnerId: p.partnerId || '',
-      companyName: p.companyName || '',
-      tradeName: p.tradeName || '',
-      brand: p.brand || '',
-      cnpj: p.cnpj || '',
-      status: p.status || '',
-      score: p.score || 0,
-      level: p.certificationLevel || partnerLevel(p.score),
-      certified: Number(p.score || 0) >= 80 || p.status === 'production',
-      productionEnabled: !!p.productionEnabled,
-      issuedAt: p.updatedAt || p.createdAt || ''
-    }));
-
-    if (format === 'csv') {
-      const header = Object.keys(rows[0] || {
-        partnerId: '',
-        companyName: '',
-        tradeName: '',
-        brand: '',
-        cnpj: '',
-        status: '',
-        score: '',
-        level: '',
-        certified: '',
-        productionEnabled: '',
-        issuedAt: ''
-      });
-
-      const csv = [
-        header.join(';'),
-        ...rows.map(row => header.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(';'))
-      ].join('\n');
-
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', 'attachment; filename="ariana-enterprise-certification.csv"');
-      return res.send('\uFEFF' + csv);
-    }
-
-    return res.json({ ok: true, rows });
-  } catch (err) {
-    console.error('Erro certification export:', err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-
-// ============================================================
-// PASSO 39.4 — PARTNER LIFECYCLE FINAL
-// ============================================================
-
-app.post('/api/enterprise/partners/:id/status', adminRequired, async (req, res) => {
-  try {
-    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id });
-    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
-
-    const status = String(req.body.status || '').trim();
-
-    const allowed = ['sandbox', 'homologation', 'production', 'blocked'];
-
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ ok: false, error: 'Status inválido' });
-    }
-
-    partner.status = status;
-
-    if (status === 'production') {
-      partner.productionEnabled = true;
-      partner.sandboxEnabled = true;
-      partner.score = Math.max(Number(partner.score || 0), 100);
-      partner.certificationLevel = 'Gold';
-    }
-
-    if (status === 'blocked') {
-      partner.productionEnabled = false;
-      partner.sandboxEnabled = false;
-    }
-
-    await partner.save();
-
-    await IntegrationAuditLog.create({
-      scope: 'enterprise_partner',
-      eventType: 'partner.status.changed',
-      manufacturer: partner.companyName || partner.tradeName || partner.partnerId,
-      status: 'success',
-      statusCode: 200,
-      message: `Status alterado para ${status}`,
-      metadata: {
-        partnerId: partner.partnerId,
-        status
-      }
-    });
-
-    res.json({ ok: true, partner });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.post('/api/enterprise/partners/:id/certify', adminRequired, async (req, res) => {
-  try {
-    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id });
-    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
-
-    const score = Number(req.body.score || 100);
-
-    partner.score = score;
-    partner.certificationLevel = partnerLevel(score);
-    partner.status = score >= 80 ? 'production' : 'homologation';
-    partner.productionEnabled = score >= 80;
-
-    await partner.save();
-
-    await IntegrationAuditLog.create({
-      scope: 'enterprise_certification',
-      eventType: 'partner.certified',
-      manufacturer: partner.companyName || partner.tradeName || partner.partnerId,
-      status: 'success',
-      statusCode: 200,
-      message: `Parceiro certificado com score ${score}`,
-      metadata: {
-        partnerId: partner.partnerId,
-        score,
-        level: partner.certificationLevel
-      }
-    });
-
-    res.json({
-      ok: true,
-      partner,
-      certificate: {
-        id: `CERT-${partner.partnerId}`,
-        partnerId: partner.partnerId,
-        level: partner.certificationLevel,
-        score: partner.score,
-        issuedAt: new Date()
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/enterprise/partners/:id/timeline', adminRequired, async (req, res) => {
-  try {
-    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id }).lean();
-    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
-
-    const logs = await IntegrationAuditLog.find({
-      $or: [
-        { manufacturer: partner.companyName },
-        { manufacturer: partner.tradeName },
-        { 'metadata.partnerId': partner.partnerId }
-      ]
-    })
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
-
-    res.json({
-      ok: true,
-      partnerId: partner.partnerId,
-      timeline: logs.map(log => ({
-        date: log.createdAt,
-        event: log.eventType,
-        status: log.status,
-        statusCode: log.statusCode,
-        message: log.message
-      }))
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/enterprise/partners/:id/credentials', adminRequired, async (req, res) => {
-  try {
-    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id }).lean();
-    if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro não encontrado' });
-
-    res.json({
-      ok: true,
-      credentials: {
-        partnerId: partner.partnerId,
-        apiKeySandbox: partner.apiKeySandbox,
-        apiKeyProduction: partner.apiKeyProduction,
-        oauthClientId: partner.oauthClientId,
-        oauthClientSecret: partner.oauthClientSecret,
-        webhookSecret: partner.webhookSecret,
-        signingSecret: partner.signingSecret,
-        sandboxEnabled: partner.sandboxEnabled,
-        productionEnabled: partner.productionEnabled
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/enterprise/partners-public/:id/certificate', async (req, res) => {
-  try {
-    const partner = await EnterprisePartner.findOne({ partnerId: req.params.id }).lean();
-
-    if (!partner) {
-      return res.status(404).json({
-        ok: false,
-        error: 'Certificado não encontrado'
-      });
-    }
-
-    res.json({
-      ok: true,
-      certificate: {
-        id: `CERT-${partner.partnerId}`,
-        companyName: partner.companyName || partner.tradeName || partner.brand,
-        partnerId: partner.partnerId,
-        level: partner.certificationLevel || partnerLevel(partner.score),
-        score: Number(partner.score || 0),
-        status: partner.productionEnabled ? 'active' : 'sandbox',
-        environment: partner.productionEnabled ? 'production' : 'sandbox',
-        issuedAt: partner.updatedAt || partner.createdAt,
-        verifiedBy: 'Ariana Enterprise'
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
 app.get('/api/enterprise/auth/check', enterpriseCompatAuth, async (req, res) => {
   return res.json({
     ok: true,
@@ -16192,6 +15249,541 @@ app.get('/api/enterprise/certification/export', async (req, res) => {
   res.setHeader('Content-Disposition','attachment; filename="ariana-enterprise-certificacoes.json"');
   return res.json(data);
 });
+
+
+
+// ============================================================
+// PASSO 39.5 — SOLICITAÇÃO AUTOMÁTICA ENTERPRISE
+// Fluxo público: fabricante solicita integração.
+// Fluxo admin: analisa, aprova e gera credenciais Sandbox.
+// Não altera as rotas Enterprise já homologadas.
+// ============================================================
+const enterprisePartnerRequestSchema = new mongoose.Schema({
+  requestId: { type: String, unique: true, index: true },
+
+  companyName: { type: String, default: '', index: true },
+  tradeName: { type: String, default: '' },
+  brand: { type: String, default: '' },
+  cnpj: { type: String, default: '', index: true },
+
+  responsibleName: { type: String, default: '' },
+  technicalEmail: { type: String, default: '' },
+  commercialEmail: { type: String, default: '' },
+  supportEmail: { type: String, default: '' },
+  email: { type: String, default: '', index: true },
+
+  phone: { type: String, default: '' },
+  website: { type: String, default: '' },
+
+  segment: { type: String, default: '' },
+  erp: { type: String, default: '' },
+  estimatedProducts: { type: Number, default: 0 },
+
+  integrationTypes: { type: [String], default: [] },
+  notes: { type: String, default: '' },
+
+  status: {
+    type: String,
+    default: 'pending',
+    enum: ['pending', 'in_review', 'approved', 'rejected', 'converted'],
+    index: true
+  },
+
+  statusLabel: { type: String, default: 'Pendente' },
+  approvedAt: Date,
+  rejectedAt: Date,
+  convertedAt: Date,
+
+  approvedBy: { type: String, default: '' },
+  rejectedBy: { type: String, default: '' },
+
+  partnerObjectId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  partnerRequestId: { type: String, default: '' },
+
+  metadata: mongoose.Schema.Types.Mixed
+}, baseOptions);
+
+const EnterprisePartnerRequest =
+  mongoose.models.EnterprisePartnerRequest ||
+  mongoose.model('EnterprisePartnerRequest', enterprisePartnerRequestSchema);
+
+function enterpriseRandomKey(size = 32) {
+  return crypto.randomBytes(size).toString('hex');
+}
+
+function createEnterpriseRequestId() {
+  return `REQ-ENT-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+}
+
+function createEnterpriseApiKey(env) {
+  return `${env}_${enterpriseRandomKey(20)}`;
+}
+
+function createEnterpriseOAuthId() {
+  return `cli_${enterpriseRandomKey(12)}`;
+}
+
+function createEnterpriseWebhookSecret() {
+  return `whsec_${enterpriseRandomKey(24)}`;
+}
+
+function normalizeEnterpriseRequestPayload(body = {}) {
+  const companyName = String(body.companyName || body.razaoSocial || body.empresa || '').trim();
+  const tradeName = String(body.tradeName || body.nomeFantasia || body.fantasia || '').trim();
+  const brand = String(body.brand || body.marca || '').trim();
+  const cnpj = String(body.cnpj || body.document || body.documento || '').replace(/\D/g, '');
+  const responsibleName = String(body.responsibleName || body.responsavel || body.contactName || '').trim();
+
+  const technicalEmail = String(body.technicalEmail || body.emailTecnico || '').trim().toLowerCase();
+  const commercialEmail = String(body.commercialEmail || body.emailComercial || body.email || '').trim().toLowerCase();
+  const supportEmail = String(body.supportEmail || body.emailSuporte || '').trim().toLowerCase();
+  const email = String(body.email || commercialEmail || technicalEmail || supportEmail || '').trim().toLowerCase();
+
+  const integrationTypes = Array.isArray(body.integrationTypes)
+    ? body.integrationTypes.map((item) => String(item || '').trim()).filter(Boolean)
+    : String(body.integrationTypes || body.integrationType || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return {
+    companyName,
+    tradeName,
+    brand,
+    cnpj,
+    responsibleName,
+    technicalEmail,
+    commercialEmail,
+    supportEmail,
+    email,
+    phone: normalizePhone(body.phone || body.telefone || body.whatsapp || ''),
+    website: String(body.website || body.site || '').trim(),
+    segment: String(body.segment || body.segmento || '').trim(),
+    erp: String(body.erp || body.sistema || '').trim(),
+    estimatedProducts: Number(body.estimatedProducts || body.quantidadeProdutos || body.productsCount || 0) || 0,
+    integrationTypes,
+    notes: String(body.notes || body.observacoes || body.mensagem || '').trim(),
+    metadata: {
+      source: String(body.source || 'public_form').trim(),
+      raw: redact(body || {})
+    }
+  };
+}
+
+function enterpriseRequestDTO(doc = {}) {
+  const obj = toJSON(doc) || {};
+  return {
+    ...obj,
+    id: String(obj.id || obj._id || ''),
+    requestId: String(obj.requestId || ''),
+    companyName: String(obj.companyName || ''),
+    tradeName: String(obj.tradeName || ''),
+    brand: String(obj.brand || ''),
+    cnpj: String(obj.cnpj || ''),
+    responsibleName: String(obj.responsibleName || ''),
+    email: String(obj.email || obj.commercialEmail || obj.technicalEmail || ''),
+    phone: String(obj.phone || ''),
+    website: String(obj.website || ''),
+    status: String(obj.status || 'pending'),
+    statusLabel: String(obj.statusLabel || 'Pendente'),
+    integrationTypes: ensureArray(obj.integrationTypes),
+    estimatedProducts: Number(obj.estimatedProducts || 0)
+  };
+}
+
+async function sendEnterpriseRequestReceivedEmail(requestDoc) {
+  const transporter = getMailTransporter();
+  const email = String(requestDoc?.email || requestDoc?.commercialEmail || requestDoc?.technicalEmail || '').trim();
+  if (!transporter || !email) return { ok: false, skipped: true };
+
+  const name = String(requestDoc?.tradeName || requestDoc?.companyName || 'Parceiro').trim();
+  const subject = 'Solicitação de integração recebida - Ariana Enterprise';
+  const text = `Olá, ${name}!\n\nRecebemos sua solicitação de integração com o Ariana Enterprise.\n\nNossa equipe vai analisar os dados enviados e, se aprovado, liberar o ambiente Sandbox para os testes.\n\nProtocolo: ${requestDoc.requestId}\n\nAriana Móveis`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+      <h2 style="color:#0047AB">Solicitação recebida</h2>
+      <p>Olá, <strong>${escapeHtml(name)}</strong>!</p>
+      <p>Recebemos sua solicitação de integração com o <strong>Ariana Enterprise</strong>.</p>
+      <p>Nossa equipe vai analisar os dados enviados e, se aprovado, liberar o ambiente <strong>Sandbox</strong> para os testes.</p>
+      <p><strong>Protocolo:</strong> ${escapeHtml(requestDoc.requestId)}</p>
+      <p style="font-size:12px;color:#6b7280">Ariana Móveis — feita pra você.</p>
+    </div>`;
+
+  await transporter.sendMail({ from: EMAIL_FROM, to: email, subject, text, html });
+  return { ok: true };
+}
+
+async function sendEnterpriseSandboxApprovedEmail(requestDoc, partnerDoc) {
+  const transporter = getMailTransporter();
+  const email = String(requestDoc?.email || requestDoc?.commercialEmail || requestDoc?.technicalEmail || '').trim();
+  if (!transporter || !email) return { ok: false, skipped: true };
+
+  const name = String(requestDoc?.tradeName || requestDoc?.companyName || 'Parceiro').trim();
+  const sandboxKey = String(partnerDoc?.sandboxCredentials?.apiKey || partnerDoc?.apiKeySandbox || '').trim();
+  const oauthClientId = String(partnerDoc?.oauthClientId || partnerDoc?.credentials?.oauth?.clientId || '').trim();
+
+  const subject = 'Sandbox liberado - Ariana Enterprise';
+  const text = `Olá, ${name}!\n\nSua solicitação foi aprovada e o ambiente Sandbox do Ariana Enterprise foi liberado.\n\nRequest ID: ${requestDoc.requestId}\nAPI Key Sandbox: ${sandboxKey}\nOAuth Client ID: ${oauthClientId}\n\nUse essas credenciais apenas no ambiente de testes.\n\nAriana Móveis`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+      <h2 style="color:#0047AB">Sandbox liberado</h2>
+      <p>Olá, <strong>${escapeHtml(name)}</strong>!</p>
+      <p>Sua solicitação foi aprovada e o ambiente <strong>Sandbox</strong> do Ariana Enterprise foi liberado.</p>
+      <p><strong>Request ID:</strong> ${escapeHtml(requestDoc.requestId)}</p>
+      <p><strong>API Key Sandbox:</strong></p>
+      <pre style="background:#f3f4f6;padding:12px;border-radius:8px;white-space:pre-wrap">${escapeHtml(sandboxKey)}</pre>
+      <p><strong>OAuth Client ID:</strong> ${escapeHtml(oauthClientId)}</p>
+      <p style="font-size:12px;color:#6b7280">Use essas credenciais apenas no ambiente de testes.</p>
+    </div>`;
+
+  await transporter.sendMail({ from: EMAIL_FROM, to: email, subject, text, html });
+  return { ok: true };
+}
+
+// Público: fabricante/distribuidor solicita integração.
+app.post('/api/enterprise/partner-request', async (req, res) => {
+  try {
+    const payload = normalizeEnterpriseRequestPayload(req.body || {});
+
+    if (!payload.companyName && !payload.tradeName && !payload.brand) {
+      return res.status(400).json({ ok: false, error: 'Informe razão social, nome fantasia ou marca.' });
+    }
+
+    if (!payload.email) {
+      return res.status(400).json({ ok: false, error: 'Informe um e-mail de contato.' });
+    }
+
+    const existing = await EnterprisePartnerRequest.findOne({
+      status: { $in: ['pending', 'in_review', 'approved', 'converted'] },
+      $or: [
+        ...(payload.cnpj ? [{ cnpj: payload.cnpj }] : []),
+        { email: payload.email }
+      ]
+    }).sort({ createdAt: -1 });
+
+    if (existing && existing.status !== 'rejected') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Já existe uma solicitação Enterprise em andamento para estes dados.',
+        request: enterpriseRequestDTO(existing)
+      });
+    }
+
+    const requestDoc = await EnterprisePartnerRequest.create({
+      requestId: createEnterpriseRequestId(),
+      ...payload,
+      status: 'pending',
+      statusLabel: 'Pendente'
+    });
+
+    await createAdminNotification({
+      type: 'enterprise_partner_request',
+      title: 'Nova solicitação Enterprise',
+      message: `${requestDoc.companyName || requestDoc.tradeName || requestDoc.brand} solicitou integração com o Ariana Enterprise.`,
+      severity: 'info',
+      relatedId: requestDoc.requestId,
+      metadata: {
+        requestId: requestDoc.requestId,
+        companyName: requestDoc.companyName,
+        cnpj: requestDoc.cnpj,
+        email: requestDoc.email
+      }
+    });
+
+    await writeAuditLog({
+      scope: 'enterprise_partner_request',
+      eventType: 'partner.request.created',
+      manufacturer: requestDoc.companyName || requestDoc.tradeName || requestDoc.brand,
+      status: 'success',
+      statusCode: 201,
+      message: 'Solicitação Enterprise criada pelo formulário público',
+      metadata: { requestId: requestDoc.requestId, cnpj: requestDoc.cnpj, email: requestDoc.email }
+    }).catch(() => null);
+
+    const emailResult = await sendEnterpriseRequestReceivedEmail(requestDoc).catch((error) => ({
+      ok: false,
+      skipped: true,
+      error: error.message
+    }));
+
+    return res.status(201).json({
+      ok: true,
+      message: 'Solicitação enviada com sucesso.',
+      request: enterpriseRequestDTO(requestDoc),
+      email: emailResult
+    });
+  } catch (err) {
+    console.error('[enterprise 39.5] erro ao criar solicitação:', err);
+    return res.status(500).json({ ok: false, error: err.message || 'Erro ao criar solicitação Enterprise' });
+  }
+});
+
+// Alias público no plural, para facilitar integração do formulário.
+app.post('/api/enterprise/partner-requests', async (req, res) => {
+  req.url = '/api/enterprise/partner-request';
+  return app._router.handle(req, res);
+});
+
+// Admin: listar solicitações.
+app.get('/api/enterprise/partner-requests', adminRequired, async (req, res) => {
+  try {
+    const status = String(req.query.status || '').trim();
+    const search = String(req.query.search || '').trim();
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 100));
+
+    const query = {};
+    if (status) query.status = status;
+
+    if (search) {
+      const rx = new RegExp(escapeRegex(search), 'i');
+      query.$or = [
+        { requestId: rx },
+        { companyName: rx },
+        { tradeName: rx },
+        { brand: rx },
+        { cnpj: rx },
+        { email: rx },
+        { commercialEmail: rx },
+        { technicalEmail: rx }
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      EnterprisePartnerRequest.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      EnterprisePartnerRequest.countDocuments(query)
+    ]);
+
+    return res.json({
+      ok: true,
+      total,
+      page,
+      limit,
+      requests: items.map(enterpriseRequestDTO)
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message || 'Erro ao listar solicitações Enterprise' });
+  }
+});
+
+// Admin: buscar solicitação.
+app.get('/api/enterprise/partner-requests/:id', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const requestDoc = await EnterprisePartnerRequest.findOne({
+      $or: [
+        { requestId: id },
+        ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: new mongoose.Types.ObjectId(id) }] : [])
+      ]
+    });
+
+    if (!requestDoc) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
+
+    return res.json({ ok: true, request: enterpriseRequestDTO(requestDoc) });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message || 'Erro ao buscar solicitação Enterprise' });
+  }
+});
+
+// Admin: alterar status manualmente.
+app.post('/api/enterprise/partner-requests/:id/status', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const status = String(req.body.status || '').trim();
+    const allowed = ['pending', 'in_review', 'approved', 'rejected', 'converted'];
+
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ ok: false, error: 'Status inválido' });
+    }
+
+    const requestDoc = await EnterprisePartnerRequest.findOne({
+      $or: [
+        { requestId: id },
+        ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: new mongoose.Types.ObjectId(id) }] : [])
+      ]
+    });
+
+    if (!requestDoc) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
+
+    requestDoc.status = status;
+    requestDoc.statusLabel =
+      status === 'pending' ? 'Pendente' :
+      status === 'in_review' ? 'Em análise' :
+      status === 'approved' ? 'Aprovada' :
+      status === 'rejected' ? 'Recusada' :
+      'Convertida';
+
+    if (status === 'rejected') {
+      requestDoc.rejectedAt = new Date();
+      requestDoc.rejectedBy = String(req.admin?.email || req.admin?.name || 'admin');
+    }
+
+    await requestDoc.save();
+
+    await writeAuditLog({
+      scope: 'enterprise_partner_request',
+      eventType: 'partner.request.status.changed',
+      manufacturer: requestDoc.companyName || requestDoc.tradeName || requestDoc.brand,
+      status: 'success',
+      statusCode: 200,
+      message: `Status da solicitação alterado para ${status}`,
+      metadata: { requestId: requestDoc.requestId, status }
+    }).catch(() => null);
+
+    return res.json({ ok: true, request: enterpriseRequestDTO(requestDoc) });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message || 'Erro ao alterar status da solicitação' });
+  }
+});
+
+// Admin: aprovar solicitação e gerar credenciais Sandbox.
+app.post('/api/enterprise/partner-requests/:id/approve', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+
+    const requestDoc = await EnterprisePartnerRequest.findOne({
+      $or: [
+        { requestId: id },
+        ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: new mongoose.Types.ObjectId(id) }] : [])
+      ]
+    });
+
+    if (!requestDoc) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
+
+    if (requestDoc.status === 'converted' && requestDoc.partnerRequestId) {
+      return res.json({
+        ok: true,
+        alreadyConverted: true,
+        request: enterpriseRequestDTO(requestDoc),
+        partnerRequestId: requestDoc.partnerRequestId
+      });
+    }
+
+    const sandboxApiKey = createEnterpriseApiKey('ari_sbx');
+    const productionApiKey = createEnterpriseApiKey('ari_live');
+    const oauthClientId = createEnterpriseOAuthId();
+    const oauthClientSecret = enterpriseRandomKey(24);
+    const webhookSecret = createEnterpriseWebhookSecret();
+    const signingSecret = enterpriseRandomKey(24);
+
+    const partnerPayload = {
+      requestId: `ENT-${Date.now()}-${Math.floor(Math.random() * 9999)}`,
+      companyName: requestDoc.companyName,
+      tradeName: requestDoc.tradeName,
+      brand: requestDoc.brand,
+      cnpj: requestDoc.cnpj,
+      email: requestDoc.email || requestDoc.commercialEmail || requestDoc.technicalEmail,
+      status: 'sandbox',
+      statusLabel: 'Sandbox liberado',
+      environment: 'sandbox',
+      integrationTypes: ensureArray(requestDoc.integrationTypes).length
+        ? ensureArray(requestDoc.integrationTypes)
+        : ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
+      sandboxCredentials: {
+        apiKey: sandboxApiKey,
+        active: true,
+        environment: 'sandbox',
+        createdAt: new Date(),
+        requestCount: 0
+      },
+      productionCredentials: {
+        apiKey: productionApiKey,
+        active: false,
+        environment: 'production',
+        createdAt: new Date(),
+        requestCount: 0
+      },
+      oauthClientId,
+      oauthClientSecret,
+      webhookSecret,
+      signingSecret,
+      metadata: {
+        source: 'enterprise_partner_request',
+        sourceRequestId: requestDoc.requestId,
+        approvedBy: String(req.admin?.email || req.admin?.name || 'admin'),
+        responsibleName: requestDoc.responsibleName,
+        phone: requestDoc.phone,
+        website: requestDoc.website,
+        segment: requestDoc.segment,
+        erp: requestDoc.erp,
+        estimatedProducts: requestDoc.estimatedProducts
+      }
+    };
+
+    const partnerDoc = await EnterpriseHomologationRequestCompat.create(partnerPayload);
+
+    requestDoc.status = 'converted';
+    requestDoc.statusLabel = 'Convertida em parceiro Sandbox';
+    requestDoc.approvedAt = new Date();
+    requestDoc.convertedAt = new Date();
+    requestDoc.approvedBy = String(req.admin?.email || req.admin?.name || 'admin');
+    requestDoc.partnerObjectId = partnerDoc._id;
+    requestDoc.partnerRequestId = partnerDoc.requestId;
+    await requestDoc.save();
+
+    await createAdminNotification({
+      type: 'enterprise_partner_approved',
+      title: 'Parceiro Enterprise aprovado',
+      message: `${requestDoc.companyName || requestDoc.tradeName || requestDoc.brand} foi aprovado e recebeu acesso Sandbox.`,
+      severity: 'success',
+      relatedId: requestDoc.requestId,
+      metadata: {
+        requestId: requestDoc.requestId,
+        partnerRequestId: partnerDoc.requestId,
+        companyName: requestDoc.companyName
+      }
+    });
+
+    await writeAuditLog({
+      scope: 'enterprise_partner_request',
+      eventType: 'partner.request.approved',
+      manufacturer: requestDoc.companyName || requestDoc.tradeName || requestDoc.brand,
+      status: 'success',
+      statusCode: 200,
+      message: 'Solicitação Enterprise aprovada e convertida em parceiro Sandbox',
+      metadata: {
+        requestId: requestDoc.requestId,
+        partnerRequestId: partnerDoc.requestId,
+        environment: 'sandbox'
+      }
+    }).catch(() => null);
+
+    const emailResult = await sendEnterpriseSandboxApprovedEmail(requestDoc, partnerDoc).catch((error) => ({
+      ok: false,
+      skipped: true,
+      error: error.message
+    }));
+
+    return res.json({
+      ok: true,
+      request: enterpriseRequestDTO(requestDoc),
+      partner: {
+        id: String(partnerDoc._id),
+        requestId: partnerDoc.requestId,
+        companyName: partnerDoc.companyName,
+        tradeName: partnerDoc.tradeName,
+        brand: partnerDoc.brand,
+        cnpj: partnerDoc.cnpj,
+        status: partnerDoc.status,
+        environment: partnerDoc.environment,
+        sandboxCredentials: partnerDoc.sandboxCredentials,
+        productionCredentials: partnerDoc.productionCredentials,
+        oauthClientId: partnerDoc.oauthClientId,
+        oauthClientSecret: partnerDoc.oauthClientSecret,
+        webhookSecret: partnerDoc.webhookSecret,
+        signingSecret: partnerDoc.signingSecret
+      },
+      email: emailResult
+    });
+  } catch (err) {
+    console.error('[enterprise 39.5] erro ao aprovar solicitação:', err);
+    return res.status(500).json({ ok: false, error: err.message || 'Erro ao aprovar solicitação Enterprise' });
+  }
+});
+
 
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)

@@ -295,22 +295,105 @@ footer, .site-footer, .footer, .footer-wrap {
 
 
 
-    /* ===== Ariana Enterprise CTA público ===== */
+    /* ===== Ariana Enterprise CTA público - versão discreta para Home ===== */
     .enterprise-home-cta{
-      background:linear-gradient(135deg,#0b2f63 0%,#0047ab 52%,#1d4ed8 100%);
-      color:#fff; border-radius:24px; padding:28px;
-      display:flex; align-items:center; justify-content:space-between; gap:24px;
-      box-shadow:0 18px 40px rgba(0,71,171,.22); overflow:hidden; position:relative;
+      background:linear-gradient(135deg,#0b2f63 0%,#0047ab 58%,#1d4ed8 100%);
+      color:#fff;
+      border-radius:18px;
+      padding:18px 22px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      min-height:170px;
+      box-shadow:0 12px 28px rgba(0,71,171,.16);
+      overflow:hidden;
+      position:relative;
     }
-    .enterprise-home-cta:before{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;border-radius:999px;background:rgba(255,255,255,.12)}
-    .enterprise-home-kicker{display:inline-flex;align-items:center;gap:8px;font-weight:900;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);padding:8px 12px;border-radius:999px;margin-bottom:12px}
-    .enterprise-home-cta h2{font-size:clamp(1.6rem,3vw,2.45rem);font-weight:950;line-height:1.08;margin:0 0 10px}
-    .enterprise-home-cta p{max-width:760px;color:#e5efff;font-size:1rem;line-height:1.55;margin:0 0 16px}
-    .enterprise-home-badges{display:flex;flex-wrap:wrap;gap:8px}
-    .enterprise-home-badges span{background:#fff;color:#0b2f63;border-radius:999px;padding:7px 10px;font-size:.8rem;font-weight:800}
-    .enterprise-home-button{position:relative;z-index:1;flex:0 0 auto;display:inline-flex;align-items:center;gap:10px;background:#fff;color:#0047ab!important;border-radius:14px;padding:14px 18px;font-weight:950;box-shadow:0 12px 24px rgba(0,0,0,.18);transition:.2s}
-    .enterprise-home-button:hover{transform:translateY(-2px);color:#003782!important}
-    @media(max-width:768px){.enterprise-home-cta{flex-direction:column;align-items:flex-start}.enterprise-home-button{width:100%;justify-content:center}}
+    .enterprise-home-cta:before{
+      content:"";
+      position:absolute;
+      right:-70px;
+      top:-85px;
+      width:210px;
+      height:210px;
+      border-radius:999px;
+      background:rgba(255,255,255,.10);
+    }
+    .enterprise-home-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      font-weight:900;
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      background:rgba(255,255,255,.13);
+      border:1px solid rgba(255,255,255,.18);
+      padding:6px 10px;
+      border-radius:999px;
+      margin-bottom:8px;
+    }
+    .enterprise-home-cta h2{
+      font-size:clamp(1.25rem,2.2vw,1.75rem);
+      font-weight:950;
+      line-height:1.08;
+      margin:0 0 7px;
+    }
+    .enterprise-home-cta p{
+      max-width:720px;
+      color:#e5efff;
+      font-size:.92rem;
+      line-height:1.45;
+      margin:0 0 10px;
+    }
+    .enterprise-home-badges{
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+    }
+    .enterprise-home-badges span{
+      background:#fff;
+      color:#0b2f63;
+      border-radius:999px;
+      padding:5px 9px;
+      font-size:.72rem;
+      font-weight:850;
+      white-space:nowrap;
+    }
+    .enterprise-home-button{
+      position:relative;
+      z-index:1;
+      flex:0 0 auto;
+      display:inline-flex;
+      align-items:center;
+      gap:9px;
+      background:#fff;
+      color:#0047ab!important;
+      border-radius:13px;
+      padding:12px 16px;
+      font-size:.9rem;
+      font-weight:950;
+      box-shadow:0 10px 20px rgba(0,0,0,.14);
+      transition:.2s;
+      white-space:nowrap;
+    }
+    .enterprise-home-button:hover{
+      transform:translateY(-2px);
+      color:#003782!important;
+    }
+    @media(max-width:768px){
+      .enterprise-home-cta{
+        flex-direction:column;
+        align-items:flex-start;
+        min-height:auto;
+        padding:18px;
+      }
+      .enterprise-home-button{
+        width:100%;
+        justify-content:center;
+      }
+    }
 </style>
 
 <!-- === Layout clamp (padronizar visual no desktop) === -->
@@ -727,8 +810,8 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
       <div class="enterprise-home-cta">
         <div>
           <span class="enterprise-home-kicker"><i class="fas fa-network-wired"></i> Ariana Enterprise</span>
-          <h2>Fabricantes e distribuidores: vendam na Ariana Móveis</h2>
-          <p>Integre catálogo, estoque, preços, pedidos, nota fiscal e rastreio por API, sem alterar o fluxo atual do marketplace.</p>
+          <h2>Fabricante ou distribuidor?</h2>
+          <p>Integre seu catálogo via API e venda na Ariana Móveis com estoque, pedidos, NF-e e rastreio conectados ao marketplace.</p>
           <div class="enterprise-home-badges">
             <span>API REST</span>
             <span>Estoque em tempo real</span>
@@ -736,7 +819,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <span>NF-e e rastreio</span>
           </div>
         </div>
-        <a href="fabricantes.html" class="enterprise-home-button">Conhecer integração <i class="fas fa-arrow-right"></i></a>
+        <a href="fabricantes.html" class="enterprise-home-button">Quero ser parceiro <i class="fas fa-arrow-right"></i></a>
       </div>
     </section>
 
