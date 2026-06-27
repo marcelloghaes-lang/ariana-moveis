@@ -13736,6 +13736,52 @@ app.get('/api/enterprise/rma', enterpriseOrderOperationAuth, async (req, res) =>
   }
 });
 
+
+// Compatibilidade Postman / Etapa 4: atualiza o RMA mais recente do pedido sem exigir rmaId na URL.
+// Mantém a rota principal /orders/:orderId/rma/:rmaId intacta.
+app.patch('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar RMA' });
+
+    const requestedRmaId = String(req.body?.rmaId || req.query?.rmaId || '').trim();
+    let existing = null;
+
+    if (requestedRmaId) {
+      existing = await enterpriseFindRmaRecord(String(order._id), requestedRmaId);
+    }
+
+    if (!existing) {
+      existing = await EnterpriseRmaRecord
+        .findOne({ orderId: String(order._id) })
+        .sort({ updatedAt: -1, createdAt: -1 });
+    }
+
+    if (!existing) return res.status(404).json({ ok: false, error: 'Nenhum RMA encontrado para este pedido' });
+
+    const payload = {
+      ...(toJSON(existing) || {}),
+      ...(req.body || {}),
+      rmaId: existing.rmaId,
+      status: String(req.body?.status || req.body?.situacao || existing.status || '').trim(),
+      notes: req.body?.notes || req.body?.observacoes || existing.notes || ''
+    };
+
+    const result = await enterpriseRmaUpsert(order, payload, req, 'enterprise_rma_updated', existing);
+    return res.json({
+      ok: true,
+      action: 'rma_updated',
+      orderId: String(result.order._id),
+      rma: result.rma,
+      order: enterpriseNormalizeOrderForResponse(result.order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/rma:PATCH] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao atualizar RMA Enterprise' });
+  }
+});
+
+
 app.patch('/api/enterprise/orders/:orderId/rma/:rmaId', enterpriseOrderOperationAuth, async (req, res) => {
   try {
     const order = await enterpriseCompatFindOrder(req.params.orderId);
