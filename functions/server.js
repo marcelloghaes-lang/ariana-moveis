@@ -12768,6 +12768,322 @@ app.post('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async
 });
 
 
+// ============================================================
+// PASSO 43 - PEDIDOS ENTERPRISE: detalhes, status, NF-e,
+// rastreamento e cancelamento sem alterar rotas já homologadas.
+// Aceita Bearer Token do parceiro (portal) ou x-ariana-key.
+// ============================================================
+async function enterpriseOrderOperationAuth(req, res, next) {
+  const apiKey = getEnterpriseCompatKey(req);
+  if (apiKey) return enterpriseCompatAuth(req, res, next);
+
+  const header = String(req.headers.authorization || '').trim();
+  const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+  if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || decoded.role !== 'enterprise_partner') {
+      return res.status(403).json({ ok: false, error: 'Token Enterprise inválido' });
+    }
+    req.enterprisePortal = decoded;
+    req.enterprisePartner = {
+      id: decoded.partnerId || '',
+      requestId: decoded.requestId || '',
+      companyName: decoded.companyName || '',
+      tradeName: decoded.tradeName || '',
+      environment: decoded.environment || 'sandbox',
+      permissions: Array.isArray(decoded.permissions) ? decoded.permissions : []
+    };
+    return next();
+  } catch (_error) {
+    return res.status(401).json({ ok: false, error: 'Token Enterprise expirado ou inválido' });
+  }
+}
+
+function enterpriseNormalizeOrderForResponse(orderDoc = {}) {
+  const obj = toJSON(orderDoc) || {};
+  return {
+    ...obj,
+    id: String(obj.id || obj._id || ''),
+    orderId: String(obj.id || obj._id || ''),
+    externalOrderId: String(obj.manufacturerDispatch?.externalOrderId || obj.status_integracao || ''),
+    manufacturer: String(obj.manufacturer || obj.manufacturerDispatch?.payload?.manufacturer || ''),
+    status: String(obj.status || ''),
+    statusLabel: String(obj.statusLabel || obj.status || ''),
+    trackingCode: String(obj.trackingCode || ''),
+    items: Array.isArray(obj.items) ? obj.items : [],
+    total: Number(obj.total || 0),
+    subtotal: Number(obj.subtotal || 0),
+    shippingCost: Number(obj.shippingCost || 0),
+    customerName: String(obj.customerName || ''),
+    customerEmail: String(obj.customerEmail || ''),
+    customerPhone: String(obj.customerPhone || '')
+  };
+}
+
+function enterpriseStatusLabel(status = '') {
+  const key = String(status || '').toLowerCase().trim();
+  const map = {
+    received: 'Pedido recebido',
+    enterprise_recebido: 'Pedido Enterprise recebido',
+    preparing: 'Em preparação',
+    accepted: 'Pedido aceito',
+    confirmed: 'Pedido confirmado',
+    shipped: 'Pedido enviado',
+    enviado: 'Pedido enviado',
+    delivered: 'Pedido entregue',
+    cancelled: 'Pedido cancelado',
+    canceled: 'Pedido cancelado',
+    enterprise_cancelado: 'Pedido cancelado pelo Enterprise',
+    enterprise_nfe_recebida: 'NF-e recebida',
+    enterprise_rastreio_recebido: 'Rastreio recebido'
+  };
+  return map[key] || String(status || 'Atualizado');
+}
+
+app.get('/api/enterprise/orders/:orderId', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    return res.json({
+      ok: true,
+      order: enterpriseNormalizeOrderForResponse(order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar pedido Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/status', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar status' });
+
+    const status = String(req.body?.status || req.body?.code || req.body?.newStatus || '').trim();
+    if (!status) return res.status(400).json({ ok: false, error: 'Status obrigatório' });
+
+    const statusLabel = String(req.body?.statusLabel || req.body?.label || enterpriseStatusLabel(status)).trim();
+    const nowDate = new Date();
+
+    order.status = status;
+    order.statusLabel = statusLabel;
+    order.manufacturerDispatch = {
+      ...(order.manufacturerDispatch || {}),
+      lastStatusUpdate: {
+        status,
+        statusLabel,
+        message: String(req.body?.message || req.body?.observacao || ''),
+        payload: req.body || {},
+        receivedAt: nowDate
+      },
+      lastStatusReceivedAt: nowDate
+    };
+
+    await order.save();
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: 'enterprise_order_status_updated',
+      orderId: String(order._id || ''),
+      manufacturer: order.manufacturer || req.enterprisePartner?.requestId || '',
+      status: 'success',
+      statusCode: 200,
+      message: `Status Enterprise atualizado para ${status}`,
+      request: redact(req.body || {}),
+      response: { ok: true, orderId: String(order._id || ''), status, statusLabel },
+      metadata: {
+        source: 'api_enterprise',
+        environment: req.enterprisePartner?.environment || 'sandbox'
+      }
+    }).catch(() => null);
+
+    return res.json({
+      ok: true,
+      action: 'status_updated',
+      orderId: String(order._id),
+      status: order.status,
+      statusLabel: order.statusLabel,
+      order: enterpriseNormalizeOrderForResponse(order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/status] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/cancel', enterpriseOrderOperationAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cancelar' });
+
+    const reason = String(req.body?.reason || req.body?.motivo || req.body?.message || 'Cancelado pelo fabricante').trim();
+    const nowDate = new Date();
+
+    order.status = 'enterprise_cancelado';
+    order.statusLabel = 'Pedido cancelado pelo Enterprise';
+    order.manufacturerDispatch = {
+      ...(order.manufacturerDispatch || {}),
+      cancellation: {
+        reason,
+        payload: req.body || {},
+        receivedAt: nowDate
+      },
+      cancelledAt: nowDate
+    };
+    order.status_integracao = order.status_integracao || 'cancelled';
+
+    await order.save();
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: 'enterprise_order_cancelled',
+      orderId: String(order._id || ''),
+      manufacturer: order.manufacturer || req.enterprisePartner?.requestId || '',
+      status: 'success',
+      statusCode: 200,
+      message: reason,
+      request: redact(req.body || {}),
+      response: { ok: true, orderId: String(order._id || ''), status: order.status },
+      metadata: {
+        source: 'api_enterprise',
+        environment: req.enterprisePartner?.environment || 'sandbox'
+      }
+    }).catch(() => null);
+
+    return res.json({
+      ok: true,
+      action: 'order_cancelled',
+      orderId: String(order._id),
+      status: order.status,
+      statusLabel: order.statusLabel,
+      reason,
+      order: enterpriseNormalizeOrderForResponse(order)
+    });
+  } catch (error) {
+    console.error('[enterprise/orders/:orderId/cancel] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao cancelar pedido Enterprise' });
+  }
+});
+
+// Aliases compatíveis com testes anteriores e alguns SDKs/portais.
+app.post('/api/enterprise/order/status', enterpriseOrderOperationAuth, async (req, res) => {
+  req.params.orderId = String(req.body?.orderId || req.body?.id || req.body?.externalOrderId || '').trim();
+  if (!req.params.orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
+
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar status' });
+
+    const status = String(req.body?.status || req.body?.code || req.body?.newStatus || '').trim();
+    if (!status) return res.status(400).json({ ok: false, error: 'Status obrigatório' });
+
+    const statusLabel = String(req.body?.statusLabel || req.body?.label || enterpriseStatusLabel(status)).trim();
+    const nowDate = new Date();
+    order.status = status;
+    order.statusLabel = statusLabel;
+    order.manufacturerDispatch = {
+      ...(order.manufacturerDispatch || {}),
+      lastStatusUpdate: { status, statusLabel, message: String(req.body?.message || ''), payload: req.body || {}, receivedAt: nowDate },
+      lastStatusReceivedAt: nowDate
+    };
+    await order.save();
+    return res.json({ ok: true, action: 'status_updated', orderId: String(order._id), status: order.status, statusLabel: order.statusLabel, order: enterpriseNormalizeOrderForResponse(order) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/invoice', enterpriseOrderOperationAuth, async (req, res) => {
+  const orderId = String(req.body?.orderId || req.body?.id || req.body?.externalOrderId || '').trim();
+  if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
+  req.params.orderId = orderId;
+
+  try {
+    const order = await enterpriseCompatFindOrder(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para anexar NF-e' });
+
+    const invoice = req.body?.invoice || {
+      number: req.body?.number || req.body?.invoiceNumber || '',
+      series: req.body?.series || req.body?.serie || '',
+      accessKey: req.body?.accessKey || req.body?.invoiceKey || req.body?.key || '',
+      xmlUrl: req.body?.xmlUrl || '',
+      danfeUrl: req.body?.danfeUrl || req.body?.pdfUrl || req.body?.invoiceUrl || '',
+      total: req.body?.total ?? order.total ?? 0,
+      raw: req.body || {}
+    };
+
+    order.manufacturerDispatch = { ...(order.manufacturerDispatch || {}), invoice, invoiceReceivedAt: new Date() };
+    order.status = 'enterprise_nfe_recebida';
+    order.statusLabel = 'NF-e recebida';
+    order.status_integracao = 'invoice_received';
+    await order.save();
+
+    return res.json({ ok: true, action: 'invoice_received', orderId: String(order._id), status: order.status, invoice, order: enterpriseNormalizeOrderForResponse(order) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao anexar NF-e Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/tracking', enterpriseOrderOperationAuth, async (req, res) => {
+  const orderId = String(req.body?.orderId || req.body?.id || req.body?.externalOrderId || '').trim();
+  if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
+
+  try {
+    const order = await enterpriseCompatFindOrder(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar rastreio' });
+
+    const trackingCode = String(req.body?.trackingCode || req.body?.codigoRastreio || req.body?.code || '').trim();
+    if (!trackingCode) return res.status(400).json({ ok: false, error: 'trackingCode obrigatório' });
+
+    const tracking = {
+      trackingCode,
+      carrier: req.body?.carrier || req.body?.transportadora || '',
+      trackingUrl: req.body?.trackingUrl || req.body?.urlRastreio || '',
+      status: req.body?.status || 'enviado',
+      at: new Date()
+    };
+
+    order.trackingCode = trackingCode;
+    order.trackingHistory = Array.isArray(order.trackingHistory) ? order.trackingHistory : [];
+    order.trackingHistory.push({ status: 'Rastreio recebido via Enterprise', ...tracking });
+    order.status = 'enterprise_rastreio_recebido';
+    order.statusLabel = 'Rastreio recebido';
+    order.status_integracao = 'tracking_received';
+    order.manufacturerDispatch = { ...(order.manufacturerDispatch || {}), tracking: req.body || tracking, trackingReceivedAt: new Date() };
+    await order.save();
+
+    return res.json({ ok: true, action: 'tracking_updated', orderId: String(order._id), trackingCode: order.trackingCode, status: order.status, tracking, order: enterpriseNormalizeOrderForResponse(order) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar rastreio Enterprise' });
+  }
+});
+
+app.post('/api/enterprise/order/cancel', enterpriseOrderOperationAuth, async (req, res) => {
+  const orderId = String(req.body?.orderId || req.body?.id || req.body?.externalOrderId || '').trim();
+  if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
+
+  try {
+    const order = await enterpriseCompatFindOrder(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cancelar' });
+
+    const reason = String(req.body?.reason || req.body?.motivo || req.body?.message || 'Cancelado pelo fabricante').trim();
+    order.status = 'enterprise_cancelado';
+    order.statusLabel = 'Pedido cancelado pelo Enterprise';
+    order.status_integracao = 'cancelled';
+    order.manufacturerDispatch = { ...(order.manufacturerDispatch || {}), cancellation: { reason, payload: req.body || {}, receivedAt: new Date() }, cancelledAt: new Date() };
+    await order.save();
+
+    return res.json({ ok: true, action: 'order_cancelled', orderId: String(order._id), status: order.status, statusLabel: order.statusLabel, reason, order: enterpriseNormalizeOrderForResponse(order) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao cancelar pedido Enterprise' });
+  }
+});
+
+
+
 app.post('/api/enterprise/webhooks/test', enterpriseCompatAuth, async (req, res) => {
   try {
     const event = String(req.body?.event || req.body?.type || 'webhook_test').trim();
