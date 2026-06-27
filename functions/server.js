@@ -25,6 +25,7 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import { generateProductPosterBuffer } from './poster-generator.js';
 import manufacturerIntegrationRoutes from './routes/manufacturerIntegrationRoutes.js';
+import enterpriseXmlRoutesFactory from './routes/enterpriseXmlRoutes.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12841,6 +12842,17 @@ function enterpriseStatusLabel(status = '') {
   };
   return map[key] || String(status || 'Atualizado');
 }
+
+
+// ============================================================
+// ENTERPRISE XML - módulo incremental
+// Rotas adicionadas sem alterar as rotas Enterprise já homologadas.
+// ============================================================
+app.use('/api/enterprise', enterpriseXmlRoutesFactory({
+  authMiddleware: enterpriseOrderOperationAuth,
+  findOrder: enterpriseCompatFindOrder,
+  auditLogModel: IntegrationAuditLog
+}));
 
 app.get('/api/enterprise/orders/:orderId', enterpriseOrderOperationAuth, async (req, res) => {
   try {

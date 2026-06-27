@@ -26,6 +26,8 @@ import {
   updateEnterpriseOrderStatus,
   updateEnterpriseOrderTracking,
   attachEnterpriseInvoice,
+  generateEnterpriseOrderXml,
+  getEnterpriseOrderXml,
   listEnterpriseLogs,
   listEnterpriseQueue,
   getEnterpriseDashboard
@@ -838,6 +840,69 @@ router.post('/orders/:orderId/invoice', partnerKeyRequired, async (req, res) => 
     return ok(res, { order });
   } catch (error) {
     return fail(res, 400, error.message || 'Erro ao anexar NF-e enterprise');
+  }
+});
+
+router.post('/orders/:orderId/xml/generate', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await generateEnterpriseOrderXml({
+      orderId: req.params.orderId,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      force: req.body?.force === true || String(req.body?.force || '').toLowerCase() === 'true',
+      payload: req.body
+    });
+    return ok(res, result, 201);
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao gerar XML enterprise');
+  }
+});
+
+router.post('/orders/:orderId/xml/regenerate', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await generateEnterpriseOrderXml({
+      orderId: req.params.orderId,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      force: true,
+      payload: req.body
+    });
+    return ok(res, result);
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao regerar XML enterprise');
+  }
+});
+
+router.get('/orders/:orderId/xml', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await getEnterpriseOrderXml({
+      orderId: req.params.orderId,
+      manufacturer: req.query?.manufacturer,
+      autoGenerate: req.query?.autoGenerate !== 'false'
+    });
+
+    if (String(req.query?.download || '').toLowerCase() === 'true') {
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      return res.status(200).send(result.xml);
+    }
+
+    return ok(res, result);
+  } catch (error) {
+    return fail(res, 404, error.message || 'XML enterprise não encontrado');
+  }
+});
+
+router.get('/orders/:orderId/xml/download', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await getEnterpriseOrderXml({
+      orderId: req.params.orderId,
+      manufacturer: req.query?.manufacturer,
+      autoGenerate: req.query?.autoGenerate !== 'false'
+    });
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return res.status(200).send(result.xml);
+  } catch (error) {
+    return fail(res, 404, error.message || 'XML enterprise não encontrado');
   }
 });
 

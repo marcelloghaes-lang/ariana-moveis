@@ -887,6 +887,227 @@ export async function attachEnterpriseInvoice({ orderId, invoice = {}, manufactu
   return doc;
 }
 
+
+function escapeXml(value = '') {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function onlyXmlDigits(value = '') {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function formatXmlDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value || Date.now());
+  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+  return date.toISOString();
+}
+
+function buildEnterpriseOrderLookup(orderId = '') {
+  const safeOrderId = String(orderId || '').trim();
+  if (!safeOrderId) throw new Error('orderId é obrigatório');
+
+  if (mongoose.Types.ObjectId.isValid(safeOrderId)) {
+    return { _id: new mongoose.Types.ObjectId(safeOrderId) };
+  }
+
+  return {
+    $or: [
+      { 'manufacturerDispatch.externalOrderId': safeOrderId },
+      { trackingCode: safeOrderId },
+      { 'manufacturerDispatch.invoice.number': safeOrderId },
+      { 'manufacturerDispatch.invoice.key': safeOrderId }
+    ]
+  };
+}
+
+function getOrderPublicId(order = {}, fallback = '') {
+  return String(
+    order?.manufacturerDispatch?.externalOrderId ||
+    order?._id ||
+    order?.id ||
+    fallback ||
+    ''
+  ).trim();
+}
+
+function buildEnterpriseOrderXml(order = {}, options = {}) {
+  const invoice = order?.manufacturerDispatch?.invoice || {};
+  const orderId = getOrderPublicId(order, options.orderId);
+  const invoiceNumber = String(invoice.number || options.invoiceNumber || orderId || '').trim();
+  const invoiceSerie = String(invoice.serie || invoice.series || options.serie || '1').trim();
+  const invoiceKey = String(invoice.key || options.key || '').trim();
+  const manufacturer = normalizeManufacturer(options.manufacturer || order.manufacturer || order?.manufacturerDispatch?.manufacturer || '');
+  const issuedAt = formatXmlDate(invoice.issuedAt || options.issuedAt || new Date());
+  const total = parseMoneyBR(order.total ?? 0).toFixed(2);
+  const subtotal = parseMoneyBR(order.subtotal ?? 0).toFixed(2);
+  const shippingCost = parseMoneyBR(order.shippingCost ?? 0).toFixed(2);
+  const address = order.shippingAddress || {};
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  const itemsXml = items.map((item, index) => {
+    const qty = Number(item.qty || item.quantity || 1) || 1;
+    const unit = parseMoneyBR(item.unitPrice ?? item.price ?? 0);
+    const itemTotal = parseMoneyBR(item.totalPrice ?? (unit * qty));
+    return `      <item>
+        <nItem>${index + 1}</nItem>
+        <sku>${escapeXml(item.sku || item.productId || '')}</sku>
+        <nome>${escapeXml(item.name || item.nome || 'Produto')}</nome>
+        <quantidade>${qty}</quantidade>
+        <valorUnitario>${unit.toFixed(2)}</valorUnitario>
+        <valorTotal>${itemTotal.toFixed(2)}</valorTotal>
+        <sellerId>${escapeXml(item.sellerId || manufacturer)}</sellerId>
+      </item>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<arianaMarketplace>
+  <enterpriseXml versao="1.0">
+    <identificacao>
+      <orderId>${escapeXml(orderId)}</orderId>
+      <ambiente>${escapeXml(options.environment || 'sandbox')}</ambiente>
+      <fabricante>${escapeXml(manufacturer || 'enterprise')}</fabricante>
+      <numero>${escapeXml(invoiceNumber)}</numero>
+      <serie>${escapeXml(invoiceSerie)}</serie>
+      <chave>${escapeXml(invoiceKey)}</chave>
+      <emitidoEm>${issuedAt}</emitidoEm>
+      <status>${escapeXml(order.status || '')}</status>
+      <statusIntegracao>${escapeXml(order.status_integracao || '')}</statusIntegracao>
+    </identificacao>
+    <cliente>
+      <nome>${escapeXml(order.customerName || address.name || '')}</nome>
+      <email>${escapeXml(order.customerEmail || '')}</email>
+      <telefone>${escapeXml(onlyXmlDigits(order.customerPhone || address.phone || ''))}</telefone>
+    </cliente>
+    <entrega>
+      <cep>${escapeXml(onlyXmlDigits(address.cep || ''))}</cep>
+      <logradouro>${escapeXml(address.logradouro || address.street || '')}</logradouro>
+      <numero>${escapeXml(address.numero || address.number || '')}</numero>
+      <bairro>${escapeXml(address.bairro || address.district || '')}</bairro>
+      <cidade>${escapeXml(address.cidade || address.city || '')}</cidade>
+      <uf>${escapeXml(address.uf || address.state || '')}</uf>
+      <complemento>${escapeXml(address.complemento || address.complement || '')}</complemento>
+    </entrega>
+    <itens>
+${itemsXml || '      '}
+    </itens>
+    <totais>
+      <subtotal>${subtotal}</subtotal>
+      <frete>${shippingCost}</frete>
+      <total>${total}</total>
+      <moeda>${escapeXml(order.currency || 'BRL')}</moeda>
+    </totais>
+  </enterpriseXml>
+</arianaMarketplace>`;
+}
+
+function buildEnterpriseXmlFilename(order = {}, fallbackOrderId = '') {
+  const raw = getOrderPublicId(order, fallbackOrderId) || `pedido_${Date.now()}`;
+  const safe = String(raw).replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'pedido';
+  return `ariana-enterprise-${safe}.xml`;
+}
+
+export async function generateEnterpriseOrderXml({ orderId, manufacturer = '', force = false, payload = {} } = {}) {
+  const Order = getOrderModel();
+  const query = buildEnterpriseOrderLookup(orderId);
+  const order = await Order.findOne(query).lean();
+  if (!order) throw new Error('Pedido não encontrado para gerar XML');
+
+  const currentXml = String(order?.manufacturerDispatch?.invoice?.xmlContent || '').trim();
+  if (currentXml && !force) {
+    const filename = buildEnterpriseXmlFilename(order, orderId);
+    return {
+      generated: false,
+      reused: true,
+      orderId: getOrderPublicId(order, orderId),
+      filename,
+      hash: order?.manufacturerDispatch?.invoice?.xmlHash || crypto.createHash('sha256').update(currentXml).digest('hex'),
+      xml: currentXml
+    };
+  }
+
+  const xml = buildEnterpriseOrderXml(order, {
+    orderId,
+    manufacturer: manufacturer || order.manufacturer,
+    environment: payload?.environment || payload?.ambiente || 'sandbox',
+    invoiceNumber: payload?.number || payload?.numero,
+    serie: payload?.serie,
+    key: payload?.key || payload?.chave,
+    issuedAt: payload?.issuedAt || payload?.emissao
+  });
+
+  const hash = crypto.createHash('sha256').update(xml).digest('hex');
+  const filename = buildEnterpriseXmlFilename(order, orderId);
+  const invoicePatch = {
+    ...(order?.manufacturerDispatch?.invoice || {}),
+    xmlContent: xml,
+    xmlHash: hash,
+    xmlFilename: filename,
+    xmlGeneratedAt: new Date(),
+    xmlGeneratedBy: 'enterprise_api',
+    xmlStatus: 'generated'
+  };
+
+  const doc = await Order.findOneAndUpdate(query, {
+    $set: {
+      'manufacturerDispatch.invoice': invoicePatch,
+      'manufacturerDispatch.xmlGeneratedAt': new Date(),
+      status_integracao: order.status_integracao || 'xml_generated',
+      updatedAt: new Date()
+    }
+  }, { new: true }).lean();
+
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_order_xml_generated',
+    manufacturer: normalizeManufacturer(manufacturer || order.manufacturer || ''),
+    orderId: String(order._id || order.id || orderId),
+    status: 'ok',
+    request: payload,
+    response: { filename, hash }
+  });
+
+  return {
+    generated: true,
+    reused: false,
+    orderId: getOrderPublicId(doc || order, orderId),
+    filename,
+    hash,
+    xml
+  };
+}
+
+export async function getEnterpriseOrderXml({ orderId, manufacturer = '', autoGenerate = true } = {}) {
+  const Order = getOrderModel();
+  const query = buildEnterpriseOrderLookup(orderId);
+  const order = await Order.findOne(query).lean();
+  if (!order) throw new Error('Pedido não encontrado');
+
+  const invoice = order?.manufacturerDispatch?.invoice || {};
+  const xml = String(invoice.xmlContent || '').trim();
+  if (!xml && autoGenerate) {
+    return generateEnterpriseOrderXml({ orderId, manufacturer: manufacturer || order.manufacturer, force: false, payload: { source: 'auto_get_xml' } });
+  }
+
+  if (!xml) throw new Error('XML ainda não foi gerado para este pedido');
+
+  return {
+    generated: false,
+    reused: true,
+    orderId: getOrderPublicId(order, orderId),
+    filename: invoice.xmlFilename || buildEnterpriseXmlFilename(order, orderId),
+    hash: invoice.xmlHash || crypto.createHash('sha256').update(xml).digest('hex'),
+    generatedAt: invoice.xmlGeneratedAt || null,
+    xml
+  };
+}
+
+
+
+
 export async function listEnterpriseLogs(params = {}) {
   const page = Math.max(1, Number(params.page || 1));
   const limit = Math.min(200, Math.max(1, Number(params.limit || 50)));
