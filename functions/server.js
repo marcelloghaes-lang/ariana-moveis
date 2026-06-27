@@ -25,6 +25,8 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import { generateProductPosterBuffer } from './poster-generator.js';
 import manufacturerIntegrationRoutes from './routes/manufacturerIntegrationRoutes.js';
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -12624,6 +12626,313 @@ app.post('/api/enterprise/products/:sku/sync', enterpriseCompatAuth, async (req,
     return res.json({ ok: true, sku, productId: String(product._id), stock: product.stock, price: product.price, active: product.active });
   } catch (error) {
     return res.status(400).json({ ok: false, error: error.message || 'Erro ao sincronizar produto' });
+  }
+});
+
+
+// ============================================================
+// ENTERPRISE API - Complemento Etapa 2
+// Rotas adicionadas para fechar Bulk Sync, Histórico e Summary.
+// Mantém o padrão do server.js e não altera rotas já homologadas.
+// ============================================================
+async function enterpriseUpsertProductSyncItem(item = {}, context = {}) {
+  const sku = String(item.sku || item.codigo || item.ean || context.sku || '').trim();
+  if (!sku) throw new Error('SKU obrigatório');
+
+  const sellerId = String(
+    item.sellerId ||
+    item.seller_id ||
+    context.sellerId ||
+    context.manufacturer ||
+    context.partner?.requestId ||
+    'enterprise'
+  ).trim();
+
+  const update = {
+    sku,
+    sellerId,
+    updatedAt: new Date()
+  };
+
+  if (item.stock !== undefined || item.quantity !== undefined || item.estoque !== undefined) {
+    update.stock = enterpriseCompatNumber(item.stock ?? item.quantity ?? item.estoque, 0);
+  }
+
+  if (item.price !== undefined || item.preco !== undefined || item.valor !== undefined) {
+    update.price = enterpriseCompatNumber(item.price ?? item.preco ?? item.valor, 0);
+  }
+
+  if (item.active !== undefined || item.ativo !== undefined) {
+    update.active = item.active !== false && item.ativo !== false;
+  } else {
+    update.active = true;
+  }
+
+  if (item.availability || item.disponibilidade) {
+    update.availability = String(item.availability || item.disponibilidade || '').trim();
+  }
+
+  if (item.status || item.productStatus) {
+    update.status_integracao = String(item.status || item.productStatus || '').trim();
+  }
+
+  const setOnInsert = {
+    name: String(item.name || item.nome || item.title || sku).trim(),
+    sellerName: String(context.partner?.tradeName || context.partner?.companyName || item.sellerName || item.manufacturer || context.manufacturer || sellerId || 'Enterprise').trim(),
+    brand: String(item.brand || item.marca || item.manufacturer || context.manufacturer || '').trim(),
+    category: String(item.category || item.categoria || '').trim(),
+    categoryName: String(item.categoryName || item.category || item.categoria || '').trim(),
+    createdAt: new Date()
+  };
+
+  const product = await Product.findOneAndUpdate(
+    { sku, sellerId },
+    { $set: update, $setOnInsert: setOnInsert },
+    { upsert: true, new: true }
+  );
+
+  await IntegrationAuditLog.create({
+    scope: 'enterprise',
+    eventType: 'enterprise_product_bulk_state_sync',
+    manufacturer: String(context.manufacturer || item.manufacturer || sellerId || '').toLowerCase(),
+    integrationId: context.partner?.requestId || context.partner?.id || '',
+    status: 'success',
+    statusCode: 200,
+    message: `Produto sincronizado em lote: ${sku}`,
+    request: redact(item || {}),
+    response: {
+      sku,
+      sellerId,
+      productId: String(product._id),
+      stock: product.stock,
+      price: product.price,
+      active: product.active
+    },
+    metadata: { environment: context.partner?.environment || 'sandbox' }
+  }).catch(() => null);
+
+  return {
+    ok: true,
+    sku,
+    sellerId,
+    productId: String(product._id),
+    stock: product.stock,
+    price: product.price,
+    active: product.active
+  };
+}
+
+async function enterpriseProductsBulkSyncHandler(req, res) {
+  try {
+    if (!enterpriseRequirePermission(req, res, 'catalog')) return;
+
+    const body = req.body || {};
+    const items = Array.isArray(body.items) ? body.items
+      : Array.isArray(body.products) ? body.products
+      : Array.isArray(body.produtos) ? body.produtos
+      : [];
+
+    if (!items.length) {
+      return res.status(400).json({ ok: false, error: 'items/products é obrigatório' });
+    }
+
+    const partner = req.enterprisePartner || {};
+    const manufacturer = String(body.manufacturer || body.fabricante || body.sellerId || partner.requestId || 'enterprise').trim();
+
+    const results = [];
+    for (const item of items) {
+      try {
+        const row = await enterpriseUpsertProductSyncItem(item, {
+          manufacturer,
+          sellerId: body.sellerId || manufacturer,
+          partner
+        });
+        results.push(row);
+      } catch (error) {
+        results.push({
+          ok: false,
+          sku: String(item?.sku || item?.codigo || item?.ean || '').trim(),
+          error: error.message || 'Erro ao sincronizar item'
+        });
+      }
+    }
+
+    const success = results.filter((item) => item.ok).length;
+    const errors = results.length - success;
+
+    await IntegrationAuditLog.create({
+      scope: 'enterprise',
+      eventType: 'enterprise_product_bulk_state_sync_completed',
+      manufacturer: manufacturer.toLowerCase(),
+      integrationId: partner.requestId || partner.id || '',
+      status: errors ? 'partial' : 'success',
+      statusCode: 200,
+      message: `Bulk Sync concluído: ${success} ok, ${errors} erro(s)`,
+      request: { total: items.length, manufacturer },
+      response: { total: results.length, success, errors },
+      metadata: { environment: partner.environment || 'sandbox' }
+    }).catch(() => null);
+
+    return res.json({
+      ok: true,
+      action: 'bulk_sync_completed',
+      total: results.length,
+      success,
+      errors,
+      results
+    });
+  } catch (error) {
+    console.error('[enterprise/products/sync/bulk] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao sincronizar produtos em lote' });
+  }
+}
+
+app.post('/api/enterprise/products/sync/bulk', enterpriseCompatAuth, enterpriseProductsBulkSyncHandler);
+app.post('/api/enterprise/products/bulk-sync', enterpriseCompatAuth, enterpriseProductsBulkSyncHandler);
+
+app.get('/api/enterprise/products/sync/history', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const partner = req.enterprisePartner || {};
+    const sku = String(req.query.sku || '').trim();
+    const manufacturer = String(req.query.manufacturer || req.query.fabricante || '').trim().toLowerCase();
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 30)));
+
+    const query = {
+      scope: 'enterprise',
+      eventType: {
+        $in: [
+          'enterprise_product_bulk_state_sync',
+          'enterprise_product_bulk_state_sync_completed',
+          'product.stock.updated',
+          'product.price.updated',
+          'product.updated',
+          'catalog.sync.completed',
+          'catalog.sync.queued',
+          'enterprise_catalog_sync_completed',
+          'enterprise_product_state_sync'
+        ]
+      }
+    };
+
+    if (sku) {
+      query.$or = [
+        { 'response.sku': sku },
+        { 'request.sku': sku },
+        { 'request.codigo': sku },
+        { 'request.ean': sku }
+      ];
+    }
+
+    if (manufacturer) {
+      query.manufacturer = new RegExp(escapeRegex(manufacturer), 'i');
+    } else if (partner.environment !== 'legacy' && (partner.requestId || partner.id)) {
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { integrationId: String(partner.requestId || partner.id || '') },
+          { manufacturer: new RegExp(escapeRegex(String(partner.tradeName || partner.companyName || partner.requestId || '')), 'i') }
+        ]
+      });
+    }
+
+    const logs = await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(limit).lean();
+
+    return res.json({
+      ok: true,
+      total: logs.length,
+      logs: logs.map((log) => ({
+        id: String(log._id),
+        eventType: log.eventType,
+        status: log.status,
+        message: log.message,
+        manufacturer: log.manufacturer,
+        sku: log.response?.sku || log.request?.sku || '',
+        response: log.response || null,
+        createdAt: log.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('[enterprise/products/sync/history] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar histórico de sincronização' });
+  }
+});
+
+app.get('/api/enterprise/catalog/summary', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const partner = req.enterprisePartner || {};
+    const manufacturer = String(req.query.manufacturer || req.query.fabricante || '').trim();
+    const sellerId = String(req.query.sellerId || req.query.seller_id || '').trim();
+
+    const query = {};
+    if (sellerId) {
+      query.sellerId = sellerId;
+    } else if (manufacturer) {
+      const rx = new RegExp(escapeRegex(manufacturer), 'i');
+      query.$or = [
+        { sellerId: rx },
+        { sellerName: rx },
+        { brand: rx },
+        { manufacturer: rx }
+      ];
+    } else if (partner.environment !== 'legacy' && (partner.requestId || partner.companyName || partner.tradeName)) {
+      const values = [partner.requestId, partner.companyName, partner.tradeName].map((v) => String(v || '').trim()).filter(Boolean);
+      if (values.length) {
+        query.$or = values.flatMap((value) => {
+          const rx = new RegExp(escapeRegex(value), 'i');
+          return [{ sellerId: rx }, { sellerName: rx }, { brand: rx }, { manufacturer: rx }];
+        });
+      }
+    }
+
+    const [totalProducts, activeProducts, outOfStock, lastProducts, bySeller] = await Promise.all([
+      Product.countDocuments(query),
+      Product.countDocuments({ ...query, active: { $ne: false } }),
+      Product.countDocuments({ ...query, stock: { $lte: 0 } }),
+      Product.find(query).sort({ updatedAt: -1, createdAt: -1 }).limit(20).lean(),
+      Product.aggregate([
+        { $match: Object.keys(query).length ? query : {} },
+        {
+          $group: {
+            _id: '$sellerId',
+            total: { $sum: 1 },
+            active: { $sum: { $cond: [{ $ne: ['$active', false] }, 1, 0] } },
+            stock: { $sum: { $ifNull: ['$stock', 0] } },
+            lastUpdate: { $max: '$updatedAt' }
+          }
+        },
+        { $sort: { total: -1 } },
+        { $limit: 50 }
+      ])
+    ]);
+
+    return res.json({
+      ok: true,
+      summary: {
+        totalProducts,
+        activeProducts,
+        outOfStock
+      },
+      manufacturers: bySeller.map((item) => ({
+        manufacturer: item._id || 'sem_seller',
+        total: item.total || 0,
+        active: item.active || 0,
+        stock: item.stock || 0,
+        lastUpdate: item.lastUpdate || null
+      })),
+      lastProducts: lastProducts.map((product) => ({
+        id: String(product._id),
+        sku: product.sku || '',
+        sellerId: product.sellerId || '',
+        name: product.name || '',
+        price: product.price || 0,
+        stock: product.stock || 0,
+        active: product.active !== false,
+        updatedAt: product.updatedAt || product.createdAt || null
+      }))
+    });
+  } catch (error) {
+    console.error('[enterprise/catalog/summary] erro:', error.message || error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar resumo do catálogo' });
   }
 });
 
