@@ -30,6 +30,10 @@ import {
   getEnterpriseOrderXml,
   downloadEnterpriseOrderXml,
   regenerateEnterpriseOrderXml,
+  generateEnterpriseOrderDanfe,
+  getEnterpriseOrderDanfe,
+  downloadEnterpriseOrderDanfe,
+  regenerateEnterpriseOrderDanfe,
   listEnterpriseLogs,
   listEnterpriseQueue,
   getEnterpriseDashboard
@@ -909,6 +913,70 @@ router.post('/orders/:orderId/xml/regenerate', partnerKeyRequired, async (req, r
   }
 });
 
+
+
+// ============================================================
+// ETAPA 2 - Enterprise API: DANFE PDF
+// Implementação incremental no mesmo padrão Enterprise existente.
+// Não cria rota externa nova e não altera o server.js.
+// ============================================================
+router.post('/orders/:orderId/danfe/generate', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await generateEnterpriseOrderDanfe({
+      orderId: req.params.orderId,
+      invoice: req.body?.invoice || req.body?.nfe || req.body,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body,
+      partner: req.enterprisePartner || null
+    });
+    return ok(res, result, 201);
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao gerar DANFE enterprise');
+  }
+});
+
+router.get('/orders/:orderId/danfe', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await getEnterpriseOrderDanfe({
+      orderId: req.params.orderId,
+      manufacturer: req.query?.manufacturer,
+      partner: req.enterprisePartner || null
+    });
+    return ok(res, result);
+  } catch (error) {
+    return fail(res, 404, error.message || 'DANFE enterprise não encontrado');
+  }
+});
+
+router.get('/orders/:orderId/danfe/download', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await downloadEnterpriseOrderDanfe({
+      orderId: req.params.orderId,
+      manufacturer: req.query?.manufacturer,
+      partner: req.enterprisePartner || null
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return res.status(200).send(result.pdfBuffer);
+  } catch (error) {
+    return fail(res, 404, error.message || 'DANFE enterprise não encontrado para download');
+  }
+});
+
+router.post('/orders/:orderId/danfe/regenerate', partnerKeyRequired, async (req, res) => {
+  try {
+    const result = await regenerateEnterpriseOrderDanfe({
+      orderId: req.params.orderId,
+      invoice: req.body?.invoice || req.body?.nfe || req.body,
+      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      payload: req.body,
+      partner: req.enterprisePartner || null
+    });
+    return ok(res, result);
+  } catch (error) {
+    return fail(res, 400, error.message || 'Erro ao regerar DANFE enterprise');
+  }
+});
 
 router.get('/dashboard', adminOnly, async (req, res) => {
   try { return ok(res, await getEnterpriseDashboard(req.query)); }

@@ -1125,6 +1125,219 @@ export async function regenerateEnterpriseOrderXml({ orderId, invoice = {}, manu
   return result;
 }
 
+
+function buildEnterpriseDanfeFilename(order = {}, danfe = {}) {
+  const key = compactEnterpriseXmlKey(danfe?.invoice?.key || order?.manufacturerDispatch?.invoice?.key || '');
+  const orderId = String(order?._id || order?.id || order?.manufacturerDispatch?.externalOrderId || 'pedido').replace(/[^a-zA-Z0-9_-]/g, '');
+  return key ? `danfe-${key}.pdf` : `enterprise-order-${orderId}-danfe.pdf`;
+}
+
+function escapePdfText(value = '') {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .slice(0, 140);
+}
+
+function buildSimplePdfBuffer(lines = []) {
+  const safeLines = (Array.isArray(lines) ? lines : []).slice(0, 46).map(escapePdfText);
+  const contentLines = ['BT', '/F1 11 Tf', '40 800 Td'];
+  safeLines.forEach((line, index) => {
+    if (index > 0) contentLines.push('0 -16 Td');
+    contentLines.push(`(${line}) Tj`);
+  });
+  contentLines.push('ET');
+  const stream = contentLines.join('\n');
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    `5 0 obj\n<< /Length ${Buffer.byteLength(stream, 'utf8')} >>\nstream\n${stream}\nendstream\nendobj\n`
+  ];
+  let pdf = '%PDF-1.4\n% Ariana Enterprise DANFE\n';
+  const offsets = [0];
+  for (const obj of objects) {
+    offsets.push(Buffer.byteLength(pdf, 'utf8'));
+    pdf += obj;
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'utf8');
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return Buffer.from(pdf, 'utf8');
+}
+
+function generateEnterpriseDanfePdfBuffer(order = {}, invoice = {}, context = {}) {
+  const issuedAt = invoice.issuedAt ? new Date(invoice.issuedAt) : new Date();
+  const emittedAt = Number.isNaN(issuedAt.getTime()) ? new Date() : issuedAt;
+  const orderId = String(order._id || order.id || context.orderId || '').trim();
+  const externalOrderId = String(order?.manufacturerDispatch?.externalOrderId || '').trim();
+  const manufacturer = normalizeManufacturer(context.manufacturer || order.manufacturer || order.sellerIds?.[0] || 'enterprise');
+  const address = order.shippingAddress || {};
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  const lines = [
+    'DANFE - Documento Auxiliar da NF-e',
+    'Ariana Marketplace - API Enterprise',
+    `Ambiente: ${context.environment || 'sandbox'}`,
+    `Pedido Ariana: ${orderId}`,
+    `Pedido externo: ${externalOrderId}`,
+    `Fabricante/Seller: ${manufacturer}`,
+    `Numero NF-e: ${invoice.number || ''}`,
+    `Serie: ${invoice.serie || ''}`,
+    `Chave de acesso: ${invoice.key || ''}`,
+    `Data emissao: ${emittedAt.toISOString()}`,
+    `Valor total: R$ ${parseMoneyBR(invoice.total ?? order.total ?? 0).toFixed(2)}`,
+    '',
+    'Destinatario',
+    `Nome: ${order.customerName || address.name || ''}`,
+    `Email: ${order.customerEmail || ''}`,
+    `Telefone: ${order.customerPhone || address.phone || ''}`,
+    `Endereco: ${address.logradouro || ''}, ${address.numero || ''} - ${address.bairro || ''}`,
+    `Cidade/UF: ${address.cidade || ''}/${address.uf || ''} CEP ${address.cep || ''}`,
+    '',
+    'Itens'
+  ];
+
+  items.slice(0, 18).forEach((item, index) => {
+    const qty = Number(item.qty || item.quantity || 1) || 1;
+    const totalItem = parseMoneyBR(item.totalPrice ?? (qty * parseMoneyBR(item.unitPrice ?? item.price ?? 0))).toFixed(2);
+    lines.push(`${index + 1}. ${item.sku || item.productId || ''} - ${item.name || 'Produto'} - Qtde ${qty} - R$ ${totalItem}`);
+  });
+
+  lines.push('');
+  lines.push('Observacao: DANFE sandbox gerado pela Ariana Enterprise API para homologacao.');
+  lines.push('Este documento auxiliar acompanha as informacoes de NF-e recebidas pela integracao.');
+  return buildSimplePdfBuffer(lines);
+}
+
+function publicEnterpriseDanfePayload(order = {}) {
+  const danfe = order?.manufacturerDispatch?.danfe || null;
+  if (!danfe) return null;
+  const { contentBase64, ...safeDanfe } = danfe;
+  return {
+    ...safeDanfe,
+    hasContent: Boolean(contentBase64),
+    contentLength: contentBase64 ? Buffer.byteLength(Buffer.from(String(contentBase64), 'base64')) : 0,
+    downloadPath: `/api/enterprise/orders/${String(order._id || order.id || '').trim()}/danfe/download`
+  };
+}
+
+export async function generateEnterpriseOrderDanfe({ orderId, invoice = {}, manufacturer = '', payload = {}, partner = null } = {}) {
+  const Order = getOrderModel();
+  const query = buildEnterpriseOrderLookup(orderId);
+  const order = await Order.findOne(query).lean();
+  if (!order) throw new Error('Pedido não encontrado para gerar DANFE');
+
+  const invoicePayload = buildEnterpriseInvoicePayload(invoice, order);
+  const environment = partner?.environment || payload?.environment || 'sandbox';
+  const pdfBuffer = generateEnterpriseDanfePdfBuffer(order, invoicePayload, {
+    orderId,
+    manufacturer: manufacturer || payload?.manufacturer || order.manufacturer,
+    environment
+  });
+  const pdfHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+  const filename = buildEnterpriseDanfeFilename(order, { invoice: invoicePayload });
+  const danfePayload = {
+    status: 'generated',
+    filename,
+    contentType: 'application/pdf',
+    contentBase64: pdfBuffer.toString('base64'),
+    pdfHash,
+    invoice: invoicePayload,
+    generatedAt: new Date(),
+    generatedBy: partner?.requestId || partner?.companyName || 'enterprise_api',
+    environment,
+    source: 'enterprise_api_danfe_module'
+  };
+
+  const updated = await Order.findOneAndUpdate(query, {
+    $set: {
+      'manufacturerDispatch.invoice': invoicePayload,
+      'manufacturerDispatch.danfe': danfePayload,
+      'manufacturerDispatch.danfeGeneratedAt': new Date(),
+      status_integracao: 'danfe_generated',
+      updatedAt: new Date()
+    }
+  }, { new: true }).lean();
+
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_danfe_generated',
+    manufacturer: normalizeManufacturer(manufacturer || updated?.manufacturer || order.manufacturer || ''),
+    orderId: String(updated?._id || order._id || orderId),
+    status: 'ok',
+    request: payload,
+    response: { filename, pdfHash, invoice: invoicePayload },
+    metadata: { environment, partner: partner?.requestId || '' }
+  });
+
+  return { danfe: publicEnterpriseDanfePayload(updated), orderId: String(updated?._id || order._id || orderId) };
+}
+
+export async function getEnterpriseOrderDanfe({ orderId, manufacturer = '', partner = null } = {}) {
+  const Order = getOrderModel();
+  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId)).lean();
+  if (!order) throw new Error('Pedido não encontrado');
+  const danfe = publicEnterpriseDanfePayload(order);
+  if (!danfe) throw new Error('DANFE ainda não foi gerado para este pedido');
+
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_danfe_consulted',
+    manufacturer: normalizeManufacturer(manufacturer || order.manufacturer || ''),
+    orderId: String(order._id || order.id || orderId),
+    status: 'ok',
+    response: { filename: danfe.filename, pdfHash: danfe.pdfHash },
+    metadata: { partner: partner?.requestId || '' }
+  }).catch(() => null);
+
+  return { danfe, orderId: String(order._id || order.id || orderId) };
+}
+
+export async function downloadEnterpriseOrderDanfe({ orderId, manufacturer = '', partner = null } = {}) {
+  const Order = getOrderModel();
+  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId)).lean();
+  if (!order) throw new Error('Pedido não encontrado');
+  const danfe = order?.manufacturerDispatch?.danfe || null;
+  if (!danfe?.contentBase64) throw new Error('DANFE ainda não foi gerado para este pedido');
+
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_danfe_downloaded',
+    manufacturer: normalizeManufacturer(manufacturer || order.manufacturer || ''),
+    orderId: String(order._id || order.id || orderId),
+    status: 'ok',
+    response: { filename: danfe.filename || buildEnterpriseDanfeFilename(order, danfe), pdfHash: danfe.pdfHash || '' },
+    metadata: { partner: partner?.requestId || '' }
+  }).catch(() => null);
+
+  const pdfBuffer = Buffer.from(String(danfe.contentBase64 || ''), 'base64');
+  return {
+    filename: danfe.filename || buildEnterpriseDanfeFilename(order, danfe),
+    pdfBuffer,
+    pdfHash: danfe.pdfHash || crypto.createHash('sha256').update(pdfBuffer).digest('hex')
+  };
+}
+
+export async function regenerateEnterpriseOrderDanfe({ orderId, invoice = {}, manufacturer = '', payload = {}, partner = null } = {}) {
+  const result = await generateEnterpriseOrderDanfe({ orderId, invoice, manufacturer, payload: { ...(payload || {}), regenerate: true }, partner });
+  await IntegrationAuditLog.create({
+    eventType: 'enterprise_danfe_regenerated',
+    manufacturer: normalizeManufacturer(manufacturer || payload?.manufacturer || ''),
+    orderId: String(orderId || ''),
+    status: 'ok',
+    response: { pdfHash: result?.danfe?.pdfHash || '' },
+    metadata: { partner: partner?.requestId || '' }
+  }).catch(() => null);
+  return result;
+}
+
 export async function listEnterpriseLogs(params = {}) {
   const page = Math.max(1, Number(params.page || 1));
   const limit = Math.min(200, Math.max(1, Number(params.limit || 50)));
