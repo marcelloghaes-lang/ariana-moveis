@@ -12158,6 +12158,107 @@ app.post('/api/enterprise/catalog/sync', enterpriseCompatAuth, async (req, res) 
   }
 });
 
+
+// Lista as sincronizações do parceiro Enterprise autenticado.
+// IMPORTANTE: esta rota precisa ficar antes de /api/enterprise/catalog/sync/:jobId,
+// para a palavra "jobs" não ser interpretada como jobId pelo Express.
+app.get('/api/enterprise/catalog/sync/jobs', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+    const partner = req.enterprisePartner || {};
+
+    const possiblePartnerIds = [
+      partner.requestId,
+      partner.partnerId,
+      partner.id,
+      partner._id
+    ].map((v) => String(v || '').trim()).filter(Boolean);
+
+    const query = possiblePartnerIds.length
+      ? { partnerId: { $in: possiblePartnerIds } }
+      : {};
+
+    if (partner.environment !== 'legacy' && !possiblePartnerIds.length) {
+      return res.status(403).json({ ok: false, error: 'Parceiro Enterprise inválido para listar sincronizações' });
+    }
+
+    if (partner.environment === 'legacy') {
+      delete query.partnerId;
+    }
+
+    if (req.query.status) query.status = String(req.query.status);
+    if (req.query.manufacturer) query.manufacturer = new RegExp(escapeRegex(String(req.query.manufacturer)), 'i');
+
+    const [total, jobs] = await Promise.all([
+      EnterpriseCatalogSyncJob.countDocuments(query),
+      EnterpriseCatalogSyncJob.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean()
+    ]);
+
+    return res.json({
+      ok: true,
+      total,
+      page,
+      limit,
+      jobs: jobs.map((job) => ({ ...job, id: String(job._id), payload: undefined }))
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar sincronizações Enterprise' });
+  }
+});
+
+// Consulta um job específico usando a forma /jobs/:jobId.
+app.get('/api/enterprise/catalog/sync/jobs/:jobId', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const jobId = String(req.params.jobId || '').trim();
+    const job = await EnterpriseCatalogSyncJob.findOne({ jobId }).lean();
+    if (!job) return res.status(404).json({ ok: false, error: 'Sincronização não encontrada' });
+
+    const partner = req.enterprisePartner || {};
+    const possiblePartnerIds = [partner.requestId, partner.partnerId, partner.id, partner._id]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    const allowed = partner.environment === 'legacy' || !job.partnerId || possiblePartnerIds.includes(String(job.partnerId || ''));
+    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para consultar esta sincronização' });
+
+    return res.json({ ok: true, job: { ...job, id: String(job._id), payload: undefined } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar sincronização' });
+  }
+});
+
+// Permite o parceiro solicitar nova tentativa de uma sincronização dele.
+app.post('/api/enterprise/catalog/sync/jobs/:jobId/retry', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const jobId = String(req.params.jobId || '').trim();
+    const partner = req.enterprisePartner || {};
+    const possiblePartnerIds = [partner.requestId, partner.partnerId, partner.id, partner._id]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+
+    const job = await EnterpriseCatalogSyncJob.findOne({ jobId });
+    if (!job) return res.status(404).json({ ok: false, error: 'Sincronização não encontrada' });
+
+    const allowed = partner.environment === 'legacy' || !job.partnerId || possiblePartnerIds.includes(String(job.partnerId || ''));
+    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para retentar esta sincronização' });
+
+    job.status = 'queued';
+    job.statusLabel = 'Na fila';
+    job.nextAttemptAt = new Date();
+    job.lastError = '';
+    job.results = [
+      ...(Array.isArray(job.results) ? job.results : []),
+      { action: 'retry_requested_by_partner', at: new Date(), partnerId: possiblePartnerIds[0] || '' }
+    ].slice(-1000);
+    await job.save();
+
+    processEnterpriseCatalogSyncJob(jobId).catch((error) => console.error('[enterprise sync retry] erro:', error.message || error));
+    return res.json({ ok: true, job: { ...toJSON(job), payload: undefined } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao retentar sincronização Enterprise' });
+  }
+});
+
 app.get('/api/enterprise/catalog/sync/:jobId', enterpriseCompatAuth, async (req, res) => {
   try {
     const jobId = String(req.params.jobId || '').trim();
