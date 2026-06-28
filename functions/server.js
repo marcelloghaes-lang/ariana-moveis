@@ -1259,6 +1259,7 @@ const SIGE_API_URL = String(process.env.SIGE_API_URL || 'https://api.sigecloud.c
 const SIGE_USER = String(process.env.SIGE_USER || '').trim();
 const SIGE_APP = String(process.env.SIGE_APP || 'API').trim();
 const SIGE_TOKEN = String(process.env.SIGE_TOKEN || process.env.SIGE_AUTHORIZATION_TOKEN || '').trim();
+const SIGE_PLANO_CONTA = String(process.env.SIGE_PLANO_CONTA || '').trim();
 const SIGE_TIMEOUT_MS = Number(process.env.SIGE_TIMEOUT_MS || 30000);
 
 function isSigeConfigured() {
@@ -1514,7 +1515,9 @@ app.get('/api/admin/sige/status', adminRequired, async (_req, res) => {
     apiUrl: SIGE_API_URL,
     user: SIGE_USER ? SIGE_USER.replace(/(.{3}).+(@.+)/, '$1***$2') : '',
     app: SIGE_APP || '',
-    tokenConfigured: Boolean(SIGE_TOKEN)
+    tokenConfigured: Boolean(SIGE_TOKEN),
+    planoContaConfigured: Boolean(SIGE_PLANO_CONTA),
+    planoConta: SIGE_PLANO_CONTA ? `${SIGE_PLANO_CONTA.slice(0, 6)}...${SIGE_PLANO_CONTA.slice(-4)}` : ''
   });
 });
 
@@ -18867,6 +18870,15 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     ValorComissaoVendedor: Number(body.valorComissaoVendedor || 0),
     CodigoPedidoCliente: arianaOrderId || body.codigoPedidoCliente || '',
     DataAprovacaoPedido: arianaSigeIsoDate(orderObj.updatedAt || orderObj.createdAt || new Date()),
+    PlanoDeConta: String(
+      body.planoDeConta ||
+      body.PlanoDeConta ||
+      body.planoConta ||
+      body.PlanoConta ||
+      process.env.SIGE_PLANO_CONTA ||
+      SIGE_PLANO_CONTA ||
+      ''
+    ).trim(),
     ...(body.faturar ? { DataFaturamento: arianaSigeIsoDate(new Date()) } : {})
   };
 }
