@@ -18100,6 +18100,444 @@ app.get('/api/enterprise/catalog/summary', enterpriseOrderOperationAuth, async (
   }
 });
 
+
+// ============================================================
+// ENTERPRISE DX - POSTMAN COLLECTION + SDK DOWNLOADS
+// Implementação incremental: adiciona apenas novas rotas de
+// documentação/SDK sem alterar as rotas Enterprise já homologadas.
+// ============================================================
+function enterpriseDxBaseUrl(req = null) {
+  const origin = req
+    ? `${(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0]}://${(req.headers['x-forwarded-host'] || req.get('host') || 'ariana-backend.onrender.com').split(',')[0]}`
+    : 'https://ariana-backend.onrender.com';
+  return (process.env.ENTERPRISE_API_BASE_URL || `${origin}/api`).replace(/\/+$/, '');
+}
+
+function enterpriseSetDownload(res, filename, contentType = 'application/octet-stream') {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+}
+
+function enterpriseTextResponse(res, filename, content, contentType = 'text/plain; charset=utf-8') {
+  enterpriseSetDownload(res, filename, contentType);
+  return res.send(content);
+}
+
+function buildArianaEnterprisePostmanCollection(req = null) {
+  const baseUrl = enterpriseDxBaseUrl(req);
+  const nowIso = new Date().toISOString();
+
+  const rawUrl = (pathValue) => `{{base_url}}${pathValue}`;
+  const authHeaders = [
+    { key: 'Content-Type', value: 'application/json' },
+    { key: 'x-ariana-key', value: '{{api_key}}' }
+  ];
+  const bearerHeaders = [
+    { key: 'Authorization', value: 'Bearer {{portal_token}}' }
+  ];
+
+  const item = (name, method, pathValue, body = null, headers = authHeaders) => {
+    const request = {
+      method,
+      header: headers,
+      url: {
+        raw: rawUrl(pathValue),
+        host: ['{{base_url}}'],
+        path: pathValue.replace(/^\/+/, '').split('/')
+      }
+    };
+    if (body !== null) {
+      request.body = {
+        mode: 'raw',
+        raw: typeof body === 'string' ? body : JSON.stringify(body, null, 2),
+        options: { raw: { language: 'json' } }
+      };
+    }
+    return { name, request };
+  };
+
+  return {
+    info: {
+      name: 'Ariana Enterprise API',
+      description: `Collection oficial da Ariana Enterprise gerada automaticamente em ${nowIso}.`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    variable: [
+      { key: 'base_url', value: baseUrl },
+      { key: 'api_key', value: 'ari_sbx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+      { key: 'client_id', value: 'cli_xxxxxxxxxxxxxxxxxxxxxxxx' },
+      { key: 'client_secret', value: 'secret_xxxxxxxxxxxxxxxxxxxxxxxxx' },
+      { key: 'oauth_token', value: '' },
+      { key: 'portal_token', value: '' },
+      { key: 'sku', value: 'ARI-POSTMAN-001' },
+      { key: 'order_id', value: 'COLE_AQUI_O_ORDER_ID' }
+    ],
+    item: [
+      {
+        name: 'Health e Auth',
+        item: [
+          item('Health', 'GET', '/enterprise/health', null, []),
+          item('Check API Key', 'GET', '/enterprise/auth/check', null, [{ key: 'x-ariana-key', value: '{{api_key}}' }]),
+          item('OAuth Token', 'POST', '/enterprise/oauth/token', {
+            grant_type: 'client_credentials',
+            client_id: '{{client_id}}',
+            client_secret: '{{client_secret}}'
+          }, [{ key: 'Content-Type', value: 'application/json' }]),
+          item('OAuth Check', 'GET', '/enterprise/oauth/check', null, [{ key: 'Authorization', value: 'Bearer {{oauth_token}}' }])
+        ]
+      },
+      {
+        name: 'Catálogo, Estoque e Preço',
+        item: [
+          item('Push Catálogo', 'POST', '/enterprise/catalog/push', {
+            manufacturer: 'ariana_moveis',
+            products: [{ sku: '{{sku}}', name: 'Produto Teste Postman Enterprise', price: 2299, stock: 10 }]
+          }),
+          item('Atualizar Estoque', 'PUT', '/enterprise/products/{{sku}}/stock', { stock: 15 }),
+          item('Atualizar Preço', 'PUT', '/enterprise/products/{{sku}}/price', { price: 2399.9 }),
+          item('Sync Produto', 'POST', '/enterprise/products/{{sku}}/sync', { price: 2399.9, stock: 20, active: true })
+        ]
+      },
+      {
+        name: 'Pedidos e Pós-venda',
+        item: [
+          item('Criar Pedido', 'POST', '/enterprise/orders', {
+            manufacturer: 'ariana_moveis',
+            externalOrderId: 'PED-POSTMAN-001',
+            customerName: 'Cliente Teste Enterprise',
+            items: [{ sku: '{{sku}}', qty: 1, unitPrice: 2399.9 }]
+          }),
+          item('Anexar NF-e', 'POST', '/enterprise/orders/{{order_id}}/invoice', {
+            number: '12345',
+            series: '1',
+            accessKey: '31260600000000000000550010000123451000012345',
+            danfeUrl: 'https://teste.com/danfe.pdf',
+            xmlUrl: 'https://teste.com/nfe.xml'
+          }),
+          item('Baixar XML', 'GET', '/enterprise/orders/{{order_id}}/xml', null, [{ key: 'x-ariana-key', value: '{{api_key}}' }]),
+          item('Baixar DANFE', 'GET', '/enterprise/orders/{{order_id}}/danfe', null, [{ key: 'x-ariana-key', value: '{{api_key}}' }]),
+          item('Atualizar Tracking', 'POST', '/enterprise/orders/{{order_id}}/tracking', {
+            carrier: 'Correios',
+            trackingCode: 'AA123456789BR',
+            trackingUrl: 'https://rastreamento.correios.com.br/app/index.php'
+          }),
+          item('Registrar Ocorrência', 'POST', '/enterprise/orders/{{order_id}}/occurrences', {
+            type: 'DELIVERY_DELAY',
+            description: 'Entrega reagendada pela transportadora.',
+            date: nowIso
+          }),
+          item('Consultar Ocorrências', 'GET', '/enterprise/orders/{{order_id}}/occurrences', null, [{ key: 'x-ariana-key', value: '{{api_key}}' }]),
+          item('Abrir RMA', 'POST', '/enterprise/orders/{{order_id}}/rma', {
+            reason: 'Produto avariado no transporte',
+            description: 'Embalagem danificada e lateral amassada.',
+            requestedBy: 'Cliente Teste'
+          }),
+          item('Consultar RMA', 'GET', '/enterprise/orders/{{order_id}}/rma', null, [{ key: 'x-ariana-key', value: '{{api_key}}' }])
+        ]
+      },
+      {
+        name: 'Webhooks e Portal',
+        item: [
+          item('Webhook Teste', 'POST', '/enterprise/webhooks/test', {
+            event: 'order.created',
+            payload: { orderId: '{{order_id}}', status: 'enterprise_recebido' }
+          }),
+          item('Partner Login', 'POST', '/enterprise/partner/login', { apiKey: '{{api_key}}' }, [{ key: 'Content-Type', value: 'application/json' }]),
+          item('Partner Usage', 'GET', '/enterprise/partner/usage', null, bearerHeaders),
+          item('Partner Logs', 'GET', '/enterprise/partner/logs', null, bearerHeaders),
+          item('Partner Dashboard', 'GET', '/enterprise/partner/dashboard', null, bearerHeaders),
+          item('Partner Metrics', 'GET', '/enterprise/partner/metrics', null, bearerHeaders)
+        ]
+      },
+      {
+        name: 'Documentação e SDKs',
+        item: [
+          item('OpenAPI JSON', 'GET', '/enterprise/openapi.json', null, []),
+          item('Swagger UI', 'GET', '/enterprise/swagger', null, []),
+          item('Postman Collection', 'GET', '/enterprise/postman.json', null, []),
+          item('SDK Manifest', 'GET', '/enterprise/sdk/manifest', null, []),
+          item('SDK JavaScript', 'GET', '/enterprise/sdk/javascript', null, []),
+          item('SDK PHP', 'GET', '/enterprise/sdk/php', null, []),
+          item('SDK Python', 'GET', '/enterprise/sdk/python', null, []),
+          item('Composer Manifest', 'GET', '/enterprise/sdk/composer', null, []),
+          item('NPM Manifest', 'GET', '/enterprise/sdk/npm', null, [])
+        ]
+      }
+    ]
+  };
+}
+
+const ARIANA_ENTERPRISE_JS_SDK_SOURCE = `/**
+ * Ariana Enterprise JavaScript SDK
+ * SDK oficial para integração com catálogo, estoque, preço, pedidos, NF-e, rastreio e webhooks.
+ */
+export class ArianaEnterpriseClient {
+  constructor({ apiKey, bearerToken, baseUrl = 'https://ariana-backend.onrender.com/api', timeoutMs = 30000 } = {}) {
+    this.apiKey = apiKey || '';
+    this.bearerToken = bearerToken || '';
+    this.baseUrl = String(baseUrl).replace(/\\/+$/, '');
+    this.timeoutMs = timeoutMs;
+  }
+
+  async request(method, path, body) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.apiKey) headers['x-ariana-key'] = this.apiKey;
+      if (this.bearerToken) headers.Authorization = \`Bearer \${this.bearerToken}\`;
+
+      const response = await fetch(\`\${this.baseUrl}\${path}\`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : await response.text();
+
+      if (!response.ok) {
+        const message = data && data.error ? data.error : \`HTTP \${response.status}\`;
+        const error = new Error(message);
+        error.status = response.status;
+        error.response = data;
+        throw error;
+      }
+
+      return data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  health() { return this.request('GET', '/enterprise/health'); }
+  authCheck() { return this.request('GET', '/enterprise/auth/check'); }
+
+  catalogPush(manufacturer, products) {
+    return this.request('POST', '/enterprise/catalog/push', { manufacturer, products });
+  }
+
+  updateStock(sku, stock) {
+    return this.request('PUT', \`/enterprise/products/\${encodeURIComponent(sku)}/stock\`, { stock });
+  }
+
+  updatePrice(sku, price) {
+    return this.request('PUT', \`/enterprise/products/\${encodeURIComponent(sku)}/price\`, { price });
+  }
+
+  createOrder(order) {
+    return this.request('POST', '/enterprise/orders', order);
+  }
+
+  attachInvoice(orderId, invoice) {
+    return this.request('POST', \`/enterprise/orders/\${encodeURIComponent(orderId)}/invoice\`, invoice);
+  }
+
+  updateTracking(orderId, tracking) {
+    return this.request('POST', \`/enterprise/orders/\${encodeURIComponent(orderId)}/tracking\`, tracking);
+  }
+
+  sendWebhookTest(event, payload) {
+    return this.request('POST', '/enterprise/webhooks/test', { event, payload });
+  }
+}
+
+export default ArianaEnterpriseClient;
+`;
+
+const ARIANA_ENTERPRISE_PHP_SDK_SOURCE = `<?php
+namespace ArianaEnterprise;
+
+class Client {
+    private string $baseUrl;
+    private string $apiKey;
+    private ?string $bearerToken;
+    private int $timeout;
+
+    public function __construct(array $config = []) {
+        $this->baseUrl = rtrim($config['baseUrl'] ?? 'https://ariana-backend.onrender.com/api', '/');
+        $this->apiKey = $config['apiKey'] ?? '';
+        $this->bearerToken = $config['bearerToken'] ?? null;
+        $this->timeout = (int)($config['timeout'] ?? 30);
+    }
+
+    private function request(string $method, string $path, ?array $body = null): array {
+        $ch = curl_init($this->baseUrl . $path);
+        $headers = ['Content-Type: application/json'];
+        if ($this->apiKey) $headers[] = 'x-ariana-key: ' . $this->apiKey;
+        if ($this->bearerToken) $headers[] = 'Authorization: Bearer ' . $this->bearerToken;
+
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_TIMEOUT => $this->timeout,
+        ]);
+
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
+        }
+
+        $raw = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($raw === false) {
+            throw new \RuntimeException($error ?: 'Erro de comunicação com Ariana Enterprise');
+        }
+
+        $data = json_decode($raw, true);
+        if ($status < 200 || $status >= 300) {
+            throw new \RuntimeException($data['error'] ?? ('HTTP ' . $status));
+        }
+
+        return is_array($data) ? $data : ['ok' => true, 'raw' => $raw];
+    }
+
+    public function health(): array { return $this->request('GET', '/enterprise/health'); }
+    public function catalogPush(string $manufacturer, array $products): array { return $this->request('POST', '/enterprise/catalog/push', ['manufacturer' => $manufacturer, 'products' => $products]); }
+    public function updateStock(string $sku, int $stock): array { return $this->request('PUT', '/enterprise/products/' . rawurlencode($sku) . '/stock', ['stock' => $stock]); }
+    public function updatePrice(string $sku, float $price): array { return $this->request('PUT', '/enterprise/products/' . rawurlencode($sku) . '/price', ['price' => $price]); }
+    public function createOrder(array $order): array { return $this->request('POST', '/enterprise/orders', $order); }
+    public function attachInvoice(string $orderId, array $invoice): array { return $this->request('POST', '/enterprise/orders/' . rawurlencode($orderId) . '/invoice', $invoice); }
+    public function updateTracking(string $orderId, array $tracking): array { return $this->request('POST', '/enterprise/orders/' . rawurlencode($orderId) . '/tracking', $tracking); }
+}
+`;
+
+const ARIANA_ENTERPRISE_PYTHON_SDK_SOURCE = `"""
+Ariana Enterprise Python SDK
+SDK oficial para integrações com ERPs, automações e pipelines.
+"""
+import requests
+
+class ArianaEnterpriseError(Exception):
+    pass
+
+class ArianaEnterpriseClient:
+    def __init__(self, api_key=None, bearer_token=None, base_url="https://ariana-backend.onrender.com/api", timeout=30):
+        self.api_key = api_key or ""
+        self.bearer_token = bearer_token
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+
+    def request(self, method, path, json=None):
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["x-ariana-key"] = self.api_key
+        if self.bearer_token:
+            headers["Authorization"] = f"Bearer {self.bearer_token}"
+
+        response = requests.request(method, self.base_url + path, json=json, headers=headers, timeout=self.timeout)
+        try:
+            data = response.json()
+        except ValueError:
+            data = {"raw": response.text}
+
+        if response.status_code < 200 or response.status_code >= 300:
+            raise ArianaEnterpriseError(data.get("error") or f"HTTP {response.status_code}")
+
+        return data
+
+    def health(self):
+        return self.request("GET", "/enterprise/health")
+
+    def catalog_push(self, manufacturer, products):
+        return self.request("POST", "/enterprise/catalog/push", {"manufacturer": manufacturer, "products": products})
+
+    def update_stock(self, sku, stock):
+        return self.request("PUT", f"/enterprise/products/{sku}/stock", {"stock": stock})
+
+    def update_price(self, sku, price):
+        return self.request("PUT", f"/enterprise/products/{sku}/price", {"price": price})
+
+    def create_order(self, order):
+        return self.request("POST", "/enterprise/orders", order)
+
+    def attach_invoice(self, order_id, invoice):
+        return self.request("POST", f"/enterprise/orders/{order_id}/invoice", invoice)
+
+    def update_tracking(self, order_id, tracking):
+        return self.request("POST", f"/enterprise/orders/{order_id}/tracking", tracking)
+`;
+
+app.get('/api/enterprise/postman.json', (req, res) => {
+  return res.json(buildArianaEnterprisePostmanCollection(req));
+});
+
+app.get('/api/v1/enterprise/postman.json', enterpriseVersionHeaders('v1'), (req, res) => {
+  return res.json(buildArianaEnterprisePostmanCollection(req));
+});
+
+app.get('/api/v2/enterprise/postman.json', enterpriseVersionHeaders('v2', true), (req, res) => {
+  const collection = buildArianaEnterprisePostmanCollection(req);
+  collection.info.name = 'Ariana Enterprise API - v2 Preview';
+  collection.info.description += ' Esta versão aponta para recursos v2 em preview quando disponíveis.';
+  return res.json(collection);
+});
+
+app.get(['/api/enterprise/sdk/javascript', '/api/enterprise/sdk/js', '/api/v1/enterprise/sdk/javascript', '/api/v1/enterprise/sdk/js'], (_req, res) => {
+  return enterpriseTextResponse(res, 'ariana-enterprise-sdk.js', ARIANA_ENTERPRISE_JS_SDK_SOURCE, 'text/javascript; charset=utf-8');
+});
+
+app.get(['/api/enterprise/sdk/php', '/api/v1/enterprise/sdk/php'], (_req, res) => {
+  return enterpriseTextResponse(res, 'ArianaEnterpriseClient.php', ARIANA_ENTERPRISE_PHP_SDK_SOURCE, 'application/x-httpd-php; charset=utf-8');
+});
+
+app.get(['/api/enterprise/sdk/python', '/api/v1/enterprise/sdk/python'], (_req, res) => {
+  return enterpriseTextResponse(res, 'ariana_enterprise.py', ARIANA_ENTERPRISE_PYTHON_SDK_SOURCE, 'text/x-python; charset=utf-8');
+});
+
+app.get(['/api/enterprise/sdk/composer', '/api/v1/enterprise/sdk/composer'], (_req, res) => {
+  return res.json({
+    name: 'ariana/enterprise-sdk',
+    description: 'SDK PHP oficial da Ariana Enterprise para ERPs e integrações B2B.',
+    type: 'library',
+    version: '1.0.0',
+    license: 'proprietary',
+    require: { php: '>=8.1', ext_curl: '*' },
+    autoload: { psr4: { 'ArianaEnterprise\\': 'src/' } }
+  });
+});
+
+app.get(['/api/enterprise/sdk/npm', '/api/v1/enterprise/sdk/npm'], (_req, res) => {
+  return res.json({
+    name: '@ariana/enterprise-sdk',
+    version: '1.0.0',
+    description: 'SDK JavaScript oficial da Ariana Enterprise.',
+    type: 'module',
+    main: 'dist/index.cjs',
+    module: 'dist/index.js',
+    exports: { '.': { import: './dist/index.js', require: './dist/index.cjs' } },
+    keywords: ['ariana', 'enterprise', 'marketplace', 'erp', 'api'],
+    license: 'UNLICENSED'
+  });
+});
+
+app.get(['/api/enterprise/sdk/downloads', '/api/v1/enterprise/sdk/downloads'], (req, res) => {
+  const baseUrl = enterpriseDxBaseUrl(req);
+  return res.json({
+    ok: true,
+    baseUrl,
+    downloads: {
+      postman: `${baseUrl}/enterprise/postman.json`,
+      openapi: `${baseUrl}/enterprise/openapi.json`,
+      swagger: `${baseUrl}/enterprise/swagger`,
+      javascript: `${baseUrl}/enterprise/sdk/javascript`,
+      js: `${baseUrl}/enterprise/sdk/js`,
+      php: `${baseUrl}/enterprise/sdk/php`,
+      python: `${baseUrl}/enterprise/sdk/python`,
+      composer: `${baseUrl}/enterprise/sdk/composer`,
+      npm: `${baseUrl}/enterprise/sdk/npm`,
+      manifest: `${baseUrl}/enterprise/sdk/manifest`
+    }
+  });
+});
+
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
