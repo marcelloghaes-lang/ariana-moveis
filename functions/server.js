@@ -19199,21 +19199,39 @@ function arianaSigePayloadAttemptList(fullPayload = {}, body = {}) {
 }
 
 
+function arianaSigeRawText(raw = '') {
+  if (raw === undefined || raw === null) return '';
+  if (typeof raw === 'string') return raw;
+  try { return JSON.stringify(raw); } catch (_error) { return String(raw); }
+}
+
+function arianaSigeExtractPedidoNumberFromRaw(raw = '') {
+  const text = arianaSigeRawText(raw).replace(/^"|"$/g, '').trim();
+  const match = text.match(/PEDIDO\s+([0-9]+)\s+SALVO\s+COM\s+SUCESSO/i) ||
+    text.match(/pedido[^0-9]{0,20}([0-9]+)/i);
+  return match ? String(match[1]).trim() : '';
+}
+
 function arianaSigeExtractVendaPayload(raw = {}, fallback = {}) {
   const direct = raw?.pedido || raw?.Pedido || raw?.venda || raw?.Venda || raw?.data || raw?.Dados || raw || {};
+  const pedidoNumeroRaw = arianaSigeExtractPedidoNumberFromRaw(raw);
   const codigo =
-    String(fallback.codigo || fallback.codigoPedido || fallback.externalOrderId || '').trim() ||
-    sigeFindByKeyDeep(direct, ['codigoPedido', 'codigo', 'numeroPedido', 'pedido', 'numero', 'id']);
+    pedidoNumeroRaw ||
+    sigeFindByKeyDeep(direct, ['codigoPedido', 'codigo', 'numeroPedido', 'pedido', 'numero', 'id']) ||
+    String(fallback.codigo || fallback.codigoPedido || fallback.externalOrderId || '').trim();
   const id =
     String(fallback.sigeVendaId || fallback.id || '').trim() ||
     sigeFindByKeyDeep(direct, ['id', 'pedidoId', 'vendaId', 'codigoSistema']);
   const status =
     String(fallback.status || '').trim() ||
-    sigeFindByKeyDeep(direct, ['status', 'situacao', 'statusSistema']);
+    sigeFindByKeyDeep(direct, ['status', 'situacao', 'statusSistema']) ||
+    (pedidoNumeroRaw ? 'SALVO' : '');
 
   return {
     id,
     codigo,
+    numero: codigo,
+    pedidoNumero: codigo,
     status,
     raw
   };
@@ -19610,23 +19628,29 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
       try {
         const raw = await sigeRequest('POST', endpoint, { data: payload });
         const venda = arianaSigeExtractVendaPayload(raw, payload);
-        const externalOrderId = String(
+        const arianaPedidoId = String(
+          payload.CodigoPedidoCliente ||
           payload.CodigoPedidoExterno ||
           payload.CodigoPedido ||
-          payload.CodigoPedidoCliente ||
-          payload.Codigo ||
-          venda.codigo ||
+          order._id ||
           ''
         ).trim();
+        const sigePedidoNumero = String(venda.codigo || venda.pedidoNumero || venda.numero || '').trim();
+        const externalOrderId = sigePedidoNumero || arianaPedidoId;
 
         order.manufacturerDispatch = {
           ...(order.manufacturerDispatch || {}),
-          externalOrderId: order.manufacturerDispatch?.externalOrderId || externalOrderId,
+          externalOrderId,
+          arianaPedidoId,
+          sigePedidoNumero,
+          sigePedidoCodigo: sigePedidoNumero,
           sigeSale: {
             ...(order.manufacturerDispatch?.sigeSale || {}),
             ...venda,
             endpoint,
             externalOrderId,
+            arianaPedidoId,
+            sigePedidoNumero,
             createdAt: new Date(),
             payloadMode: attempt.mode,
             payload
@@ -19636,9 +19660,12 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
             ...venda,
             endpoint,
             externalOrderId,
+            arianaPedidoId,
+            sigePedidoNumero,
             payloadMode: attempt.mode,
             createdAt: new Date()
           },
+          sigeProdutos: produtosSige,
           sigeVendaCriadaEm: new Date()
         };
         order.status_integracao = 'sige_sale_created';
@@ -19658,7 +19685,7 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
             message: `Venda criada no SIGE Cloud para emissão manual de NF-e usando payload ${attempt.mode}`,
             request: redact({ endpoint, payloadMode: attempt.mode, payload }),
             response: redact(raw),
-            metadata: { externalOrderId, sigeVendaId: venda.id, sigeCodigo: venda.codigo, payloadMode: attempt.mode }
+            metadata: { externalOrderId, arianaPedidoId, sigePedidoNumero, sigeVendaId: venda.id, sigeCodigo: venda.codigo, payloadMode: attempt.mode }
           });
         } catch (_auditError) {}
 
@@ -19851,6 +19878,29 @@ app.post('/api/admin/sige/orders/:orderId/criar-venda', adminRequired, async (re
       produtosSige: redact(error.produtosSige || error.responseData?.produtosSige || null),
       sigeResponse: redact(error.responseData || null)
     });
+  }
+});
+
+
+app.get('/api/admin/sige/orders/:orderId/integracao', adminRequired, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar integração SIGE' });
+
+    const dispatch = order.manufacturerDispatch || {};
+    return res.json({
+      ok: true,
+      orderId: String(order._id),
+      statusIntegracao: order.status_integracao || '',
+      statusLabel: order.statusLabel || '',
+      arianaPedidoId: dispatch.arianaPedidoId || String(order._id),
+      sigePedidoNumero: dispatch.sigePedidoNumero || dispatch.sigePedidoCodigo || dispatch.sigeVenda?.codigo || dispatch.sigeSale?.codigo || '',
+      sigeVenda: dispatch.sigeVenda || dispatch.sigeSale || null,
+      produtosSige: dispatch.sigeProdutos || null,
+      raw: dispatch.sigeVenda?.raw || dispatch.sigeSale?.raw || null
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar integração SIGE' });
   }
 });
 
