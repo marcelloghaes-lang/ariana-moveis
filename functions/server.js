@@ -18702,6 +18702,44 @@ function arianaSigeBuildEndereco(address = {}) {
   };
 }
 
+function arianaSigeRawNumber(value = 0) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const text = String(value ?? '').trim();
+  if (!text) return 0;
+  const normalized = text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function arianaSigeMoney(value = 0, referenceTotal = 0) {
+  let n = arianaSigeRawNumber(value);
+  const ref = arianaSigeRawNumber(referenceTotal);
+  if (n > 0 && ref > 0 && n > ref * 3) n = n / 100;
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
+function arianaSigeFirstValue(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return '';
+}
+
+function arianaSigeIsoDate(value = new Date()) {
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+function arianaSigeNormalizePayment(value = '') {
+  const text = String(value || '').trim().toLowerCase();
+  if (text.includes('boleto')) return 'Boleto';
+  if (text.includes('pix')) return 'Pix';
+  if (text.includes('cart') || text.includes('credit')) return 'Cartão de Crédito';
+  if (text.includes('pagar')) return 'Pagar.me';
+  if (text.includes('mercado')) return 'Mercado Pago';
+  return String(value || 'Outros').trim() || 'Outros';
+}
+
 function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   const orderObj = toJSON(order) || order || {};
   const explicit = body && typeof body === 'object' ? (body.sigePayload || body.payload || {}) : {};
@@ -18712,69 +18750,127 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   }
 
   const arianaOrderId = String(orderObj._id || orderObj.id || body.orderId || '').trim();
-  const externalOrderId = String(
-    body.codigoPedido ||
-    body.externalOrderId ||
-    orderObj.externalOrderId ||
-    orderObj.manufacturerDispatch?.externalOrderId ||
-    (arianaOrderId ? `ARIANA-${arianaOrderId.slice(-8).toUpperCase()}` : `ARIANA-${Date.now()}`)
-  ).trim();
-
-  const customer = body.customer || {};
+  const shortCode = arianaOrderId ? Number.parseInt(arianaOrderId.replace(/\D/g, '').slice(-8), 10) || Date.now() : Date.now();
   const shippingAddress = orderObj.shippingAddress || orderObj.shipping?.address || body.shippingAddress || {};
   const payment = orderObj.payment || body.payment || {};
-  const items = ensureArray(orderObj.items).map((item, index) => {
+  const frete = arianaSigeMoney(arianaSigeFirstValue(orderObj.shippingCost, orderObj.shipping?.price, body.shippingCost, 0), orderObj.total || 0);
+  const totalPedido = arianaSigeMoney(arianaSigeFirstValue(orderObj.total, orderObj.subtotal, body.total, 0), 0);
+  const subtotal = arianaSigeMoney(orderObj.subtotal || 0, 0);
+  const sourceItems = ensureArray(orderObj.items);
+  const totalQty = sourceItems.reduce((sum, item) => sum + (Number(item.qty || item.quantity || 1) || 1), 0) || 1;
+
+  const items = sourceItems.map((item, index) => {
     const qty = Number(item.qty || item.quantity || 1) || 1;
-    const unitPrice = Number(item.unitPrice || item.price || item.sellerBaseUnitPrice || 0) || 0;
+    const fallbackUnitFromSubtotal = subtotal > 0 ? subtotal / totalQty : 0;
+    const unitPrice = arianaSigeMoney(arianaSigeFirstValue(
+      item.sellerBaseUnitPrice,
+      item.pixUnitPrice,
+      item.baseUnitPrice,
+      item.unitPrice,
+      item.price,
+      fallbackUnitFromSubtotal
+    ), totalPedido || subtotal || 0);
+    const totalItem = arianaSigeMoney(arianaSigeFirstValue(item.sellerBaseTotal, item.totalPrice, unitPrice * qty), totalPedido || subtotal || 0);
+
     return {
-      Codigo: String(item.sku || item.productId || item.codigo || `ITEM-${index + 1}`).trim(),
+      Codigo: String(item.sku || item.productSku || item.productId || item.codigo || `ITEM-${index + 1}`).trim(),
       Unidade: String(item.unidade || 'UN').trim(),
-      Descricao: String(item.name || item.description || item.sku || 'Produto Ariana').trim(),
+      Descricao: String(item.name || item.description || item.descricao || item.sku || 'Produto Ariana').trim(),
       Quantidade: qty,
       ValorUnitario: unitPrice,
-      ValorTotal: Number(item.totalPrice || (qty * unitPrice)) || 0,
-      Observacao: String(item.sellerId || item.manufacturer || '').trim()
+      ValorFrete: 0,
+      DescontoUnitario: 0,
+      ValorTotal: totalItem || arianaSigeMoney(unitPrice * qty),
+      PesoKG: Number(item.weight || item.pesoKg || item.PesoKG || 0) || 0,
+      Comprimento: Number(item.length || item.comprimento || 0) || 0,
+      Altura: Number(item.height || item.altura || 0) || 0,
+      Largura: Number(item.width || item.largura || 0) || 0,
+      FreteGratis: false,
+      ValorUnitarioFrete: 0,
+      PrazoEntregaFrete: 0,
+      Seguro: 0,
+      ProductGroupId: Number(item.productGroupId || item.ProductGroupId || 0) || 0
     };
   });
 
-  const frete = Number(orderObj.shippingCost || orderObj.shipping?.price || body.shippingCost || 0) || 0;
-  const desconto = Number(body.desconto || body.discount || orderObj.discount || 0) || 0;
-  const total = Number(orderObj.total || orderObj.subtotal || body.total || 0) || 0;
-  const formaPagamento = String(
-    body.formaPagamento ||
-    payment.method ||
-    payment.paymentMethod ||
-    payment.type ||
-    'A definir'
-  ).trim();
+  const itemsTotal = arianaSigeMoney(items.reduce((sum, item) => sum + arianaSigeMoney(item.ValorTotal), 0));
+  const valorFinal = totalPedido || arianaSigeMoney(itemsTotal + frete);
+  const formaPagamento = arianaSigeNormalizePayment(arianaSigeFirstValue(body.formaPagamento, payment.method, payment.paymentMethod, payment.type, 'Outros'));
+  const parcelas = Number(arianaSigeFirstValue(body.parcelas, payment.installments, payment.parcelas, 1)) || 1;
+  const clienteDoc = arianaSigeOnlyDigits(arianaSigeFirstValue(
+    body.customerDocument,
+    body.cpfCnpj,
+    orderObj.customerDocument,
+    orderObj.customerCpf,
+    orderObj.customerCnpj,
+    orderObj.cpf,
+    orderObj.cnpj,
+    orderObj.user?.cpf,
+    shippingAddress.cpf,
+    shippingAddress.cnpj
+  ));
 
   return {
-    Codigo: externalOrderId,
-    CodigoPedido: externalOrderId,
-    CodigoPedidoExterno: externalOrderId,
-    Origem: 'Marketplace Ariana Móveis',
-    StatusSistema: 'Pedido',
-    Cliente: {
-      Nome: String(customer.name || orderObj.customerName || body.customerName || 'Cliente Ariana').trim(),
-      Email: String(customer.email || orderObj.customerEmail || body.customerEmail || '').trim(),
-      Telefone: arianaSigeOnlyDigits(customer.phone || orderObj.customerPhone || body.customerPhone || ''),
-      CPF_CNPJ: arianaSigeOnlyDigits(customer.cpf || customer.cnpj || orderObj.customerDocument || body.customerDocument || ''),
-      Endereco: arianaSigeBuildEndereco(shippingAddress)
-    },
-    Itens: items,
-    Produtos: items,
-    ValorFrete: frete,
-    Desconto: desconto,
-    ValorTotal: total,
+    Codigo: body.codigo || shortCode,
+    OrigemVenda: body.origemVenda || 'Ariana Marketplace',
+    Tabela: body.tabela || process.env.SIGE_TABELA || 'Tabela Padrão',
+    Deposito: body.deposito || process.env.SIGE_DEPOSITO || 'Depósito Padrão',
+    StatusSistema: body.statusSistema || 'Pedido',
+    Status: body.status || 'Aprovado',
+    Categoria: body.categoria || 'Varejo',
+    Validade: arianaSigeIsoDate(orderObj.createdAt || new Date()),
+    Empresa: body.empresa || process.env.SIGE_EMPRESA || 'Ariana Móveis',
+    Cliente: String(arianaSigeFirstValue(body.customerName, orderObj.customerName, orderObj.user?.name, orderObj.customerEmail, 'Cliente Ariana')).trim(),
+    ClienteCNPJ: clienteDoc,
+    ClienteEmail: String(arianaSigeFirstValue(body.customerEmail, orderObj.customerEmail, orderObj.user?.email)).trim(),
+    ClienteTelefone: arianaSigeOnlyDigits(arianaSigeFirstValue(body.customerPhone, orderObj.customerPhone, orderObj.phone, orderObj.user?.phone)),
+    Vendedor: body.vendedor || process.env.SIGE_VENDEDOR || '',
+    PlanoDeConta: body.planoDeConta || process.env.SIGE_PLANO_CONTA || '',
     FormaPagamento: formaPagamento,
-    Parcelas: Number(body.parcelas || payment.installments || payment.parcelas || 1) || 1,
-    Observacoes: String(body.observacoes || body.notes || `Marketplace Ariana Móveis | Pedido Ariana: ${arianaOrderId} | Código externo: ${externalOrderId}`).trim(),
-    InformacoesComplementares: String(body.informacoesComplementares || `Pedido criado automaticamente pelo Marketplace Ariana Móveis. Pedido Ariana: ${arianaOrderId}`).trim(),
-    Metadata: {
-      arianaOrderId,
-      externalOrderId,
-      source: 'ariana_marketplace'
-    }
+    NumeroParcelas: parcelas,
+    FreteMeioEnvio: Number(body.freteMeioEnvio || process.env.SIGE_FRETE_MEIO_ENVIO || 1),
+    Transportadora: String(arianaSigeFirstValue(body.transportadora, orderObj.shipping?.carrier, orderObj.shipping?.provider)).trim(),
+    FreteFormaEnvio: String(arianaSigeFirstValue(body.freteFormaEnvio, orderObj.shipping?.service, orderObj.shipping?.serviceName)).trim(),
+    DataEnvio: body.dataEnvio || undefined,
+    PrevisaoEntrega: body.previsaoEntrega || undefined,
+    DataPostagem: body.dataPostagem || undefined,
+    Enviado: false,
+    ValorFrete: frete,
+    FreteContaEmitente: frete <= 0,
+    CodigoRastreio: String(arianaSigeFirstValue(orderObj.trackingCode, body.codigoRastreio)).trim(),
+    EnderecoOpcional: false,
+    ValorSeguro: 0,
+    Descricao: body.descricao || `Pedido Ariana: ${arianaOrderId || '-'}`,
+    OutrasDespesas: 0,
+    ValorFinal: valorFinal,
+    Finalizado: false,
+    Lancado: false,
+    Municipio: String(arianaSigeFirstValue(shippingAddress.cidade, shippingAddress.city, shippingAddress.municipio)).trim(),
+    CodigoMunicipio: String(arianaSigeFirstValue(shippingAddress.codigoMunicipio, shippingAddress.ibge, shippingAddress.cityCode)).trim(),
+    Pais: String(arianaSigeFirstValue(shippingAddress.pais, shippingAddress.country, 'Brasil')).trim(),
+    CEP: arianaSigeOnlyDigits(arianaSigeFirstValue(shippingAddress.cep, shippingAddress.zipCode, shippingAddress.zip, shippingAddress.postalCode)),
+    UF: String(arianaSigeFirstValue(shippingAddress.uf, shippingAddress.state, shippingAddress.estado)).trim().toUpperCase(),
+    UFCodigo: String(arianaSigeFirstValue(shippingAddress.ufCodigo, shippingAddress.codigoUf)).trim(),
+    Bairro: String(arianaSigeFirstValue(shippingAddress.bairro, shippingAddress.neighborhood)).trim(),
+    Logradouro: String(arianaSigeFirstValue(shippingAddress.logradouro, shippingAddress.rua, shippingAddress.street, shippingAddress.endereco, shippingAddress.address)).trim(),
+    LogradouroNumero: String(arianaSigeFirstValue(shippingAddress.numero, shippingAddress.number, shippingAddress.logradouroNumero, 'S/N')).trim(),
+    LogradouroComplemento: String(arianaSigeFirstValue(shippingAddress.complemento, shippingAddress.complement, shippingAddress.logradouroComplemento)).trim(),
+    GruposProdutos: [{ Id: 0, Nome: 'Ariana Marketplace' }],
+    Items: items,
+    Data: arianaSigeIsoDate(orderObj.createdAt || new Date()),
+    Pagamentos: [{
+      FormaPagamento: formaPagamento,
+      ValorPagamento: valorFinal,
+      DataTransacao: payment.paidAt || payment.createdAt || '0001-01-01T00:00:00',
+      CondicaoPagamento: Number(body.condicaoPagamento || 0),
+      Parcelas: parcelas,
+      PeriodoParcelas: 0,
+      Adiantamento: 0
+    }],
+    ValorComissaoVendedor: Number(body.valorComissaoVendedor || 0),
+    CodigoPedidoCliente: arianaOrderId || body.codigoPedidoCliente || '',
+    DataAprovacaoPedido: arianaSigeIsoDate(orderObj.updatedAt || orderObj.createdAt || new Date()),
+    ...(body.faturar ? { DataFaturamento: arianaSigeIsoDate(new Date()) } : {})
   };
 }
 
