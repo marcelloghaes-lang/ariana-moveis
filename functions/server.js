@@ -7212,6 +7212,104 @@ async function reserveStockForOrderItems(items = []) {
   }
 }
 
+
+// ============================================================
+// SIGE AUTO SYNC - envia pedidos do checkout automaticamente
+// para o SIGE sem depender do Postman.
+// Não quebra o checkout se o SIGE falhar: registra no pedido e no audit log.
+// ============================================================
+function arianaSigeAutoSyncEnabled() {
+  return String(process.env.SIGE_AUTO_SYNC_ENABLED || 'true').toLowerCase() !== 'false';
+}
+
+function arianaSigeAutoSyncOnCheckoutEnabled() {
+  return String(process.env.SIGE_AUTO_SYNC_ON_CHECKOUT || 'true').toLowerCase() !== 'false';
+}
+
+function arianaSigeOrderAlreadySynced(order = {}) {
+  const obj = toJSON(order) || order || {};
+  const status = String(obj.status_integracao || '').toLowerCase();
+  const dispatch = obj.manufacturerDispatch || {};
+  return status === 'sige_sale_created' || Boolean(dispatch?.sigeSale || dispatch?.sigeVenda || dispatch?.sigePedidoNumero || dispatch?.externalOrderId);
+}
+
+async function arianaSigeSyncOrderAutomatic(orderInput, origin = 'automatic') {
+  const orderId = String(orderInput?._id || orderInput?.id || orderInput || '').trim();
+  if (!orderId) return { skipped: true, reason: 'missing_order_id' };
+  if (!arianaSigeAutoSyncEnabled()) return { skipped: true, reason: 'sige_auto_sync_disabled' };
+
+  const oid = normalizeObjectId(orderId);
+  const order = oid ? await Order.findById(oid) : null;
+  if (!order) return { skipped: true, reason: 'order_not_found', orderId };
+  if (arianaSigeOrderAlreadySynced(order)) return { skipped: true, reason: 'already_synced', orderId };
+
+  try {
+    const result = await arianaSigeCreateVendaForOrder(order, {
+      faturar: true,
+      origemVenda: process.env.SIGE_ORIGEM_VENDA || 'PDV',
+      statusSistema: process.env.SIGE_STATUS_SISTEMA || 'Pedido Faturado'
+    });
+
+    await IntegrationAuditLog.create({
+      scope: 'sige',
+      eventType: 'sige.auto_sync.success',
+      orderId: String(order._id),
+      manufacturer: order.manufacturer || 'ariana_moveis',
+      status: 'success',
+      statusCode: 200,
+      message: `Pedido enviado automaticamente ao SIGE (${origin})`,
+      response: redact({ venda: result.venda, endpoint: result.endpoint, payloadMode: result.payloadMode, raw: result.raw }),
+      metadata: { origin, endpoint: result.endpoint, payloadMode: result.payloadMode }
+    });
+
+    return { ok: true, orderId: String(order._id), endpoint: result.endpoint, venda: result.venda, payloadMode: result.payloadMode };
+  } catch (error) {
+    await Order.findByIdAndUpdate(order._id, {
+      $set: {
+        status_integracao: 'sige_sync_error',
+        'manufacturerDispatch.sigeAutoSyncError': error.message || String(error),
+        'manufacturerDispatch.sigeAutoSyncOrigin': origin,
+        'manufacturerDispatch.sigeAutoSyncFailedAt': now(),
+        'manufacturerDispatch.sigeAutoSyncResponse': redact(error.responseData || null)
+      }
+    });
+
+    try {
+      await IntegrationAuditLog.create({
+        scope: 'sige',
+        eventType: 'sige.auto_sync.error',
+        orderId: String(order._id),
+        manufacturer: order.manufacturer || 'ariana_moveis',
+        status: 'error',
+        statusCode: error.statusCode || 500,
+        message: error.message || 'Erro ao sincronizar pedido automaticamente com SIGE',
+        response: redact(error.responseData || null),
+        metadata: { origin }
+      });
+    } catch (_auditError) {}
+
+    return { ok: false, orderId: String(order._id), error: error.message || String(error) };
+  }
+}
+
+function arianaSigeSyncOrderAutomaticLater(orderInput, origin = 'automatic') {
+  const orderId = String(orderInput?._id || orderInput?.id || orderInput || '').trim();
+  if (!orderId) return { scheduled: false, reason: 'missing_order_id' };
+  if (!arianaSigeAutoSyncEnabled()) return { scheduled: false, reason: 'sige_auto_sync_disabled' };
+
+  setImmediate(async () => {
+    try {
+      const result = await arianaSigeSyncOrderAutomatic(orderId, origin);
+      if (result?.ok) console.log(`✅ Pedido ${orderId} enviado automaticamente ao SIGE.`);
+      else console.warn(`⚠️ SIGE auto sync ${orderId}:`, result?.reason || result?.error || result);
+    } catch (error) {
+      console.error(`❌ Erro SIGE auto sync ${orderId}:`, error.message || error);
+    }
+  });
+
+  return { scheduled: true, orderId, origin };
+}
+
 app.post('/api/orders', async (req, res) => {
   let reservedStock = [];
   try {
@@ -7256,10 +7354,13 @@ app.post('/api/orders', async (req, res) => {
       manufacturer: body.manufacturer || sellerIds[0] || ''
     });
 
-    // Pedido criado no checkout ainda NÃƒO é venda concluída.
-    // Não notifica admin/seller/WhatsApp e não envia ao fabricante antes do pagamento aprovado.
-    // A notificação de "Nova venda recebida" fica centralizada no helper notifySaleAfterPaymentApproved().
-    return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { skipped: true, reason: 'waiting_payment_approval' } });
+    // Pedido criado no checkout ainda NÃƒO dispara notificação de venda antes do pagamento aprovado.
+    // Porém o SIGE precisa receber o pedido automaticamente para emissão/controle no ERP.
+    const sigeAutoSync = arianaSigeAutoSyncOnCheckoutEnabled()
+      ? arianaSigeSyncOrderAutomaticLater(order, 'checkout_order_created')
+      : { scheduled: false, reason: 'checkout_auto_sync_disabled' };
+
+    return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { skipped: true, reason: 'waiting_payment_approval' }, sigeAutoSync });
   } catch (error) {
     if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
       for (const row of reservedStock.reverse()) {
@@ -9555,8 +9656,12 @@ async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approv
     let queue = { skipped: true, reason: 'enqueue_disabled' };
     try { queue = await enqueueManufacturerDispatch(updated); } catch (e) { queue = { ok: false, error: e.message || String(e) }; }
 
+    // Garante que pedidos pagos/aprovados também sejam enviados ao SIGE,
+    // caso o envio no checkout tenha sido desativado ou falhado temporariamente.
+    const sigeAutoSync = arianaSigeSyncOrderAutomaticLater(updated, origin || 'payment_approved');
+
     const adminWhatsapp = await waNotifyAdminNewOrder(updated, origin);
-    return { ok: true, adminWhatsapp, queue };
+    return { ok: true, adminWhatsapp, queue, sigeAutoSync };
   } catch (error) {
     console.error('Erro ao notificar venda aprovada:', error.message || error);
     return { ok: false, error: error.message || String(error) };
@@ -19847,6 +19952,16 @@ app.post('/api/admin/sige/orders/:orderId/cliente/ensure', adminRequired, async 
   }
 });
 
+
+
+app.post('/api/admin/sige/orders/:orderId/sync-auto', adminRequired, async (req, res) => {
+  try {
+    const result = await arianaSigeSyncOrderAutomatic(req.params.orderId, req.body?.origin || 'admin_manual_sync');
+    return res.status(result?.ok ? 200 : 400).json(result);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao sincronizar pedido automaticamente com SIGE', response: redact(error.responseData || null) });
+  }
+});
 
 app.post('/api/admin/sige/orders/:orderId/criar-venda', adminRequired, async (req, res) => {
   try {
