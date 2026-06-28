@@ -18680,6 +18680,7 @@ app.get(['/api/enterprise/sdk/downloads', '/api/v1/enterprise/sdk/downloads'], (
 function arianaSigeVendaEndpointCandidates() {
   const envValue = String(process.env.SIGE_VENDA_CREATE_ENDPOINT || '').trim();
   const defaults = [
+    'Pedidos/SalvarEFaturar',
     'Pedidos/Salvar',
     'PedidosOrcamentos/Salvar',
     'PedidoOrcamento/Salvar',
@@ -18843,6 +18844,8 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   const parcelas = Number(arianaSigeFirstValue(body.parcelas, payment.installments, payment.parcelas, 1)) || 1;
   const clienteDoc = arianaSigeOnlyDigits(arianaSigeFirstValue(
     body.customerDocument,
+    body.clienteCpfCnpj,
+    body.ClienteCNPJ,
     body.cpfCnpj,
     orderObj.customerDocument,
     orderObj.customerCpf,
@@ -18858,7 +18861,7 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     Codigo: body.codigo || shortCode,
     OrigemVenda: body.origemVenda || process.env.SIGE_ORIGEM_VENDA || 'PDV',
     Deposito: body.deposito || process.env.SIGE_DEPOSITO || 'Deposito PDV',
-    StatusSistema: body.statusSistema || 'Pedido',
+    StatusSistema: body.statusSistema || process.env.SIGE_STATUS_SISTEMA || (body.faturar ? 'Pedido Faturado' : 'Pedido'),
     Status: body.status || 'Aprovado',
     Validade: arianaSigeIsoDate(orderObj.createdAt || new Date()),
     Empresa: body.empresa || process.env.SIGE_EMPRESA || 'Ariana Móveis',
@@ -18887,11 +18890,11 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     Finalizado: false,
     Lancado: false,
     Municipio: String(arianaSigeFirstValue(shippingAddress.cidade, shippingAddress.city, shippingAddress.municipio)).trim(),
-    CodigoMunicipio: String(arianaSigeFirstValue(shippingAddress.codigoMunicipio, shippingAddress.ibge, shippingAddress.cityCode)).trim(),
+    CodigoMunicipio: String(arianaSigeFirstValue(body.codigoMunicipio, body.CodigoMunicipio, shippingAddress.codigoMunicipio, shippingAddress.ibge, shippingAddress.cityCode)).trim(),
     Pais: String(arianaSigeFirstValue(shippingAddress.pais, shippingAddress.country, 'Brasil')).trim(),
     CEP: arianaSigeOnlyDigits(arianaSigeFirstValue(shippingAddress.cep, shippingAddress.zipCode, shippingAddress.zip, shippingAddress.postalCode)),
     UF: String(arianaSigeFirstValue(shippingAddress.uf, shippingAddress.state, shippingAddress.estado)).trim().toUpperCase(),
-    UFCodigo: String(arianaSigeFirstValue(shippingAddress.ufCodigo, shippingAddress.codigoUf)).trim(),
+    UFCodigo: String(arianaSigeFirstValue(body.ufCodigo, body.UFCodigo, shippingAddress.ufCodigo, shippingAddress.codigoUf, arianaSigeUfCodigo(String(arianaSigeFirstValue(shippingAddress.uf, shippingAddress.state, shippingAddress.estado)).trim().toUpperCase()))).trim(),
     Bairro: String(arianaSigeFirstValue(shippingAddress.bairro, shippingAddress.neighborhood)).trim(),
     Logradouro: String(arianaSigeFirstValue(shippingAddress.logradouro, shippingAddress.rua, shippingAddress.street, shippingAddress.endereco, shippingAddress.address)).trim(),
     LogradouroNumero: String(arianaSigeFirstValue(shippingAddress.numero, shippingAddress.number, shippingAddress.logradouroNumero, 'S/N')).trim(),
@@ -18915,6 +18918,85 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     ...(body.faturar ? { DataFaturamento: arianaSigeIsoDate(new Date()) } : {})
   };
 }
+
+
+function arianaSigeNormalizeVendaPayloadForSige(payload = {}, body = {}) {
+  const out = { ...(payload || {}) };
+  const faturar = body?.faturar === true || String(body?.faturar || '').toLowerCase() === 'true';
+
+  if (faturar) {
+    out.OrigemVenda = String(body.origemVenda || process.env.SIGE_ORIGEM_VENDA || out.OrigemVenda || 'PDV').trim();
+    out.StatusSistema = String(body.statusSistema || process.env.SIGE_STATUS_SISTEMA || out.StatusSistema || 'Pedido Faturado').trim();
+    if (!out.StatusSistema || out.StatusSistema === 'Pedido') out.StatusSistema = 'Pedido Faturado';
+    if (!out.OrigemVenda || out.OrigemVenda === 'Ariana Marketplace') out.OrigemVenda = 'PDV';
+    out.DataFaturamento = out.DataFaturamento || arianaSigeIsoDate(new Date());
+  }
+
+  out.PlanoDeConta = arianaSigeResolvePlanoConta({
+    ...(body || {}),
+    planoDeConta: body?.planoDeConta || body?.PlanoDeConta || out.PlanoDeConta
+  });
+
+  const documento = arianaSigeOnlyDigits(arianaSigeFirstValue(
+    body?.clienteCpfCnpj,
+    body?.ClienteCNPJ,
+    body?.cpfCnpj,
+    body?.customerDocument,
+    out.ClienteCNPJ
+  ));
+  if (documento) out.ClienteCNPJ = documento;
+
+  if (body && Object.prototype.hasOwnProperty.call(body, 'transportadora')) {
+    out.Transportadora = String(body.transportadora || '').trim();
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, 'freteFormaEnvio')) {
+    out.FreteFormaEnvio = String(body.freteFormaEnvio || '').trim();
+  }
+  if (body?.formaPagamento) {
+    out.FormaPagamento = arianaSigeNormalizePayment(body.formaPagamento);
+  }
+
+  if (body?.codigoMunicipio || body?.CodigoMunicipio) {
+    out.CodigoMunicipio = String(body.codigoMunicipio || body.CodigoMunicipio || '').trim();
+  }
+  if (body?.ufCodigo || body?.UFCodigo) {
+    out.UFCodigo = String(body.ufCodigo || body.UFCodigo || '').trim();
+  }
+  if (!out.UFCodigo && out.UF) out.UFCodigo = arianaSigeUfCodigo(out.UF);
+
+  if (Array.isArray(out.Items)) {
+    out.Items = out.Items.map((item) => {
+      const clean = { ...(item || {}) };
+      if (!clean.ProductGroupId || Number(clean.ProductGroupId) <= 0) delete clean.ProductGroupId;
+      return clean;
+    });
+  }
+
+  if (Array.isArray(out.GruposProdutos)) {
+    const gruposValidos = out.GruposProdutos.filter((grupo) => Number(grupo?.Id || 0) > 0 || String(grupo?.Nome || '').trim());
+    if (gruposValidos.length) out.GruposProdutos = gruposValidos;
+    else delete out.GruposProdutos;
+  }
+
+  if (Array.isArray(out.Pagamentos)) {
+    out.Pagamentos = out.Pagamentos.map((pagamento) => {
+      const clean = { ...(pagamento || {}) };
+      if (body?.formaPagamento) clean.FormaPagamento = arianaSigeNormalizePayment(body.formaPagamento);
+      if (!clean.DataTransacao || clean.DataTransacao === '0001-01-01T00:00:00') clean.DataTransacao = arianaSigeIsoDate(new Date());
+      if (!clean.CondicaoPagamento || Number(clean.CondicaoPagamento) <= 0) delete clean.CondicaoPagamento;
+      if (!clean.PeriodoParcelas || Number(clean.PeriodoParcelas) <= 0) delete clean.PeriodoParcelas;
+      if (!clean.Adiantamento || Number(clean.Adiantamento) <= 0) delete clean.Adiantamento;
+      return clean;
+    });
+  }
+
+  for (const key of ['CodigoMunicipio', 'UFCodigo', 'Transportadora', 'FreteFormaEnvio', 'CodigoRastreio']) {
+    if (out[key] === '') delete out[key];
+  }
+
+  return out;
+}
+
 
 function arianaSigeExtractVendaPayload(raw = {}, fallback = {}) {
   const direct = raw?.pedido || raw?.Pedido || raw?.venda || raw?.Venda || raw?.data || raw?.Dados || raw || {};
@@ -19155,7 +19237,8 @@ async function arianaSigeEnsurePessoaForOrder(order, vendaPayload = {}, body = {
 
 
 async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
-  const payload = arianaSigeBuildVendaPayloadFromOrder(order, body);
+  const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
+  const payload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
   const clienteSige = await arianaSigeEnsurePessoaForOrder(order, payload, body);
   const endpoints = arianaSigeVendaEndpointCandidates();
   const errors = [];
@@ -19209,15 +19292,53 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
 
       return { order, venda, raw, payload, endpoint, errors, clienteSige };
     } catch (error) {
-      errors.push({ endpoint, statusCode: error.statusCode || null, error: error.message || String(error), response: redact(error.responseData || null) });
+      errors.push({
+        endpoint,
+        statusCode: error.statusCode || null,
+        error: error.message || String(error),
+        response: redact(error.responseData || null),
+        payloadEnviadoAoSige: redact(payload)
+      });
     }
   }
 
   const err = new Error('Não foi possível criar a venda no SIGE Cloud em nenhum endpoint configurado. Configure SIGE_VENDA_CREATE_ENDPOINT conforme o Swagger/API do SIGE da sua conta.');
   err.statusCode = errors[0]?.statusCode || 502;
-  err.responseData = { attempted: errors };
+  err.payload = payload;
+  err.clienteSige = clienteSige;
+  err.responseData = { attempted: errors, payloadEnviadoAoSige: redact(payload), clienteSige: redact(clienteSige) };
   throw err;
 }
+
+
+
+app.get('/api/admin/sige/orders/:orderId/payload-preview', adminRequired, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para preview do payload SIGE' });
+
+    const body = {
+      ...(req.query || {}),
+      faturar: String(req.query?.faturar || '').toLowerCase() === 'true' || req.query?.faturar === '1'
+    };
+    const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
+    const payload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
+
+    return res.json({
+      ok: true,
+      orderId: String(order._id),
+      payload,
+      rawPayload,
+      endpoints: arianaSigeVendaEndpointCandidates()
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      ok: false,
+      error: error.message || 'Erro ao gerar preview do payload SIGE',
+      sigeResponse: redact(error.responseData || null)
+    });
+  }
+});
 
 
 app.post('/api/admin/sige/orders/:orderId/cliente/ensure', adminRequired, async (req, res) => {
@@ -19273,6 +19394,8 @@ app.post('/api/admin/sige/orders/:orderId/criar-venda', adminRequired, async (re
     return res.status(error.statusCode || 500).json({
       ok: false,
       error: error.message || 'Erro ao criar venda no SIGE Cloud',
+      payloadEnviadoAoSige: redact(error.payload || error.responseData?.payloadEnviadoAoSige || null),
+      clienteSige: redact(error.clienteSige || error.responseData?.clienteSige || null),
       sigeResponse: redact(error.responseData || null)
     });
   }
