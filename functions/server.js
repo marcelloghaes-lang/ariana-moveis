@@ -18823,7 +18823,6 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     ClienteEmail: String(arianaSigeFirstValue(body.customerEmail, orderObj.customerEmail, orderObj.user?.email)).trim(),
     ClienteTelefone: arianaSigeOnlyDigits(arianaSigeFirstValue(body.customerPhone, orderObj.customerPhone, orderObj.phone, orderObj.user?.phone)),
     Vendedor: body.vendedor || process.env.SIGE_VENDEDOR || '',
-    PlanoDeConta: body.planoDeConta || process.env.SIGE_PLANO_CONTA || '',
     FormaPagamento: formaPagamento,
     NumeroParcelas: parcelas,
     FreteMeioEnvio: Number(body.freteMeioEnvio || process.env.SIGE_FRETE_MEIO_ENVIO || 1),
