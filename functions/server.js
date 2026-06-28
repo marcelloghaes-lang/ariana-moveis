@@ -18735,13 +18735,21 @@ function arianaSigeIsoDate(value = new Date()) {
 }
 
 function arianaSigeNormalizePayment(value = '') {
-  const text = String(value || '').trim().toLowerCase();
-  if (text.includes('boleto')) return 'Boleto';
-  if (text.includes('pix')) return 'Pix';
-  if (text.includes('cart') || text.includes('credit')) return 'Cartão de Crédito';
-  if (text.includes('pagar')) return 'Pagar.me';
-  if (text.includes('mercado')) return 'Mercado Pago';
-  return String(value || 'Outros').trim() || 'Outros';
+  const raw = String(value || '').trim();
+  const text = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // IMPORTANTE: o SIGE valida a forma de pagamento pelo NOME EXATO cadastrado no ERP.
+  // Na conta SIGE Lite da Ariana, o nome existente é "Boleto Bancário", não "Boleto".
+  // As variáveis abaixo permitem ajustar sem mexer no código se o nome mudar no SIGE.
+  if (text.includes('boleto')) return String(process.env.SIGE_FORMA_PAGAMENTO_BOLETO || 'Boleto Bancário').trim();
+  if (text.includes('pix')) return String(process.env.SIGE_FORMA_PAGAMENTO_PIX || 'Pagamento Instantâneo (PIX)').trim();
+  if (text.includes('dinheiro')) return String(process.env.SIGE_FORMA_PAGAMENTO_DINHEIRO || 'Dinheiro').trim();
+  if (text.includes('debito')) return String(process.env.SIGE_FORMA_PAGAMENTO_DEBITO || 'Cartão de Débito').trim();
+  if (text.includes('cart') || text.includes('credit')) return String(process.env.SIGE_FORMA_PAGAMENTO_CREDITO || 'Cartão de Crédito').trim();
+  if (text.includes('transferencia') || text.includes('carteira')) return String(process.env.SIGE_FORMA_PAGAMENTO_TRANSFERENCIA || 'Transferência Bancária, Carteira Digital').trim();
+  if (text.includes('deposito')) return String(process.env.SIGE_FORMA_PAGAMENTO_DEPOSITO || 'Depósito Bancário').trim();
+
+  return raw || String(process.env.SIGE_FORMA_PAGAMENTO_PADRAO || 'Dinheiro').trim();
 }
 
 
