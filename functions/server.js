@@ -18785,6 +18785,130 @@ function arianaSigeResolvePlanoConta(body = {}) {
   return raw;
 }
 
+
+const arianaSigePlanoContaCache = {
+  loadedAt: 0,
+  rows: []
+};
+
+function arianaSigeNormalizeText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function arianaSigePlanoContaCandidates(item = {}) {
+  const id = String(item?.Id || item?.ID || item?.id || '').trim();
+  const nome = String(item?.Nome || item?.nome || item?.Descricao || item?.descricao || '').trim();
+  const hierarquia = String(item?.Hierarquia || item?.hierarquia || item?.Codigo || item?.codigo || '').trim();
+  return Array.from(new Set([
+    nome,
+    hierarquia,
+    hierarquia && nome ? `${hierarquia} ${nome}` : '',
+    hierarquia && nome ? `${hierarquia} - ${nome}` : '',
+    id
+  ].filter(Boolean)));
+}
+
+async function arianaSigeListPlanosConta(force = false) {
+  const ttlMs = Number(process.env.SIGE_PLANO_CONTA_CACHE_MS || 10 * 60 * 1000);
+  const nowMs = Date.now();
+  if (!force && arianaSigePlanoContaCache.rows.length && (nowMs - arianaSigePlanoContaCache.loadedAt) < ttlMs) {
+    return arianaSigePlanoContaCache.rows;
+  }
+
+  const raw = await sigeGet('PlanosConta/Pesquisar', { somentePrimeiroNivel: false });
+  const rows = Array.isArray(raw) ? raw : ensureArray(raw?.items || raw?.Itens || raw?.data || raw?.Dados || raw);
+  arianaSigePlanoContaCache.rows = rows;
+  arianaSigePlanoContaCache.loadedAt = nowMs;
+  return rows;
+}
+
+async function arianaSigeResolvePlanoContaAuto(body = {}, payload = {}) {
+  const requested = String(arianaSigeResolvePlanoConta({ ...(body || {}), PlanoDeConta: payload?.PlanoDeConta })).trim();
+  const fallback = requested || 'Receitas PDV';
+
+  let rows = [];
+  try {
+    rows = await arianaSigeListPlanosConta(false);
+  } catch (error) {
+    console.warn('[SIGE plano-conta auto] não foi possível consultar planos:', error.message || error);
+    return {
+      value: fallback,
+      source: 'fallback_no_list',
+      requested,
+      error: error.message || String(error)
+    };
+  }
+
+  const normalizedRequested = arianaSigeNormalizeText(requested);
+  const targetEnv = String(process.env.SIGE_PLANO_CONTA_NOME || process.env.SIGE_PLANO_CONTA_TARGET || 'Receitas PDV').trim();
+  const normalizedTarget = arianaSigeNormalizeText(targetEnv);
+  const normalizedFallbacks = new Set([
+    normalizedRequested,
+    normalizedTarget,
+    'receitas pdv',
+    'receita pdv',
+    'receitas',
+    '12',
+    '12 receitas pdv',
+    '12 receita pdv',
+    '637627d4cb660703e83e473c'
+  ].filter(Boolean));
+
+  const normalizedRows = rows.map((item) => {
+    const candidates = arianaSigePlanoContaCandidates(item);
+    return { item, candidates, normalizedCandidates: candidates.map(arianaSigeNormalizeText) };
+  });
+
+  let found = normalizedRows.find((row) => row.normalizedCandidates.some((candidate) => normalizedFallbacks.has(candidate)));
+  if (!found) {
+    found = normalizedRows.find((row) => row.normalizedCandidates.some((candidate) => candidate.includes(normalizedTarget) || normalizedTarget.includes(candidate)));
+  }
+  if (!found && normalizedRequested) {
+    found = normalizedRows.find((row) => row.normalizedCandidates.some((candidate) => candidate.includes(normalizedRequested) || normalizedRequested.includes(candidate)));
+  }
+
+  if (!found) {
+    return {
+      value: fallback,
+      source: 'fallback_not_found',
+      requested,
+      totalPlanos: rows.length
+    };
+  }
+
+  const nome = String(found.item?.Nome || found.item?.nome || found.item?.Descricao || found.item?.descricao || '').trim();
+  const hierarquia = String(found.item?.Hierarquia || found.item?.hierarquia || found.item?.Codigo || found.item?.codigo || '').trim();
+  const id = String(found.item?.Id || found.item?.ID || found.item?.id || '').trim();
+
+  // Pelo Swagger do SIGE, o campo PlanoDeConta é texto. Nos testes, ID e hierarquia
+  // não foram aceitos; por isso priorizamos o Nome exatamente como veio da API.
+  const value = nome || (hierarquia && nome ? `${hierarquia} ${nome}` : '') || requested || id || fallback;
+
+  return {
+    value,
+    source: 'api_planos_conta',
+    requested,
+    matched: { Id: id, Nome: nome, Hierarquia: hierarquia },
+    candidates: found.candidates
+  };
+}
+
+async function arianaSigeApplyPlanoContaAuto(payload = {}, body = {}) {
+  const enabled = String(process.env.SIGE_PLANO_CONTA_AUTO || 'true').toLowerCase() !== 'false';
+  if (!enabled) return payload;
+
+  const resolved = await arianaSigeResolvePlanoContaAuto(body, payload);
+  if (resolved?.value) payload.PlanoDeConta = resolved.value;
+  payload.__sigePlanoContaAuto = resolved;
+  return payload;
+}
+
 function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   const orderObj = toJSON(order) || order || {};
   const explicit = body && typeof body === 'object' ? (body.sigePayload || body.payload || {}) : {};
@@ -19239,15 +19363,18 @@ async function arianaSigeEnsurePessoaForOrder(order, vendaPayload = {}, body = {
 async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
   const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
   const payload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
-  const clienteSige = await arianaSigeEnsurePessoaForOrder(order, payload, body);
+  await arianaSigeApplyPlanoContaAuto(payload, body);
+  const payloadToSend = { ...payload };
+  delete payloadToSend.__sigePlanoContaAuto;
+  const clienteSige = await arianaSigeEnsurePessoaForOrder(order, payloadToSend, body);
   const endpoints = arianaSigeVendaEndpointCandidates();
   const errors = [];
 
   for (const endpoint of endpoints) {
     try {
-      const raw = await sigeRequest('POST', endpoint, { data: payload });
-      const venda = arianaSigeExtractVendaPayload(raw, payload);
-      const externalOrderId = String(payload.CodigoPedidoExterno || payload.CodigoPedido || payload.Codigo || venda.codigo || '').trim();
+      const raw = await sigeRequest('POST', endpoint, { data: payloadToSend });
+      const venda = arianaSigeExtractVendaPayload(raw, payloadToSend);
+      const externalOrderId = String(payloadToSend.CodigoPedidoExterno || payloadToSend.CodigoPedido || payloadToSend.Codigo || venda.codigo || '').trim();
 
       order.manufacturerDispatch = {
         ...(order.manufacturerDispatch || {}),
@@ -19258,7 +19385,7 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
           endpoint,
           externalOrderId,
           createdAt: new Date(),
-          payload
+          payload: payloadToSend
         },
         sigeVenda: {
           ...(order.manufacturerDispatch?.sigeVenda || {}),
@@ -19284,29 +19411,31 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
           status: 'success',
           statusCode: 200,
           message: 'Venda criada no SIGE Cloud para emissão manual de NF-e',
-          request: redact({ endpoint, payload }),
+          request: redact({ endpoint, payload: payloadToSend, planoContaAuto: payload.__sigePlanoContaAuto || null }),
           response: redact(raw),
           metadata: { externalOrderId, sigeVendaId: venda.id, sigeCodigo: venda.codigo }
         });
       } catch (_auditError) {}
 
-      return { order, venda, raw, payload, endpoint, errors, clienteSige };
+      return { order, venda, raw, payload: payloadToSend, planoContaAuto: payload.__sigePlanoContaAuto || null, endpoint, errors, clienteSige };
     } catch (error) {
       errors.push({
         endpoint,
         statusCode: error.statusCode || null,
         error: error.message || String(error),
         response: redact(error.responseData || null),
-        payloadEnviadoAoSige: redact(payload)
+        payloadEnviadoAoSige: redact(payloadToSend),
+        planoContaAuto: redact(payload.__sigePlanoContaAuto || null)
       });
     }
   }
 
   const err = new Error('Não foi possível criar a venda no SIGE Cloud em nenhum endpoint configurado. Configure SIGE_VENDA_CREATE_ENDPOINT conforme o Swagger/API do SIGE da sua conta.');
   err.statusCode = errors[0]?.statusCode || 502;
-  err.payload = payload;
+  err.payload = payloadToSend;
+  err.planoContaAuto = payload.__sigePlanoContaAuto || null;
   err.clienteSige = clienteSige;
-  err.responseData = { attempted: errors, payloadEnviadoAoSige: redact(payload), clienteSige: redact(clienteSige) };
+  err.responseData = { attempted: errors, payloadEnviadoAoSige: redact(payloadToSend), planoContaAuto: redact(payload.__sigePlanoContaAuto || null), clienteSige: redact(clienteSige) };
   throw err;
 }
 
@@ -19323,12 +19452,16 @@ app.get('/api/admin/sige/orders/:orderId/payload-preview', adminRequired, async 
     };
     const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
     const payload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
+    await arianaSigeApplyPlanoContaAuto(payload, body);
+    const payloadToSend = { ...payload };
+    delete payloadToSend.__sigePlanoContaAuto;
 
     return res.json({
       ok: true,
       orderId: String(order._id),
-      payload,
+      payload: payloadToSend,
       rawPayload,
+      planoContaAuto: payload.__sigePlanoContaAuto || null,
       endpoints: arianaSigeVendaEndpointCandidates()
     });
   } catch (error) {
@@ -19413,13 +19546,17 @@ app.post('/api/admin/sige/orders/:orderId/cliente/ensure', adminRequired, async 
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cadastrar cliente no SIGE' });
 
     const payload = arianaSigeBuildVendaPayloadFromOrder(order, req.body || {});
-    const result = await arianaSigeEnsurePessoaForOrder(order, payload, req.body || {});
+    await arianaSigeApplyPlanoContaAuto(payload, req.body || {});
+    const payloadToSend = { ...payload };
+    delete payloadToSend.__sigePlanoContaAuto;
+    const result = await arianaSigeEnsurePessoaForOrder(order, payloadToSend, req.body || {});
 
     return res.json({
       ok: true,
       action: `sige.customer.${result.action}`,
       orderId: String(order._id),
-      cliente: payload.Cliente,
+      cliente: payloadToSend.Cliente,
+      planoContaAuto: payload.__sigePlanoContaAuto || null,
       customerPayload: result.payload,
       sigePessoa: result.pessoa,
       search: result.search ? {
