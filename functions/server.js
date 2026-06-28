@@ -18743,6 +18743,47 @@ function arianaSigeNormalizePayment(value = '') {
   return String(value || 'Outros').trim() || 'Outros';
 }
 
+
+function arianaSigeResolvePlanoConta(body = {}) {
+  const raw = String(
+    arianaSigeFirstValue(
+      body.planoDeConta,
+      body.PlanoDeConta,
+      body.planoConta,
+      body.PlanoConta,
+      body.planoDeContas,
+      body.PlanoDeContas,
+      process.env.SIGE_PLANO_CONTA,
+      SIGE_PLANO_CONTA,
+      ''
+    )
+  ).trim();
+
+  // O SIGE normalmente valida o campo PlanoDeConta pelo NOME exatamente como aparece
+  // no ERP. Nos testes, o ID Mongo e a hierarquia chegaram à API, mas não foram
+  // localizados como plano válido para faturamento. Por isso, normalizamos os
+  // valores conhecidos do plano "Receitas PDV" para o nome oficial.
+  const normalized = raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const knownReceitasPdv = new Set([
+    '637627d4cb660703e83e473c',
+    '12',
+    'receitas',
+    'receitas pdv',
+    'recebimentos pdv',
+    'receita pdv'
+  ]);
+
+  if (!raw) return '';
+  if (knownReceitasPdv.has(normalized)) return 'Receitas PDV';
+  return raw;
+}
+
 function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   const orderObj = toJSON(order) || order || {};
   const explicit = body && typeof body === 'object' ? (body.sigePayload || body.payload || {}) : {};
@@ -18870,15 +18911,7 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     ValorComissaoVendedor: Number(body.valorComissaoVendedor || 0),
     CodigoPedidoCliente: arianaOrderId || body.codigoPedidoCliente || '',
     DataAprovacaoPedido: arianaSigeIsoDate(orderObj.updatedAt || orderObj.createdAt || new Date()),
-    PlanoDeConta: String(
-      body.planoDeConta ||
-      body.PlanoDeConta ||
-      body.planoConta ||
-      body.PlanoConta ||
-      process.env.SIGE_PLANO_CONTA ||
-      SIGE_PLANO_CONTA ||
-      ''
-    ).trim(),
+    PlanoDeConta: arianaSigeResolvePlanoConta(body),
     ...(body.faturar ? { DataFaturamento: arianaSigeIsoDate(new Date()) } : {})
   };
 }
