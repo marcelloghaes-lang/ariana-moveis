@@ -18817,7 +18817,6 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     Deposito: body.deposito || process.env.SIGE_DEPOSITO || 'Deposito PDV',
     StatusSistema: body.statusSistema || 'Pedido',
     Status: body.status || 'Aprovado',
-    Categoria: body.categoria || 'Varejo',
     Validade: arianaSigeIsoDate(orderObj.createdAt || new Date()),
     Empresa: body.empresa || process.env.SIGE_EMPRESA || 'Ariana Móveis',
     Cliente: String(arianaSigeFirstValue(body.customerName, orderObj.customerName, orderObj.user?.name, orderObj.customerEmail, 'Cliente Ariana')).trim(),
