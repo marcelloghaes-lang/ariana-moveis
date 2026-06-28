@@ -18663,6 +18663,423 @@ app.get(['/api/enterprise/sdk/downloads', '/api/v1/enterprise/sdk/downloads'], (
 });
 
 
+
+
+// ============================================================
+// SIGE CLOUD -> NF-e ENTERPRISE / XML / DANFE
+// Módulo incremental: consulta/emissão de NF-e no SIGE Cloud e
+// grava número, série, chave, XML e DANFE no pedido Enterprise.
+// Não altera rotas antigas nem apaga dados existentes.
+// ============================================================
+
+function sigeNfeEndpoint(name, fallback) {
+  return String(process.env[name] || fallback || '').replace(/^\/+/, '').trim();
+}
+
+async function sigeRequest(method = 'GET', endpoint = '', { params = {}, data = null } = {}) {
+  if (!isSigeConfigured()) {
+    const err = new Error('SIGE não configurado. Configure SIGE_API_URL, SIGE_USER, SIGE_APP e SIGE_TOKEN no Render.');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const cleanEndpoint = String(endpoint || '').replace(/^\/+/, '');
+  const url = `${SIGE_API_URL}/request/${cleanEndpoint}`;
+  const response = await axios({
+    method,
+    url,
+    headers: {
+      ...sigeAuthHeaders(),
+      'Content-Type': 'application/json'
+    },
+    params,
+    data,
+    timeout: SIGE_TIMEOUT_MS,
+    validateStatus: () => true
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    const err = new Error(typeof response.data === 'string' ? response.data : `Erro SIGE HTTP ${response.status}`);
+    err.statusCode = response.status;
+    err.responseData = response.data;
+    throw err;
+  }
+
+  return response.data;
+}
+
+function sigeStringifySafe(value) {
+  try {
+    return JSON.stringify(value || {});
+  } catch (_error) {
+    return String(value || '');
+  }
+}
+
+function sigeFindFirstStringDeep(input, predicate, maxDepth = 8) {
+  const seen = new Set();
+
+  function walk(value, depth) {
+    if (depth > maxDepth || value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number') {
+      const str = String(value).trim();
+      return predicate(str) ? str : '';
+    }
+    if (typeof value !== 'object') return '';
+    if (seen.has(value)) return '';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = walk(item, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+      const k = String(key || '').toLowerCase();
+      if (typeof val === 'string' || typeof val === 'number') {
+        const str = String(val).trim();
+        if (predicate(str, k)) return str;
+      }
+    }
+    for (const val of Object.values(value)) {
+      const found = walk(val, depth + 1);
+      if (found) return found;
+    }
+    return '';
+  }
+
+  return walk(input, 0);
+}
+
+function sigeFindByKeyDeep(input, keyMatchers = [], maxDepth = 8) {
+  const matchers = keyMatchers.map((item) => String(item || '').toLowerCase());
+  const seen = new Set();
+
+  function walk(value, depth) {
+    if (depth > maxDepth || value === null || value === undefined || typeof value !== 'object') return '';
+    if (seen.has(value)) return '';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = walk(item, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+      const k = String(key || '').toLowerCase();
+      if (matchers.some((m) => k === m || k.includes(m))) {
+        if (val !== null && val !== undefined && typeof val !== 'object') {
+          const str = String(val).trim();
+          if (str) return str;
+        }
+      }
+    }
+
+    for (const val of Object.values(value)) {
+      const found = walk(val, depth + 1);
+      if (found) return found;
+    }
+    return '';
+  }
+
+  return walk(input, 0);
+}
+
+function sigeExtractInvoicePayload(raw = {}, fallback = {}) {
+  const rawText = sigeStringifySafe(raw);
+  const direct = raw?.invoice || raw?.nfe || raw?.notaFiscal || raw?.NotaFiscal || raw?.data || raw?.Dados || raw || {};
+
+  const accessKey =
+    String(fallback.accessKey || fallback.invoiceKey || '').trim() ||
+    sigeFindByKeyDeep(direct, ['accessKey', 'invoiceKey', 'chavenfe', 'chaveacesso', 'chave', 'chaveNFe']) ||
+    (rawText.match(/\b\d{44}\b/) || [''])[0];
+
+  const xmlUrl =
+    String(fallback.xmlUrl || '').trim() ||
+    sigeFindByKeyDeep(direct, ['xmlUrl', 'urlXml', 'linkXml', 'downloadXml', 'arquivoXml']) ||
+    sigeFindFirstStringDeep(direct, (str, key = '') => {
+      const s = str.toLowerCase();
+      const k = String(key || '').toLowerCase();
+      return (k.includes('xml') && /^https?:\/\//i.test(str)) || (/^https?:\/\//i.test(str) && s.includes('.xml'));
+    });
+
+  const danfeUrl =
+    String(fallback.danfeUrl || fallback.pdfUrl || '').trim() ||
+    sigeFindByKeyDeep(direct, ['danfeUrl', 'urlDanfe', 'linkDanfe', 'downloadDanfe', 'pdfUrl', 'urlPdf', 'linkPdf', 'arquivoPdf']) ||
+    sigeFindFirstStringDeep(direct, (str, key = '') => {
+      const s = str.toLowerCase();
+      const k = String(key || '').toLowerCase();
+      return ((k.includes('danfe') || k.includes('pdf')) && /^https?:\/\//i.test(str)) || (/^https?:\/\//i.test(str) && s.includes('.pdf'));
+    });
+
+  const number =
+    String(fallback.number || fallback.invoiceNumber || '').trim() ||
+    sigeFindByKeyDeep(direct, ['numero', 'number', 'invoiceNumber', 'numeroNota', 'numeroNFe', 'nNF']);
+
+  const series =
+    String(fallback.series || fallback.serie || '').trim() ||
+    sigeFindByKeyDeep(direct, ['serie', 'series', 'serieNota', 'serieNFe']);
+
+  const protocol =
+    String(fallback.protocol || '').trim() ||
+    sigeFindByKeyDeep(direct, ['protocolo', 'protocol', 'nProt']);
+
+  const status =
+    String(fallback.status || '').trim() ||
+    sigeFindByKeyDeep(direct, ['status', 'situacao', 'situacaoNota']);
+
+  return {
+    number,
+    series,
+    accessKey,
+    xmlUrl,
+    danfeUrl,
+    pdfUrl: danfeUrl,
+    protocol,
+    status,
+    raw
+  };
+}
+
+function buildSigeNfePayloadFromOrder(order = {}, body = {}) {
+  const orderObj = toJSON(order) || order || {};
+  const explicit = body && typeof body === 'object' ? (body.sigePayload || body.payload || body) : {};
+
+  // Se o usuário mandar um payload pronto do SIGE, respeita e apenas complementa metadados úteis.
+  if (explicit && typeof explicit === 'object' && (explicit.Cliente || explicit.Itens || explicit.Items || explicit.Pessoa || explicit.Empresa)) {
+    return explicit;
+  }
+
+  const items = ensureArray(orderObj.items).map((item) => ({
+    Codigo: item.sku || item.productId || '',
+    Descricao: item.name || item.sku || 'Produto Ariana',
+    Quantidade: Number(item.qty || item.quantity || 1),
+    ValorUnitario: Number(item.unitPrice || item.price || 0)
+  }));
+
+  return {
+    Origem: 'Ariana Enterprise',
+    PedidoArianaId: String(orderObj._id || orderObj.id || ''),
+    CodigoPedidoExterno: String(orderObj.manufacturerDispatch?.externalOrderId || orderObj.status_integracao || ''),
+    Cliente: {
+      Nome: orderObj.customerName || explicit.customerName || '',
+      Email: orderObj.customerEmail || explicit.customerEmail || '',
+      Telefone: orderObj.customerPhone || explicit.customerPhone || '',
+      Endereco: orderObj.shippingAddress || {}
+    },
+    Itens: items,
+    Total: Number(orderObj.total || orderObj.subtotal || 0),
+    Observacoes: explicit.observacoes || explicit.notes || 'NF-e gerada a partir do módulo Ariana Enterprise'
+  };
+}
+
+async function saveSigeInvoiceOnEnterpriseOrder(order, invoiceData = {}, req = null, eventType = 'sige_nfe_synced') {
+  const invoice = {
+    number: String(invoiceData.number || invoiceData.invoiceNumber || '').trim(),
+    series: String(invoiceData.series || invoiceData.serie || '').trim(),
+    accessKey: String(invoiceData.accessKey || invoiceData.invoiceKey || '').trim(),
+    xmlUrl: String(invoiceData.xmlUrl || '').trim(),
+    danfeUrl: String(invoiceData.danfeUrl || invoiceData.pdfUrl || '').trim(),
+    pdfUrl: String(invoiceData.pdfUrl || invoiceData.danfeUrl || '').trim(),
+    total: invoiceData.total ?? invoiceData.amount ?? order.total ?? 0,
+    issuedAt: invoiceData.issuedAt || invoiceData.emittedAt || invoiceData.issueDate || new Date(),
+    protocol: String(invoiceData.protocol || '').trim(),
+    status: String(invoiceData.status || '').trim(),
+    provider: 'sige_cloud',
+    raw: invoiceData.raw || invoiceData
+  };
+
+  order.manufacturerDispatch = {
+    ...(order.manufacturerDispatch || {}),
+    invoice: {
+      ...(order.manufacturerDispatch?.invoice || {}),
+      ...invoice
+    },
+    sigeInvoice: invoice,
+    invoiceReceivedAt: new Date(),
+    sigeSyncedAt: new Date()
+  };
+  order.status = 'enterprise_nfe_recebida';
+  order.statusLabel = 'NF-e recebida do SIGE Cloud';
+  order.status_integracao = 'sige_invoice_synced';
+  await order.save();
+
+  let billing = null;
+  try {
+    const result = await enterpriseBillingUpsert(order, {
+      invoiceNumber: invoice.number,
+      serie: invoice.series,
+      invoiceKey: invoice.accessKey,
+      amount: invoice.total,
+      issuedAt: invoice.issuedAt,
+      xmlUrl: invoice.xmlUrl,
+      danfeUrl: invoice.danfeUrl,
+      pdfUrl: invoice.pdfUrl,
+      protocol: invoice.protocol,
+      invoice
+    }, req || { enterprisePartner: null, body: {} }, eventType);
+    billing = result.billing;
+  } catch (error) {
+    order.manufacturerDispatch = {
+      ...(order.manufacturerDispatch || {}),
+      sigeBillingWarning: error.message || 'Faturamento Enterprise não registrado automaticamente'
+    };
+    await order.save();
+  }
+
+  return { order, invoice, billing };
+}
+
+async function searchSigeInvoiceForOrder(order, query = {}) {
+  const endpoint = sigeNfeEndpoint('SIGE_NFE_SEARCH_ENDPOINT', 'NotasFiscais/Pesquisar');
+  const orderObj = toJSON(order) || order || {};
+  const params = {
+    ...query,
+    codigoPedido: query.codigoPedido || query.orderId || String(orderObj.manufacturerDispatch?.externalOrderId || orderObj.status_integracao || orderObj._id || '')
+  };
+
+  const data = await sigeRequest('GET', endpoint, { params });
+  const rows = Array.isArray(data) ? data : ensureArray(data?.items || data?.Itens || data?.data || data?.Dados || data);
+  const first = rows[0] || data;
+  return { raw: data, invoice: sigeExtractInvoicePayload(first || data, query) };
+}
+
+app.post('/api/admin/sige/orders/:orderId/emitir-nfe', adminRequired, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para emissão de NF-e no SIGE' });
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    let rawSigeResponse = null;
+    let invoiceData = null;
+
+    // Caminho manual/assistido: se já tiver XML/DANFE/chave no body, apenas grava no Enterprise.
+    if (body.invoice || body.nfe || body.xmlUrl || body.danfeUrl || body.pdfUrl || body.accessKey || body.invoiceKey) {
+      invoiceData = sigeExtractInvoicePayload(body.invoice || body.nfe || body, body.invoice || body.nfe || body);
+    } else {
+      const endpoint = sigeNfeEndpoint('SIGE_NFE_EMIT_ENDPOINT', 'NotasFiscais/SalvarEmitir');
+      const payload = buildSigeNfePayloadFromOrder(order, body);
+      rawSigeResponse = await sigeRequest('POST', endpoint, { data: payload });
+      invoiceData = sigeExtractInvoicePayload(rawSigeResponse, body);
+    }
+
+    const saved = await saveSigeInvoiceOnEnterpriseOrder(order, {
+      ...invoiceData,
+      total: invoiceData.total ?? order.total,
+      raw: rawSigeResponse || invoiceData.raw || body
+    }, req, 'sige_nfe_emitted');
+
+    return res.json({
+      ok: true,
+      action: rawSigeResponse ? 'sige_nfe_emitted' : 'sige_nfe_saved',
+      orderId: String(saved.order._id),
+      status: saved.order.status,
+      invoice: saved.invoice,
+      billing: saved.billing
+    });
+  } catch (error) {
+    console.error('[SIGE NF-e emitir] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({
+      ok: false,
+      error: error.message || 'Erro ao emitir/salvar NF-e no SIGE',
+      sigeResponse: redact(error.responseData || null)
+    });
+  }
+});
+
+app.get('/api/admin/sige/orders/:orderId/nfe', adminRequired, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar NF-e' });
+
+    const current = order.manufacturerDispatch?.invoice || order.manufacturerDispatch?.sigeInvoice || null;
+    let synced = null;
+
+    if (String(req.query.sync || '').toLowerCase() === '1' || String(req.query.sync || '').toLowerCase() === 'true') {
+      const result = await searchSigeInvoiceForOrder(order, req.query || {});
+      if (result.invoice?.xmlUrl || result.invoice?.danfeUrl || result.invoice?.accessKey || result.invoice?.number) {
+        synced = await saveSigeInvoiceOnEnterpriseOrder(order, {
+          ...result.invoice,
+          total: order.total,
+          raw: result.raw
+        }, req, 'sige_nfe_consulted');
+      }
+    }
+
+    const freshOrder = synced?.order || await enterpriseCompatFindOrder(req.params.orderId);
+    return res.json({
+      ok: true,
+      orderId: String(freshOrder._id),
+      invoice: freshOrder.manufacturerDispatch?.invoice || current,
+      sigeInvoice: freshOrder.manufacturerDispatch?.sigeInvoice || null,
+      synced: Boolean(synced)
+    });
+  } catch (error) {
+    console.error('[SIGE NF-e consultar] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({
+      ok: false,
+      error: error.message || 'Erro ao consultar NF-e no SIGE',
+      sigeResponse: redact(error.responseData || null)
+    });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/sige/sync-invoice', enterpriseCompatAuth, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para sincronizar NF-e SIGE' });
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    let invoiceData = null;
+    let rawSigeResponse = null;
+
+    if (body.invoice || body.nfe || body.xmlUrl || body.danfeUrl || body.pdfUrl || body.accessKey || body.invoiceKey) {
+      invoiceData = sigeExtractInvoicePayload(body.invoice || body.nfe || body, body.invoice || body.nfe || body);
+    } else {
+      const result = await searchSigeInvoiceForOrder(order, body);
+      rawSigeResponse = result.raw;
+      invoiceData = result.invoice;
+    }
+
+    if (!invoiceData?.xmlUrl && !invoiceData?.danfeUrl && !invoiceData?.accessKey && !invoiceData?.number) {
+      return res.status(404).json({
+        ok: false,
+        error: 'NF-e não localizada no SIGE para este pedido',
+        hint: 'Envie xmlUrl/danfeUrl/accessKey no body ou configure SIGE_NFE_SEARCH_ENDPOINT conforme sua API SIGE.'
+      });
+    }
+
+    const saved = await saveSigeInvoiceOnEnterpriseOrder(order, {
+      ...invoiceData,
+      total: order.total,
+      raw: rawSigeResponse || invoiceData.raw || body
+    }, req, 'enterprise_sige_invoice_synced');
+
+    return res.json({
+      ok: true,
+      action: 'enterprise_sige_invoice_synced',
+      orderId: String(saved.order._id),
+      status: saved.order.status,
+      invoice: saved.invoice,
+      billing: saved.billing
+    });
+  } catch (error) {
+    console.error('[Enterprise SIGE sync invoice] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({
+      ok: false,
+      error: error.message || 'Erro ao sincronizar NF-e SIGE com pedido Enterprise',
+      sigeResponse: redact(error.responseData || null)
+    });
+  }
+});
+
+
 // ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
