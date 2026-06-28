@@ -19341,6 +19341,72 @@ app.get('/api/admin/sige/orders/:orderId/payload-preview', adminRequired, async 
 });
 
 
+// ============================================================
+// SIGE CLOUD - DEBUG PLANO DE CONTAS
+// Rota temporária para consultar os planos de contas usando
+// exatamente os headers configurados no Render/backend.
+// ============================================================
+app.get('/api/admin/sige/debug/plano-contas', adminRequired, async (req, res) => {
+  try {
+    const somentePrimeiroNivelRaw = req.query?.somentePrimeiroNivel;
+    const somentePrimeiroNivel = String(
+      somentePrimeiroNivelRaw === undefined ? 'false' : somentePrimeiroNivelRaw
+    ).toLowerCase() === 'true';
+
+    const raw = await sigeGet('PlanosConta/Pesquisar', { somentePrimeiroNivel });
+    const rows = Array.isArray(raw) ? raw : ensureArray(raw?.items || raw?.Itens || raw?.data || raw?.Dados || raw);
+    const busca = String(req.query?.q || req.query?.busca || req.query?.nome || '').trim().toLowerCase();
+
+    const planos = rows.map((item) => ({
+      Id: item?.Id || item?.ID || item?.id || '',
+      Nome: item?.Nome || item?.nome || item?.Descricao || item?.descricao || '',
+      Hierarquia: item?.Hierarquia || item?.hierarquia || item?.Codigo || item?.codigo || '',
+      Despesa: item?.Despesa,
+      TipoDeConta: item?.TipoDeConta || item?.tipoDeConta || '',
+      CodigoNatureza: item?.CodigoNatureza ?? item?.codigoNatureza ?? null,
+      DesativarPlano: item?.DesativarPlano ?? item?.desativarPlano ?? false,
+      raw: item
+    })).filter((item) => {
+      if (!busca) return true;
+      const text = `${item.Id} ${item.Nome} ${item.Hierarquia} ${item.TipoDeConta}`.toLowerCase();
+      return text.includes(busca);
+    });
+
+    const receitasPdv = planos.filter((item) => {
+      const text = `${item.Nome} ${item.Hierarquia}`.toLowerCase();
+      return text.includes('receitas pdv') || text.includes('receita pdv');
+    });
+
+    return res.json({
+      ok: true,
+      endpoint: 'PlanosConta/Pesquisar',
+      params: { somentePrimeiroNivel },
+      total: planos.length,
+      receitasPdv,
+      planos,
+      headersUsados: {
+        User: SIGE_USER,
+        App: SIGE_APP,
+        AuthorizationTokenConfigurado: Boolean(SIGE_TOKEN)
+      }
+    });
+  } catch (error) {
+    console.error('[SIGE debug plano-contas] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({
+      ok: false,
+      error: error.message || 'Erro ao consultar planos de contas no SIGE',
+      endpoint: 'PlanosConta/Pesquisar',
+      sigeResponse: redact(error.responseData || null),
+      headersUsados: {
+        User: SIGE_USER,
+        App: SIGE_APP,
+        AuthorizationTokenConfigurado: Boolean(SIGE_TOKEN)
+      }
+    });
+  }
+});
+
+
 app.post('/api/admin/sige/orders/:orderId/cliente/ensure', adminRequired, async (req, res) => {
   try {
     const order = await enterpriseCompatFindOrder(req.params.orderId);
