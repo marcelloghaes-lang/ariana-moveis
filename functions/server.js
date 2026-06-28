@@ -18814,7 +18814,7 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
     Codigo: body.codigo || shortCode,
     OrigemVenda: body.origemVenda || 'Ariana Marketplace',
     Tabela: body.tabela || process.env.SIGE_TABELA || 'Tabela Padrão',
-    Deposito: body.deposito || process.env.SIGE_DEPOSITO || 'Depósito Padrão',
+    Deposito: body.deposito || process.env.SIGE_DEPOSITO || 'Deposíto PDV',
     StatusSistema: body.statusSistema || 'Pedido',
     Status: body.status || 'Aprovado',
     Categoria: body.categoria || 'Varejo',
