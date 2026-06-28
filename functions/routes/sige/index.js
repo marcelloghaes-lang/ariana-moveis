@@ -18,6 +18,16 @@ export default function createSigeRoutes(deps = {}) {
     return new SigeSyncService(models);
   }
 
+  router.get('/admin/sige/health', (_req, res) => {
+    res.json({
+      ok: true,
+      module: 'SIGE',
+      version: '1.0',
+      loaded: true,
+      timestamp: new Date().toISOString()
+    });
+  });
+
   router.get('/admin/sige/status', adminRequired, async (_req, res) => {
     try {
       const client = new SigeClient();
