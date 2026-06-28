@@ -18785,130 +18785,6 @@ function arianaSigeResolvePlanoConta(body = {}) {
   return raw;
 }
 
-
-const arianaSigePlanoContaCache = {
-  loadedAt: 0,
-  rows: []
-};
-
-function arianaSigeNormalizeText(value = '') {
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function arianaSigePlanoContaCandidates(item = {}) {
-  const id = String(item?.Id || item?.ID || item?.id || '').trim();
-  const nome = String(item?.Nome || item?.nome || item?.Descricao || item?.descricao || '').trim();
-  const hierarquia = String(item?.Hierarquia || item?.hierarquia || item?.Codigo || item?.codigo || '').trim();
-  return Array.from(new Set([
-    nome,
-    hierarquia,
-    hierarquia && nome ? `${hierarquia} ${nome}` : '',
-    hierarquia && nome ? `${hierarquia} - ${nome}` : '',
-    id
-  ].filter(Boolean)));
-}
-
-async function arianaSigeListPlanosConta(force = false) {
-  const ttlMs = Number(process.env.SIGE_PLANO_CONTA_CACHE_MS || 10 * 60 * 1000);
-  const nowMs = Date.now();
-  if (!force && arianaSigePlanoContaCache.rows.length && (nowMs - arianaSigePlanoContaCache.loadedAt) < ttlMs) {
-    return arianaSigePlanoContaCache.rows;
-  }
-
-  const raw = await sigeGet('PlanosConta/Pesquisar', { somentePrimeiroNivel: false });
-  const rows = Array.isArray(raw) ? raw : ensureArray(raw?.items || raw?.Itens || raw?.data || raw?.Dados || raw);
-  arianaSigePlanoContaCache.rows = rows;
-  arianaSigePlanoContaCache.loadedAt = nowMs;
-  return rows;
-}
-
-async function arianaSigeResolvePlanoContaAuto(body = {}, payload = {}) {
-  const requested = String(arianaSigeResolvePlanoConta({ ...(body || {}), PlanoDeConta: payload?.PlanoDeConta })).trim();
-  const fallback = requested || 'Receitas PDV';
-
-  let rows = [];
-  try {
-    rows = await arianaSigeListPlanosConta(false);
-  } catch (error) {
-    console.warn('[SIGE plano-conta auto] não foi possível consultar planos:', error.message || error);
-    return {
-      value: fallback,
-      source: 'fallback_no_list',
-      requested,
-      error: error.message || String(error)
-    };
-  }
-
-  const normalizedRequested = arianaSigeNormalizeText(requested);
-  const targetEnv = String(process.env.SIGE_PLANO_CONTA_NOME || process.env.SIGE_PLANO_CONTA_TARGET || 'Receitas PDV').trim();
-  const normalizedTarget = arianaSigeNormalizeText(targetEnv);
-  const normalizedFallbacks = new Set([
-    normalizedRequested,
-    normalizedTarget,
-    'receitas pdv',
-    'receita pdv',
-    'receitas',
-    '12',
-    '12 receitas pdv',
-    '12 receita pdv',
-    '637627d4cb660703e83e473c'
-  ].filter(Boolean));
-
-  const normalizedRows = rows.map((item) => {
-    const candidates = arianaSigePlanoContaCandidates(item);
-    return { item, candidates, normalizedCandidates: candidates.map(arianaSigeNormalizeText) };
-  });
-
-  let found = normalizedRows.find((row) => row.normalizedCandidates.some((candidate) => normalizedFallbacks.has(candidate)));
-  if (!found) {
-    found = normalizedRows.find((row) => row.normalizedCandidates.some((candidate) => candidate.includes(normalizedTarget) || normalizedTarget.includes(candidate)));
-  }
-  if (!found && normalizedRequested) {
-    found = normalizedRows.find((row) => row.normalizedCandidates.some((candidate) => candidate.includes(normalizedRequested) || normalizedRequested.includes(candidate)));
-  }
-
-  if (!found) {
-    return {
-      value: fallback,
-      source: 'fallback_not_found',
-      requested,
-      totalPlanos: rows.length
-    };
-  }
-
-  const nome = String(found.item?.Nome || found.item?.nome || found.item?.Descricao || found.item?.descricao || '').trim();
-  const hierarquia = String(found.item?.Hierarquia || found.item?.hierarquia || found.item?.Codigo || found.item?.codigo || '').trim();
-  const id = String(found.item?.Id || found.item?.ID || found.item?.id || '').trim();
-
-  // Pelo Swagger do SIGE, o campo PlanoDeConta é texto. Nos testes, ID e hierarquia
-  // não foram aceitos; por isso priorizamos o Nome exatamente como veio da API.
-  const value = nome || (hierarquia && nome ? `${hierarquia} ${nome}` : '') || requested || id || fallback;
-
-  return {
-    value,
-    source: 'api_planos_conta',
-    requested,
-    matched: { Id: id, Nome: nome, Hierarquia: hierarquia },
-    candidates: found.candidates
-  };
-}
-
-async function arianaSigeApplyPlanoContaAuto(payload = {}, body = {}) {
-  const enabled = String(process.env.SIGE_PLANO_CONTA_AUTO || 'true').toLowerCase() !== 'false';
-  if (!enabled) return payload;
-
-  const resolved = await arianaSigeResolvePlanoContaAuto(body, payload);
-  if (resolved?.value) payload.PlanoDeConta = resolved.value;
-  payload.__sigePlanoContaAuto = resolved;
-  return payload;
-}
-
 function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   const orderObj = toJSON(order) || order || {};
   const explicit = body && typeof body === 'object' ? (body.sigePayload || body.payload || {}) : {};
@@ -19119,6 +18995,146 @@ function arianaSigeNormalizeVendaPayloadForSige(payload = {}, body = {}) {
   }
 
   return out;
+}
+
+
+function arianaSigeCleanObjectForPayload(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => arianaSigeCleanObjectForPayload(item))
+      .filter((item) => item !== undefined && item !== null && !(typeof item === 'object' && !Array.isArray(item) && !Object.keys(item).length));
+  }
+
+  if (!value || typeof value !== 'object') return value;
+
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item === undefined || item === null) continue;
+    if (typeof item === 'string' && item.trim() === '') continue;
+    const cleaned = arianaSigeCleanObjectForPayload(item);
+    if (cleaned === undefined || cleaned === null) continue;
+    if (typeof cleaned === 'string' && cleaned.trim() === '') continue;
+    if (Array.isArray(cleaned) && !cleaned.length) continue;
+    if (typeof cleaned === 'object' && !Array.isArray(cleaned) && !Object.keys(cleaned).length) continue;
+    out[key] = cleaned;
+  }
+  return out;
+}
+
+function arianaSigeSimplifyItemsForMinimalPayload(items = []) {
+  return ensureArray(items).map((item, index) => {
+    const quantidade = Number(item?.Quantidade || item?.quantidade || item?.qty || 1) || 1;
+    const valorUnitario = arianaSigeMoney(arianaSigeFirstValue(item?.ValorUnitario, item?.valorUnitario, item?.unitPrice, 0));
+    const valorTotal = arianaSigeMoney(arianaSigeFirstValue(item?.ValorTotal, item?.valorTotal, valorUnitario * quantidade));
+    return arianaSigeCleanObjectForPayload({
+      Codigo: String(item?.Codigo || item?.codigo || item?.sku || `ITEM-${index + 1}`).trim(),
+      Unidade: String(item?.Unidade || item?.unidade || 'UN').trim(),
+      Descricao: String(item?.Descricao || item?.descricao || item?.name || `Produto ${index + 1}`).trim(),
+      Quantidade: quantidade,
+      ValorUnitario: valorUnitario,
+      ValorTotal: valorTotal || arianaSigeMoney(valorUnitario * quantidade),
+      ValorFrete: Number(item?.ValorFrete || 0) || 0,
+      DescontoUnitario: Number(item?.DescontoUnitario || 0) || 0,
+      PesoKG: Number(item?.PesoKG || 0) || 0,
+      Comprimento: Number(item?.Comprimento || 0) || 0,
+      Altura: Number(item?.Altura || 0) || 0,
+      Largura: Number(item?.Largura || 0) || 0,
+      FreteGratis: item?.FreteGratis === true,
+      ValorUnitarioFrete: Number(item?.ValorUnitarioFrete || 0) || 0,
+      PrazoEntregaFrete: Number(item?.PrazoEntregaFrete || 0) || 0,
+      Seguro: Number(item?.Seguro || 0) || 0
+    });
+  }).filter((item) => item.Codigo || item.Descricao);
+}
+
+function arianaSigeBuildMinimalVendaPayloadForSige(payload = {}, body = {}, mode = 'minimal') {
+  const faturar = body?.faturar === true || String(body?.faturar || '').toLowerCase() === 'true';
+  const formaPagamento = arianaSigeNormalizePayment(body?.formaPagamento || payload.FormaPagamento || 'Boleto');
+  const valorFinal = arianaSigeMoney(payload.ValorFinal || 0);
+  const parcelas = Number(payload.NumeroParcelas || body?.parcelas || 1) || 1;
+  const items = arianaSigeSimplifyItemsForMinimalPayload(payload.Items || []);
+
+  const base = {
+    OrigemVenda: String(payload.OrigemVenda || process.env.SIGE_ORIGEM_VENDA || 'PDV').trim(),
+    Deposito: String(payload.Deposito || process.env.SIGE_DEPOSITO || '').trim(),
+    StatusSistema: String(payload.StatusSistema || (faturar ? 'Pedido Faturado' : 'Pedido')).trim(),
+    Status: String(payload.Status || 'Aprovado').trim(),
+    Empresa: String(payload.Empresa || process.env.SIGE_EMPRESA || '').trim(),
+    Cliente: String(payload.Cliente || '').trim(),
+    ClienteCNPJ: arianaSigeOnlyDigits(payload.ClienteCNPJ || body?.clienteCpfCnpj || body?.cpfCnpj || body?.ClienteCNPJ || ''),
+    ClienteEmail: String(payload.ClienteEmail || '').trim(),
+    ClienteTelefone: arianaSigeOnlyDigits(payload.ClienteTelefone || ''),
+    PlanoDeConta: String(payload.PlanoDeConta || '').trim(),
+    FormaPagamento: formaPagamento,
+    NumeroParcelas: parcelas,
+    ValorFinal: valorFinal,
+    Items: items,
+    Data: payload.Data || arianaSigeIsoDate(new Date()),
+    Pagamentos: [{
+      FormaPagamento: formaPagamento,
+      ValorPagamento: valorFinal,
+      DataTransacao: arianaSigeIsoDate(new Date()),
+      Parcelas: parcelas
+    }],
+    CodigoPedidoCliente: String(payload.CodigoPedidoCliente || body?.codigoPedidoCliente || '').trim(),
+    DataAprovacaoPedido: payload.DataAprovacaoPedido || arianaSigeIsoDate(new Date()),
+    ...(faturar ? { DataFaturamento: payload.DataFaturamento || arianaSigeIsoDate(new Date()) } : {})
+  };
+
+  if (mode === 'minimal-address' || mode === 'minimal-frete') {
+    Object.assign(base, {
+      Municipio: payload.Municipio,
+      CodigoMunicipio: payload.CodigoMunicipio,
+      Pais: payload.Pais || 'Brasil',
+      CEP: payload.CEP,
+      UF: payload.UF,
+      UFCodigo: payload.UFCodigo,
+      Bairro: payload.Bairro,
+      Logradouro: payload.Logradouro,
+      LogradouroNumero: payload.LogradouroNumero,
+      LogradouroComplemento: payload.LogradouroComplemento,
+      EnderecoOpcional: false
+    });
+  }
+
+  if (mode === 'minimal-frete') {
+    Object.assign(base, {
+      FreteMeioEnvio: payload.FreteMeioEnvio,
+      ValorFrete: Number(payload.ValorFrete || 0) || 0,
+      FreteContaEmitente: payload.FreteContaEmitente === true,
+      ValorSeguro: Number(payload.ValorSeguro || 0) || 0,
+      OutrasDespesas: Number(payload.OutrasDespesas || 0) || 0
+    });
+  }
+
+  return arianaSigeCleanObjectForPayload(base);
+}
+
+function arianaSigePayloadAttemptList(fullPayload = {}, body = {}) {
+  const normalizedFull = arianaSigeNormalizeVendaPayloadForSige(fullPayload, body);
+  const requestedMode = String(body?.payloadMode || body?.modoPayload || process.env.SIGE_PAYLOAD_MODE || 'minimal').trim().toLowerCase();
+
+  if (requestedMode === 'full' || requestedMode === 'completo') {
+    return [{ mode: 'full', payload: normalizedFull }];
+  }
+
+  const attempts = [
+    { mode: 'minimal', payload: arianaSigeBuildMinimalVendaPayloadForSige(normalizedFull, body, 'minimal') },
+    { mode: 'minimal-address', payload: arianaSigeBuildMinimalVendaPayloadForSige(normalizedFull, body, 'minimal-address') },
+    { mode: 'minimal-frete', payload: arianaSigeBuildMinimalVendaPayloadForSige(normalizedFull, body, 'minimal-frete') }
+  ];
+
+  if (requestedMode === 'debug' || requestedMode === 'fallback' || requestedMode === 'all') {
+    attempts.push({ mode: 'full', payload: normalizedFull });
+  }
+
+  const seen = new Set();
+  return attempts.filter((attempt) => {
+    const key = JSON.stringify(attempt.payload || {});
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 
@@ -19362,80 +19378,97 @@ async function arianaSigeEnsurePessoaForOrder(order, vendaPayload = {}, body = {
 
 async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
   const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
-  const payload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
-  await arianaSigeApplyPlanoContaAuto(payload, body);
-  const payloadToSend = { ...payload };
-  delete payloadToSend.__sigePlanoContaAuto;
-  const clienteSige = await arianaSigeEnsurePessoaForOrder(order, payloadToSend, body);
+  const normalizedPayload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
+  const clienteSige = await arianaSigeEnsurePessoaForOrder(order, normalizedPayload, body);
+  const payloadAttempts = arianaSigePayloadAttemptList(normalizedPayload, body);
   const endpoints = arianaSigeVendaEndpointCandidates();
   const errors = [];
+  let lastPayload = payloadAttempts[0]?.payload || normalizedPayload;
 
-  for (const endpoint of endpoints) {
-    try {
-      const raw = await sigeRequest('POST', endpoint, { data: payloadToSend });
-      const venda = arianaSigeExtractVendaPayload(raw, payloadToSend);
-      const externalOrderId = String(payloadToSend.CodigoPedidoExterno || payloadToSend.CodigoPedido || payloadToSend.Codigo || venda.codigo || '').trim();
+  for (const attempt of payloadAttempts) {
+    const payload = attempt.payload;
+    lastPayload = payload;
 
-      order.manufacturerDispatch = {
-        ...(order.manufacturerDispatch || {}),
-        externalOrderId: order.manufacturerDispatch?.externalOrderId || externalOrderId,
-        sigeSale: {
-          ...(order.manufacturerDispatch?.sigeSale || {}),
-          ...venda,
-          endpoint,
-          externalOrderId,
-          createdAt: new Date(),
-          payload: payloadToSend
-        },
-        sigeVenda: {
-          ...(order.manufacturerDispatch?.sigeVenda || {}),
-          ...venda,
-          endpoint,
-          externalOrderId,
-          createdAt: new Date()
-        },
-        sigeVendaCriadaEm: new Date()
-      };
-      order.status_integracao = 'sige_sale_created';
-      if (!order.statusLabel || String(order.statusLabel).toLowerCase().includes('recebido')) {
-        order.statusLabel = 'Venda criada no SIGE Cloud';
-      }
-      await order.save();
-
+    for (const endpoint of endpoints) {
       try {
-        await IntegrationAuditLog.create({
-          scope: 'sige',
-          eventType: 'sige.sale.created',
-          orderId: String(order._id),
-          manufacturer: order.manufacturer || 'ariana_moveis',
-          status: 'success',
-          statusCode: 200,
-          message: 'Venda criada no SIGE Cloud para emissão manual de NF-e',
-          request: redact({ endpoint, payload: payloadToSend, planoContaAuto: payload.__sigePlanoContaAuto || null }),
-          response: redact(raw),
-          metadata: { externalOrderId, sigeVendaId: venda.id, sigeCodigo: venda.codigo }
-        });
-      } catch (_auditError) {}
+        const raw = await sigeRequest('POST', endpoint, { data: payload });
+        const venda = arianaSigeExtractVendaPayload(raw, payload);
+        const externalOrderId = String(
+          payload.CodigoPedidoExterno ||
+          payload.CodigoPedido ||
+          payload.CodigoPedidoCliente ||
+          payload.Codigo ||
+          venda.codigo ||
+          ''
+        ).trim();
 
-      return { order, venda, raw, payload: payloadToSend, planoContaAuto: payload.__sigePlanoContaAuto || null, endpoint, errors, clienteSige };
-    } catch (error) {
-      errors.push({
-        endpoint,
-        statusCode: error.statusCode || null,
-        error: error.message || String(error),
-        response: redact(error.responseData || null),
-        payloadEnviadoAoSige: redact(payloadToSend),
-        planoContaAuto: redact(payload.__sigePlanoContaAuto || null)
-      });
+        order.manufacturerDispatch = {
+          ...(order.manufacturerDispatch || {}),
+          externalOrderId: order.manufacturerDispatch?.externalOrderId || externalOrderId,
+          sigeSale: {
+            ...(order.manufacturerDispatch?.sigeSale || {}),
+            ...venda,
+            endpoint,
+            externalOrderId,
+            createdAt: new Date(),
+            payloadMode: attempt.mode,
+            payload
+          },
+          sigeVenda: {
+            ...(order.manufacturerDispatch?.sigeVenda || {}),
+            ...venda,
+            endpoint,
+            externalOrderId,
+            payloadMode: attempt.mode,
+            createdAt: new Date()
+          },
+          sigeVendaCriadaEm: new Date()
+        };
+        order.status_integracao = 'sige_sale_created';
+        if (!order.statusLabel || String(order.statusLabel).toLowerCase().includes('recebido')) {
+          order.statusLabel = 'Venda criada no SIGE Cloud';
+        }
+        await order.save();
+
+        try {
+          await IntegrationAuditLog.create({
+            scope: 'sige',
+            eventType: 'sige.sale.created',
+            orderId: String(order._id),
+            manufacturer: order.manufacturer || 'ariana_moveis',
+            status: 'success',
+            statusCode: 200,
+            message: `Venda criada no SIGE Cloud para emissão manual de NF-e usando payload ${attempt.mode}`,
+            request: redact({ endpoint, payloadMode: attempt.mode, payload }),
+            response: redact(raw),
+            metadata: { externalOrderId, sigeVendaId: venda.id, sigeCodigo: venda.codigo, payloadMode: attempt.mode }
+          });
+        } catch (_auditError) {}
+
+        return { order, venda, raw, payload, payloadMode: attempt.mode, endpoint, errors, clienteSige, payloadAttempts: payloadAttempts.map((item) => ({ mode: item.mode, payload: item.payload })) };
+      } catch (error) {
+        errors.push({
+          endpoint,
+          payloadMode: attempt.mode,
+          statusCode: error.statusCode || null,
+          error: error.message || String(error),
+          response: redact(error.responseData || null),
+          payloadEnviadoAoSige: redact(payload)
+        });
+      }
     }
   }
 
   const err = new Error('Não foi possível criar a venda no SIGE Cloud em nenhum endpoint configurado. Configure SIGE_VENDA_CREATE_ENDPOINT conforme o Swagger/API do SIGE da sua conta.');
   err.statusCode = errors[0]?.statusCode || 502;
-  err.payload = payloadToSend;
-  err.planoContaAuto = payload.__sigePlanoContaAuto || null;
+  err.payload = lastPayload;
   err.clienteSige = clienteSige;
-  err.responseData = { attempted: errors, payloadEnviadoAoSige: redact(payloadToSend), planoContaAuto: redact(payload.__sigePlanoContaAuto || null), clienteSige: redact(clienteSige) };
+  err.responseData = {
+    attempted: errors,
+    payloadEnviadoAoSige: redact(lastPayload),
+    payloadAttempts: payloadAttempts.map((item) => ({ mode: item.mode, payload: redact(item.payload) })),
+    clienteSige: redact(clienteSige)
+  };
   throw err;
 }
 
@@ -19452,16 +19485,15 @@ app.get('/api/admin/sige/orders/:orderId/payload-preview', adminRequired, async 
     };
     const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
     const payload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
-    await arianaSigeApplyPlanoContaAuto(payload, body);
-    const payloadToSend = { ...payload };
-    delete payloadToSend.__sigePlanoContaAuto;
+    const payloadAttempts = arianaSigePayloadAttemptList(payload, body);
 
     return res.json({
       ok: true,
       orderId: String(order._id),
-      payload: payloadToSend,
+      payload: payloadAttempts[0]?.payload || payload,
       rawPayload,
-      planoContaAuto: payload.__sigePlanoContaAuto || null,
+      normalizedFullPayload: payload,
+      payloadAttempts,
       endpoints: arianaSigeVendaEndpointCandidates()
     });
   } catch (error) {
@@ -19546,17 +19578,13 @@ app.post('/api/admin/sige/orders/:orderId/cliente/ensure', adminRequired, async 
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cadastrar cliente no SIGE' });
 
     const payload = arianaSigeBuildVendaPayloadFromOrder(order, req.body || {});
-    await arianaSigeApplyPlanoContaAuto(payload, req.body || {});
-    const payloadToSend = { ...payload };
-    delete payloadToSend.__sigePlanoContaAuto;
-    const result = await arianaSigeEnsurePessoaForOrder(order, payloadToSend, req.body || {});
+    const result = await arianaSigeEnsurePessoaForOrder(order, payload, req.body || {});
 
     return res.json({
       ok: true,
       action: `sige.customer.${result.action}`,
       orderId: String(order._id),
-      cliente: payloadToSend.Cliente,
-      planoContaAuto: payload.__sigePlanoContaAuto || null,
+      cliente: payload.Cliente,
       customerPayload: result.payload,
       sigePessoa: result.pessoa,
       search: result.search ? {
@@ -19587,7 +19615,9 @@ app.post('/api/admin/sige/orders/:orderId/criar-venda', adminRequired, async (re
       orderId: String(result.order._id),
       endpoint: result.endpoint,
       venda: result.venda,
+      payloadMode: result.payloadMode,
       payload: result.payload,
+      payloadAttempts: result.payloadAttempts,
       sigeResponse: result.raw,
       clienteSige: result.clienteSige,
       attemptedFallbacks: result.errors
