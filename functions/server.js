@@ -25,6 +25,7 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import { generateProductPosterBuffer } from './poster-generator.js';
 import manufacturerIntegrationRoutes from './routes/manufacturerIntegrationRoutes.js';
+import createSigeRoutes from './routes/sige/index.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19380,6 +19381,22 @@ app.post('/api/enterprise/orders/:orderId/sige/sync-invoice', enterpriseCompatAu
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
 // ============================================================
+// ============================================================
+// SIGE CLOUD ERP - MÓDULO ISOLADO
+// Rotas e serviços separados em routes/sige e services/sige.
+// Mantém o server.js preservado e registra apenas o módulo.
+// ============================================================
+app.use('/api', createSigeRoutes({
+  adminRequired,
+  Order,
+  Product,
+  User,
+  Setting,
+  IntegrationAuditLog,
+  EnterpriseBillingRecord,
+  redact
+}));
+
 app.use('/api/enterprise', manufacturerIntegrationRoutes);
 
 app.listen(PORT, () => {
