@@ -261,7 +261,7 @@ async function loadCustomerOrderNfe(orderId) {
         <div><span class="text-gray-500">NF-e:</span> <b>${number || 'Disponível'}</b></div>
         ${key ? `<div class="break-all"><span class="text-gray-500">Chave:</span> <b>${key}</b></div>` : ''}
         <div class="grid grid-cols-1 gap-2 pt-3">
-          <button type="button" onclick="downloadProtectedFile('/orders/${encodeURIComponent(orderId)}/danfe','danfe-${number || orderId}.pdf')" class="w-full rounded-lg bg-primary-blue text-white font-black py-2">📄 Baixar DANFE</button>
+          <button type="button" onclick="openProtectedFiscalDoc('/orders/${encodeURIComponent(orderId)}/danfe')" class="w-full rounded-lg bg-primary-blue text-white font-black py-2">📄 Baixar DANFE</button>
           <button type="button" onclick="downloadProtectedFile('/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml')" class="w-full rounded-lg bg-gray-900 text-white font-black py-2">⬇️ Baixar XML</button>
         </div>
       </div>`;

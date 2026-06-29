@@ -583,7 +583,7 @@ const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Type
 const ticketSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, orderId: { type: String, default: null }, protocolo: { type: String, index: true }, tipo: String, assunto: String, mensagem: String, status: { type: String, default: 'Novo' }, origem: { type: String, default: 'site' }, nome: String, email: String, telefone: String, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const contactSchema = new mongoose.Schema({ name: String, email: String, phone: String, subject: String, message: String, source: { type: String, default: 'fale_conosco' }, status: { type: String, default: 'novo' } }, baseOptions);
 const denunciaSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, productId: { type: String, default: null }, sellerId: { type: String, default: null }, motivo: String, descricao: String, status: { type: String, default: 'nova' }, nome: String, email: String }, baseOptions);
-const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, sellerBaseUnitPrice: Number, sellerBaseTotal: Number, cardMarkupUnit: Number, cardMarkupTotal: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed, nfe: mongoose.Schema.Types.Mixed, notaFiscal: mongoose.Schema.Types.Mixed, fiscal: mongoose.Schema.Types.Mixed, sige: mongoose.Schema.Types.Mixed }, baseOptions);
+const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, sellerBaseUnitPrice: Number, sellerBaseTotal: Number, cardMarkupUnit: Number, cardMarkupTotal: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed, nfe: mongoose.Schema.Types.Mixed, notaFiscal: mongoose.Schema.Types.Mixed, fiscal: mongoose.Schema.Types.Mixed, sige: mongoose.Schema.Types.Mixed, sellerInvoices: [mongoose.Schema.Types.Mixed], enterpriseInvoices: [mongoose.Schema.Types.Mixed] }, baseOptions);
 const settingsSchema = new mongoose.Schema({ key: { type: String, unique: true, index: true }, value: mongoose.Schema.Types.Mixed, updatedBy: String }, baseOptions);
 const integrationAuditLogSchema = new mongoose.Schema({ scope: { type: String, default: 'integration' }, eventType: { type: String, default: 'unspecified', index: true }, orderId: { type: String, default: null, index: true }, manufacturer: { type: String, default: null, index: true }, integrationId: { type: String, default: null }, queueId: { type: String, default: null }, status: String, statusCode: Number, message: String, changedKeys: [String], request: mongoose.Schema.Types.Mixed, response: mongoose.Schema.Types.Mixed, metadata: mongoose.Schema.Types.Mixed, buildId: String }, baseOptions);
 const manufacturerIntegrationSchema = new mongoose.Schema({ manufacturer: { type: String, unique: true, index: true }, enabled: { type: Boolean, default: true }, endpoint: String, method: { type: String, default: 'POST' }, headers: mongoose.Schema.Types.Mixed, authType: String, authToken: String, apiKey: String, sendAs: { type: String, default: 'json', enum: ['json', 'form'] }, timeoutMs: { type: Number, default: 30000 }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
@@ -12901,14 +12901,18 @@ async function enterpriseFindInvoiceDocument(orderId) {
   const id = String(order._id || '').trim();
   const billingRecord = await EnterpriseBillingRecord.findOne({ orderId: id }).sort({ updatedAt: -1 });
   const billing = billingRecord ? enterpriseBillingNormalizeResponse(billingRecord) : (order.manufacturerDispatch?.billing || null);
-  const invoice = order.manufacturerDispatch?.invoice || {};
+  const approvedSellerInvoice = ensureArray(order.sellerInvoices).find((i) => String(i.status || '').toLowerCase() === 'aprovada') || null;
+  const approvedEnterpriseInvoice = ensureArray(order.enterpriseInvoices).find((i) => String(i.status || '').toLowerCase() === 'aprovada') || null;
+  const directInvoice = order.nfe || order.notaFiscal || order.fiscal?.nfe || null;
+  const invoice = order.manufacturerDispatch?.invoice || directInvoice || approvedSellerInvoice || approvedEnterpriseInvoice || {};
 
   return { order, invoice, billing };
 }
 
 function enterpriseResolveDocumentUrl(kind, invoice = {}, billing = {}) {
   if (kind === 'xml') {
-    return String(invoice.xmlUrl || invoice.xmlURL || billing?.xmlUrl || '').trim();
+    const candidate = String(invoice.xmlUrl || invoice.xmlURL || billing?.xmlUrl || '').trim();
+    return candidate.startsWith('<') ? '' : candidate;
   }
   return String(
     invoice.danfeUrl || invoice.danfeURL || invoice.pdfUrl || invoice.invoiceUrl ||
@@ -20977,6 +20981,281 @@ app.post('/api/enterprise/orders/:orderId/sige/sync-invoice', enterpriseCompatAu
 
 
 
+
+// ============================================================
+// NF-e DE SELLERS / FABRICANTES EXTERNOS
+// Permite que sellers e parceiros Enterprise enviem a NF-e emitida
+// no ERP deles. A Ariana apenas armazena, audita e vincula ao pedido.
+// ============================================================
+function arianaInvoiceEnsureDir() {
+  const dir = path.join(uploadsDir, 'invoices');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function arianaPublicInvoiceUrl(req, filename = '') {
+  const clean = String(filename || '').replace(/^\/+/, '');
+  return buildPublicFileUrl(req, `invoices/${clean}`);
+}
+
+function arianaInvoiceId(prefix = 'inv') {
+  return `${prefix}_${Date.now()}_${crypto.randomBytes(5).toString('hex')}`;
+}
+
+function arianaSafeInvoiceExt(original = '', fallback = '') {
+  const ext = path.extname(String(original || '')).toLowerCase();
+  if (['.xml', '.pdf', '.html', '.htm'].includes(ext)) return ext;
+  return fallback || '.bin';
+}
+
+async function arianaSaveInvoiceUpload(req, file, prefix, fallbackExt) {
+  if (!file) return null;
+  const dir = arianaInvoiceEnsureDir();
+  const ext = arianaSafeInvoiceExt(file.originalname || file.filename || '', fallbackExt);
+  const filename = `${sanitizeIdPart(prefix || 'nfe')}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+  const dest = path.join(dir, filename);
+  if (file.path && fs.existsSync(file.path)) fs.renameSync(file.path, dest);
+  else if (file.buffer) fs.writeFileSync(dest, file.buffer);
+  else return null;
+  return {
+    filename,
+    path: dest,
+    url: arianaPublicInvoiceUrl(req, filename),
+    originalName: file.originalname || filename,
+    mimeType: file.mimetype || '',
+    size: file.size || 0
+  };
+}
+
+function arianaNormalizeExternalInvoice(input = {}, actor = {}) {
+  const src = input.invoice || input.nfe || input.notaFiscal || input;
+  const numero = String(src.numero || src.number || src.codigoNfe || src.codigoNFe || src.CodigoNFe || src.invoiceNumber || '').trim();
+  const serie = String(src.serie || src.series || src.serieNfe || src.serieNFe || src.SerieNFe || '1').trim();
+  const chave = String(src.chave || src.chaveAcesso || src.accessKey || src.invoiceKey || src.chaveNfe || '').replace(/\D/g, '').trim();
+  const cnpjEmitente = String(src.cnpjEmitente || src.cnpjEmpresaEmissora || src.CNPJEmpresaEmissora || src.cnpj || actor.cnpj || '').replace(/\D/g, '').trim();
+  const emitente = String(src.emitente || src.sellerName || actor.name || actor.sellerName || '').trim();
+  return {
+    invoiceId: String(src.invoiceId || src.id || '').trim() || arianaInvoiceId(actor.prefix || 'seller_nfe'),
+    source: String(actor.source || src.source || 'seller').trim(),
+    status: String(src.status || actor.status || 'enviada').trim(),
+    numero,
+    number: numero,
+    codigo: numero,
+    serie,
+    series: serie,
+    chave,
+    chaveAcesso: chave,
+    accessKey: chave,
+    cnpjEmitente,
+    emitente,
+    sellerId: String(actor.sellerId || src.sellerId || '').trim(),
+    manufacturer: String(actor.manufacturer || src.manufacturer || '').trim(),
+    xmlUrl: String(src.xmlUrl || src.xmlURL || '').trim(),
+    danfeUrl: String(src.danfeUrl || src.pdfUrl || src.invoiceUrl || '').trim(),
+    pdfUrl: String(src.pdfUrl || src.danfeUrl || src.invoiceUrl || '').trim(),
+    xml: String(src.xml || src.Xml || src.xmlContent || '').trim(),
+    xmlContent: String(src.xmlContent || src.xml || src.Xml || '').trim(),
+    protocol: String(src.protocol || src.protocolo || '').trim(),
+    issuedAt: src.issuedAt || src.emitidaEm || src.dataEmissao || new Date(),
+    uploadedAt: new Date(),
+    approvedAt: src.approvedAt || null,
+    rejectedAt: src.rejectedAt || null,
+    rejectionReason: String(src.rejectionReason || '').trim(),
+    raw: src.raw || src
+  };
+}
+
+function arianaOrderHasSeller(order = {}, sellerId = '') {
+  const sid = String(sellerId || '').trim();
+  if (!sid) return false;
+  return extractSellerIdsFromOrder(order).includes(sid);
+}
+
+async function arianaSaveExternalInvoiceOnOrder(order, invoiceInput = {}, req = null, actor = {}) {
+  const invoice = arianaNormalizeExternalInvoice(invoiceInput, actor);
+  const xmlFile = invoiceInput.xmlFile || null;
+  const danfeFile = invoiceInput.danfeFile || null;
+  if (xmlFile?.url) invoice.xmlUrl = xmlFile.url;
+  if (danfeFile?.url) {
+    invoice.danfeUrl = danfeFile.url;
+    invoice.pdfUrl = danfeFile.url;
+  }
+  if (!invoice.numero && !invoice.chave && !invoice.xmlUrl && !invoice.xml && !invoice.danfeUrl) {
+    const err = new Error('Informe número/chave da NF-e ou envie XML/DANFE.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const listKey = actor.source === 'enterprise' ? 'enterpriseInvoices' : 'sellerInvoices';
+  const current = ensureArray(order[listKey]);
+  const idx = current.findIndex((item) => String(item.invoiceId || '') === String(invoice.invoiceId || ''));
+  if (idx >= 0) current[idx] = { ...current[idx], ...invoice };
+  else current.push(invoice);
+  order[listKey] = current;
+
+  order.manufacturerDispatch = {
+    ...(order.manufacturerDispatch || {}),
+    externalInvoices: ensureArray(order.manufacturerDispatch?.externalInvoices).filter((i) => String(i.invoiceId || '') !== String(invoice.invoiceId)).concat(invoice),
+    lastExternalInvoiceAt: new Date()
+  };
+
+  if (invoice.status === 'aprovada') {
+    const publicNfe = {
+      numero: invoice.numero,
+      codigo: invoice.numero,
+      number: invoice.numero,
+      serie: invoice.serie,
+      series: invoice.serie,
+      chave: invoice.chave,
+      chaveAcesso: invoice.chave,
+      accessKey: invoice.chave,
+      protocolo: invoice.protocol,
+      protocol: invoice.protocol,
+      status: invoice.status,
+      xmlUrl: invoice.xmlUrl,
+      xml: invoice.xml,
+      xmlContent: invoice.xmlContent,
+      danfeUrl: invoice.danfeUrl,
+      pdfUrl: invoice.pdfUrl,
+      emitidaEm: invoice.issuedAt,
+      issuedAt: invoice.issuedAt,
+      provider: invoice.source,
+      sellerId: invoice.sellerId,
+      manufacturer: invoice.manufacturer,
+      emitente: invoice.emitente,
+      invoiceId: invoice.invoiceId,
+      raw: invoice.raw
+    };
+    order.nfe = { ...(order.nfe || {}), ...publicNfe };
+    order.notaFiscal = { ...(order.notaFiscal || {}), ...publicNfe };
+    order.fiscal = { ...(order.fiscal || {}), nfe: { ...((order.fiscal || {}).nfe || {}), ...publicNfe } };
+  }
+
+  order.status_integracao = invoice.status === 'aprovada' ? 'seller_invoice_approved' : 'seller_invoice_received';
+  await order.save();
+  return { order, invoice };
+}
+
+async function arianaProxyRemoteFile(res, url, filename, preferredContentType = '') {
+  const target = String(url || '').trim();
+  if (!target) return res.status(404).json({ ok: false, error: 'Arquivo não disponível' });
+  if (/^https?:\/\//i.test(target)) {
+    try {
+      const upstream = await axios.get(target, { responseType: 'arraybuffer', timeout: 30000, headers: { Accept: preferredContentType || '*/*' } });
+      const contentType = String(upstream.headers['content-type'] || preferredContentType || 'application/octet-stream');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(Buffer.from(upstream.data));
+    } catch (error) {
+      return res.redirect(target);
+    }
+  }
+  return res.redirect(target);
+}
+
+app.post('/api/seller/orders/:id/nfe', sellerAuthRequired, upload.fields([{ name: 'xml', maxCount: 1 }, { name: 'danfe', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const sid = String(req.sellerId || '').trim();
+    if (!arianaOrderHasSeller(toJSON(order), sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para enviar NF-e deste pedido' });
+
+    const prefix = `seller-${sid}-${String(order._id).slice(-8)}`;
+    const xmlFile = await arianaSaveInvoiceUpload(req, req.files?.xml?.[0], `${prefix}-xml`, '.xml');
+    const danfeFile = await arianaSaveInvoiceUpload(req, req.files?.danfe?.[0] || req.files?.pdf?.[0], `${prefix}-danfe`, '.pdf');
+    const saved = await arianaSaveExternalInvoiceOnOrder(order, { ...(req.body || {}), xmlFile, danfeFile }, req, {
+      source: 'seller',
+      prefix: 'seller_nfe',
+      sellerId: sid,
+      name: req.seller?.storeName || req.seller?.displayName || sid,
+      cnpj: req.seller?.document || req.seller?.metadata?.cnpj || '',
+      status: 'enviada'
+    });
+
+    await createAdminNotification({
+      type: 'seller_invoice_received',
+      title: 'NF-e enviada pelo seller',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} enviou NF-e do pedido ${order._id}.`,
+      relatedId: String(order._id),
+      severity: 'success',
+      metadata: { sellerId: sid, invoiceId: saved.invoice.invoiceId }
+    });
+
+    return res.json({ ok: true, action: 'seller_nfe_received', orderId: String(saved.order._id), invoice: saved.invoice, order: toJSON(saved.order) });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao enviar NF-e do seller' });
+  }
+});
+
+app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const sid = String(req.sellerId || '').trim();
+    if (!arianaOrderHasSeller(toJSON(order), sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para consultar NF-e deste pedido' });
+    const invoices = ensureArray(order.sellerInvoices).filter((i) => String(i.sellerId || '') === sid);
+    return res.json({ ok: true, orderId: String(order._id), invoices });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar NF-e do seller' });
+  }
+});
+
+app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/approve', adminRequired, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const invoiceId = String(req.params.invoiceId || '').trim();
+    const list = ensureArray(order.sellerInvoices).map((i) => String(i.invoiceId || '') === invoiceId ? { ...i, status: 'aprovada', approvedAt: new Date(), approvedBy: req.admin?.email || req.admin?.id || 'admin' } : i);
+    const invoice = list.find((i) => String(i.invoiceId || '') === invoiceId);
+    if (!invoice) return res.status(404).json({ ok: false, error: 'NF-e do seller não encontrada' });
+    order.sellerInvoices = list;
+    const saved = await arianaSaveExternalInvoiceOnOrder(order, invoice, req, { source: 'seller', status: 'aprovada', sellerId: invoice.sellerId, prefix: 'seller_nfe' });
+    return res.json({ ok: true, action: 'seller_invoice_approved', orderId: String(saved.order._id), invoice: saved.invoice, order: toJSON(saved.order) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao aprovar NF-e do seller' });
+  }
+});
+
+app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/reject', adminRequired, async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const invoiceId = String(req.params.invoiceId || '').trim();
+    const reason = String(req.body?.reason || req.body?.motivo || '').trim();
+    const list = ensureArray(order.sellerInvoices).map((i) => String(i.invoiceId || '') === invoiceId ? { ...i, status: 'reprovada', rejectedAt: new Date(), rejectionReason: reason } : i);
+    order.sellerInvoices = list;
+    await order.save();
+    return res.json({ ok: true, action: 'seller_invoice_rejected', orderId: String(order._id), invoices: list });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao reprovar NF-e do seller' });
+  }
+});
+
+app.post('/api/enterprise/orders/:orderId/nfe', enterpriseCompatAuth, upload.fields([{ name: 'xml', maxCount: 1 }, { name: 'danfe', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
+  try {
+    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const manufacturer = String(req.enterprisePartner?.manufacturer || req.body?.manufacturer || order.manufacturer || '').trim();
+    const prefix = `enterprise-${manufacturer || 'partner'}-${String(order._id).slice(-8)}`;
+    const xmlFile = await arianaSaveInvoiceUpload(req, req.files?.xml?.[0], `${prefix}-xml`, '.xml');
+    const danfeFile = await arianaSaveInvoiceUpload(req, req.files?.danfe?.[0] || req.files?.pdf?.[0], `${prefix}-danfe`, '.pdf');
+    const saved = await arianaSaveExternalInvoiceOnOrder(order, { ...(req.body || {}), xmlFile, danfeFile }, req, {
+      source: 'enterprise',
+      prefix: 'enterprise_nfe',
+      manufacturer,
+      status: 'enviada'
+    });
+    await createAdminNotification({ type: 'enterprise_invoice_received', title: 'NF-e enviada pelo parceiro Enterprise', message: `Parceiro ${manufacturer || 'Enterprise'} enviou NF-e do pedido ${order._id}.`, relatedId: String(order._id), severity: 'success', metadata: { manufacturer, invoiceId: saved.invoice.invoiceId } });
+    return res.json({ ok: true, action: 'enterprise_nfe_received', orderId: String(saved.order._id), invoice: saved.invoice });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao receber NF-e Enterprise' });
+  }
+});
+
+
 // Atalhos Admin para baixar XML/DANFE da NF-e salva no pedido.
 // Útil para o painel administrativo da Ariana Móveis.
 app.get('/api/admin/orders/:orderId/nfe/xml', adminRequired, async (req, res) => {
@@ -21015,7 +21294,7 @@ app.get('/api/admin/orders/:orderId/nfe/danfe', adminRequired, async (req, res) 
       return res.redirect(danfeUrl);
     }
 
-    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+    return arianaProxyRemoteFile(res, danfeUrl, `danfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.pdf`, 'application/pdf');
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
   }
@@ -21128,7 +21407,7 @@ app.get('/api/admin/orders/:orderId/danfe', adminRequired, async (req, res) => {
       return res.redirect(danfeUrl);
     }
 
-    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+    return arianaProxyRemoteFile(res, danfeUrl, `danfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.pdf`, 'application/pdf');
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
   }
@@ -21185,7 +21464,7 @@ app.get('/api/orders/:orderId/nfe/danfe', authRequired, async (req, res) => {
       return res.redirect(danfeUrl);
     }
 
-    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+    return arianaProxyRemoteFile(res, danfeUrl, `danfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.pdf`, 'application/pdf');
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
   }
@@ -21233,7 +21512,7 @@ app.get('/api/orders/:orderId/danfe', authRequired, async (req, res) => {
       return res.redirect(danfeUrl);
     }
 
-    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+    return arianaProxyRemoteFile(res, danfeUrl, `danfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.pdf`, 'application/pdf');
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
   }

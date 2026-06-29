@@ -94,6 +94,24 @@
       <div class="muted text-xs font-black uppercase">Nota fiscal</div>
       <div id="seller-nfe-content" class="text-sm mt-2 text-gray-700">Carregando NF-e...</div>
     </div>
+    
+    <div id="seller-nfe-upload-card" class="border-t border-soft pt-4">
+      <div class="muted text-xs font-black uppercase mb-2">Nota fiscal do seller</div>
+      <p class="text-xs text-gray-500 mb-3">Depois de emitir a NF-e no seu sistema, envie o XML e o DANFE para a Ariana vincular ao pedido do cliente.</p>
+      <div class="grid grid-cols-1 gap-2">
+        <input id="seller-nfe-numero" class="input" placeholder="Número da NF-e">
+        <input id="seller-nfe-serie" class="input" placeholder="Série" value="1">
+        <input id="seller-nfe-chave" class="input" placeholder="Chave de acesso">
+        <input id="seller-nfe-cnpj" class="input" placeholder="CNPJ emitente">
+        <label class="text-xs font-black muted uppercase">XML da NF-e</label>
+        <input id="seller-nfe-xml" type="file" accept=".xml,application/xml,text/xml" class="input">
+        <label class="text-xs font-black muted uppercase">DANFE PDF</label>
+        <input id="seller-nfe-danfe" type="file" accept=".pdf,application/pdf" class="input">
+        <button id="btn-send-seller-nfe" class="btn btn-primary w-full mt-2" type="button"><i class="fas fa-file-upload"></i>Enviar NF-e para a Ariana</button>
+      </div>
+      <div id="seller-nfe-status" class="text-xs mt-2 text-gray-500"></div>
+    </div>
+
     <div class="border-t border-soft pt-4">
       <label class="block text-xs font-black mb-2 uppercase muted">Atualizar status</label>
       <select id="status-select" class="input">
@@ -310,5 +328,39 @@
   $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle("-translate-x-full"));
 
   window.onload = loadOrder;
+
+  async function sendSellerNfe() {
+    const btn = $('btn-send-seller-nfe');
+    const status = $('seller-nfe-status');
+    const orderId = new URLSearchParams(window.location.search).get('id') || window.currentOrderId || $('order-id')?.textContent?.replace('#','').trim();
+    if (!orderId) { showToast('Pedido não identificado para envio da NF-e.', 'error'); return; }
+    const fd = new FormData();
+    fd.append('numero', $('seller-nfe-numero')?.value || '');
+    fd.append('serie', $('seller-nfe-serie')?.value || '1');
+    fd.append('chave', $('seller-nfe-chave')?.value || '');
+    fd.append('cnpjEmitente', $('seller-nfe-cnpj')?.value || '');
+    const xml = $('seller-nfe-xml')?.files?.[0];
+    const danfe = $('seller-nfe-danfe')?.files?.[0];
+    if (xml) fd.append('xml', xml);
+    if (danfe) fd.append('danfe', danfe);
+    const old = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+    try {
+      const res = await fetch(`${API_BASE}/seller/orders/${encodeURIComponent(orderId)}/nfe`, { method: 'POST', headers: authHeaders(), body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (status) status.textContent = 'NF-e enviada para conferência da Ariana.';
+      showToast('NF-e enviada com sucesso!', 'success');
+    } catch (e) {
+      if (status) status.textContent = e.message || 'Erro ao enviar NF-e.';
+      showToast(e.message || 'Erro ao enviar NF-e.', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = old || '<i class="fas fa-file-upload"></i>Enviar NF-e para a Ariana'; }
+    }
+  }
+  document.addEventListener('click', (ev) => {
+    if (ev.target && (ev.target.id === 'btn-send-seller-nfe' || ev.target.closest('#btn-send-seller-nfe'))) sendSellerNfe();
+  });
+
 </script>
 </body></html>
