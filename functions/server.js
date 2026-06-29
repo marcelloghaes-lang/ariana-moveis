@@ -583,7 +583,7 @@ const addressSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Type
 const ticketSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, orderId: { type: String, default: null }, protocolo: { type: String, index: true }, tipo: String, assunto: String, mensagem: String, status: { type: String, default: 'Novo' }, origem: { type: String, default: 'site' }, nome: String, email: String, telefone: String, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
 const contactSchema = new mongoose.Schema({ name: String, email: String, phone: String, subject: String, message: String, source: { type: String, default: 'fale_conosco' }, status: { type: String, default: 'novo' } }, baseOptions);
 const denunciaSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, productId: { type: String, default: null }, sellerId: { type: String, default: null }, motivo: String, descricao: String, status: { type: String, default: 'nova' }, nome: String, email: String }, baseOptions);
-const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, sellerBaseUnitPrice: Number, sellerBaseTotal: Number, cardMarkupUnit: Number, cardMarkupTotal: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed }, baseOptions);
+const orderSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null }, sellerIds: [String], customerName: String, customerEmail: String, customerPhone: String, status: { type: String, default: 'pendente', index: true }, statusLabel: String, items: [{ productId: String, sellerId: String, name: String, sku: String, qty: Number, unitPrice: Number, totalPrice: Number, sellerBaseUnitPrice: Number, sellerBaseTotal: Number, cardMarkupUnit: Number, cardMarkupTotal: Number, image: String }], subtotal: { type: Number, default: 0 }, shippingCost: { type: Number, default: 0 }, montagemCost: { type: Number, default: 0 }, total: { type: Number, default: 0 }, currency: { type: String, default: DEFAULT_CURRENCY }, payment: mongoose.Schema.Types.Mixed, shippingAddress: mongoose.Schema.Types.Mixed, shipping: mongoose.Schema.Types.Mixed, trackingCode: String, trackingHistory: [mongoose.Schema.Types.Mixed], notes: String, manufacturer: String, manufacturerDispatch: mongoose.Schema.Types.Mixed, status_integracao: String, whatsappNotification: mongoose.Schema.Types.Mixed, chatMeta: mongoose.Schema.Types.Mixed, nfe: mongoose.Schema.Types.Mixed, notaFiscal: mongoose.Schema.Types.Mixed, fiscal: mongoose.Schema.Types.Mixed, sige: mongoose.Schema.Types.Mixed }, baseOptions);
 const settingsSchema = new mongoose.Schema({ key: { type: String, unique: true, index: true }, value: mongoose.Schema.Types.Mixed, updatedBy: String }, baseOptions);
 const integrationAuditLogSchema = new mongoose.Schema({ scope: { type: String, default: 'integration' }, eventType: { type: String, default: 'unspecified', index: true }, orderId: { type: String, default: null, index: true }, manufacturer: { type: String, default: null, index: true }, integrationId: { type: String, default: null }, queueId: { type: String, default: null }, status: String, statusCode: Number, message: String, changedKeys: [String], request: mongoose.Schema.Types.Mixed, response: mongoose.Schema.Types.Mixed, metadata: mongoose.Schema.Types.Mixed, buildId: String }, baseOptions);
 const manufacturerIntegrationSchema = new mongoose.Schema({ manufacturer: { type: String, unique: true, index: true }, enabled: { type: Boolean, default: true }, endpoint: String, method: { type: String, default: 'POST' }, headers: mongoose.Schema.Types.Mixed, authType: String, authToken: String, apiKey: String, sendAs: { type: String, default: 'json', enum: ['json', 'form'] }, timeoutMs: { type: Number, default: 30000 }, metadata: mongoose.Schema.Types.Mixed }, baseOptions);
@@ -20467,6 +20467,29 @@ async function saveSigeInvoiceOnEnterpriseOrder(order, invoiceData = {}, req = n
     raw: invoiceData.raw || invoiceData
   };
 
+  const publicNfe = {
+    numero: invoice.number,
+    codigo: invoice.number,
+    number: invoice.number,
+    serie: invoice.series,
+    series: invoice.series,
+    chave: invoice.accessKey,
+    chaveAcesso: invoice.accessKey,
+    accessKey: invoice.accessKey,
+    protocolo: invoice.protocol,
+    protocol: invoice.protocol,
+    status: invoice.status,
+    xmlUrl: invoice.xmlUrl,
+    xml: invoice.xml,
+    xmlContent: invoice.xmlContent,
+    danfeUrl: invoice.danfeUrl,
+    pdfUrl: invoice.pdfUrl,
+    emitidaEm: invoice.issuedAt,
+    issuedAt: invoice.issuedAt,
+    provider: invoice.provider,
+    raw: invoice.raw
+  };
+
   order.manufacturerDispatch = {
     ...(order.manufacturerDispatch || {}),
     invoice: {
@@ -20477,8 +20500,14 @@ async function saveSigeInvoiceOnEnterpriseOrder(order, invoiceData = {}, req = n
     invoiceReceivedAt: new Date(),
     sigeSyncedAt: new Date()
   };
-  order.status = 'enterprise_nfe_recebida';
-  order.statusLabel = 'NF-e recebida do SIGE Cloud';
+
+  // Campos diretos para as telas do Admin/Cliente/Seller encontrarem a NF-e sem depender de manufacturerDispatch.
+  order.nfe = { ...(order.nfe || {}), ...publicNfe };
+  order.notaFiscal = { ...(order.notaFiscal || {}), ...publicNfe };
+  order.fiscal = { ...(order.fiscal || {}), nfe: { ...((order.fiscal || {}).nfe || {}), ...publicNfe } };
+  order.sige = { ...(order.sige || {}), nfe: { ...((order.sige || {}).nfe || {}), ...publicNfe }, nfeSyncedAt: new Date() };
+
+  // Não altera mais o status público do pedido (ex.: Em Transporte/Entregue); só marca a integração fiscal.
   order.status_integracao = 'sige_invoice_synced';
   await order.save();
 
@@ -20791,6 +20820,54 @@ app.get('/api/admin/sige/orders/:orderId/nfe', adminRequired, async (req, res) =
     });
   }
 });
+
+app.post('/api/admin/sige/fiscal/salvar-nfe', adminRequired, async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const orderId = String(body.orderId || body.pedidoId || body.id || '').trim();
+    if (!orderId) return res.status(400).json({ ok: false, error: 'Informe orderId para salvar a NF-e no pedido.' });
+
+    const order = await enterpriseCompatFindOrder(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para salvar NF-e' });
+
+    await arianaSigeBackfillVendaNumeroOnOrder(order);
+
+    const query = {
+      ...body,
+      CodigoNFe: body.CodigoNFe || body.codigoNFe || body.codigoNfe || body.codigo || body.numero || body.nfe,
+      SerieNFe: body.SerieNFe || body.serieNFe || body.serieNfe || body.serie || body.series || '1',
+      CNPJEmpresaEmissora: body.CNPJEmpresaEmissora || body.cnpjEmpresaEmissora || body.cnpj || body.cnpjEmitente
+    };
+
+    const consulta = await consultarSigeNfeFiscal(order, query);
+    const saved = await saveSigeInvoiceOnEnterpriseOrder(order, {
+      ...consulta.invoice,
+      total: order.total,
+      raw: consulta.raw
+    }, req, 'sige_nfe_saved');
+
+    return res.json({
+      ok: true,
+      action: 'sige_nfe_saved',
+      orderId: String(saved.order._id),
+      endpoint: consulta.endpoint,
+      params: consulta.params,
+      nfe: saved.order.nfe || null,
+      notaFiscal: saved.order.notaFiscal || null,
+      invoice: saved.invoice,
+      billing: saved.billing,
+      sigeResponse: consulta.raw
+    });
+  } catch (error) {
+    console.error('[SIGE Fiscal SalvarNFE] erro:', error.message || error);
+    return res.status(error.statusCode || 500).json({
+      ok: false,
+      error: error.message || 'Erro ao salvar NF-e no pedido',
+      sigeResponse: redact(error.responseData || null)
+    });
+  }
+});
+
 
 app.get('/api/admin/sige/fiscal/consultar-nfe/:orderId', adminRequired, async (req, res) => {
   try {

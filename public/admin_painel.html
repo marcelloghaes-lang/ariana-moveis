@@ -290,6 +290,60 @@ async function loadAdminOrderNfe(orderId) {
   }
 }
 
+function adminNfeFormValue(id) {
+  return String(document.getElementById(id)?.value || '').trim();
+}
+
+window.saveAdminOrderNfeFromSige = async function(orderId) {
+  const id = String(orderId || document.getElementById('modal-order-doc-id')?.value || '').trim();
+  if (!id) {
+    displayMessage('Pedido não identificado para salvar a NF-e.', 'error');
+    return;
+  }
+
+  const codigoNfe = adminNfeFormValue('admin-nfe-codigo');
+  const serieNfe = adminNfeFormValue('admin-nfe-serie') || '1';
+  const cnpjEmpresaEmissora = adminNfeFormValue('admin-nfe-cnpj') || '48126915000174';
+
+  if (!codigoNfe) {
+    displayMessage('Informe o número/código da NF-e emitida no SIGE.', 'error');
+    document.getElementById('admin-nfe-codigo')?.focus();
+    return;
+  }
+
+  const btn = document.getElementById('btn-admin-save-nfe');
+  const original = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Localizando NF-e...';
+  }
+
+  try {
+    await apiRequest('/admin/sige/fiscal/salvar-nfe', {
+      method: 'POST',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify({
+        orderId: id,
+        codigoNfe,
+        serieNfe,
+        cnpjEmpresaEmissora
+      })
+    });
+
+    displayMessage('NF-e salva no pedido. XML e DANFE liberados para o painel e para o cliente.', 'success');
+    await loadAdminOrderNfe(id);
+    await loadOrders();
+  } catch (error) {
+    displayMessage(`Erro ao salvar NF-e: ${error.message}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = original || '<i class="fas fa-cloud-download-alt mr-2"></i>Localizar e salvar NF-e';
+    }
+  }
+}
+
+
 function formatCurrency(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
 function toJSDate(v){ if(!v) return null; if(v instanceof Date) return v; if(typeof v==='number') return new Date(v); if(typeof v==='string'){const d=new Date(v); return isNaN(d)?null:d;} if(v.seconds) return new Date(v.seconds*1000); return null; }
 function formatDateTime(v){const d=toJSDate(v); return d?d.toLocaleString('pt-BR'):'—'}
@@ -2054,8 +2108,37 @@ window.openOrderModal = function(id){
       <div class="space-y-2">${(order.items||[]).map(i=>`<div class="border rounded-lg p-3"><div class="font-medium">${escHtml(i.name||'Item')}</div><div class="text-sm text-gray-500">Qtd: ${Number(i.qty||i.quantity||1)} · ${formatCurrency(i.unitPrice||i.price||0)}</div></div>`).join('') || '<div class="text-sm text-gray-500">Sem itens.</div>'}</div>
     </div>
     <div class="mt-5 pt-4 border-t">
-      <h4 class="text-lg font-semibold mb-3">NF-e / XML / DANFE</h4>
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <h4 class="text-lg font-semibold">NF-e / XML / DANFE</h4>
+        <button type="button" onclick="loadAdminOrderNfe('${String(id).replace(/'/g, '')}')" class="px-3 py-2 rounded-lg bg-white border text-gray-700 text-xs font-bold"><i class="fas fa-rotate mr-1"></i>Atualizar</button>
+      </div>
       <div id="admin-order-nfe-content"><span class="text-gray-500 text-sm">Carregando NF-e...</span></div>
+      <div class="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+        <div class="flex items-start gap-3 mb-3">
+          <div class="w-9 h-9 rounded-lg bg-primary-blue text-white flex items-center justify-center"><i class="fas fa-file-invoice"></i></div>
+          <div>
+            <div class="font-black text-gray-800">Localizar NF-e emitida no SIGE</div>
+            <div class="text-xs text-gray-500">Use este botão depois de emitir a nota manualmente no SIGE. Ele consulta o SIGE e salva XML/DANFE no pedido.</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[11px] uppercase font-black text-gray-500 mb-1">Nº / Código NF-e</label>
+            <input id="admin-nfe-codigo" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Ex: 1446">
+          </div>
+          <div>
+            <label class="block text-[11px] uppercase font-black text-gray-500 mb-1">Série</label>
+            <input id="admin-nfe-serie" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value="1" placeholder="Ex: 1">
+          </div>
+          <div>
+            <label class="block text-[11px] uppercase font-black text-gray-500 mb-1">CNPJ Emitente</label>
+            <input id="admin-nfe-cnpj" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value="48126915000174" placeholder="CNPJ Ariana">
+          </div>
+        </div>
+        <button id="btn-admin-save-nfe" type="button" onclick="saveAdminOrderNfeFromSige('${String(id).replace(/'/g, '')}')" class="mt-3 w-full px-4 py-2 rounded-lg bg-primary-blue text-white text-sm font-black hover:bg-secondary-light-blue">
+          <i class="fas fa-cloud-download-alt mr-2"></i>Localizar e salvar NF-e no pedido
+        </button>
+      </div>
     </div>`;
   const modal=document.getElementById('order-detail-modal');
   modal.classList.remove('hidden');
