@@ -20946,6 +20946,174 @@ app.get('/api/admin/orders/:orderId/nfe/danfe', adminRequired, async (req, res) 
 
 
 // ============================================================
+// NF-e no painel Admin e no detalhe do pedido do cliente
+// Exibe metadados da nota e disponibiliza XML/DANFE salvos no pedido.
+// Admin usa adminRequired; cliente usa authRequired e só acessa o próprio pedido.
+// ============================================================
+function arianaNfeBuildPublicInfo(order, invoice = {}, billing = {}) {
+  const xmlUrl = enterpriseResolveDocumentUrl('xml', invoice, billing);
+  const xmlContent = enterpriseResolveXmlContent(invoice, billing);
+  const danfeUrl = enterpriseResolveDocumentUrl('danfe', invoice, billing);
+  const orderId = String(order?._id || '');
+  const number = String(invoice?.number || billing?.invoiceNumber || '').trim();
+  const series = String(invoice?.series || invoice?.serie || billing?.serie || '').trim();
+  const accessKey = String(invoice?.accessKey || invoice?.invoiceKey || billing?.invoiceKey || '').trim();
+  const protocol = String(invoice?.protocol || billing?.protocol || '').trim();
+  const status = String(invoice?.status || billing?.status || '').trim();
+
+  return {
+    exists: Boolean(number || accessKey || protocol || xmlUrl || xmlContent || danfeUrl),
+    number,
+    series,
+    accessKey,
+    protocol,
+    status,
+    issuedAt: invoice?.issuedAt || billing?.issuedAt || null,
+    provider: invoice?.provider || 'sige_cloud',
+    hasXml: Boolean(xmlUrl || xmlContent),
+    hasDanfe: Boolean(danfeUrl),
+    xmlUrl: xmlUrl || '',
+    danfeUrl: danfeUrl || '',
+    admin: orderId ? {
+      consultar: `/api/admin/sige/orders/${orderId}/nfe`,
+      xml: `/api/admin/orders/${orderId}/nfe/xml`,
+      danfe: `/api/admin/orders/${orderId}/nfe/danfe`
+    } : null,
+    customer: orderId ? {
+      consultar: `/api/orders/${orderId}/nfe`,
+      xml: `/api/orders/${orderId}/nfe/xml`,
+      danfe: `/api/orders/${orderId}/nfe/danfe`
+    } : null
+  };
+}
+
+function arianaUserCanAccessOrderNfe(req, order) {
+  if (!req?.user || !order) return false;
+  const role = String(req.user.role || req.auth?.role || '').toLowerCase();
+  if (role === 'admin' || req.auth?.admin === true) return true;
+
+  const userId = String(req.user._id || req.user.id || req.auth?.id || '').trim();
+  const orderUserId = String(order.userId || '').trim();
+  if (userId && orderUserId && userId === orderUserId) return true;
+
+  const userEmail = String(req.user.email || req.auth?.email || '').trim().toLowerCase();
+  const orderEmail = String(order.customerEmail || '').trim().toLowerCase();
+  return Boolean(userEmail && orderEmail && userEmail === orderEmail);
+}
+
+app.get('/api/admin/orders/:orderId/nfe', adminRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar NF-e' });
+    const nfe = arianaNfeBuildPublicInfo(order, invoice, billing);
+    return res.json({ ok: true, orderId: String(order._id), nfe, invoice, billing });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar NF-e do pedido' });
+  }
+});
+
+// Atalhos mais simples para o painel Admin.
+app.get('/api/admin/orders/:orderId/xml', adminRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar XML' });
+
+    const xmlUrl = enterpriseResolveDocumentUrl('xml', invoice, billing);
+    const xmlContent = enterpriseResolveXmlContent(invoice, billing);
+    if (!xmlUrl && !xmlContent) return res.status(404).json({ ok: false, error: 'XML ainda não foi salvo para este pedido' });
+
+    if (xmlUrl && String(req.query.redirect || '').toLowerCase() === 'true') return res.redirect(xmlUrl);
+
+    if (xmlContent) {
+      const fileName = `nfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.xml`;
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(xmlContent);
+    }
+
+    return res.json({ ok: true, orderId: String(order._id), type: 'xml', url: xmlUrl, downloadUrl: xmlUrl });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar XML da NF-e' });
+  }
+});
+
+app.get('/api/admin/orders/:orderId/danfe', adminRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar DANFE' });
+
+    const danfeUrl = enterpriseResolveDocumentUrl('danfe', invoice, billing);
+    if (!danfeUrl) return res.status(404).json({ ok: false, error: 'DANFE ainda não foi salvo para este pedido' });
+
+    if (String(req.query.redirect || '').toLowerCase() === 'true' || String(req.query.download || '').toLowerCase() === '1') {
+      return res.redirect(danfeUrl);
+    }
+
+    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
+  }
+});
+
+app.get('/api/orders/:orderId/nfe', authRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar NF-e' });
+    if (!arianaUserCanAccessOrderNfe(req, order)) return res.status(403).json({ ok: false, error: 'Você não tem acesso à NF-e deste pedido' });
+
+    const nfe = arianaNfeBuildPublicInfo(order, invoice, billing);
+    return res.json({ ok: true, orderId: String(order._id), nfe });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar NF-e do pedido' });
+  }
+});
+
+app.get('/api/orders/:orderId/nfe/xml', authRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar XML' });
+    if (!arianaUserCanAccessOrderNfe(req, order)) return res.status(403).json({ ok: false, error: 'Você não tem acesso ao XML deste pedido' });
+
+    const xmlUrl = enterpriseResolveDocumentUrl('xml', invoice, billing);
+    const xmlContent = enterpriseResolveXmlContent(invoice, billing);
+    if (!xmlUrl && !xmlContent) return res.status(404).json({ ok: false, error: 'XML ainda não foi salvo para este pedido' });
+
+    if (xmlUrl && String(req.query.redirect || '').toLowerCase() === 'true') return res.redirect(xmlUrl);
+
+    if (xmlContent) {
+      const fileName = `nfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.xml`;
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(xmlContent);
+    }
+
+    return res.json({ ok: true, orderId: String(order._id), type: 'xml', url: xmlUrl, downloadUrl: xmlUrl });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar XML da NF-e' });
+  }
+});
+
+app.get('/api/orders/:orderId/nfe/danfe', authRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar DANFE' });
+    if (!arianaUserCanAccessOrderNfe(req, order)) return res.status(403).json({ ok: false, error: 'Você não tem acesso ao DANFE deste pedido' });
+
+    const danfeUrl = enterpriseResolveDocumentUrl('danfe', invoice, billing);
+    if (!danfeUrl) return res.status(404).json({ ok: false, error: 'DANFE ainda não foi salvo para este pedido' });
+
+    if (String(req.query.redirect || '').toLowerCase() === 'true' || String(req.query.download || '').toLowerCase() === '1') {
+      return res.redirect(danfeUrl);
+    }
+
+    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
+  }
+});
+
+
+// ============================================================
 // MÓDULOS EXTERNOS - ETAPA 1 (sem alterar rotas antigas)
 // Novas APIs empresariais para fabricantes/sellers grandes.
 // ============================================================
