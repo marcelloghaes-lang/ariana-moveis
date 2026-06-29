@@ -19206,9 +19206,17 @@ function arianaSigeRawText(raw = '') {
 }
 
 function arianaSigeExtractPedidoNumberFromRaw(raw = '') {
-  const text = arianaSigeRawText(raw).replace(/^"|"$/g, '').trim();
+  if (raw === undefined || raw === null) return '';
+  let text = arianaSigeRawText(raw).trim();
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === 'string') text = parsed;
+    else if (parsed && typeof parsed === 'object') text = JSON.stringify(parsed);
+  } catch (_error) {}
+  text = String(text || '').replace(/^"|"$/g, '').trim();
   const match = text.match(/PEDIDO\s+([0-9]+)\s+SALVO\s+COM\s+SUCESSO/i) ||
-    text.match(/pedido[^0-9]{0,20}([0-9]+)/i);
+    text.match(/pedido[^0-9]{0,30}([0-9]+)/i) ||
+    text.match(/([0-9]{2,})/);
   return match ? String(match[1]).trim() : '';
 }
 
@@ -19884,19 +19892,27 @@ app.post('/api/admin/sige/orders/:orderId/criar-venda', adminRequired, async (re
 
 app.get('/api/admin/sige/orders/:orderId/integracao', adminRequired, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    let order = await enterpriseCompatFindOrder(req.params.orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar integração SIGE' });
 
+    const backfilled = await arianaSigeBackfillVendaNumeroOnOrder(order);
+    order = backfilled.order || order;
     const dispatch = order.manufacturerDispatch || {};
+    const sale = dispatch.sigeVenda || dispatch.sigeSale || {};
+    const sigePedidoNumero = dispatch.sigePedidoNumero || dispatch.sigePedidoCodigo || dispatch.codigoVenda || dispatch.externalOrderId || sale.codigo || sale.numero || arianaSigeExtractVendaNumero(sale.raw) || '';
+
     return res.json({
       ok: true,
       orderId: String(order._id),
       statusIntegracao: order.status_integracao || '',
       statusLabel: order.statusLabel || '',
       arianaPedidoId: dispatch.arianaPedidoId || String(order._id),
-      sigePedidoNumero: dispatch.sigePedidoNumero || dispatch.sigePedidoCodigo || dispatch.sigeVenda?.codigo || dispatch.sigeSale?.codigo || '',
+      sigePedidoNumero,
+      codigoVenda: sigePedidoNumero,
+      numeroCorrigidoNoMongo: Boolean(backfilled.updated),
       sigeVenda: dispatch.sigeVenda || dispatch.sigeSale || null,
       produtosSige: dispatch.sigeProdutos || null,
+      invoice: dispatch.invoice || dispatch.sigeInvoice || null,
       raw: dispatch.sigeVenda?.raw || dispatch.sigeSale?.raw || null
     });
   } catch (error) {
@@ -20250,9 +20266,25 @@ async function saveSigeInvoiceOnEnterpriseOrder(order, invoiceData = {}, req = n
 }
 
 function arianaSigeExtractVendaNumero(value = '') {
-  const text = String(value || '').trim();
-  const match = text.match(/PEDIDO\s+(\d+)\s+SALVO/i) || text.match(/VENDA\s+(\d+)/i) || text.match(/\b(\d{2,})\b/);
-  return match ? match[1] : '';
+  if (value === undefined || value === null) return '';
+  let text = '';
+  if (typeof value === 'string') {
+    text = value.trim();
+    // O SIGE costuma responder como texto, às vezes serializado: "PEDIDO 1700 SALVO COM SUCESSO!".
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed === 'string') text = parsed;
+      else if (parsed && typeof parsed === 'object') text = JSON.stringify(parsed);
+    } catch (_error) {}
+  } else {
+    try { text = JSON.stringify(value); } catch (_error) { text = String(value || ''); }
+  }
+  text = String(text || '').replace(/^"|"$/g, '').trim();
+  const match = text.match(/PEDIDO\s+(\d+)\s+SALVO/i) ||
+    text.match(/PEDIDO[^0-9]{0,30}(\d{2,})/i) ||
+    text.match(/VENDA[^0-9]{0,30}(\d{2,})/i) ||
+    text.match(/(\d{2,})/);
+  return match ? String(match[1]).trim() : '';
 }
 
 function arianaSigeResolveCodigoVendaFromOrder(order = {}, body = {}) {
@@ -20271,15 +20303,64 @@ function arianaSigeResolveCodigoVendaFromOrder(order = {}, body = {}) {
     sale.Codigo,
     sale.numero,
     sale.pedido,
+    sale.pedidoNumero,
+    sale.sigePedidoNumero,
     arianaSigeExtractVendaNumero(sale.raw),
+    arianaSigeExtractVendaNumero(sale.response),
     arianaSigeExtractVendaNumero(dispatch?.sigeResponse),
-    arianaSigeExtractVendaNumero(dispatch?.raw)
+    arianaSigeExtractVendaNumero(dispatch?.raw),
+    arianaSigeExtractVendaNumero(dispatch?.response)
   ];
   for (const value of candidates) {
     const only = String(value || '').replace(/\D/g, '').trim();
     if (only) return only;
   }
   return '';
+}
+
+async function arianaSigeBackfillVendaNumeroOnOrder(order, rawFallback = null) {
+  if (!order) return { order, codigoVenda: '', updated: false };
+  const dispatch = order.manufacturerDispatch || {};
+  const sale = dispatch.sigeSale || dispatch.sigeVenda || {};
+  const codigoVenda = arianaSigeResolveCodigoVendaFromOrder(order, {}) ||
+    arianaSigeExtractVendaNumero(rawFallback) ||
+    arianaSigeExtractVendaNumero(sale.raw) ||
+    arianaSigeExtractVendaNumero(dispatch.raw);
+
+  if (!codigoVenda) return { order, codigoVenda: '', updated: false };
+
+  const already = String(dispatch.sigePedidoNumero || dispatch.sigePedidoCodigo || dispatch.codigoVenda || '').trim();
+  if (already === codigoVenda && String(dispatch.externalOrderId || '').trim() === codigoVenda) {
+    return { order, codigoVenda, updated: false };
+  }
+
+  order.manufacturerDispatch = {
+    ...dispatch,
+    externalOrderId: codigoVenda,
+    codigoVenda,
+    sigePedidoNumero: codigoVenda,
+    sigePedidoCodigo: codigoVenda,
+    sigeSale: {
+      ...(dispatch.sigeSale || {}),
+      codigo: (dispatch.sigeSale || {}).codigo || codigoVenda,
+      numero: (dispatch.sigeSale || {}).numero || codigoVenda,
+      pedidoNumero: (dispatch.sigeSale || {}).pedidoNumero || codigoVenda,
+      sigePedidoNumero: codigoVenda,
+      raw: (dispatch.sigeSale || {}).raw || rawFallback || null
+    },
+    sigeVenda: {
+      ...(dispatch.sigeVenda || {}),
+      codigo: (dispatch.sigeVenda || {}).codigo || codigoVenda,
+      numero: (dispatch.sigeVenda || {}).numero || codigoVenda,
+      pedidoNumero: (dispatch.sigeVenda || {}).pedidoNumero || codigoVenda,
+      sigePedidoNumero: codigoVenda,
+      raw: (dispatch.sigeVenda || {}).raw || rawFallback || null
+    },
+    sigeVendaNumeroBackfilledAt: new Date()
+  };
+  if (!order.status_integracao) order.status_integracao = 'sige_sale_created';
+  await order.save();
+  return { order, codigoVenda, updated: true };
 }
 
 function arianaSigeResolveCnpjEmitente(body = {}) {
@@ -20324,6 +20405,7 @@ function arianaSigeExtractNfeFromConsultarResponse(raw = {}, fallback = {}) {
 }
 
 async function emitirSigeNfePorVenda(order, body = {}) {
+  await arianaSigeBackfillVendaNumeroOnOrder(order);
   const codigoVenda = arianaSigeResolveCodigoVendaFromOrder(order, body);
   if (!codigoVenda) {
     const err = new Error('Não encontrei o CódigoVenda do SIGE no pedido. Sincronize a venda primeiro ou informe codigoVenda no body.');
@@ -20471,6 +20553,7 @@ app.get('/api/admin/sige/fiscal/consultar-nfe/:orderId', adminRequired, async (r
   try {
     const order = await enterpriseCompatFindOrder(req.params.orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar NF-e' });
+    await arianaSigeBackfillVendaNumeroOnOrder(order);
     const consulta = await consultarSigeNfeFiscal(order, req.query || {});
     const saved = await saveSigeInvoiceOnEnterpriseOrder(order, {
       ...consulta.invoice,
@@ -20503,9 +20586,19 @@ app.post('/api/admin/sige/fiscal/emitir-nfe/:orderId', adminRequired, async (req
 
 app.get('/api/admin/sige/fiscal/consultar-nfe', adminRequired, async (req, res) => {
   try {
-    const fakeOrder = { manufacturerDispatch: { invoice: { number: req.query.codigo || req.query.CodigoNFe || req.query.numero || '', series: req.query.serie || req.query.SerieNFe || '1' } } };
+    let order = null;
+    const orderId = String(req.query.orderId || req.query.pedidoId || '').trim();
+    if (orderId) {
+      order = await enterpriseCompatFindOrder(orderId);
+      if (order) await arianaSigeBackfillVendaNumeroOnOrder(order);
+    }
+    const fakeOrder = order || { manufacturerDispatch: { invoice: { number: req.query.codigo || req.query.CodigoNFe || req.query.numero || '', series: req.query.serie || req.query.SerieNFe || '1' } } };
     const consulta = await consultarSigeNfeFiscal(fakeOrder, req.query || {});
-    return res.json({ ok: true, action: 'sige_nfe_consulted', endpoint: consulta.endpoint, params: consulta.params, invoice: consulta.invoice, sigeResponse: consulta.raw });
+    let saved = null;
+    if (order) {
+      saved = await saveSigeInvoiceOnEnterpriseOrder(order, { ...consulta.invoice, total: order.total, raw: consulta.raw }, req, 'sige_nfe_consulted');
+    }
+    return res.json({ ok: true, action: 'sige_nfe_consulted', orderId: order ? String(order._id) : '', endpoint: consulta.endpoint, params: consulta.params, invoice: saved?.invoice || consulta.invoice, billing: saved?.billing || null, sigeResponse: consulta.raw });
   } catch (error) {
     console.error('[SIGE Fiscal ConsultarNFE] erro:', error.message || error);
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar NF-e no SIGE', sigeResponse: redact(error.responseData || null) });
