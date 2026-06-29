@@ -234,6 +234,62 @@ function formatMoneyInputBR(value){
   return n ? n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
 }
 
+
+async function downloadAdminProtectedFile(path, filename) {
+  const res = await fetch(`${String(API_BASE).replace(/\/+$/,'')}${path.startsWith('/') ? path : '/' + path}`, {
+    headers: buildHeadersAuth({ Accept: '*/*' })
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const data = await res.json(); msg = data.error || data.message || msg; } catch(_e) {}
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function adminInvoiceFromPayload(data = {}) {
+  return data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || data || {};
+}
+
+async function loadAdminOrderNfe(orderId) {
+  const box = document.getElementById('admin-order-nfe-content');
+  if (!box || !orderId) return;
+  box.innerHTML = '<span class="text-gray-500 text-sm">Carregando NF-e...</span>';
+  try {
+    const data = await apiRequest(`/admin/orders/${encodeURIComponent(orderId)}/nfe`, { headers: buildHeadersAuth() });
+    const inv = adminInvoiceFromPayload(data);
+    const number = inv.number || inv.numero || inv.invoiceNumber || data.number || '';
+    const serie = inv.series || inv.serie || data.serie || '';
+    const key = inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || data.invoiceKey || '';
+    if (!number && !key && !inv.danfeUrl && !inv.xmlUrl) {
+      box.innerHTML = '<span class="text-gray-500 text-sm">NF-e ainda não disponível para este pedido.</span>';
+      return;
+    }
+    box.innerHTML = `
+      <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div><span class="text-gray-500">NF-e:</span> <b>${escHtml(number || 'Disponível')}</b>${serie ? ` <span class="text-gray-500">Série ${escHtml(serie)}</span>` : ''}</div>
+          ${key ? `<div class="md:col-span-2 break-all"><span class="text-gray-500">Chave:</span> <b>${escHtml(key)}</b></div>` : ''}
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
+          <button type="button" onclick="downloadAdminProtectedFile('/admin/orders/${encodeURIComponent(orderId)}/danfe','danfe-${number || orderId}.pdf').catch(e=>displayMessage(e.message,'error'))" class="px-3 py-2 rounded-lg bg-primary-blue text-white text-sm font-bold"><i class="fas fa-file-pdf mr-2"></i>Baixar DANFE</button>
+          <button type="button" onclick="downloadAdminProtectedFile('/admin/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml').catch(e=>displayMessage(e.message,'error'))" class="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-bold"><i class="fas fa-file-code mr-2"></i>Baixar XML</button>
+          <button type="button" onclick="loadAdminOrderNfe('${String(orderId).replace(/'/g, '')}')" class="px-3 py-2 rounded-lg bg-white border text-gray-700 text-sm font-bold"><i class="fas fa-rotate mr-2"></i>Atualizar</button>
+        </div>
+      </div>`;
+  } catch(e) {
+    box.innerHTML = `<span class="text-gray-500 text-sm">NF-e ainda não disponível: ${escHtml(e.message || '')}</span>`;
+  }
+}
+
 function formatCurrency(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
 function toJSDate(v){ if(!v) return null; if(v instanceof Date) return v; if(typeof v==='number') return new Date(v); if(typeof v==='string'){const d=new Date(v); return isNaN(d)?null:d;} if(v.seconds) return new Date(v.seconds*1000); return null; }
 function formatDateTime(v){const d=toJSDate(v); return d?d.toLocaleString('pt-BR'):'—'}
@@ -1979,7 +2035,33 @@ async function renderOrdersView(){
   const box=document.getElementById('orders-content');
   box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><h2 class="text-2xl font-bold text-text-dark mb-4">Pedidos</h2><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Total</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${allOrdersCache.map(o=>`<tr class="border-t" data-order-id="${escHtml(String(o.id||o._id||''))}"><td class="px-4 py-3 text-sm">${escHtml(String(o.id||o._id||''))}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||o.nomeCliente||'—')}</td><td class="px-4 py-3 text-sm">${formatDateTime(o.createdAt)}</td><td class="px-4 py-3 text-sm">${formatCurrency(o.total||0)}</td><td class="px-4 py-3 text-sm">${escHtml(o.status||'—')}</td><td class="px-4 py-3 text-sm"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.openOrderModal('${escHtml(String(o.id||o._id||''))}')">Ver / Atualizar</button></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum pedido.</td></tr>'}</tbody></table></div></div>`;
 }
-window.openOrderModal = function(id){ const order=allOrdersCache.find(o=>String(o.id||o._id)===String(id)); if(!order) return; document.getElementById('modal-order-id').textContent=`#${id}`; document.getElementById('modal-order-doc-id').value=id; document.getElementById('update-status').value=order.status||'Aguardando Pagamento'; document.getElementById('update-tracking-code').value=order.trackingCode||''; document.getElementById('modal-content-details').innerHTML=`<div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><div class="text-sm text-gray-500">Cliente</div><div class="font-semibold">${escHtml(order.customerName||'—')}</div></div><div><div class="text-sm text-gray-500">Total</div><div class="font-semibold">${formatCurrency(order.total||0)}</div></div><div><div class="text-sm text-gray-500">Status atual</div><div class="font-semibold">${escHtml(order.status||'—')}</div></div><div><div class="text-sm text-gray-500">Criado em</div><div class="font-semibold">${formatDateTime(order.createdAt)}</div></div></div><div class="mt-4"><div class="text-sm text-gray-500 mb-2">Itens</div><div class="space-y-2">${(order.items||[]).map(i=>`<div class="border rounded-lg p-3"><div class="font-medium">${escHtml(i.name||'Item')}</div><div class="text-sm text-gray-500">Qtd: ${Number(i.qty||i.quantity||1)} · ${formatCurrency(i.unitPrice||i.price||0)}</div></div>`).join('') || '<div class="text-sm text-gray-500">Sem itens.</div>'}</div></div>`; const modal=document.getElementById('order-detail-modal'); modal.classList.remove('hidden'); modal.classList.add('flex'); }
+window.openOrderModal = function(id){
+  const order=allOrdersCache.find(o=>String(o.id||o._id)===String(id));
+  if(!order) return;
+  document.getElementById('modal-order-id').textContent=`#${id}`;
+  document.getElementById('modal-order-doc-id').value=id;
+  document.getElementById('update-status').value=order.status||'Aguardando Pagamento';
+  document.getElementById('update-tracking-code').value=order.trackingCode||'';
+  document.getElementById('modal-content-details').innerHTML=`
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div><div class="text-sm text-gray-500">Cliente</div><div class="font-semibold">${escHtml(order.customerName||'—')}</div></div>
+      <div><div class="text-sm text-gray-500">Total</div><div class="font-semibold">${formatCurrency(order.total||0)}</div></div>
+      <div><div class="text-sm text-gray-500">Status atual</div><div class="font-semibold">${escHtml(order.status||'—')}</div></div>
+      <div><div class="text-sm text-gray-500">Criado em</div><div class="font-semibold">${formatDateTime(order.createdAt)}</div></div>
+    </div>
+    <div class="mt-4">
+      <div class="text-sm text-gray-500 mb-2">Itens</div>
+      <div class="space-y-2">${(order.items||[]).map(i=>`<div class="border rounded-lg p-3"><div class="font-medium">${escHtml(i.name||'Item')}</div><div class="text-sm text-gray-500">Qtd: ${Number(i.qty||i.quantity||1)} · ${formatCurrency(i.unitPrice||i.price||0)}</div></div>`).join('') || '<div class="text-sm text-gray-500">Sem itens.</div>'}</div>
+    </div>
+    <div class="mt-5 pt-4 border-t">
+      <h4 class="text-lg font-semibold mb-3">NF-e / XML / DANFE</h4>
+      <div id="admin-order-nfe-content"><span class="text-gray-500 text-sm">Carregando NF-e...</span></div>
+    </div>`;
+  const modal=document.getElementById('order-detail-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  loadAdminOrderNfe(id);
+}
 window.handleOrderUpdate = async function(){
   try{
     const id=document.getElementById('modal-order-doc-id').value;

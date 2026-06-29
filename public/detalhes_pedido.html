@@ -148,6 +148,11 @@
             </div>
           </div>
 
+          <div id="nfe-card" class="hidden bg-white rounded-xl shadow-sm border p-6">
+            <h3 class="text-lg font-black mb-4">Nota fiscal</h3>
+            <div id="nfe-content" class="text-sm text-gray-700">Carregando NF-e...</div>
+          </div>
+
           <div id="error-box" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm"></div>
         </div>
       </div>
@@ -209,6 +214,61 @@ async function apiFetch(path, options = {}) {
   }
 
   return data;
+}
+
+
+async function downloadProtectedFile(path, filename) {
+  const res = await fetch(`${API_BASE}${path}`, { headers: getHeaders({ Accept: '*/*' }) });
+  if (!res.ok) {
+    let msg = `Erro HTTP ${res.status}`;
+    try { const data = await res.json(); msg = data.error || data.message || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function invoiceNumberFromPayload(data = {}) {
+  const inv = data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || {};
+  return inv.number || inv.numero || inv.invoiceNumber || inv.nNF || '';
+}
+
+function invoiceKeyFromPayload(data = {}) {
+  const inv = data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || {};
+  return inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || inv.ChaveNFe || '';
+}
+
+async function loadCustomerOrderNfe(orderId) {
+  const card = $('nfe-card');
+  const box = $('nfe-content');
+  if (!card || !box || !orderId) return;
+  try {
+    const data = await apiFetch(`/orders/${encodeURIComponent(orderId)}/nfe`);
+    const inv = data.invoice || data.nfe || data.sigeInvoice || data || {};
+    const number = invoiceNumberFromPayload(data) || inv.number || '';
+    const key = invoiceKeyFromPayload(data) || '';
+    if (!number && !key && !inv.danfeUrl && !inv.xmlUrl) return;
+    card.classList.remove('hidden');
+    box.innerHTML = `
+      <div class="space-y-2">
+        <div><span class="text-gray-500">NF-e:</span> <b>${number || 'Disponível'}</b></div>
+        ${key ? `<div class="break-all"><span class="text-gray-500">Chave:</span> <b>${key}</b></div>` : ''}
+        <div class="grid grid-cols-1 gap-2 pt-3">
+          <button type="button" onclick="downloadProtectedFile('/orders/${encodeURIComponent(orderId)}/danfe','danfe-${number || orderId}.pdf')" class="w-full rounded-lg bg-primary-blue text-white font-black py-2">📄 Baixar DANFE</button>
+          <button type="button" onclick="downloadProtectedFile('/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml')" class="w-full rounded-lg bg-gray-900 text-white font-black py-2">⬇️ Baixar XML</button>
+        </div>
+      </div>`;
+  } catch (e) {
+    card.classList.remove('hidden');
+    box.innerHTML = '<span class="text-gray-500">NF-e ainda não disponível para este pedido.</span>';
+  }
 }
 
 function pick(obj, keys, fallback = null) {
@@ -512,7 +572,9 @@ async function initPage() {
   try {
     await requireUser();
     const order = await loadOrder(orderId);
-    render(order?._id || order?.id || orderId, order);
+    const realOrderId = order?._id || order?.id || orderId;
+    render(realOrderId, order);
+    loadCustomerOrderNfe(realOrderId);
   } catch (e) {
     console.error(e);
     setError(e?.message || "Erro ao carregar pedido.");

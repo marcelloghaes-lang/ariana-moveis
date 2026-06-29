@@ -90,6 +90,10 @@
     <div><div class="muted text-xs font-black uppercase">Rastreio</div><div id="tracking-view" class="font-black mt-1">—</div></div>
     <div><div class="muted text-xs font-black uppercase">Comprador</div><div id="buyer" class="font-black mt-1">—</div><div id="buyer-email" class="muted text-sm mt-1"></div></div>
     <div><div class="muted text-xs font-black uppercase">Endereço de entrega</div><div id="address" class="text-sm mt-1">—</div></div>
+    <div id="seller-nfe-card" class="hidden border-t border-soft pt-4">
+      <div class="muted text-xs font-black uppercase">Nota fiscal</div>
+      <div id="seller-nfe-content" class="text-sm mt-2 text-gray-700">Carregando NF-e...</div>
+    </div>
     <div class="border-t border-soft pt-4">
       <label class="block text-xs font-black mb-2 uppercase muted">Atualizar status</label>
       <select id="status-select" class="input">
@@ -177,6 +181,58 @@
 </script>
 
 <script>
+
+  async function downloadSellerProtectedFile(path, filename) {
+    const response = await fetch(`${API_BASE}${path}`, { headers: { ...authHeaders({ Accept: '*/*' }) } });
+    if (response.status === 401 || response.status === 403) {
+      clearSellerSession();
+      window.location.href = 'seller_login.html';
+      return;
+    }
+    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function sellerInvoicePayload(data = {}) {
+    return data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || data || {};
+  }
+
+  async function loadSellerOrderNfe(orderId) {
+    const card = $('seller-nfe-card');
+    const box = $('seller-nfe-content');
+    if (!card || !box || !orderId) return;
+    try {
+      let data;
+      try { data = await apiFetch(`/seller/orders/${encodeURIComponent(orderId)}/nfe`); }
+      catch (_) { data = await apiFetch(`/orders/${encodeURIComponent(orderId)}/nfe`); }
+      const inv = sellerInvoicePayload(data);
+      const number = inv.number || inv.numero || inv.invoiceNumber || data.number || '';
+      const key = inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || '';
+      if (!number && !key && !inv.danfeUrl && !inv.xmlUrl) return;
+      card.classList.remove('hidden');
+      box.innerHTML = `
+        <div class="space-y-2">
+          <div><span class="muted">NF-e:</span> <b>${number || 'Disponível'}</b></div>
+          ${key ? `<div class="break-all"><span class="muted">Chave:</span> <b>${key}</b></div>` : ''}
+          <div class="grid grid-cols-1 gap-2 pt-2">
+            <button type="button" onclick="downloadSellerProtectedFile('/seller/orders/${encodeURIComponent(orderId)}/danfe','danfe-${number || orderId}.pdf')" class="btn btn-primary w-full"><i class="fas fa-file-pdf"></i>DANFE</button>
+            <button type="button" onclick="downloadSellerProtectedFile('/seller/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml')" class="btn btn-dark w-full"><i class="fas fa-file-code"></i>XML</button>
+          </div>
+        </div>`;
+    } catch (e) {
+      card.classList.remove('hidden');
+      box.innerHTML = '<span class="muted">NF-e ainda não disponível para este pedido.</span>';
+    }
+  }
+
   const state = { seller: null, order: null, orderId: new URLSearchParams(location.search).get('id') };
 
   function moneyBR(value){ return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -230,6 +286,7 @@
       const order = await apiFetch(`/seller/orders/${state.orderId}`);
       state.order = order?.order || order?.item || order;
       fillOrder(state.order, state.seller);
+      loadSellerOrderNfe(state.order?._id || state.order?.id || state.orderId);
     } catch (e) {
       if (String(e?.message || '') !== 'Sessão expirada') toast(e?.message || 'Erro ao carregar pedido.', 'error');
     }
