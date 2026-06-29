@@ -217,6 +217,14 @@ async function apiFetch(path, options = {}) {
 }
 
 
+
+function openProtectedFiscalDoc(path) {
+  const token = getUserToken();
+  const sep = String(path).includes('?') ? '&' : '?';
+  const url = `${API_BASE}${path}${sep}redirect=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 async function downloadProtectedFile(path, filename) {
   const res = await fetch(`${API_BASE}${path}`, { headers: getHeaders({ Accept: '*/*' }) });
   if (!res.ok) {
