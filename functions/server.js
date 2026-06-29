@@ -9555,8 +9555,13 @@ async function notifySaleAfterPaymentApproved(orderDoc, origin = 'payment_approv
     let queue = { skipped: true, reason: 'enqueue_disabled' };
     try { queue = await enqueueManufacturerDispatch(updated); } catch (e) { queue = { ok: false, error: e.message || String(e) }; }
 
+    // SIGE da Ariana: envia automaticamente somente produtos vendidos pela Ariana Móveis.
+    // Vendas de sellers/fabricantes ficam fora do SIGE da Ariana e seguem pelo fluxo do parceiro.
+    let sige = { skipped: true, reason: 'not_attempted' };
+    try { sige = await arianaSigeSyncOwnOrderAfterPayment(updated, origin); } catch (e) { sige = { ok: false, error: e.message || String(e) }; }
+
     const adminWhatsapp = await waNotifyAdminNewOrder(updated, origin);
-    return { ok: true, adminWhatsapp, queue };
+    return { ok: true, adminWhatsapp, queue, sige };
   } catch (error) {
     console.error('Erro ao notificar venda aprovada:', error.message || error);
     return { ok: false, error: error.message || String(error) };
@@ -12911,16 +12916,37 @@ function enterpriseResolveDocumentUrl(kind, invoice = {}, billing = {}) {
   ).trim();
 }
 
+function enterpriseResolveXmlContent(invoice = {}, billing = {}) {
+  return String(
+    invoice.xml ||
+    invoice.Xml ||
+    invoice.xmlContent ||
+    invoice.raw?.Xml ||
+    invoice.raw?.xml ||
+    billing?.payload?.invoice?.xml ||
+    billing?.payload?.invoice?.Xml ||
+    ''
+  ).trim();
+}
+
 app.get('/api/enterprise/orders/:orderId/xml', enterpriseCompatAuth, async (req, res) => {
   try {
     const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar XML' });
 
     const xmlUrl = enterpriseResolveDocumentUrl('xml', invoice, billing);
-    if (!xmlUrl) return res.status(404).json({ ok: false, error: 'XML ainda não foi gerado para este pedido' });
+    const xmlContent = enterpriseResolveXmlContent(invoice, billing);
+    if (!xmlUrl && !xmlContent) return res.status(404).json({ ok: false, error: 'XML ainda não foi gerado para este pedido' });
 
-    if (String(req.query.download || '').toLowerCase() === '1' || String(req.query.redirect || '').toLowerCase() === 'true') {
+    if (xmlUrl && (String(req.query.download || '').toLowerCase() === '1' || String(req.query.redirect || '').toLowerCase() === 'true')) {
       return res.redirect(xmlUrl);
+    }
+
+    if (xmlContent && (String(req.query.raw || '').toLowerCase() === '1' || String(req.query.download || '').toLowerCase() === '1')) {
+      const fileName = `nfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.xml`;
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(xmlContent);
     }
 
     return res.json({
@@ -12929,6 +12955,8 @@ app.get('/api/enterprise/orders/:orderId/xml', enterpriseCompatAuth, async (req,
       type: 'xml',
       url: xmlUrl,
       downloadUrl: xmlUrl,
+      xml: xmlContent,
+      hasInlineXml: Boolean(xmlContent),
       status: order.status,
       invoiceNumber: invoice.number || billing?.invoiceNumber || '',
       invoiceKey: invoice.accessKey || billing?.invoiceKey || ''
@@ -18746,6 +18774,187 @@ function arianaSigeNormalizePayment(value = '') {
 }
 
 
+
+// ============================================================
+// SIGE: somente vendas próprias da Ariana Móveis
+// Pedidos de sellers/fabricantes não são enviados ao SIGE da Ariana.
+// Em pedidos mistos, apenas os itens próprios da Ariana entram no payload.
+// ============================================================
+function arianaSigeNormalizeSellerKey(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function arianaSigeSellerAllowList() {
+  const env = String(process.env.SIGE_ARIANA_SELLER_KEYS || process.env.ARIANA_SELLER_KEYS || '')
+    .split(',')
+    .map((v) => arianaSigeNormalizeSellerKey(v))
+    .filter(Boolean);
+
+  return new Set([
+    'ariana',
+    'ariana_moveis',
+    'arianamoveis',
+    'ariana_moveis_oficial',
+    'loja_ariana',
+    'marcelo_nunes_silva',
+    'sn',
+    'sn_digital',
+    'sndigital',
+    ...env
+  ]);
+}
+
+function arianaSigeIsArianaSellerValue(value = '') {
+  const key = arianaSigeNormalizeSellerKey(value);
+  if (!key) return false;
+  if (arianaSigeSellerAllowList().has(key)) return true;
+  return key.includes('ariana') && key.includes('move');
+}
+
+function arianaSigeItemHasExternalSellerSignal(item = {}, order = {}) {
+  const candidates = [
+    item.sellerId,
+    item.seller_id,
+    item.sellerName,
+    item.seller_name,
+    item.storeName,
+    item.store_name,
+    item.fabricante,
+    item.manufacturer,
+    item.brand,
+    order.manufacturer
+  ].map((v) => String(v || '').trim()).filter(Boolean);
+
+  if (!candidates.length) return false;
+  return candidates.some((value) => !arianaSigeIsArianaSellerValue(value));
+}
+
+function arianaSigeIsArianaOrderItem(item = {}, order = {}) {
+  const sellerId = String(item.sellerId || item.seller_id || '').trim();
+  const sellerName = String(item.sellerName || item.seller_name || item.storeName || item.store_name || '').trim();
+  const fabricante = String(item.fabricante || item.manufacturer || '').trim();
+
+  // Produto com seller/fabricante explicitamente diferente da Ariana não entra no SIGE.
+  if (sellerId && !arianaSigeIsArianaSellerValue(sellerId)) return false;
+  if (sellerName && !arianaSigeIsArianaSellerValue(sellerName)) return false;
+  if (fabricante && !arianaSigeIsArianaSellerValue(fabricante)) return false;
+
+  // Pedido marcado como fabricante/seller externo também não entra, salvo item explicitamente da Ariana.
+  const orderManufacturer = String(order?.manufacturer || '').trim();
+  if (orderManufacturer && !arianaSigeIsArianaSellerValue(orderManufacturer) && !sellerId && !sellerName && !fabricante) {
+    return false;
+  }
+
+  // Sem sellerId/sellerName/fabricante é considerado produto legado/próprio da Ariana.
+  return true;
+}
+
+function arianaSigeSelectArianaOrderItems(order = {}) {
+  const orderObj = toJSON(order) || order || {};
+  const allItems = ensureArray(orderObj.items);
+  const arianaItems = allItems.filter((item) => arianaSigeIsArianaOrderItem(item, orderObj));
+  return {
+    allItems,
+    arianaItems,
+    hasArianaItems: arianaItems.length > 0,
+    isMixed: arianaItems.length > 0 && arianaItems.length < allItems.length,
+    totalItems: allItems.length,
+    arianaItemsCount: arianaItems.length,
+    externalItemsCount: Math.max(0, allItems.length - arianaItems.length)
+  };
+}
+
+async function arianaSigeMarkOrderSkippedNonAriana(order, reason = 'no_ariana_items') {
+  if (!order) return null;
+  order.manufacturerDispatch = {
+    ...(order.manufacturerDispatch || {}),
+    sigeSkipped: true,
+    sigeSkipReason: reason,
+    sigeSkippedAt: new Date()
+  };
+  if (!order.status_integracao || String(order.status_integracao).startsWith('sige_')) {
+    order.status_integracao = 'sige_skipped_non_ariana';
+  }
+  await order.save();
+  try {
+    await IntegrationAuditLog.create({
+      scope: 'sige',
+      eventType: 'sige.sale.skipped_non_ariana',
+      orderId: String(order._id),
+      manufacturer: order.manufacturer || '',
+      status: 'skipped',
+      message: 'Pedido não enviado ao SIGE: não possui itens vendidos pela Ariana Móveis.',
+      request: { sellerIds: order.sellerIds || [], items: order.items || [] },
+      metadata: { reason }
+    });
+  } catch (_error) {}
+  return order;
+}
+
+async function arianaSigeSyncOwnOrderAfterPayment(orderDoc, origin = 'payment_approved') {
+  try {
+    const orderId = String(orderDoc?._id || orderDoc?.id || '').trim();
+    if (!orderId) return { skipped: true, reason: 'missing_order_id' };
+
+    const order = await Order.findById(orderId);
+    if (!order) return { skipped: true, reason: 'order_not_found' };
+
+    const selection = arianaSigeSelectArianaOrderItems(order);
+    if (!selection.hasArianaItems) {
+      await arianaSigeMarkOrderSkippedNonAriana(order, 'no_ariana_items');
+      return { skipped: true, reason: 'no_ariana_items', selection };
+    }
+
+    const dispatch = order.manufacturerDispatch || {};
+    if (dispatch.sigePedidoNumero || dispatch.codigoVenda || dispatch.sigeVenda || dispatch.sigeSale) {
+      return { skipped: true, reason: 'already_synced', codigoVenda: dispatch.sigePedidoNumero || dispatch.codigoVenda || dispatch.externalOrderId || '' };
+    }
+
+    const enabled = String(process.env.SIGE_AUTO_SYNC_ARIANA_ORDERS || 'true').toLowerCase() !== 'false';
+    if (!enabled) return { skipped: true, reason: 'disabled_by_env' };
+
+    const result = await arianaSigeCreateVendaForOrder(order, {
+      faturar: true,
+      origemVenda: process.env.SIGE_ORIGEM_VENDA || 'PDV',
+      statusSistema: process.env.SIGE_STATUS_SISTEMA || 'Pedido Faturado',
+      auto: true,
+      origin
+    });
+
+    return {
+      ok: true,
+      action: 'sige_sale_created',
+      codigoVenda: result?.venda?.codigo || result?.venda?.pedidoNumero || result?.order?.manufacturerDispatch?.sigePedidoNumero || '',
+      selection
+    };
+  } catch (error) {
+    const statusCode = Number(error.statusCode || 0);
+    if (error.code === 'SIGE_NO_ARIANA_ITEMS' || statusCode === 409) {
+      return { skipped: true, reason: 'no_ariana_items' };
+    }
+    console.error('[SIGE auto Ariana] erro:', error.message || error);
+    try {
+      await IntegrationAuditLog.create({
+        scope: 'sige',
+        eventType: 'sige.sale.auto_error',
+        orderId: String(orderDoc?._id || orderDoc?.id || ''),
+        status: 'error',
+        statusCode: error.statusCode || 500,
+        message: error.message || String(error),
+        response: redact(error.responseData || null),
+        metadata: { origin }
+      });
+    } catch (_auditError) {}
+    return { ok: false, error: error.message || String(error) };
+  }
+}
+
 function arianaSigeResolvePlanoConta(body = {}) {
   const raw = String(
     arianaSigeFirstValue(
@@ -18812,10 +19021,25 @@ function arianaSigeBuildVendaPayloadFromOrder(order = {}, body = {}) {
   const shortCode = arianaOrderId ? Number.parseInt(arianaOrderId.replace(/\D/g, '').slice(-8), 10) || Date.now() : Date.now();
   const shippingAddress = orderObj.shippingAddress || orderObj.shipping?.address || body.shippingAddress || {};
   const payment = orderObj.payment || body.payment || {};
-  const frete = arianaSigeMoney(arianaSigeFirstValue(orderObj.shippingCost, orderObj.shipping?.price, body.shippingCost, 0), orderObj.total || 0);
-  const totalPedido = arianaSigeMoney(arianaSigeFirstValue(orderObj.total, orderObj.subtotal, body.total, 0), 0);
-  const subtotal = arianaSigeMoney(orderObj.subtotal || 0, 0);
-  const sourceItems = ensureArray(orderObj.items);
+  const selection = arianaSigeSelectArianaOrderItems(orderObj);
+  const sourceItems = selection.arianaItems;
+
+  if (!sourceItems.length) {
+    const err = new Error('Este pedido não possui produtos vendidos pela Ariana Móveis. Vendas de sellers/fabricantes não são enviadas ao SIGE da Ariana.');
+    err.statusCode = 409;
+    err.code = 'SIGE_NO_ARIANA_ITEMS';
+    err.selection = selection;
+    throw err;
+  }
+
+  // Se o pedido for misto, o SIGE recebe somente os itens próprios da Ariana.
+  // Frete e total geral do pedido não são repassados ao SIGE nesse caso para não misturar valor de seller/fabricante.
+  let frete = selection.isMixed ? 0 : arianaSigeMoney(arianaSigeFirstValue(orderObj.shippingCost, orderObj.shipping?.price, body.shippingCost, 0), orderObj.total || 0);
+  const subtotal = arianaSigeMoney(sourceItems.reduce((sum, item) => {
+    const qty = Number(item.qty || item.quantity || 1) || 1;
+    return sum + arianaSigeMoney(arianaSigeFirstValue(item.sellerBaseTotal, item.totalPrice, item.unitPrice ? Number(item.unitPrice) * qty : 0), orderObj.total || 0);
+  }, 0), 0);
+  const totalPedido = selection.isMixed ? 0 : arianaSigeMoney(arianaSigeFirstValue(orderObj.total, orderObj.subtotal, body.total, 0), 0);
   const totalQty = sourceItems.reduce((sum, item) => sum + (Number(item.qty || item.quantity || 1) || 1), 0) || 1;
 
   const items = sourceItems.map((item, index) => {
@@ -19619,6 +19843,16 @@ async function arianaSigeEnsureProdutosForVendaPayload(vendaPayload = {}) {
 
 
 async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
+  const selection = arianaSigeSelectArianaOrderItems(order);
+  if (!selection.hasArianaItems) {
+    await arianaSigeMarkOrderSkippedNonAriana(order, 'no_ariana_items');
+    const err = new Error('Pedido não enviado ao SIGE: não possui produtos vendidos pela Ariana Móveis.');
+    err.statusCode = 409;
+    err.code = 'SIGE_NO_ARIANA_ITEMS';
+    err.responseData = { selection, message: 'Vendas de sellers/fabricantes devem ser faturadas pelo próprio seller/fabricante.' };
+    throw err;
+  }
+
   const rawPayload = arianaSigeBuildVendaPayloadFromOrder(order, body);
   const normalizedPayload = arianaSigeNormalizeVendaPayloadForSige(rawPayload, body);
   const clienteSige = await arianaSigeEnsurePessoaForOrder(order, normalizedPayload, body);
@@ -19693,7 +19927,7 @@ async function arianaSigeCreateVendaForOrder(order, body = {}, req = null) {
             message: `Venda criada no SIGE Cloud para emissão manual de NF-e usando payload ${attempt.mode}`,
             request: redact({ endpoint, payloadMode: attempt.mode, payload }),
             response: redact(raw),
-            metadata: { externalOrderId, arianaPedidoId, sigePedidoNumero, sigeVendaId: venda.id, sigeCodigo: venda.codigo, payloadMode: attempt.mode }
+            metadata: { externalOrderId, arianaPedidoId, sigePedidoNumero, sigeVendaId: venda.id, sigeCodigo: venda.codigo, payloadMode: attempt.mode, arianaItemsOnly: true, totalItems: selection.totalItems, arianaItems: selection.arianaItemsCount, externalItemsIgnored: selection.externalItemsCount }
           });
         } catch (_auditError) {}
 
@@ -20163,11 +20397,18 @@ function sigeExtractInvoicePayload(raw = {}, fallback = {}) {
     String(fallback.status || '').trim() ||
     sigeFindByKeyDeep(direct, ['status', 'situacao', 'situacaoNota']);
 
+  const xmlContent =
+    String(fallback.xml || fallback.Xml || fallback.xmlContent || '').trim() ||
+    sigeFindByKeyDeep(direct, ['xml', 'Xml', 'XML', 'xmlContent', 'conteudoXml']) ||
+    '';
+
   return {
     number,
     series,
     accessKey,
     xmlUrl,
+    xml: xmlContent,
+    xmlContent,
     danfeUrl,
     pdfUrl: danfeUrl,
     protocol,
@@ -20214,6 +20455,8 @@ async function saveSigeInvoiceOnEnterpriseOrder(order, invoiceData = {}, req = n
     series: String(invoiceData.series || invoiceData.serie || '').trim(),
     accessKey: String(invoiceData.accessKey || invoiceData.invoiceKey || '').trim(),
     xmlUrl: String(invoiceData.xmlUrl || '').trim(),
+    xml: String(invoiceData.xml || invoiceData.Xml || invoiceData.xmlContent || '').trim(),
+    xmlContent: String(invoiceData.xmlContent || invoiceData.xml || invoiceData.Xml || '').trim(),
     danfeUrl: String(invoiceData.danfeUrl || invoiceData.pdfUrl || '').trim(),
     pdfUrl: String(invoiceData.pdfUrl || invoiceData.danfeUrl || '').trim(),
     total: invoiceData.total ?? invoiceData.amount ?? order.total ?? 0,
@@ -20652,6 +20895,52 @@ app.post('/api/enterprise/orders/:orderId/sige/sync-invoice', enterpriseCompatAu
       error: error.message || 'Erro ao sincronizar NF-e SIGE com pedido Enterprise',
       sigeResponse: redact(error.responseData || null)
     });
+  }
+});
+
+
+
+// Atalhos Admin para baixar XML/DANFE da NF-e salva no pedido.
+// Útil para o painel administrativo da Ariana Móveis.
+app.get('/api/admin/orders/:orderId/nfe/xml', adminRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar XML' });
+
+    const xmlUrl = enterpriseResolveDocumentUrl('xml', invoice, billing);
+    const xmlContent = enterpriseResolveXmlContent(invoice, billing);
+    if (!xmlUrl && !xmlContent) return res.status(404).json({ ok: false, error: 'XML ainda não foi salvo para este pedido' });
+
+    if (xmlUrl && String(req.query.redirect || '').toLowerCase() === 'true') return res.redirect(xmlUrl);
+
+    if (xmlContent) {
+      const fileName = `nfe-${invoice.number || billing?.invoiceNumber || String(order._id).slice(-8)}.xml`;
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(xmlContent);
+    }
+
+    return res.json({ ok: true, orderId: String(order._id), type: 'xml', url: xmlUrl, downloadUrl: xmlUrl });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar XML da NF-e' });
+  }
+});
+
+app.get('/api/admin/orders/:orderId/nfe/danfe', adminRequired, async (req, res) => {
+  try {
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar DANFE' });
+
+    const danfeUrl = enterpriseResolveDocumentUrl('danfe', invoice, billing);
+    if (!danfeUrl) return res.status(404).json({ ok: false, error: 'DANFE ainda não foi salvo para este pedido' });
+
+    if (String(req.query.redirect || '').toLowerCase() === 'true' || String(req.query.download || '').toLowerCase() === '1') {
+      return res.redirect(danfeUrl);
+    }
+
+    return res.json({ ok: true, orderId: String(order._id), type: 'danfe', url: danfeUrl, downloadUrl: danfeUrl });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao baixar DANFE da NF-e' });
   }
 });
 
