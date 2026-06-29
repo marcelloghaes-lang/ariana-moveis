@@ -138,6 +138,24 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// ============================================================
+// TOKEN EM LINK DE DOWNLOAD (XML/DANFE)
+// Permite abrir links protegidos em nova aba quando o front envia
+// ?token=JWT na URL, sem expor rotas públicas sem autenticação.
+// ============================================================
+app.use((req, _res, next) => {
+  try {
+    const hasAuth = Boolean(req.headers.authorization || req.headers.Authorization);
+    const queryToken = req.query?.token || req.query?.access_token || req.query?.authToken;
+    if (!hasAuth && queryToken) {
+      const tokenValue = Array.isArray(queryToken) ? queryToken[0] : queryToken;
+      const cleanToken = String(tokenValue || '').trim();
+      if (cleanToken) req.headers.authorization = `Bearer ${cleanToken}`;
+    }
+  } catch (_error) {}
+  next();
+});
 app.use('/uploads', express.static(uploadsDir, {
   setHeaders: (res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
