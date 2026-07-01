@@ -1345,6 +1345,7 @@ function carregarHeader() {
 
           <ul class="flex items-center gap-8 ml-6 font-bold text-gray-600 text-sm uppercase tracking-tight">
             <li><a href="ofertas.html" class="hover:text-primary-blue transition-colors flex items-center gap-2"><i class="fas fa-bolt text-yellow-500"></i> Ofertas</a></li>
+            <li><button type="button" onclick="window.openCouponsWindow ? window.openCouponsWindow() : window.location.href='index.html#cupons'" class="hover:text-primary-blue transition-colors flex items-center gap-2 uppercase font-bold"><i class="fas fa-ticket-alt text-primary-blue"></i> Cupons</button></li>
             <li><a id="quick-cat-informatica" href="categoria.html?name=informatica" class="hover:text-primary-blue transition-colors">Informática</a></li>
             <li><a id="quick-cat-smartphones" href="categoria.html?name=celulares" class="hover:text-primary-blue transition-colors">Smartphones</a></li>
             <li><a id="quick-cat-moveis" href="categoria.html?name=moveis" class="hover:text-primary-blue transition-colors">Móveis</a></li>
@@ -1376,6 +1377,7 @@ function carregarHeader() {
           <li><a href="/" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-home text-primary-blue w-6"></i> Início</a></li>
           <li><a href="todos_produtos.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-shopping-bag text-primary-blue w-6"></i> Produtos</a></li>
           <li><a href="ofertas.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-fire text-red-500 w-6"></i> Ofertas</a></li>
+          <li><button type="button" onclick="window.openCouponsWindow ? window.openCouponsWindow() : window.location.href='index.html#cupons'" class="w-full flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all text-left"><i class="fas fa-ticket-alt text-primary-blue w-6"></i> Cupons</button></li>
           <li><a href="contato.html" class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all"><i class="fas fa-headset text-primary-blue w-6"></i> Atendimento</a></li>
         </ul>
         <div class="mt-auto pt-6 border-t border-gray-100">

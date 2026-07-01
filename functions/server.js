@@ -11239,6 +11239,29 @@ function calculateCouponDiscount(coupon, subtotal = 0, items = []) {
   };
 }
 
+
+
+// Lista pública de cupons ativos para exibir na Home.
+app.get('/api/coupons/public', async (req, res) => {
+  try {
+    const nowDate = new Date();
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20) || 20));
+    const rows = await Coupon.find({
+      active: true,
+      $and: [
+        { $or: [{ startsAt: null }, { startsAt: { $lte: nowDate } }] },
+        { $or: [{ endsAt: null }, { endsAt: { $gte: nowDate } }] },
+        { $or: [{ usageLimit: 0 }, { usageLimit: { $exists: false } }, { $expr: { $gt: ['$usageLimit', '$usedCount'] } }] }
+      ]
+    }).sort({ createdAt: -1 }).limit(limit);
+
+    return res.json({ ok: true, coupons: rows.map(normalizeCouponForResponse) });
+  } catch (error) {
+    console.error('Erro ao listar cupons públicos:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao listar cupons públicos' });
+  }
+});
+
 // Rotas públicas para o checkout validar cupom antes de finalizar o pedido.
 app.post('/api/coupons/validate', async (req, res) => {
   try {

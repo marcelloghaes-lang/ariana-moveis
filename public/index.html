@@ -16,7 +16,32 @@
   <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
 
-  <script src="js/api-config.js"></script>
+  <script src="js/api-config.js">  
+
+// Botão do menu superior chama esta função para abrir a janela de cupons.
+window.openCouponsWindow = window.openCouponsWindow || function(){
+  try {
+    const modal = document.getElementById('coupons-window');
+    if (modal) {
+      const hiddenBtn = document.getElementById('open-coupons-window');
+      if (hiddenBtn && hiddenBtn !== document.activeElement) { try { hiddenBtn.click(); return; } catch(_e){} }
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      if (typeof window.loadPublicCoupons === 'function') window.loadPublicCoupons();
+    }
+  } catch(_e) {}
+};
+window.closeCouponsWindow = window.closeCouponsWindow || function(){
+  try {
+    const modal = document.getElementById('coupons-window');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+  } catch(_e) {}
+};
+
+</script>
 
   <script>
     window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
@@ -396,7 +421,7 @@ footer, .site-footer, .footer, .footer-wrap {
     }
 
 /* ===== Janela pública de cupons Ariana ===== */
-.coupon-floating-btn{
+.coupon-floating-btn{display:none!important;
   position:fixed;right:18px;bottom:86px;z-index:80;background:#0047AB;color:#fff;
   border:0;border-radius:999px;padding:13px 16px;font-weight:950;box-shadow:0 12px 30px rgba(0,71,171,.28);
   display:flex;align-items:center;gap:8px;cursor:pointer;
@@ -412,7 +437,7 @@ footer, .site-footer, .footer, .footer-wrap {
 .coupon-desc-public{font-size:.86rem;color:#64748b;margin-top:3px;}
 .coupon-copy-btn{background:#0047AB;color:#fff;border:0;border-radius:12px;padding:10px 12px;font-size:.8rem;font-weight:900;cursor:pointer;white-space:nowrap;}
 .coupon-modal-foot{padding:0 18px 18px;color:#64748b;font-size:.8rem;}
-@media(max-width:640px){.coupon-floating-btn{right:12px;bottom:72px;padding:12px 13px}.coupon-floating-btn span{display:none}}
+@media(max-width:640px){.coupon-floating-btn{display:none!important;right:12px;bottom:72px;padding:12px 13px}.coupon-floating-btn span{display:none}}
 </style>
 
 <!-- === Layout clamp (padronizar visual no desktop) === -->
