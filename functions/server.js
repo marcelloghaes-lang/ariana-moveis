@@ -612,6 +612,30 @@ const notificationSchema = new mongoose.Schema({ type: String, title: String, me
 const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
 
 // ============================================================
+// CUPONS DE DESCONTO - ARIANA MÓVEIS
+// Administração de cupons para campanhas do marketplace.
+// ============================================================
+const couponSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true, index: true },
+  description: { type: String, default: '' },
+  discountType: { type: String, default: 'percent', enum: ['percent', 'fixed'] },
+  discountValue: { type: Number, default: 0 },
+  minOrderValue: { type: Number, default: 0 },
+  maxDiscountValue: { type: Number, default: 0 },
+  usageLimit: { type: Number, default: 0 },
+  usedCount: { type: Number, default: 0 },
+  active: { type: Boolean, default: true, index: true },
+  startsAt: { type: Date, default: null },
+  expiresAt: { type: Date, default: null },
+  appliesTo: { type: String, default: 'all', enum: ['all', 'ariana', 'seller'] },
+  sellerId: { type: String, default: '', index: true },
+  metadata: mongoose.Schema.Types.Mixed,
+  createdBy: { type: String, default: '' },
+  updatedBy: { type: String, default: '' }
+}, baseOptions);
+couponSchema.index({ code: 1, active: 1 });
+
+// ============================================================
 // ENTERPRISE BILLING / FATURAMENTO - ETAPA 3
 // Registro incremental de faturamento por pedido, sem alterar
 // a estrutura principal de pedidos já homologada.
@@ -825,6 +849,7 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 }
 
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
+const Coupon = mongoose.model('Coupon', couponSchema);
 const EnterpriseBillingRecord = mongoose.model('EnterpriseBillingRecord', enterpriseBillingRecordSchema);
 const EnterpriseRmaRecord = mongoose.model('EnterpriseRmaRecord', enterpriseRmaRecordSchema);
 const EnterpriseOccurrenceRecord = mongoose.model('EnterpriseOccurrenceRecord', enterpriseOccurrenceRecordSchema);
@@ -21558,6 +21583,167 @@ app.use('/api', createSigeRoutes({
 }));
 
 app.use('/api/enterprise', manufacturerIntegrationRoutes);
+
+
+// ============================================================
+// ROTAS ADMIN / PÚBLICAS - CUPONS DE DESCONTO
+// ============================================================
+function normalizeCouponCode(value = '') {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function normalizeCouponPayload(body = {}) {
+  const discountType = String(body.discountType || body.tipo || 'percent').trim() === 'fixed' ? 'fixed' : 'percent';
+  return {
+    code: normalizeCouponCode(body.code || body.codigo),
+    description: String(body.description || body.descricao || '').trim(),
+    discountType,
+    discountValue: Math.max(0, Number(body.discountValue ?? body.valorDesconto ?? body.value ?? 0) || 0),
+    minOrderValue: Math.max(0, Number(body.minOrderValue ?? body.valorMinimo ?? 0) || 0),
+    maxDiscountValue: Math.max(0, Number(body.maxDiscountValue ?? body.descontoMaximo ?? 0) || 0),
+    usageLimit: Math.max(0, Number(body.usageLimit ?? body.limiteUso ?? 0) || 0),
+    active: body.active !== false && String(body.active).toLowerCase() !== 'false',
+    startsAt: body.startsAt || body.inicio ? new Date(body.startsAt || body.inicio) : null,
+    expiresAt: body.expiresAt || body.validade ? new Date(body.expiresAt || body.validade) : null,
+    appliesTo: ['all', 'ariana', 'seller'].includes(String(body.appliesTo || 'all')) ? String(body.appliesTo || 'all') : 'all',
+    sellerId: String(body.sellerId || '').trim(),
+    metadata: body.metadata || null
+  };
+}
+
+function couponForResponse(doc) {
+  const obj = toJSON(doc) || {};
+  return {
+    ...obj,
+    id: String(obj._id || obj.id || ''),
+    code: String(obj.code || '').toUpperCase()
+  };
+}
+
+function calculateCouponDiscount(coupon = {}, subtotal = 0) {
+  const total = Math.max(0, Number(subtotal || 0));
+  if (!coupon || total <= 0) return 0;
+  let discount = 0;
+  if (coupon.discountType === 'fixed') discount = Number(coupon.discountValue || 0);
+  else discount = total * (Number(coupon.discountValue || 0) / 100);
+  if (coupon.maxDiscountValue && Number(coupon.maxDiscountValue) > 0) {
+    discount = Math.min(discount, Number(coupon.maxDiscountValue));
+  }
+  return Math.max(0, Math.min(total, Math.round(discount * 100) / 100));
+}
+
+async function findValidCoupon(code, subtotal = 0, context = {}) {
+  const cleanCode = normalizeCouponCode(code);
+  if (!cleanCode) return { ok: false, error: 'Informe o cupom.' };
+
+  const coupon = await Coupon.findOne({ code: cleanCode });
+  if (!coupon) return { ok: false, error: 'Cupom não encontrado.' };
+  if (coupon.active === false) return { ok: false, error: 'Cupom inativo.' };
+
+  const nowDate = new Date();
+  if (coupon.startsAt && new Date(coupon.startsAt) > nowDate) return { ok: false, error: 'Cupom ainda não começou.' };
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < nowDate) return { ok: false, error: 'Cupom expirado.' };
+  if (coupon.usageLimit && Number(coupon.usageLimit) > 0 && Number(coupon.usedCount || 0) >= Number(coupon.usageLimit)) {
+    return { ok: false, error: 'Limite de uso do cupom atingido.' };
+  }
+
+  const orderSubtotal = Math.max(0, Number(subtotal || 0));
+  if (coupon.minOrderValue && orderSubtotal < Number(coupon.minOrderValue)) {
+    return { ok: false, error: `Valor mínimo para este cupom: ${Number(coupon.minOrderValue).toLocaleString('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY })}.` };
+  }
+
+  if (coupon.appliesTo === 'seller' && coupon.sellerId) {
+    const sellerIds = ensureArray(context.sellerIds || context.sellerId).map((id) => String(id || '').trim());
+    if (sellerIds.length && !sellerIds.includes(String(coupon.sellerId))) {
+      return { ok: false, error: 'Cupom não aplicável para este seller.' };
+    }
+  }
+
+  const discountAmount = calculateCouponDiscount(coupon, orderSubtotal);
+  return { ok: true, coupon, discountAmount };
+}
+
+app.get('/api/admin/coupons', adminRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const filter = {};
+    if (q) {
+      filter.$or = [
+        { code: new RegExp(escapeRegex(q), 'i') },
+        { description: new RegExp(escapeRegex(q), 'i') }
+      ];
+    }
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit || 100)));
+    const coupons = await Coupon.find(filter).sort({ createdAt: -1 }).limit(limit);
+    return res.json({ ok: true, coupons: coupons.map(couponForResponse) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar cupons' });
+  }
+});
+
+app.post('/api/admin/coupons', adminRequired, async (req, res) => {
+  try {
+    const payload = normalizeCouponPayload(req.body || {});
+    if (!payload.code) return res.status(400).json({ ok: false, error: 'Informe o código do cupom.' });
+    if (!payload.discountValue || payload.discountValue <= 0) return res.status(400).json({ ok: false, error: 'Informe um desconto válido.' });
+
+    const existing = await Coupon.findOne({ code: payload.code });
+    if (existing) return res.status(409).json({ ok: false, error: 'Já existe um cupom com este código.' });
+
+    payload.createdBy = req.admin?.email || req.user?.email || 'admin';
+    payload.updatedBy = payload.createdBy;
+    const coupon = await Coupon.create(payload);
+    return res.status(201).json({ ok: true, coupon: couponForResponse(coupon) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar cupom' });
+  }
+});
+
+app.patch('/api/admin/coupons/:id', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const query = normalizeObjectId(id) ? { _id: normalizeObjectId(id) } : { code: normalizeCouponCode(id) };
+    const payload = normalizeCouponPayload(req.body || {});
+    if (!payload.code) delete payload.code;
+    payload.updatedBy = req.admin?.email || req.user?.email || 'admin';
+
+    const coupon = await Coupon.findOneAndUpdate(query, { $set: payload }, { new: true });
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado.' });
+    return res.json({ ok: true, coupon: couponForResponse(coupon) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar cupom' });
+  }
+});
+
+app.delete('/api/admin/coupons/:id', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const query = normalizeObjectId(id) ? { _id: normalizeObjectId(id) } : { code: normalizeCouponCode(id) };
+    const coupon = await Coupon.findOneAndDelete(query);
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado.' });
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir cupom' });
+  }
+});
+
+app.post('/api/coupons/validate', async (req, res) => {
+  try {
+    const subtotal = Number(req.body?.subtotal ?? req.body?.total ?? 0) || 0;
+    const result = await findValidCoupon(req.body?.code || req.body?.coupon, subtotal, req.body || {});
+    if (!result.ok) return res.status(400).json({ ok: false, error: result.error });
+    return res.json({
+      ok: true,
+      coupon: couponForResponse(result.coupon),
+      discountAmount: result.discountAmount,
+      subtotal,
+      totalWithDiscount: Math.max(0, Math.round((subtotal - result.discountAmount) * 100) / 100)
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao validar cupom' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
