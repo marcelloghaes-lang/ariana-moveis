@@ -54,6 +54,7 @@
         <a href="#" onclick="window.changeView('users')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="users"><i class="fas fa-users"></i><span>Usuários</span></a>
         <a href="#" onclick="window.changeView('categories')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="categories"><i class="fas fa-tags"></i><span>Categorias</span></a>
         <a href="#" onclick="window.changeView('payments')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="payments"><i class="fas fa-money-check-alt"></i><span>Pagamentos</span></a>
+        <a href="#" onclick="window.changeView('coupons')" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="coupons"><i class="fas fa-ticket-alt"></i><span>Cupons</span></a>
         <a href="#" onclick="window.handleSignOut()" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
       </nav>
     </aside>
@@ -89,6 +90,7 @@
         <div id="users-view" class="view hidden animate-fade"><div id="users-content"></div></div>
         <div id="categories-view" class="view hidden animate-fade"><div id="categories-content"></div></div>
         <div id="payments-view" class="view hidden animate-fade"><div id="payments-content"></div></div>
+        <div id="coupons-view" class="view hidden animate-fade"><div id="coupons-content"></div></div>
         <div id="enterprise-view" class="view hidden animate-fade"><div id="enterprise-content"></div></div>
         <div class="flex-1 p-4 md:p-8 overflow-y-auto">
           <div id="atendimentos-view" class="view hidden animate-fade">
@@ -374,7 +376,8 @@ function canAccessView(view){
   const role = getAdminRole();
   if(role === 'admin') return true;
   if(view === 'products') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate');
-  if(view === 'dashboard') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate');
+  if(view === 'coupons') return hasAnyAdminPerm('coupons:read','coupons:create','coupons:update','coupons:delete','products:read');
+  if(view === 'dashboard') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate','coupons:read');
   return false;
 }
 function applyAdminPermissionsToUI(){
@@ -536,6 +539,7 @@ window.changeView = async function(viewName, force=false){
   if(viewName==='users') await renderUsersView();
   if(viewName==='categories') await renderCategoriesView();
   if(viewName==='payments') await renderPaymentsView();
+  if(viewName==='coupons') await renderCouponsView();
   if(viewName==='enterprise') await renderEnterpriseView();
   if(viewName==='atendimentos') await renderAtendimentosView();
   if(window.innerWidth<768) document.getElementById('sidebar').classList.add('-translate-x-full');
@@ -604,6 +608,333 @@ document.addEventListener('submit', function(ev){
     return false;
   }
 }, true);
+
+
+// ============================================================
+// ADMIN - CUPONS DE DESCONTO
+// Tela integrada ao painel principal. Usa rotas:
+// GET /admin/coupons | POST /admin/coupons | PATCH /admin/coupons/:id | DELETE /admin/coupons/:id
+// Validação pública esperada no checkout: POST /coupons/validate
+// ============================================================
+let allCouponsCache = [];
+
+function normalizeCouponForAdmin(coupon = {}) {
+  const id = String(coupon.id || coupon._id || coupon.couponId || '').trim();
+  const type = String(coupon.type || coupon.discountType || 'percent').toLowerCase();
+  const code = String(coupon.code || coupon.codigo || '').toUpperCase().trim();
+  return {
+    ...coupon,
+    id,
+    code,
+    description: coupon.description || coupon.descricao || '',
+    type: type === 'fixed' || type === 'amount' || type === 'valor' ? 'fixed' : 'percent',
+    value: Number(coupon.value ?? coupon.discountValue ?? coupon.valor ?? 0),
+    minSubtotal: Number(coupon.minSubtotal ?? coupon.minOrderValue ?? coupon.valorMinimo ?? 0),
+    maxDiscount: coupon.maxDiscount === null || coupon.maxDiscount === undefined || coupon.maxDiscount === '' ? '' : Number(coupon.maxDiscount),
+    usageLimit: coupon.usageLimit === null || coupon.usageLimit === undefined || coupon.usageLimit === '' ? '' : Number(coupon.usageLimit),
+    usedCount: Number(coupon.usedCount || coupon.used || coupon.usos || 0),
+    active: coupon.active !== false,
+    startsAt: coupon.startsAt || coupon.startDate || '',
+    expiresAt: coupon.expiresAt || coupon.endDate || '',
+    appliesTo: coupon.appliesTo || 'all',
+    notes: coupon.notes || ''
+  };
+}
+
+function couponDateInputValue(value) {
+  const d = toJSDate(value);
+  if (!d) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+function couponStatusBadge(coupon) {
+  const c = normalizeCouponForAdmin(coupon);
+  const nowDate = new Date();
+  const expires = toJSDate(c.expiresAt);
+  if (!c.active) return '<span class="px-2 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-700">Inativo</span>';
+  if (expires && expires < nowDate) return '<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">Expirado</span>';
+  return '<span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Ativo</span>';
+}
+
+function readCouponForm() {
+  const value = parseMoneyBRClient(document.getElementById('coupon-value')?.value || '0', 0);
+  const type = String(document.getElementById('coupon-type')?.value || 'percent');
+  return {
+    code: String(document.getElementById('coupon-code')?.value || '').toUpperCase().replace(/\s+/g, '').trim(),
+    description: String(document.getElementById('coupon-description')?.value || '').trim(),
+    type,
+    value,
+    minSubtotal: parseMoneyBRClient(document.getElementById('coupon-min-subtotal')?.value || '0', 0),
+    maxDiscount: document.getElementById('coupon-max-discount')?.value ? parseMoneyBRClient(document.getElementById('coupon-max-discount')?.value, 0) : null,
+    usageLimit: document.getElementById('coupon-usage-limit')?.value ? Number(document.getElementById('coupon-usage-limit')?.value) : null,
+    startsAt: document.getElementById('coupon-starts-at')?.value || null,
+    expiresAt: document.getElementById('coupon-expires-at')?.value || null,
+    active: document.getElementById('coupon-active')?.checked !== false,
+    appliesTo: document.getElementById('coupon-applies-to')?.value || 'all',
+    notes: String(document.getElementById('coupon-notes')?.value || '').trim()
+  };
+}
+
+function clearCouponForm() {
+  const ids = ['coupon-id','coupon-code','coupon-description','coupon-value','coupon-min-subtotal','coupon-max-discount','coupon-usage-limit','coupon-starts-at','coupon-expires-at','coupon-notes'];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const type = document.getElementById('coupon-type'); if (type) type.value = 'percent';
+  const active = document.getElementById('coupon-active'); if (active) active.checked = true;
+  const applies = document.getElementById('coupon-applies-to'); if (applies) applies.value = 'all';
+  const btn = document.getElementById('coupon-submit-btn'); if (btn) btn.innerHTML = '<i class="fas fa-save mr-2"></i>Salvar cupom';
+}
+
+function fillCouponForm(coupon) {
+  const c = normalizeCouponForAdmin(coupon);
+  document.getElementById('coupon-id').value = c.id;
+  document.getElementById('coupon-code').value = c.code;
+  document.getElementById('coupon-description').value = c.description || '';
+  document.getElementById('coupon-type').value = c.type;
+  document.getElementById('coupon-value').value = c.type === 'percent' ? String(c.value || '') : formatMoneyInputBR(c.value);
+  document.getElementById('coupon-min-subtotal').value = formatMoneyInputBR(c.minSubtotal || 0);
+  document.getElementById('coupon-max-discount').value = c.maxDiscount === '' ? '' : formatMoneyInputBR(c.maxDiscount);
+  document.getElementById('coupon-usage-limit').value = c.usageLimit === '' ? '' : String(c.usageLimit);
+  document.getElementById('coupon-starts-at').value = couponDateInputValue(c.startsAt);
+  document.getElementById('coupon-expires-at').value = couponDateInputValue(c.expiresAt);
+  document.getElementById('coupon-active').checked = c.active !== false;
+  document.getElementById('coupon-applies-to').value = c.appliesTo || 'all';
+  document.getElementById('coupon-notes').value = c.notes || '';
+  const btn = document.getElementById('coupon-submit-btn'); if (btn) btn.innerHTML = '<i class="fas fa-pen mr-2"></i>Atualizar cupom';
+  document.getElementById('coupon-code')?.focus();
+}
+
+async function loadCoupons() {
+  try {
+    const data = await apiRequest('/admin/coupons?sortBy=createdAt&sortDir=desc&limit=500', { headers: buildHeadersAuth() });
+    const rows = Array.isArray(data) ? data : (data.coupons || data.items || data.docs || data.results || []);
+    allCouponsCache = rows.map(normalizeCouponForAdmin);
+  } catch (error) {
+    allCouponsCache = [];
+    const body = document.getElementById('coupons-table-body');
+    if (body) {
+      body.innerHTML = `<tr><td colspan="8" class="px-4 py-6 text-center text-red-600">Erro ao carregar cupons: ${escHtml(error.message)}. Confirme se o server.js com as rotas de cupons também foi publicado no Render.</td></tr>`;
+    }
+    throw error;
+  }
+}
+
+function renderCouponsTable() {
+  const body = document.getElementById('coupons-table-body');
+  if (!body) return;
+  const q = String(document.getElementById('coupon-search')?.value || '').toLowerCase().trim();
+  const rows = allCouponsCache.filter((c) => !q || `${c.code} ${c.description}`.toLowerCase().includes(q));
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Nenhum cupom encontrado.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map((c) => {
+    const discount = c.type === 'percent' ? `${Number(c.value || 0)}%` : formatCurrency(c.value || 0);
+    const expires = c.expiresAt ? formatDateOnly(c.expiresAt) : 'Sem validade';
+    return `
+      <tr class="border-b hover:bg-gray-50">
+        <td class="px-4 py-3"><b class="font-black text-gray-900">${escHtml(c.code)}</b><br><small class="text-gray-500">${escHtml(c.description || '')}</small></td>
+        <td class="px-4 py-3 text-sm">${escHtml(c.type === 'percent' ? 'Percentual' : 'Valor fixo')}</td>
+        <td class="px-4 py-3 text-sm font-bold">${escHtml(discount)}</td>
+        <td class="px-4 py-3 text-sm">${formatCurrency(c.minSubtotal || 0)}</td>
+        <td class="px-4 py-3 text-sm">${c.maxDiscount === '' ? '—' : formatCurrency(c.maxDiscount)}</td>
+        <td class="px-4 py-3 text-sm">${c.usageLimit === '' ? `${c.usedCount || 0} / ∞` : `${c.usedCount || 0} / ${c.usageLimit}`}</td>
+        <td class="px-4 py-3 text-sm">${couponStatusBadge(c)}<br><small class="text-gray-500">${escHtml(expires)}</small></td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          <button type="button" onclick="editCoupon('${escHtml(c.id)}')" class="px-3 py-2 rounded-lg bg-blue-50 text-primary-blue text-xs font-bold mr-1"><i class="fas fa-edit"></i></button>
+          <button type="button" onclick="toggleCoupon('${escHtml(c.id)}')" class="px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700 text-xs font-bold mr-1"><i class="fas fa-power-off"></i></button>
+          <button type="button" onclick="deleteCoupon('${escHtml(c.id)}')" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-bold"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+window.editCoupon = function(id) {
+  const coupon = allCouponsCache.find((c) => String(c.id) === String(id));
+  if (!coupon) return displayMessage('Cupom não encontrado na tela.', 'error');
+  fillCouponForm(coupon);
+};
+
+window.toggleCoupon = async function(id) {
+  const coupon = allCouponsCache.find((c) => String(c.id) === String(id));
+  if (!coupon) return;
+  try {
+    await apiRequest(`/admin/coupons/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify({ active: !coupon.active })
+    });
+    displayMessage(coupon.active ? 'Cupom desativado.' : 'Cupom ativado.', 'success');
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (error) {
+    displayMessage(`Erro ao alterar cupom: ${error.message}`, 'error');
+  }
+};
+
+window.deleteCoupon = async function(id) {
+  const coupon = allCouponsCache.find((c) => String(c.id) === String(id));
+  if (!confirm(`Excluir o cupom ${coupon?.code || id}?`)) return;
+  try {
+    await apiRequest(`/admin/coupons/${encodeURIComponent(id)}`, { method: 'DELETE', headers: buildHeadersAuth() });
+    displayMessage('Cupom excluído com sucesso.', 'success');
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (error) {
+    displayMessage(`Erro ao excluir cupom: ${error.message}`, 'error');
+  }
+};
+
+window.saveCoupon = async function(event) {
+  event?.preventDefault?.();
+  const payload = readCouponForm();
+  if (!payload.code) return displayMessage('Informe o código do cupom.', 'error');
+  if (!payload.value || payload.value <= 0) return displayMessage('Informe o valor do desconto.', 'error');
+  if (payload.type === 'percent' && payload.value > 100) return displayMessage('Cupom percentual não pode ser maior que 100%.', 'error');
+
+  const id = String(document.getElementById('coupon-id')?.value || '').trim();
+  const btn = document.getElementById('coupon-submit-btn');
+  const old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...'; }
+
+  try {
+    await apiRequest(id ? `/admin/coupons/${encodeURIComponent(id)}` : '/admin/coupons', {
+      method: id ? 'PATCH' : 'POST',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify(payload)
+    });
+    displayMessage(id ? 'Cupom atualizado com sucesso.' : 'Cupom criado com sucesso.', 'success');
+    clearCouponForm();
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (error) {
+    displayMessage(`Erro ao salvar cupom: ${error.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = old || '<i class="fas fa-save mr-2"></i>Salvar cupom'; }
+  }
+};
+
+async function renderCouponsView() {
+  const content = document.getElementById('coupons-content');
+  if (!content) return;
+  content.innerHTML = `
+    <div class="space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 class="text-2xl font-black text-gray-900"><i class="fas fa-ticket-alt text-primary-blue mr-2"></i>Cupons de Desconto</h2>
+            <p class="text-sm text-gray-500 mt-1">Crie cupons por percentual ou valor fixo, defina mínimo de compra, limite de uso e validade.</p>
+          </div>
+          <button type="button" onclick="loadCoupons().then(renderCouponsTable).catch(e=>displayMessage(e.message,'error'))" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold"><i class="fas fa-rotate mr-2"></i>Atualizar</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
+        <form id="coupon-form" onsubmit="window.saveCoupon(event)" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+          <input type="hidden" id="coupon-id">
+          <div>
+            <h3 class="text-lg font-black text-gray-800">Cadastro do cupom</h3>
+            <p class="text-xs text-gray-500">Exemplo: BEMVINDO10, FRETE20, PIX5.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-black text-gray-500 uppercase mb-1">Código</label>
+            <input id="coupon-code" class="w-full border rounded-xl px-3 py-2 uppercase" placeholder="EX: BEMVINDO10">
+          </div>
+          <div>
+            <label class="block text-xs font-black text-gray-500 uppercase mb-1">Descrição</label>
+            <input id="coupon-description" class="w-full border rounded-xl px-3 py-2" placeholder="Ex: Desconto de boas-vindas">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Tipo</label>
+              <select id="coupon-type" class="w-full border rounded-xl px-3 py-2">
+                <option value="percent">Percentual (%)</option>
+                <option value="fixed">Valor fixo (R$)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Desconto</label>
+              <input id="coupon-value" class="w-full border rounded-xl px-3 py-2" placeholder="10 ou 50,00">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Compra mínima</label>
+              <input id="coupon-min-subtotal" class="w-full border rounded-xl px-3 py-2" placeholder="0,00">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Desconto máximo</label>
+              <input id="coupon-max-discount" class="w-full border rounded-xl px-3 py-2" placeholder="Opcional">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Início</label>
+              <input id="coupon-starts-at" type="date" class="w-full border rounded-xl px-3 py-2">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Validade</label>
+              <input id="coupon-expires-at" type="date" class="w-full border rounded-xl px-3 py-2">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Limite de uso</label>
+              <input id="coupon-usage-limit" type="number" min="0" class="w-full border rounded-xl px-3 py-2" placeholder="Ilimitado">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Aplicação</label>
+              <select id="coupon-applies-to" class="w-full border rounded-xl px-3 py-2">
+                <option value="all">Todos os produtos</option>
+                <option value="ariana">Somente Ariana</option>
+                <option value="seller">Produtos seller</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-black text-gray-500 uppercase mb-1">Observação interna</label>
+            <textarea id="coupon-notes" rows="2" class="w-full border rounded-xl px-3 py-2" placeholder="Opcional"></textarea>
+          </div>
+          <label class="flex items-center gap-2 text-sm font-bold text-gray-700"><input id="coupon-active" type="checkbox" checked> Cupom ativo</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button id="coupon-submit-btn" type="submit" class="px-4 py-3 rounded-xl bg-primary-blue text-white font-black"><i class="fas fa-save mr-2"></i>Salvar cupom</button>
+            <button type="button" onclick="clearCouponForm()" class="px-4 py-3 rounded-xl bg-gray-100 text-gray-700 font-black">Limpar</button>
+          </div>
+        </form>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div>
+              <h3 class="text-lg font-black text-gray-800">Cupons cadastrados</h3>
+              <p class="text-xs text-gray-500">Lista salva no MongoDB via backend.</p>
+            </div>
+            <input id="coupon-search" oninput="renderCouponsTable()" class="border rounded-xl px-3 py-2 text-sm" placeholder="Buscar cupom">
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b">
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Cupom</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Tipo</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Desconto</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Mínimo</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Máximo</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Usos</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="coupons-table-body"><tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Carregando cupons...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  try {
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (_error) {}
+}
+
 
 async function init(){
   document.getElementById('sidebar-toggle').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('-translate-x-full'));

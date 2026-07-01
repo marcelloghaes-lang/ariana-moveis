@@ -612,30 +612,6 @@ const notificationSchema = new mongoose.Schema({ type: String, title: String, me
 const paymentEventSchema = new mongoose.Schema({ provider: { type: String, index: true }, eventType: String, externalId: String, orderId: String, payload: mongoose.Schema.Types.Mixed }, baseOptions);
 
 // ============================================================
-// CUPONS DE DESCONTO - ARIANA MÓVEIS
-// Administração de cupons para campanhas do marketplace.
-// ============================================================
-const couponSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, index: true },
-  description: { type: String, default: '' },
-  discountType: { type: String, default: 'percent', enum: ['percent', 'fixed'] },
-  discountValue: { type: Number, default: 0 },
-  minOrderValue: { type: Number, default: 0 },
-  maxDiscountValue: { type: Number, default: 0 },
-  usageLimit: { type: Number, default: 0 },
-  usedCount: { type: Number, default: 0 },
-  active: { type: Boolean, default: true, index: true },
-  startsAt: { type: Date, default: null },
-  expiresAt: { type: Date, default: null },
-  appliesTo: { type: String, default: 'all', enum: ['all', 'ariana', 'seller'] },
-  sellerId: { type: String, default: '', index: true },
-  metadata: mongoose.Schema.Types.Mixed,
-  createdBy: { type: String, default: '' },
-  updatedBy: { type: String, default: '' }
-}, baseOptions);
-couponSchema.index({ code: 1, active: 1 });
-
-// ============================================================
 // ENTERPRISE BILLING / FATURAMENTO - ETAPA 3
 // Registro incremental de faturamento por pedido, sem alterar
 // a estrutura principal de pedidos já homologada.
@@ -849,7 +825,6 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 }
 
 const PaymentEvent = mongoose.model('PaymentEvent', paymentEventSchema);
-const Coupon = mongoose.model('Coupon', couponSchema);
 const EnterpriseBillingRecord = mongoose.model('EnterpriseBillingRecord', enterpriseBillingRecordSchema);
 const EnterpriseRmaRecord = mongoose.model('EnterpriseRmaRecord', enterpriseRmaRecordSchema);
 const EnterpriseOccurrenceRecord = mongoose.model('EnterpriseOccurrenceRecord', enterpriseOccurrenceRecordSchema);
@@ -21582,168 +21557,302 @@ app.use('/api', createSigeRoutes({
   redact
 }));
 
-app.use('/api/enterprise', manufacturerIntegrationRoutes);
 
 
 // ============================================================
-// ROTAS ADMIN / PÚBLICAS - CUPONS DE DESCONTO
+// CUPONS DE DESCONTO - ARIANA MÓVEIS
+// Módulo incremental adicionado sem remover rotas existentes.
+// Permite ao Admin criar, listar, editar, ativar/desativar e
+// validar cupons no checkout.
 // ============================================================
+const couponSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true, index: true },
+  title: { type: String, default: '' },
+  description: { type: String, default: '' },
+  type: { type: String, default: 'percent', enum: ['percent', 'fixed'], index: true },
+  value: { type: Number, default: 0 },
+  minSubtotal: { type: Number, default: 0 },
+  maxDiscount: { type: Number, default: 0 },
+  active: { type: Boolean, default: true, index: true },
+  startsAt: { type: Date, default: null },
+  endsAt: { type: Date, default: null },
+  usageLimit: { type: Number, default: 0 },
+  usedCount: { type: Number, default: 0 },
+  perCustomerLimit: { type: Number, default: 0 },
+  allowedSellerIds: { type: [String], default: [] },
+  excludedSellerIds: { type: [String], default: [] },
+  metadata: mongoose.Schema.Types.Mixed,
+  createdBy: { type: String, default: '' },
+  updatedBy: { type: String, default: '' }
+}, baseOptions);
+couponSchema.index({ code: 1, active: 1 });
+couponSchema.index({ active: 1, endsAt: 1 });
+
+const Coupon = mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
+
 function normalizeCouponCode(value = '') {
-  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9_-]+/g, '')
+    .slice(0, 40);
 }
 
-function normalizeCouponPayload(body = {}) {
-  const discountType = String(body.discountType || body.tipo || 'percent').trim() === 'fixed' ? 'fixed' : 'percent';
+function parseCouponMoney(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return Number(fallback || 0);
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value * 100) / 100 : Number(fallback || 0);
+  let raw = String(value || '').trim().replace(/R\$/gi, '').replace(/\s+/g, '');
+  if (!raw) return Number(fallback || 0);
+  if (raw.includes(',')) raw = raw.replace(/\./g, '').replace(',', '.');
+  const n = Number(raw.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : Number(fallback || 0);
+}
+
+function parseCouponDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function couponPayloadFromBody(body = {}, adminId = '') {
+  const code = normalizeCouponCode(body.code || body.codigo || body.cupom);
+  const typeRaw = String(body.type || body.tipo || 'percent').toLowerCase().trim();
+  const type = ['fixed', 'valor', 'amount', 'money'].includes(typeRaw) ? 'fixed' : 'percent';
+
   return {
-    code: normalizeCouponCode(body.code || body.codigo),
+    code,
+    title: String(body.title || body.titulo || '').trim(),
     description: String(body.description || body.descricao || '').trim(),
-    discountType,
-    discountValue: Math.max(0, Number(body.discountValue ?? body.valorDesconto ?? body.value ?? 0) || 0),
-    minOrderValue: Math.max(0, Number(body.minOrderValue ?? body.valorMinimo ?? 0) || 0),
-    maxDiscountValue: Math.max(0, Number(body.maxDiscountValue ?? body.descontoMaximo ?? 0) || 0),
+    type,
+    value: parseCouponMoney(body.value ?? body.valor ?? 0),
+    minSubtotal: parseCouponMoney(body.minSubtotal ?? body.valorMinimo ?? body.minimo ?? 0),
+    maxDiscount: parseCouponMoney(body.maxDiscount ?? body.descontoMaximo ?? 0),
+    active: body.active !== undefined ? body.active !== false && String(body.active).toLowerCase() !== 'false' : true,
+    startsAt: parseCouponDate(body.startsAt || body.inicio || body.dataInicio),
+    endsAt: parseCouponDate(body.endsAt || body.fim || body.validade || body.dataFim),
     usageLimit: Math.max(0, Number(body.usageLimit ?? body.limiteUso ?? 0) || 0),
-    active: body.active !== false && String(body.active).toLowerCase() !== 'false',
-    startsAt: body.startsAt || body.inicio ? new Date(body.startsAt || body.inicio) : null,
-    expiresAt: body.expiresAt || body.validade ? new Date(body.expiresAt || body.validade) : null,
-    appliesTo: ['all', 'ariana', 'seller'].includes(String(body.appliesTo || 'all')) ? String(body.appliesTo || 'all') : 'all',
-    sellerId: String(body.sellerId || '').trim(),
-    metadata: body.metadata || null
+    perCustomerLimit: Math.max(0, Number(body.perCustomerLimit ?? body.limitePorCliente ?? 0) || 0),
+    allowedSellerIds: ensureArray(body.allowedSellerIds || body.sellersPermitidos).map((v) => String(v || '').trim()).filter(Boolean),
+    excludedSellerIds: ensureArray(body.excludedSellerIds || body.sellersBloqueados).map((v) => String(v || '').trim()).filter(Boolean),
+    metadata: body.metadata || body.extra || null,
+    updatedBy: String(adminId || '')
   };
 }
 
-function couponForResponse(doc) {
+function normalizeCouponForResponse(doc) {
   const obj = toJSON(doc) || {};
   return {
     ...obj,
-    id: String(obj._id || obj.id || ''),
-    code: String(obj.code || '').toUpperCase()
+    id: String(obj.id || obj._id || ''),
+    code: normalizeCouponCode(obj.code),
+    value: parseCouponMoney(obj.value),
+    minSubtotal: parseCouponMoney(obj.minSubtotal),
+    maxDiscount: parseCouponMoney(obj.maxDiscount),
+    usedCount: Number(obj.usedCount || 0),
+    usageLimit: Number(obj.usageLimit || 0),
+    active: obj.active !== false
   };
 }
 
-function calculateCouponDiscount(coupon = {}, subtotal = 0) {
-  const total = Math.max(0, Number(subtotal || 0));
-  if (!coupon || total <= 0) return 0;
-  let discount = 0;
-  if (coupon.discountType === 'fixed') discount = Number(coupon.discountValue || 0);
-  else discount = total * (Number(coupon.discountValue || 0) / 100);
-  if (coupon.maxDiscountValue && Number(coupon.maxDiscountValue) > 0) {
-    discount = Math.min(discount, Number(coupon.maxDiscountValue));
-  }
-  return Math.max(0, Math.min(total, Math.round(discount * 100) / 100));
-}
-
-async function findValidCoupon(code, subtotal = 0, context = {}) {
-  const cleanCode = normalizeCouponCode(code);
-  if (!cleanCode) return { ok: false, error: 'Informe o cupom.' };
-
-  const coupon = await Coupon.findOne({ code: cleanCode });
-  if (!coupon) return { ok: false, error: 'Cupom não encontrado.' };
-  if (coupon.active === false) return { ok: false, error: 'Cupom inativo.' };
-
+function calculateCouponDiscount(coupon, subtotal = 0, items = []) {
+  const c = normalizeCouponForResponse(coupon);
+  const baseSubtotal = parseCouponMoney(subtotal);
   const nowDate = new Date();
-  if (coupon.startsAt && new Date(coupon.startsAt) > nowDate) return { ok: false, error: 'Cupom ainda não começou.' };
-  if (coupon.expiresAt && new Date(coupon.expiresAt) < nowDate) return { ok: false, error: 'Cupom expirado.' };
-  if (coupon.usageLimit && Number(coupon.usageLimit) > 0 && Number(coupon.usedCount || 0) >= Number(coupon.usageLimit)) {
-    return { ok: false, error: 'Limite de uso do cupom atingido.' };
+
+  if (!c.code) return { ok: false, error: 'Cupom inválido' };
+  if (c.active === false) return { ok: false, error: 'Cupom inativo' };
+  if (c.startsAt && new Date(c.startsAt) > nowDate) return { ok: false, error: 'Cupom ainda não está disponível' };
+  if (c.endsAt && new Date(c.endsAt) < nowDate) return { ok: false, error: 'Cupom expirado' };
+  if (c.usageLimit > 0 && c.usedCount >= c.usageLimit) return { ok: false, error: 'Limite de uso do cupom atingido' };
+  if (baseSubtotal <= 0) return { ok: false, error: 'Subtotal inválido para aplicar cupom' };
+  if (c.minSubtotal > 0 && baseSubtotal < c.minSubtotal) {
+    return { ok: false, error: `Valor mínimo para este cupom é ${formatCurrency(c.minSubtotal)}` };
   }
 
-  const orderSubtotal = Math.max(0, Number(subtotal || 0));
-  if (coupon.minOrderValue && orderSubtotal < Number(coupon.minOrderValue)) {
-    return { ok: false, error: `Valor mínimo para este cupom: ${Number(coupon.minOrderValue).toLocaleString('pt-BR', { style: 'currency', currency: DEFAULT_CURRENCY })}.` };
+  const sellerIds = ensureArray(items).map((item) => String(item?.sellerId || item?.seller_id || '').trim()).filter(Boolean);
+  if (c.allowedSellerIds?.length && sellerIds.length && !sellerIds.some((id) => c.allowedSellerIds.includes(id))) {
+    return { ok: false, error: 'Cupom não disponível para os sellers deste carrinho' };
+  }
+  if (c.excludedSellerIds?.length && sellerIds.some((id) => c.excludedSellerIds.includes(id))) {
+    return { ok: false, error: 'Cupom não disponível para um dos sellers deste carrinho' };
   }
 
-  if (coupon.appliesTo === 'seller' && coupon.sellerId) {
-    const sellerIds = ensureArray(context.sellerIds || context.sellerId).map((id) => String(id || '').trim());
-    if (sellerIds.length && !sellerIds.includes(String(coupon.sellerId))) {
-      return { ok: false, error: 'Cupom não aplicável para este seller.' };
-    }
-  }
+  let discount = 0;
+  if (c.type === 'fixed') discount = c.value;
+  else discount = baseSubtotal * (c.value / 100);
 
-  const discountAmount = calculateCouponDiscount(coupon, orderSubtotal);
-  return { ok: true, coupon, discountAmount };
+  if (c.maxDiscount > 0) discount = Math.min(discount, c.maxDiscount);
+  discount = Math.max(0, Math.min(baseSubtotal, Math.round(discount * 100) / 100));
+
+  if (discount <= 0) return { ok: false, error: 'Cupom sem desconto aplicável' };
+
+  return {
+    ok: true,
+    coupon: c,
+    subtotal: baseSubtotal,
+    discount,
+    totalAfterDiscount: Math.max(0, Math.round((baseSubtotal - discount) * 100) / 100)
+  };
 }
 
+// Rotas públicas para o checkout validar cupom antes de finalizar o pedido.
+app.post('/api/coupons/validate', async (req, res) => {
+  try {
+    const code = normalizeCouponCode(req.body?.code || req.body?.coupon || req.body?.cupom);
+    if (!code) return res.status(400).json({ ok: false, error: 'Informe o código do cupom' });
+
+    const coupon = await Coupon.findOne({ code });
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado' });
+
+    const result = calculateCouponDiscount(coupon, req.body?.subtotal ?? req.body?.total ?? 0, req.body?.items || []);
+    if (!result.ok) return res.status(400).json(result);
+
+    return res.json({
+      ok: true,
+      code: result.coupon.code,
+      type: result.coupon.type,
+      value: result.coupon.value,
+      discount: result.discount,
+      subtotal: result.subtotal,
+      totalAfterDiscount: result.totalAfterDiscount,
+      message: 'Cupom aplicado com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao validar cupom:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao validar cupom' });
+  }
+});
+
+// Atalho compatível com frontends que chamam /api/coupons/apply.
+app.post('/api/coupons/apply', async (req, res) => {
+  try {
+    const code = normalizeCouponCode(req.body?.code || req.body?.coupon || req.body?.cupom);
+    if (!code) return res.status(400).json({ ok: false, error: 'Informe o código do cupom' });
+
+    const coupon = await Coupon.findOne({ code });
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado' });
+
+    const result = calculateCouponDiscount(coupon, req.body?.subtotal ?? req.body?.total ?? 0, req.body?.items || []);
+    if (!result.ok) return res.status(400).json(result);
+
+    return res.json({
+      ok: true,
+      code: result.coupon.code,
+      type: result.coupon.type,
+      value: result.coupon.value,
+      discount: result.discount,
+      subtotal: result.subtotal,
+      totalAfterDiscount: result.totalAfterDiscount,
+      message: 'Cupom aplicado com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao aplicar cupom:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao aplicar cupom' });
+  }
+});
+
+// Rotas administrativas de cupons.
 app.get('/api/admin/coupons', adminRequired, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
+    const active = String(req.query.active || '').trim().toLowerCase();
     const filter = {};
     if (q) {
-      filter.$or = [
-        { code: new RegExp(escapeRegex(q), 'i') },
-        { description: new RegExp(escapeRegex(q), 'i') }
-      ];
+      const regex = new RegExp(escapeRegex(q), 'i');
+      filter.$or = [{ code: regex }, { title: regex }, { description: regex }];
     }
-    const limit = Math.min(500, Math.max(1, Number(req.query.limit || 100)));
-    const coupons = await Coupon.find(filter).sort({ createdAt: -1 }).limit(limit);
-    return res.json({ ok: true, coupons: coupons.map(couponForResponse) });
+    if (active === 'true') filter.active = true;
+    if (active === 'false') filter.active = false;
+
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit || 100) || 100));
+    const rows = await Coupon.find(filter).sort({ createdAt: -1 }).limit(limit);
+    return res.json({ ok: true, coupons: rows.map(normalizeCouponForResponse) });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar cupons' });
+    console.error('Erro ao listar cupons:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao listar cupons' });
   }
 });
 
 app.post('/api/admin/coupons', adminRequired, async (req, res) => {
   try {
-    const payload = normalizeCouponPayload(req.body || {});
-    if (!payload.code) return res.status(400).json({ ok: false, error: 'Informe o código do cupom.' });
-    if (!payload.discountValue || payload.discountValue <= 0) return res.status(400).json({ ok: false, error: 'Informe um desconto válido.' });
+    const payload = couponPayloadFromBody(req.body || {}, req.admin?.email || req.admin?.id || '');
+    if (!payload.code) return res.status(400).json({ ok: false, error: 'Informe o código do cupom' });
+    if (payload.value <= 0) return res.status(400).json({ ok: false, error: 'Informe um valor de desconto maior que zero' });
+    if (payload.type === 'percent' && payload.value > 100) return res.status(400).json({ ok: false, error: 'Cupom percentual não pode passar de 100%' });
 
-    const existing = await Coupon.findOne({ code: payload.code });
-    if (existing) return res.status(409).json({ ok: false, error: 'Já existe um cupom com este código.' });
-
-    payload.createdBy = req.admin?.email || req.user?.email || 'admin';
-    payload.updatedBy = payload.createdBy;
+    payload.createdBy = payload.updatedBy;
     const coupon = await Coupon.create(payload);
-    return res.status(201).json({ ok: true, coupon: couponForResponse(coupon) });
+    return res.status(201).json({ ok: true, coupon: normalizeCouponForResponse(coupon) });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar cupom' });
+    if (error?.code === 11000) return res.status(409).json({ ok: false, error: 'Já existe um cupom com este código' });
+    console.error('Erro ao criar cupom:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao criar cupom' });
+  }
+});
+
+app.get('/api/admin/coupons/:id', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { code: normalizeCouponCode(id) };
+    const coupon = await Coupon.findOne(filter);
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado' });
+    return res.json({ ok: true, coupon: normalizeCouponForResponse(coupon) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Erro ao carregar cupom' });
   }
 });
 
 app.patch('/api/admin/coupons/:id', adminRequired, async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
-    const query = normalizeObjectId(id) ? { _id: normalizeObjectId(id) } : { code: normalizeCouponCode(id) };
-    const payload = normalizeCouponPayload(req.body || {});
-    if (!payload.code) delete payload.code;
-    payload.updatedBy = req.admin?.email || req.user?.email || 'admin';
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { code: normalizeCouponCode(id) };
+    const payload = couponPayloadFromBody(req.body || {}, req.admin?.email || req.admin?.id || '');
 
-    const coupon = await Coupon.findOneAndUpdate(query, { $set: payload }, { new: true });
-    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado.' });
-    return res.json({ ok: true, coupon: couponForResponse(coupon) });
+    if (!payload.code) delete payload.code;
+    if (payload.value !== undefined && payload.value <= 0) return res.status(400).json({ ok: false, error: 'Informe um valor de desconto maior que zero' });
+    if (payload.type === 'percent' && payload.value > 100) return res.status(400).json({ ok: false, error: 'Cupom percentual não pode passar de 100%' });
+
+    const coupon = await Coupon.findOneAndUpdate(filter, { $set: payload }, { new: true });
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado' });
+    return res.json({ ok: true, coupon: normalizeCouponForResponse(coupon) });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar cupom' });
+    if (error?.code === 11000) return res.status(409).json({ ok: false, error: 'Já existe um cupom com este código' });
+    console.error('Erro ao atualizar cupom:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao atualizar cupom' });
   }
 });
 
 app.delete('/api/admin/coupons/:id', adminRequired, async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
-    const query = normalizeObjectId(id) ? { _id: normalizeObjectId(id) } : { code: normalizeCouponCode(id) };
-    const coupon = await Coupon.findOneAndDelete(query);
-    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado.' });
-    return res.json({ ok: true });
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { code: normalizeCouponCode(id) };
+    const coupon = await Coupon.findOneAndDelete(filter);
+    if (!coupon) return res.status(404).json({ ok: false, error: 'Cupom não encontrado' });
+    return res.json({ ok: true, deleted: true });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir cupom' });
+    return res.status(500).json({ ok: false, error: 'Erro ao excluir cupom' });
   }
 });
 
-app.post('/api/coupons/validate', async (req, res) => {
+app.post('/api/admin/coupons/:id/toggle', adminRequired, async (req, res) => {
   try {
-    const subtotal = Number(req.body?.subtotal ?? req.body?.total ?? 0) || 0;
-    const result = await findValidCoupon(req.body?.code || req.body?.coupon, subtotal, req.body || {});
-    if (!result.ok) return res.status(400).json({ ok: false, error: result.error });
-    return res.json({
-      ok: true,
-      coupon: couponForResponse(result.coupon),
-      discountAmount: result.discountAmount,
-      subtotal,
-      totalWithDiscount: Math.max(0, Math.round((subtotal - result.discountAmount) * 100) / 100)
-    });
+    const id = String(req.params.id || '').trim();
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { code: normalizeCouponCode(id) };
+    const current = await Coupon.findOne(filter);
+    if (!current) return res.status(404).json({ ok: false, error: 'Cupom não encontrado' });
+    current.active = req.body?.active !== undefined ? req.body.active !== false && String(req.body.active).toLowerCase() !== 'false' : !current.active;
+    current.updatedBy = String(req.admin?.email || req.admin?.id || '');
+    await current.save();
+    return res.json({ ok: true, coupon: normalizeCouponForResponse(current) });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao validar cupom' });
+    return res.status(500).json({ ok: false, error: 'Erro ao alterar status do cupom' });
   }
 });
 
+
+app.use('/api/enterprise', manufacturerIntegrationRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
