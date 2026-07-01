@@ -764,10 +764,22 @@
       const couponInput = document.getElementById('coupon-code');
       const couponButton = document.getElementById('btn-aplicar-cupom');
       try { if (couponInput) couponInput.value = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || ''); } catch (_) {}
-      const applyCoupon = () => {
+      const applyCoupon = async () => {
         const code = normalizeCouponCode(couponInput?.value || '');
         if (code) localStorage.setItem('ariana_applied_coupon', code);
         else localStorage.removeItem('ariana_applied_coupon');
+
+        const couponMsg = document.getElementById('coupon-message');
+        if (couponMsg) {
+          couponMsg.textContent = code ? 'Validando cupom...' : 'Cupom removido.';
+          couponMsg.className = 'text-xs mt-2 text-gray-500';
+        }
+
+        const totalPixBase = cartItems.reduce((sum, item) => {
+          return sum + (arianaSellerBasePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
+        }, 0);
+        const frete = Number(shippingState?.effectivePrice ?? shippingState?.price ?? 0) || 0;
+        await validateCouponRemote(code, totalPixBase + frete);
         recalculateTotals();
       };
       if (couponButton) couponButton.addEventListener('click', applyCoupon);
@@ -860,27 +872,94 @@
       return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
     }
 
-    function getCouponRules() {
+    function readStoredCoupon() {
       try {
-        const custom = JSON.parse(localStorage.getItem('ariana_coupon_rules') || '{}');
-        return custom && typeof custom === 'object' ? custom : {};
+        return JSON.parse(localStorage.getItem('ariana_coupon_result') || 'null') || null;
       } catch (_) {
-        return {};
+        return null;
       }
+    }
+
+    function storeCouponResult(data) {
+      try {
+        if (data && data.code) {
+          localStorage.setItem('ariana_coupon_result', JSON.stringify(data));
+          localStorage.setItem('ariana_checkout_coupon', JSON.stringify(data));
+        } else {
+          localStorage.removeItem('ariana_coupon_result');
+          localStorage.removeItem('ariana_checkout_coupon');
+        }
+      } catch (_) {}
     }
 
     function getAppliedCoupon(baseValue) {
       const code = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || '');
-      const rules = getCouponRules();
-      const rule = code ? rules[code] : null;
-      if (!code || !rule || rule.enabled === false) return { code, valid: false, value: 0, message: code ? 'Cupom inválido ou expirado.' : '' };
-      const percent = Number(rule.percent || rule.discountPercent || 0);
-      const fixed = Number(rule.fixed || rule.value || 0);
-      let value = 0;
-      if (Number.isFinite(percent) && percent > 0) value += Number(baseValue || 0) * Math.min(percent, 90) / 100;
-      if (Number.isFinite(fixed) && fixed > 0) value += fixed;
-      value = Math.min(Number(baseValue || 0), Math.max(0, value));
-      return { code, valid: value > 0, value, message: value > 0 ? `Cupom ${code} aplicado.` : 'Cupom sem desconto configurado.' };
+      const saved = readStoredCoupon();
+      if (!code) return { code: '', valid: false, value: 0, message: '' };
+      if (!saved || normalizeCouponCode(saved.code) !== code) {
+        return { code, valid: false, value: 0, message: 'Clique em Aplicar para validar o cupom.' };
+      }
+      const rawValue = Number(saved.discountValue ?? saved.discount ?? saved.value ?? 0);
+      const value = Math.min(Number(baseValue || 0), Math.max(0, Number.isFinite(rawValue) ? rawValue : 0));
+      return {
+        ...saved,
+        code,
+        valid: saved.valid !== false && value > 0,
+        value,
+        message: saved.message || (value > 0 ? `Cupom ${code} aplicado.` : 'Cupom sem desconto disponível.')
+      };
+    }
+
+    async function validateCouponRemote(code, baseValue) {
+      const cleanCode = normalizeCouponCode(code);
+      if (!cleanCode) {
+        localStorage.removeItem('ariana_applied_coupon');
+        storeCouponResult(null);
+        return { code: '', valid: false, value: 0, message: '' };
+      }
+
+      const payload = {
+        code: cleanCode,
+        subtotal: Number(baseValue || 0),
+        total: Number(baseValue || 0),
+        items: cartItems.map((item) => ({
+          productId: item.id || item.productId || item._id || '',
+          sellerId: item.sellerId || '',
+          category: item.category || item.categoryName || '',
+          quantity: Number(item.quantity || 1),
+          price: arianaSellerBasePrice(item)
+        }))
+      };
+
+      try {
+        const res = await fetch(`${String(API_BASE).replace(/\/+$/, '')}/coupons/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.valid === false || data.ok === false) {
+          const result = { code: cleanCode, valid: false, value: 0, discountValue: 0, message: data.message || data.error || 'Cupom inválido ou expirado.' };
+          storeCouponResult(result);
+          return result;
+        }
+        const discountValue = Number(data.discountValue ?? data.discount ?? data.value ?? data.amount ?? 0) || 0;
+        const result = {
+          ...data,
+          code: cleanCode,
+          valid: true,
+          value: discountValue,
+          discountValue,
+          message: data.message || `Cupom ${cleanCode} aplicado.`
+        };
+        localStorage.setItem('ariana_applied_coupon', cleanCode);
+        storeCouponResult(result);
+        return result;
+      } catch (error) {
+        const result = { code: cleanCode, valid: false, value: 0, discountValue: 0, message: 'Não foi possível validar o cupom agora.' };
+        storeCouponResult(result);
+        return result;
+      }
     }
 
     async function recalculateTotals() {
@@ -917,7 +996,26 @@
       const subtotal = totalPrazo;
       const totalPixComFrete = totalPixBase + frete;
       const totalPrazoComFrete = totalPrazo + frete;
+      const coupon = getAppliedCoupon(totalPixComFrete);
+      const couponDiscount = coupon.valid ? Number(coupon.value || 0) : 0;
+      const totalPixComFreteFinal = Math.max(0, totalPixComFrete - couponDiscount);
+      const totalPrazoComFreteFinal = Math.max(0, totalPrazoComFrete - couponDiscount);
       const economiaPix = Math.max(0, totalPrazo - totalPixBase);
+      const descontoTotal = economiaPix + couponDiscount;
+
+      try {
+        localStorage.setItem('ariana_cart_totals', JSON.stringify({
+          subtotal,
+          totalPixBase,
+          frete,
+          totalPixComFrete: totalPixComFreteFinal,
+          totalPrazoComFrete: totalPrazoComFreteFinal,
+          couponCode: coupon.code || '',
+          couponDiscount,
+          economiaPix,
+          updatedAt: Date.now()
+        }));
+      } catch (_) {}
 
       document.getElementById('subtotal').textContent = window.formatPrice(subtotal);
 
@@ -941,15 +1039,16 @@
 
       const descontoEl = document.getElementById('desconto');
       if (descontoEl) {
-        descontoEl.textContent = economiaPix > 0 ? `- ${window.formatPrice(economiaPix)}` : `- ${window.formatPrice(0)}`;
+        descontoEl.textContent = descontoTotal > 0 ? `- ${window.formatPrice(descontoTotal)}` : `- ${window.formatPrice(0)}`;
       }
 
       const totalEl = document.getElementById('total-price');
       if (totalEl) {
         totalEl.innerHTML = `
-          <span class="text-2xl font-black">${window.formatPrice(totalPixComFrete)}</span>
+          <span class="text-2xl font-black">${window.formatPrice(totalPixComFreteFinal)}</span>
           <div class="text-green-600 text-sm font-bold mt-1">no PIX ou boleto à vista</div>
-          <div class="text-gray-500 text-xs font-semibold mt-1">ou ${window.formatPrice(totalPrazoComFrete)} no cartão</div>
+          ${couponDiscount > 0 ? `<div class="text-blue-600 text-xs font-bold mt-1">Cupom ${coupon.code}: - ${window.formatPrice(couponDiscount)}</div>` : ''}
+          <div class="text-gray-500 text-xs font-semibold mt-1">ou ${window.formatPrice(totalPrazoComFreteFinal)} no cartão</div>
         `;
 
         let pixPromo = document.getElementById('pix-incentive');
@@ -961,7 +1060,6 @@
 
       const couponInput = document.getElementById('coupon-code');
       const couponMsg = document.getElementById('coupon-message');
-      const coupon = getAppliedCoupon(totalPixComFrete);
       if (couponInput && !couponInput.value) couponInput.value = coupon.code || '';
       if (couponMsg) {
         couponMsg.textContent = coupon.message || 'Digite um cupom válido da Ariana Móveis.';

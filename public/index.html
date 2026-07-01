@@ -394,6 +394,25 @@ footer, .site-footer, .footer, .footer-wrap {
         justify-content:center;
       }
     }
+
+/* ===== Janela pública de cupons Ariana ===== */
+.coupon-floating-btn{
+  position:fixed;right:18px;bottom:86px;z-index:80;background:#0047AB;color:#fff;
+  border:0;border-radius:999px;padding:13px 16px;font-weight:950;box-shadow:0 12px 30px rgba(0,71,171,.28);
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+}
+.coupon-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:90;display:none;align-items:center;justify-content:center;padding:18px;}
+.coupon-modal-backdrop.open{display:flex;}
+.coupon-modal-card{background:#fff;width:min(560px,96vw);border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.25);overflow:hidden;}
+.coupon-modal-head{background:linear-gradient(135deg,#0047AB,#1d4ed8);color:#fff;padding:22px;display:flex;justify-content:space-between;gap:14px;align-items:flex-start;}
+.coupon-modal-close{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:999px;width:36px;height:36px;font-size:24px;line-height:1;cursor:pointer;}
+.coupon-list{padding:18px;display:grid;gap:12px;max-height:55vh;overflow:auto;}
+.coupon-card-public{border:1px solid #e5e7eb;border-radius:18px;padding:14px;background:#f8fafc;display:flex;justify-content:space-between;gap:12px;align-items:center;}
+.coupon-code-public{font-size:1.05rem;font-weight:950;color:#0047AB;letter-spacing:.04em;}
+.coupon-desc-public{font-size:.86rem;color:#64748b;margin-top:3px;}
+.coupon-copy-btn{background:#0047AB;color:#fff;border:0;border-radius:12px;padding:10px 12px;font-size:.8rem;font-weight:900;cursor:pointer;white-space:nowrap;}
+.coupon-modal-foot{padding:0 18px 18px;color:#64748b;font-size:.8rem;}
+@media(max-width:640px){.coupon-floating-btn{right:12px;bottom:72px;padding:12px 13px}.coupon-floating-btn span{display:none}}
 </style>
 
 <!-- === Layout clamp (padronizar visual no desktop) === -->
@@ -476,6 +495,28 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
 
   <!-- Mensagens (suporte ao displayMessage) -->
   <div id="message-container"></div>
+
+  <!-- Janela de cupons públicos -->
+  <button id="open-coupons-window" class="coupon-floating-btn" type="button" title="Ver cupons de desconto">
+    <i class="fas fa-ticket-alt"></i><span>Cupons</span>
+  </button>
+  <div id="coupons-window" class="coupon-modal-backdrop" aria-hidden="true">
+    <div class="coupon-modal-card">
+      <div class="coupon-modal-head">
+        <div>
+          <div style="font-size:.78rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;opacity:.9">Ariana Móveis</div>
+          <h2 style="font-size:1.55rem;font-weight:950;margin:4px 0 0">Cupons de desconto</h2>
+          <p style="margin:6px 0 0;color:#dbeafe;font-size:.92rem">Copie um cupom e use no carrinho ou checkout.</p>
+        </div>
+        <button id="close-coupons-window" class="coupon-modal-close" type="button">&times;</button>
+      </div>
+      <div id="public-coupons-list" class="coupon-list">
+        <div style="color:#64748b;text-align:center;padding:16px">Carregando cupons...</div>
+      </div>
+      <div class="coupon-modal-foot">Os cupons podem ter validade, valor mínimo e limite de uso.</div>
+    </div>
+  </div>
+
 
   <main class="min-h-screen pt-8 bg-fundo-claro space-y-12">
 
@@ -2149,6 +2190,89 @@ window.addEventListener('load', () => {
     tryBootMiniBanners();
   }
   window.addEventListener('load', () => setTimeout(tryBootMiniBanners, 500));
+})();
+</script>
+
+
+<script>
+(function(){
+  const apiBase = (window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, '');
+  const modal = document.getElementById('coupons-window');
+  const openBtn = document.getElementById('open-coupons-window');
+  const closeBtn = document.getElementById('close-coupons-window');
+  const list = document.getElementById('public-coupons-list');
+
+  function brl(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0)); }
+  function normalize(code){ return String(code||'').trim().toUpperCase().replace(/[^A-Z0-9_-]/g,''); }
+
+  function describeCoupon(c){
+    const type = String(c.type || c.discountType || '').toLowerCase();
+    const percent = Number(c.percent || c.discountPercent || 0);
+    const value = Number(c.value || c.discountValue || c.amount || 0);
+    const min = Number(c.minSubtotal || c.minimumValue || c.minValue || 0);
+    let desc = percent > 0 || type.includes('percent') ? `${percent}% de desconto` : `${brl(value)} de desconto`;
+    if (c.freeShipping) desc = 'Frete grátis';
+    if (min > 0) desc += ` em compras acima de ${brl(min)}`;
+    return desc;
+  }
+
+  function renderCoupons(coupons){
+    const rows = Array.isArray(coupons) ? coupons.filter(c => c && (c.code || c.codigo) && c.active !== false) : [];
+    if (!rows.length) {
+      list.innerHTML = `
+        <div style="text-align:center;color:#64748b;padding:18px">
+          Nenhum cupom público disponível no momento.
+          <div style="margin-top:10px;font-size:.8rem">Quando você cadastrar cupons ativos no painel, eles aparecerão aqui.</div>
+        </div>`;
+      return;
+    }
+    list.innerHTML = rows.map((c) => {
+      const code = normalize(c.code || c.codigo);
+      return `
+        <div class="coupon-card-public">
+          <div>
+            <div class="coupon-code-public">${code}</div>
+            <div class="coupon-desc-public">${describeCoupon(c)}</div>
+          </div>
+          <button class="coupon-copy-btn" type="button" data-code="${code}">Copiar</button>
+        </div>`;
+    }).join('');
+  }
+
+  async function loadCoupons(){
+    try{
+      list.innerHTML = '<div style="color:#64748b;text-align:center;padding:16px">Carregando cupons...</div>';
+      const res = await fetch(`${apiBase}/coupons/public?limit=20`, { headers:{Accept:'application/json'} });
+      const data = await res.json().catch(()=>({}));
+      const coupons = Array.isArray(data) ? data : (data.items || data.coupons || data.results || []);
+      renderCoupons(coupons);
+    }catch(_){
+      renderCoupons([]);
+    }
+  }
+
+  function openModal(){
+    modal?.classList.add('open');
+    modal?.setAttribute('aria-hidden','false');
+    loadCoupons();
+  }
+  function closeModal(){
+    modal?.classList.remove('open');
+    modal?.setAttribute('aria-hidden','true');
+  }
+
+  openBtn?.addEventListener('click', openModal);
+  closeBtn?.addEventListener('click', closeModal);
+  modal?.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+  list?.addEventListener('click', async (e)=>{
+    const btn = e.target.closest?.('[data-code]');
+    if(!btn) return;
+    const code = normalize(btn.dataset.code);
+    try { await navigator.clipboard.writeText(code); } catch(_){}
+    localStorage.setItem('ariana_applied_coupon', code);
+    btn.textContent = 'Copiado!';
+    setTimeout(()=>{ btn.textContent = 'Copiar'; }, 1400);
+  });
 })();
 </script>
 
