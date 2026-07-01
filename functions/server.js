@@ -6441,11 +6441,38 @@ app.post('/api/seller/orders/:id/ship',sellerAuthRequired,async(req,res)=>{try{c
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
 app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
-    const query = { sellerId: String(req.sellerId || '').trim() };
-    if (!query.sellerId) return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    const sellerCandidates = Array.from(new Set([
+      req.sellerId,
+      req.user?.sellerId,
+      req.seller?.sellerId,
+      req.seller?._id ? String(req.seller._id) : '',
+      req.user?._id ? String(req.user._id) : '',
+      req.seller?.email,
+      req.user?.email,
+      req.seller?.storeName,
+      req.seller?.displayName
+    ].map((value) => String(value || '').trim()).filter(Boolean)));
+
+    if (!sellerCandidates.length) {
+      return res.status(403).json({ ok: false, error: 'Seller não identificado' });
+    }
+
+    const sellerOr = [];
+    for (const value of sellerCandidates) {
+      sellerOr.push({ sellerId: value });
+      sellerOr.push({ seller_id: value });
+      sellerOr.push({ seller: value });
+      sellerOr.push({ sellerName: value });
+      sellerOr.push({ sellerEmail: value });
+      sellerOr.push({ manufacturer: value });
+    }
+
+    const query = { $or: sellerOr };
     if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+
     const rows = await Product.find(query).sort({ createdAt: -1 });
-    return res.json(rows.map(normalizeProductForResponse));
+    const products = rows.map(normalizeProductForResponse);
+    return res.json({ ok: true, items: products, products });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
   }
