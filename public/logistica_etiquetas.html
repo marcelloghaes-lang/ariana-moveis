@@ -6,53 +6,292 @@
   <title>Central Logística | Ariana Móveis</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    :root{--blue:#0047AB;--blue2:#1d4ed8;--bg:#f3f6fb;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e5e7eb;--green:#16a34a;--red:#dc2626;--yellow:#f59e0b;--side:#172536;--soft:#eef5ff;--orange:#ea580c}
-    *{box-sizing:border-box} html,body{min-height:100%;overflow-x:hidden} body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    button,input,select,textarea{font-family:inherit} button{border:0;border-radius:12px;padding:10px 12px;font-weight:900;cursor:pointer;white-space:nowrap;transition:.15s} button:hover{filter:brightness(.98);transform:translateY(-1px)}
-    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 11px;font-size:13px;outline:none;background:white;min-width:0} input:focus,select:focus,textarea:focus{border-color:var(--blue2);box-shadow:0 0 0 3px #1d4ed822}
-    label{display:block;margin:10px 0 5px;font-size:10px;text-transform:uppercase;font-weight:900;color:#64748b;letter-spacing:.04em}
-    .primary{background:var(--blue2);color:#fff}.light{background:#eaf1ff;color:var(--blue2)}.green{background:var(--green);color:#fff}.yellow{background:#fef3c7;color:#92400e}.red{background:#fee2e2;color:#991b1b}.gray{background:#f1f5f9;color:#334155}.small{padding:7px 9px;border-radius:9px;font-size:12px}
-    .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.box{width:100%;max-width:430px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:28px;box-shadow:0 18px 55px #0f172a18}.logo{font-size:28px;font-weight:900;color:var(--blue)}.sub{font-size:14px;color:var(--muted);margin:6px 0 20px}
-    .app{display:none;min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:250px;background:var(--side);color:white;padding:22px;z-index:10}.side h1{font-size:22px;margin:0 0 22px}.nav button{display:block;width:100%;text-align:left;margin-bottom:9px;background:transparent;color:white;padding:12px;border-radius:13px}.nav button.active,.nav button:hover{background:#ffffff18}
-    .main{margin-left:250px;padding:22px;max-width:calc(100vw - 250px)}.top{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:16px}.top h1{margin:0;font-size:28px;line-height:1.1}.help{color:var(--muted);font-size:13px;margin:6px 0 0;line-height:1.45}
-    .card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 10px 30px #0f172a0d;margin-bottom:16px;min-width:0}.card h2{margin:0 0 8px;font-size:20px}.hidden{display:none!important}.muted{color:var(--muted)}
-    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.stat{background:white;border:1px solid var(--line);border-radius:18px;padding:14px}.stat small{color:var(--muted);font-weight:800}.stat b{display:block;font-size:23px;color:var(--blue2);margin-top:4px}
-    .filters{display:grid;grid-template-columns:minmax(220px,1fr) 190px 125px;gap:9px;align-items:end;margin-top:12px}.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}.panel-sticky{position:sticky;top:18px}.orders-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.order-list{display:flex;flex-direction:column;gap:9px;max-height:calc(100vh - 305px);overflow:auto;padding-right:4px}
-    .order-card{border:1px solid var(--line);border-radius:16px;background:#fff;padding:12px;display:grid;grid-template-columns:92px minmax(0,1fr) 130px 94px;gap:10px;align-items:center;transition:.15s}.order-card:hover{border-color:#bfdbfe;background:#f8fbff}.order-card.selected{border-color:var(--blue2);box-shadow:0 0 0 3px #1d4ed81a;background:#f8fbff}.order-id{font-weight:900;font-size:14px}.date{font-size:11px;color:var(--muted);margin-top:3px}.customer{font-weight:900;font-size:13px;line-height:1.2;word-break:break-word}.dest,.shipping{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.25;word-break:break-word}.price{font-weight:900;margin-top:4px;font-size:13px}.order-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-    .pill{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:900;background:#e0f2fe;color:#0369a1;max-width:100%;white-space:normal;line-height:1.1}.pill.ok{background:#dcfce7;color:#166534}.pill.warn{background:#fef3c7;color:#92400e}.pill.gray{background:#f1f5f9;color:#475569}.pill.bad{background:#fee2e2;color:#991b1b}.pill.orange{background:#ffedd5;color:#9a3412}
-    .receipt{border:1px solid var(--line);background:#f8fafc;border-radius:16px;padding:12px;line-height:1.35;font-size:13px}.row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed #e5e7eb;padding:8px 0}.row span:first-child{color:var(--muted)}.row span:last-child{text-align:right;font-weight:800;word-break:break-word}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:9px}.action-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.action-bar button{width:100%;font-size:12px}.full{grid-column:1/-1}.quote-box{margin-top:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:15px;padding:11px;display:none}.quote-list{display:flex;flex-direction:column;gap:7px;margin-top:8px}.quote-item{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px;display:flex;justify-content:space-between;gap:8px;align-items:center}.quote-title{font-weight:900;font-size:12px}.quote-meta{font-size:11px;color:var(--muted);margin-top:2px}.empty{border:1px dashed var(--line);border-radius:16px;padding:20px;text-align:center;color:var(--muted);background:#fff}.toast{position:fixed;right:20px;top:20px;z-index:99;display:flex;flex-direction:column;gap:8px}.toast div{background:#111827;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0003}.mobile-title{display:none}
-    .quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.quick-card{border:1px solid var(--line);border-radius:16px;padding:14px;background:#fff}.quick-card b{display:block;color:var(--blue2);margin-bottom:5px}.quick-card small{color:var(--muted);line-height:1.35;display:block}
+    :root{
+      --blue:#0047AB;--blue2:#0b5bd3;--blue3:#eaf2ff;--yellow:#ffd43b;
+      --bg:#f4f7fb;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;
+      --green:#16a34a;--red:#dc2626;--amber:#f59e0b;--side:#062a5f;--side2:#071f42;
+      --shadow:0 16px 38px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    html,body{min-height:100%;overflow-x:hidden}
+    body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    button,input,select,textarea{font-family:inherit}
+    button{border:0;border-radius:14px;padding:11px 14px;font-weight:900;cursor:pointer;white-space:nowrap;transition:.16s ease}
+    button:hover{filter:brightness(.98);transform:translateY(-1px)}
+    input,select,textarea{width:100%;border:1px solid #d7dee9;border-radius:14px;padding:11px 12px;font-size:13px;outline:none;background:white;min-width:0;font-weight:650;color:#0f172a}
+    input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,71,171,.12)}
+    label{display:block;margin:10px 0 6px;font-size:10px;text-transform:uppercase;font-weight:950;color:#64748b;letter-spacing:.055em}
+    .primary{background:var(--blue);color:#fff;box-shadow:0 10px 20px rgba(0,71,171,.16)}
+    .light{background:#eff6ff;color:var(--blue);border:1px solid #dbeafe}
+    .green{background:var(--green);color:#fff}
+    .yellow{background:#fff3c4;color:#7c4a03;border:1px solid #fde68a}
+    .red{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+    .gray{background:#f8fafc;color:#334155;border:1px solid #dbe3ee}
+    .small{padding:7px 10px;border-radius:10px;font-size:12px}
+    .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(180deg,#eef5ff,#f8fafc)}
+    .box{width:100%;max-width:430px;background:#fff;border:1px solid var(--line);border-radius:26px;padding:28px;box-shadow:var(--shadow)}
+    .logo{font-size:28px;font-weight:1000;color:var(--blue)}
+    .sub{font-size:14px;color:var(--muted);margin:6px 0 20px;font-weight:650}
+    .app{display:none;min-height:100vh}
+    .side{position:fixed;left:0;top:0;bottom:0;width:280px;background:linear-gradient(180deg,var(--blue) 0%,var(--side2) 100%);color:white;padding:26px 18px;z-index:10;box-shadow:12px 0 32px rgba(15,23,42,.13)}
+    .brand{display:flex;align-items:center;gap:12px;padding:0 10px 26px;border-bottom:1px solid rgba(255,255,255,.14);margin-bottom:18px}
+    .brand-mark{width:46px;height:46px;border-radius:16px;background:var(--yellow);color:var(--blue);display:grid;place-items:center;font-weight:1000;font-size:20px}
+    .brand-title{font-size:19px;font-weight:1000;line-height:1.05;letter-spacing:.02em}
+    .brand-sub{font-size:12px;opacity:.82;font-weight:800;margin-top:3px}
+    .side h1{display:none}
+    .nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;margin-bottom:8px;background:transparent;color:rgba(255,255,255,.88);padding:13px 14px;border-radius:16px;font-size:15px}
+    .nav button.active,.nav button:hover{background:rgba(255,255,255,.14);color:#fff}
+    .main{margin-left:280px;max-width:calc(100vw - 280px)}
+    .top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(16px);border-bottom:1px solid rgba(226,232,240,.9);padding:18px 28px;display:flex;justify-content:space-between;gap:16px;align-items:center;margin:0}
+    .top h1{margin:0;font-size:26px;line-height:1.1;font-weight:1000}
+    .help{color:var(--muted);font-size:13px;margin:5px 0 0;line-height:1.45;font-weight:650}
+    .page{padding:24px 28px 48px;max-width:1560px;margin:0 auto}
+    .card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:0 12px 28px rgba(15,23,42,.055);margin-bottom:16px;min-width:0}
+    .card h2{margin:0 0 6px;font-size:20px;font-weight:1000}
+    .hidden{display:none!important}.muted{color:var(--muted)}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+    .stat{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;min-height:100px;display:flex;align-items:center;gap:14px;box-shadow:0 12px 28px rgba(15,23,42,.045)}
+    .stat:before{content:"";width:44px;height:44px;border-radius:16px;background:#eff6ff;display:block;flex:0 0 auto}
+    .stat small{color:var(--muted);font-weight:950;text-transform:uppercase;font-size:11px;letter-spacing:.05em}
+    .stat b{display:block;font-size:28px;color:var(--blue);margin-top:4px;font-weight:1000}
+    .filters{display:grid;grid-template-columns:minmax(260px,1fr) 210px auto;gap:12px;align-items:end;margin-top:14px}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:16px;align-items:start}
+    .panel-sticky{position:sticky;top:92px}
+    .orders-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .order-list{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 330px);overflow:auto;padding-right:4px}
+    .order-card{border:1px solid var(--line);border-radius:18px;background:#fff;padding:13px;display:grid;grid-template-columns:96px minmax(0,1fr) 148px 100px;gap:12px;align-items:center;transition:.15s}
+    .order-card:hover{border-color:#bfdbfe;background:#f8fbff}
+    .order-card.selected{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,71,171,.11);background:#f8fbff}
+    .order-id{font-weight:1000;font-size:14px}.date{font-size:11px;color:var(--muted);margin-top:3px}
+    .customer{font-weight:1000;font-size:13px;line-height:1.25;word-break:break-word}
+    .dest,.shipping{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.3;word-break:break-word}
+    .price{font-weight:1000;margin-top:4px;font-size:13px}
+    .order-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:950;background:#e0f2fe;color:#0369a1;max-width:100%;white-space:normal;line-height:1.1}
+    .pill.ok{background:#dcfce7;color:#166534}.pill.warn{background:#fef3c7;color:#92400e}.pill.gray{background:#f1f5f9;color:#475569}.pill.bad{background:#fee2e2;color:#991b1b}.pill.orange{background:#ffedd5;color:#9a3412}
+    .receipt{border:1px solid #e8eef6;background:#f8fafc;border-radius:18px;padding:13px;line-height:1.35;font-size:13px}
+    .row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed #e5e7eb;padding:8px 0}
+    .row span:first-child{color:var(--muted)}.row span:last-child{text-align:right;font-weight:850;word-break:break-word}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .action-bar{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+    .action-bar button{width:100%;font-size:12px}
+    .full{grid-column:1/-1}
+    .quote-box{margin-top:12px;border:1px solid #dbeafe;background:#f8fbff;border-radius:16px;padding:12px;display:none}
+    .quote-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .quote-item{border:1px solid var(--line);background:#fff;border-radius:14px;padding:10px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .quote-title{font-weight:1000;font-size:12px}.quote-meta{font-size:11px;color:var(--muted);margin-top:2px}
+    .empty{border:1px dashed var(--line);border-radius:18px;padding:24px;text-align:center;color:var(--muted);background:#fff;font-weight:650}
+    .toast{position:fixed;right:20px;top:20px;z-index:99;display:flex;flex-direction:column;gap:8px}
+    .toast div{background:#111827;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0003;font-weight:850}
+    .mobile-title{display:none}
+    .quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .quick-card{border:1px solid var(--line);border-radius:18px;padding:15px;background:#fff}
+    .quick-card b{display:block;color:var(--blue);margin-bottom:5px;font-weight:1000}
+    .quick-card small{color:var(--muted);line-height:1.35;display:block;font-weight:650}
+    .section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:8px}
+    .clean-title{margin:0;font-size:20px;font-weight:1000}
     @media(max-width:1180px){.layout{grid-template-columns:1fr}.panel-sticky{position:static}.order-list{max-height:none}.order-card{grid-template-columns:90px minmax(0,1fr) 130px 90px}.quick-grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:920px){.side{position:static;width:100%;padding:18px}.main{margin:0;padding:15px;max-width:none}.stats{grid-template-columns:1fr 1fr}.top{display:block}.filters{grid-template-columns:1fr}.order-card{grid-template-columns:1fr}.order-actions{justify-content:flex-start}.form-grid{grid-template-columns:1fr}.action-bar{grid-template-columns:1fr}.mobile-title{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:900;margin-bottom:4px}.quick-grid{grid-template-columns:1fr}}
+    @media(max-width:920px){.side{position:static;width:100%;padding:18px}.brand{padding-bottom:18px}.main{margin:0;max-width:none}.top{padding:14px 16px}.page{padding:16px 14px 36px}.stats{grid-template-columns:1fr 1fr}.top{display:flex}.filters{grid-template-columns:1fr}.order-card{grid-template-columns:1fr}.order-actions{justify-content:flex-start}.form-grid{grid-template-columns:1fr}.action-bar{grid-template-columns:1fr}.mobile-title{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:950;margin-bottom:4px}.quick-grid{grid-template-columns:1fr}}
+
+  
+
+/* Logo textual Ariana Móveis - igual ao marketplace, sem subtítulo */
+.am-logo-wordmark{display:inline-flex;align-items:flex-end;gap:7px;line-height:.9;white-space:nowrap;text-decoration:none}
+.am-logo-wordmark .am-ariana{font-size:30px;font-weight:1000;font-style:italic;letter-spacing:-1.2px;color:#fff;text-transform:uppercase}
+.am-logo-wordmark .am-moveis{font-size:16px;font-weight:1000;font-style:italic;letter-spacing:-.4px;color:#56b5ff;text-transform:uppercase;margin-bottom:3px}
+.am-logo-wordmark.am-logo-blue .am-ariana{color:#0047AB}
+.am-logo-wordmark.am-logo-blue .am-moveis{color:#56B5FF}
+@media(max-width:820px){.am-logo-wordmark .am-ariana{font-size:26px}.am-logo-wordmark .am-moveis{font-size:14px}}
+
   </style>
 </head>
 <body>
 <div class="toast" id="toast"></div>
-<section class="login" id="loginView"><div class="box"><div class="logo">Ariana Móveis</div><div class="sub" id="loginSub">Central de Logística e Etiquetas</div><label id="loginEmailLabel">E-mail admin</label><input id="loginEmail" type="email" placeholder="admin@email.com"><label>Senha</label><input id="loginPass" type="password" placeholder="Senha"><button class="primary" style="width:100%;margin-top:18px" onclick="login()">Entrar</button></div></section>
+
+<section class="login" id="loginView">
+  <div class="box">
+    <div class="logo">Ariana Móveis</div>
+    <div class="sub" id="loginSub">Central de Logística e Etiquetas</div>
+    <label id="loginEmailLabel">E-mail admin</label>
+    <input id="loginEmail" type="email" placeholder="admin@email.com">
+    <label>Senha</label>
+    <input id="loginPass" type="password" placeholder="Senha">
+    <button class="primary" style="width:100%;margin-top:18px" onclick="login()">Entrar</button>
+  </div>
+</section>
+
 <section class="app" id="appView">
-  <aside class="side"><h1>📦 Logística</h1><div class="nav"><button class="active" onclick="showTab('pedidos',this)">🏷️ Etiquetas</button><button onclick="showTab('romaneios',this)">🚚 Romaneios</button><button onclick="showTab('rastreamento',this)">📍 Rastreamento</button><button onclick="showTab('provedores',this)">🔌 Integrações</button><button onclick="loadPedidos()">🔄 Atualizar</button><button onclick="logout()">🚪 Sair</button></div></aside>
+  <aside class="side">
+    <div class="brand">
+      <div class="am-logo-wordmark"><span class="am-ariana">ARIANA</span><span class="am-moveis">MÓVEIS</span></div>
+    </div>
+    <h1>Logística</h1>
+    <div class="nav">
+      <button class="active" onclick="showTab('pedidos',this)">🏷️ Etiquetas</button>
+      <button onclick="showTab('romaneios',this)">🚚 Romaneios</button>
+      <button onclick="showTab('rastreamento',this)">📍 Rastreamento</button>
+      <button onclick="showTab('provedores',this)">🔌 Integrações</button>
+      <button onclick="loadPedidos()">🔄 Atualizar</button>
+      <button onclick="logout()">🚪 Sair</button>
+    </div>
+  </aside>
+
   <main class="main">
-    <div class="top"><div><h1>Central Logística</h1><p class="help">Correios, Frenet, Rodocap e entregas locais em uma tela mais limpa. Selecione o pedido e use a transportadora correta.</p></div><button class="light" onclick="loadPedidos()">🔄 Atualizar pedidos</button></div>
-    <div class="stats"><div class="stat"><small>Pedidos</small><b id="stPedidos">0</b></div><div class="stat"><small>Com etiqueta</small><b id="stEtiquetas">0</b></div><div class="stat"><small>Sem rastreio</small><b id="stSemRastreio">0</b></div><div class="stat"><small>Pronto p/ envio</small><b id="stProntos">0</b></div></div>
-    <section id="tab-pedidos">
-      <div class="card"><h2>Pedidos aguardando logística</h2><p class="help">Busque o pedido, confira os dados e gere etiqueta/romaneio. O seller enxerga somente os próprios pedidos.</p><div class="filters"><input id="busca" placeholder="Cliente, pedido, telefone ou rastreio"><select id="statusFiltro"><option value="">Todos os status</option><option value="pago">Pago</option><option value="aprovado">Aprovado</option><option value="pendente">Pendente</option><option value="preparando_envio">Preparando envio</option><option value="enviado">Enviado</option><option value="entregue">Entregue</option></select><button class="primary" onclick="loadPedidos()">Buscar</button></div></div>
-      <div class="layout"><div class="card"><div class="orders-toolbar"><h2>Lista de pedidos</h2><span class="muted" id="ordersInfo">0 pedido(s)</span></div><div class="order-list" id="pedidosBody"><div class="empty">Carregando pedidos...</div></div></div>
-        <div class="card panel-sticky"><h2>Etiqueta / Romaneio</h2><p class="help">Use “Buscar frete real” para consultar a regra do checkout: Correios, Frenet, Rodocap 12% ou Ariana local.</p><div id="selectedBox" class="receipt">Selecione um pedido na lista.</div><input type="hidden" id="orderId">
-          <div class="quote-box" id="quoteBox"><b>Opções de frete encontradas</b><div class="quote-list" id="quoteList"></div></div>
-          <div class="form-grid"><div><label>Transportadora</label><select id="provider" onchange="onProviderChange()"><option value="manual">Transportadora manual</option><option value="ariana_local">Ariana Local</option><option value="correios">Correios</option><option value="frenet">Frenet/transportadora</option><option value="rodocap">Rodocap 12%</option></select></div><div><label>Serviço</label><input id="service" placeholder="PAC, Sedex, Rodocap..."></div><div><label>Código de rastreio</label><input id="trackingCode" placeholder="Opcional"></div><div><label>Status</label><select id="markStatus"><option value="">Não alterar</option><option value="preparando_envio">Preparando envio</option><option value="enviado">Enviado</option><option value="entregue">Entregue</option></select></div><div><label>Volumes</label><input id="volumes" type="number" value="1" min="1"></div><div><label>Peso kg</label><input id="weightKg" placeholder="Ex: 2,5"></div><div><label>Comprimento cm</label><input id="lengthCm"></div><div><label>Largura cm</label><input id="widthCm"></div><div><label>Altura cm</label><input id="heightCm"></div><div><label>Valor frete</label><input id="shippingCost" placeholder="0,00"></div></div>
-          <label>Observações</label><textarea id="notes" rows="3" placeholder="Ex: coleta agendada, produto frágil, Rodocap 12% da nota..."></textarea>
-          <div class="action-bar"><button class="light" onclick="buscarFreteReal()">🔎 Buscar frete real</button><button class="yellow" onclick="testarCorreios()">🧪 Testar Correios</button><button class="yellow" onclick="prepararRodocap()">🚚 Rodocap 12%</button><button class="green" onclick="gerarEtiqueta(false)">🏷️ Gerar</button><button class="primary" onclick="gerarEtiqueta(true)">📲 Gerar + notificar</button><button class="gray" onclick="marcarEnviado()">📦 Marcar enviado</button><button class="light" onclick="abrirEtiqueta()">🖨️ Imprimir</button></div>
-        </div></div>
-    </section>
-    <section id="tab-romaneios" class="hidden"><div class="card"><h2>Romaneios</h2><p class="help">Use Rodocap para gerar romaneio com 12% da nota. Para entrega local, gere romaneio Ariana sem rastreio obrigatório.</p><div class="quick-grid"><div class="quick-card"><b>Rodocap</b><small>Frete calculado em 12% do valor da nota. Sem API, emissão por romaneio manual.</small></div><div class="quick-card"><b>Ariana Local</b><small>Guanhães grátis, até 30 km R$ 80, até 120 km R$ 120.</small></div><div class="quick-card"><b>Frenet</b><small>Usada para transportadoras quando o pedido passa dos limites dos Correios.</small></div><div class="quick-card"><b>Correios</b><small>PAC/SEDEX para até 30 kg e até 100 cm no maior lado.</small></div></div></div></section>
-    <section id="tab-rastreamento" class="hidden"><div class="card"><h2>Rastreamento</h2><p class="help">Informe ou salve o código de rastreio no pedido e use “Imprimir” para abrir a etiqueta/romaneio do pedido.</p><div class="filters"><input id="trackBusca" placeholder="Código de rastreio ou pedido"><button class="primary" onclick="buscarRastreio()">Consultar</button><button class="light" onclick="loadPedidos()">Atualizar</button></div><div id="trackBox" class="receipt" style="margin-top:12px">Aguardando consulta.</div></div></section>
-    <section id="tab-provedores" class="hidden"><div class="card providers"><h2>Integrações de logística</h2><p class="help">Status dos provedores cadastrados no backend.</p><div id="provedoresBox" class="receipt">Carregando provedores...</div></div></section>
+    <div class="top">
+      <div>
+        <h1>Central Logística</h1>
+        <p class="help">Gerencie pedidos, etiquetas e transportadoras.</p>
+      </div>
+      <button class="primary" onclick="loadPedidos()">🔄 Atualizar pedidos</button>
+    </div>
+
+    <div class="page">
+      <div class="stats">
+        <div class="stat"><div><small>Pedidos</small><b id="stPedidos">0</b></div></div>
+        <div class="stat"><div><small>Com etiqueta</small><b id="stEtiquetas">0</b></div></div>
+        <div class="stat"><div><small>Sem rastreio</small><b id="stSemRastreio">0</b></div></div>
+        <div class="stat"><div><small>Pronto p/ envio</small><b id="stProntos">0</b></div></div>
+      </div>
+
+      <section id="tab-pedidos">
+        <div class="card">
+          <div class="section-head">
+            <div>
+              <h2 class="clean-title">Pedidos aguardando logística</h2>
+              <p class="help">Busque o pedido e gere etiqueta ou romaneio.</p>
+            </div>
+          </div>
+          <div class="filters">
+            <div>
+              <label>Buscar</label>
+              <input id="busca" placeholder="Cliente, pedido, telefone ou rastreio">
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="statusFiltro">
+                <option value="">Todos os status</option>
+                <option value="pago">Pago</option>
+                <option value="aprovado">Aprovado</option>
+                <option value="pendente">Pendente</option>
+                <option value="preparando_envio">Preparando envio</option>
+                <option value="enviado">Enviado</option>
+                <option value="entregue">Entregue</option>
+              </select>
+            </div>
+            <button class="primary" onclick="loadPedidos()">Buscar</button>
+          </div>
+        </div>
+
+        <div class="layout">
+          <div class="card">
+            <div class="orders-toolbar">
+              <h2>Lista de pedidos</h2>
+              <span class="muted" id="ordersInfo">0 pedido(s)</span>
+            </div>
+            <div class="order-list" id="pedidosBody">
+              <div class="empty">Carregando pedidos...</div>
+            </div>
+          </div>
+
+          <div class="card panel-sticky">
+            <h2>Etiqueta / Romaneio</h2>
+            <p class="help">Selecione um pedido e escolha a transportadora.</p>
+            <div id="selectedBox" class="receipt">Selecione um pedido na lista.</div>
+            <input type="hidden" id="orderId">
+
+            <div class="quote-box" id="quoteBox">
+              <b>Opções de frete encontradas</b>
+              <div class="quote-list" id="quoteList"></div>
+            </div>
+
+            <div class="form-grid">
+              <div><label>Transportadora</label><select id="provider" onchange="onProviderChange()"><option value="manual">Transportadora manual</option><option value="ariana_local">Ariana Local</option><option value="correios">Correios</option><option value="frenet">Frenet/transportadora</option><option value="rodocap">Rodocap 12%</option></select></div>
+              <div><label>Serviço</label><input id="service" placeholder="PAC, Sedex, Rodocap..."></div>
+              <div><label>Código de rastreio</label><input id="trackingCode" placeholder="Opcional"></div>
+              <div><label>Status</label><select id="markStatus"><option value="">Não alterar</option><option value="preparando_envio">Preparando envio</option><option value="enviado">Enviado</option><option value="entregue">Entregue</option></select></div>
+              <div><label>Volumes</label><input id="volumes" type="number" value="1" min="1"></div>
+              <div><label>Peso kg</label><input id="weightKg" placeholder="Ex: 2,5"></div>
+              <div><label>Comprimento cm</label><input id="lengthCm"></div>
+              <div><label>Largura cm</label><input id="widthCm"></div>
+              <div><label>Altura cm</label><input id="heightCm"></div>
+              <div><label>Valor frete</label><input id="shippingCost" placeholder="0,00"></div>
+            </div>
+
+            <label>Observações</label>
+            <textarea id="notes" rows="3" placeholder="Ex: coleta agendada, produto frágil, Rodocap 12% da nota..."></textarea>
+
+            <div class="action-bar">
+              <button class="light" onclick="buscarFreteReal()">🔎 Buscar frete real</button>
+              <button class="yellow" onclick="testarCorreios()">🧪 Testar Correios</button>
+              <button class="yellow" onclick="prepararRodocap()">🚚 Rodocap 12%</button>
+              <button class="green" onclick="gerarEtiqueta(false)">🏷️ Gerar</button>
+              <button class="primary" onclick="gerarEtiqueta(true)">📲 Gerar + notificar</button>
+              <button class="gray" onclick="marcarEnviado()">📦 Marcar enviado</button>
+              <button class="light" onclick="abrirEtiqueta()">🖨️ Imprimir</button>
+              <button class="light" onclick="baixarEtiqueta()">⬇️ Baixar etiqueta</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-romaneios" class="hidden">
+        <div class="card">
+          <h2>Romaneios</h2>
+          <p class="help">Regras rápidas de emissão manual.</p>
+          <div class="quick-grid">
+            <div class="quick-card"><b>Rodocap</b><small>Frete calculado em 12% do valor da nota. Emissão por romaneio manual.</small></div>
+            <div class="quick-card"><b>Ariana Local</b><small>Guanhães grátis, até 30 km R$ 80, até 120 km R$ 120.</small></div>
+            <div class="quick-card"><b>Frenet</b><small>Usada para transportadoras quando o pedido passa dos limites dos Correios.</small></div>
+            <div class="quick-card"><b>Correios</b><small>PAC/SEDEX para até 30 kg e até 100 cm no maior lado.</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-rastreamento" class="hidden">
+        <div class="card">
+          <h2>Rastreamento</h2>
+          <p class="help">Consulte pedido ou código de rastreio.</p>
+          <div class="filters">
+            <input id="trackBusca" placeholder="Código de rastreio ou pedido">
+            <button class="primary" onclick="buscarRastreio()">Consultar</button>
+            <button class="light" onclick="loadPedidos()">Atualizar</button>
+          </div>
+          <div id="trackBox" class="receipt" style="margin-top:12px">Aguardando consulta.</div>
+        </div>
+      </section>
+
+      <section id="tab-provedores" class="hidden">
+        <div class="card providers">
+          <h2>Integrações de logística</h2>
+          <p class="help">Status dos provedores cadastrados no backend.</p>
+          <div id="provedoresBox" class="receipt">Carregando provedores...</div>
+        </div>
+      </section>
+    </div>
   </main>
 </section>
 <script>
-const IS_LOCAL_HOST = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
-let API_BASE = IS_LOCAL_HOST ? 'http://localhost:3000/api' : 'https://ariana-backend.onrender.com/api';
-try { localStorage.setItem('API_BASE', API_BASE); localStorage.setItem('API_BASE_URL', API_BASE); } catch(_) {}
+const IS_LOCAL_HOST =
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === 'localhost';
+
+let API_BASE = IS_LOCAL_HOST
+  ? 'http://localhost:3000/api'
+  : (
+      window.API_BASE ||
+      localStorage.getItem('API_BASE') ||
+      localStorage.getItem('API_BASE_URL') ||
+      'https://ariana-backend.onrender.com/api'
+    );
+
+API_BASE = String(API_BASE).replace(/\/$/, '');
+
+try {
+  localStorage.setItem('API_BASE', API_BASE);
+  localStorage.setItem('API_BASE_URL', API_BASE);
+} catch (_) {}
+
+console.log('[LOGÍSTICA] API ativa:', API_BASE);
 let pedidos=[]; let selected=null; let currentQuotes=[];
 const urlParams = new URLSearchParams(window.location.search || '');
 const IS_SELLER_MODE = urlParams.get('from') === 'seller' || (!!localStorage.getItem('seller_token') && !localStorage.getItem('admin_token'));
@@ -109,7 +348,7 @@ async function login(){const r=await fetch(API_BASE+loginEndpoint(),{method:'POS
 function logout(){localStorage.removeItem(IS_SELLER_MODE?'seller_token':'admin_token');if(IS_SELLER_MODE)localStorage.removeItem('seller_profile');location.href=IS_SELLER_MODE?'seller_login.html':'admin_painel.html'}
 function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='provedores')loadProvedores()}
 async function loadPedidos(){try{pedidosBody.innerHTML='<div class="empty">Carregando pedidos...</div>';const q=encodeURIComponent(busca?.value||'');const st=encodeURIComponent(statusFiltro?.value||'');const r=await fetch(API_BASE+`${API_SCOPE}/pedidos?q=${q}&status=${st}&limit=150`,{headers:headers()});const j=await r.json().catch(()=>({}));if(r.status===401||r.status===403){logout();return}if(!r.ok||j.ok===false){pedidosBody.innerHTML='<div class="empty">Erro: '+esc(j.error||j.message||'falha')+'</div>';return}pedidos=j.pedidos||j.orders||j.items||[];renderPedidos()}catch(e){pedidosBody.innerHTML='<div class="empty">Erro: '+esc(e.message||e)+'</div>'}}
-function renderPedidos(){stPedidos.textContent=pedidos.length;stEtiquetas.textContent=pedidos.filter(p=>p.etiqueta).length;stSemRastreio.textContent=pedidos.filter(p=>!p.trackingCode && !(p.etiqueta&&p.etiqueta.trackingCode)).length;stProntos.textContent=pedidos.filter(p=>p.etiqueta&&((p.trackingCode)||(p.etiqueta.trackingCode))).length;ordersInfo.textContent=pedidos.length+' pedido(s)';pedidosBody.innerHTML=pedidos.map((p,i)=>{const a=p.address||{};const et=p.etiqueta;const frete=p.shipping?.label||p.shipping?.name||p.shipping?.service||p.logisticsProvider||'—';const sid=p.shortId||shortId(p.id);const isSel=selected&&String(selected.id||selected._id)===String(p.id||p._id);return `<article class="order-card ${isSel?'selected':''}"><div><div class="mobile-title">Pedido</div><div class="order-id">#${esc(sid)}</div><div class="date">${fmtDate(p.createdAt)}</div></div><div><div class="mobile-title">Cliente</div><div class="customer">${esc(p.customerName||a.name||'Cliente')}</div><div class="dest">${esc(a.cidade||'')} ${esc(a.uf||'')} • CEP ${esc(a.cep||'')}</div></div><div><div class="mobile-title">Frete</div><div class="shipping">${esc(frete)}</div><div class="price">${money(p.shippingCost||0)}</div><div style="margin-top:6px"><span class="pill ${statusClass(p.statusLabel||p.status)}">${esc(p.statusLabel||p.status||'Status')}</span> ${et?'<span class="pill ok">Etiqueta</span>':'<span class="pill warn">Pendente</span>'}</div></div><div class="order-actions"><button class="light small" onclick="selectPedido(${i})">Selecionar</button>${et?`<button class="green small" onclick="abrirEtiqueta('${p.id||p._id}')">Imprimir</button>`:''}</div></article>`}).join('')||'<div class="empty">Nenhum pedido encontrado.</div>'}
+function renderPedidos(){stPedidos.textContent=pedidos.length;stEtiquetas.textContent=pedidos.filter(p=>p.etiqueta).length;stSemRastreio.textContent=pedidos.filter(p=>!p.trackingCode && !(p.etiqueta&&p.etiqueta.trackingCode)).length;stProntos.textContent=pedidos.filter(p=>p.etiqueta&&((p.trackingCode)||(p.etiqueta.trackingCode))).length;ordersInfo.textContent=pedidos.length+' pedido(s)';pedidosBody.innerHTML=pedidos.map((p,i)=>{const a=p.address||{};const et=p.etiqueta;const frete=p.shipping?.label||p.shipping?.name||p.shipping?.service||p.logisticsProvider||'—';const sid=p.shortId||shortId(p.id);const isSel=selected&&String(selected.id||selected._id)===String(p.id||p._id);return `<article class="order-card ${isSel?'selected':''}"><div><div class="mobile-title">Pedido</div><div class="order-id">#${esc(sid)}</div><div class="date">${fmtDate(p.createdAt)}</div></div><div><div class="mobile-title">Cliente</div><div class="customer">${esc(p.customerName||a.name||'Cliente')}</div><div class="dest">${esc(a.cidade||'')} ${esc(a.uf||'')} • CEP ${esc(a.cep||'')}</div></div><div><div class="mobile-title">Frete</div><div class="shipping">${esc(frete)}</div><div class="price">${money(p.shippingCost||0)}</div><div style="margin-top:6px"><span class="pill ${statusClass(p.statusLabel||p.status)}">${esc(p.statusLabel||p.status||'Status')}</span> ${et?'<span class="pill ok">Etiqueta</span>':'<span class="pill warn">Pendente</span>'}</div></div><div class="order-actions"><button class="light small" onclick="selectPedido(${i})">Selecionar</button>${et?`<button class="green small" onclick="abrirEtiqueta('${p.id||p._id}')">Imprimir</button><button class="light small" onclick="baixarEtiqueta('${p.id||p._id}')">Baixar</button>`:''}</div></article>`}).join('')||'<div class="empty">Nenhum pedido encontrado.</div>'}
 function guessProviderFromShipping(p){const txt=String(`${p?.shipping?.provider||''} ${p?.shipping?.service||''} ${p?.shipping?.label||''} ${p?.logisticsProvider||''}`).toLowerCase(); if(txt.includes('rodocap'))return'rodocap'; if(txt.includes('frenet')||txt.includes('jadlog')||txt.includes('transport'))return'frenet'; if(txt.includes('correios')||txt.includes('pac')||txt.includes('sedex'))return'correios'; if(txt.includes('ariana')||txt.includes('local'))return'ariana_local'; return'manual'}
 function selectPedido(i){selected=pedidos[i];if(!selected)return;currentQuotes=[];quoteBox.style.display='none';renderPedidos();orderId.value=selected.id||selected._id;provider.value=selected.etiqueta?.provider||guessProviderFromShipping(selected);service.value=selected.etiqueta?.service||selected.shipping?.service||selected.shipping?.label||'';trackingCode.value=selected.etiqueta?.trackingCode||selected.trackingCode||'';volumes.value=selected.etiqueta?.volumes||1;weightKg.value=selected.etiqueta?.weightKg||selected.weightKg||selected.shipping?.weightKg||'';lengthCm.value=selected.etiqueta?.lengthCm||selected.lengthCm||'';widthCm.value=selected.etiqueta?.widthCm||selected.widthCm||'';heightCm.value=selected.etiqueta?.heightCm||selected.heightCm||'';shippingCost.value=selected.etiqueta?.shippingCost||selected.shippingCost||0;notes.value=selected.etiqueta?.notes||'';selectedBox.innerHTML=`<b>Pedido #${esc(selected.shortId||shortId(selected.id))}</b><div class="row"><span>Cliente</span><span>${esc(selected.customerName||selected.address?.name||'')}</span></div><div class="row"><span>Destino</span><span>${esc(selected.address?.cidade||'')} / ${esc(selected.address?.uf||'')} - ${esc(selected.address?.cep||'')}</span></div><div class="row"><span>Itens</span><span>${esc(selected.itemsSummary||'')}</span></div><div class="row"><span>Total</span><span>${money(selected.total||0)}</span></div>`;onProviderChange();toast('Pedido selecionado')}
 function buildQuotePayload(){const a=selected?.address||{};return{orderId:orderId.value,cepDestino:cleanCep(a.cep||selected?.shippingAddress?.cep||''),shippingAddress:{cep:cleanCep(a.cep||''),cidade:a.cidade||'',uf:a.uf||''},productPrice:Number(selected?.total||selected?.subtotal||0),subtotal:Number(selected?.subtotal||selected?.total||0),invoiceValue:Number(selected?.total||0),weightKg:toNumber(weightKg.value)||Number(selected?.weightKg||1),lengthCm:toNumber(lengthCm.value)||Number(selected?.lengthCm||20),widthCm:toNumber(widthCm.value)||Number(selected?.widthCm||15),heightCm:toNumber(heightCm.value)||Number(selected?.heightCm||10),items:selected?.items||[],shippingRule:provider.value==='ariana_local'?'ariana_local':undefined,useArianaLogistics:['rodocap','ariana_local'].includes(provider.value)}}
@@ -135,7 +374,7 @@ function usarCotacao(idx){
 async function testarCorreios(){
   try{
     const endpoint = API_SCOPE + '/etiquetas/correios/teste';
-    toast('Testando Correios sem gerar compra real...');
+    toast('Testando Correios no backend configurado...');
     const payload = {
       teste: true,
       cepOrigem: '39740000',
@@ -145,7 +384,9 @@ async function testarCorreios(){
       widthCm: 20,
       heightCm: 20,
       productPrice: 10,
-      service: 'PAC/SEDEX TESTE'
+      shippingServiceCode: '03298',
+      serviceCode: '03298',
+      service: '03298'
     };
     const r = await fetch(API_BASE + endpoint, {
       method: 'POST',
@@ -160,7 +401,7 @@ async function testarCorreios(){
       return;
     }
     const quoteOk = j.quote && j.quote.ok !== false;
-    toast(quoteOk ? 'Teste Correios concluído com resposta de cotação.' : 'Rota Correios respondeu. Cotação oficial ainda não retornou preço.');
+    toast(quoteOk ? 'Correios respondeu pelo backend.' : 'Backend dos Correios respondeu; cotação precisa ser revisada.');
     alert(JSON.stringify(j, null, 2));
   }catch(e){
     toast(e.message || 'Erro ao testar Correios');
@@ -178,6 +419,35 @@ function onProviderChange(autoRodocap=true){
   }
   if(provider.value==='frenet'&&!service.value)service.value='Frenet/Transportadora';
 }
+
+async function aguardarRotuloCorreios(oid, maxCycles=4){
+  const orderCode = String(oid || orderId.value || '').trim();
+  if(!orderCode) return false;
+  for(let cycle=1; cycle<=maxCycles; cycle+=1){
+    toast(`Correios está preparando o PDF oficial (${cycle}/${maxCycles})...`);
+    const r = await fetch(API_BASE+API_SCOPE+'/etiquetas/correios/'+encodeURIComponent(orderCode)+'/rotulo', {
+      method:'POST',
+      headers:headers({'Content-Type':'application/json'}),
+      body:'{}'
+    });
+    const j = await r.json().catch(()=>({}));
+    if(r.status===401||r.status===403){logout();return false}
+    if(!r.ok || j.ok===false){
+      toast(j.error || 'Erro ao consultar o PDF oficial dos Correios.');
+      return false;
+    }
+    if(j.ready){
+      toast('Etiqueta oficial dos Correios pronta.');
+      await loadPedidos();
+      await abrirEtiqueta(orderCode);
+      return true;
+    }
+    if(cycle < maxCycles) await new Promise(resolve=>setTimeout(resolve,2500));
+  }
+  toast('O PDF oficial ainda está sendo processado. Aguarde alguns segundos e clique em Imprimir.');
+  return false;
+}
+
 async function gerarEtiqueta(notify){
   if(!orderId.value){toast('Selecione um pedido primeiro.');return}
   let chosenProvider = provider.value;
@@ -193,15 +463,19 @@ async function gerarEtiqueta(notify){
     orderId:orderId.value,
     provider:chosenProvider,
     service:chosenService,
+    serviceCode: chosenProvider === 'correios' ? chosenService : undefined,
+    coProduto: chosenProvider === 'correios' ? chosenService : undefined,
     shippingServiceCode: chosenProvider === 'correios' ? chosenService : undefined,
+    tipoRotulo: 'P',
+    labelSize: 'P',
     trackingCode:trackingCode.value,
     markStatus:markStatus.value,
     markStatusLabel:markStatus.value,
     volumes:Number(volumes.value||1),
-    weightKg:toNumber(weightKg.value),
-    lengthCm:toNumber(lengthCm.value),
-    widthCm:toNumber(widthCm.value),
-    heightCm:toNumber(heightCm.value),
+    weightKg:toNumber(weightKg.value)||1,
+    lengthCm:toNumber(lengthCm.value)||20,
+    widthCm:toNumber(widthCm.value)||15,
+    heightCm:toNumber(heightCm.value)||10,
     shippingCost:normalizeShippingCostForProvider(shippingCost.value),
     notes:chosenNotes,
     notifyCustomer:notify
@@ -212,12 +486,47 @@ async function gerarEtiqueta(notify){
   const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
   const j=await r.json().catch(()=>({}));
   if(!j.ok){toast(j.error||'Erro ao gerar etiqueta');alert(JSON.stringify(j,null,2));return}
+  if(j.reused && j.ready){
+    toast('Etiqueta já existente: PDF salvo reutilizado sem criar nova pré-postagem.');
+    await loadPedidos();
+    await abrirEtiqueta(orderId.value);
+    return;
+  }
+  if(j.reused && j.pending){
+    toast('Pré-postagem existente reutilizada. Aguardando o PDF oficial.');
+    await loadPedidos();
+    await aguardarRotuloCorreios(orderId.value);
+    return;
+  }
   const prepared=j.providerResult&&j.providerResult.preparedOnly;
+  const rotuloPending = !!(
+    j.providerResult?.rotuloPending ||
+    j.providerResult?.rotulo?.pending ||
+    j.etiqueta?.status === 'rotulo_pendente' ||
+    j.etiqueta?.labelType === 'correios_rotulo_pendente'
+  );
+  const hasOfficial = !!(
+    j.providerResult?.hasOfficialLabel ||
+    j.providerResult?.labelUrl ||
+    j.etiqueta?.labelUrl ||
+    j.etiqueta?.labelType === 'correios_rotulo_oficial'
+  );
   if(prepared){
     const raw = j.providerResult?.raw || j.etiqueta?.rawProviderResponse || {};
-    const detail = raw.providerError || raw.reason || j.providerResult?.message || 'Correios não criou pré-postagem oficial. Romaneio interno gerado.';
-    toast('Etiqueta interna gerada. Veja o detalhe na tela.');
-    alert(JSON.stringify({aviso:'Etiqueta interna gerada', detalhe: detail, providerResult:j.providerResult}, null, 2));
+    const detail = raw.providerError || raw.reason || j.providerResult?.message || 'Correios não criou a etiqueta oficial.';
+    toast('Correios não gerou etiqueta oficial.');
+    alert('Correios não gerou etiqueta oficial.\n\nMotivo: ' + detail);
+    await loadPedidos();
+    return;
+  }
+  if(chosenProvider==='correios' && rotuloPending){
+    toast('Pré-postagem criada. Aguardando o PDF oficial dos Correios...');
+    await loadPedidos();
+    await aguardarRotuloCorreios(orderId.value);
+    return;
+  }
+  if(chosenProvider==='correios' && hasOfficial){
+    toast(notify?'Etiqueta oficial Correios gerada e cliente notificado':'Etiqueta oficial Correios gerada');
   } else {
     toast(notify?'Etiqueta/romaneio gerado e cliente notificado':'Etiqueta/romaneio gerado');
   }
@@ -232,6 +541,11 @@ async function abrirEtiqueta(id){
     const r=await fetch(API_BASE+API_SCOPE+'/etiquetas/'+encodeURIComponent(oid)+'/html',{headers:headers()});
     if(r.status===401||r.status===403){logout();return}
     const contentType=String(r.headers.get('content-type')||'').toLowerCase();
+    if(r.status===409){
+      const pendingData=await r.json().catch(()=>({}));
+      toast(pendingData.error||'Rótulo oficial dos Correios ainda em processamento.');
+      return;
+    }
     if(!r.ok){
       const errTxt=await r.text().catch(()=>('Erro '+r.status));
       throw new Error(errTxt||('Erro '+r.status));
@@ -249,6 +563,39 @@ async function abrirEtiqueta(id){
     window.open(url,'_blank');
     setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(e){toast(e.message||'Erro ao abrir etiqueta')}
+}
+async function baixarEtiqueta(id){
+  const oid=id||orderId.value;
+  if(!oid){toast('Selecione um pedido.');return}
+  try{
+    const r=await fetch(API_BASE+API_SCOPE+'/etiquetas/'+encodeURIComponent(oid)+'/html',{headers:headers()});
+    if(r.status===401||r.status===403){logout();return}
+    if(r.status===409){
+      const pendingData=await r.json().catch(()=>({}));
+      toast(pendingData.error||'Rótulo oficial dos Correios ainda em processamento.');
+      return;
+    }
+    if(!r.ok){
+      const errTxt=await r.text().catch(()=>('Erro '+r.status));
+      throw new Error(errTxt||('Erro '+r.status));
+    }
+    const contentType=String(r.headers.get('content-type')||'').toLowerCase();
+    if(!contentType.includes('application/pdf')){
+      toast('Este pedido ainda não possui PDF oficial salvo.');
+      return;
+    }
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const rastreio=String(selected?.trackingCode||selected?.etiqueta?.trackingCode||trackingCode.value||shortId(oid)).replace(/[^a-zA-Z0-9_-]/g,'');
+    a.href=url;
+    a.download='etiqueta-correios-'+(rastreio||shortId(oid))+'.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    toast('PDF da etiqueta salvo.');
+  }catch(e){toast(e.message||'Erro ao salvar etiqueta')}
 }
 async function loadProvedores(){try{const r=await fetch(API_BASE+API_SCOPE+'/provedores',{headers:headers()});const j=await r.json();if(!j.ok){provedoresBox.innerHTML='Erro ao carregar provedores.';return}provedoresBox.innerHTML=(j.provedores||[]).map(p=>`<div class="row"><span><b>${esc(p.nome)}</b><br><small>${esc(p.proximaFase||'Disponível no painel')}</small></span><span>${p.enabled?'<span class="pill ok">Ativo</span>':'<span class="pill warn">Inativo</span>'} ${p.integrado?'<span class="pill ok">Integrado</span>':'<span class="pill orange">Manual</span>'}</span></div>`).join('')||'Nenhum provedor retornado.'}catch(e){provedoresBox.innerHTML='Erro: '+esc(e.message||e)}}
 function buscarRastreio(){const q=String(trackBusca.value||'').trim();if(!q){trackBox.innerHTML='Informe um código ou pedido.';return}const found=pedidos.find(p=>String(p.trackingCode||p.etiqueta?.trackingCode||p.id||'').toLowerCase().includes(q.toLowerCase()));trackBox.innerHTML=found?`<b>Pedido #${esc(found.shortId||shortId(found.id))}</b><div class="row"><span>Status</span><span>${esc(found.statusLabel||found.status||'')}</span></div><div class="row"><span>Rastreio</span><span>${esc(found.trackingCode||found.etiqueta?.trackingCode||'—')}</span></div>`:'Não encontrado na lista carregada.'}

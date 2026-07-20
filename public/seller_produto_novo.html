@@ -1,15 +1,16 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Novo Produto | ARIANA MÓVEIS</title>
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="apple-touch-icon" href="favicon.png">
-  <link rel="stylesheet" href="css/tailwind.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" name="viewport"/>
+<title>Novo Produto | ARIANA MÓVEIS</title>
+<link href="./manifest.webmanifest" rel="manifest"/>
+<link href="favicon.png" rel="icon" type="image/png"/>
+<link href="favicon.png" rel="apple-touch-icon"/>
+<link href="css/tailwind.min.css" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
+<style>
     :root{--primary:#2E6DA4;--dark:#1D2B3A;--bg:#F5F7FA;--success:#10b981;--danger:#ef4444}
     body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg)}
     .bg-primary-blue{background:#2E6DA4}.text-primary-blue{color:#2E6DA4}.bg-dark-bg{background:#1D2B3A}
@@ -19,99 +20,292 @@
     .product-section{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:20px}
     .dimensions-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
     @media (max-width:640px){.dimensions-grid{grid-template-columns:repeat(2,1fr)}}
-  </style>
+  
+/* ===== Ariana Seller UI Profissional - 07/07/2026 ===== */
+body{background:#eef3f8!important;color:#0f172a!important}
+#sidebar{background:linear-gradient(180deg,#122338 0%,#172b43 100%)!important;box-shadow:12px 0 30px rgba(15,23,42,.08)}
+#sidebar a{border-radius:14px!important;font-weight:750!important}
+#sidebar nav a:hover,#sidebar nav a.bg-dark-gray-bg{background:rgba(255,255,255,.12)!important}
+header{height:72px;background:rgba(255,255,255,.95)!important;backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
+main{padding:28px!important}
+main>h1,.page-title{letter-spacing:-.035em}
+#product-form{max-width:1040px!important;margin:0 auto!important;border:1px solid #dbe4ee!important;box-shadow:0 18px 60px rgba(15,23,42,.10)!important;border-radius:28px!important;background:#fff!important}
+.product-section{background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)!important;border:1px solid #dbe4ee!important;border-radius:22px!important;box-shadow:0 8px 22px rgba(15,23,42,.04)!important}
+input,select,textarea{border-color:#d7e0ea!important;background:#fff!important;color:#0f172a!important;box-shadow:0 1px 0 rgba(15,23,42,.02)!important;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease!important}
+input:focus,select:focus,textarea:focus{outline:none!important;border-color:#2E6DA4!important;box-shadow:0 0 0 4px rgba(46,109,164,.14)!important}
+input[readonly]{background:#f8fafc!important;color:#64748b!important}
+#file-input{border:2px dashed #b8c6d6!important;background:#f8fbff!important;border-radius:22px!important;cursor:pointer!important;padding:22px!important}
+#file-input:hover{border-color:#2E6DA4!important;background:#f1f7ff!important}
+#image-preview-box,#image-preview{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(138px,1fr))!important;gap:14px!important;margin-top:16px!important}
+#image-preview-box>div,#image-preview .image-card{background:#f8fafc!important;border:1px solid #dbe4ee!important;border-radius:18px!important;overflow:hidden!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+#image-preview-box img,#image-preview img.preview-img,#image-preview img{width:100%!important;height:118px!important;object-fit:contain!important;background:linear-gradient(135deg,#f8fafc 0%,#edf2f7 100%)!important;padding:10px!important;border:0!important;border-radius:0!important;filter:none!important}
+#image-preview-box .p-2,#image-preview .image-label{padding:10px 12px!important;font-size:12px!important;font-weight:800!important;color:#475569!important;background:white!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#btn-submit{background:linear-gradient(135deg,#0b63ce,#0047AB)!important;box-shadow:0 14px 30px rgba(0,71,171,.24)!important;border-radius:18px!important;letter-spacing:.01em!important}
+#btn-submit:hover{filter:brightness(1.03)!important;transform:translateY(-1px)!important}
+#btn-submit:disabled{opacity:.72!important;cursor:not-allowed!important;transform:none!important}
+.dimensions-grid input{text-align:center;font-weight:800!important}
+@media(max-width:768px){main{padding:16px!important}#product-form{padding:18px!important;border-radius:22px!important}#image-preview-box,#image-preview{grid-template-columns:repeat(2,1fr)!important}}
+
+  
+
+/* PATCH: logo padrão Ariana Móveis igual ao Dashboard - somente logo */
+.am-sidebar-logo{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  padding:0 1rem 20px 1rem!important;
+  margin:0 0 18px 0!important;
+  min-height:58px!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow:visible!important;
+  border-bottom:1px solid rgba(255,255,255,.13)!important;
+  text-decoration:none!important;
+}
+.am-logo-wordmark{
+  display:inline-flex!important;
+  align-items:flex-end!important;
+  gap:.34em!important;
+  line-height:.88!important;
+  white-space:nowrap!important;
+  font-family:Inter,Arial,sans-serif!important;
+  font-style:italic!important;
+  font-weight:1000!important;
+  letter-spacing:-.055em!important;
+  text-transform:uppercase!important;
+  font-size:28px!important;
+  width:auto!important;
+  max-width:none!important;
+  overflow:visible!important;
+  transform:none!important;
+}
+.am-logo-wordmark .am-logo-ariana{
+  color:#fff!important;
+  font-size:1em!important;
+  font-weight:1000!important;
+  line-height:.88!important;
+}
+.am-logo-wordmark .am-logo-moveis{
+  color:#56B5FF!important;
+  font-size:.50em!important;
+  font-weight:1000!important;
+  margin-bottom:.12em!important;
+  letter-spacing:-.035em!important;
+  line-height:.9!important;
+}
+aside#sidebar .am-logo-wordmark,
+.side .am-logo-wordmark,
+.sidebar .am-logo-wordmark,
+.bg-dark-bg .am-logo-wordmark{
+  font-size:28px!important;
+  transform:none!important;
+  overflow:visible!important;
+}
+aside#sidebar > a.am-sidebar-logo,
+aside#sidebar > a.text-white:first-of-type,
+.sidebar > a.am-sidebar-logo,
+.side > a.am-sidebar-logo{
+  display:flex!important;
+  align-items:center!important;
+  padding-left:1rem!important;
+  padding-right:1rem!important;
+  margin-bottom:1.15rem!important;
+  min-height:58px!important;
+  overflow:visible!important;
+}
+aside#sidebar .px-4:first-child::before,
+.side h1::before,
+.sidebar .brand-mark,
+.brand-mark{
+  content:none!important;
+  display:none!important;
+}
+
+</style>
+
+
+<!-- PATCH VISUAL PROFISSIONAL ARIANA MÓVEIS - 2026-07-09 -->
+<style id="ariana-seller-professional-ui">
+:root{
+  --am-blue:#0047AB!important;
+  --am-blue-2:#063b86!important;
+  --am-yellow:#ffd43b!important;
+  --am-bg:#f3f6fb!important;
+  --am-card:#ffffff!important;
+  --am-text:#0f172a!important;
+  --am-muted:#64748b!important;
+  --am-line:#e2e8f0!important;
+  --am-shadow:0 14px 34px rgba(15,23,42,.075)!important;
+}
+html,body{font-family:Inter,Arial,sans-serif!important;background:var(--am-bg)!important;color:var(--am-text)!important;}
+body{letter-spacing:-.01em;}
+/* Fundos antigos */
+.bg-gray-100,.bg-fundo,.bg-slate-50{background:var(--am-bg)!important}.text-primary-blue{color:var(--am-blue)!important}.bg-primary-blue{background:var(--am-blue)!important}.border-primary-blue{border-color:var(--am-blue)!important}
+/* Sidebar Seller/Admin */
+aside#sidebar, aside.sidebar, .side, .sidebar, .bg-dark-bg, .bg-dark-gray-bg{
+  background:linear-gradient(180deg,#0047AB 0%,#052b63 54%,#061f45 100%)!important;
+  box-shadow:14px 0 36px rgba(15,23,42,.12)!important;
+}
+aside#sidebar, .side, .sidebar{border-right:1px solid rgba(255,255,255,.08)!important;}
+aside#sidebar .px-4:first-child span, aside#sidebar .px-4:first-child, .side h1, .sidebar .brand, .sidebar h1{
+  color:#fff!important;letter-spacing:.01em!important;
+}
+aside#sidebar .px-4:first-child, .side h1{
+  padding-bottom:20px!important;margin-bottom:18px!important;border-bottom:1px solid rgba(255,255,255,.13)!important;
+}
+aside#sidebar nav a, .nav button, .sidebar-link, aside nav a{
+  display:flex!important;align-items:center!important;gap:12px!important;border-radius:16px!important;padding:12px 14px!important;color:rgba(255,255,255,.86)!important;font-weight:850!important;text-decoration:none!important;transition:.16s ease!important;background:transparent!important;box-shadow:none!important;
+}
+aside#sidebar nav a:hover, aside#sidebar nav a.active, .nav button:hover, .nav button.active, .sidebar-link:hover, .sidebar-link.active, aside nav a:hover{
+  background:rgba(255,255,255,.14)!important;color:#fff!important;transform:translateX(2px)!important;
+}
+#btn-sair, a[id*="sair"], a[href="#"][id*="logout"], #logout-btn{color:#fecaca!important;margin-top:18px!important;}
+/* Área principal */
+main, .main, .flex-1, .flex-grow{min-width:0!important;}
+.main, main.flex-grow, .flex-1.flex.flex-col, body>div.flex-1{background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 330px,#f3f6fb 100%)!important;}
+header, .topbar, .top, .bg-white.border-b{
+  background:rgba(255,255,255,.92)!important;backdrop-filter:blur(14px)!important;border-color:rgba(226,232,240,.9)!important;
+}
+h1,h2,h3{color:var(--am-text)!important;line-height:1.12!important;}
+p,.help,.sub,.muted,.text-gray-600,.text-slate-500{color:var(--am-muted)!important;}
+/* Cards e painéis */
+.card,.box,.stat,.quick-card,.rounded-2xl.bg-white,.bg-white.rounded-2xl,.seller-form-card,section.bg-white,.shadow-soft,.receipt,.empty,[class*="shadow"]{
+  border:1px solid var(--am-line)!important;border-radius:24px!important;background:#fff!important;box-shadow:var(--am-shadow)!important;
+}
+.card{padding:20px!important;}
+.stat{padding:18px!important;}
+.stat small,.label,label,.text-xs.uppercase{font-size:11px!important;font-weight:950!important;text-transform:uppercase!important;letter-spacing:.055em!important;color:var(--am-muted)!important;}
+.stat b{font-size:30px!important;color:var(--am-blue)!important;}
+/* Botões */
+button,a[class*="bg-primary-blue"],.primary,.btn-primary,.green,.yellow,.light,.gray,.red,.small,
+button.bg-primary-blue,button.bg-blue-600,button.bg-green-600,button.bg-red-600{
+  border-radius:14px!important;min-height:42px!important;font-weight:900!important;transition:.16s ease!important;text-decoration:none!important;border:1px solid transparent!important;
+}
+button:hover,a[class*="bg-primary-blue"]:hover{transform:translateY(-1px)!important;filter:brightness(.98)!important;}
+.primary,button.bg-primary-blue,.bg-primary-blue,a.bg-primary-blue{background:var(--am-blue)!important;color:#fff!important;box-shadow:0 10px 22px rgba(0,71,171,.18)!important;}
+.light,.gray{background:#f8fafc!important;color:#10213f!important;border-color:#dbe3ee!important;}
+.green,button.bg-green-600{background:#16a34a!important;color:#fff!important;}
+.red,button.bg-red-600{background:#dc2626!important;color:#fff!important;}
+.yellow{background:var(--am-yellow)!important;color:#10213f!important;border-color:#facc15!important;}
+/* Inputs */
+input,select,textarea,.seller-input{
+  border:1px solid #d7dee9!important;border-radius:15px!important;background:#fff!important;min-height:44px!important;font-weight:650!important;color:#0f172a!important;
+}
+input:focus,select:focus,textarea:focus,.seller-input:focus{border-color:var(--am-blue)!important;box-shadow:0 0 0 4px rgba(0,71,171,.12)!important;}
+/* Tabelas/listas */
+table{border-collapse:separate!important;border-spacing:0 10px!important;width:100%!important;}
+thead th{font-size:11px!important;text-transform:uppercase!important;color:var(--am-muted)!important;letter-spacing:.05em!important;border:0!important;background:transparent!important;}
+tbody tr{background:#fff!important;box-shadow:0 8px 18px rgba(15,23,42,.04)!important;}
+tbody td{border-top:1px solid #edf2f7!important;border-bottom:1px solid #edf2f7!important;padding:14px!important;}
+tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 0 0 16px!important;}tbody td:last-child{border-right:1px solid #edf2f7!important;border-radius:0 16px 16px 0!important;}
+/* Badges */
+.pill,.badge,.status-novo,.status-respondido,[class*="status-"]{border-radius:999px!important;padding:6px 10px!important;font-size:11px!important;font-weight:950!important;}
+/* Grids comuns */
+.stats{gap:14px!important}.filters{gap:12px!important}.quick-grid{gap:14px!important}.form-grid{gap:12px!important}.action-bar{gap:10px!important;}
+/* Responsivo */
+@media(max-width:920px){
+  body{display:block!important;}
+  aside#sidebar,.side{position:static!important;width:100%!important;min-height:auto!important;height:auto!important;transform:none!important;padding:18px!important;}
+  aside#sidebar nav,.nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
+  .main,main,.flex-1,.flex-grow{margin-left:0!important;max-width:none!important;width:100%!important;padding:14px!important;}
+  header,.top{position:sticky!important;top:0!important;z-index:20!important;padding:14px!important;}
+  .stats{grid-template-columns:1fr 1fr!important;}
+  .filters,.layout,.form-grid,.action-bar,.quick-grid{grid-template-columns:1fr!important;}
+  .card,.box{border-radius:20px!important;padding:16px!important;}
+  button,.primary,.light,.green,.red,.yellow,.gray{width:100%!important;}
+}
+@media(max-width:560px){.stats{grid-template-columns:1fr!important;} aside#sidebar nav,.nav{grid-template-columns:1fr!important;}}
+</style>
+
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
-  <div id="toast-container" class="space-y-3"></div>
-
-  <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
-    <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
-    <nav class="flex flex-col space-y-2">
-      <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
-      <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
-      <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
-      <a href="seller_produto_editar.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
-      <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
-      <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
-      <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
-      <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Recebimentos</span></a>
-      <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
-      <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
-      <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
-      <a href="#" id="btn-sair" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
-    </nav>
-  </aside>
-
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
-      <button id="sidebar-toggle" class="text-gray-500 focus:outline-none md:hidden"><i class="fas fa-bars text-xl"></i></button>
-      <h1 class="text-xl font-semibold">Painel do Seller</h1>
-      <div class="flex items-center gap-4">
-        <span id="user-display-name" class="text-sm font-medium text-gray-700">Bem-vindo, Seller!</span>
-        <i class="fas fa-user-circle text-2xl text-primary-blue"></i>
-      </div>
-    </header>
-
-    <main class="flex-1 overflow-x-hidden overflow-y-auto p-6">
-      <h1 class="text-3xl font-black mb-8 text-slate-900">Novo produto</h1>
-
-      <form id="product-form" class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-        <input id="file-input" type="file" multiple accept="image/*" class="w-full p-4 border rounded-xl">
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input id="p-name" placeholder="Nome do produto" required class="w-full p-4 border rounded-xl">
-          <div class="space-y-2">
-            <label class="block text-sm font-bold text-slate-800">SKU</label>
-            <div class="flex gap-2">
-              <input id="p-sku" placeholder="Ex: SOFA-001" class="w-full p-4 border rounded-xl uppercase">
-              <button id="btn-generate-sku" type="button" class="px-4 rounded-xl bg-slate-100 font-bold whitespace-nowrap">Gerar SKU</button>
-            </div>
-            <p class="text-xs text-gray-500">Se deixar em branco, o sistema gera um SKU único automaticamente.</p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <select id="p-category" required class="w-full p-4 border rounded-xl">
-            <option value="">Selecione uma Categoria</option>
-          </select>
-          <select id="p-subcategory" class="w-full p-4 border rounded-xl">
-            <option value="">Selecione uma Subcategoria</option>
-          </select>
-          <input id="p-categorySlug" type="text" placeholder="Slug da categoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
-          <input id="p-subcategorySlug" type="text" placeholder="Slug da subcategoria" readonly class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600">
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input id="p-stock" type="number" min="0" placeholder="Estoque" required class="w-full p-4 border rounded-xl">
-          <input id="p-price" type="text" inputmode="decimal" placeholder="Preço. Ex: 10,99" required class="w-full p-4 border rounded-xl">
-        </div>
-        <p class="text-xs text-gray-500 -mt-4">Use vírgula normalmente. Exemplo: 10,99 será salvo como R$ 10,99.</p>
-
-        <section class="product-section">
-          <h2 class="text-xl font-black text-slate-900 mb-2">Dimensões e Peso para Frete</h2>
-          <p class="text-gray-600 mb-4">Informe as medidas da embalagem de envio (em cm) e o peso real (em kg).</p>
-          <div class="dimensions-grid">
-            <div><label for="p-weight" class="block text-sm font-semibold text-gray-700 mb-1">Peso (kg)</label><input id="p-weight" type="text" inputmode="decimal" required class="w-full p-4 border rounded-xl" placeholder="Ex: 1,5"></div>
-            <div><label for="p-length" class="block text-sm font-semibold text-gray-700 mb-1">Comprimento (cm)</label><input id="p-length" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
-            <div><label for="p-width" class="block text-sm font-semibold text-gray-700 mb-1">Largura (cm)</label><input id="p-width" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
-            <div><label for="p-height" class="block text-sm font-semibold text-gray-700 mb-1">Altura (cm)</label><input id="p-height" type="number" step="1" min="1" required class="w-full p-4 border rounded-xl"></div>
-          </div>
-        </section>
-
-        <textarea id="p-desc" placeholder="Descrição" required class="w-full p-4 border rounded-xl min-h-[120px]"></textarea>
-
-        <button id="btn-submit" class="bg-primary-blue text-white py-4 rounded-xl font-black w-full">Publicar produto</button>
-      </form>
-    </main>
-  </div>
-
+<div class="space-y-3" id="toast-container"></div>
+<aside class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30" id="sidebar">
+        <a href="seller_dashboard.html" class="am-sidebar-logo"><span class="am-logo-wordmark" aria-label="Ariana Móveis"><span class="am-logo-ariana">ARIANA</span><span class="am-logo-moveis">MÓVEIS</span></span></a>
+        <nav class="flex flex-col space-y-2">
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_dashboard.html"><i class="fas fa-home"></i><span>Dashboard</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_produtos.html"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 bg-dark-gray-bg text-white" href="seller_produto_novo.html"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_produto_editar.html"><i class="fas fa-edit"></i><span>Editar Produto</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_pedidos.html"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_vendas.html"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_notificacoes.html"><i class="fas fa-bell"></i><span>Notificações</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_mercadopago.html"><i class="fas fa-credit-card"></i><span>Recebimentos</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_configuracoes.html"><i class="fas fa-cog"></i><span>Configurações</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_devolucoes.html"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="seller_extrato.html"><i class="fas fa-receipt"></i><span>Extrato</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400" href="#" id="btn-sair"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
+</nav>
+</aside>
+<div class="flex-1 flex flex-col overflow-hidden">
+<header class="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
+<button class="text-gray-500 focus:outline-none md:hidden" id="sidebar-toggle"><i class="fas fa-bars text-xl"></i></button>
+<h1 class="text-xl font-semibold">Painel do Seller</h1>
+<div class="flex items-center gap-4">
+<span class="text-sm font-medium text-gray-700" id="user-display-name">Bem-vindo, Seller!</span>
+<i class="fas fa-user-circle text-2xl text-primary-blue"></i>
+</div>
+</header>
+<main class="flex-1 overflow-x-hidden overflow-y-auto p-6">
+<h1 class="text-3xl font-black mb-8 text-slate-900">Novo produto</h1>
+<form class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6" id="product-form" novalidate>
+<input accept="image/*" class="w-full p-4 border rounded-xl" id="file-input" multiple="" type="file"/>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<input class="w-full p-4 border rounded-xl" id="p-name" placeholder="Nome do produto" required=""/>
+<div class="space-y-2">
+<label class="block text-sm font-bold text-slate-800">SKU</label>
+<div class="flex gap-2">
+<input class="w-full p-4 border rounded-xl uppercase" id="p-sku" placeholder="Ex: SOFA-001"/>
+<button class="px-4 rounded-xl bg-slate-100 font-bold whitespace-nowrap" id="btn-generate-sku" type="button">Gerar SKU</button>
+</div>
+<p class="text-xs text-gray-500">Se deixar em branco, o sistema gera um SKU único automaticamente.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<select class="w-full p-4 border rounded-xl" id="p-category" required="">
+<option value="">Selecione uma Categoria</option>
+</select>
+<select class="w-full p-4 border rounded-xl" id="p-subcategory">
+<option value="">Selecione uma Subcategoria</option>
+</select>
+<input class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600" id="p-categorySlug" placeholder="Slug da categoria" readonly="" type="text"/>
+<input class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600" id="p-subcategorySlug" placeholder="Slug da subcategoria" readonly="" type="text"/>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<input class="w-full p-4 border rounded-xl" id="p-stock" min="0" placeholder="Estoque" required="" type="number"/>
+<input class="w-full p-4 border rounded-xl" id="p-price" inputmode="decimal" placeholder="Preço. Ex: 10,99" required="" type="text"/>
+</div>
+<p class="text-xs text-gray-500 -mt-4">Use vírgula normalmente. Exemplo: 10,99 será salvo como R$ 10,99.</p>
+<section class="product-section">
+<h2 class="text-xl font-black text-slate-900 mb-2">Dimensões e Peso para Frete</h2>
+<p class="text-gray-600 mb-4">Informe as medidas da embalagem de envio (em cm) e o peso real (em kg).</p>
+<div class="dimensions-grid">
+<div><label class="block text-sm font-semibold text-gray-700 mb-1" for="p-weight">Peso (kg)</label><input class="w-full p-4 border rounded-xl" id="p-weight" inputmode="decimal" placeholder="Ex: 1,5" value="1" type="text"/></div>
+<div><label class="block text-sm font-semibold text-gray-700 mb-1" for="p-length">Comprimento (cm)</label><input class="w-full p-4 border rounded-xl" id="p-length" min="1" step="1" type="number" value="20"/></div>
+<div><label class="block text-sm font-semibold text-gray-700 mb-1" for="p-width">Largura (cm)</label><input class="w-full p-4 border rounded-xl" id="p-width" min="1" step="1" type="number" value="15"/></div>
+<div><label class="block text-sm font-semibold text-gray-700 mb-1" for="p-height">Altura (cm)</label><input class="w-full p-4 border rounded-xl" id="p-height" min="1" step="1" type="number" value="10"/></div>
+</div>
+</section>
+<textarea class="w-full p-4 border rounded-xl min-h-[120px]" id="p-desc" placeholder="Descrição" required=""></textarea>
+<button class="bg-primary-blue text-white py-4 rounded-xl font-black w-full" id="btn-submit" type="submit">Publicar produto</button>
+</form>
+</main>
+</div>
 <script>
-const IS_LOCAL_HOST = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
-const API_BASE = IS_LOCAL_HOST ? "http://localhost:3000/api" : (window.API_BASE || localStorage.getItem("API_BASE") || "https://ariana-backend.onrender.com/api");
+const API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  "https://ariana-backend.onrender.com/api";
+
+// IMPORTANTE:
+// Antes esta tela forçava http://localhost:3000/api quando era aberta em 127.0.0.1:5500.
+// Se o backend local não estivesse rodando, o produto nunca era salvo.
+// Agora ela usa o backend de produção por padrão. Para testar local, rode no Console:
+// localStorage.setItem("API_BASE", "http://localhost:3000/api")
 const $ = (id) => document.getElementById(id);
 
-function getSellerToken() { return localStorage.getItem("seller_token") || ""; }
-function getSellerProfile() { try { return JSON.parse(localStorage.getItem("seller_profile") || "{}") || {}; } catch (_) { return {}; } }
+function getSellerToken() { return localStorage.getItem("seller_token") || localStorage.getItem("sellerToken") || localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("jwt") || ""; }
+function getSellerProfile() { try { return JSON.parse(localStorage.getItem("seller_profile") || localStorage.getItem("seller") || "{}") || {}; } catch (_) { return {}; } }
 function clearSellerSession() { localStorage.removeItem("seller_token"); localStorage.removeItem("seller_profile"); localStorage.removeItem("seller_status"); localStorage.removeItem("seller_active"); localStorage.removeItem("partner_request_id"); }
 function authHeaders(extra = {}) { const token = getSellerToken(); return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra }; }
 function ensureSellerSession() { if (!getSellerToken()) { window.location.href = "seller_login.html"; return false; } return true; }
@@ -133,12 +327,159 @@ function parseMoneyBR(value) {
 }
 function parseInteger(value) { const n = parseInt(String(value || "0").replace(/\D/g, ""), 10); return Number.isFinite(n) ? n : 0; }
 function slugify(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
-function showToast(message, type = "info") { const box = $("toast-container"); if (!box) return alert(message); const el = document.createElement("div"); el.className = `toast px-4 py-3 rounded-xl text-white font-bold ${type === "error" ? "bg-error-red" : type === "success" ? "bg-success-green" : "bg-primary-blue"}`; el.textContent = message; box.appendChild(el); setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 250); }, 3000); }
-function toBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => resolve(reader.result); reader.onerror = reject; }); }
-async function loadCategories() { const select = $("p-category"); if (!select) return; try { const res = await fetch(`${API_BASE}/categories`); const raw = await res.json(); const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || []); if (!rows.length) return; select.innerHTML = '<option value="">Selecione uma Categoria</option>' + rows.filter(Boolean).map((c) => { const name = c.name || c.nome || c.category || "Sem nome"; const slug = c.slug || slugify(name); return `<option value="${String(name).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`; }).join(""); } catch (error) { console.warn("Falha ao carregar categorias:", error); } }
+function showToast(message, type = "info") { const box = $("toast-container"); if (!box) return alert(message); const el = document.createElement("div"); el.className = `toast px-4 py-3 rounded-xl text-white font-bold ${type === "error" ? "bg-error-red" : type === "success" ? "bg-success-green" : "bg-primary-blue"}`; el.textContent = message; box.appendChild(el); setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 250); }, 5200); }
+
+async function readJsonResponse(res) {
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { ok: false, error: text || `HTTP ${res.status}` }; }
+  if (res.status === 401 || res.status === 403) {
+    clearSellerSession();
+    window.location.href = "seller_login.html";
+    throw new Error("Sessão do seller expirada. Faça login novamente.");
+  }
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || data.message || `Erro HTTP ${res.status}`);
+  }
+  return data;
+}
+
+async function apiJson(path, options = {}) {
+  const url = String(path).startsWith('http') ? path : `${API_BASE}${path}`;
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (networkError) {
+    console.error("Falha de rede na API:", { url, options, networkError });
+    throw new Error(`Não consegui conectar no backend: ${url}`);
+  }
+
+  try {
+    return await readJsonResponse(res);
+  } catch (apiError) {
+    apiError.url = url;
+    apiError.status = res.status;
+    console.error("Erro retornado pelo backend:", {
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      error: apiError
+    });
+    throw apiError;
+  }
+}
+
+async function loadCategories() {
+  const select = $("p-category");
+  if (!select) return;
+
+  const fallbackCategories = [
+    { name: "Móveis", slug: "moveis" },
+    { name: "Eletrodomésticos", slug: "eletrodomesticos" },
+    { name: "Eletrônicos", slug: "eletronicos" },
+    { name: "Celulares", slug: "celulares" },
+    { name: "Informática", slug: "informatica" },
+    { name: "Ventilação", slug: "ventilacao" },
+    { name: "Som", slug: "som" },
+    { name: "Utilidades", slug: "utilidades" }
+  ];
+
+  function applyCategories(rows) {
+    const valid = (Array.isArray(rows) && rows.length ? rows : fallbackCategories).filter(Boolean);
+    select.innerHTML = '<option value="">Selecione uma Categoria</option>' + valid.map((c) => {
+      const name = c.name || c.nome || c.category || c.title || "Sem nome";
+      const slug = c.slug || c.id || slugify(name);
+      return `<option value="${escAttr(name)}" data-slug="${escAttr(slug)}">${escHtml(name)}</option>`;
+    }).join("");
+  }
+
+  try {
+    const raw = await apiJson('/categories');
+    const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || raw.categories || raw.data || []);
+    applyCategories(rows);
+  } catch (error) {
+    console.warn("Falha ao carregar categorias; usando categorias locais:", error);
+    applyCategories(fallbackCategories);
+  }
+}
+
+function escHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function escAttr(value) {
+  return escHtml(value).replace(/`/g, '&#96;');
+}
 function syncCategoryFields() { const categorySelect = $("p-category"); const subcategorySelect = $("p-subcategory"); const selectedCategory = categorySelect?.selectedOptions?.[0]; const selectedSubcategory = subcategorySelect?.selectedOptions?.[0]; if ($("p-categorySlug")) $("p-categorySlug").value = selectedCategory?.dataset?.slug || slugify(categorySelect?.value || ""); if ($("p-subcategorySlug")) $("p-subcategorySlug").value = selectedSubcategory?.dataset?.slug || slugify(subcategorySelect?.value || ""); }
 function generateSku() { const base = slugify($("p-name")?.value || "produto").replace(/-/g, "").slice(0, 8).toUpperCase() || "PRODUTO"; $("p-sku").value = `${base}-${Date.now().toString().slice(-6)}`; }
 
+function extractUploadedImageUrl(data = {}) {
+  return data.url || data.secure_url || data.secureUrl || data.imageUrl || data.downloadURL || data.downloadUrl || data.file?.url || data.file?.secure_url || data.result?.secure_url || data.result?.url || '';
+}
+
+async function uploadSellerImageFile(file, index = 0) {
+  if (!file || !file.type || !file.type.startsWith('image/')) throw new Error('Selecione apenas arquivos de imagem.');
+  if (file.size > 20 * 1024 * 1024) throw new Error(`A imagem ${file.name} passou de 20MB.`);
+
+  const endpoints = ['/seller/uploads', '/seller/upload', '/seller/products/upload', '/upload', '/admin/upload', '/admin/uploads'];
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('path', 'produtos/sellers');
+      fd.append('name', $("p-name")?.value?.trim() || file.name || `produto-${Date.now()}`);
+
+      const data = await apiJson(endpoint, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd
+      });
+
+      const url = extractUploadedImageUrl(data);
+      if (!url || !/^https?:\/\//i.test(String(url))) {
+        lastError = new Error('Upload concluído, mas o backend não retornou uma URL pública da imagem.');
+        continue;
+      }
+
+      return {
+        name: data.filename || data.originalname || file.name || `imagem_${index + 1}`,
+        url,
+        imageUrl: url,
+        path: data.path || data.public_id || data.publicId || data.fullPath || data.filePath || url,
+        publicId: data.public_id || data.publicId || '',
+        contentType: file.type || data.contentType || data.mimetype || '',
+        isMain: index === 0
+      };
+    } catch (err) {
+      lastError = err;
+      console.warn(`Falha no upload em ${endpoint}:`, err);
+    }
+  }
+
+  throw lastError || new Error('Não foi possível enviar a imagem para o backend.');
+}
+
+function renderPreview(files) {
+  let box = $('image-preview-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'image-preview-box';
+    box.className = 'grid grid-cols-2 md:grid-cols-4 gap-3 mt-3';
+    $('file-input')?.insertAdjacentElement('afterend', box);
+  }
+  box.innerHTML = '';
+  Array.from(files || []).slice(0, 8).forEach((file, index) => {
+    const url = URL.createObjectURL(file);
+    const card = document.createElement('div');
+    card.className = 'border rounded-xl overflow-hidden bg-slate-50';
+    card.innerHTML = `<img src="${url}" alt="Prévia da imagem"><div class="p-2">${index === 0 ? 'Principal • ' : ''}${file.name}</div>`;
+    box.appendChild(card);
+  });
+}
+
+$('file-input')?.addEventListener('change', (e) => renderPreview(e.target.files));
 $("btn-generate-sku")?.addEventListener("click", generateSku);
 $("p-name")?.addEventListener("blur", () => { if (!$("p-sku").value.trim()) generateSku(); });
 $("p-category")?.addEventListener("change", syncCategoryFields);
@@ -151,75 +492,114 @@ $("product-form")?.addEventListener("submit", async (e) => {
   if (!ensureSellerSession()) return;
 
   const btn = $("btn-submit");
+  const originalText = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publicando...';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando imagens...';
 
   try {
+    const name = $("p-name").value.trim();
     const price = parseMoneyBR($("p-price").value);
+    const stock = parseInteger($("p-stock").value);
+    const weight = parseMoneyBR($("p-weight").value) || 1;
+    const length = parseInteger($("p-length").value) || 20;
+    const width = parseInteger($("p-width").value) || 15;
+    const height = parseInteger($("p-height").value) || 10;
+    const category = $("p-category").value.trim();
+    const description = $("p-desc").value.trim();
+
+    if (!name) throw new Error("Informe o nome do produto.");
     if (price <= 0) throw new Error("Informe um preço válido. Exemplo: 10,99");
+    if (!category) throw new Error("Selecione uma categoria.");
+    if (stock < 0) throw new Error("Informe o estoque corretamente.");
+    if (!description) throw new Error("Informe a descrição do produto.");
+    if ($("p-weight")) $("p-weight").value = String(weight).replace(".", ",");
+    if ($("p-length")) $("p-length").value = String(length);
+    if ($("p-width")) $("p-width").value = String(width);
+    if ($("p-height")) $("p-height").value = String(height);
 
     const files = Array.from($("file-input")?.files || []);
-    const profile = getSellerProfile();
     const imageList = [];
 
-    for (const file of files) {
-      const dataUrl = await toBase64(file);
-      imageList.push({ name: file.name, url: dataUrl, isMain: imageList.length === 0 });
+    for (let i = 0; i < files.length; i += 1) {
+      btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando imagem ${i + 1}/${files.length}...`;
+      imageList.push(await uploadSellerImageFile(files[i], i));
     }
 
+    if (imageList.length && !imageList.some((img) => img.isMain)) imageList[0].isMain = true;
     const mainImageUrl = imageList.find((item) => item.isMain)?.url || imageList[0]?.url || "";
+
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando produto...';
+
     const dadosParaSalvar = {
-      name: $("p-name").value.trim(),
-      nome: $("p-name").value.trim(),
+      name,
+      nome: name,
+      title: name,
       sku: $("p-sku").value.trim() || `SKU-${Date.now()}`,
       price,
       preco: price,
       sellerBasePrice: price,
       pixPrice: price,
-      stock: parseInteger($("p-stock").value),
-      category: $("p-category").value,
-      categoria: $("p-category").value,
-      categorySlug: $("p-categorySlug").value || slugify($("p-category").value),
-      subcategory: $("p-subcategory").value,
+      stock,
+      estoque: stock,
+      category,
+      categoria: category,
+      categoryName: category,
+      categorySlug: $("p-categorySlug").value || slugify(category),
+      subcategory: $("p-subcategory").value.trim(),
+      subcategoria: $("p-subcategory").value.trim(),
+      subcategoryName: $("p-subcategory").value.trim(),
       subcategorySlug: $("p-subcategorySlug").value || slugify($("p-subcategory").value),
-      description: $("p-desc").value.trim(),
-      descricao: $("p-desc").value.trim(),
+      description,
+      descricao: description,
       imageUrl: mainImageUrl,
       mainImageUrl,
       image: mainImageUrl,
       imagem: mainImageUrl,
       images: imageList,
-      weight: parseMoneyBR($("p-weight").value),
-      length: parseInteger($("p-length").value),
-      width: parseInteger($("p-width").value),
-      height: parseInteger($("p-height").value),
-      sellerId: profile.sellerId || profile.id || profile._id || null,
-      sellerName: profile.factoryName || profile.storeName || profile.displayName || profile.name || "Seller",
-      active: true
+      imageUrls: imageList.map((img) => img.url).filter(Boolean),
+      imagePaths: imageList.map((img) => img.path || img.url).filter(Boolean),
+      weight,
+      peso: weight,
+      pesoKg: weight,
+      length,
+      comprimento: length,
+      width,
+      largura: width,
+      height,
+      altura: height,
+      active: true,
+      status: 'active'
     };
 
-    const res = await fetch(`${API_BASE}/seller/products`, {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(dadosParaSalvar)
-    });
+    const saveEndpoints = ['/seller/products', '/seller/products/new', '/seller/product'];
+    let saved = false;
+    let lastSaveError = null;
 
-    if (res.status === 401 || res.status === 403) {
-      clearSellerSession();
-      window.location.href = "seller_login.html";
-      return;
+    for (const endpoint of saveEndpoints) {
+      try {
+        await apiJson(endpoint, {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(dadosParaSalvar)
+        });
+        saved = true;
+        break;
+      } catch (saveError) {
+        lastSaveError = saveError;
+        console.warn('Falha ao salvar produto em ' + endpoint + ':', saveError);
+      }
     }
 
-    const result = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(result.error || result.message || "Erro ao publicar produto.");
+    if (!saved) throw lastSaveError || new Error('Não foi possível salvar o produto no backend.');
 
     showToast("Produto cadastrado com sucesso!", "success");
-    window.location.href = "seller_produtos.html";
+    setTimeout(() => { window.location.href = "seller_produtos.html"; }, 700);
   } catch (err) {
-    console.error(err);
-    showToast(err.message || "Erro ao publicar. Verifique a conexão.", "error");
+    console.error('Erro ao cadastrar produto seller:', err);
+    const detalhe = err?.status ? `HTTP ${err.status} - ${err.message}` : (err?.message || "Erro ao publicar. Verifique a conexão.");
+    showToast(detalhe, "error");
     btn.disabled = false;
-    btn.innerHTML = "Publicar produto";
+    btn.innerHTML = originalText || "Publicar produto";
   }
 });
 
@@ -229,9 +609,26 @@ window.onload = async () => {
   await loadCategories();
   syncCategoryFields();
 };
+
 </script>
-<script src="js/product-card.js" defer></script>
-<script src="./product-card.js"></script>
-<script src="js/layout-fit.js" defer></script>
+<script defer="" src="js/product-card.js"></script>
+<script defer="" src="js/layout-fit.js"></script>
+
+
+<script id="ariana-seller-professional-ui-js">
+(function(){
+  try{
+    var page=(location.pathname.split('/').pop()||'').toLowerCase();
+    document.querySelectorAll('aside a, .side .nav button').forEach(function(el){
+      var href=(el.getAttribute('href')||'').toLowerCase();
+      if(href && href.indexOf(page)>=0){el.classList.add('active');}
+    });
+    document.querySelectorAll('aside#sidebar .px-4:first-child span').forEach(function(el){
+      if(/ariana/i.test(el.textContent||'')) el.textContent='ARIANA MÓVEIS';
+    });
+  }catch(e){}
+})();
+</script>
+
 </body>
 </html>

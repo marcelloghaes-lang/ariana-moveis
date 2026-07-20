@@ -161,6 +161,12 @@
       </section>
 
       <div class="flex flex-col sm:flex-row justify-between space-y-4 sm:space-y-0 sm:space-x-4 border-t pt-6">
+
+      <div id="cora-carne-section" class="hidden mt-6 bg-white border border-indigo-100 rounded-2xl p-5 text-left">
+        <div class="flex items-center justify-between gap-3 flex-wrap"><div><h3 class="font-black text-lg text-indigo-900">🏦 Crediário Ariana</h3><p class="text-sm text-gray-500">Carnê e situação das parcelas</p></div><a id="cora-carne-pdf" target="_blank" class="hidden bg-indigo-600 text-white font-bold px-4 py-2 rounded-lg">Abrir PDF do carnê</a></div>
+        <div id="cora-carne-summary" class="mt-4"></div><div id="cora-installments-list" class="mt-4 space-y-3"></div>
+      </div>
+
         <a href="minha_conta.html#pedidos" class="flex-1 bg-primary-blue text-white font-bold py-3 px-6 rounded-lg text-center hover:bg-opacity-90 transition duration-150">
           <i class="fas fa-box-open mr-2"></i> Acompanhar Meu Pedido
         </a>
@@ -774,5 +780,15 @@
       boot();
     });
   </script>
+
+<script>
+(function fase6Confirmado(){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
+  function render(order){const c=order?.crediario||((order?.payment?.provider==='cora')?order.payment:null);if(!c)return;const section=document.getElementById('cora-carne-section');section?.classList.remove('hidden');const url=c.documentUrl||c.document_url||c.providerResponse?.document_url;const a=document.getElementById('cora-carne-pdf');if(url&&a){a.href=url;a.classList.remove('hidden');}const inv=c.invoices||c.providerResponse?.invoices||c.installments||[];const paid=inv.filter(x=>String(x.status||'').toUpperCase()==='PAID').length;document.getElementById('cora-carne-summary').innerHTML='<div class="grid grid-cols-2 md:grid-cols-4 gap-3"><div><small>Status</small><br><b>'+esc(c.status||'OPEN')+'</b></div><div><small>Parcelas</small><br><b>'+inv.length+'</b></div><div><small>Pagas</small><br><b>'+paid+'</b></div><div><small>Em aberto</small><br><b>'+Math.max(0,inv.length-paid)+'</b></div></div>';document.getElementById('cora-installments-list').innerHTML=inv.map((x,i)=>{const bs=x.bank_slip||x.bankSlip||{};const st=String(x.status||'OPEN').toUpperCase();return '<div class="border rounded-xl p-4"><div class="flex justify-between gap-3"><b>Parcela '+(i+1)+'/'+inv.length+'</b><span class="font-bold '+(st==='PAID'?'text-green-600':'text-amber-600')+'">'+esc(st==='PAID'?'Paga':st)+'</span></div><div class="text-sm text-gray-600 mt-2">Vencimento: '+esc(x.due_date||x.dueDate||'—')+' • Valor: '+money(x.amount||x.total_amount||0)+'</div>'+(bs.digitable?'<div class="mt-2 text-xs break-all"><b>Linha digitável:</b> '+esc(bs.digitable)+'</div>':'')+(bs.barcode?'<div class="mt-1 text-xs break-all"><b>Código de barras:</b> '+esc(bs.barcode)+'</div>':'')+(bs.url?'<a target="_blank" class="inline-block mt-3 text-primary-blue font-bold underline" href="'+esc(bs.url)+'">Abrir boleto</a>':'')+'</div>';}).join('')||'<p class="text-gray-500">Carnê emitido. As parcelas serão carregadas assim que o backend retornar os boletos.</p>'; }
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{render(window.orderData||JSON.parse(localStorage.getItem('arianaLastOrder')||'null'));}catch(_e){}},1200);});
+  const timer=setInterval(()=>{if(window.orderData){render(window.orderData);clearInterval(timer);}},500);setTimeout(()=>clearInterval(timer),10000);
+})();
+</script>
 </body>
 </html>

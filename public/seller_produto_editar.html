@@ -20,14 +20,210 @@
     .dimensions-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
     @media (max-width:640px){.dimensions-grid{grid-template-columns:repeat(2,1fr)}}
     .preview-img{width:86px;height:86px;object-fit:cover;border-radius:14px;border:1px solid #e5e7eb;background:#f8fafc}
-  </style>
+  
+/* ===== Ariana Seller UI Profissional - 07/07/2026 ===== */
+body{background:#eef3f8!important;color:#0f172a!important}
+#sidebar{background:linear-gradient(180deg,#122338 0%,#172b43 100%)!important;box-shadow:12px 0 30px rgba(15,23,42,.08)}
+#sidebar a{border-radius:14px!important;font-weight:750!important}
+#sidebar nav a:hover,#sidebar nav a.bg-dark-gray-bg{background:rgba(255,255,255,.12)!important}
+header{height:72px;background:rgba(255,255,255,.95)!important;backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
+main{padding:28px!important}
+main>h1,.page-title{letter-spacing:-.035em}
+#product-form{max-width:1040px!important;margin:0 auto!important;border:1px solid #dbe4ee!important;box-shadow:0 18px 60px rgba(15,23,42,.10)!important;border-radius:28px!important;background:#fff!important}
+.product-section{background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)!important;border:1px solid #dbe4ee!important;border-radius:22px!important;box-shadow:0 8px 22px rgba(15,23,42,.04)!important}
+input,select,textarea{border-color:#d7e0ea!important;background:#fff!important;color:#0f172a!important;box-shadow:0 1px 0 rgba(15,23,42,.02)!important;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease!important}
+input:focus,select:focus,textarea:focus{outline:none!important;border-color:#2E6DA4!important;box-shadow:0 0 0 4px rgba(46,109,164,.14)!important}
+input[readonly]{background:#f8fafc!important;color:#64748b!important}
+#file-input{border:2px dashed #b8c6d6!important;background:#f8fbff!important;border-radius:22px!important;cursor:pointer!important;padding:22px!important}
+#file-input:hover{border-color:#2E6DA4!important;background:#f1f7ff!important}
+#image-preview-box,#image-preview{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(138px,1fr))!important;gap:14px!important;margin-top:16px!important}
+#image-preview-box>div,#image-preview .image-card{background:#f8fafc!important;border:1px solid #dbe4ee!important;border-radius:18px!important;overflow:hidden!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+#image-preview-box img,#image-preview img.preview-img,#image-preview img{width:100%!important;height:118px!important;object-fit:contain!important;background:linear-gradient(135deg,#f8fafc 0%,#edf2f7 100%)!important;padding:10px!important;border:0!important;border-radius:0!important;filter:none!important}
+#image-preview-box .p-2,#image-preview .image-label{padding:10px 12px!important;font-size:12px!important;font-weight:800!important;color:#475569!important;background:white!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#btn-submit{background:linear-gradient(135deg,#0b63ce,#0047AB)!important;box-shadow:0 14px 30px rgba(0,71,171,.24)!important;border-radius:18px!important;letter-spacing:.01em!important}
+#btn-submit:hover{filter:brightness(1.03)!important;transform:translateY(-1px)!important}
+#btn-submit:disabled{opacity:.72!important;cursor:not-allowed!important;transform:none!important}
+.dimensions-grid input{text-align:center;font-weight:800!important}
+@media(max-width:768px){main{padding:16px!important}#product-form{padding:18px!important;border-radius:22px!important}#image-preview-box,#image-preview{grid-template-columns:repeat(2,1fr)!important}}
+
+  
+
+/* PATCH: logo padrão Ariana Móveis igual ao Dashboard - somente logo */
+.am-sidebar-logo{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  padding:0 1rem 20px 1rem!important;
+  margin:0 0 18px 0!important;
+  min-height:58px!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow:visible!important;
+  border-bottom:1px solid rgba(255,255,255,.13)!important;
+  text-decoration:none!important;
+}
+.am-logo-wordmark{
+  display:inline-flex!important;
+  align-items:flex-end!important;
+  gap:.34em!important;
+  line-height:.88!important;
+  white-space:nowrap!important;
+  font-family:Inter,Arial,sans-serif!important;
+  font-style:italic!important;
+  font-weight:1000!important;
+  letter-spacing:-.055em!important;
+  text-transform:uppercase!important;
+  font-size:28px!important;
+  width:auto!important;
+  max-width:none!important;
+  overflow:visible!important;
+  transform:none!important;
+}
+.am-logo-wordmark .am-logo-ariana{
+  color:#fff!important;
+  font-size:1em!important;
+  font-weight:1000!important;
+  line-height:.88!important;
+}
+.am-logo-wordmark .am-logo-moveis{
+  color:#56B5FF!important;
+  font-size:.50em!important;
+  font-weight:1000!important;
+  margin-bottom:.12em!important;
+  letter-spacing:-.035em!important;
+  line-height:.9!important;
+}
+aside#sidebar .am-logo-wordmark,
+.side .am-logo-wordmark,
+.sidebar .am-logo-wordmark,
+.bg-dark-bg .am-logo-wordmark{
+  font-size:28px!important;
+  transform:none!important;
+  overflow:visible!important;
+}
+aside#sidebar > a.am-sidebar-logo,
+aside#sidebar > a.text-white:first-of-type,
+.sidebar > a.am-sidebar-logo,
+.side > a.am-sidebar-logo{
+  display:flex!important;
+  align-items:center!important;
+  padding-left:1rem!important;
+  padding-right:1rem!important;
+  margin-bottom:1.15rem!important;
+  min-height:58px!important;
+  overflow:visible!important;
+}
+aside#sidebar .px-4:first-child::before,
+.side h1::before,
+.sidebar .brand-mark,
+.brand-mark{
+  content:none!important;
+  display:none!important;
+}
+
+</style>
+
+
+<!-- PATCH VISUAL PROFISSIONAL ARIANA MÓVEIS - 2026-07-09 -->
+<style id="ariana-seller-professional-ui">
+:root{
+  --am-blue:#0047AB!important;
+  --am-blue-2:#063b86!important;
+  --am-yellow:#ffd43b!important;
+  --am-bg:#f3f6fb!important;
+  --am-card:#ffffff!important;
+  --am-text:#0f172a!important;
+  --am-muted:#64748b!important;
+  --am-line:#e2e8f0!important;
+  --am-shadow:0 14px 34px rgba(15,23,42,.075)!important;
+}
+html,body{font-family:Inter,Arial,sans-serif!important;background:var(--am-bg)!important;color:var(--am-text)!important;}
+body{letter-spacing:-.01em;}
+/* Fundos antigos */
+.bg-gray-100,.bg-fundo,.bg-slate-50{background:var(--am-bg)!important}.text-primary-blue{color:var(--am-blue)!important}.bg-primary-blue{background:var(--am-blue)!important}.border-primary-blue{border-color:var(--am-blue)!important}
+/* Sidebar Seller/Admin */
+aside#sidebar, aside.sidebar, .side, .sidebar, .bg-dark-bg, .bg-dark-gray-bg{
+  background:linear-gradient(180deg,#0047AB 0%,#052b63 54%,#061f45 100%)!important;
+  box-shadow:14px 0 36px rgba(15,23,42,.12)!important;
+}
+aside#sidebar, .side, .sidebar{border-right:1px solid rgba(255,255,255,.08)!important;}
+aside#sidebar .px-4:first-child span, aside#sidebar .px-4:first-child, .side h1, .sidebar .brand, .sidebar h1{
+  color:#fff!important;letter-spacing:.01em!important;
+}
+aside#sidebar .px-4:first-child, .side h1{
+  padding-bottom:20px!important;margin-bottom:18px!important;border-bottom:1px solid rgba(255,255,255,.13)!important;
+}
+aside#sidebar nav a, .nav button, .sidebar-link, aside nav a{
+  display:flex!important;align-items:center!important;gap:12px!important;border-radius:16px!important;padding:12px 14px!important;color:rgba(255,255,255,.86)!important;font-weight:850!important;text-decoration:none!important;transition:.16s ease!important;background:transparent!important;box-shadow:none!important;
+}
+aside#sidebar nav a:hover, aside#sidebar nav a.active, .nav button:hover, .nav button.active, .sidebar-link:hover, .sidebar-link.active, aside nav a:hover{
+  background:rgba(255,255,255,.14)!important;color:#fff!important;transform:translateX(2px)!important;
+}
+#btn-sair, a[id*="sair"], a[href="#"][id*="logout"], #logout-btn{color:#fecaca!important;margin-top:18px!important;}
+/* Área principal */
+main, .main, .flex-1, .flex-grow{min-width:0!important;}
+.main, main.flex-grow, .flex-1.flex.flex-col, body>div.flex-1{background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 330px,#f3f6fb 100%)!important;}
+header, .topbar, .top, .bg-white.border-b{
+  background:rgba(255,255,255,.92)!important;backdrop-filter:blur(14px)!important;border-color:rgba(226,232,240,.9)!important;
+}
+h1,h2,h3{color:var(--am-text)!important;line-height:1.12!important;}
+p,.help,.sub,.muted,.text-gray-600,.text-slate-500{color:var(--am-muted)!important;}
+/* Cards e painéis */
+.card,.box,.stat,.quick-card,.rounded-2xl.bg-white,.bg-white.rounded-2xl,.seller-form-card,section.bg-white,.shadow-soft,.receipt,.empty,[class*="shadow"]{
+  border:1px solid var(--am-line)!important;border-radius:24px!important;background:#fff!important;box-shadow:var(--am-shadow)!important;
+}
+.card{padding:20px!important;}
+.stat{padding:18px!important;}
+.stat small,.label,label,.text-xs.uppercase{font-size:11px!important;font-weight:950!important;text-transform:uppercase!important;letter-spacing:.055em!important;color:var(--am-muted)!important;}
+.stat b{font-size:30px!important;color:var(--am-blue)!important;}
+/* Botões */
+button,a[class*="bg-primary-blue"],.primary,.btn-primary,.green,.yellow,.light,.gray,.red,.small,
+button.bg-primary-blue,button.bg-blue-600,button.bg-green-600,button.bg-red-600{
+  border-radius:14px!important;min-height:42px!important;font-weight:900!important;transition:.16s ease!important;text-decoration:none!important;border:1px solid transparent!important;
+}
+button:hover,a[class*="bg-primary-blue"]:hover{transform:translateY(-1px)!important;filter:brightness(.98)!important;}
+.primary,button.bg-primary-blue,.bg-primary-blue,a.bg-primary-blue{background:var(--am-blue)!important;color:#fff!important;box-shadow:0 10px 22px rgba(0,71,171,.18)!important;}
+.light,.gray{background:#f8fafc!important;color:#10213f!important;border-color:#dbe3ee!important;}
+.green,button.bg-green-600{background:#16a34a!important;color:#fff!important;}
+.red,button.bg-red-600{background:#dc2626!important;color:#fff!important;}
+.yellow{background:var(--am-yellow)!important;color:#10213f!important;border-color:#facc15!important;}
+/* Inputs */
+input,select,textarea,.seller-input{
+  border:1px solid #d7dee9!important;border-radius:15px!important;background:#fff!important;min-height:44px!important;font-weight:650!important;color:#0f172a!important;
+}
+input:focus,select:focus,textarea:focus,.seller-input:focus{border-color:var(--am-blue)!important;box-shadow:0 0 0 4px rgba(0,71,171,.12)!important;}
+/* Tabelas/listas */
+table{border-collapse:separate!important;border-spacing:0 10px!important;width:100%!important;}
+thead th{font-size:11px!important;text-transform:uppercase!important;color:var(--am-muted)!important;letter-spacing:.05em!important;border:0!important;background:transparent!important;}
+tbody tr{background:#fff!important;box-shadow:0 8px 18px rgba(15,23,42,.04)!important;}
+tbody td{border-top:1px solid #edf2f7!important;border-bottom:1px solid #edf2f7!important;padding:14px!important;}
+tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 0 0 16px!important;}tbody td:last-child{border-right:1px solid #edf2f7!important;border-radius:0 16px 16px 0!important;}
+/* Badges */
+.pill,.badge,.status-novo,.status-respondido,[class*="status-"]{border-radius:999px!important;padding:6px 10px!important;font-size:11px!important;font-weight:950!important;}
+/* Grids comuns */
+.stats{gap:14px!important}.filters{gap:12px!important}.quick-grid{gap:14px!important}.form-grid{gap:12px!important}.action-bar{gap:10px!important;}
+/* Responsivo */
+@media(max-width:920px){
+  body{display:block!important;}
+  aside#sidebar,.side{position:static!important;width:100%!important;min-height:auto!important;height:auto!important;transform:none!important;padding:18px!important;}
+  aside#sidebar nav,.nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
+  .main,main,.flex-1,.flex-grow{margin-left:0!important;max-width:none!important;width:100%!important;padding:14px!important;}
+  header,.top{position:sticky!important;top:0!important;z-index:20!important;padding:14px!important;}
+  .stats{grid-template-columns:1fr 1fr!important;}
+  .filters,.layout,.form-grid,.action-bar,.quick-grid{grid-template-columns:1fr!important;}
+  .card,.box{border-radius:20px!important;padding:16px!important;}
+  button,.primary,.light,.green,.red,.yellow,.gray{width:100%!important;}
+}
+@media(max-width:560px){.stats{grid-template-columns:1fr!important;} aside#sidebar nav,.nav{grid-template-columns:1fr!important;}}
+</style>
+
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
   <div id="toast-container" class="space-y-3"></div>
 
   <aside id="sidebar" class="bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30">
-    <a href="seller_dashboard.html" class="text-white flex items-center space-x-2 px-4"><span class="text-2xl font-extrabold tracking-widest">ARIANA MÓVEIS</span></a>
-    <nav class="flex flex-col space-y-2">
+        <a href="seller_dashboard.html" class="am-sidebar-logo"><span class="am-logo-wordmark" aria-label="Ariana Móveis"><span class="am-logo-ariana">ARIANA</span><span class="am-logo-moveis">MÓVEIS</span></span></a>
+        <nav class="flex flex-col space-y-2">
       <a href="seller_dashboard.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-home"></i><span>Dashboard</span></a>
       <a href="seller_produtos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-box"></i><span>Meus Produtos</span></a>
       <a href="seller_produto_novo.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-plus-circle"></i><span>Cadastrar Produto</span></a>
@@ -59,7 +255,7 @@
         <div>
           <h1 class="text-3xl font-black text-slate-900">Editar produto</h1>
           <p class="text-sm text-gray-500 mt-1">Altere somente produtos da sua loja.</p>
-        </div>
+</div>
         <span id="productIdPill" class="hidden bg-slate-100 text-slate-700 px-3 py-2 rounded-xl text-xs font-mono"></span>
       </div>
 
@@ -140,9 +336,12 @@
 
 <script>
 const API_BASE =
-  (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
-    ? 'http://localhost:3000/api'
-    : 'https://ariana-backend.onrender.com/api';
+  window.API_BASE ||
+  localStorage.getItem('API_BASE') ||
+  'https://ariana-backend.onrender.com/api';
+
+// Para testar backend local manualmente, use no Console:
+// localStorage.setItem('API_BASE', 'http://localhost:3000/api')
 window.API_BASE = API_BASE;
 try {
   localStorage.setItem('API_BASE', API_BASE);
@@ -227,61 +426,249 @@ function renderPreviewFromProduct(product = {}) {
   }
   const main = resolveImageUrl(product);
   if (main && !urls.includes(main)) urls.unshift(main);
-  box.innerHTML = urls.slice(0, 8).map((url) => `<img class="preview-img" src="${String(url).replace(/"/g, '&quot;')}" alt="Imagem do produto">`).join('');
+  box.innerHTML = urls.slice(0, 8).map((url, index) => `<div class="image-card"><img class="preview-img" src="${String(url).replace(/"/g, '&quot;')}" alt="Imagem do produto"><div class="image-label">${index === 0 ? 'Principal' : 'Imagem ' + (index + 1)}</div></div>`).join('');
 }
-function toBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-  });
+async function uploadSellerImageFile(file) {
+  const endpoints = ['/seller/uploads', '/seller/products/upload'];
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('path', 'produtos/sellers');
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 401 || res.status === 403) {
+        clearSellerSession();
+        window.location.href = 'seller_login.html';
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
+      if (!res.ok || data.ok === false) {
+        lastError = new Error(data.error || data.message || `Falha no upload da imagem (${res.status})`);
+        continue;
+      }
+
+      const url = data.url || data.secure_url || data.imageUrl || data.downloadURL || data.downloadUrl || data.file?.url || data.file?.secure_url;
+      if (!url || !/^https?:\/\//i.test(String(url))) {
+        lastError = new Error('Upload concluído, mas o backend não retornou uma URL pública da imagem.');
+        continue;
+      }
+
+      return {
+        name: data.filename || data.originalname || file.name || `imagem_${Date.now()}`,
+        url,
+        imageUrl: url,
+        path: data.path || data.public_id || data.publicId || data.fullPath || data.filePath || url,
+        publicId: data.public_id || data.publicId || '',
+        contentType: file.type || data.contentType || data.mimetype || '',
+        isMain: false
+      };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('Não foi possível enviar a imagem.');
+}
+function normalizeImageItem(item, index = 0) {
+  const url = typeof item === 'string' ? item : (item?.url || item?.imageUrl || item?.secure_url || '');
+  if (!url || !/^https?:\/\//i.test(String(url))) return null;
+  return {
+    name: typeof item === 'object' ? (item.name || item.filename || `imagem_${index + 1}`) : `imagem_${index + 1}`,
+    url,
+    imageUrl: url,
+    path: typeof item === 'object' ? (item.path || item.publicId || item.public_id || url) : url,
+    publicId: typeof item === 'object' ? (item.publicId || item.public_id || '') : '',
+    contentType: typeof item === 'object' ? (item.contentType || item.mimetype || '') : '',
+    isMain: typeof item === 'object' ? Boolean(item.isMain) : index === 0
+  };
+}
+function extractArrayFromPayload(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  if (Array.isArray(raw.categories)) return raw.categories;
+  if (Array.isArray(raw.categorias)) return raw.categorias;
+  if (Array.isArray(raw.items)) return raw.items;
+  if (Array.isArray(raw.results)) return raw.results;
+  if (Array.isArray(raw.docs)) return raw.docs;
+  if (Array.isArray(raw.data)) return raw.data;
+  if (raw.data && typeof raw.data === 'object') return extractArrayFromPayload(raw.data);
+  if (Array.isArray(raw.rows)) return raw.rows;
+  return [];
+}
+function catName(c) {
+  if (typeof c === 'string') return c;
+  return c?.name || c?.nome || c?.title || c?.titulo || c?.category || c?.categoria || c?.label || 'Sem nome';
+}
+function catSlug(c) {
+  if (typeof c === 'string') return slugify(c);
+  return c?.slug || c?.categorySlug || c?.categoriaSlug || slugify(catName(c));
+}
+function catId(c) {
+  if (typeof c === 'string') return slugify(c);
+  return String(c?.id || c?._id || c?.codigo || catSlug(c) || catName(c));
 }
 function normalizeCategoryRows(raw) {
-  const rows = Array.isArray(raw) ? raw : (raw.items || raw.results || raw.docs || raw.categories || raw.data || raw.rows || []);
-  return rows.filter(Boolean);
+  const source = extractArrayFromPayload(raw);
+  const categories = [];
+  const subcategories = [];
+
+  source.filter(Boolean).forEach((item) => {
+    if (typeof item === 'string') {
+      categories.push({ name: item, slug: slugify(item), id: slugify(item) });
+      return;
+    }
+
+    const name = catName(item);
+    const slug = catSlug(item);
+    const id = catId(item);
+    const active = item.active !== false && item.ativo !== false && String(item.status || '').toLowerCase() !== 'inativo' && String(item.status || '').toLowerCase() !== 'inactive';
+    if (!active) return;
+
+    const parent = item.parentId || item.parent_id || item.parent || item.categoryId || item.categoriaId || item.parentCategory || item.categoriaPai || item.parentSlug;
+    const nested = item.subcategories || item.subCategorias || item.subCategories || item.children || item.childrens || item.subs || [];
+
+    if (parent) {
+      subcategories.push({ ...item, name, slug, id, parentId: parent });
+    } else {
+      categories.push({ ...item, name, slug, id });
+    }
+
+    if (Array.isArray(nested)) {
+      nested.filter(Boolean).forEach((sub) => {
+        const subName = catName(sub);
+        const subSlug = catSlug(sub);
+        const subId = catId(sub);
+        subcategories.push({
+          ...(typeof sub === 'object' ? sub : {}),
+          name: subName,
+          slug: subSlug,
+          id: subId,
+          parentId: id,
+          parentSlug: slug,
+          parentName: name
+        });
+      });
+    }
+  });
+
+  return { categories, subcategories };
 }
+async function fetchCategoriesFromBackend() {
+  const endpoints = [
+    '/categories',
+    '/admin/categories',
+    '/seller/categories',
+    '/seller/product-categories',
+    '/seller/products/categories'
+  ];
+
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, { headers: authHeaders() });
+      const raw = await res.json().catch(() => ({}));
+      if (!res.ok || raw.ok === false) {
+        lastError = new Error(raw.error || raw.message || `Erro ${res.status} em ${endpoint}`);
+        continue;
+      }
+      const normalized = normalizeCategoryRows(raw);
+      if (normalized.categories.length || normalized.subcategories.length) return normalized;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('Nenhuma rota de categoria retornou dados.');
+}
+
+const FALLBACK_CATEGORIES = [
+  { name: 'Móveis', slug: 'moveis', id: 'moveis' },
+  { name: 'Eletrodomésticos', slug: 'eletrodomesticos', id: 'eletrodomesticos' },
+  { name: 'Eletrônicos', slug: 'eletronicos', id: 'eletronicos' },
+  { name: 'Celulares', slug: 'celulares', id: 'celulares' },
+  { name: 'Informática', slug: 'informatica', id: 'informatica' },
+  { name: 'Ventilação', slug: 'ventilacao', id: 'ventilacao' },
+  { name: 'Som', slug: 'som', id: 'som' },
+  { name: 'Utilidades', slug: 'utilidades', id: 'utilidades' }
+];
+function renderCategoryOptions(rows) {
+  const select = $('p-category');
+  if (!select) return;
+  select.innerHTML = '<option value="">Selecione uma Categoria</option>' + rows.map((c) => {
+    const name = catName(c);
+    const slug = catSlug(c);
+    const id = catId(c);
+    return `<option value="${escHtml(name)}" data-id="${escHtml(id)}" data-slug="${escHtml(slug)}">${escHtml(name)}</option>`;
+  }).join('');
+}
+
 async function loadCategories() {
   const select = $('p-category');
   if (!select) return;
   try {
-    const tries = [`${API_BASE}/categories`, `${API_BASE}/admin/categories`];
-    let rows = [];
-    for (const url of tries) {
-      const res = await fetch(url, { headers: authHeaders() });
-      if (!res.ok) continue;
-      rows = normalizeCategoryRows(await res.json().catch(() => []));
-      if (rows.length) break;
+    const normalized = await fetchCategoriesFromBackend();
+    loadedCategories = normalized.categories;
+    loadedSubcategories = normalized.subcategories;
+
+    if (!loadedCategories.length && loadedSubcategories.length) {
+      loadedCategories = loadedSubcategories.map((s) => ({
+        name: s.parentName || s.parent || s.parentId || 'Categoria',
+        slug: s.parentSlug || slugify(s.parentName || s.parent || s.parentId || 'categoria'),
+        id: s.parentId || s.parentSlug || slugify(s.parentName || 'categoria')
+      }));
     }
-    loadedCategories = rows.filter((c) => !c.parentId && !c.parent_id && !c.parent && c.active !== false && String(c.status || '').toLowerCase() !== 'inativo' && String(c.status || '').toLowerCase() !== 'inactive');
-    loadedSubcategories = rows.filter((c) => (c.parentId || c.parent_id || c.parent) && c.active !== false && String(c.status || '').toLowerCase() !== 'inativo' && String(c.status || '').toLowerCase() !== 'inactive');
-    if (!loadedCategories.length) loadedCategories = rows.filter((c) => c.active !== false && String(c.status || '').toLowerCase() !== 'inativo' && String(c.status || '').toLowerCase() !== 'inactive');
-    select.innerHTML = '<option value="">Selecione uma Categoria</option>' + loadedCategories.map((c) => {
-      const name = c.name || c.nome || c.category || 'Sem nome';
-      const slug = c.slug || slugify(name);
-      const id = c.id || c._id || slug;
-      return `<option value="${String(name).replace(/"/g, '&quot;')}" data-id="${String(id).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`;
-    }).join('');
+
+    if (!loadedCategories.length) loadedCategories = FALLBACK_CATEGORIES;
+
+    const seen = new Set();
+    loadedCategories = loadedCategories.filter((c) => {
+      const key = String(catId(c) || catSlug(c) || catName(c)).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    renderCategoryOptions(loadedCategories);
   } catch (error) {
-    console.warn('Falha ao carregar categorias:', error);
+    console.warn('Falha ao carregar categorias do backend; usando categorias locais:', error);
+    loadedCategories = FALLBACK_CATEGORIES;
+    loadedSubcategories = [];
+    renderCategoryOptions(loadedCategories);
+    showToast('Categorias carregadas em modo local. O produto ainda pode ser salvo normalmente.', 'info');
   }
 }
+
 function loadSubcategoriesForSelected() {
   const categorySelect = $('p-category');
   const subSelect = $('p-subcategory');
   if (!categorySelect || !subSelect) return;
   const selected = categorySelect.selectedOptions?.[0];
-  const catId = selected?.dataset?.id || '';
-  const catSlug = selected?.dataset?.slug || slugify(categorySelect.value);
-  const catName = categorySelect.value;
+  const catIdValue = selected?.dataset?.id || '';
+  const catSlugValue = selected?.dataset?.slug || slugify(categorySelect.value);
+  const catNameValue = categorySelect.value;
+  const keys = [catIdValue, catSlugValue, catNameValue].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+
   const subs = loadedSubcategories.filter((c) => {
-    const parent = String(c.parentId || c.parent_id || c.parent || '').trim();
-    return parent === catId || parent === catSlug || parent === catName;
+    const parentValues = [c.parentId, c.parent_id, c.parent, c.categoryId, c.categoriaId, c.parentSlug, c.parentName, c.categoriaPai]
+      .map((v) => String(v || '').trim().toLowerCase())
+      .filter(Boolean);
+    return parentValues.some((p) => keys.includes(p));
   });
+
   subSelect.innerHTML = '<option value="">Selecione uma Subcategoria</option>' + subs.map((c) => {
-    const name = c.name || c.nome || c.category || 'Sem nome';
-    const slug = c.slug || slugify(name);
-    return `<option value="${String(name).replace(/"/g, '&quot;')}" data-slug="${String(slug).replace(/"/g, '&quot;')}">${name}</option>`;
+    const name = catName(c);
+    const slug = catSlug(c);
+    const id = catId(c);
+    return `<option value="${escHtml(name)}" data-id="${escHtml(id)}" data-slug="${escHtml(slug)}">${escHtml(name)}</option>`;
   }).join('');
 }
 function syncCategoryFields() {
@@ -342,12 +729,18 @@ function generateSku() {
 async function loadProduct() {
   if (!ensureSellerSession()) return;
   applySellerHeaderName();
+
+  // Carrega as categorias SEM depender de um produto selecionado.
+  // Antes, quando a tela era aberta direto sem ?id=..., a função retornava antes
+  // de preencher o select, deixando apenas "Selecione uma Categoria".
+  await loadCategories();
+  syncCategoryFields();
+
   if (!productId) {
-    showToast('Produto não informado. Abra a edição pela lista Meus Produtos.', 'error');
+    showToast('Escolha um produto em Meus Produtos para editar. As categorias já foram carregadas.', 'info');
     return;
   }
   try {
-    await loadCategories();
     const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`, { headers: authHeaders() });
     if (res.status === 401 || res.status === 403) {
       clearSellerSession();
@@ -384,15 +777,33 @@ async function loadProduct() {
 }
 async function buildImagesPayload() {
   const files = Array.from($('file-input')?.files || []);
+
   if (!files.length) {
-    if (Array.isArray(currentProduct?.images) && currentProduct.images.length) return currentProduct.images;
+    const currentImages = [];
+    if (Array.isArray(currentProduct?.images)) {
+      currentProduct.images.forEach((item, index) => {
+        const normalized = normalizeImageItem(item, index);
+        if (normalized) currentImages.push(normalized);
+      });
+    }
+
     const currentUrl = resolveImageUrl(currentProduct);
-    return currentUrl ? [{ name: 'principal', url: currentUrl, isMain: true }] : [];
+    if (currentUrl && !currentImages.some((img) => img.url === currentUrl)) {
+      currentImages.unshift({ name: 'principal', url: currentUrl, imageUrl: currentUrl, path: currentUrl, isMain: true });
+    }
+
+    if (currentImages.length && !currentImages.some((img) => img.isMain)) currentImages[0].isMain = true;
+    return currentImages;
   }
+
+  if (files.length > 3) throw new Error('Selecione no máximo 3 imagens para o produto.');
+
   const imageList = [];
   for (const file of files) {
-    const dataUrl = await toBase64(file);
-    imageList.push({ name: file.name, url: dataUrl, isMain: imageList.length === 0 });
+    if (!String(file.type || '').startsWith('image/')) throw new Error(`Arquivo inválido: ${file.name}`);
+    const uploadedImage = await uploadSellerImageFile(file);
+    uploadedImage.isMain = imageList.length === 0;
+    imageList.push(uploadedImage);
   }
   return imageList;
 }
@@ -400,7 +811,7 @@ async function saveProduct(event) {
   event.preventDefault();
   const btn = $('btn-submit');
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando imagens e salvando...';
   try {
     if (!ensureSellerSession()) return;
     const images = await buildImagesPayload();
@@ -472,6 +883,23 @@ $('btn-generate-sku')?.addEventListener('click', generateSku);
 $('p-name')?.addEventListener('blur', () => { if (!$('p-sku').value.trim()) generateSku(); });
 $('p-category')?.addEventListener('change', () => { loadSubcategoriesForSelected(); syncCategoryFields(); });
 $('p-subcategory')?.addEventListener('change', syncCategoryFields);
+
+$('file-input')?.addEventListener('change', () => {
+  const box = $('image-preview');
+  const files = Array.from($('file-input')?.files || []);
+  if (!box) return;
+  if (!files.length) {
+    renderPreviewFromProduct(currentProduct || {});
+    return;
+  }
+  if (files.length > 3) {
+    showToast('Selecione no máximo 3 imagens.', 'error');
+    $('file-input').value = '';
+    renderPreviewFromProduct(currentProduct || {});
+    return;
+  }
+  box.innerHTML = files.map((file, index) => `<div class="image-card"><img class="preview-img" src="${URL.createObjectURL(file)}" alt="Nova imagem do produto"><div class="image-label">${index === 0 ? 'Principal • ' : ''}${file.name}</div></div>`).join('');
+});
 $('product-form')?.addEventListener('submit', saveProduct);
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
 $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
@@ -480,5 +908,22 @@ window.onload = loadProduct;
 <script src="js/product-card.js" defer></script>
 <script src="./product-card.js"></script>
 <script src="js/layout-fit.js" defer></script>
+
+
+<script id="ariana-seller-professional-ui-js">
+(function(){
+  try{
+    var page=(location.pathname.split('/').pop()||'').toLowerCase();
+    document.querySelectorAll('aside a, .side .nav button').forEach(function(el){
+      var href=(el.getAttribute('href')||'').toLowerCase();
+      if(href && href.indexOf(page)>=0){el.classList.add('active');}
+    });
+    document.querySelectorAll('aside#sidebar .px-4:first-child span').forEach(function(el){
+      if(/ariana/i.test(el.textContent||'')) el.textContent='ARIANA MÓVEIS';
+    });
+  }catch(e){}
+})();
+</script>
+
 </body>
 </html>

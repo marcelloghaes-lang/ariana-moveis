@@ -3,19 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Financeiro Recibos | Ariana Móveis</title>
+  <title>Financeiro Unificado | Ariana Móveis</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root{--blue:#0047AB;--blue2:#1d4ed8;--green:#16a34a;--red:#dc2626;--bg:#f3f6fb;--text:#0f172a;--muted:#64748b;--card:#fff;--line:#e5e7eb}
     *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
     .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.box{background:white;width:100%;max-width:420px;border-radius:24px;padding:28px;box-shadow:0 18px 50px #0f172a22}.logo{font-size:28px;font-weight:900;color:var(--blue);margin-bottom:4px}.sub{color:var(--muted);font-size:14px;margin-bottom:22px}
     label{display:block;font-size:12px;text-transform:uppercase;font-weight:800;color:#64748b;margin:12px 0 6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 13px;font:inherit;background:#fff;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--blue2);box-shadow:0 0 0 3px #1d4ed822}button{border:0;border-radius:14px;padding:12px 16px;font-weight:900;cursor:pointer}button.primary{background:var(--blue2);color:white}button.blue{background:#2563eb;color:white}button.green{background:var(--green);color:white}button.light{background:#eaf1ff;color:var(--blue2)}button.red{background:#fee2e2;color:#991b1b}button.yellow{background:#fef3c7;color:#92400e}button.small{padding:8px 10px;border-radius:10px;font-size:12px}
-    .app{display:none;min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:260px;background:#172536;color:white;padding:24px}.side h1{font-size:22px;margin:0 0 30px}.nav button{display:block;width:100%;text-align:left;margin-bottom:10px;background:transparent;color:white;padding:13px;border-radius:14px}.nav button.active,.nav button:hover{background:#ffffff18}.main{margin-left:260px;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 10px 30px #0f172a0d}.card h2{margin:0 0 8px;font-size:22px}.help{color:var(--muted);font-size:13px;margin-bottom:15px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}.stat{background:white;border:1px solid var(--line);border-radius:20px;padding:18px}.stat b{font-size:24px;color:var(--blue2)}table{width:100%;border-collapse:collapse}th,td{padding:13px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}th{color:#64748b;font-size:11px;text-transform:uppercase}tr:hover{background:#f8fafc}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#e0f2fe;color:#0369a1}.toast{position:fixed;right:20px;top:20px;z-index:99;display:flex;flex-direction:column;gap:8px}.toast div{background:#111827;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0003}.receipt{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}.receipt .brand{font-weight:900;color:var(--blue);font-size:22px}.row{display:flex;justify-content:space-between;border-bottom:1px dashed #e5e7eb;padding:9px 0;gap:10px}.row span:last-child{text-align:right;font-weight:700}.money{font-size:22px;color:var(--green)!important}.hidden{display:none!important}
+    .app{display:none;min-height:100vh}.side{position:fixed;left:0;top:0;bottom:0;width:260px;background:#172536;color:white;padding:24px;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable}.side h1{font-size:22px;margin:0 0 30px}.nav{padding-bottom:28px}.nav button{display:block;width:100%;text-align:left;margin-bottom:10px;background:transparent;color:white;padding:13px;border-radius:14px}.nav button.active,.nav button:hover{background:#ffffff18}.main{margin-left:260px;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 10px 30px #0f172a0d}.card h2{margin:0 0 8px;font-size:22px}.help{color:var(--muted);font-size:13px;margin-bottom:15px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}.stat{background:white;border:1px solid var(--line);border-radius:20px;padding:18px}.stat b{font-size:24px;color:var(--blue2)}table{width:100%;border-collapse:collapse}th,td{padding:13px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}th{color:#64748b;font-size:11px;text-transform:uppercase}tr:hover{background:#f8fafc}.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:900;background:#e0f2fe;color:#0369a1}.toast{position:fixed;right:20px;top:20px;z-index:99;display:flex;flex-direction:column;gap:8px}.toast div{background:#111827;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px #0003}.receipt{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}.receipt .brand{font-weight:900;color:var(--blue);font-size:22px}.row{display:flex;justify-content:space-between;border-bottom:1px dashed #e5e7eb;padding:9px 0;gap:10px}.row span:last-child{text-align:right;font-weight:700}.money{font-size:22px;color:var(--green)!important}.hidden{display:none!important}
     .autocomplete-wrap{position:relative}.suggestions{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 45px #0f172a26;z-index:50;max-height:285px;overflow:auto}.suggestion{padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer}.suggestion:hover{background:#eff6ff}.suggestion b{display:block}.suggestion small{color:var(--muted)}.selected-client{margin-top:10px;padding:10px 12px;border-radius:14px;background:#ecfdf5;color:#166534;font-size:13px;font-weight:800}.muted{color:var(--muted);font-size:12px}.warn{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;padding:10px;border-radius:14px;font-size:13px;margin-top:10px}.client-history{margin-top:16px;background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:14px}.client-history h3{margin:0 0 10px;font-size:16px}.type-badge{display:inline-block;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:900;background:#eef2ff;color:#3730a3;margin-left:6px}.phone-fix{margin-top:12px;padding:12px;border:1px solid #fed7aa;background:#fff7ed;border-radius:16px}.phone-fix input{margin-top:8px}.phone-fix .actions{margin-top:8px}
     .inad-table-wrap{width:100%;overflow-x:auto}.inad-table th:last-child,.inad-table td:last-child{width:230px}.inad-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:210px;max-width:230px}.inad-actions button{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:12px;font-size:12px;line-height:1.1;white-space:nowrap}.inad-actions .wide{grid-column:1/-1}.inad-days{font-weight:900;color:#b91c1c;font-size:16px}.inad-client-name{font-weight:900}.inad-doc small{display:block;line-height:1.35;margin-top:4px;color:#334155}.inad-doc .pedido-total{color:#dc2626;font-weight:800}.inad-no-phone{color:#64748b}.inad-phone{color:#166534;font-weight:800}.inad-value{font-weight:900;white-space:nowrap}
 
-    @media(max-width:900px){.side{position:static;width:100%}.main{margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}}
-  </style>
+    /* ===== POLIMENTO VISUAL - PADRÃO MARKETPLACE ===== */
+    body{background:linear-gradient(180deg,#f7f9fe 0%,#eef3fb 100%)}
+    .side{background:linear-gradient(180deg,#0b2242 0%,#07192f 100%);box-shadow:12px 0 35px #0f172a14;padding:22px 18px}.side h1{display:flex;align-items:center;gap:10px;font-size:23px;letter-spacing:-.02em}.nav button{display:flex;align-items:center;gap:10px;min-height:46px;margin-bottom:8px;padding:12px 14px;font-size:14px;font-weight:850;color:#eaf2ff;transition:.18s ease}.nav button.active,.nav button:hover{background:#ffffff1f;box-shadow:inset 4px 0 0 #facc15;transform:translateX(2px)}
+    .main{max-width:1240px}.top{background:white;border:1px solid #e8eef8;border-radius:26px;padding:22px 24px;box-shadow:0 12px 34px #0f172a0b}.top h1{margin:0;font-size:28px;letter-spacing:-.04em}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.stat{border:1px solid #e8eef8;border-radius:24px;padding:18px 20px;box-shadow:0 12px 30px #0f172a0a}.stat small{font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b}.card{border:1px solid #e8eef8;border-radius:26px;box-shadow:0 14px 36px #0f172a0b}.card h2{letter-spacing:-.03em}.actions{align-items:center}.actions input{flex:1;min-width:260px}
+    table{border-collapse:separate;border-spacing:0 10px}thead th{border:0;background:#f8fafc;padding:13px 14px;color:#475569;font-size:11px;letter-spacing:.04em}tbody tr{background:white;box-shadow:0 8px 22px #0f172a0a}td{border-top:1px solid #eef2f7;border-bottom:1px solid #eef2f7;padding:16px 14px;vertical-align:middle}tbody td:first-child{border-left:1px solid #eef2f7;border-radius:18px 0 0 18px}tbody td:last-child{border-right:1px solid #eef2f7;border-radius:0 18px 18px 0}tr:hover{background:white;transform:translateY(-1px)}
+    .pill{padding:7px 12px;border-radius:999px;font-size:12px}.pill.ok{background:#dcfce7;color:#166534}.pill.pending{background:#fff7ed;color:#c2410c}.receipt-code{font-size:13px;font-weight:950;color:#0f172a;line-height:1.15}.receipt-date{display:block;margin-top:5px;color:#64748b;font-size:12px}.client-name{font-weight:900;color:#0f172a}.client-phone,.product-parcel{display:block;margin-top:5px;color:#64748b;font-size:12px}.money-cell{font-weight:950;color:#0f172a;white-space:nowrap}.row-actions{display:flex;align-items:center;gap:8px;justify-content:flex-start;flex-wrap:nowrap;min-width:240px}.icon-btn{width:38px;height:38px;border-radius:13px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:15px;box-shadow:none}.icon-btn.print{background:#eef4ff;color:#1d4ed8}.icon-btn.send{background:#dcfce7;color:#15803d}.icon-btn.charge{background:#fef3c7;color:#a16207}.icon-btn:hover{filter:brightness(.97);transform:translateY(-1px)}.btn-text{height:38px;border-radius:13px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;font-size:12px}.table-wrap{width:100%;overflow-x:auto}.history-card{padding-top:18px}.history-header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:14px}.history-header h2{margin:0}.history-search{display:flex;gap:10px;align-items:center;flex:1;max-width:760px}.history-search input{height:46px;border-radius:16px}.history-search button{height:46px;border-radius:16px;min-width:110px}.compact-actions{white-space:nowrap}
+    @media(max-width:1100px){.row-actions{min-width:170px;flex-wrap:wrap}.btn-text{padding:0 10px}.history-header{display:block}.history-search{max-width:none;margin-top:14px}.actions input{min-width:100%}}
+    @media(max-width:900px){.side{position:static;width:100%;max-height:none;overflow:visible}.main{margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}.history-search{display:block}.history-search button{width:100%;margin-top:8px}.row-actions{min-width:160px}.icon-btn,.btn-text{width:100%}}
+
+    /* ===== FASE C.2 - BAIXA DE PAGAMENTO DIRETO NO SIGE ===== */
+    .sige-pay-overlay{position:fixed;inset:0;background:#0f172a99;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+    .sige-pay-modal{width:100%;max-width:620px;background:#fff;border-radius:26px;padding:24px;box-shadow:0 28px 80px #0005;max-height:94vh;overflow:auto}
+    .sige-pay-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}
+    .sige-pay-head h2{margin:0;color:#0f172a}.sige-pay-close{background:#eef2f7;color:#334155;width:40px;height:40px;padding:0;font-size:20px}
+    .sige-pay-summary{background:#eff6ff;border:1px solid #bfdbfe;border-radius:18px;padding:14px;margin-bottom:14px}
+    .sige-pay-summary .row:last-child{border-bottom:0}
+    .sige-pay-alert{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:14px;padding:11px 12px;font-size:13px;margin-top:12px}
+    .sige-pay-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+    .sige-pay-actions button[disabled]{opacity:.55;cursor:not-allowed}
+    .pay-btn{background:#dcfce7!important;color:#166534!important}
+    @media(max-width:650px){.sige-pay-modal{padding:18px}.sige-pay-actions button{width:100%}}
+
+    /* ===== FASE 5 - CARNÊ / BOLETOS CORA ===== */
+    .cora-banner{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 18px;border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#f8fbff);border-radius:20px;margin-bottom:18px}
+    .cora-banner b{display:block;color:#1e3a8a;margin-bottom:4px}.cora-banner small{color:#475569;line-height:1.45}
+    .cora-env{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:900;white-space:nowrap}
+    .cora-layout{display:grid;grid-template-columns:1fr .9fr;gap:20px}.cora-step{background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:14px;margin-top:12px}.cora-step-title{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:900;color:#0f172a;margin-bottom:10px}.cora-step-title span{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#dbeafe;color:#1d4ed8;font-size:12px}
+    .cora-selected{background:#ecfdf5;border:1px solid #bbf7d0;border-radius:15px;padding:11px 12px;color:#166534;font-size:13px;font-weight:800;margin-top:10px}.cora-result{min-height:250px}.cora-result-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}.cora-total{font-size:23px;font-weight:950;color:#0f172a}.cora-links{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.cora-installments{max-height:530px;overflow:auto;padding-right:4px}.cora-installment{display:grid;grid-template-columns:70px 1fr auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid #e5e7eb}.cora-installment:last-child{border-bottom:0}.cora-installment b{display:block}.cora-installment small{color:#64748b}.cora-num{width:54px;height:42px;border-radius:13px;background:#eff6ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:950}.cora-table-wrap{overflow:auto}.cora-table td{vertical-align:top}.cora-status-open{background:#dcfce7;color:#166534}.cora-status-pending{background:#fef3c7;color:#92400e}.cora-status-paid{background:#dbeafe;color:#1e40af}.cora-stage-note{margin-top:10px;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:14px;font-size:12px}
+    @media(max-width:1000px){.cora-layout{grid-template-columns:1fr}.cora-installment{grid-template-columns:62px 1fr}.cora-installment .btn-text{grid-column:1/-1;width:100%}}
+
+  
+    .cred-dash-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0}.cred-kpi{background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:17px;box-shadow:0 8px 24px #0f172a0a}.cred-kpi small{display:block;color:#64748b;font-weight:800;margin-bottom:7px}.cred-kpi b{display:block;font-size:22px;color:#0f172a}.cred-kpi em{display:block;font-style:normal;color:#64748b;font-size:12px;margin-top:5px}.cred-chart-grid{display:grid;grid-template-columns:1.45fr .75fr;gap:18px;margin-top:18px}.cred-chart{min-height:290px}.cred-bars{display:flex;align-items:flex-end;gap:12px;height:210px;padding:20px 6px 0;border-bottom:1px solid #cbd5e1}.cred-bar-group{flex:1;min-width:42px;height:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px;position:relative}.cred-bar{width:38%;min-width:10px;border-radius:8px 8px 0 0;background:#2563eb}.cred-bar.received{background:#16a34a}.cred-bar.overdue{background:#dc2626}.cred-bar-label{position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);font-size:10px;color:#64748b;white-space:nowrap}.cred-legend{display:flex;gap:15px;flex-wrap:wrap;margin-top:36px;font-size:12px;color:#475569}.cred-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;background:#2563eb}.cred-legend .r i{background:#16a34a}.cred-legend .o i{background:#dc2626}.cred-donut-list{display:grid;gap:10px;margin-top:16px}.cred-donut-row{display:grid;grid-template-columns:110px 1fr 38px;gap:10px;align-items:center;font-size:12px}.cred-progress{height:11px;background:#eef2f7;border-radius:999px;overflow:hidden}.cred-progress span{display:block;height:100%;background:#2563eb;border-radius:999px}.cred-dash-error{padding:16px;border-radius:14px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca}@media(max-width:1100px){.cred-dash-grid{grid-template-columns:repeat(2,1fr)}.cred-chart-grid{grid-template-columns:1fr}}@media(max-width:680px){.cred-dash-grid{grid-template-columns:1fr}}
+
+    .notice{padding:12px 14px;border:1px solid #dbeafe;background:#eff6ff;color:#1e3a8a;border-radius:14px;font-size:13px;line-height:1.45}
+
+    .cred-installment-overdue{background:#fff7f7;border:1px solid #fecaca;border-radius:16px;padding:13px;margin-bottom:9px}
+    .cred-installment-open{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:13px;margin-bottom:9px}
+    .cred-values-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+    .cred-value-box{background:white;border:1px solid #e5e7eb;border-radius:13px;padding:10px}
+    .cred-value-box small{display:block;color:#64748b;font-size:10px;font-weight:800;text-transform:uppercase}
+    .cred-value-box b{display:block;margin-top:4px}
+    .reneg-base{border:2px solid #dbeafe;background:linear-gradient(135deg,#eff6ff,#fff);border-radius:20px;padding:16px;margin-top:16px}
+    .reneg-warning{padding:11px 12px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px;margin-top:10px}
+    @media(max-width:800px){.cred-values-grid{grid-template-columns:1fr 1fr}}
+</style>
 </head>
 <body>
   <div class="toast" id="toast"></div>
@@ -34,23 +77,28 @@
       <h1>🧾 Recibos</h1>
       <div class="nav">
         <button class="active" onclick="showTab('novo',this)">💰 Registrar pagamento</button>
+        <button onclick="showTab('dashboardCrediario',this)">📊 Dashboard Crediário</button>
         <button onclick="showTab('clientes',this)">👥 Clientes</button>
         <button onclick="showTab('importar',this)">📂 Importar SIGE</button>
         <button onclick="showTab('sige',this)">🔌 SIGE Online</button>
         <button onclick="showTab('inadimplentes',this)">🚨 Inadimplentes</button>
         <button onclick="showTab('autoCobranca',this)">🤖 Automação</button>
         <button onclick="showTab('cobrancas',this)">🔔 Cobranças</button>
+        <button onclick="showTab('perfisCredito',this)">👤 Cadastro financeiro</button>
+        <button onclick="showTab('analises',this)">🧾 Análises de crédito</button>
+        <button onclick="showTab('cora',this)">🏦 Boletos Cora</button>
         <button onclick="showTab('historico',this)">📚 Histórico</button>
+        <button onclick="showTab('whatsappCrediario',this)">📲 WhatsApp Crediário</button>
         <button onclick="logout()">🚪 Sair</button>
       </div>
     </aside>
     <main class="main">
-      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Registre pagamentos da loja física e envie comprovantes pelo Ariana Notificações.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button></div>
+      <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Consulte parcelas e saldos oficiais do SIGE, registre comprovantes e envie pelo Ariana Notificações.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button></div>
       <div class="stats"><div class="stat"><small>Recibos hoje</small><br><b id="stHoje">0</b></div><div class="stat"><small>Total listado</small><br><b id="stTotal">0</b></div><div class="stat"><small>Enviados WhatsApp</small><br><b id="stWa">0</b></div></div>
 
       <section id="tab-novo">
         <div class="grid">
-          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e selecione o cadastro importado do SIGE para preencher CPF, WhatsApp e contrato automaticamente.</p>
+          <div class="card"><h2>Novo comprovante</h2><p class="help">Digite o nome do cliente e consulte o cadastro financeiro oficial do SIGE para preencher CPF, WhatsApp e referência automaticamente.</p>
             <input type="hidden" id="clienteId">
             <div class="formgrid">
               <div class="autocomplete-wrap"><label>Cliente</label><input id="nome" placeholder="Digite parte do nome, CPF ou telefone" autocomplete="off"><div id="clienteSugestoes" class="suggestions hidden"></div><div id="clienteSelecionado" class="selected-client hidden"></div><button type="button" class="light small" style="margin-top:8px" onclick="buscarEPreencherCliente()">🔎 Buscar e preencher cliente</button></div>
@@ -118,7 +166,7 @@
             <button class="blue" onclick="buscarSigeLancamentos()">Buscar lançamentos</button>
             <button class="yellow" onclick="buscarSigeInadimplentes()">Ver inadimplentes</button>
           </div>
-          <table><thead><tr><th>Cliente</th><th>Documento / Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ação</th></tr></thead><tbody id="sigeLancBody"><tr><td colspan="6">Nenhuma consulta realizada.</td></tr></tbody></table>
+          <table><thead><tr><th>Cliente</th><th>Documento / Descrição</th><th>Vencimento</th><th>Original</th><th>Multa</th><th>Juros</th><th>Atualizado</th><th>Status</th><th>Ação</th></tr></thead><tbody id="sigeLancBody"><tr><td colspan="6">Nenhuma consulta realizada.</td></tr></tbody></table>
         </div>
         <div class="card" style="margin-top:20px">
           <h2>📋 Carnê Digital SIGE</h2>
@@ -182,6 +230,28 @@
           <h2>Clientes candidatos à cobrança</h2>
           <table><thead><tr><th>Cliente</th><th>Documento</th><th>Dias</th><th>Tipo</th><th>Telefone</th><th>Status</th></tr></thead><tbody id="autoCobBody"><tr><td colspan="6">Nenhuma simulação realizada.</td></tr></tbody></table>
         </div>
+
+        <div class="card" style="margin-top:20px;border:2px solid #0b4fb3">
+          <div class="actions" style="justify-content:space-between;align-items:flex-start">
+            <div><h2>🏦 Cobrança Automática — Crediário Ariana</h2><p class="help">Lembretes em 5 dias antes, no vencimento e após 3, 7 e 15 dias de atraso. O valor vencido é recalculado com multa de 2% e juros de 1% ao mês proporcional aos dias.</p></div>
+            <button class="light" onclick="loadCrediarioCobrancaConfig()">⚙️ Configuração</button>
+          </div>
+          <div id="credCobConfig" class="receipt">Clique em “Configuração” para conferir o agendamento.</div>
+          <div class="formgrid" style="margin-top:12px">
+            <div><label>Buscar cliente, CPF ou pedido</label><input id="credCobBusca" placeholder="Deixe vazio para todos"></div>
+            <div><label>Data da simulação</label><input id="credCobData" type="date"></div>
+            <div><label>Limite de análises</label><input id="credCobLimit" type="number" value="200" min="1" max="500"></div>
+          </div>
+          <div class="actions">
+            <button class="blue" onclick="simularCrediarioCobranca()">👁️ Simular</button>
+            <button class="red" onclick="executarCrediarioCobranca()">📲 Processar agora</button>
+            <button class="light" onclick="loadCrediarioCobrancaHistorico()">🕘 Histórico</button>
+          </div>
+          <div id="credCobResumo" class="receipt" style="margin-top:12px">Nenhuma simulação realizada.</div>
+          <div style="overflow:auto;margin-top:12px">
+            <table><thead><tr><th>Cliente</th><th>Parcela</th><th>Vencimento</th><th>Regra</th><th>Original</th><th>Atualizado</th><th>Telefone</th><th>Status</th></tr></thead><tbody id="credCobBody"><tr><td colspan="8">Nenhum resultado.</td></tr></tbody></table>
+          </div>
+        </div>
       </section>
 
       <section id="tab-cobrancas" class="hidden">
@@ -225,16 +295,272 @@
         </div>
       </section>
 
-      <section id="tab-historico" class="hidden"><div class="card"><h2>Histórico de recibos</h2><div class="actions"><input id="buscaRecibo" placeholder="Buscar recibo, cliente, CPF, telefone, produto" oninput="loadRecibos()"><button class="light" onclick="loadRecibos()">Buscar</button></div><table><thead><tr><th>Recibo</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody id="recibosBody"></tbody></table></div></section>
+
+
+
+      <section id="tab-dashboardCrediario" class="hidden">
+        <div class="card">
+          <div class="history-header">
+            <div><h2>📊 Dashboard Financeiro — Crediário Ariana</h2><p class="help">Indicadores da carteira, recebimentos, atrasos, multas e juros calculados na data da consulta.</p></div>
+            <div class="history-search"><input id="credDashData" type="date"><button class="blue" onclick="loadDashboardCrediario()">Atualizar</button></div>
+          </div>
+          <div id="credDashErro" class="cred-dash-error hidden"></div>
+          <div class="cred-dash-grid">
+            <div class="cred-kpi"><small>Receber hoje</small><b id="cdHoje">R$ 0,00</b><em id="cdHojeInfo">Parcelas com vencimento hoje</em></div>
+            <div class="cred-kpi"><small>Receber amanhã</small><b id="cdAmanha">R$ 0,00</b><em>Próximo vencimento</em></div>
+            <div class="cred-kpi"><small>Receber em 7 dias</small><b id="cdSemana">R$ 0,00</b><em>Inclui hoje</em></div>
+            <div class="cred-kpi"><small>Receber no mês</small><b id="cdMes">R$ 0,00</b><em>Da data consultada ao fim do mês</em></div>
+            <div class="cred-kpi"><small>Saldo total em aberto</small><b id="cdAberto">R$ 0,00</b><em id="cdParcelasAbertas">0 parcelas</em></div>
+            <div class="cred-kpi"><small>Valor vencido atualizado</small><b id="cdVencido">R$ 0,00</b><em id="cdVencidas">0 parcelas vencidas</em></div>
+            <div class="cred-kpi"><small>Multas acumuladas</small><b id="cdMultas">R$ 0,00</b><em>2% sobre parcelas vencidas</em></div>
+            <div class="cred-kpi"><small>Juros acumulados</small><b id="cdJuros">R$ 0,00</b><em>1% ao mês proporcional</em></div>
+            <div class="cred-kpi"><small>Total recebido</small><b id="cdRecebido">R$ 0,00</b><em>Histórico consolidado dos clientes</em></div>
+            <div class="cred-kpi"><small>Inadimplência</small><b id="cdInadimplencia">0%</b><em>Vencido original ÷ carteira aberta</em></div>
+            <div class="cred-kpi"><small>Ticket médio</small><b id="cdTicket">R$ 0,00</b><em id="cdContratos">0 contratos</em></div>
+            <div class="cred-kpi"><small>Clientes da carteira</small><b id="cdClientes">0</b><em id="cdClientesStatus">0 inadimplentes</em></div>
+          </div>
+        </div>
+        <div class="cred-chart-grid">
+          <div class="card cred-chart"><h2>Recebimentos e carteira por mês</h2><p class="help">Azul: previsto em aberto. Verde: recebido. Vermelho: vencido atualizado.</p><div id="credDashBarras" class="cred-bars"></div><div class="cred-legend"><span><i></i>Previsto</span><span class="r"><i></i>Recebido</span><span class="o"><i></i>Vencido</span></div></div>
+          <div class="card cred-chart"><h2>Situação dos clientes</h2><p class="help">Distribuição atual da carteira financeira.</p><div id="credDashClientes" class="cred-donut-list"></div><h2 style="margin-top:24px">Risco interno</h2><div id="credDashRisco" class="cred-donut-list"></div></div>
+        </div>
+        <div class="card" style="margin-top:18px"><h2>Últimas comunicações de cobrança</h2><p class="help">Registros mais recentes enviados, enfileirados ou com falha.</p><div class="table-wrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Pedido</th><th>Evento</th><th>Status</th></tr></thead><tbody id="credDashComunicacoes"><tr><td colspan="5">Carregando...</td></tr></tbody></table></div></div>
+      </section>
+
+      <section id="tab-perfisCredito" class="hidden">
+        <div class="card">
+          <div class="history-header">
+            <div><h2>Cadastro financeiro dos clientes</h2><p class="help">Clientes unificados do Financeiro/SIGE e do Crediário Ariana. Ao abrir um cliente sem ficha, o cadastro financeiro é criado automaticamente.</p></div>
+            <div class="history-search"><select id="perfilRiscoFiltro" onchange="loadPerfisCredito()"><option value="">Todos os riscos</option><option value="ALTO">Alto</option><option value="MEDIO">Médio</option><option value="BOM">Bom</option><option value="EXCELENTE">Excelente</option></select><select id="perfilStatusFiltro" onchange="loadPerfisCredito()"><option value="">Todos os status</option><option value="ATIVO">Ativo</option><option value="EM_REVISAO">Em revisão</option><option value="BLOQUEADO">Bloqueado</option></select><input id="perfilBusca" placeholder="Nome, CPF, telefone ou e-mail"><button class="light" onclick="loadPerfisCredito()">Buscar</button></div>
+          </div>
+          <div class="stats" style="margin-top:14px"><div class="stat"><small>Clientes</small><br><b id="pfClientes">0</b></div><div class="stat"><small>Limite total</small><br><b id="pfLimite">R$ 0,00</b></div><div class="stat"><small>Limite utilizado</small><br><b id="pfUtilizado">R$ 0,00</b></div><div class="stat"><small>Limite disponível</small><br><b id="pfDisponivel">R$ 0,00</b></div></div>
+          <div class="table-wrap"><table class="clean-table"><thead><tr><th>Cliente</th><th>Score / risco</th><th>Limite</th><th>Carteira</th><th>Status</th><th>Ação</th></tr></thead><tbody id="perfisCreditoBody"><tr><td colspan="6">Carregando...</td></tr></tbody></table></div>
+        </div>
+        <div id="perfilCreditoDetalhe" class="card hidden" style="margin-top:20px"></div>
+      </section>
+
+      <section id="tab-analises" class="hidden">
+        <div class="card">
+          <div class="history-header">
+            <div><h2>Análises de crédito</h2><p class="help">Pedidos feitos pelo site no Crediário Ariana aguardam aprovação antes da assinatura e da emissão do carnê.</p></div>
+            <div class="history-search"><select id="analiseFiltro" onchange="loadAnalisesCredito()"><option value="">Todos os status</option><option>PENDENTE_ANALISE</option><option>EM_ANALISE</option><option>AGUARDANDO_DOCUMENTOS</option><option>APROVADO</option><option>REPROVADO</option><option>AGUARDANDO_ASSINATURA</option><option>ASSINADO</option></select><input id="analiseBusca" placeholder="Cliente, CPF ou pedido"><button class="light" onclick="loadAnalisesCredito()">Buscar</button></div>
+          </div>
+          <div class="stats" style="margin-top:14px"><div class="stat"><small>Pendentes</small><br><b id="anPendentes">0</b></div><div class="stat"><small>Aprovadas</small><br><b id="anAprovadas">0</b></div><div class="stat"><small>Reprovadas</small><br><b id="anReprovadas">0</b></div><div class="stat"><small>Carteira analisada</small><br><b id="anTotalValor">R$ 0,00</b></div></div>
+          <div class="table-wrap"><table class="clean-table"><thead><tr><th>Cliente</th><th>Pedido</th><th>Plano</th><th>Status</th><th>Solicitação</th><th>Ações</th></tr></thead><tbody id="analisesCreditoBody"><tr><td colspan="6">Carregando...</td></tr></tbody></table></div>
+        </div>
+        <div id="analiseDetalhe" class="card hidden" style="margin-top:20px"></div>
+      </section>
+
+      <section id="tab-cora" class="hidden">
+        <div class="cora-banner">
+          <div><b>🏦 Emissão de carnê pela Cora</b><small>Selecione o cliente e a compra, defina as parcelas e gere o PDF completo com todos os boletos. A emissão é independente do SIGE; o SIGE é usado somente para facilitar a seleção da compra.</small></div>
+          <span class="cora-env" id="coraEnvironmentBadge">AMBIENTE DE TESTE</span>
+        </div>
+        <div class="cora-layout">
+          <div class="card">
+            <h2>Gerar boletos Cora</h2>
+            <p class="help">Os dados serão revisados antes da emissão. Nenhuma cobrança é criada enquanto você não confirmar.</p>
+
+            <div class="cora-step">
+              <div class="cora-step-title"><span>1</span>Selecionar cliente</div>
+              <label>Cliente</label>
+              <select id="coraClienteSelect" onchange="selecionarClienteCora()"><option value="">Carregando clientes...</option></select>
+              <div id="coraClienteResumo" class="cora-selected hidden"></div>
+            </div>
+
+            <div class="cora-step">
+              <div class="cora-step-title"><span>2</span>Selecionar compra</div>
+              <div class="actions" style="margin-top:0">
+                <button type="button" class="light small" onclick="carregarComprasCora()">🔄 Buscar compras do cliente</button>
+              </div>
+              <label>Compra / lançamento</label>
+              <select id="coraCompraSelect" onchange="selecionarCompraCora()"><option value="">Selecione primeiro o cliente</option></select>
+              <div id="coraCompraResumo" class="cora-selected hidden"></div>
+              <div class="cora-stage-note">Caso a compra não esteja no SIGE, selecione “Compra informada manualmente” e preencha a descrição e o valor abaixo.</div>
+            </div>
+
+            <div class="cora-step">
+              <div class="cora-step-title"><span>3</span>Conferir dados para emissão</div>
+              <div class="formgrid">
+                <div class="full"><label>Descrição da compra</label><input id="coraDescricao" placeholder="Ex: Guarda-roupa Milano"></div>
+                <div><label>Valor total</label><input id="coraValorTotal" inputmode="decimal" placeholder="4.311,00"></div>
+                <div><label>Parcelas</label><select id="coraParcelas"></select></div>
+                <div><label>Primeiro vencimento</label><input id="coraPrimeiroVencimento" type="date"></div>
+                <div><label>E-mail do cliente</label><input id="coraEmail" type="email" placeholder="cliente@email.com"></div>
+                <div><label>CPF / CNPJ</label><input id="coraDocumento" placeholder="Somente números"></div>
+                <div><label>CEP</label><input id="coraCep" placeholder="39740000"></div>
+                <div><label>UF</label><input id="coraUf" maxlength="2" placeholder="MG"></div>
+                <div class="full"><label>Rua</label><input id="coraRua" placeholder="Rua / Avenida"></div>
+                <div><label>Número</label><input id="coraNumero" placeholder="100 ou S/N"></div>
+                <div><label>Bairro</label><input id="coraBairro" placeholder="Centro"></div>
+                <div><label>Cidade</label><input id="coraCidade" placeholder="Guanhães"></div>
+                <div class="full"><label>Complemento</label><input id="coraComplemento" placeholder="Opcional"></div>
+              </div>
+              <div class="actions">
+                <button type="button" class="light" onclick="preverCarneCora()">👁️ Conferir prévia</button>
+                <button type="button" class="green" id="coraEmitirBtn" onclick="emitirCarneCora()">🏦 Gerar boletos Cora</button>
+                <button type="button" class="red" onclick="limparFormularioCora()">Limpar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card cora-result">
+            <div class="cora-result-head"><div><h2>Resultado da emissão</h2><p class="help">PDF completo e boletos individuais aparecerão aqui.</p></div><button class="light small" onclick="loadCoraCarnes()">🔄 Atualizar</button></div>
+            <div id="coraResultado"><div class="receipt">Nenhum carnê emitido nesta sessão.</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <div class="history-header"><div><h2>Carnês emitidos</h2><p class="help">Histórico salvo no MongoDB, com status e acesso ao PDF completo.</p></div><div class="history-search"><input id="coraBusca" placeholder="Buscar cliente, CPF ou descrição"><button class="light" onclick="loadCoraCarnes()">Buscar</button></div></div>
+          <div class="cora-table-wrap"><table class="cora-table"><thead><tr><th>Cliente</th><th>Compra</th><th>Valor</th><th>Parcelas</th><th>Status</th><th>Emissão</th><th>Ações</th></tr></thead><tbody id="coraCarnesBody"><tr><td colspan="7">Carregando...</td></tr></tbody></table></div>
+        </div>
+      </section>
+
+      <section id="tab-historico" class="hidden">
+        <div class="card history-card">
+          <div class="history-header">
+            <div>
+              <h2>Histórico de recibos</h2>
+              <p class="help">Visual limpo para consultar, imprimir, reenviar comprovantes e iniciar cobrança.</p>
+            </div>
+            <div class="history-search">
+              <input id="buscaRecibo" placeholder="Buscar recibo, cliente, CPF, telefone ou produto" oninput="loadRecibos()">
+              <button class="light" onclick="loadRecibos()">Buscar</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="clean-table"><thead><tr><th>Recibo</th><th>Cliente</th><th>Produto</th><th>Valor</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody id="recibosBody"></tbody></table>
+          </div>
+        </div>
+      </section>
+
+
+      <section id="tab-whatsappCrediario" class="hidden"><div class="card" id="credWhatsAppPanel">
+        <h2>WhatsApp do Crediário Ariana</h2>
+        <p class="muted">Envio manual de mensagens, recibos, carnês, contratos e segunda via de boletos pela Evolution API.</p>
+        <div id="credWhatsAppConfig" class="notice">Carregando configuração...</div>
+        <div class="grid" style="margin-top:12px">
+          <label>Telefone/WhatsApp<input id="credWhatsAppPhone" placeholder="(33) 99999-9999"></label>
+          <label>Tipo de envio<select id="credWhatsAppType"><option value="MANUAL_MESSAGE">Mensagem manual</option><option value="PAYMENT_CONFIRMED">Pagamento confirmado</option><option value="RECEIPT">Recibo</option><option value="CORA_BOOKLET">Carnê</option><option value="BOLETO_COPY">Segunda via do boleto</option><option value="CONTRACT_SIGNED">Contrato assinado</option></select></label>
+          <label>Pedido<input id="credWhatsAppOrder" placeholder="Número do pedido"></label>
+          <label>Cliente<input id="credWhatsAppCustomer" placeholder="Nome do cliente"></label>
+        </div>
+        <label style="display:block;margin-top:10px">Mensagem<textarea id="credWhatsAppMessage" rows="4" placeholder="Digite a mensagem"></textarea></label>
+        <div class="grid" style="margin-top:10px">
+          <label>URL pública do PDF (opcional)<input id="credWhatsAppMediaUrl" placeholder="https://..."></label>
+          <label>Nome do arquivo<input id="credWhatsAppFileName" value="documento-ariana-moveis.pdf"></label>
+        </div>
+        <div class="actions" style="margin-top:12px"><button class="primary" onclick="enviarCrediarioWhatsApp()">📲 Enviar agora</button><button class="light" onclick="carregarHistoricoCrediarioWhatsApp()">Atualizar histórico</button></div>
+        <div id="credWhatsAppResult" class="notice hidden" style="margin-top:10px"></div>
+        <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Telefone</th><th>Tipo</th><th>Status</th><th>Provedor</th></tr></thead><tbody id="credWhatsAppHistory"><tr><td colspan="6">Nenhum envio carregado.</td></tr></tbody></table></div>
+  </div>
+</section>
     </main>
   </section>
+
+
+  <div id="sigePagamentoOverlay" class="sige-pay-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sigePagamentoTitulo">
+    <div class="sige-pay-modal">
+      <div class="sige-pay-head">
+        <div>
+          <h2 id="sigePagamentoTitulo">💰 Registrar pagamento no SIGE</h2>
+          <div class="help" style="margin:5px 0 0">O pagamento será gravado primeiro no financeiro oficial do SIGE.</div>
+        </div>
+        <button type="button" class="sige-pay-close" onclick="fecharPagamentoSige()" aria-label="Fechar">×</button>
+      </div>
+
+      <div id="sigePagamentoResumo" class="sige-pay-summary"></div>
+
+      <div class="formgrid">
+        <div><label>Código do lançamento</label><input id="sigePayCodigo" readonly></div>
+        <div><label>Saldo disponível</label><input id="sigePaySaldo" readonly></div>
+        <div><label>Valor a pagar</label><input id="sigePayValor" inputmode="decimal" placeholder="0,00"></div>
+        <div><label>Data do pagamento</label><input id="sigePayData" type="date"></div>
+        <div><label>Forma de pagamento</label>
+          <select id="sigePayForma">
+            <option value="PIX">PIX</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Cartão de Débito">Cartão de Débito</option>
+            <option value="Cartão de Crédito">Cartão de Crédito</option>
+            <option value="Transferência">Transferência</option>
+            <option value="Crédito Loja">Crédito Loja</option>
+          </select>
+        </div>
+        <div><label>Conta bancária</label>
+          <select id="sigePayConta">
+            <option value="ariana moveis">ariana moveis</option>
+            <option value="banco brasil">banco brasil</option>
+            <option value="cora SCFI-403">cora SCFI-403</option>
+            <option value="pagbank">pagbank</option>
+            <option value="SIGE Bank">SIGE Bank</option>
+            <option value="Sem Banco">Sem Banco</option>
+          </select>
+        </div>
+        <div class="full"><label>Número do documento</label><input id="sigePayDocumento" placeholder="Gerado automaticamente"></div>
+      </div>
+
+      <div class="sige-pay-alert">
+        Após o SIGE confirmar a baixa, o sistema cria o recibo e tenta enviá-lo automaticamente pelo WhatsApp.
+      </div>
+
+      <div class="sige-pay-actions">
+        <button type="button" class="light" onclick="fecharPagamentoSige()">Cancelar</button>
+        <button type="button" class="green" id="sigePayConfirmar" onclick="confirmarPagamentoSige()">✅ Confirmar no SIGE</button>
+      </div>
+    </div>
+  </div>
+
+
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
+const FINANCEIRO_STATUS_ROUTE='/admin/financeiro/status';
+const FINANCEIRO_CLIENTES_ROUTE='/admin/financeiro/clientes';
+const FINANCEIRO_CARNE_ROUTE='/admin/financeiro/carne';
+const CREDIARIO_CLIENTES_FALLBACK_ROUTE='/admin/crediario/clientes';
+
+async function buscarClientesFinanceiro(q='', limit=100){
+  const params='?q='+encodeURIComponent(String(q||'').trim())+'&limit='+encodeURIComponent(limit);
+  try{
+    const data=await apiJson(FINANCEIRO_CLIENTES_ROUTE+params);
+    return Array.isArray(data.clientes)?data.clientes:[];
+  }catch(error){
+    if(error?.status!==404) throw error;
+    const data=await apiJson(CREDIARIO_CLIENTES_FALLBACK_ROUTE+params);
+    return Array.isArray(data.clientes)?data.clientes:[];
+  }
+}
 let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null; let clienteSugestoesCache=[]; let cobrancaAlvo=null; let sigeCarneAtual=null; let sigeInadimplentesCache=[];
 function token(){return localStorage.getItem('admin_token')||''}
 function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
+async function apiJson(url, options = {}) {
+  const finalUrl = String(url || '').startsWith('http') ? url : API_BASE + url;
+  const opts = { ...options };
+  opts.headers = { ...(opts.headers || {}) };
+  if (!opts.headers.Authorization) opts.headers.Authorization = 'Bearer ' + token();
+
+  const response = await fetch(finalUrl, opts);
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (_e) {
+    data = { ok: false, error: text || ('HTTP ' + response.status) };
+  }
+
+  if (!response.ok || data.ok === false) {
+    const message = data.error || data.message || ('Erro HTTP ' + response.status);
+    const err = new Error(message);
+    err.status = response.status;
+    err.data = data;
+    err.url = finalUrl;
+    throw err;
+  }
+
+  return data;
+}
+
 function money(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
 function formatParcelaCliente(v){const raw=String(v||'').trim();if(!raw)return '';const digits=raw.replace(/\D/g,'');if(/^\d{4}$/.test(digits))return digits.slice(0,2)+'/'+digits.slice(2);if(/^\d{3}$/.test(digits))return digits.slice(0,1).padStart(2,'0')+'/'+digits.slice(1);const m=raw.match(/^(\d{1,2})\s*[\/\-\s]\s*(\d{1,2})$/);if(m)return String(m[1]).padStart(2,'0')+'/'+String(m[2]).padStart(2,'0');return raw}
 function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -244,25 +570,25 @@ function shortPhone(v){const d=onlyDigits(v);return d.startsWith('55')&&d.length
 function init(){document.getElementById('data').value=new Date().toISOString().slice(0,10);['telefone','cpf','contrato','produto','valor','parcela','forma','data','obs'].forEach(id=>document.getElementById(id).addEventListener('input',preview));document.getElementById('nome').addEventListener('input',onClienteInput);document.getElementById('nome').addEventListener('keydown',onClienteKeydown);document.getElementById('nome').addEventListener('blur',()=>setTimeout(autoSelecionarClientePorTexto,220));parcela.addEventListener('blur',()=>{parcela.value=formatParcelaCliente(parcela.value);preview()});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-wrap')) clienteSugestoes.classList.add('hidden')});if(token()){loginView.style.display='none';appView.style.display='block';loadAll()}preview()}init();
 async function login(){const email=loginEmail.value.trim(), password=loginPass.value;const r=await fetch(API_BASE+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});const j=await r.json();if(!j.ok||!j.token){toast(j.error||'Login não autorizado');return}localStorage.setItem('admin_token',j.token);loginView.style.display='none';appView.style.display='block';loadAll()}
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='autoCobranca')loadAutoCobrancaConfig();if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='sige')testarSigeStatus();if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='autoCobranca')loadAutoCobrancaConfig();if(name==='dashboardCrediario')loadDashboardCrediario();if(name==='perfisCredito')loadPerfisCredito();if(name==='analises')loadAnalisesCredito();if(name==='cora')iniciarCora();if(name==='whatsappCrediario'){carregarConfigCrediarioWhatsApp();carregarHistoricoCrediarioWhatsApp();}if(name==='novo')setTimeout(()=>nome.focus(),120)}
 function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:formatParcelaCliente(parcela.value.trim()),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
 function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(formatParcelaCliente(f.parcela))||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
 function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
 function onClienteInput(){clearTimeout(autocompleteTimer);clearSelectedCliente();preview();const q=nome.value.trim();if(q.length<2){clienteSugestoes.classList.add('hidden');return}autocompleteTimer=setTimeout(()=>buscarSugestoesCliente(q),250)}
-async function buscarSugestoesCliente(q){try{const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+encodeURIComponent(q)+'&limit=12',{headers:headers()});const j=await r.json();const rows=j.clientes||[];clienteSugestoesCache=rows;if(!rows.length){clienteSugestoes.innerHTML='<div class="suggestion"><b>Nenhum cliente encontrado</b><small>Você pode continuar digitando manualmente.</small></div>';clienteSugestoes.classList.remove('hidden');return}clienteSugestoes.innerHTML=rows.map((c,i)=>`<div class="suggestion" onclick="selecionarClientePorIndice(${i})"><b>${esc(c.nome)}</b><small>CPF: ${esc(c.cpf)||'—'} • WhatsApp: ${esc(shortPhone(c.telefone))||'—'} • Contrato: ${esc(c.contrato)||'—'}</small></div>`).join('');clienteSugestoes.classList.remove('hidden')}catch(e){console.error(e)}}
+async function buscarSugestoesCliente(q){try{const rows=await buscarClientesFinanceiro(q,12);clienteSugestoesCache=rows;if(!rows.length){clienteSugestoes.innerHTML='<div class="suggestion"><b>Nenhum cliente encontrado</b><small>Você pode continuar digitando manualmente.</small></div>';clienteSugestoes.classList.remove('hidden');return}clienteSugestoes.innerHTML=rows.map((c,i)=>`<div class="suggestion" onclick="selecionarClientePorIndice(${i})"><b>${esc(c.nome)}</b><small>CPF: ${esc(c.cpf)||'—'} • WhatsApp: ${esc(shortPhone(c.telefone))||'—'} • Contrato: ${esc(c.contrato)||'—'}</small></div>`).join('');clienteSugestoes.classList.remove('hidden')}catch(e){console.error(e)}}
 function selecionarClientePorIndice(i){const c=clienteSugestoesCache[Number(i)];if(c)selecionarCliente(c)}
 function normalizarBuscaCliente(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'').trim()}
 function onClienteKeydown(e){if(e.key==='Enter'){e.preventDefault();if(clienteSugestoesCache.length)selecionarCliente(clienteSugestoesCache[0]);else buscarEPreencherCliente()}}
-async function buscarEPreencherCliente(){const q=nome.value.trim();if(q.length<2){toast('Digite pelo menos 2 letras do nome, CPF ou telefone.');return}try{const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+encodeURIComponent(q)+'&limit=5',{headers:headers()});const j=await r.json();const rows=j.clientes||[];clienteSugestoesCache=rows;if(!rows.length){toast('Cliente não encontrado.');return}const nq=normalizarBuscaCliente(q);const digits=String(q).replace(/\D/g,'');const match=rows.find(c=>normalizarBuscaCliente(c.nome)===nq)||(digits?rows.find(c=>String(c.cpf||'').includes(digits)||String(c.telefone||'').includes(digits)):null)||rows[0];selecionarCliente(match)}catch(e){toast('Erro ao buscar cliente: '+(e.message||e))}}
+async function buscarEPreencherCliente(){const q=nome.value.trim();if(q.length<2){toast('Digite pelo menos 2 letras do nome, CPF ou telefone.');return}try{const rows=await buscarClientesFinanceiro(q,5);clienteSugestoesCache=rows;if(!rows.length){toast('Cliente não encontrado.');return}const nq=normalizarBuscaCliente(q);const digits=String(q).replace(/\D/g,'');const match=rows.find(c=>normalizarBuscaCliente(c.nome)===nq)||(digits?rows.find(c=>String(c.cpf||'').includes(digits)||String(c.telefone||'').includes(digits)):null)||rows[0];selecionarCliente(match)}catch(e){toast('Erro ao buscar cliente: '+(e.message||e))}}
 function autoSelecionarClientePorTexto(){if(selectedCliente&&selectedCliente.id)return;const q=nome.value.trim();if(q.length<2||!clienteSugestoesCache.length)return;const nq=normalizarBuscaCliente(q);const digits=String(q).replace(/\D/g,'');const match=clienteSugestoesCache.find(c=>normalizarBuscaCliente(c.nome)===nq)||(digits?clienteSugestoesCache.find(c=>String(c.cpf||'').includes(digits)||String(c.telefone||'').includes(digits)):null)||(clienteSugestoesCache.length===1?clienteSugestoesCache[0]:null);if(match)selecionarCliente(match)}
 async function selecionarCliente(c){selectedCliente=c||{};clienteId.value=selectedCliente.id||'';nome.value=selectedCliente.nome||'';cpf.value=selectedCliente.cpf||'';telefone.value=shortPhone(selectedCliente.telefone||'');contrato.value=selectedCliente.contrato||'';clienteSugestoes.classList.add('hidden');clienteSelecionado.innerHTML=`✅ Cliente selecionado: ${esc(selectedCliente.nome)}${selectedCliente.cpf?' • CPF: '+esc(selectedCliente.cpf):''}${selectedCliente.telefone?' • WhatsApp: '+esc(shortPhone(selectedCliente.telefone)):''}`;clienteSelecionado.classList.remove('hidden');if(!telefone.value){clienteAviso.innerHTML='⚠️ Este cliente foi importado sem telefone/celular. Preencha o WhatsApp antes de enviar o recibo.';clienteAviso.classList.remove('hidden')}else{clienteAviso.classList.add('hidden')}preview();await carregarHistoricoCliente(selectedCliente.id)}
 async function salvarClienteDoFormulario(){const payload={nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim()};if(!payload.nome){toast('Informe o nome do cliente.');return}if(!payload.telefone){toast('Informe o celular/WhatsApp do cliente.');return}try{const r=await fetch(API_BASE+'/admin/crediario/clientes',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});const j=await r.json();if(!j.ok){toast(j.error||'Erro ao salvar cliente');return}toast('Dados do cliente salvos com sucesso');await selecionarCliente(j.cliente);await loadClientes()}catch(e){toast('Erro ao salvar cliente: '+(e.message||e))}}
 async function carregarHistoricoCliente(id){if(!id){clienteHistorico.classList.add('hidden');return}try{const r=await fetch(API_BASE+'/admin/crediario/recibos?clienteId='+encodeURIComponent(id)+'&limit=5',{headers:headers()});const j=await r.json();const rows=j.recibos||[];clienteHistorico.innerHTML='<h3>Histórico deste cliente</h3>'+(rows.length?rows.map(r=>`<div class="row"><strong>${esc(r.recibo)}</strong><span>${money(r.valorPago)} • ${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</span></div>`).join(''):'<div class="muted">Nenhum recibo registrado para este cliente.</div>');clienteHistorico.classList.remove('hidden')}catch(e){console.error(e)}}
 async function criarRecibo(enviarWhatsapp){const f=getForm();if(!f.nome||!f.telefone||!f.valorPago){toast('Preencha cliente, telefone e valor.');return}const r=await fetch(API_BASE+'/admin/crediario/recibos',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({...f,enviarWhatsapp})});const j=await r.json();if(!j.ok){toast(j.error||'Erro ao criar recibo');return}lastRecibo=j.recibo;toast(enviarWhatsapp?(j.whatsapp?.ok===false?'Recibo salvo, mas WhatsApp falhou':'Recibo enviado com sucesso'):'Recibo salvo com sucesso');await printRecibo(j.recibo.id);limparForm(false);loadAll()}
 function limparForm(reset=true){['nome','telefone','cpf','contrato','produto','valor','parcela','obs'].forEach(id=>document.getElementById(id).value='');document.getElementById('clienteId').value='';document.getElementById('data').value=new Date().toISOString().slice(0,10);clearSelectedCliente();preview()}
-async function loadClientes(){const q=encodeURIComponent(buscaCliente?.value||'');const r=await fetch(API_BASE+'/admin/crediario/clientes?q='+q, {headers:headers()});const j=await r.json();clientes=j.clientes||[];clientesBody.innerHTML=clientes.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>${esc(shortPhone(c.telefone))||'<span class="muted">Sem telefone</span>'}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td><td><button class="light small" onclick="usarClienteDaLista(${i})">Usar no recibo</button> <button class="yellow small" onclick="selecionarCobrancaCliente(${i})">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="5">Nenhum cliente.</td></tr>'}
+async function loadClientes(){try{const q=buscaCliente?.value||'';clientes=await buscarClientesFinanceiro(q,200);clientesBody.innerHTML=clientes.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>${esc(shortPhone(c.telefone))||'<span class="muted">Sem telefone</span>'}</td><td>${esc(c.cpf)}</td><td>${esc(c.contrato)}</td><td><button class="light small" onclick="usarClienteDaLista(${i})">Usar no recibo</button> <button class="yellow small" onclick="selecionarCobrancaCliente(${i})">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="5">Nenhum cliente.</td></tr>'}catch(e){console.error(e);clientes=[];clientesBody.innerHTML='<tr><td colspan="5">Erro ao buscar clientes: '+esc(e.message||e)+'</td></tr>'}}
 function usarClienteDaLista(i){const c=clientes[i];if(!c)return;document.querySelectorAll('.nav button')[0].click();setTimeout(()=>selecionarCliente(c),120)}
-async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>`<tr><td><b>${esc(r.recibo)}</b><br><small>${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</small></td><td>${esc(r.clienteNome)}<br><small>${esc(shortPhone(r.telefone))}</small></td><td>${esc(r.produto)}<br><small>${esc(formatParcelaCliente(r.parcela))}</small></td><td><b>${money(r.valorPago)}</b></td><td><span class="pill">${r.enviadoWhatsapp?'Enviado':'Pendente'}</span></td><td><button class="light small" onclick="printRecibo('${r.id}')">Imprimir</button> <button class="green small" onclick="reenviar('${r.id}')">Enviar</button> <button class="yellow small" onclick="selecionarCobrancaRecibo('${r.id}')">🔔 Cobrança</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
+async function loadRecibos(){const q=encodeURIComponent(buscaRecibo?.value||'');const r=await fetch(API_BASE+'/admin/crediario/recibos?q='+q, {headers:headers()});const j=await r.json();recibos=j.recibos||[];recibosBody.innerHTML=recibos.map(r=>{const statusClass=r.enviadoWhatsapp?'ok':'pending';const statusText=r.enviadoWhatsapp?'Enviado':'Pendente';return `<tr><td><span class="receipt-code">${esc(r.recibo)}</span><span class="receipt-date">${new Date(r.dataPagamento||r.createdAt).toLocaleDateString('pt-BR')}</span></td><td><span class="client-name">${esc(r.clienteNome)}</span><span class="client-phone">${esc(shortPhone(r.telefone))||'Sem telefone'}</span></td><td>${esc(r.produto)}<span class="product-parcel">${esc(formatParcelaCliente(r.parcela))}</span></td><td><span class="money-cell">${money(r.valorPago)}</span></td><td><span class="pill ${statusClass}">${statusText}</span></td><td class="compact-actions"><div class="row-actions"><button class="icon-btn print" title="Imprimir recibo" onclick="printRecibo('${r.id}')">🖨️</button><button class="btn-text send" title="Enviar pelo WhatsApp" onclick="reenviar('${r.id}')">📲 Enviar</button><button class="icon-btn charge" title="Enviar cobrança" onclick="selecionarCobrancaRecibo('${r.id}')">🔔</button></div></td></tr>`}).join('')||'<tr><td colspan="6">Nenhum recibo.</td></tr>';calcStats()}
 async function printRecibo(id){
   try{
     const win = window.open('', '_blank');
@@ -405,41 +731,46 @@ async function enviarCobrancaSelecionada(){
   }
   const payload={tipo:tipoCobranca.value,produto:cobrancaProduto.value,parcela:cobrancaParcela.value,valor:String(cobrancaValor.value).replace(/\./g,'').replace(',','.'),telefone:telefoneAtual};
   const endpoint=cobrancaAlvo.kind==='sige'
-    ? API_BASE+'/admin/sige/cobranca'
+    ? '/admin/sige/cobranca'
     : (cobrancaAlvo.kind==='cliente'
-      ? API_BASE+'/admin/crediario/clientes/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca'
-      : API_BASE+'/admin/crediario/recibos/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca');
+      ? '/admin/crediario/clientes/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca'
+      : '/admin/crediario/recibos/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca');
   if(cobrancaAlvo.kind==='sige'){payload.clienteNome=cobrancaAlvo.nome||cobrancaAlvo.clienteNome||'';payload.documento=cobrancaAlvo.documento||cobrancaAlvo.codigo||'';payload.codigo=cobrancaAlvo.codigo||'';}
   if(!confirm(`Enviar ${tipoCobranca.value==='urgente'?'cobrança urgente':'cobrança normal'} para ${cobrancaAlvo.nome||cobrancaAlvo.clienteNome}?`))return;
   try{
-    const r=await fetch(endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
-    const j=await r.json();
-    toast(j.ok?'Cobrança enviada pelo WhatsApp':'Erro: '+(j.error||'Falha ao enviar cobrança'));
-    if(j.ok){await loadClientes(); await loadRecibos();}
-  }catch(e){toast('Erro ao enviar cobrança: '+(e.message||e))}
+    const j=await apiJson(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    toast('Cobrança enviada pelo WhatsApp');
+    await loadClientes();
+    await loadRecibos();
+  }catch(e){
+    console.error('Erro ao enviar cobrança:', e.data || e);
+    toast('Erro ao enviar cobrança: '+(e.message||e));
+  }
 }
+
 
 
 function formatDateBR(v){try{if(!v)return '—';const d=new Date(v);return isNaN(d)?'—':d.toLocaleDateString('pt-BR')}catch(_e){return '—'}}
 function openCobrancasTab(){const b=document.querySelector(".nav button[onclick*=\"cobrancas\"]");if(b)b.click()}
 async function testarSigeStatus(){
   try{
-    const r=await fetch(API_BASE+'/admin/sige/status',{headers:headers()});
-    const j=await r.json();
-    sigeStatusBox.innerHTML=j.configured
-      ? `<b>✅ SIGE configurado</b><br>API: ${esc(j.apiUrl)}<br>User: ${esc(j.user)}<br>App: ${esc(j.app)}<br>Token: ${j.tokenConfigured?'configurado':'ausente'}`
+    const [sige, financeiro]=await Promise.all([
+      apiJson('/admin/sige/status'),
+      apiJson(FINANCEIRO_STATUS_ROUTE)
+    ]);
+    const sigeHtml=sige.configured
+      ? `<b>✅ SIGE configurado</b><br>API: ${esc(sige.apiUrl)}<br>User: ${esc(sige.user)}<br>App: ${esc(sige.app)}<br>Token: ${sige.tokenConfigured?'configurado':'ausente'}`
       : `<b>⚠️ SIGE ainda não configurado</b><br>Cadastre no Render: SIGE_API_URL, SIGE_USER, SIGE_APP e SIGE_TOKEN.`;
-  }catch(e){sigeStatusBox.innerHTML='Erro ao testar SIGE: '+esc(e.message||e)}
+    const fonteOk=String(financeiro.fonteOficial||'').toLowerCase()==='sige';
+    sigeStatusBox.innerHTML=sigeHtml+`<hr style="border:0;border-top:1px solid #e5e7eb;margin:14px 0"><b>${fonteOk?'✅':'⚠️'} Fonte financeira oficial: ${esc(financeiro.fonteOficial||'não informada')}</b><br>Parcelas: ${esc(financeiro.parcelas||'—')} • Saldo: ${esc(financeiro.saldo||'—')} • Pagamentos: ${esc(financeiro.pagamentos||'—')}<br><span class="muted">MongoDB: ${esc(financeiro.mongoDb||'histórico e auditoria')}</span><br><b>${financeiro.baixaSigeBackend?'✅':'⚠️'} Baixa no SIGE pelo painel: ${financeiro.baixaSigeBackend?'disponível':'indisponível'}</b><br><span class="muted">Fase: ${esc(financeiro.fase||'—')} • Recibo automático: ${financeiro.reciboAutomatico?'sim':'não'} • WhatsApp automático: ${financeiro.whatsappAutomatico?'sim':'não'}</span>`;
+  }catch(e){sigeStatusBox.innerHTML='Erro ao testar a integração financeira: '+esc(e.message||e)}
 }
 async function buscarSigeClientes(){
   const q=(sigeBuscaCliente.value||'').trim();
   if(q.length<2){toast('Digite pelo menos 2 letras para buscar no SIGE.');return}
   sigeClientesBody.innerHTML='<tr><td colspan="4">Consultando SIGE...</td></tr>';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/clientes?q='+encodeURIComponent(q)+'&limit=30',{headers:headers()});
-    const j=await r.json();
-    if(!j.ok){sigeClientesBody.innerHTML='<tr><td colspan="4">Erro: '+esc(j.error||'Falha ao consultar SIGE')+'</td></tr>';return}
-    const rows=j.clientes||[];
+    const rows=await buscarClientesFinanceiro(q,30);
     window.sigeClientesCache=rows;
     sigeClientesBody.innerHTML=rows.map((c,i)=>`<tr><td><b>${esc(c.nome)}</b><br><small>${esc(c.endereco||'')}</small></td><td>CPF: ${esc(c.cpf)||'—'}<br><small>WhatsApp: ${esc(shortPhone(c.telefone))||'—'}</small></td><td>${c.inadimplente?'⚠️ Inadimplente':'✅ Sem alerta'}<br><small>${esc(c.cidade||'')} ${esc(c.uf||'')}</small></td><td><button type="button" class="light small" onclick="usarClienteSige(${i})">Usar no recibo</button> <button type="button" class="blue small" onclick="verCarneClienteSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarClienteSige(${i})">🔔 Cobrar</button></td></tr>`).join('')||'<tr><td colspan="4">Nenhum cliente encontrado no SIGE.</td></tr>';
   }catch(e){sigeClientesBody.innerHTML='<tr><td colspan="4">Erro ao consultar SIGE: '+esc(e.message||e)+'</td></tr>'}
@@ -487,7 +818,7 @@ function renderSigeLancamentos(rows){
     const status=l.quitado?'✅ Quitado':(l.atrasado?'⚠️ Atrasado':'🟡 Em aberto');
     const doc=l.documento||l.codigoVenda||l.codigo||'—';
     const valor=l.saldo&&l.saldo>0?l.saldo:l.valor;
-    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td><button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
+    return `<tr><td><b>${esc(l.cliente||l.nome)}</b><br><small>${esc(l.telefone?shortPhone(l.telefone):'')}</small></td><td>${esc(doc)}<br><small>${esc(l.descricao||'')}</small></td><td>${formatDateBR(l.dataVencimento)}</td><td><b>${money(valor)}</b><br><small>Recebido: ${money(l.totalRecebido||0)}</small></td><td>${status}</td><td>${(!l.quitado&&Number(l.codigo||0)>0)?`<button type="button" class="green small pay-btn" onclick="abrirPagamentoLancamentoSige(${i})">💰 Pagar</button> `:''}<button type="button" class="blue small" onclick="verCarneLancamentoSige(${i})">📋 Carnê</button> <button type="button" class="yellow small" onclick="cobrarLancamentoSige(${i})">🔔 Cobrar</button></td></tr>`
   }).join('')||(resumo||'<tr><td colspan="6">Nenhum lançamento encontrado.</td></tr>');
 }
 function cobrarLancamentoSige(i){
@@ -532,17 +863,43 @@ async function buscarSigeCarne(){
   window.sigeCarneParcelasCache=[];
   if(box)box.innerHTML='Gerando carnê digital no SIGE...';
   try{
-    const url=API_BASE+'/admin/sige/carne?cliente='+encodeURIComponent(q)+'&limit=5000&maxRecords=20000';
+    const url=API_BASE+FINANCEIRO_CARNE_ROUTE+'?cliente='+encodeURIComponent(q)+'&limit=5000&maxRecords=20000';
     const r=await fetch(url,{headers:headers()});
     const j=await r.json();
     if(!j.ok){if(box)box.innerHTML='Erro: '+esc(j.error||'Falha ao gerar carnê');return}
     renderSigeCarne(j);
   }catch(e){if(box)box.innerHTML='Erro ao gerar carnê: '+esc(e.message||e)}
 }
+
+function calcularAtualizacaoParcela(valorOriginal, vencimento, status=''){
+  const original=Math.max(0,Number(valorOriginal||0));
+  const pago=String(status||'').toLowerCase()==='paga'||String(status||'').toLowerCase()==='quitado';
+  const due=vencimento?new Date(String(vencimento).slice(0,10)+'T00:00:00'):null;
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  if(pago||!due||Number.isNaN(due.getTime())||hoje<=due){return{original,diasAtraso:0,multa:0,juros:0,atualizado:original};}
+  const diasAtraso=Math.max(0,Math.floor((hoje-due)/86400000));
+  const multa=Math.round(original*0.02*100)/100;
+  const juros=Math.round(original*0.01*diasAtraso/30*100)/100;
+  return{original,diasAtraso,multa,juros,atualizado:Math.round((original+multa+juros)*100)/100};
+}
+function resumoAtualizadoCarne(grupos=[]){
+  const parcelas=grupos.flatMap(g=>g.parcelas||[]);
+  return parcelas.reduce((a,p)=>{
+    const status=String(p.status||'').toLowerCase();
+    const pago=status==='paga'||status==='quitado';
+    const base=Number(p.saldoParcela??p.valorParcela??p.saldo??p.valor??0);
+    const c=calcularAtualizacaoParcela(base,p.dataVencimento,status);
+    if(pago){a.pagas++;a.totalPago+=Number(p.valorParcela||p.valor||0);return a;}
+    a.saldoOriginal+=c.original;a.multas+=c.multa;a.juros+=c.juros;a.saldoAtualizado+=c.atualizado;
+    if(c.diasAtraso>0)a.vencidas++;else a.aVencer++;
+    return a;
+  },{saldoOriginal:0,multas:0,juros:0,saldoAtualizado:0,pagas:0,vencidas:0,aVencer:0,totalPago:0});
+}
 function renderSigeCarne(carne){
   const box=document.getElementById('sigeCarneBox');
   const resumo=carne.resumo||{};
   const grupos=carne.grupos||[];
+  const atualizado=resumoAtualizadoCarne(grupos);
   if(!grupos.length){
     if(box)box.innerHTML='Nenhuma parcela encontrada para este cliente. Tente pesquisar o nome completo exatamente como está no SIGE ou clique primeiro em Buscar cliente e depois no botão Carnê.';
     return;
@@ -555,18 +912,25 @@ function renderSigeCarne(carne){
     <div class="row"><span>WhatsApp</span><span>${esc(shortPhone(carne.telefone)||'—')}</span></div>
     <div class="row"><span>Total lançado</span><span>${money(resumo.total||0)}</span></div>
     <div class="row"><span>Total pago</span><span>${money(resumo.pago||0)}</span></div>
-    <div class="row"><span>Saldo restante</span><span class="money">${money(resumo.saldo||0)}</span></div>
-    <div class="row"><span>Parcelas</span><span>${resumo.parcelas||0} total • ${resumo.pagas||0} pagas • ${resumo.abertas||0} abertas • ${resumo.atrasadas||0} atrasadas</span></div>
+    <div class="row"><span>Saldo original em aberto</span><span>${money(atualizado.saldoOriginal)}</span></div>
+    <div class="row"><span>Multas acumuladas</span><span>${money(atualizado.multas)}</span></div>
+    <div class="row"><span>Juros acumulados</span><span>${money(atualizado.juros)}</span></div>
+    <div class="row"><span>Saldo atualizado</span><span class="money">${money(atualizado.saldoAtualizado)}</span></div>
+    <div class="row"><span>Parcelas</span><span>${resumo.parcelas||0} total • ${atualizado.pagas} pagas • ${atualizado.vencidas} vencidas • ${atualizado.aVencer} a vencer</span></div>
     <div class="actions" style="margin-top:12px"><button type="button" class="green" onclick="enviarCarneWhatsapp()">📲 Enviar carnê pelo WhatsApp</button></div>`;
   grupos.forEach((g)=>{
     html+=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb"><b>${esc(g.documento||'Sem documento')}</b><br><small>${esc(g.descricao||'')}</small>
       <div class="muted">Total: ${money(g.total||0)} • Pago: ${money(g.pago||0)} • Saldo: ${money(g.saldo||0)} • Atrasadas: ${g.atrasadas||0}</div>
-      <table style="margin-top:8px"><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ação</th></tr></thead><tbody>`;
+      <table style="margin-top:8px"><thead><tr><th>Parcela</th><th>Vencimento</th><th>Original</th><th>Multa</th><th>Juros</th><th>Atualizado</th><th>Status</th><th>Ação</th></tr></thead><tbody>`;
     (g.parcelas||[]).forEach((p)=>{
       const st=p.status==='paga'?'✅ Paga':(p.status==='atrasada'?'⚠️ Atrasada':'⏳ Aberta');
       const canCobrar=p.status!=='paga';
       const idx=window.sigeCarneParcelasCache.push({...p,telefone:carne.telefone,cpf:carne.cpf})-1;
-      html+=`<tr><td>${esc(p.parcelaLabel||'')}</td><td>${formatDateBR(p.dataVencimento)}</td><td>${money(p.saldoParcela||p.valorParcela||0)}</td><td>${st}</td><td>${canCobrar?`<button type="button" class="yellow small" onclick="cobrarParcelaCarne(${idx})">🔔 Cobrar</button>`:'—'}</td></tr>`;
+      const canPagar=canCobrar&&Number(p.codigo||0)>0&&Number(p.saldoParcela||p.saldo||0)>0;
+      const calc=calcularAtualizacaoParcela(Number(p.saldoParcela??p.valorParcela??0),p.dataVencimento,p.status);
+      window.sigeCarneParcelasCache[idx]={...window.sigeCarneParcelasCache[idx],calculoAtualizacao:calc};
+      const atraso=calc.diasAtraso>0?`<br><small style="color:#b91c1c">${calc.diasAtraso} dia(s) em atraso</small>`:'';
+      html+=`<tr><td>${esc(p.parcelaLabel||'')}</td><td>${formatDateBR(p.dataVencimento)}${atraso}</td><td>${money(calc.original)}</td><td>${money(calc.multa)}</td><td>${money(calc.juros)}</td><td><b>${money(calc.atualizado)}</b></td><td>${st}</td><td>${canPagar?`<button type="button" class="green small pay-btn" onclick="abrirPagamentoParcelaCarne(${idx})">💰 Registrar pagamento</button> `:''}${canCobrar?`<button type="button" class="yellow small" onclick="cobrarParcelaCarne(${idx})">🔔 Cobrar</button>`:'—'}</td></tr>`;
     });
     html+='</tbody></table></div>';
   });
@@ -583,16 +947,184 @@ async function enviarCarneWhatsapp(){
   }
   try{
     toast('Enviando carnê pelo WhatsApp...');
-    const r=await fetch(API_BASE+'/admin/sige/carne/enviar-whatsapp',{
+    await apiJson('/admin/sige/carne/enviar-whatsapp',{
       method:'POST',
-      headers:headers({'Content-Type':'application/json'}),
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({cliente:carne.cliente,telefone:tel,limit:5000,maxRecords:20000})
     });
-    const j=await r.json();
-    if(!j.ok){toast('Erro: '+(j.error||'Falha ao enviar carnê'));return}
     toast('Carnê enviado pelo WhatsApp com sucesso.');
-  }catch(e){toast('Erro ao enviar carnê: '+(e.message||e))}
+  }catch(e){
+    console.error('Erro ao enviar carnê:', e.data || e);
+    toast('Erro ao enviar carnê: '+(e.message||e));
+  }
 }
+
+
+let sigePagamentoAlvo=null;
+let sigePagamentoEnviando=false;
+
+function parseMoneyInput(v){
+  const raw=String(v??'').trim();
+  if(!raw)return 0;
+  const normalized=raw.includes(',')
+    ? raw.replace(/\./g,'').replace(',','.')
+    : raw;
+  const n=Number(normalized);
+  return Number.isFinite(n)?n:0;
+}
+function moneyInput(v){
+  return Number(v||0).toFixed(2).replace('.',',');
+}
+function gerarDocumentoPagamentoSige(codigo){
+  const d=new Date();
+  const stamp=[
+    d.getFullYear(),
+    String(d.getMonth()+1).padStart(2,'0'),
+    String(d.getDate()).padStart(2,'0'),
+    String(d.getHours()).padStart(2,'0'),
+    String(d.getMinutes()).padStart(2,'0'),
+    String(d.getSeconds()).padStart(2,'0')
+  ].join('');
+  return `ARIANA-${codigo}-${stamp}`;
+}
+function normalizarAlvoPagamentoSige(item={}){
+  const saldo=Number(item.saldoParcela??item.saldo??0);
+  return {
+    codigo:Number(item.codigo||item.Codigo||item.codigoLancamento||0),
+    cliente:String(item.cliente||item.nome||item.Cliente||'').trim(),
+    documento:String(item.documento||item.NumeroDocumento||item.parcelaLabel||'').trim(),
+    descricao:String(item.descricao||item.Descricao||'').trim(),
+    vencimento:item.dataVencimento||item.DataVencimento||null,
+    saldo:Math.max(0,Number.isFinite(saldo)?saldo:0),
+    quitado:item.quitado===true||item.Quitado===true,
+    telefone:shortPhone(item.telefone||item.Telefone||''),
+    cpf:String(item.cpf||item.CPF||item.CpfCnpj||'').trim(),
+    contrato:String(item.contrato||item.codigoContrato||item.CodigoContrato||item.codigoVenda||item.CodigoVenda||'').trim(),
+    parcela:String(item.parcelaLabel||item.documento||item.NumeroDocumento||'').trim(),
+    calculoAtualizacao:item.calculoAtualizacao||calcularAtualizacaoParcela(Math.max(0,Number.isFinite(saldo)?saldo:0),item.dataVencimento||item.DataVencimento,item.status||'')
+  };
+}
+function abrirPagamentoSige(item){
+  const alvo=normalizarAlvoPagamentoSige(item);
+  if(!Number.isInteger(alvo.codigo)||alvo.codigo<=0){toast('Este lançamento não possui código válido do SIGE.');return}
+  if(alvo.quitado||alvo.saldo<=0){toast('Esta parcela já está quitada no SIGE.');return}
+  sigePagamentoAlvo=alvo;
+  sigePayCodigo.value=String(alvo.codigo);
+  const calc=alvo.calculoAtualizacao||calcularAtualizacaoParcela(alvo.saldo,alvo.vencimento,'');
+  alvo.valorAtualizado=calc.atualizado;
+  sigePaySaldo.value=money(calc.atualizado);
+  sigePayValor.value=moneyInput(calc.atualizado);
+  sigePayData.value=new Date().toISOString().slice(0,10);
+  sigePayForma.value='PIX';
+  sigePayConta.value='ariana moveis';
+  sigePayDocumento.value=gerarDocumentoPagamentoSige(alvo.codigo);
+  sigePagamentoResumo.innerHTML=`<div class="row"><strong>Cliente</strong><span>${esc(alvo.cliente||'—')}</span></div><div class="row"><strong>Documento/parcela</strong><span>${esc(alvo.documento||'—')}</span></div><div class="row"><strong>Descrição</strong><span>${esc(alvo.descricao||'—')}</span></div><div class="row"><strong>Vencimento</strong><span>${formatDateBR(alvo.vencimento)}</span></div><div class="row"><strong>Valor original</strong><span>${money(calc.original)}</span></div><div class="row"><strong>Multa (2%)</strong><span>${money(calc.multa)}</span></div><div class="row"><strong>Juros (1% a.m. proporcional)</strong><span>${money(calc.juros)}</span></div><div class="row"><strong>Dias em atraso</strong><span>${calc.diasAtraso}</span></div><div class="row"><strong>Valor atualizado</strong><span class="money">${money(calc.atualizado)}</span></div>`;
+  sigePagamentoOverlay.classList.remove('hidden');
+  setTimeout(()=>sigePayValor.focus(),80);
+}
+function abrirPagamentoParcelaCarne(idx){
+  const p=(window.sigeCarneParcelasCache||[])[Number(idx)];
+  if(!p){toast('Parcela não encontrada.');return}
+  abrirPagamentoSige(p);
+}
+function abrirPagamentoLancamentoSige(idx){
+  const l=(window.sigeLancamentosCache||[])[Number(idx)];
+  if(!l){toast('Lançamento não encontrado.');return}
+  abrirPagamentoSige(l);
+}
+function fecharPagamentoSige(){
+  if(sigePagamentoEnviando)return;
+  sigePagamentoOverlay.classList.add('hidden');
+  sigePagamentoAlvo=null;
+}
+async function confirmarPagamentoSige(){
+  if(sigePagamentoEnviando)return;
+  const alvo=sigePagamentoAlvo;
+  if(!alvo){toast('Selecione uma parcela do SIGE.');return}
+  const valorPagamento=parseMoneyInput(sigePayValor.value);
+  const formaPagamento=String(sigePayForma.value||'').trim();
+  const contaBancaria=String(sigePayConta.value||'').trim();
+  const numeroDocumento=String(sigePayDocumento.value||'').trim();
+  const dataPagamento=String(sigePayData.value||'').trim();
+
+  if(!Number.isFinite(valorPagamento)||valorPagamento<=0){toast('Informe um valor de pagamento válido.');sigePayValor.focus();return}
+  if(valorPagamento>Number(alvo.valorAtualizado||alvo.saldo)+0.009){toast('O pagamento não pode ultrapassar o valor atualizado de '+money(alvo.valorAtualizado||alvo.saldo)+'.');sigePayValor.focus();return}
+  if(!formaPagamento){toast('Selecione a forma de pagamento.');return}
+  if(!contaBancaria){toast('Selecione a conta bancária.');return}
+  if(!numeroDocumento){toast('Informe o número do documento.');sigePayDocumento.focus();return}
+  if(!dataPagamento){toast('Informe a data do pagamento.');return}
+
+  if(!confirm(`Confirmar pagamento de ${money(valorPagamento)} no lançamento ${alvo.codigo} do SIGE?\n\nCliente: ${alvo.cliente||'—'}\nDocumento: ${numeroDocumento}`))return;
+
+  sigePagamentoEnviando=true;
+  sigePayConfirmar.disabled=true;
+  const textoOriginal=sigePayConfirmar.textContent;
+  sigePayConfirmar.textContent='⏳ Registrando no SIGE...';
+
+  try{
+    const resultado=await apiJson('/admin/financeiro/lancamentos/'+encodeURIComponent(alvo.codigo)+'/pagamentos',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        valor:valorPagamento,
+        formaPagamento,
+        contaBancaria,
+        numeroDocumento,
+        dataPagamento,
+        conciliado:true,
+        enviarWhatsapp:true,
+        clienteNome:alvo.cliente,
+        telefone:alvo.telefone,
+        cpf:alvo.cpf,
+        contrato:alvo.contrato,
+        produto:alvo.descricao||'Pagamento de parcela SIGE',
+        parcela:alvo.parcela||alvo.documento
+      })
+    });
+
+    if(resultado.reciboCriado){
+      lastRecibo=resultado.recibo||null;
+      if(resultado.whatsappEnviado){
+        toast(resultado.message||'Pagamento, recibo e WhatsApp concluídos com sucesso.');
+      }else{
+        const motivo=resultado.whatsapp?.reason==='cliente_sem_whatsapp'
+          ? ' Cliente sem WhatsApp cadastrado.'
+          : '';
+        toast((resultado.message||'Pagamento e recibo concluídos, mas o WhatsApp não foi enviado.')+motivo);
+      }
+    }else{
+      toast(resultado.message||'Pagamento confirmado no SIGE, mas o recibo não foi criado.');
+    }
+
+    sigePagamentoOverlay.classList.add('hidden');
+    sigePagamentoAlvo=null;
+
+    await Promise.allSettled([loadRecibos(),loadClientes()]);
+
+    const buscaCarne=(document.getElementById('sigeCarneBusca')?.value||'').trim();
+    if(buscaCarne){
+      await buscarSigeCarne();
+    }
+    const buscaLanc=(document.getElementById('sigeLancBusca')?.value||'').trim();
+    if(document.getElementById('tab-sige')&&!document.getElementById('tab-sige').classList.contains('hidden')&&buscaLanc){
+      await buscarSigeLancamentos();
+    }
+  }catch(e){
+    console.error('Erro ao registrar pagamento no SIGE:',e.data||e);
+    toast('Pagamento não registrado: '+(e.message||e));
+  }finally{
+    sigePagamentoEnviando=false;
+    sigePayConfirmar.disabled=false;
+    sigePayConfirmar.textContent=textoOriginal;
+  }
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!sigePagamentoOverlay.classList.contains('hidden'))fecharPagamentoSige();
+});
+sigePagamentoOverlay.addEventListener('click',e=>{
+  if(e.target===sigePagamentoOverlay)fecharPagamentoSige();
+});
+
 
 function cobrarParcelaCarne(idx){
   const p=(window.sigeCarneParcelasCache||[])[Number(idx)]; if(!p){toast('Parcela não encontrada.');return}
@@ -691,25 +1223,25 @@ async function enviarCarneInadimplente(i){
   }
   try{
     toast('Enviando carnê pelo WhatsApp...');
-    const resp=await fetch(API_BASE+'/admin/sige/carne/enviar-whatsapp',{
+    await apiJson('/admin/sige/carne/enviar-whatsapp',{
       method:'POST',
-      headers:headers({'Content-Type':'application/json'}),
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({cliente:r.nome||r.cliente,telefone:tel,limit:5000,maxRecords:20000})
     });
-    const j=await resp.json();
-    if(!j.ok){toast('Erro: '+(j.error||'Falha ao enviar carnê'));return}
     toast('Carnê enviado pelo WhatsApp.');
-  }catch(e){toast('Erro ao enviar carnê: '+(e.message||e))}
+  }catch(e){
+    console.error('Erro ao enviar carnê inadimplente:', e.data || e);
+    toast('Erro ao enviar carnê: '+(e.message||e));
+  }
 }
+
 
 
 async function loadAutoCobrancaConfig(){
   const box=document.getElementById('autoCobrancaConfig');
   if(box)box.innerHTML='Carregando configuração...';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/cobranca-automatica/config',{headers:headers()});
-    const j=await r.json();
-    if(!j.ok){if(box)box.innerHTML='Erro: '+esc(j.error||'Falha ao carregar configuração');return}
+    const j=await apiJson('/admin/sige/cobranca-automatica/config');
     if(box)box.innerHTML=`<b>Status automático no servidor:</b> ${j.enabled?'ATIVADO':'DESATIVADO'}<br><b>Horário:</b> ${String(j.hour).padStart(2,'0')}:00<br><b>Regras:</b><br>${(j.rules||[]).map(r=>'• '+esc(r.label)).join('<br>')}<br><br><small>${esc(j.antiRepeticao||'')}</small>`;
   }catch(e){if(box)box.innerHTML='Erro: '+esc(e.message||e)}
 }
@@ -723,9 +1255,7 @@ async function simularAutoCobranca(){
   const resumo=document.getElementById('autoCobResumo');
   if(resumo)resumo.innerHTML='Simulando cobranças...';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/cobranca-automatica/simular',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({q,limit})});
-    const j=await r.json();
-    if(!j.ok){if(resumo)resumo.innerHTML='Erro: '+esc(j.error||'Falha na simulação');return}
+    const j=await apiJson('/admin/sige/cobranca-automatica/simular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,limit})});
     const s=j.resumo||{};
     if(resumo)resumo.innerHTML=`<b>Total candidatos:</b> ${j.total||0}<br><b>Podem enviar:</b> ${s.podeEnviar||0}<br><b>Sem telefone:</b> ${s.semTelefone||0}<br><b>Já enviados hoje:</b> ${s.jaEnviadoHoje||0}`;
     renderAutoCobrancaRows(j.candidatos||[]);
@@ -738,9 +1268,7 @@ async function executarAutoCobranca(){
   const resumo=document.getElementById('autoCobResumo');
   if(resumo)resumo.innerHTML='Enviando cobranças, aguarde...';
   try{
-    const r=await fetch(API_BASE+'/admin/sige/cobranca-automatica/executar',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({q,limit,dryRun:false})});
-    const j=await r.json();
-    if(!j.ok){if(resumo)resumo.innerHTML='Erro: '+esc(j.error||'Falha ao executar');return}
+    const j=await apiJson('/admin/sige/cobranca-automatica/executar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,limit,dryRun:false})});
     const s=j.resumo||{};
     if(resumo)resumo.innerHTML=`<b>Concluído.</b><br>Enviados: ${s.enviados||0}<br>Ignorados: ${s.ignorados||0}<br>Erros: ${s.erros||0}`;
     renderAutoCobrancaRows(j.resultados||[]);
@@ -748,12 +1276,550 @@ async function executarAutoCobranca(){
   }catch(e){if(resumo)resumo.innerHTML='Erro: '+esc(e.message||e)}
 }
 
-async function reenviar(id){const r=await fetch(API_BASE+'/admin/crediario/recibos/'+id+'/enviar-whatsapp',{method:'POST',headers:headers({'Content-Type':'application/json'})});const j=await r.json();toast(j.ok?'Enviado pelo WhatsApp':'Erro: '+(j.error||''));loadRecibos()}
+function credCobMoney(cents){return (Number(cents||0)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+function credCobStatus(v=''){return ({SIMULATED:'Simulado',SENT:'Enviado',QUEUED:'Na fila',SKIPPED:'Ignorado',ERROR:'Erro'})[String(v).toUpperCase()]||v||'—'}
+function renderCrediarioCobrancaRows(rows=[]){
+  const body=document.getElementById('credCobBody');if(!body)return;
+  body.innerHTML=rows.map(r=>`<tr><td><b>${esc(r.customerName||'—')}</b><br><small>${esc(r.customerDocument||r.orderId||'')}</small></td><td>${String(r.installmentNumber||0).padStart(2,'0')}/${String(r.installmentCount||0).padStart(2,'0')}</td><td>${esc((r.dueDate||'').split('-').reverse().join('/'))}</td><td>${esc(r.ruleLabel||r.ruleKey||'')}</td><td>${credCobMoney(r.originalCents)}</td><td><b>${credCobMoney(r.updatedCents)}</b></td><td>${r.phone?esc(shortPhone(r.phone)):'<span class="muted">Sem telefone</span>'}</td><td>${r.canSend===false?esc(r.blockReason||credCobStatus(r.status)):credCobStatus(r.status||'SIMULATED')}</td></tr>`).join('')||'<tr><td colspan="8">Nenhuma cobrança elegível para a data informada.</td></tr>';
+}
+async function loadCrediarioCobrancaConfig(){
+  const box=document.getElementById('credCobConfig');if(box)box.innerHTML='Carregando...';
+  try{const j=await apiJson('/admin/crediario/cobranca-automatica/config');if(box)box.innerHTML=`<b>Automação:</b> ${j.enabled?'ATIVADA':'DESATIVADA'} &nbsp; <b>Horário:</b> ${String(j.hour).padStart(2,'0')}:00 &nbsp; <b>Fuso:</b> ${esc(j.timezone||'')}<br><b>WhatsApp:</b> ${j.providerConfigured?'Configurado':'Aguardando CREDIARIO_NOTIFICATION_URL'}<br><b>Regras:</b> ${(j.rules||[]).map(r=>esc(r.label)).join(' • ')}<br><small>${esc(j.antiDuplication||'')}</small>`}catch(e){if(box)box.innerHTML='Erro: '+esc(e.message||e)}
+}
+async function simularCrediarioCobranca(){
+  const resumo=document.getElementById('credCobResumo');if(resumo)resumo.innerHTML='Simulando...';
+  try{const body={q:(document.getElementById('credCobBusca')?.value||'').trim(),limit:Number(document.getElementById('credCobLimit')?.value||200),referenceDate:document.getElementById('credCobData')?.value||undefined};const j=await apiJson('/admin/crediario/cobranca-automatica/simular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const x=j.summary||{};if(resumo)resumo.innerHTML=`<b>Elegíveis:</b> ${x.total||0} &nbsp; <b>Podem enviar:</b> ${x.canSend||0} &nbsp; <b>Sem telefone:</b> ${x.withoutPhone||0} &nbsp; <b>Já enviados:</b> ${x.duplicate||0}<br><b>Valor atualizado da seleção:</b> ${credCobMoney(x.totalUpdatedCents)}`;renderCrediarioCobrancaRows(j.candidates||[])}catch(e){if(resumo)resumo.innerHTML='Erro: '+esc(e.message||e)}
+}
+async function executarCrediarioCobranca(){
+  if(!confirm('Processar agora as cobranças elegíveis do Crediário Ariana?'))return;
+  const resumo=document.getElementById('credCobResumo');if(resumo)resumo.innerHTML='Processando cobranças...';
+  try{const body={q:(document.getElementById('credCobBusca')?.value||'').trim(),limit:Number(document.getElementById('credCobLimit')?.value||200),referenceDate:document.getElementById('credCobData')?.value||undefined,dryRun:false};const j=await apiJson('/admin/crediario/cobranca-automatica/executar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const x=j.summary||{};if(resumo)resumo.innerHTML=`<b>Concluído:</b> enviados ${x.sent||0}, na fila ${x.queued||0}, ignorados ${x.skipped||0}, erros ${x.errors||0}.`;renderCrediarioCobrancaRows(j.results||[]);toast('Cobrança do Crediário processada.')}catch(e){if(resumo)resumo.innerHTML='Erro: '+esc(e.message||e)}
+}
+async function loadCrediarioCobrancaHistorico(){
+  const resumo=document.getElementById('credCobResumo');if(resumo)resumo.innerHTML='Carregando histórico...';
+  try{const q=(document.getElementById('credCobBusca')?.value||'').trim();const j=await apiJson('/admin/crediario/cobranca-automatica/historico?limit=200'+(q?'&q='+encodeURIComponent(q):''));const rows=(j.logs||[]).map(r=>({...r,canSend:true,ruleLabel:r.ruleKey}));if(resumo)resumo.innerHTML=`<b>Histórico:</b> ${rows.length} registro(s) mais recente(s).`;renderCrediarioCobrancaRows(rows)}catch(e){if(resumo)resumo.innerHTML='Erro: '+esc(e.message||e)}
+}
+
+async function reenviar(id){
+  try{
+    await apiJson('/admin/crediario/recibos/'+encodeURIComponent(id)+'/enviar-whatsapp',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'}
+    });
+    toast('Enviado pelo WhatsApp');
+    await loadRecibos();
+  }catch(e){
+    console.error('Erro ao reenviar recibo pelo WhatsApp:', e.data || e);
+    toast('Erro ao enviar WhatsApp: '+(e.message||e));
+  }
+}
 async function loadAll(){await Promise.all([loadClientes(),loadRecibos()])}
 function calcStats(){const today=new Date().toISOString().slice(0,10);stHoje.textContent=recibos.filter(r=>String(r.dataPagamento||r.createdAt).slice(0,10)===today).length;stTotal.textContent=recibos.length;stWa.textContent=recibos.filter(r=>r.enviadoWhatsapp).length}
 async function readSigeRows(){const file=sigeArquivo.files&&sigeArquivo.files[0];if(!file){toast('Selecione uma planilha do SIGE.');return []}if(!window.XLSX){toast('Biblioteca de Excel não carregou. Verifique a internet e tente novamente.');return []}const buffer=await file.arrayBuffer();const wb=XLSX.read(buffer,{type:'array',cellDates:true});const sheet=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});return rows.filter(r=>Object.values(r).some(v=>String(v||'').trim()))}
 async function preverSige(){const rows=await readSigeRows();if(!rows.length){sigeResultado.innerHTML='Nenhuma linha encontrada.';return}const keys=Object.keys(rows[0]||{});sigeResultado.innerHTML=`<b>${rows.length}</b> linha(s) lida(s). Colunas: ${keys.map(esc).join(', ')}`;sigePreviewHead.innerHTML='<tr>'+keys.slice(0,10).map(k=>`<th>${esc(k)}</th>`).join('')+'</tr>';sigePreviewBody.innerHTML=rows.slice(0,8).map(r=>'<tr>'+keys.slice(0,10).map(k=>`<td>${esc(r[k])}</td>`).join('')+'</tr>').join('')}
-async function importarSige(){const rows=await readSigeRows();if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}const tipo=sigeTipo.value;const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';sigeResultado.innerHTML='Importando, aguarde...';const r=await fetch(API_BASE+endpoint,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({rows})});const j=await r.json();if(!j.ok){sigeResultado.innerHTML='Erro: '+esc(j.error||'Falha na importação');toast('Erro na importação');return}sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;toast('Planilha SIGE importada com sucesso');await loadAll()}
+async function importarSige(){
+  const rows=await readSigeRows();
+  if(!rows.length){sigeResultado.innerHTML='Nenhuma linha para importar.';return}
+  const tipo=sigeTipo.value;
+  const endpoint=tipo==='pagamentos'?'/admin/crediario/importar-sige/pagamentos':'/admin/crediario/importar-sige/clientes';
+  sigeResultado.innerHTML='Importando, aguarde...';
+  try{
+    const j=await apiJson(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})});
+    sigeResultado.innerHTML=`<b>Importação concluída.</b><br>Total: ${j.total||0}<br>Processados: ${j.processados||0}<br>Criados: ${j.criados||0}<br>Atualizados: ${j.atualizados||0}<br>Ignorados: ${j.ignorados||0}${j.semTelefone!==undefined?'<br>Sem telefone: '+j.semTelefone:''}`;
+    toast('Planilha SIGE importada com sucesso');
+    await loadAll();
+  }catch(e){
+    console.error('Erro na importação SIGE:', e.data || e);
+    sigeResultado.innerHTML='Erro: '+esc(e.message||'Falha na importação');
+    toast('Erro na importação');
+  }
+}
+
+// ============================================================
+// FASE 5 - EMISSÃO DE CARNÊ / BOLETOS CORA NO PAINEL FINANCEIRO
+// ============================================================
+let coraClientesCache=[];
+let coraComprasCache=[];
+let coraClienteAtual=null;
+let coraCompraAtual=null;
+let coraInicializado=false;
+
+function centsFromBR(value){
+  const raw=String(value??'').trim();
+  if(!raw)return 0;
+  const normalized=raw.includes(',')?raw.replace(/\./g,'').replace(',','.'):raw;
+  const n=Number(normalized);
+  return Number.isFinite(n)?Math.round(n*100):0;
+}
+function brFromCents(value){return money(Number(value||0)/100)}
+function coraDateBR(value){if(!value)return '—';const d=new Date(String(value).slice(0,10)+'T00:00:00');return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('pt-BR')}
+function coraFirst(obj,keys,fallback=''){for(const k of keys){const v=obj?.[k];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v}return fallback}
+function coraStatusLabel(status=''){const s=String(status||'').toUpperCase();if(['PAID','SETTLED'].includes(s))return 'Pago';if(['OPEN','CREATED'].includes(s))return 'Aberto';if(s.includes('PENDING'))return 'Em processamento';if(s==='CANCELED'||s==='CANCELLED')return 'Cancelado';return s||'—'}
+function coraStatusClass(status=''){const s=String(status||'').toUpperCase();if(['PAID','SETTLED'].includes(s))return 'cora-status-paid';if(['OPEN','CREATED'].includes(s))return 'cora-status-open';return 'cora-status-pending'}
+function abrirLinkCora(url){const safe=String(url||'').trim();if(!/^https:\/\//i.test(safe)){toast('Link do boleto indisponível.');return}window.open(safe,'_blank','noopener,noreferrer')}
+
+async function iniciarCora(){
+  if(!coraInicializado){
+    const parcelas=document.getElementById('coraParcelas');
+    parcelas.innerHTML=Array.from({length:15},(_,i)=>`<option value="${i+1}" ${i===14?'selected':''}>${i+1}x</option>`).join('');
+    const due=new Date();due.setMonth(due.getMonth()+1);due.setDate(20);
+    document.getElementById('coraPrimeiroVencimento').value=due.toISOString().slice(0,10);
+    coraInicializado=true;
+  }
+  await Promise.all([loadCoraClientes(),loadCoraCarnes(),loadCoraStatus()]);
+}
+async function loadCoraStatus(){
+  try{const j=await apiJson('/admin/cora/status');const env=j.config?.environment||'stage';const badge=document.getElementById('coraEnvironmentBadge');badge.textContent=env==='production'?'PRODUÇÃO':'AMBIENTE DE TESTE';badge.style.background=env==='production'?'#dcfce7':'#fef3c7';badge.style.color=env==='production'?'#166534':'#92400e'}catch(e){console.warn('Status Cora:',e.message)}
+}
+async function loadCoraClientes(){
+  const select=document.getElementById('coraClienteSelect');
+  select.innerHTML='<option value="">Carregando clientes...</option>';
+  try{
+    const j=await apiJson('/admin/crediario/clientes?limit=500');
+    coraClientesCache=(j.clientes||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+    select.innerHTML='<option value="">Selecione o cliente</option>'+coraClientesCache.map((c,i)=>`<option value="${i}">${esc(c.nome||'Sem nome')} — ${esc(c.cpf||c.documento||'sem CPF')}</option>`).join('');
+  }catch(e){select.innerHTML='<option value="">Erro ao carregar clientes</option>';toast('Erro ao carregar clientes para a Cora: '+e.message)}
+}
+function parseEnderecoCora(cliente={}){
+  const endereco=cliente.address||cliente.enderecoObj||{};
+  const enderecoTexto=String(cliente.endereco||'');
+  const parts=enderecoTexto.split(',').map(x=>x.trim()).filter(Boolean);
+  return {
+    street:coraFirst(endereco,['street','logradouro','rua'],parts[0]||''),
+    number:coraFirst(endereco,['number','numero'],parts[1]||''),
+    district:coraFirst(endereco,['district','bairro'],parts[2]||''),
+    city:coraFirst(endereco,['city','cidade'],cliente.cidade||'Guanhães'),
+    state:coraFirst(endereco,['state','uf'],cliente.uf||'MG'),
+    zip_code:onlyDigits(coraFirst(endereco,['zip_code','zipCode','cep'],cliente.cep||'')),
+    complement:coraFirst(endereco,['complement','complemento'],'')
+  };
+}
+async function selecionarClienteCora(){
+  const idx=document.getElementById('coraClienteSelect').value;
+  coraClienteAtual=idx===''?null:coraClientesCache[Number(idx)];
+  const box=document.getElementById('coraClienteResumo');
+  if(!coraClienteAtual){box.classList.add('hidden');return}
+  const end=parseEnderecoCora(coraClienteAtual);
+  document.getElementById('coraDocumento').value=onlyDigits(coraClienteAtual.cpf||coraClienteAtual.documento||'');
+  document.getElementById('coraEmail').value=coraClienteAtual.email||'';
+  document.getElementById('coraRua').value=end.street||'';document.getElementById('coraNumero').value=end.number||'';document.getElementById('coraBairro').value=end.district||'';document.getElementById('coraCidade').value=end.city||'';document.getElementById('coraUf').value=end.state||'';document.getElementById('coraCep').value=end.zip_code||'';document.getElementById('coraComplemento').value=end.complement||'';
+  box.innerHTML=`✅ <b>${esc(coraClienteAtual.nome)}</b><br><small>CPF/CNPJ: ${esc(coraClienteAtual.cpf||'não informado')} • Telefone: ${esc(shortPhone(coraClienteAtual.telefone)||'não informado')}</small>`;box.classList.remove('hidden');
+  await carregarComprasCora();
+}
+async function carregarComprasCora(){
+  const select=document.getElementById('coraCompraSelect');
+  coraComprasCache=[];coraCompraAtual=null;
+  if(!coraClienteAtual){select.innerHTML='<option value="">Selecione primeiro o cliente</option>';return}
+  select.innerHTML='<option value="">Buscando compras no SIGE...</option>';
+  try{
+    const q=encodeURIComponent(coraClienteAtual.nome||coraClienteAtual.cpf||'');
+    const j=await apiJson('/admin/sige/lancamentos?q='+q+'&status=todos&limit=500&maxRecords=2000');
+    const rows=j.lancamentos||[];
+    coraComprasCache=rows.filter(r=>{
+      const nome=String(coraFirst(r,['clienteNome','cliente','nome','pessoaNome'],'')).toLowerCase();
+      return !nome||nome.includes(String(coraClienteAtual.nome||'').toLowerCase().split(' ')[0]);
+    });
+    select.innerHTML='<option value="manual">Compra informada manualmente</option>'+coraComprasCache.map((r,i)=>{
+      const desc=coraFirst(r,['descricao','description','produto','documento','codigo'],'Compra / lançamento');
+      const val=Number(coraFirst(r,['saldo','valorAberto','valor','total','amount'],0)||0);
+      const venc=coraFirst(r,['dataVencimento','vencimento','dueDate'],'');
+      return `<option value="${i}">${esc(desc)} — ${money(val)}${venc?' — '+coraDateBR(venc):''}</option>`;
+    }).join('');
+    if(!coraComprasCache.length)select.value='manual';
+    selecionarCompraCora();
+  }catch(e){select.innerHTML='<option value="manual">Compra informada manualmente</option>';select.value='manual';selecionarCompraCora();toast('Não foi possível carregar compras do SIGE. Você pode preencher manualmente.')}
+}
+function selecionarCompraCora(){
+  const value=document.getElementById('coraCompraSelect').value;
+  const box=document.getElementById('coraCompraResumo');
+  coraCompraAtual=(value===''||value==='manual')?null:coraComprasCache[Number(value)];
+  if(!coraCompraAtual){box.innerHTML='✍️ Compra manual selecionada. Informe a descrição e o valor total.';box.classList.remove('hidden');return}
+  const desc=String(coraFirst(coraCompraAtual,['descricao','description','produto','documento','codigo'],'Compra Ariana Móveis'));
+  let val=Number(coraFirst(coraCompraAtual,['saldo','valorAberto','valor','total','amount'],0)||0);
+  if(val<0)val=Math.abs(val);
+  document.getElementById('coraDescricao').value=desc;
+  document.getElementById('coraValorTotal').value=val?val.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+  const due=coraFirst(coraCompraAtual,['dataVencimento','vencimento','dueDate'],'');if(due){const iso=String(due).slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(iso))document.getElementById('coraPrimeiroVencimento').value=iso}
+  box.innerHTML=`✅ <b>${esc(desc)}</b><br><small>Valor selecionado: ${money(val)}${due?' • Vencimento: '+coraDateBR(due):''}</small>`;box.classList.remove('hidden');
+}
+function buildCoraPayload(){
+  if(!coraClienteAtual)throw new Error('Selecione o cliente.');
+  const totalAmount=centsFromBR(document.getElementById('coraValorTotal').value);
+  const installments=Number(document.getElementById('coraParcelas').value||0);
+  const customerDocument=onlyDigits(document.getElementById('coraDocumento').value);
+  const firstDueDate=document.getElementById('coraPrimeiroVencimento').value;
+  const description=document.getElementById('coraDescricao').value.trim();
+  if(!description)throw new Error('Informe a descrição da compra.');
+  if(totalAmount<500)throw new Error('Informe um valor total válido.');
+  if(!installments||installments<1||installments>15)throw new Error('Escolha entre 1 e 15 parcelas.');
+  if(Math.floor(totalAmount/installments)<500)throw new Error('Cada parcela precisa ser de pelo menos R$ 5,00.');
+  if(!firstDueDate)throw new Error('Informe o primeiro vencimento.');
+  if(customerDocument.length!==11&&customerDocument.length!==14)throw new Error('Informe um CPF ou CNPJ válido.');
+  const email=document.getElementById('coraEmail').value.trim();if(!email)throw new Error('Informe o e-mail do cliente.');
+  const address={street:document.getElementById('coraRua').value.trim(),number:document.getElementById('coraNumero').value.trim(),district:document.getElementById('coraBairro').value.trim(),city:document.getElementById('coraCidade').value.trim(),state:document.getElementById('coraUf').value.trim().toUpperCase(),zip_code:onlyDigits(document.getElementById('coraCep').value),complement:document.getElementById('coraComplemento').value.trim()};
+  if(!address.street||!address.number||!address.district||!address.city||address.state.length!==2||address.zip_code.length!==8)throw new Error('Preencha o endereço completo do cliente.');
+  return {customerName:coraClienteAtual.nome,customerEmail:email,customerDocument,customerAddress:address,totalAmount,installments,firstDueDate,serviceName:description.slice(0,80),description:'Carnê crediário Ariana Móveis'};
+}
+async function preverCarneCora(){
+  try{const payload=buildCoraPayload();const j=await apiJson('/admin/cora/carnes/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});document.getElementById('coraResultado').innerHTML=`<div class="receipt"><b>✅ Prévia validada</b><div class="row"><strong>Cliente</strong><span>${esc(payload.customerName)}</span></div><div class="row"><strong>Compra</strong><span>${esc(payload.serviceName)}</span></div><div class="row"><strong>Total</strong><span>${brFromCents(payload.totalAmount)}</span></div><div class="row"><strong>Parcelamento</strong><span>${payload.installments}x de aproximadamente ${brFromCents(Math.floor(payload.totalAmount/payload.installments))}</span></div><div class="row"><strong>Primeiro vencimento</strong><span>${coraDateBR(payload.firstDueDate)}</span></div><div class="cora-stage-note">Prévia aprovada. Clique em “Gerar boletos Cora” para emitir.</div></div>`;toast('Prévia do carnê validada.') }catch(e){toast(e.message||String(e))}
+}
+async function emitirCarneCora(){
+  let payload;try{payload=buildCoraPayload()}catch(e){toast(e.message);return}
+  if(!confirm(`Confirmar emissão de ${payload.installments} boleto(s) para ${payload.customerName}, no total de ${brFromCents(payload.totalAmount)}?`))return;
+  const btn=document.getElementById('coraEmitirBtn');btn.disabled=true;btn.textContent='⏳ Gerando boletos...';document.getElementById('coraResultado').innerHTML='<div class="receipt">A Cora está gerando os boletos. Carnês com muitas parcelas podem levar alguns segundos...</div>';
+  try{
+    const j=await apiJson('/admin/cora/carnes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const charge=j.charge||j.carnet||j.data||j;
+    renderCoraCharge(charge);toast('Carnê Cora emitido com sucesso.');await loadCoraCarnes();
+  }catch(e){
+    const data=e.data||{};
+    if(e.status===202||data.pending){document.getElementById('coraResultado').innerHTML='<div class="receipt"><b>⏳ Emissão em processamento</b><p>A Cora ainda está processando os boletos. Não gere outro carnê. Use Atualizar para consultar novamente.</p></div>';toast('Emissão aguardando confirmação da Cora.')}else{document.getElementById('coraResultado').innerHTML=`<div class="receipt"><b>❌ Não foi possível emitir</b><p>${esc(e.message||e)}</p></div>`;toast('Erro ao gerar boletos: '+(e.message||e))}
+  }finally{btn.disabled=false;btn.textContent='🏦 Gerar boletos Cora'}
+}
+function renderCoraCharge(charge={}){
+  const invoices=(charge.invoices||charge.providerResponse?.result||[]).slice().sort((a,b)=>String(a.payment_terms?.due_date||'').localeCompare(String(b.payment_terms?.due_date||'')));
+  const docUrl=charge.documentUrl||charge.document_url||charge.providerResponse?.document_url||'';
+  const total=charge.totalAmountCents||charge.requestPayload?.service?.amount||invoices.reduce((s,x)=>s+Number(x.total_amount||0),0);
+  const html=`<div class="receipt"><div class="cora-result-head"><div><b style="font-size:18px">✅ Carnê emitido</b><div class="muted">${esc(charge.customer?.name||charge.requestPayload?.customer?.name||'Cliente')}</div></div><span class="pill ${coraStatusClass(charge.status)}">${esc(coraStatusLabel(charge.status))}</span></div><div class="row"><strong>Total</strong><span class="cora-total">${brFromCents(total)}</span></div><div class="row"><strong>Parcelas</strong><span>${invoices.length||charge.installments||'—'}</span></div><div class="cora-links">${docUrl?`<button class="blue btn-text" onclick='abrirLinkCora(${JSON.stringify(docUrl)})'>📄 Abrir carnê completo</button>`:''}</div><div class="cora-installments">${invoices.map((inv,i)=>{const slip=inv.payment_options?.bank_slip||{};const due=inv.payment_terms?.due_date;return `<div class="cora-installment"><div class="cora-num">${String(i+1).padStart(2,'0')}/${String(invoices.length).padStart(2,'0')}</div><div><b>${brFromCents(inv.total_amount)}</b><small>Vencimento: ${coraDateBR(due)} • ${esc(coraStatusLabel(inv.status))}</small>${slip.digitable?`<small style="display:block;word-break:break-all">Linha: ${esc(slip.digitable)}</small>`:''}</div>${slip.url?`<button class="light btn-text" onclick='abrirLinkCora(${JSON.stringify(slip.url)})'>Abrir boleto</button>`:''}</div>`}).join('')||'<div class="muted">Boletos ainda não disponíveis.</div>'}</div></div>`;
+  document.getElementById('coraResultado').innerHTML=html;
+}
+async function loadCoraCarnes(){
+  const body=document.getElementById('coraCarnesBody');if(!body)return;body.innerHTML='<tr><td colspan="7">Carregando carnês...</td></tr>';
+  try{
+    const j=await apiJson('/admin/cora/carnes');let rows=j.charges||j.carnes||[];const q=String(document.getElementById('coraBusca')?.value||'').toLowerCase().trim();if(q)rows=rows.filter(r=>JSON.stringify([r.customer?.name,r.customer?.document?.identity,r.requestPayload?.service?.name,r.requestPayload?.service?.description]).toLowerCase().includes(q));
+    body.innerHTML=rows.map(r=>{const name=r.customer?.name||r.requestPayload?.customer?.name||'—';const desc=r.requestPayload?.service?.name||r.requestPayload?.service?.description||'Compra Ariana Móveis';const total=r.totalAmountCents||r.requestPayload?.service?.amount||0;const doc=r.documentUrl||r.providerResponse?.document_url||'';return `<tr><td><b>${esc(name)}</b><br><small>${esc(r.customer?.document?.identity||'')}</small></td><td>${esc(desc)}</td><td><b>${brFromCents(total)}</b></td><td>${Number(r.installments||r.requestPayload?.installment?.number_of||0)}x</td><td><span class="pill ${coraStatusClass(r.status)}">${esc(coraStatusLabel(r.status))}</span></td><td>${r.createdAt?new Date(r.createdAt).toLocaleString('pt-BR'):'—'}</td><td><div class="row-actions">${doc?`<button class="icon-btn print" title="Abrir carnê" onclick='abrirLinkCora(${JSON.stringify(doc)})'>📄</button>`:''}<button class="light small" onclick="consultarCoraCharge('${esc(r._id||r.id)}')">Ver detalhes</button></div></td></tr>`}).join('')||'<tr><td colspan="7">Nenhum carnê encontrado.</td></tr>';
+  }catch(e){body.innerHTML=`<tr><td colspan="7">Erro ao carregar carnês: ${esc(e.message||e)}</td></tr>`}
+}
+async function consultarCoraCharge(id){try{const j=await apiJson('/admin/cora/carnes/'+encodeURIComponent(id));renderCoraCharge(j.charge||j.data||j);window.scrollTo({top:0,behavior:'smooth'})}catch(e){toast('Erro ao consultar carnê: '+e.message)}}
+function limparFormularioCora(){coraClienteAtual=null;coraCompraAtual=null;document.getElementById('coraClienteSelect').value='';document.getElementById('coraCompraSelect').innerHTML='<option value="">Selecione primeiro o cliente</option>';['coraDescricao','coraValorTotal','coraEmail','coraDocumento','coraCep','coraUf','coraRua','coraNumero','coraBairro','coraCidade','coraComplemento'].forEach(id=>document.getElementById(id).value='');document.getElementById('coraClienteResumo').classList.add('hidden');document.getElementById('coraCompraResumo').classList.add('hidden');document.getElementById('coraResultado').innerHTML='<div class="receipt">Nenhum carnê emitido nesta sessão.</div>'}
+
+
+
+let analisesCreditoCache=[];
+function analiseStatusLabel(s=''){return ({PENDENTE_ANALISE:'Pendente',EM_ANALISE:'Em análise',AGUARDANDO_DOCUMENTOS:'Aguardando documentos',APROVADO:'Aprovado',REPROVADO:'Reprovado',AGUARDANDO_ASSINATURA:'Aguardando assinatura',ASSINADO:'Assinado',CANCELADO:'Cancelado'})[String(s).toUpperCase()]||s||'—'}
+function analisePill(s=''){const v=String(s).toUpperCase();if(v==='APROVADO'||v==='ASSINADO')return 'ok';if(v==='REPROVADO'||v==='CANCELADO')return 'danger';return 'pending'}
+async function loadAnalisesCredito(){
+  const body=document.getElementById('analisesCreditoBody');if(!body)return;
+  body.innerHTML='<tr><td colspan="6">Carregando...</td></tr>';
+  try{
+    const status=document.getElementById('analiseFiltro')?.value||'';const q=document.getElementById('analiseBusca')?.value||'';
+    const [list,dash]=await Promise.all([
+      apiJson('/admin/crediario/analises?limit=100'+(status?'&status='+encodeURIComponent(status):'')+(q?'&q='+encodeURIComponent(q):'')),
+      apiJson('/admin/crediario/analises/dashboard')
+    ]);
+    analisesCreditoCache=list.analyses||[];
+    const map={};(dash.byStatus||[]).forEach(x=>map[x._id]=x);
+    document.getElementById('anPendentes').textContent=(map.PENDENTE_ANALISE?.count||0)+(map.EM_ANALISE?.count||0)+(map.AGUARDANDO_DOCUMENTOS?.count||0);
+    document.getElementById('anAprovadas').textContent=map.APROVADO?.count||0;
+    document.getElementById('anReprovadas').textContent=map.REPROVADO?.count||0;
+    document.getElementById('anTotalValor').textContent=money((dash.totals?.financedCents||0)/100);
+    body.innerHTML=analisesCreditoCache.map((a,i)=>`<tr><td><b>${esc(a.customer?.name||'Cliente')}</b><br><small>${esc(a.customer?.document||'Sem CPF')}</small></td><td>${esc(a.orderId||'—')}</td><td><b>${money((a.financedAmountCents||0)/100)}</b><br><small>${a.installmentCount||0}x • divisor ${Number(a.installmentDivisor||0).toFixed(4)}</small></td><td><span class="pill ${analisePill(a.status)}">${esc(analiseStatusLabel(a.status))}</span></td><td>${a.createdAt?new Date(a.createdAt).toLocaleString('pt-BR'):'—'}</td><td><button class="light small" onclick="abrirAnaliseCredito(${i})">Abrir</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhuma análise encontrada.</td></tr>';
+  }catch(e){body.innerHTML='<tr><td colspan="6">Erro: '+esc(e.message||e)+'</td></tr>'}
+}
+async function abrirAnaliseCredito(index){
+  const resumo=analisesCreditoCache[index];if(!resumo)return;
+  const d=document.getElementById('analiseDetalhe');d.classList.remove('hidden');d.innerHTML='<div class="receipt">Carregando ficha financeira e sugestão...</div>';d.scrollIntoView({behavior:'smooth',block:'start'});
+  try{
+    const j=await apiJson('/admin/crediario/analises/'+encodeURIComponent(resumo.analysisId||resumo._id||resumo.orderId));
+    const a=j.analysis||resumo,p=j.profile||{},sg=j.suggestion||{};
+    const available=Math.max(0,Number(sg.availableLimitCents??((p.creditLimitCents||0)-(p.usedLimitCents||0))));
+    const hist=(a.history||[]).slice().reverse().map(h=>`<div class="row"><strong>${esc(analiseStatusLabel(h.toStatus||h.action))}</strong><span>${h.at?new Date(h.at).toLocaleString('pt-BR'):''}${h.note?' • '+esc(h.note):''}</span></div>`).join('');
+    const ck=a.checklist||{};
+    const check=(id,label)=>`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="${id}" ${ck[id]?'checked':''}> ${label}</label>`;
+    d.innerHTML=`<div class="history-header"><div><h2>${esc(a.customer?.name||'Cliente')}</h2><p class="help">Pedido ${esc(a.orderId||'—')} • CPF ${esc(a.customer?.document||'—')}</p></div><span class="pill ${analisePill(a.status)}">${esc(analiseStatusLabel(a.status))}</span></div>
+    <div class="stats" style="margin-top:14px"><div class="stat"><small>Score Ariana</small><br><b>${p.internalScore??sg.score??500}</b></div><div class="stat"><small>Risco</small><br><b>${esc(p.riskLevel||sg.riskLevel||'MÉDIO')}</b></div><div class="stat"><small>Limite disponível</small><br><b>${money(available/100)}</b></div><div class="stat"><small>Sugestão</small><br><b>${esc(sg.suggestion||a.suggestion?.decision||'ANALISAR')}</b></div></div>
+    <div class="receipt" style="margin-top:14px"><b>Motivos da sugestão</b><div class="muted">${esc((sg.reasons||a.suggestion?.reasons||[]).join(' • ')||'Sem dados suficientes.')}</div></div>
+    <h3>Cadastro financeiro permanente</h3><div class="formgrid">
+      <div><label>Nome</label><input id="perfilNome" value="${esc(p.customerName||a.customer?.name||'')}"></div><div><label>RG</label><input id="perfilRg" value="${esc(p.rg||'')}"></div>
+      <div><label>Data de nascimento</label><input id="perfilNascimento" type="date" value="${esc(p.birthDate||'')}"></div><div><label>Estado civil</label><input id="perfilEstadoCivil" value="${esc(p.maritalStatus||'')}"></div>
+      <div><label>Profissão</label><input id="perfilProfissao" value="${esc(p.profession||'')}"></div><div><label>Empresa</label><input id="perfilEmpresa" value="${esc(p.employer||'')}"></div>
+      <div><label>Renda mensal</label><input id="perfilRenda" inputmode="decimal" value="${((p.monthlyIncomeCents||0)/100).toLocaleString('pt-BR',{minimumFractionDigits:2})}"></div><div><label>Meses no emprego</label><input id="perfilTempoEmprego" type="number" min="0" value="${p.employmentMonths||0}"></div>
+      <div><label>Telefone</label><input id="perfilTelefone" value="${esc(p.phone||a.customer?.phone||'')}"></div><div><label>WhatsApp</label><input id="perfilWhatsapp" value="${esc(p.whatsapp||'')}"></div>
+      <div><label>E-mail</label><input id="perfilEmail" value="${esc(p.email||a.customer?.email||'')}"></div><div><label>Limite total</label><input id="analiseApprovedLimit" inputmode="decimal" value="${((p.creditLimitCents||a.approvedLimitCents||a.financedAmountCents||0)/100).toLocaleString('pt-BR',{minimumFractionDigits:2})}"></div>
+      <div class="full"><label>Observações do cadastro</label><textarea id="perfilNotas" rows="2">${esc(p.notes||'')}</textarea></div></div>
+    <div class="actions"><button class="blue" onclick="salvarPerfilCredito('${esc(a.customer?.document||'')}')">Salvar cadastro e recalcular score</button></div>
+    <h3>Resumo financeiro</h3><div class="stats"><div class="stat"><small>Compras</small><br><b>${p.purchasesCount||0}</b></div><div class="stat"><small>Quitadas</small><br><b>${p.settledPurchasesCount||0}</b></div><div class="stat"><small>Em aberto</small><br><b>${p.openPurchasesCount||0}</b></div><div class="stat"><small>Maior atraso</small><br><b>${p.maximumDaysLate||0} dias</b></div></div>
+    <h3>Checklist do analista</h3><div class="formgrid">${check('cpfChecked','CPF conferido')}${check('identityDocument','Documento enviado')}${check('residenceProof','Comprovante de residência')}${check('incomeChecked','Renda comprovada')}${check('contactConfirmed','Contato confirmado')}${check('referenceConfirmed','Referência confirmada')}</div>
+    <div class="actions"><button class="light" onclick="salvarChecklistAnalise('${a.analysisId||a._id}')">Salvar checklist</button></div>
+    <div class="formgrid"><div><label>Valor-base</label><input disabled value="${money((a.baseAmountCents||0)/100)}"></div><div><label>Total financiado</label><input disabled value="${money((a.financedAmountCents||0)/100)}"></div><div><label>Parcelas</label><input disabled value="${a.installmentCount||0}x"></div><div><label>Primeiro vencimento</label><input disabled value="${esc(a.firstDueDate||'—')}"></div><div class="full"><label>Observação da decisão</label><textarea id="analiseDecisionNote" rows="3">${esc(a.decisionNote||'')}</textarea></div><div><label>Documentos solicitados</label><input id="analiseDocs" value="${esc((a.requestedDocuments||[]).join(', '))}" placeholder="RG, CPF, comprovante..."></div></div>
+    <div class="actions"><button class="yellow" onclick="alterarStatusAnalise('${a.analysisId||a._id}','EM_ANALISE')">Em análise</button><button class="light" onclick="alterarStatusAnalise('${a.analysisId||a._id}','AGUARDANDO_DOCUMENTOS')">Solicitar documentos</button><button class="green" onclick="alterarStatusAnalise('${a.analysisId||a._id}','APROVADO')">Aprovar</button><button class="red" onclick="alterarStatusAnalise('${a.analysisId||a._id}','REPROVADO')">Reprovar</button></div>
+    <div class="receipt" style="margin-top:14px"><h3>Assinatura eletrônica</h3><div class="row"><strong>Status</strong><span>${esc(a.signature?.status||'NOT_REQUESTED')}</span></div><div class="formgrid" style="margin-top:10px"><div><label>Contrato (URL do PDF)</label><input id="assinaturaContratoUrl" placeholder="https://.../contrato.pdf"></div><div><label>Promissória (URL do PDF)</label><input id="assinaturaPromissoriaUrl" placeholder="https://.../promissoria.pdf"></div><div><label>Validade do link (horas)</label><input id="assinaturaExpiraHoras" type="number" min="1" max="168" value="72"></div></div><div class="actions"><button class="blue" onclick="prepararAssinatura('${a.analysisId||a._id}')">Gerar link de assinatura</button>${a.signature?.signingUrl?`<button class="light" onclick='copiarLinkAssinatura(${JSON.stringify(a.signature.signingUrl)})'>Copiar link atual</button>`:''}${a.signature?.status==='PENDING'?`<button class="red" onclick="cancelarAssinatura('${a.analysisId||a._id}')">Cancelar solicitação</button>`:''}</div><div id="assinaturaResultado" class="muted">${a.signature?.signedAt?'Assinado em '+new Date(a.signature.signedAt).toLocaleString('pt-BR'):a.signature?.expiresAt?'Link válido até '+new Date(a.signature.expiresAt).toLocaleString('pt-BR'):'A assinatura ainda não foi preparada.'}</div></div>
+    <div class="receipt" style="margin-top:14px"><h3>Timeline da análise</h3>${hist||'<div class="muted">Sem movimentações.</div>'}</div>`;
+  }catch(e){d.innerHTML='<div class="receipt">Erro ao abrir análise: '+esc(e.message||e)+'</div>'}
+}
+async function salvarPerfilCredito(documento){try{const body={customerName:document.getElementById('perfilNome')?.value||'',rg:document.getElementById('perfilRg')?.value||'',birthDate:document.getElementById('perfilNascimento')?.value||'',maritalStatus:document.getElementById('perfilEstadoCivil')?.value||'',profession:document.getElementById('perfilProfissao')?.value||'',employer:document.getElementById('perfilEmpresa')?.value||'',monthlyIncomeCents:centsFromBR(document.getElementById('perfilRenda')?.value||'0'),employmentMonths:Number(document.getElementById('perfilTempoEmprego')?.value||0),phone:document.getElementById('perfilTelefone')?.value||'',whatsapp:document.getElementById('perfilWhatsapp')?.value||'',email:document.getElementById('perfilEmail')?.value||'',creditLimitCents:centsFromBR(document.getElementById('analiseApprovedLimit')?.value||'0'),notes:document.getElementById('perfilNotas')?.value||''};await apiJson('/admin/crediario/perfis/'+encodeURIComponent(documento),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Cadastro financeiro salvo e score recalculado');await loadAnalisesCredito()}catch(e){toast(e.message||'Erro ao salvar cadastro')}}
+async function salvarChecklistAnalise(id){try{const body={};['cpfChecked','identityDocument','residenceProof','incomeChecked','contactConfirmed','referenceConfirmed'].forEach(k=>body[k]=Boolean(document.getElementById(k)?.checked));await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/checklist',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Checklist salvo e sugestão recalculada');await loadAnalisesCredito()}catch(e){toast(e.message||'Erro ao salvar checklist')}}
+async function alterarStatusAnalise(id,status){try{const note=document.getElementById('analiseDecisionNote')?.value||'';const approvedLimitCents=centsFromBR(document.getElementById('analiseApprovedLimit')?.value||'0');const requestedDocuments=(document.getElementById('analiseDocs')?.value||'').split(',').map(v=>v.trim()).filter(Boolean);const j=await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,decisionNote:note,approvedLimitCents,requestedDocuments,checklist:Object.fromEntries(['cpfChecked','identityDocument','residenceProof','incomeChecked','contactConfirmed','referenceConfirmed'].map(k=>[k,Boolean(document.getElementById(k)?.checked)]))})});toast('Análise atualizada para '+analiseStatusLabel(j.analysis?.status||status));await loadAnalisesCredito();const idx=analisesCreditoCache.findIndex(x=>(x.analysisId||x._id)===(j.analysis?.analysisId||j.analysis?._id));if(idx>=0)abrirAnaliseCredito(idx)}catch(e){toast(e.message||'Erro ao atualizar análise')}}
+
+let perfisCreditoCache=[];
+function perfilStatusLabel(v){return ({ATIVO:'Ativo',EM_REVISAO:'Em revisão',BLOQUEADO:'Bloqueado'})[v]||v||'Ativo'}
+function normalizarClienteFinanceiroParaPerfil(cliente={}){
+  const document=onlyDigits(cliente.cpf||cliente.document||cliente.documento||cliente.cnpj||'');
+  const phone=onlyDigits(cliente.telefone||cliente.phone||cliente.celular||cliente.whatsapp||'');
+  return {
+    document,
+    customerName:String(cliente.nome||cliente.name||cliente.razaoSocial||cliente.customerName||'').trim(),
+    phone,
+    whatsapp:phone,
+    email:String(cliente.email||'').trim(),
+    internalScore:500,
+    riskLevel:'MEDIO',
+    creditLimitCents:0,
+    usedLimitCents:0,
+    availableLimitCents:0,
+    openPurchasesCount:0,
+    openOverdueInstallments:0,
+    profileStatus:'ATIVO',
+    source:'FINANCEIRO_SIGE',
+    sourceId:String(cliente.id||cliente._id||''),
+    contrato:String(cliente.contrato||cliente.codigo||'')
+  };
+}
+function chavePerfilCliente(item={}){
+  const doc=onlyDigits(item.document||item.cpf||'');
+  if(doc)return 'doc:'+doc;
+  const phone=onlyDigits(item.whatsapp||item.phone||item.telefone||'');
+  const name=normalizarBuscaCliente(item.customerName||item.nome||'');
+  return phone?'phone:'+phone:(name?'name:'+name:'id:'+String(item.sourceId||item._id||Math.random()));
+}
+function mesclarClientesFinanceiroEPerfis(clientesFinanceiro=[],perfis=[]){
+  const map=new Map();
+  for(const c of clientesFinanceiro){
+    const base=normalizarClienteFinanceiroParaPerfil(c);
+    map.set(chavePerfilCliente(base),base);
+  }
+  for(const p of perfis){
+    const key=chavePerfilCliente(p);
+    const current=map.get(key)||{};
+    map.set(key,{
+      ...current,
+      ...p,
+      document:onlyDigits(p.document||current.document||''),
+      customerName:p.customerName||current.customerName||'',
+      phone:p.phone||current.phone||'',
+      whatsapp:p.whatsapp||current.whatsapp||p.phone||current.phone||'',
+      availableLimitCents:Math.max(0,Number(p.availableLimitCents??((p.creditLimitCents||0)-(p.usedLimitCents||0)))),
+      source:current.source?'CREDIARIO_E_FINANCEIRO':'CREDIARIO'
+    });
+  }
+  return [...map.values()].sort((a,b)=>String(a.customerName||'').localeCompare(String(b.customerName||''),'pt-BR'));
+}
+async function loadPerfisCredito(){
+  const body=document.getElementById('perfisCreditoBody');if(!body)return;
+  body.innerHTML='<tr><td colspan="6">Carregando clientes e fichas financeiras...</td></tr>';
+  try{
+    const q=document.getElementById('perfilBusca')?.value?.trim()||'';
+    const risk=document.getElementById('perfilRiscoFiltro')?.value||'';
+    const status=document.getElementById('perfilStatusFiltro')?.value||'';
+    const params=new URLSearchParams();
+    if(q)params.set('search',q);
+    params.set('limit','100');
+    const [profileList,dash,financeClients]=await Promise.all([
+      apiJson('/admin/crediario/perfis?'+params.toString()),
+      apiJson('/admin/crediario/perfis/dashboard'),
+      buscarClientesFinanceiro(q,500)
+    ]);
+    let merged=mesclarClientesFinanceiroEPerfis(financeClients,profileList.profiles||[]);
+    if(risk)merged=merged.filter(p=>String(p.riskLevel||'MEDIO').toUpperCase()===risk);
+    if(status)merged=merged.filter(p=>String(p.profileStatus||'ATIVO').toUpperCase()===status);
+    perfisCreditoCache=merged;
+    const t=dash.totals||{};
+    document.getElementById('pfClientes').textContent=merged.length;
+    document.getElementById('pfLimite').textContent=money((t.totalLimitCents||0)/100);
+    document.getElementById('pfUtilizado').textContent=money((t.usedLimitCents||0)/100);
+    document.getElementById('pfDisponivel').textContent=money((t.availableLimitCents||0)/100);
+    body.innerHTML=merged.map((p,i)=>{
+      const hasProfile=p.source==='CREDIARIO'||p.source==='CREDIARIO_E_FINANCEIRO';
+      const sourceLabel=hasProfile?'Ficha ativa':'Cliente do Financeiro/SIGE';
+      const canOpen=Boolean(onlyDigits(p.document));
+      return `<tr>
+        <td><b>${esc(p.customerName||'Cliente sem nome')}</b><br><small>${esc(p.document||'Sem CPF')} • ${esc(p.whatsapp||p.phone||'Sem telefone')}</small><br><small class="muted">${sourceLabel}</small></td>
+        <td><b>${p.internalScore??500}</b><br><small>${esc(p.riskLevel||'MEDIO')}</small></td>
+        <td><b>${money((p.creditLimitCents||0)/100)}</b><br><small>Disponível ${money((p.availableLimitCents||0)/100)}</small></td>
+        <td><b>${p.openPurchasesCount||0} abertas</b><br><small>${p.openOverdueInstallments||0} parcelas vencidas</small></td>
+        <td><span class="pill ${p.profileStatus==='BLOQUEADO'?'pending':'ok'}">${esc(perfilStatusLabel(p.profileStatus))}</span></td>
+        <td>${canOpen?`<button class="light small" onclick="abrirPerfilCredito(${i})">${hasProfile?'Abrir ficha':'Criar ficha'}</button>`:'<span class="muted">CPF necessário</span>'}</td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="6">Nenhum cliente encontrado no Financeiro/SIGE ou no Crediário.</td></tr>';
+  }catch(e){body.innerHTML='<tr><td colspan="6">Erro: '+esc(e.message||e)+'</td></tr>'}
+}
+async function abrirPerfilCredito(index){
+  const resumo=perfisCreditoCache[index];if(!resumo)return;const d=document.getElementById('perfilCreditoDetalhe');d.classList.remove('hidden');d.innerHTML='<div class="receipt">Carregando ficha...</div>';d.scrollIntoView({behavior:'smooth',block:'start'});
+  try{
+    const document=onlyDigits(resumo.document);
+    let j=await apiJson('/admin/crediario/perfis/'+encodeURIComponent(document));
+    let p=j.profile||{};
+    if(!p.customerName&&resumo.customerName){
+      await apiJson('/admin/crediario/perfis/'+encodeURIComponent(document),{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          customerName:resumo.customerName||'',
+          phone:resumo.phone||'',
+          whatsapp:resumo.whatsapp||resumo.phone||'',
+          email:resumo.email||'',
+          auditNote:'Ficha criada automaticamente a partir do Financeiro/SIGE'
+        })
+      });
+      j=await apiJson('/admin/crediario/perfis/'+encodeURIComponent(document));
+      p=j.profile||resumo;
+    }else{
+      p={...resumo,...p,customerName:p.customerName||resumo.customerName||'',phone:p.phone||resumo.phone||'',whatsapp:p.whatsapp||resumo.whatsapp||resumo.phone||'',email:p.email||resumo.email||''};
+    }
+    const analyses=j.analyses||[];const refs=Array.isArray(p.references)?p.references:[];const timeline=(p.auditHistory||[]).slice().reverse().map(h=>`<div class="row"><strong>${esc(h.action||'Atualização')}</strong><span>${h.at?new Date(h.at).toLocaleString('pt-BR'):''}${h.note?' • '+esc(h.note):''}</span></div>`).join('');
+  d.innerHTML=`<div class="history-header"><div><h2>${esc(p.customerName||'Cliente')}</h2><p class="help">CPF ${esc(p.document||'—')} • cadastro financeiro permanente</p></div><span class="pill ${p.profileStatus==='BLOQUEADO'?'pending':'ok'}">${esc(perfilStatusLabel(p.profileStatus))}</span></div>
+  <div class="stats"><div class="stat"><small>Score Ariana</small><br><b>${p.internalScore??500}</b></div><div class="stat"><small>Limite total</small><br><b>${money((p.creditLimitCents||0)/100)}</b></div><div class="stat"><small>Utilizado</small><br><b>${money((p.usedLimitCents||0)/100)}</b></div><div class="stat"><small>Disponível</small><br><b>${money((j.availableLimitCents??Math.max(0,(p.creditLimitCents||0)-(p.usedLimitCents||0)))/100)}</b></div></div>
+  <div class="formgrid" style="margin-top:14px"><div><label>Nome</label><input id="pfNome" value="${esc(p.customerName||'')}"></div><div><label>RG</label><input id="pfRg" value="${esc(p.rg||'')}"></div><div><label>Nascimento</label><input id="pfNascimento" type="date" value="${esc(p.birthDate||'')}"></div><div><label>Estado civil</label><input id="pfEstadoCivil" value="${esc(p.maritalStatus||'')}"></div><div><label>Profissão</label><input id="pfProfissao" value="${esc(p.profession||'')}"></div><div><label>Empresa</label><input id="pfEmpresa" value="${esc(p.employer||'')}"></div><div><label>Renda mensal</label><input id="pfRenda" value="${((p.monthlyIncomeCents||0)/100).toLocaleString('pt-BR',{minimumFractionDigits:2})}"></div><div><label>Tempo no emprego (meses)</label><input id="pfEmpregoMeses" type="number" value="${p.employmentMonths||0}"></div><div><label>Telefone</label><input id="pfTelefone" value="${esc(p.phone||'')}"></div><div><label>WhatsApp</label><input id="pfWhatsapp" value="${esc(p.whatsapp||'')}"></div><div><label>E-mail</label><input id="pfEmail" value="${esc(p.email||'')}"></div><div><label>Limite</label><input id="pfLimiteEdit" value="${((p.creditLimitCents||0)/100).toLocaleString('pt-BR',{minimumFractionDigits:2})}"></div><div><label>Status</label><select id="pfStatus"><option ${p.profileStatus==='ATIVO'?'selected':''}>ATIVO</option><option ${p.profileStatus==='EM_REVISAO'?'selected':''}>EM_REVISAO</option><option ${p.profileStatus==='BLOQUEADO'?'selected':''}>BLOQUEADO</option></select></div><div><label>Motivo do bloqueio/revisão</label><input id="pfMotivo" value="${esc(p.blockedReason||'')}"></div><div class="full"><label>Referências (uma por linha: nome | vínculo | telefone)</label><textarea id="pfReferencias" rows="3">${esc(refs.map(r=>[r.name,r.relationship,r.phone].filter(Boolean).join(' | ')).join('\n'))}</textarea></div><div class="full"><label>Observações</label><textarea id="pfNotasEdit" rows="3">${esc(p.notes||'')}</textarea></div></div>
+  <div class="actions"><button class="blue" onclick="salvarFichaFinanceira('${esc(p.document||'')}')">Salvar ficha</button><button class="light" onclick="recalcularPerfilCredito('${esc(p.document||'')}')">Recalcular score</button></div>
+  <h3>Histórico consolidado</h3><div class="stats"><div class="stat"><small>Compras</small><br><b>${p.purchasesCount||0}</b></div><div class="stat"><small>Quitadas</small><br><b>${p.settledPurchasesCount||0}</b></div><div class="stat"><small>Em aberto</small><br><b>${p.openPurchasesCount||0}</b></div><div class="stat"><small>Maior atraso</small><br><b>${p.maximumDaysLate||0} dias</b></div></div>
+  <div class="receipt" style="margin-top:14px"><h3>Análises do cliente</h3>${analyses.slice(0,10).map(a=>`<div class="row"><strong>${esc(a.orderId||'Pedido')}</strong><span>${esc(analiseStatusLabel(a.status))} • ${money((a.financedAmountCents||0)/100)}</span></div>`).join('')||'<div class="muted">Nenhuma análise registrada.</div>'}</div>
+  <div class="receipt" style="margin-top:14px">
+    <div class="history-header"><div><h3>Parcelas atualizadas</h3><p class="help">Parcelas vencidas são exibidas com multa de 2% e juros de 1% ao mês, proporcionais aos dias de atraso.</p></div><button class="light small" onclick="carregarParcelasAtualizadas('${esc(p.document||'')}')">Atualizar valores</button></div>
+    <div id="pfParcelasAtualizadas"><div class="muted">Carregando parcelas...</div></div>
+  </div>
+  <div class="reneg-base">
+    <h3>Base para renegociação — fase 6.4.8</h3>
+    <p class="help">Prepara uma minuta com o saldo atualizado, novo cronograma e espaço reservado para novos boletos, sem alterar o contrato original.</p>
+    <div class="formgrid">
+      <div><label>Entrada</label><input id="renegEntrada" value="0,00"></div>
+      <div><label>Novas parcelas</label><input id="renegParcelas" type="number" min="1" max="48" value="12"></div>
+      <div><label>Primeiro vencimento</label><input id="renegPrimeiroVencimento" type="date"></div>
+      <div><label>Data-base dos cálculos</label><input id="renegDataBase" type="date"></div>
+      <div class="full"><label>Observações da minuta</label><textarea id="renegNotas" rows="2" placeholder="Opcional"></textarea></div>
+    </div>
+    <div class="reneg-warning">Nesta fase o sistema apenas prepara e salva a estrutura. Nenhum boleto novo é emitido e o contrato original permanece preservado.</div>
+    <div class="actions"><button class="yellow" onclick="prepararRenegociacao('${esc(p.document||'')}')">Preparar minuta de renegociação</button><button class="light" onclick="carregarRenegociacoes('${esc(p.document||'')}')">Ver histórico</button></div>
+    <div id="renegResultado" style="margin-top:12px"></div>
+  </div>
+  <div class="receipt" style="margin-top:14px"><h3>Auditoria da ficha</h3>${timeline||'<div class="muted">Nenhuma alteração registrada.</div>'}</div>`;
+  setTimeout(()=>{const hoje=new Date().toISOString().slice(0,10);const base=document.getElementById('renegDataBase');if(base&&!base.value)base.value=hoje;const first=document.getElementById('renegPrimeiroVencimento');if(first&&!first.value){const d=new Date();d.setMonth(d.getMonth()+1);first.value=d.toISOString().slice(0,10)}carregarParcelasAtualizadas(p.document)},0);
+  }catch(e){d.innerHTML='<div class="receipt">Erro: '+esc(e.message||e)+'</div>'}
+}
+async function salvarFichaFinanceira(documento){try{const references=(document.getElementById('pfReferencias')?.value||'').split(/\n+/).map(line=>{const [name,relationship,phone]=line.split('|').map(v=>v.trim());return{name,relationship,phone}}).filter(r=>r.name||r.phone);const body={customerName:document.getElementById('pfNome')?.value||'',rg:document.getElementById('pfRg')?.value||'',birthDate:document.getElementById('pfNascimento')?.value||'',maritalStatus:document.getElementById('pfEstadoCivil')?.value||'',profession:document.getElementById('pfProfissao')?.value||'',employer:document.getElementById('pfEmpresa')?.value||'',monthlyIncomeCents:centsFromBR(document.getElementById('pfRenda')?.value||'0'),employmentMonths:Number(document.getElementById('pfEmpregoMeses')?.value||0),phone:document.getElementById('pfTelefone')?.value||'',whatsapp:document.getElementById('pfWhatsapp')?.value||'',email:document.getElementById('pfEmail')?.value||'',creditLimitCents:centsFromBR(document.getElementById('pfLimiteEdit')?.value||'0'),profileStatus:document.getElementById('pfStatus')?.value||'ATIVO',blockedReason:document.getElementById('pfMotivo')?.value||'',references,notes:document.getElementById('pfNotasEdit')?.value||'',auditNote:'Ficha atualizada pelo Financeiro'};await apiJson('/admin/crediario/perfis/'+encodeURIComponent(documento),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Ficha financeira salva');await loadPerfisCredito()}catch(e){toast(e.message||'Erro ao salvar ficha')}}
+async function recalcularPerfilCredito(documento){try{await apiJson('/admin/crediario/perfis/'+encodeURIComponent(documento)+'/recalcular-score',{method:'POST'});toast('Score recalculado');await loadPerfisCredito()}catch(e){toast(e.message||'Erro ao recalcular score')}}
+
+
+function parcelaAtualizadaCard(item){
+  const late=Number(item.daysLate||0)>0;
+  const cls=late?'cred-installment-overdue':'cred-installment-open';
+  const status=late?`${item.daysLate} dia(s) em atraso`:'Em aberto';
+  return `<div class="${cls}">
+    <div class="row"><strong>Parcela ${String(item.installmentNumber||0).padStart(2,'0')}/${String(item.installmentCount||0).padStart(2,'0')} • Pedido ${esc(item.orderId||'—')}</strong><span>${esc(item.dueDate?item.dueDate.split('-').reverse().join('/'):'—')} • ${status}</span></div>
+    <div class="cred-values-grid">
+      <div class="cred-value-box"><small>Original</small><b>${money((item.originalCents||0)/100)}</b></div>
+      <div class="cred-value-box"><small>Multa</small><b>${money((item.fineCents||0)/100)}</b></div>
+      <div class="cred-value-box"><small>Juros</small><b>${money((item.interestCents||0)/100)}</b></div>
+      <div class="cred-value-box"><small>Atualizado hoje</small><b>${money((item.updatedCents||0)/100)}</b></div>
+    </div>
+  </div>`;
+}
+async function carregarParcelasAtualizadas(documento){
+  const box=document.getElementById('pfParcelasAtualizadas');if(!box)return;
+  box.innerHTML='<div class="muted">Calculando multa e juros...</div>';
+  try{
+    const date=document.getElementById('renegDataBase')?.value||'';
+    const j=await apiJson('/admin/crediario/perfis/'+encodeURIComponent(documento)+'/parcelas-atualizadas'+(date?'?date='+encodeURIComponent(date):''));
+    const s=j.summary||{};
+    box.innerHTML=`<div class="stats" style="margin-bottom:12px">
+      <div class="stat"><small>Saldo original</small><br><b>${money((s.originalCents||0)/100)}</b></div>
+      <div class="stat"><small>Multas</small><br><b>${money((s.fineCents||0)/100)}</b></div>
+      <div class="stat"><small>Juros</small><br><b>${money((s.interestCents||0)/100)}</b></div>
+      <div class="stat"><small>Saldo atualizado</small><br><b>${money((s.updatedCents||0)/100)}</b></div>
+    </div>${(j.installments||[]).map(parcelaAtualizadaCard).join('')||'<div class="muted">Nenhuma parcela aberta encontrada.</div>'}`;
+  }catch(e){box.innerHTML='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}
+}
+async function prepararRenegociacao(documento){
+  const result=document.getElementById('renegResultado');if(result)result.innerHTML='<div class="muted">Preparando minuta...</div>';
+  try{
+    const body={
+      downPaymentCents:centsFromBR(document.getElementById('renegEntrada')?.value||'0'),
+      newInstallmentCount:Number(document.getElementById('renegParcelas')?.value||1),
+      firstDueDate:document.getElementById('renegPrimeiroVencimento')?.value||'',
+      referenceDate:document.getElementById('renegDataBase')?.value||'',
+      notes:document.getElementById('renegNotas')?.value||''
+    };
+    const j=await apiJson('/admin/crediario/perfis/'+encodeURIComponent(documento)+'/renegociacoes/preparar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    const r=j.renegotiation||{};
+    if(result)result.innerHTML=`<div class="receipt">
+      <b>Minuta preparada: ${esc(r.renegotiationId||'')}</b>
+      <div class="row"><strong>Saldo original</strong><span>${money((r.originalBalanceCents||0)/100)}</span></div>
+      <div class="row"><strong>Multas</strong><span>${money((r.accumulatedFineCents||0)/100)}</span></div>
+      <div class="row"><strong>Juros</strong><span>${money((r.accumulatedInterestCents||0)/100)}</span></div>
+      <div class="row"><strong>Saldo renegociado</strong><span>${money((r.negotiatedBalanceCents||0)/100)}</span></div>
+      <div class="row"><strong>Novo cronograma</strong><span>${r.newInstallmentCount||0} parcelas</span></div>
+      <div class="muted" style="margin-top:8px">Contrato original preservado. Emissão de novos boletos ainda não executada.</div>
+    </div>`;
+    toast('Minuta de renegociação preparada');
+    await carregarRenegociacoes(documento);
+  }catch(e){if(result)result.innerHTML='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}
+}
+async function carregarRenegociacoes(documento){
+  const result=document.getElementById('renegResultado');if(!result)return;
+  try{
+    const j=await apiJson('/admin/crediario/perfis/'+encodeURIComponent(documento)+'/renegociacoes');
+    const rows=j.renegotiations||[];
+    result.innerHTML=`<div class="receipt"><h3>Histórico de renegociações</h3>${rows.map(r=>`<div class="row"><strong>${esc(r.renegotiationId||'Minuta')}</strong><span>${esc(r.status||'DRAFT')} • ${r.newInstallmentCount||0}x • ${money((r.negotiatedBalanceCents||0)/100)}</span></div>`).join('')||'<div class="muted">Nenhuma minuta preparada.</div>'}</div>`;
+  }catch(e){result.innerHTML='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}
+}
+
+async function prepararAssinatura(id){
+  try{
+    const documents=[];
+    const contrato=document.getElementById('assinaturaContratoUrl')?.value?.trim();
+    const promissoria=document.getElementById('assinaturaPromissoriaUrl')?.value?.trim();
+    if(contrato)documents.push({type:'CONTRATO',title:'Contrato de Crediário Ariana',url:contrato});
+    if(promissoria)documents.push({type:'NOTA_PROMISSORIA',title:'Nota Promissória',url:promissoria});
+    if(!documents.length){toast('Informe ao menos a URL do contrato.');return}
+    const expiresHours=Number(document.getElementById('assinaturaExpiraHoras')?.value||72);
+    const j=await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/assinatura/preparar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({documents,expiresHours})});
+    const url=j.signature?.signingUrl||'';
+    const out=document.getElementById('assinaturaResultado');
+    if(out)out.innerHTML=url?`Link criado: <b>${esc(url)}</b>`:'Solicitação criada.';
+    if(url&&navigator.clipboard)await navigator.clipboard.writeText(url).catch(()=>{});
+    toast(url?'Link criado e copiado':'Solicitação de assinatura criada');
+    await loadAnalisesCredito();
+  }catch(e){toast(e.message||'Erro ao preparar assinatura')}
+}
+async function copiarLinkAssinatura(url){try{await navigator.clipboard.writeText(url);toast('Link copiado')}catch{prompt('Copie o link:',url)}}
+async function cancelarAssinatura(id){
+  const reason=prompt('Motivo do cancelamento da assinatura:','Link substituído ou documentos corrigidos')||'';
+  if(!reason)return;
+  try{await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/assinatura/cancelar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});toast('Solicitação cancelada');await loadAnalisesCredito()}catch(e){toast(e.message||'Erro ao cancelar assinatura')}
+}
+
+
+async function carregarConfigCrediarioWhatsApp(){
+  const box=document.getElementById('credWhatsAppConfig'); if(!box)return;
+  try{const j=await apiJson('/admin/crediario/whatsapp/config');box.innerHTML=`<b>Integração:</b> ${j.configured?'CONFIGURADA':'NÃO CONFIGURADA'} &nbsp; <b>Modo:</b> ${esc(j.mode||'')} &nbsp; <b>Instância:</b> ${esc(j.evolutionInstance||'—')}<br><b>Chatwoot:</b> ${j.chatwootMirrorConfigured?'espelhamento configurado':'espelhamento opcional não configurado'}`;}catch(e){
+    const status=Number(e?.status||0);
+    box.innerHTML=status===404
+      ? '<b>Integração indisponível:</b> a rota do WhatsApp do crediário ainda não foi carregada no backend.'
+      : '<b>Erro ao consultar configuração:</b> '+esc(e.message||e);
+  }
+}
+async function enviarCrediarioWhatsApp(){
+  const result=document.getElementById('credWhatsAppResult');
+  const body={phone:document.getElementById('credWhatsAppPhone').value,message:document.getElementById('credWhatsAppMessage').value,eventType:document.getElementById('credWhatsAppType').value,orderId:document.getElementById('credWhatsAppOrder').value,customerName:document.getElementById('credWhatsAppCustomer').value};
+  const mediaUrl=document.getElementById('credWhatsAppMediaUrl').value.trim();
+  if(mediaUrl){body.mediaUrl=mediaUrl;body.fileName=document.getElementById('credWhatsAppFileName').value;body.caption=body.message;}
+  try{const path=mediaUrl?'/admin/crediario/whatsapp/enviar-documento':'/admin/crediario/whatsapp/enviar';const j=await apiJson(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});result.classList.remove('hidden');result.innerHTML=`<b>${j.status==='SENT'?'Enviado com sucesso':'Registrado na fila'}</b><br>Provedor: ${esc(j.provider||'')} ${j.messageId?'<br>ID: '+esc(j.messageId):''}`;toast('WhatsApp processado.');carregarHistoricoCrediarioWhatsApp();}catch(e){result.classList.remove('hidden');result.innerHTML='Erro: '+esc(e.message||e)}
+}
+async function carregarHistoricoCrediarioWhatsApp(){
+  const body=document.getElementById('credWhatsAppHistory');if(!body)return;
+  try{const j=await apiJson('/admin/crediario/whatsapp/historico?limit=100');const rows=j.logs||[];body.innerHTML=rows.map(r=>`<tr><td>${r.createdAt?new Date(r.createdAt).toLocaleString('pt-BR'):'—'}</td><td>${esc(r.customerName||'—')}</td><td>${esc(r.phone||'—')}</td><td>${esc(r.eventType||r.ruleKey||'—')}</td><td><span class="pill ${r.status==='SENT'?'ok':r.status==='ERROR'?'danger':'pending'}">${esc(r.status||'—')}</span></td><td>${esc(r.provider||'—')}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum envio registrado.</td></tr>';}catch(e){body.innerHTML='<tr><td colspan="6">Erro: '+esc(e.message||e)+'</td></tr>'}
+}
+
+
+function credDashMoney(c){return money((Number(c||0))/100)}
+function credDashSet(id,value){const el=document.getElementById(id);if(el)el.textContent=value}
+function credDashProgress(target,data,labels){const box=document.getElementById(target);if(!box)return;const entries=Object.entries(data||{});const total=entries.reduce((s,[,v])=>s+Number(v||0),0)||1;box.innerHTML=entries.map(([k,v])=>{const n=Number(v||0),pct=Math.round((n/total)*100);return `<div class="cred-donut-row"><b>${esc(labels[k]||k)}</b><div class="cred-progress"><span style="width:${pct}%"></span></div><strong>${n}</strong></div>`}).join('')||'<div class="muted">Sem dados.</div>'}
+function renderCredDashBars(months){const box=document.getElementById('credDashBarras');if(!box)return;const rows=months||[];const max=Math.max(1,...rows.flatMap(x=>[x.expectedCents||0,x.receivedCents||0,x.overdueCents||0]));box.innerHTML=rows.map(x=>{const h=v=>Math.max(v?4:0,Math.round((Number(v||0)/max)*180));const label=String(x.month||'').split('-').reverse().join('/');return `<div class="cred-bar-group" title="${esc(label)} — Previsto ${credDashMoney(x.expectedCents)}, recebido ${credDashMoney(x.receivedCents)}, vencido ${credDashMoney(x.overdueCents)}"><span class="cred-bar" style="height:${h(x.expectedCents)}px"></span><span class="cred-bar received" style="height:${h(x.receivedCents)}px"></span><span class="cred-bar overdue" style="height:${h(x.overdueCents)}px"></span><span class="cred-bar-label">${esc(label)}</span></div>`}).join('')||'<div class="muted">Ainda não há parcelas para montar o gráfico.</div>'}
+async function loadDashboardCrediario(){const errorBox=document.getElementById('credDashErro');if(errorBox)errorBox.classList.add('hidden');try{const date=document.getElementById('credDashData')?.value||'';const j=await apiJson('/admin/crediario/dashboard-financeiro'+(date?'?date='+encodeURIComponent(date):''));const k=j.kpis||{};credDashSet('cdHoje',credDashMoney(k.receivableTodayCents));credDashSet('cdAmanha',credDashMoney(k.receivableTomorrowCents));credDashSet('cdSemana',credDashMoney(k.receivableWeekCents));credDashSet('cdMes',credDashMoney(k.receivableMonthCents));credDashSet('cdAberto',credDashMoney(k.openPortfolioCents));credDashSet('cdVencido',credDashMoney(k.overdueUpdatedCents));credDashSet('cdMultas',credDashMoney(k.accumulatedFineCents));credDashSet('cdJuros',credDashMoney(k.accumulatedInterestCents));credDashSet('cdRecebido',credDashMoney(k.totalReceivedCents));credDashSet('cdInadimplencia',Number(k.defaultRatePercent||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%');credDashSet('cdTicket',credDashMoney(k.averageTicketCents));credDashSet('cdClientes',String(k.customers||0));credDashSet('cdParcelasAbertas',`${k.openInstallments||0} parcelas abertas`);credDashSet('cdVencidas',`${k.overdueInstallments||0} parcelas vencidas`);credDashSet('cdContratos',`${k.contracts||0} contratos`);credDashSet('cdClientesStatus',`${j.charts?.customerState?.INADIMPLENTE||0} inadimplentes`);renderCredDashBars(j.charts?.months||[]);credDashProgress('credDashClientes',j.charts?.customerState||{},{ADIMPLENTE:'Adimplentes',INADIMPLENTE:'Inadimplentes',BLOQUEADO:'Bloqueados',EM_REVISAO:'Em revisão'});credDashProgress('credDashRisco',j.charts?.risk||{},{ALTO:'Risco alto',MEDIO:'Risco médio',BOM:'Bom',EXCELENTE:'Excelente'});const body=document.getElementById('credDashComunicacoes');if(body)body.innerHTML=(j.recentCollections||[]).map(x=>`<tr><td>${esc(new Date(x.createdAt).toLocaleString('pt-BR'))}</td><td><b>${esc(x.customerName||'Cliente')}</b><br><small>${esc(x.phone||'')}</small></td><td>${esc(x.orderId||'—')}</td><td>${esc(x.eventType||x.ruleKey||'COBRANÇA')}</td><td><span class="pill ${x.status==='SENT'?'ok':'pending'}">${esc(x.status||'')}</span></td></tr>`).join('')||'<tr><td colspan="5">Nenhuma comunicação registrada.</td></tr>';}catch(e){if(errorBox){errorBox.textContent=e.message||'Erro ao carregar dashboard.';errorBox.classList.remove('hidden')}}}
+
 </script>
 </body>
 </html>

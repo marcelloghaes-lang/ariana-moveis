@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Admin • Banners (Ariana Móveis)</title>
+
+  <link rel="manifest" href="./manifest-banners.webmanifest">
+  <meta name="theme-color" content="#0b1220">
+  <link rel="icon" href="./favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <!-- ícone opcional removido para evitar 404 local -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <style>
+    :root{--primary-blue:#0B4AA2;--secondary-light-blue:#77D0FF;--text-dark:#0f172a}
+    .chip{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .6rem;border-radius:999px;font-weight:800;font-size:.72rem}
+    .chip-on{background:#DCFCE7;color:#166534}
+    .chip-off{background:#FEE2E2;color:#991B1B}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.55rem;padding:.7rem 1rem;border-radius:.85rem;font-weight:900}
+    .btn-primary{background:var(--primary-blue);color:#fff}
+    .btn-primary:hover{filter:brightness(.95)}
+    .btn-ghost{background:#fff;border:1px solid #e5e7eb;color:#0f172a}
+    .btn-ghost:hover{background:#f8fafc}
+    .btn-secondary{background:#eff6ff;border:1px solid #bfdbfe;color:var(--primary-blue)}
+    .btn-secondary:hover{background:#dbeafe}
+    .field{width:100%;border:1px solid #e5e7eb;border-radius:.8rem;padding:.65rem .8rem;outline:none}
+    .field:focus{border-color:rgba(119,208,255,.9);box-shadow:0 0 0 4px rgba(119,208,255,.25)}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:1.15rem;overflow:hidden}
+    .card-h{padding:1rem 1rem .75rem}
+    .card-b{padding:1rem}
+    .preview{width:100%;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:1rem;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:140px}
+    .preview img{width:100%;height:100%;object-fit:cover;display:block}
+    .helper{font-size:.78rem;color:#64748b}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+
+
+    /* ===== Padrão visual Ariana Móveis - Sidebar igual ao dashboard ===== */
+    body{font-family:Inter,Arial,sans-serif;background:#f3f6fb;color:#0f172a}
+    .admin-shell{min-height:100vh;display:grid;grid-template-columns:280px minmax(0,1fr);background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 310px,#f3f6fb 100%)}
+    .ariana-sidebar{background:linear-gradient(180deg,#003b91 0%,#07234a 100%);color:#fff;padding:26px 18px;position:sticky;top:0;height:100vh;box-shadow:12px 0 32px rgba(15,23,42,.12);z-index:60}
+    .ariana-brand{display:flex;align-items:center;padding:0 6px 26px;border-bottom:1px solid rgba(255,255,255,.13);margin-bottom:18px;min-height:74px;overflow:visible}
+    .ariana-logo{display:flex;align-items:flex-end;gap:8px;line-height:.86;white-space:nowrap;transform:skew(-8deg);overflow:visible}
+    .ariana-logo .ariana-main{font-size:38px;font-weight:1000;color:#fff;letter-spacing:-2.2px;text-shadow:0 3px 12px rgba(0,0,0,.28)}
+    .ariana-logo .ariana-sub{font-size:19px;font-weight:1000;color:#56B5FF;letter-spacing:-.9px;margin-bottom:4px;text-shadow:0 3px 10px rgba(0,0,0,.24)}
+    .ariana-nav{display:grid;gap:7px}
+    .ariana-nav a,.ariana-nav button{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:16px;color:rgba(255,255,255,.88);font-weight:850;text-decoration:none;background:transparent;border:0;text-align:left;cursor:pointer;transition:.18s ease;font-size:14px}
+    .ariana-nav a:hover,.ariana-nav button:hover,.ariana-nav a.active{background:rgba(255,255,255,.13);color:#fff;transform:translateX(2px)}
+    .ariana-content{min-width:0}
+    .ariana-topbar{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.91);backdrop-filter:blur(16px);border-bottom:1px solid rgba(226,232,240,.88);box-shadow:0 6px 22px rgba(15,23,42,.045)}
+    .ariana-page{max-width:1440px;margin:0 auto}
+    .card{border-radius:24px;box-shadow:0 12px 28px rgba(15,23,42,.055)}
+    .btn{min-height:44px;border-radius:14px;transition:.18s ease}
+    .btn:hover{transform:translateY(-1px)}
+    .btn-primary{background:#0047AB;color:#fff;box-shadow:0 10px 20px rgba(0,71,171,.18)}
+    .btn-secondary{background:#eff6ff;border:1px solid #bfdbfe;color:#0047AB}
+    .btn-ghost{border:1px solid #dbe3ee;background:#fff;color:#0f172a}
+    .field{border-radius:15px;min-height:46px;font-weight:650;color:#0f172a}
+    .preview{border-radius:18px;background:#f8fafc}
+    @media(max-width:900px){.admin-shell{grid-template-columns:1fr}.ariana-sidebar{position:relative;height:auto}.ariana-brand{justify-content:center}.ariana-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.ariana-topbar{position:relative}.ariana-logo .ariana-main{font-size:34px}.ariana-logo .ariana-sub{font-size:17px}}
+
+  </style>
+<script src="js/api-config.js"></script>
+</head>
+
+<body class="bg-slate-50 min-h-screen">
+<div class="admin-shell">
+  <aside class="ariana-sidebar">
+    <div class="ariana-brand">
+      <div class="ariana-logo"><span class="ariana-main">ARIANA</span><span class="ariana-sub">MÓVEIS</span></div>
+    </div>
+    <nav class="ariana-nav">
+      <a href="admin_painel.html"><i class="fa-solid fa-house"></i><span>Dashboard</span></a>
+      <a href="admin_banners.html" class="active"><i class="fa-solid fa-images"></i><span>Banners</span></a>
+      <a href="admin_partner_requests.html"><i class="fa-solid fa-store"></i><span>Aprovar Sellers</span></a>
+      <a href="logistica_etiquetas.html?from=admin"><i class="fa-solid fa-truck-fast"></i><span>Logística</span></a>
+      <a href="admin_enterprise.html"><i class="fa-solid fa-building-shield"></i><span>Enterprise</span></a>
+      <button type="button" onclick="localStorage.removeItem('admin_token');localStorage.removeItem('banner_admin_session');location.href='admin_painel.html'"><i class="fa-solid fa-right-from-bracket"></i><span>Sair</span></button>
+    </nav>
+  </aside>
+  <div class="ariana-content">
+  <header class="ariana-topbar sticky top-0 z-40 bg-white border-b border-slate-200 relative z-50">
+    <div class="ariana-page px-4 py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-[color:var(--primary-blue)] text-white flex items-center justify-center shadow">
+          <i class="fa-solid fa-images text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-black tracking-tight text-[color:var(--text-dark)]">Painel de Banners</h1>
+          <p class="text-xs text-slate-500 font-semibold">Configuração de banners do index e produto (detalhes)</p>
+        </div>
+      </div>
+
+      
+      <div class="flex items-center gap-2">
+        <div id="auth-pill" class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+          <i class="fa-solid fa-user-shield text-[color:var(--primary-blue)]"></i>
+          <div class="leading-tight">
+            <p class="text-[10px] font-black uppercase text-slate-500">Sessão</p>
+            <p id="auth-email" class="text-xs font-extrabold text-slate-800">Desconectado</p>
+          </div>
+        </div>
+        <button type="button" id="btn-login" class="btn btn-ghost"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+        <button type="button" id="btn-logout" class="btn btn-ghost hidden"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        <button type="button" id="btn-reload" class="btn btn-ghost"><i class="fa-solid fa-rotate"></i> Recarregar</button>
+        <button type="button" id="btn-save-all" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar tudo</button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="ariana-page px-4 py-6 space-y-8">
+    <div id="msg" class="hidden p-3 rounded-xl font-extrabold"></div>
+
+    <section class="card">
+      <div class="card-h border-b border-slate-100 flex items-start justify-between gap-4">
+        <div>
+          <h2 class="font-black text-slate-900">Como funciona</h2>
+          <p class="helper mt-1">
+            Este painel salva os banners na coleção <span class="mono">banners</span> do MongoDB.
+            Cada banner tem um <span class="mono">id</span> fixo por posição. No site, basta ler esses docs e renderizar quando <span class="mono">active=true</span>.
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs font-black text-slate-500 uppercase">Coleção</p>
+          <p class="mono font-black text-slate-900">banners</p>
+        </div>
+      </div>
+      <div class="card-b grid md:grid-cols-3 gap-4">
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+          <p class="text-xs font-black text-slate-500 uppercase">Campos</p>
+          <ul class="mt-2 text-sm font-semibold text-slate-700 list-disc list-inside space-y-1">
+            <li><span class="mono">active</span> (true/false)</li>
+            <li><span class="mono">imageUrl</span> (link direto da imagem)</li>
+            <li><span class="mono">linkUrl</span> (para onde clica)</li>
+            <li><span class="mono">alt</span> (texto alternativo)</li>
+          </ul>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+          <p class="text-xs font-black text-slate-500 uppercase">Dica</p>
+          <p class="text-sm font-semibold text-slate-700 mt-2">
+            Se o banner estiver <b>desativado</b>, o site deve esconder o slot correspondente.
+          </p>
+        </div>
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+          <p class="text-xs font-black text-slate-500 uppercase">IDs deste painel</p>
+          <p class="text-sm font-semibold text-slate-700 mt-2">
+            Index: <span class="mono">index_main</span>, <span class="mono">index_mini_1..5</span>, <span class="mono">index_duo_1</span>, <span class="mono">index_duo_2</span>, <span class="mono">index_secondary_1</span>, <span class="mono">index_secondary_2</span>, <span class="mono">index_sidebar_vertical</span><br>
+            Header/Categorias: <span class="mono">header_category_banner</span><br>
+            Home cards: <span class="mono">home_card_1</span>, <span class="mono">home_card_2</span>, <span class="mono">home_card_3</span><br>
+            Rodapé: <span class="mono">footer_banner</span><br>
+            Produto (detalhe): <span class="mono">produto_detail_horizontal_1</span>, <span class="mono">produto_detail_horizontal_2</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <div>
+        <h2 class="text-lg font-black text-slate-900">Banners do Index</h2>
+        <p class="helper">Mantém o que já existe e adiciona: 2 banners (nova seção) + 1 banner vertical lateral direita.</p>
+      </div>
+
+      
+      <!-- Banners secundários (Index) -->
+      <div class="card">
+        <div class="card-h border-b border-slate-100">
+          <h3 class="font-black text-slate-900">Banners secundários (Index)</h3>
+          <p class="helper">IDs: <span class="mono">index_secondary_1</span> e <span class="mono">index_secondary_2</span> • Sugestão: 1200×350</p>
+        </div>
+        <div class="card-b grid md:grid-cols-2 gap-6" id="secondary-banners-wrap"></div>
+      </div>
+
+
+      <!-- Banner do Header / Botão de Categorias -->
+      <div class="card">
+        <div class="card-h border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 class="font-black text-slate-900">Banner do Header / Botão de Categorias</h3>
+            <p class="helper">ID: <span class="mono">header_category_banner</span> • Aparece no mega menu do botão de categorias</p>
+          </div>
+          <span id="chip-header_category_banner" class="chip chip-off"><i class="fa-solid fa-circle"></i> Inativo</span>
+        </div>
+        <div class="card-b grid lg:grid-cols-[1.2fr,1fr] gap-6">
+          <div class="space-y-3">
+            <div class="preview min-h-[280px]" id="prev-header_category_banner"></div>
+            <p class="helper">Esse banner aparece ao lado das categorias no header do site.</p>
+          </div>
+          <div class="space-y-3">
+            <label class="text-xs font-black text-slate-500 uppercase">Ativo</label>
+            <select class="field" data-field="active" data-banner="header_category_banner">
+              <option value="true">Ativo</option>
+              <option value="false" selected>Inativo</option>
+            </select>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
+            <input class="field" data-field="imageUrl" data-banner="header_category_banner" placeholder="https://..." />
+
+            <div class="mt-2 flex items-center gap-2">
+              <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="header_category_banner" />
+              <button type="button" class="btn btn-secondary btn-upload" data-banner="header_category_banner">
+                <i class="fa-solid fa-upload mr-2"></i>Carregar
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
+            <input class="field" data-field="linkUrl" data-banner="header_category_banner" placeholder="ofertas.html" />
+
+            <label class="text-xs font-black text-slate-500 uppercase">ALT</label>
+            <input class="field" data-field="alt" data-banner="header_category_banner" placeholder="Descrição do banner" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Banner de rodapé (Site) -->
+      <div class="card">
+        <div class="card-h border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 class="font-black text-slate-900">Banner de rodapé (Site)</h3>
+            <p class="helper">ID: <span class="mono">footer_banner</span> • Sugestão: 1920×220</p>
+          </div>
+          <span id="chip-footer_banner" class="chip chip-off"><i class="fa-solid fa-circle"></i> Inativo</span>
+        </div>
+        <div class="card-b grid lg:grid-cols-[1.2fr,1fr] gap-6">
+          <div class="space-y-3">
+            <div class="preview" id="prev-footer_banner"></div>
+            <p class="helper">Aparece no rodapé do site (quando ativo).</p>
+          </div>
+          <div class="space-y-3">
+            <label class="text-xs font-black text-slate-500 uppercase">Ativo</label>
+            <select class="field" data-field="active" data-banner="footer_banner">
+              <option value="true">Ativo</option>
+              <option value="false" selected>Inativo</option>
+            </select>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
+            <input class="field" data-field="imageUrl" data-banner="footer_banner" placeholder="https://..." />
+
+<div class="mt-2 flex items-center gap-2">
+  <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="footer_banner" />
+  <button type="button" class="btn btn-secondary btn-upload" data-banner="footer_banner">
+    <i class="fa-solid fa-upload mr-2"></i>Carregar
+  </button>
+</div>
+<p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+
+
+            <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
+            <input class="field" data-field="linkUrl" data-banner="footer_banner" placeholder="categoria.html?name=..." />
+
+            <label class="text-xs font-black text-slate-500 uppercase">ALT</label>
+            <input class="field" data-field="alt" data-banner="footer_banner" placeholder="Descrição do banner" />
+          </div>
+        </div>
+      </div>
+
+<div class="card">
+        <div class="card-h border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 class="font-black text-slate-900">Banner principal (grande)</h3>
+            <p class="helper">ID: <span class="mono">index_main</span> • Sugestão: 1920×400 ou 1920×480</p>
+          </div>
+          <span id="chip-index_main" class="chip chip-off"><i class="fa-solid fa-circle"></i> Inativo</span>
+        </div>
+        <div class="card-b grid lg:grid-cols-[1.2fr,1fr] gap-6">
+          <div class="space-y-3">
+            <div class="preview" id="prev-index_main"></div>
+            <p class="helper">Use WebP/PNG leve para performance.</p>
+          </div>
+          <div class="space-y-3">
+            <label class="text-xs font-black text-slate-500 uppercase">Ativo</label>
+            <select class="field" data-field="active" data-banner="index_main">
+              <option value="true">Ativo</option>
+              <option value="false" selected>Inativo</option>
+            </select>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
+            <input class="field" data-field="imageUrl" data-banner="index_main" placeholder="https://..." />
+
+            <div class="mt-2 flex items-center gap-2">
+              <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="index_main" />
+              <button type="button" class="btn btn-secondary btn-upload" data-banner="index_main">
+                <i class="fa-solid fa-upload mr-2"></i>Carregar
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
+            <input class="field" data-field="linkUrl" data-banner="index_main" placeholder="categoria.html?name=..." />
+
+            <label class="text-xs font-black text-slate-500 uppercase">ALT</label>
+            <input class="field" data-field="alt" data-banner="index_main" placeholder="Descrição do banner" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h border-b border-slate-100">
+          <h3 class="font-black text-slate-900">Mini banners (5)</h3>
+          <p class="helper">IDs: <span class="mono">index_mini_1</span> ... <span class="mono">index_mini_5</span></p>
+        </div>
+        <div class="card-b grid md:grid-cols-2 xl:grid-cols-3 gap-6" id="mini-banners-wrap"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h border-b border-slate-100">
+          <h3 class="font-black text-slate-900">Nova seção: 2 banners (Index)</h3>
+          <p class="helper">IDs: <span class="mono">index_duo_1</span> e <span class="mono">index_duo_2</span></p>
+        </div>
+        <div class="card-b grid md:grid-cols-2 gap-6" id="duo-banners-wrap"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 class="font-black text-slate-900">Banner vertical lateral direita (Index)</h3>
+            <p class="helper">ID: <span class="mono">index_sidebar_vertical</span> • Sugestão: 600×900 (2:3)</p>
+          </div>
+          <span id="chip-index_sidebar_vertical" class="chip chip-off"><i class="fa-solid fa-circle"></i> Inativo</span>
+        </div>
+        <div class="card-b grid lg:grid-cols-[1fr,1fr] gap-6">
+          <div class="space-y-3">
+            <div class="preview min-h-[280px]" id="prev-index_sidebar_vertical"></div>
+          </div>
+          <div class="space-y-3">
+            <label class="text-xs font-black text-slate-500 uppercase">Ativo</label>
+            <select class="field" data-field="active" data-banner="index_sidebar_vertical">
+              <option value="true">Ativo</option>
+              <option value="false" selected>Inativo</option>
+            </select>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
+            <input class="field" data-field="imageUrl" data-banner="index_sidebar_vertical" placeholder="https://..." />
+
+<div class="mt-2 flex items-center gap-2">
+  <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="index_sidebar_vertical" />
+  <button type="button" class="btn btn-secondary btn-upload" data-banner="index_sidebar_vertical">
+    <i class="fa-solid fa-upload mr-2"></i>Carregar
+  </button>
+</div>
+<p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+
+
+            <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
+            <input class="field" data-field="linkUrl" data-banner="index_sidebar_vertical" placeholder="categoria.html?name=..." />
+
+            <label class="text-xs font-black text-slate-500 uppercase">ALT</label>
+            <input class="field" data-field="alt" data-banner="index_sidebar_vertical" placeholder="Descrição do banner" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="space-y-4">
+      <div>
+        <h2 class="text-lg font-black text-slate-900">Cards da Home</h2>
+        <p class="helper">Esses 3 cards aparecem na home logo após os produtos em destaque.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-h border-b border-slate-100">
+          <h3 class="font-black text-slate-900">3 cards da Home</h3>
+          <p class="helper">IDs: <span class="mono">home_card_1</span>, <span class="mono">home_card_2</span> e <span class="mono">home_card_3</span></p>
+        </div>
+        <div class="card-b grid md:grid-cols-2 xl:grid-cols-3 gap-6" id="home-cards-wrap"></div>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <div>
+        <h2 class="text-lg font-black text-slate-900">Banners da página de Produto (detalhes)</h2>
+        <p class="helper">2 banners horizontais.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-h border-b border-slate-100">
+          <h3 class="font-black text-slate-900">2 banners horizontais (Produto Detalhes)</h3>
+          <p class="helper">IDs: <span class="mono">produto_detail_horizontal_1</span> e <span class="mono">produto_detail_horizontal_2</span></p>
+        </div>
+        <div class="card-b grid md:grid-cols-2 gap-6" id="produto-detail-banners-wrap"></div>
+      </div>
+    </section>
+
+    <div class="pb-10"></div>
+  </main>
+  </div>
+</div>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="p-5 bg-[color:var(--primary-blue)] text-white flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-lock text-lg"></i>
+            <div>
+              <p class="font-black text-lg leading-tight">Login do Admin</p>
+              <p class="text-xs opacity-80 font-semibold">Use seu e-mail e senha do painel</p>
+            </div>
+          </div>
+          <button type="button" id="login-close" class="w-10 h-10 rounded-xl hover:bg-white/10"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-5 space-y-3">
+          <div>
+            <label class="text-xs font-black text-slate-500 uppercase">E-mail</label>
+            <input id="login-email" class="field mt-1" type="email" placeholder="admin@..." autocomplete="email"/>
+          </div>
+          <div>
+            <label class="text-xs font-black text-slate-500 uppercase">Senha</label>
+            <input id="login-pass" class="field mt-1" type="password" placeholder="••••••••" autocomplete="current-password"/>
+          </div>
+          <p class="helper">Este painel envia os dados para o seu servidor Render. O acesso do painel é controlado localmente nesta tela.</p>
+          <button type="button" id="login-submit" class="btn btn-primary w-full"><i class="fa-solid fa-right-to-bracket"></i> Entrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de bloqueio quando não logado -->
+  <div id="locked-overlay" class="hidden fixed left-0 right-0 bottom-0 top-20 z-30 pointer-events-auto">
+    <div class="absolute inset-0 bg-white/70 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl p-6 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 mx-auto flex items-center justify-center">
+          <i class="fa-solid fa-user-lock text-2xl text-[color:var(--primary-blue)]"></i>
+        </div>
+        <p class="mt-3 text-lg font-black text-slate-900">Faça login para editar os banners</p>
+        <p class="helper mt-1">Para carregar, enviar imagens e salvar no Mongo é necessário entrar no painel.</p>
+        <button type="button" id="locked-login" class="btn btn-primary mt-4"><i class="fa-solid fa-right-to-bracket"></i> Fazer login</button>
+      </div>
+    </div>
+  </div>
+
+
+
+<script>
+    
+const IS_LOCAL_HOST =
+  window.location.hostname === "127.0.0.1" ||
+  window.location.hostname === "localhost";
+
+const API_BASE_LOCAL = "http://localhost:3000/api";
+const API_BASE_RENDER = "https://ariana-backend.onrender.com/api";
+
+window.API_BASE =
+  window.API_BASE ||
+  localStorage.getItem("API_BASE") ||
+  (IS_LOCAL_HOST ? API_BASE_LOCAL : API_BASE_RENDER);
+
+window.API_ORIGIN =
+  window.API_ORIGIN ||
+  String(window.API_BASE).replace(/\/api\/?$/i, "");
+
+const API_BASE = window.API_BASE;
+const API_ORIGIN = window.API_ORIGIN;
+
+const $ = (q) => document.querySelector(q);
+const msg = document.getElementById('msg');
+
+
+    function getBannerSession(){
+      try { return JSON.parse(localStorage.getItem('banner_admin_session') || 'null') || null; } catch(_e){ return null; }
+    }
+    function getAdminToken(){
+      return localStorage.getItem('admin_token') || getBannerSession()?.token || '';
+    }
+    function authHeaders(extra = {}){
+      const token = getAdminToken();
+      return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+    }
+    async function fetchWithApiFallback(path, init = {}) {
+  const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
+  let lastError = null;
+  let lastResponse = null;
+
+  for (const base of bases) {
+    try {
+      const url = `${base}${path}`;
+      const res = await fetch(url, init);
+
+      if (!res.ok && [404, 405, 502, 503, 504].includes(res.status) && base !== bases[bases.length - 1]) {
+        lastResponse = res;
+        continue;
+      }
+
+          window.API_BASE = base;
+          window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
+          try {
+            localStorage.setItem("API_BASE", base);
+            localStorage.setItem("API_BASE_URL", base);
+            localStorage.setItem("API_ORIGIN", window.API_ORIGIN);
+          } catch (_) {}
+          return res;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (lastResponse) return lastResponse;
+      throw lastError || new Error('Nenhuma API disponível no momento.');
+    }
+
+    const ADMIN_EMAILS = ['marcelloghaes@gmail.com'];
+    function toast(type, text){
+      msg.classList.remove('hidden');
+      msg.textContent = text;
+      msg.className = 'p-3 rounded-xl font-extrabold ' + (
+        type === 'ok' ? 'bg-green-100 text-green-800' :
+        type === 'warn' ? 'bg-yellow-100 text-yellow-800' :
+        type === 'info' ? 'bg-blue-100 text-blue-800' :
+        'bg-red-100 text-red-800'
+      );
+      clearTimeout(window.__msgT);
+      window.__msgT = setTimeout(()=> msg.classList.add('hidden'), 2600);
+    }
+
+    function setChip(bannerId, active){
+      const chip = document.getElementById(`chip-${bannerId}`);
+      if(!chip) return;
+      chip.classList.toggle('chip-on', !!active);
+      chip.classList.toggle('chip-off', !active);
+      chip.innerHTML = !!active
+        ? '<i class="fa-solid fa-circle-check"></i> Ativo'
+        : '<i class="fa-solid fa-circle"></i> Inativo';
+    }
+
+    function setPreview(bannerId, imageUrl){
+      const prev = document.getElementById(`prev-${bannerId}`);
+      if(!prev) return;
+      prev.innerHTML = '';
+      const url = String(imageUrl || '').trim();
+      if(url){
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = bannerId;
+        img.loading = 'lazy';
+        img.onerror = () => {
+          prev.innerHTML = '<div class="text-slate-400 font-black text-sm text-center p-6"><i class="fa-regular fa-image text-2xl mb-2"></i><br/>Imagem indisponível</div>';
+        };
+        prev.appendChild(img);
+      } else {
+        prev.innerHTML = '<div class="text-slate-400 font-black text-sm text-center p-6"><i class="fa-regular fa-image text-2xl mb-2"></i><br/>Sem imagem</div>';
+      }
+    }
+
+    function bannerCard(id, title){
+      return `
+        <div class="border border-slate-200 rounded-2xl overflow-hidden">
+          <div class="p-4 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div>
+              <p class="font-black text-slate-900">${title}</p>
+              <p class="helper">ID: <span class="mono">${id}</span></p>
+            </div>
+            <span id="chip-${id}" class="chip chip-off"><i class="fa-solid fa-circle"></i> Inativo</span>
+          </div>
+          <div class="p-4 grid grid-cols-1 gap-3">
+            <div class="preview" id="prev-${id}"></div>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Ativo</label>
+            <select class="field" data-field="active" data-banner="${id}">
+              <option value="true">Ativo</option>
+              <option value="false" selected>Inativo</option>
+            </select>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Image URL</label>
+            <input class="field" data-field="imageUrl" data-banner="${id}" placeholder="https://..." />
+            <div class="mt-2 flex items-center gap-2">
+              <input type="file" accept="image/*" class="banner-file w-full text-sm" data-banner="${id}" />
+              <button type="button" class="btn btn-secondary btn-upload" data-banner="${id}">
+                <i class="fa-solid fa-upload mr-2"></i>Carregar
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Escolha uma imagem e clique em <b>Carregar</b>. A URL será preenchida automaticamente.</p>
+
+            <label class="text-xs font-black text-slate-500 uppercase">Link URL</label>
+            <input class="field" data-field="linkUrl" data-banner="${id}" placeholder="categoria.html?name=..." />
+
+            <label class="text-xs font-black text-slate-500 uppercase">ALT</label>
+            <input class="field" data-field="alt" data-banner="${id}" placeholder="Descrição do banner" />
+          </div>
+        </div>
+      `;
+    }
+
+    function ensureGridCards(){
+      const miniWrap = document.getElementById('mini-banners-wrap');
+      if(miniWrap && !miniWrap.dataset.built){
+        miniWrap.dataset.built = '1';
+        for(let i=1;i<=5;i++) miniWrap.insertAdjacentHTML('beforeend', bannerCard(`index_mini_${i}`, `Mini banner ${i}`));
+      }
+      const duoWrap = document.getElementById('duo-banners-wrap');
+      if(duoWrap && !duoWrap.dataset.built){
+        duoWrap.dataset.built = '1';
+        duoWrap.insertAdjacentHTML('beforeend', bannerCard('index_duo_1','Banner duo 1 (Index)'));
+        duoWrap.insertAdjacentHTML('beforeend', bannerCard('index_duo_2','Banner duo 2 (Index)'));
+      }
+      const secWrap = document.getElementById('secondary-banners-wrap');
+      if(secWrap && !secWrap.dataset.built){
+        secWrap.dataset.built = '1';
+        secWrap.insertAdjacentHTML('beforeend', bannerCard('index_secondary_1','Banner secundário 1 (Index)'));
+        secWrap.insertAdjacentHTML('beforeend', bannerCard('index_secondary_2','Banner secundário 2 (Index)'));
+      }
+      const homeCardsWrap = document.getElementById('home-cards-wrap');
+      if(homeCardsWrap && !homeCardsWrap.dataset.built){
+        homeCardsWrap.dataset.built = '1';
+        homeCardsWrap.insertAdjacentHTML('beforeend', bannerCard('home_card_1','Card Home 1'));
+        homeCardsWrap.insertAdjacentHTML('beforeend', bannerCard('home_card_2','Card Home 2'));
+        homeCardsWrap.insertAdjacentHTML('beforeend', bannerCard('home_card_3','Card Home 3'));
+      }
+      const prodWrap = document.getElementById('produto-detail-banners-wrap');
+      if(prodWrap && !prodWrap.dataset.built){
+        prodWrap.dataset.built = '1';
+        prodWrap.insertAdjacentHTML('beforeend', bannerCard('produto_detail_horizontal_1','Banner produto 1'));
+        prodWrap.insertAdjacentHTML('beforeend', bannerCard('produto_detail_horizontal_2','Banner produto 2'));
+      }
+    }
+
+    function normalizeIncomingBanners(incoming){
+      const pickKey = (item) => item?.id || item?.slot || item?.slotId || item?.key || item?._id || '';
+      const mapItems = (items) => Object.fromEntries(
+        items.map(item => {
+          const raw = item || {};
+          const key = pickKey(raw);
+          return [key, {
+            ...raw,
+            id: raw.id || key,
+            key: raw.key || raw.id || key,
+            slot: raw.slot || key,
+            imageUrl: String(raw.imageUrl || raw.image || raw.url || '').trim(),
+            image: String(raw.image || raw.imageUrl || raw.url || '').trim(),
+            linkUrl: String(raw.linkUrl || raw.href || raw.link || '').trim(),
+            href: String(raw.href || raw.linkUrl || raw.link || '').trim(),
+            alt: String(raw.alt || '').trim(),
+            path: String(raw.path || raw.public_id || raw.filePath || '').trim(),
+            active: raw.active === true || String(raw.active).toLowerCase() === 'true'
+          }];
+        }).filter(([k]) => !!k)
+      );
+      if (Array.isArray(incoming)) return mapItems(incoming);
+      if (incoming && Array.isArray(incoming.banners)) return mapItems(incoming.banners);
+      return incoming && typeof incoming === 'object' ? incoming : {};
+    }
+
+    async function waitFirebaseReady(){
+      return true;
+    }
+
+    async function waitAuthReady(){
+      return true;
+    }
+
+    const BANNER_IDS = [
+      'header_category_banner',
+      'index_main',
+      'index_mini_1','index_mini_2','index_mini_3','index_mini_4','index_mini_5',
+      'index_duo_1','index_duo_2',
+      'index_secondary_1','index_secondary_2',
+      'index_sidebar_vertical',
+      'home_card_1','home_card_2','home_card_3',
+      'footer_banner',
+      'produto_detail_horizontal_1','produto_detail_horizontal_2'
+    ];
+
+    function readForm(){
+      const out = {};
+      for(const id of BANNER_IDS){
+        const imageUrl = ($(`[data-banner="${id}"][data-field="imageUrl"]`)?.value || '').trim();
+        const linkUrl = ($(`[data-banner="${id}"][data-field="linkUrl"]`)?.value || '').trim();
+        const path = ($(`[data-banner="${id}"][data-field="path"]`)?.value || '').trim();
+        out[id] = {
+          id,
+          key: id,
+          slot: id,
+          active: ($(`[data-banner="${id}"][data-field="active"]`)?.value || 'false') === 'true',
+          imageUrl,
+          image: imageUrl,
+          linkUrl,
+          href: linkUrl,
+          alt: ($(`[data-banner="${id}"][data-field="alt"]`)?.value || '').trim(),
+          path,
+          updatedAt: Date.now()
+        };
+      }
+      return out;
+    }
+
+    function sanitizeBannerForSave(item){
+      const clean = { ...(item || {}) };
+      delete clean._id;
+      delete clean.createdAt;
+      clean.id = String(clean.id || clean.slot || clean.slotId || clean.key || '').trim();
+      clean.key = clean.id;
+      clean.slot = String(clean.slot || clean.id).trim();
+      clean.active = clean.active === true;
+      clean.imageUrl = String(clean.imageUrl || clean.image || '').trim();
+      clean.image = clean.imageUrl;
+      clean.linkUrl = String(clean.linkUrl || clean.href || clean.link || '').trim();
+      clean.href = clean.linkUrl;
+      clean.alt = String(clean.alt || '').trim();
+      clean.path = String(clean.path || clean.public_id || '').trim();
+      clean.updatedAt = Date.now();
+      return clean;
+    }
+
+    async function parseJsonSafe(res){
+      try { return await res.json(); } catch (_) { return {}; }
+    }
+
+    async function uploadBannerImage(file, bannerId){
+      if(!file) throw new Error('Selecione um arquivo.');
+      if(!getAdminToken()) throw new Error('Faça login para carregar imagem.');
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', 'banners');
+      formData.append('name', bannerId);
+
+      const attempts = [
+        { path: '/admin/uploads', init: { method:'POST', headers: authHeaders(), body: formData } },
+        { path: '/upload', init: { method:'POST', headers: authHeaders(), body: formData } },
+        { path: '/banners/upload', init: { method:'POST', headers: authHeaders(), body: formData } }
+      ];
+      let lastError = null;
+
+      for(const attempt of attempts){
+        try{
+          const res = await fetchWithApiFallback(attempt.path, attempt.init);
+          if(!res.ok){
+            const errData = await parseJsonSafe(res);
+            throw new Error(errData.error || errData.message || `Falha no upload (${res.status})`);
+          }
+          const data = await parseJsonSafe(res);
+          const url = data.url || data.downloadURL || data.imageUrl || data.secure_url || '';
+          if(!url) throw new Error('Upload concluído sem URL pública');
+          return {
+            url,
+            path: data.path || data.fullPath || data.filePath || data.public_id || url,
+            filename: data.filename || file.name || `${bannerId}-${Date.now()}`
+          };
+        }catch(err){
+          lastError = err;
+        }
+      }
+
+      throw lastError || new Error('Rota de upload não encontrada no backend.');
+    }
+
+    function wireUploadButtons(){
+      document.querySelectorAll('.btn-upload').forEach(btn=>{
+        if (btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+
+        btn.addEventListener('click', async (e)=>{
+          e.preventDefault();
+          const bannerId = btn.getAttribute('data-banner');
+          const fileInput = document.querySelector(`.banner-file[data-banner="${bannerId}"]`);
+          const file = fileInput?.files?.[0];
+          if(!file){ toast('warn','Selecione uma imagem primeiro.'); return; }
+
+          btn.disabled = true;
+          btn.classList.add('opacity-60');
+          try{
+            toast('info','Enviando imagem...');
+            const uploaded = await uploadBannerImage(file, bannerId);
+            const urlField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
+            if(urlField) urlField.value = uploaded.url;
+
+            let pathField = document.querySelector(`.field[data-field="path"][data-banner="${bannerId}"]`);
+            if(!pathField){
+              const anchor = document.querySelector(`.field[data-field="alt"][data-banner="${bannerId}"]`) ||
+                             document.querySelector(`.field[data-field="linkUrl"][data-banner="${bannerId}"]`) ||
+                             urlField;
+              if(anchor){
+                pathField = document.createElement('input');
+                pathField.type = 'hidden';
+                pathField.className = 'field';
+                pathField.setAttribute('data-field', 'path');
+                pathField.setAttribute('data-banner', bannerId);
+                anchor.parentNode.appendChild(pathField);
+              }
+            }
+            if(pathField) pathField.value = uploaded.path || '';
+
+            setPreview(bannerId, uploaded.url);
+            await saveSingleBannerById(bannerId);
+            toast('ok','Imagem enviada e salva no Mongo!');
+            fileInput.value = '';
+          }catch(err){
+            console.error(err);
+            toast('err', err?.message || 'Falha ao carregar imagem.');
+          }finally{
+            btn.disabled = false;
+            btn.classList.remove('opacity-60');
+          }
+        });
+      });
+    }
+
+    function wireUrlPreview(){
+      document.querySelectorAll('.field[data-field="imageUrl"]').forEach(inp=>{
+        if (inp.dataset.bound === '1') return;
+        inp.dataset.bound = '1';
+        inp.addEventListener('input', ()=> {
+          const id = inp.getAttribute('data-banner');
+          setPreview(id, inp.value);
+        });
+      });
+    }
+
+
+    async function saveSingleBannerById(bannerId){
+      if(!getAdminToken()) throw new Error('Faça login para salvar.');
+
+      const imageUrl = ($(`[data-banner="${bannerId}"][data-field="imageUrl"]`)?.value || '').trim();
+      const linkUrl = ($(`[data-banner="${bannerId}"][data-field="linkUrl"]`)?.value || '').trim();
+      const alt = ($(`[data-banner="${bannerId}"][data-field="alt"]`)?.value || '').trim();
+      const active = ($(`[data-banner="${bannerId}"][data-field="active"]`)?.value || 'false') === 'true';
+
+      const payload = {
+        id: bannerId,
+        slot: bannerId,
+        key: bannerId,
+        active,
+        imageUrl,
+        image: imageUrl,
+        linkUrl,
+        href: linkUrl,
+        alt,
+        updatedAt: Date.now()
+      };
+
+      const attempts = [
+        {
+          path: '/admin/banners',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify(payload)
+          }
+        },
+        {
+          path: '/admin/banners/bulk',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify({ banners: [payload] })
+          }
+        }
+      ];
+
+      let lastError = null;
+      for (const attempt of attempts) {
+        try {
+          const res = await fetchWithApiFallback(attempt.path, attempt.init);
+          const data = await parseJsonSafe(res);
+          if(!res.ok) throw new Error(data.error || data.message || `Erro ao salvar (${res.status})`);
+
+          const saved = (data && (data.banner || data.item || (Array.isArray(data.banners) ? data.banners[0] : null) || data)) || payload;
+          const savedImage = String(saved.imageUrl || saved.image || imageUrl || '').trim();
+          const savedHref = String(saved.linkUrl || saved.href || linkUrl || '').trim();
+
+          const imgField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
+          const linkField = document.querySelector(`.field[data-field="linkUrl"][data-banner="${bannerId}"]`);
+          if (imgField) imgField.value = savedImage;
+          if (linkField) linkField.value = savedHref;
+
+          setPreview(bannerId, savedImage);
+          setChip(bannerId, !!(saved.active === true || active));
+          return saved;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      throw lastError || new Error('Falha ao salvar banner.');
+    }
+
+    async function loadAll(){
+      ensureGridCards();
+      wireUploadButtons();
+      wireUrlPreview();
+
+      try{
+        const token = getAdminToken();
+        const routes = token
+          ? [
+              { path:'/admin/banners', init:{ cache:'no-store', headers: authHeaders() } },
+              { path:'/banners', init:{ cache:'no-store' } }
+            ]
+          : [
+              { path:'/banners', init:{ cache:'no-store' } }
+            ];
+
+        let res = null;
+        let dataMap = {};
+        let lastErr = null;
+
+        for (const route of routes) {
+          try {
+            res = await fetchWithApiFallback(route.path, route.init);
+            if(!res.ok) throw new Error(`Erro ao carregar banners (${res.status})`);
+            dataMap = normalizeIncomingBanners(await parseJsonSafe(res));
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+
+        if (lastErr) throw lastErr;
+
+        for(const id of BANNER_IDS){
+          const data = dataMap[id] || {};
+          const active = !!data.active;
+
+          const sel = $(`[data-banner="${id}"][data-field="active"]`);
+          if(sel) sel.value = active ? 'true' : 'false';
+
+          const img = $(`[data-banner="${id}"][data-field="imageUrl"]`);
+          if(img) img.value = data.imageUrl || '';
+
+          const link = $(`[data-banner="${id}"][data-field="linkUrl"]`);
+          if(link) link.value = data.linkUrl || '';
+
+          const alt = $(`[data-banner="${id}"][data-field="alt"]`);
+          if(alt) alt.value = data.alt || '';
+
+          let pathField = document.querySelector(`[data-banner="${id}"][data-field="path"]`);
+          if(!pathField){
+            const anchor = alt || link || img;
+            if(anchor){
+              pathField = document.createElement('input');
+              pathField.type = 'hidden';
+              pathField.className = 'field';
+              pathField.setAttribute('data-field', 'path');
+              pathField.setAttribute('data-banner', id);
+              anchor.parentNode.appendChild(pathField);
+            }
+          }
+          if(pathField) pathField.value = data.path || '';
+
+          setChip(id, active);
+          setPreview(id, data.imageUrl || '');
+        }
+
+        toast('ok','Banners carregados.');
+      }catch(e){
+        console.error('[admin-banners] erro ao carregar banners', e);
+        toast('err', e?.message || 'Erro ao carregar banners.');
+      }
+    }
+
+    async function saveAll(){
+      if(!getAdminToken()){
+        toast('warn','Faça login para salvar.');
+        return;
+      }
+
+      const payload = readForm();
+      const banners = Object.values(payload).map(sanitizeBannerForSave).map(item => ({
+        ...item,
+        slot: item.slot || item.id,
+        image: item.image || item.imageUrl || '',
+        href: item.href || item.linkUrl || '',
+        imageUrl: item.image || item.imageUrl || '',
+        linkUrl: item.href || item.linkUrl || ''
+      }));
+      const payloadById = Object.fromEntries(banners.map(item => [item.id, item]));
+
+      const attempts = [
+        {
+          path: '/admin/banners/bulk',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify({ banners })
+          }
+        },
+        {
+          path: '/banners/bulk',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify({ banners })
+          }
+        },
+        {
+          path: '/admin/banners',
+          init: {
+            method:'POST',
+            headers: authHeaders({ 'Content-Type':'application/json' }),
+            body: JSON.stringify(payloadById)
+          }
+        }
+      ];
+
+      let lastError = null;
+
+      for (const attempt of attempts) {
+        try {
+          const res = await fetchWithApiFallback(attempt.path, attempt.init);
+          if(!res.ok){
+            const errData = await parseJsonSafe(res);
+            throw new Error(errData.error || errData.message || `Erro ao salvar (${res.status})`);
+          }
+          toast('ok','Salvo com sucesso!');
+          return;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+
+      console.error('[admin-banners] erro ao salvar', lastError);
+      toast('err', (lastError && lastError.message) ? lastError.message : 'Erro ao salvar no servidor.');
+    }
+
+    document.addEventListener('input', (e)=>{
+      const el = e.target;
+      const id = el?.getAttribute?.('data-banner');
+      const field = el?.getAttribute?.('data-field');
+      if(!id || !field) return;
+      if(field === 'imageUrl') setPreview(id, el.value);
+    });
+
+    document.addEventListener('change', (e)=>{
+      const el = e.target;
+      const id = el?.getAttribute?.('data-banner');
+      const field = el?.getAttribute?.('data-field');
+      if(!id || !field) return;
+      if(field === 'active') setChip(id, el.value === 'true');
+    });
+
+    // Recarregar é ligado no bloco de blindagem no final para evitar clique duplicado.
+    // Salvar tudo é ligado no bloco de blindagem no final para evitar clique duplicado.
+
+    const authPill = document.getElementById('auth-pill');
+    const authEmail = document.getElementById('auth-email');
+    const btnLogin = document.getElementById('btn-login');
+    const btnLogout = document.getElementById('btn-logout');
+    const loginModal = document.getElementById('login-modal');
+    const lockedOverlay = document.getElementById('locked-overlay');
+
+    const openLogin = ()=> loginModal?.classList.remove('hidden');
+    const closeLogin = ()=> loginModal?.classList.add('hidden');
+
+    document.getElementById('login-close')?.addEventListener('click', closeLogin);
+    document.getElementById('locked-login')?.addEventListener('click', openLogin);
+    btnLogin?.addEventListener('click', openLogin);
+
+    function setLocked(locked){
+      if(locked){
+        lockedOverlay?.classList.remove('hidden');
+        btnLogout?.classList.add('hidden');
+        btnLogin?.classList.remove('hidden');
+      }else{
+        lockedOverlay?.classList.add('hidden');
+        btnLogout?.classList.remove('hidden');
+        btnLogin?.classList.add('hidden');
+      }
+    }
+
+    function bindAuth() {
+      authPill?.classList.remove('hidden');
+      const session = getBannerSession();
+      if (session && session.token) {
+        authEmail.textContent = session.email || 'Conectado';
+        setLocked(false);
+      } else {
+        authEmail.textContent = 'Desconectado';
+        setLocked(true);
+      }
+
+      btnLogout?.addEventListener('click', async ()=>{
+        localStorage.removeItem('banner_admin_session');
+        localStorage.removeItem('admin_token');
+        authEmail.textContent = 'Desconectado';
+        setLocked(true);
+        toast('ok','Você saiu da conta.');
+      });
+    }
+
+    document.getElementById('login-submit')?.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const email = document.getElementById('login-email')?.value?.trim();
+      const pass  = document.getElementById('login-pass')?.value;
+      if(!email || !pass){ toast('warn','Informe e-mail e senha.'); return; }
+
+      const allowed = ADMIN_EMAILS.map(e => String(e).toLowerCase());
+      if (allowed.length && !allowed.includes(String(email).toLowerCase())) {
+        toast('err','Acesso negado!');
+        return;
+      }
+
+      const btn = document.getElementById('login-submit');
+      btn?.setAttribute('disabled','disabled');
+      btn?.classList.add('opacity-60');
+      try{
+        const res = await fetchWithApiFallback('/admin/login', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        const data = await parseJsonSafe(res);
+        if(!res.ok || !data?.token){
+          throw new Error(data?.error || data?.message || `Falha no login (${res.status})`);
+        }
+        const session = { email: data.email || data.user?.email || email, token: data.token, loggedAt: Date.now() };
+        localStorage.setItem('banner_admin_session', JSON.stringify(session));
+        localStorage.setItem('admin_token', data.token);
+        closeLogin();
+        authEmail.textContent = session.email;
+        setLocked(false);
+        toast('ok','Logado com sucesso.');
+        await loadAll();
+      }catch(err){
+        console.error('[login] erro:', err);
+        toast('err', err?.message || 'Falha no login.');
+      }finally{
+        btn?.removeAttribute('disabled');
+        btn?.classList.remove('opacity-60');
+      }
+    });
+
+    document.getElementById('login-pass')?.addEventListener('keydown', (ev)=>{
+      if(ev.key === 'Enter') document.getElementById('login-submit')?.click();
+    });
+
+    ensureGridCards();
+    bindAuth();
+    loadAll();
+  </script>
+
+
+
+  <script>
+    // Blindagem extra para impedir navegação/reload acidental no painel
+    document.addEventListener('submit', function(e){
+      const form = e.target;
+      if (form && (form.id === 'login-form' || form.id === 'banner-form' || form.closest('#login-modal') || form.closest('main'))) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
+
+    document.addEventListener('click', function(e){
+      const a = e.target.closest('a[href="#"]');
+      if (a) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+
+    async function handleBannerSaveClick(e){
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      return saveAll();
+    }
+
+    async function handleBannerReloadClick(e){
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      return loadAll();
+    }
+
+    async function handleBannerUploadClick(e, bannerId){
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      const btn = e?.currentTarget || document.querySelector(`.btn-upload[data-banner="${bannerId}"]`);
+      if (!btn) return;
+      btn.click();
+    }
+
+    const saveAllBtn = document.getElementById('btn-save-all');
+    if (saveAllBtn) {
+      saveAllBtn.setAttribute('type','button');
+      saveAllBtn.onclick = handleBannerSaveClick;
+    }
+
+    const reloadBtn = document.getElementById('btn-reload');
+    if (reloadBtn) {
+      reloadBtn.setAttribute('type','button');
+      reloadBtn.onclick = handleBannerReloadClick;
+    }
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log("🚀 PWA Banner Admin: Ativo"))
+          .catch(err => console.log("❌ Erro no SW:", err));
+      });
+    }
+  </script>
+</body>
+</html>

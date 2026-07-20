@@ -256,16 +256,37 @@
 
     function normalizeItemShippingFields(it) {
       const dims = (it && (it.dimensions || it.dimension || it.medidas || it.dimensoes)) || {};
-      const pesoKg = it && (it.pesoKg ?? it.weightKg ?? it.peso ?? it.shippingWeightKg);
+      const pesoKg = it && (it.pesoKg ?? it.weightKg ?? it.peso ?? it.weight ?? it.shippingWeightKg);
       const alturaCm = it && (it.alturaCm ?? it.heightCm ?? it.altura ?? dims.altura ?? dims.height);
       const larguraCm = it && (it.larguraCm ?? it.widthCm ?? it.largura ?? dims.largura ?? dims.width);
       const comprimentoCm = it && (it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? dims.comprimento ?? dims.length);
 
+      let normalizedWeight = pesoKg != null ? Number(pesoKg) : null;
+      let normalizedHeight = alturaCm != null ? Number(alturaCm) : null;
+      let normalizedWidth = larguraCm != null ? Number(larguraCm) : null;
+      let normalizedLength = comprimentoCm != null ? Number(comprimentoCm) : null;
+
+      // Corrige automaticamente o pacote fictício antigo gravado pelo produto.html:
+      // 5 kg / 11 x 11 x 20 cm. Esses valores eram defaults do frontend,
+      // não medidas reais do produto.
+      const isLegacyPlaceholder =
+        Number(normalizedWeight) === 5 &&
+        Number(normalizedHeight) === 20 &&
+        Number(normalizedWidth) === 11 &&
+        Number(normalizedLength) === 11;
+
+      if (isLegacyPlaceholder) {
+        normalizedWeight = 1;
+        normalizedHeight = 10;
+        normalizedWidth = 15;
+        normalizedLength = 20;
+      }
+
       return {
-        pesoKg: pesoKg != null ? Number(pesoKg) : null,
-        alturaCm: alturaCm != null ? Number(alturaCm) : null,
-        larguraCm: larguraCm != null ? Number(larguraCm) : null,
-        comprimentoCm: comprimentoCm != null ? Number(comprimentoCm) : null
+        pesoKg: Number.isFinite(normalizedWeight) && normalizedWeight > 0 ? normalizedWeight : null,
+        alturaCm: Number.isFinite(normalizedHeight) && normalizedHeight > 0 ? normalizedHeight : null,
+        larguraCm: Number.isFinite(normalizedWidth) && normalizedWidth > 0 ? normalizedWidth : null,
+        comprimentoCm: Number.isFinite(normalizedLength) && normalizedLength > 0 ? normalizedLength : null
       };
     }
 
@@ -314,13 +335,26 @@
         });
       }
 
-      cartItems = cartItems.map((it) => ({
-        ...it,
-        pesoKg: Number(it.pesoKg) || defs.defaultWeightKg,
-        alturaCm: Number(it.alturaCm) || defs.defaultHeightCm,
-        larguraCm: Number(it.larguraCm) || defs.defaultWidthCm,
-        comprimentoCm: Number(it.comprimentoCm) || defs.defaultLengthCm,
-      }));
+      cartItems = cartItems.map((it) => {
+        const normalized = normalizeItemShippingFields(it);
+        const pesoKg = Number(normalized.pesoKg ?? it.pesoKg ?? it.weightKg ?? it.weight) || defs.defaultWeightKg;
+        const alturaCm = Number(normalized.alturaCm ?? it.alturaCm ?? it.heightCm ?? it.altura ?? it.height) || defs.defaultHeightCm;
+        const larguraCm = Number(normalized.larguraCm ?? it.larguraCm ?? it.widthCm ?? it.largura ?? it.width) || defs.defaultWidthCm;
+        const comprimentoCm = Number(normalized.comprimentoCm ?? it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length) || defs.defaultLengthCm;
+        return {
+          ...it,
+          pesoKg, weightKg: pesoKg, weight: pesoKg,
+          altura: alturaCm, alturaCm, heightCm: alturaCm, height: alturaCm,
+          largura: larguraCm, larguraCm, widthCm: larguraCm, width: larguraCm,
+          comprimento: comprimentoCm, comprimentoCm, lengthCm: comprimentoCm, length: comprimentoCm,
+        };
+      });
+
+      // Salva a migração para que o checkout receba os mesmos dados corrigidos.
+      try {
+        localStorage.setItem('ariana_moveis_cart', JSON.stringify(cartItems));
+        localStorage.setItem('arianaMoveisCart', JSON.stringify(cartItems));
+      } catch (_) {}
     }
 
     function computePackageFromCart() {
@@ -331,9 +365,9 @@
       for (const it of cartItems) {
         const qty = parseInt(it.quantity || 1, 10) || 1;
         weight += (Number(it.pesoKg) || defs.defaultWeightKg) * qty;
-        height = Math.max(height, Number(it.alturaCm) || defs.defaultHeightCm);
-        width = Math.max(width, Number(it.larguraCm) || defs.defaultWidthCm);
-        length = Math.max(length, Number(it.comprimentoCm) || defs.defaultLengthCm);
+        height = Math.max(height, Number(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height) || defs.defaultHeightCm);
+        width = Math.max(width, Number(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width) || defs.defaultWidthCm);
+        length = Math.max(length, Number(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length) || defs.defaultLengthCm);
       }
 
       return {
@@ -369,8 +403,10 @@
           sellerName: it.sellerName || 'Ariana Móveis',
           quantity: qty,
           qty,
-          unitPrice: Number(it.price || 0) || 0,
-          totalPrice: (Number(it.price || 0) || 0) * qty,
+          // O cálculo do frete usa o mesmo valor declarado da tela do produto:
+          // preço-base/PIX do item, e não o preço cheio do cartão.
+          unitPrice: arianaSellerBasePrice(it),
+          totalPrice: arianaSellerBasePrice(it) * qty,
           pesoKg: Number(it.pesoKg || it.weightKg || it.weight || 0) || 0,
           weightKg: Number(it.pesoKg || it.weightKg || it.weight || 0) || 0,
           weight: Number(it.pesoKg || it.weightKg || it.weight || 0) || 0,
@@ -393,8 +429,11 @@
     }
 
     function getCartSubtotalValue() {
+      // IMPORTANTE: este total é usado somente como valor declarado da cotação.
+      // A tela do produto envia productData.price (preço-base/PIX). Para o carrinho
+      // devolver exatamente a mesma tarifa, usamos a mesma base aqui.
       return (Array.isArray(cartItems) ? cartItems : []).reduce((sum, item) => {
-        return sum + (arianaMarketplacePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
+        return sum + (arianaSellerBasePrice(item) * (parseInt(item.quantity || 1, 10) || 1));
       }, 0);
     }
 
@@ -497,7 +536,7 @@
 
       // Usa somente a rota unificada do backend para não cair nas rotas antigas dos Correios/Rodocap.
       const endpoints = [
-        `${apiBase}/shipping/quote`
+        `${apiBase}/shipping/logistics/quote`
       ];
 
       for (const endpoint of endpoints) {

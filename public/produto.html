@@ -1497,10 +1497,114 @@ window.toggleAccordion = (titleElement) => {
             }
         }
 
+        function sanitizeCartImageUrl(value) {
+            const raw = String(value || '').trim();
+            const fallback = 'https://placehold.co/100x100/CCCCCC/333333?text=AM';
+            if (!raw || raw.includes('${')) return fallback;
+            if (/^data:image\//i.test(raw) || /^blob:/i.test(raw)) return fallback;
+            if (/^https?:\/\//i.test(raw)) return raw;
+            return fallback;
+        }
+
+        function sanitizeCartItem(item = {}) {
+            const safeImage = sanitizeCartImageUrl(item.imageUrl || item.image || item.mainImageUrl || '');
+            return {
+                id: item.id,
+                name: item.name,
+                price: Number(item.price || 0),
+                originalPrice: Number(item.originalPrice || item.price || 0),
+                discountPercent: Number(item.discountPercent || 0),
+                pixPrice: Number(item.pixPrice || 0),
+                sellerBaseUnitPrice: Number(item.sellerBaseUnitPrice || item.pixPrice || 0),
+                sellerBasePrice: Number(item.sellerBasePrice || item.pixPrice || 0),
+                cardPrice: Number(item.cardPrice || item.originalPrice || item.price || 0),
+                quantity: parseInt(item.quantity || 1, 10) || 1,
+                imageUrl: safeImage,
+                image: safeImage,
+                sellerId: item.sellerId || 'admin',
+                sellerName: item.sellerName || 'Ariana Móveis',
+                pesoKg: Number(
+                    item.pesoKg ??
+                    item.weightKg ??
+                    item.peso ??
+                    item.weight ??
+                    item.shippingWeightKg ??
+                    1
+                ),
+                weightKg: Number(
+                    item.pesoKg ??
+                    item.weightKg ??
+                    item.peso ??
+                    item.weight ??
+                    item.shippingWeightKg ??
+                    1
+                ),
+                weight: Number(
+                    item.pesoKg ??
+                    item.weightKg ??
+                    item.peso ??
+                    item.weight ??
+                    item.shippingWeightKg ??
+                    1
+                ),
+                comprimento: Number(
+                    item.comprimento ??
+                    item.comprimentoCm ??
+                    item.lengthCm ??
+                    item.length ??
+                    20
+                ),
+                comprimentoCm: Number(
+                    item.comprimento ??
+                    item.comprimentoCm ??
+                    item.lengthCm ??
+                    item.length ??
+                    20
+                ),
+                largura: Number(
+                    item.largura ??
+                    item.larguraCm ??
+                    item.widthCm ??
+                    item.width ??
+                    15
+                ),
+                larguraCm: Number(
+                    item.largura ??
+                    item.larguraCm ??
+                    item.widthCm ??
+                    item.width ??
+                    15
+                ),
+                altura: Number(
+                    item.altura ??
+                    item.alturaCm ??
+                    item.heightCm ??
+                    item.height ??
+                    10
+                ),
+                alturaCm: Number(
+                    item.altura ??
+                    item.alturaCm ??
+                    item.heightCm ??
+                    item.height ??
+                    10
+                )
+            };
+        }
+
         function writeCartArray(items) {
-            const arr = Array.isArray(items) ? items : [];
-            localStorage.setItem(CART_KEY_OLD, JSON.stringify(arr));
-            localStorage.setItem(CART_KEY_NEW, JSON.stringify(arr));
+            const arr = (Array.isArray(items) ? items : []).map(sanitizeCartItem);
+            try {
+                localStorage.setItem(CART_KEY_OLD, JSON.stringify(arr));
+                localStorage.setItem(CART_KEY_NEW, JSON.stringify(arr));
+            } catch (error) {
+                console.warn('[Carrinho] Limpando carrinho antigo pesado:', error);
+                localStorage.removeItem(CART_KEY_OLD);
+                localStorage.removeItem(CART_KEY_NEW);
+                const minimal = arr.slice(-1);
+                localStorage.setItem(CART_KEY_OLD, JSON.stringify(minimal));
+                localStorage.setItem(CART_KEY_NEW, JSON.stringify(minimal));
+            }
         }
 
         function loadCartAndCounter() {
@@ -1530,17 +1634,66 @@ function normalizeProductShipping(p) {
     };
 
     // Defaults seguros (iguais aos que o backend usa quando falta)
-    let pesoKg = num(obj.pesoKg ?? obj.weightKg ?? ship.pesoKg ?? ship.weightKg);
-    if (!Number.isFinite(pesoKg) || pesoKg <= 0) pesoKg = 5;
+    let pesoKg = num(
+        obj.pesoKg ??
+        obj.weightKg ??
+        obj.peso ??
+        obj.weight ??
+        obj.shippingWeightKg ??
+        ship.pesoKg ??
+        ship.weightKg ??
+        ship.peso ??
+        ship.weight
+    );
+    if (!Number.isFinite(pesoKg) || pesoKg <= 0) pesoKg = 1;
 
-    let comprimento = num(obj.comprimento ?? obj.length ?? dims.comprimento ?? dims.length ?? ship.comprimento);
-    if (!Number.isFinite(comprimento) || comprimento <= 0) comprimento = 11;
+    let comprimento = num(
+        obj.comprimento ??
+        obj.comprimentoCm ??
+        obj.lengthCm ??
+        obj.length ??
+        dims.comprimento ??
+        dims.comprimentoCm ??
+        dims.lengthCm ??
+        dims.length ??
+        ship.comprimento ??
+        ship.comprimentoCm ??
+        ship.lengthCm ??
+        ship.length
+    );
+    if (!Number.isFinite(comprimento) || comprimento <= 0) comprimento = 20;
 
-    let largura = num(obj.largura ?? obj.width ?? dims.largura ?? dims.width ?? ship.largura);
-    if (!Number.isFinite(largura) || largura <= 0) largura = 11;
+    let largura = num(
+        obj.largura ??
+        obj.larguraCm ??
+        obj.widthCm ??
+        obj.width ??
+        dims.largura ??
+        dims.larguraCm ??
+        dims.widthCm ??
+        dims.width ??
+        ship.largura ??
+        ship.larguraCm ??
+        ship.widthCm ??
+        ship.width
+    );
+    if (!Number.isFinite(largura) || largura <= 0) largura = 15;
 
-    let altura = num(obj.altura ?? obj.height ?? dims.altura ?? dims.height ?? ship.altura);
-    if (!Number.isFinite(altura) || altura <= 0) altura = 20;
+    let altura = num(
+        obj.altura ??
+        obj.alturaCm ??
+        obj.heightCm ??
+        obj.height ??
+        dims.altura ??
+        dims.alturaCm ??
+        dims.heightCm ??
+        dims.height ??
+        ship.altura ??
+        ship.alturaCm ??
+        ship.heightCm ??
+        ship.height
+    );
+    if (!Number.isFinite(altura) || altura <= 0) altura = 10;
 
     // Normalização mínima
     comprimento = Math.max(1, Math.round(comprimento));
@@ -1563,11 +1716,16 @@ function addToCart(action = 'add') {
             const cart = readCartArray();
             const itemIndex = cart.findIndex(item => String(item.id) === String(productData.id));
 
-            const mainImage =
-                productImages[0] ||
+            let mainImage =
+                productImages.find((url) => /^https?:\/\//i.test(String(url || ''))) ||
                 productData.mainImageUrl ||
-                (Array.isArray(productData.images) && (typeof productData.images[0] === 'string' ? productData.images[0] : productData.images[0].url)) ||
+                productData.imageUrl ||
+                productData.image ||
+                (Array.isArray(productData.images) && (typeof productData.images[0] === 'string' ? productData.images[0] : productData.images[0]?.url)) ||
                 'https://placehold.co/100x100/CCCCCC/333333?text=AM';
+
+            // Proteção definitiva: nunca salvar Base64/blob no localStorage do carrinho.
+            mainImage = sanitizeCartImageUrl(mainImage);
 
             // ✅ Informações de frete deste produto (salvas no carrinho)
             const shipInfo = normalizeProductShipping(productData);
@@ -1590,15 +1748,26 @@ function addToCart(action = 'add') {
                 cart[itemIndex].sellerBasePrice = pixPrice;
                 cart[itemIndex].cardPrice = basePrice;
                 cart[itemIndex].discountPercent = discountPercent;
-                cart[itemIndex].imageUrl = cart[itemIndex].imageUrl || cart[itemIndex].image || mainImage;
-                cart[itemIndex].image = cart[itemIndex].image || cart[itemIndex].imageUrl || mainImage;
+                cart[itemIndex].imageUrl = sanitizeCartImageUrl(cart[itemIndex].imageUrl || cart[itemIndex].image || mainImage);
+                cart[itemIndex].image = cart[itemIndex].imageUrl;
                 cart[itemIndex].sellerId = cart[itemIndex].sellerId || productData.sellerId || 'admin';
                 cart[itemIndex].sellerName = cart[itemIndex].sellerName || productData.sellerName || 'Ariana Móveis';
                 // ✅ Campos de frete (para o carrinho calcular igual ao detalhe)
                 cart[itemIndex].pesoKg = Number((cart[itemIndex].pesoKg != null ? cart[itemIndex].pesoKg : shipInfo.pesoKg)) || shipInfo.pesoKg;
+                cart[itemIndex].weightKg = cart[itemIndex].pesoKg;
+                cart[itemIndex].weight = cart[itemIndex].pesoKg;
                 cart[itemIndex].comprimento = Number((cart[itemIndex].comprimento != null ? cart[itemIndex].comprimento : shipInfo.comprimento)) || shipInfo.comprimento;
+                cart[itemIndex].comprimentoCm = cart[itemIndex].comprimento;
+                cart[itemIndex].lengthCm = cart[itemIndex].comprimento;
+                cart[itemIndex].length = cart[itemIndex].comprimento;
                 cart[itemIndex].largura = Number((cart[itemIndex].largura != null ? cart[itemIndex].largura : shipInfo.largura)) || shipInfo.largura;
+                cart[itemIndex].larguraCm = cart[itemIndex].largura;
+                cart[itemIndex].widthCm = cart[itemIndex].largura;
+                cart[itemIndex].width = cart[itemIndex].largura;
                 cart[itemIndex].altura = Number((cart[itemIndex].altura != null ? cart[itemIndex].altura : shipInfo.altura)) || shipInfo.altura;
+                cart[itemIndex].alturaCm = cart[itemIndex].altura;
+                cart[itemIndex].heightCm = cart[itemIndex].altura;
+                cart[itemIndex].height = cart[itemIndex].altura;
 
             } else {
                 cart.push({
@@ -1619,9 +1788,20 @@ function addToCart(action = 'add') {
                     sellerName: productData.sellerName || 'Ariana Móveis',
                     // ✅ Campos de frete (para o carrinho calcular igual ao detalhe)
                     pesoKg: shipInfo.pesoKg,
+                    weightKg: shipInfo.pesoKg,
+                    weight: shipInfo.pesoKg,
                     comprimento: shipInfo.comprimento,
+                    comprimentoCm: shipInfo.comprimento,
+                    lengthCm: shipInfo.comprimento,
+                    length: shipInfo.comprimento,
                     largura: shipInfo.largura,
-                    altura: shipInfo.altura
+                    larguraCm: shipInfo.largura,
+                    widthCm: shipInfo.largura,
+                    width: shipInfo.largura,
+                    altura: shipInfo.altura,
+                    alturaCm: shipInfo.altura,
+                    heightCm: shipInfo.altura,
+                    height: shipInfo.altura
                 });
             }
 
@@ -2049,7 +2229,7 @@ function updateClientHeaderUI(user) {
             const altura = dims.altura ?? dims.height ?? p.altura ?? p.height ?? null;
 
             return {
-                pesoKg: safeNumber(weight, 5), // default 5kg (igual seus testes)
+                pesoKg: safeNumber(weight, 1), // mesmo padrão do backend quando o produto não informa peso
                 comprimento: comprimento != null ? safeNumber(comprimento, null) : null,
                 largura: largura != null ? safeNumber(largura, null) : null,
                 altura: altura != null ? safeNumber(altura, null) : null,
@@ -2147,7 +2327,6 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
     // Não chama mais rotas antigas para evitar aparecer apenas erro dos Correios.
     const endpoints = [
         `${apiBase}/shipping/logistics/quote`,
-        `${apiBase}/shipping/quote`,
     ];
 
     let mergedQuotes = [];

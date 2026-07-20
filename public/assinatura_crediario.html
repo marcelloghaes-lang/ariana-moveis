@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Assinatura do Crediário Ariana</title>
+<style>
+:root{--blue:#0047ab;--yellow:#ffd400;--bg:#f4f7fb;--text:#172033;--muted:#667085;--border:#d9e1ec}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+header{background:var(--blue);color:#fff;padding:18px 24px}header b{font-size:22px}main{max-width:860px;margin:28px auto;padding:0 16px}.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:16px;box-shadow:0 5px 18px rgba(20,46,90,.06)}h1,h2{margin-top:0}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.item{border:1px solid var(--border);border-radius:10px;padding:12px}.docs a{display:block;padding:12px;border:1px solid var(--border);border-radius:9px;margin:8px 0;color:var(--blue);font-weight:bold;text-decoration:none}label{display:block;font-weight:bold;margin:12px 0 6px}input{width:100%;padding:12px;border:1px solid var(--border);border-radius:9px;font-size:16px}.accept{display:flex;gap:10px;align-items:flex-start;font-weight:normal}.accept input{width:auto;margin-top:3px}button{border:0;border-radius:9px;padding:13px 18px;font-size:16px;font-weight:bold;cursor:pointer;background:var(--blue);color:#fff}button:disabled{opacity:.55;cursor:not-allowed}.ok{border-left:5px solid #16a34a}.error{border-left:5px solid #dc2626}.hidden{display:none}@media(max-width:650px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><b>Ariana Móveis</b><div>Assinatura eletrônica do Crediário Ariana</div></header>
+<main>
+  <div id="status" class="card">Carregando solicitação de assinatura...</div>
+  <section id="conteudo" class="hidden">
+    <div class="card"><h1>Revise os documentos</h1><p class="muted">Leia todos os documentos antes de confirmar. O sistema registrará a data, o aceite e os identificadores técnicos da operação.</p><div id="resumo" class="grid"></div></div>
+    <div class="card"><h2>Documentos</h2><div id="documentos" class="docs"></div></div>
+    <div class="card"><h2>Confirmação do titular</h2>
+      <label for="nome">Nome completo</label><input id="nome" autocomplete="name">
+      <label for="cpf">CPF</label><input id="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00">
+      <label class="accept"><input id="aceite" type="checkbox"><span>Declaro que li os documentos apresentados, que os dados estão corretos e que concordo com os termos do Crediário Ariana.</span></label>
+      <button id="assinar" type="button">Assinar eletronicamente</button>
+    </div>
+  </section>
+</main>
+<script>
+const API_BASE=window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api';
+const token=new URLSearchParams(location.search).get('token')||'';
+const authToken=localStorage.getItem('token')||localStorage.getItem('auth_token')||localStorage.getItem('user_token')||localStorage.getItem('cliente_token')||'';
+const statusEl=document.getElementById('status'),conteudo=document.getElementById('conteudo');
+const money=c=>Number(c||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function headers(extra={}){return {...extra,...(authToken?{Authorization:'Bearer '+authToken}:{})}}
+async function api(path,options={}){const r=await fetch(API_BASE+path,{...options,headers:headers(options.headers||{})});const j=await r.json().catch(()=>({}));if(!r.ok||j.ok===false)throw new Error(j.error||'Não foi possível concluir a operação.');return j}
+async function carregar(){
+  if(!token){statusEl.classList.add('error');statusEl.textContent='Link de assinatura inválido.';return}
+  if(!authToken){statusEl.classList.add('error');statusEl.innerHTML='Entre na sua conta da Ariana Móveis e abra este link novamente.';return}
+  try{
+    const j=await api('/payments/crediario/assinaturas/'+encodeURIComponent(token));
+    const a=j.analysis||{},s=j.signature||{};
+    if(s.status==='SIGNED'){statusEl.classList.add('ok');statusEl.innerHTML='<b>Documentos já assinados.</b><br>Assinatura registrada em '+new Date(s.signedAt).toLocaleString('pt-BR')+'.';return}
+    if(s.status!=='PENDING'){statusEl.classList.add('error');statusEl.textContent='Esta solicitação não está disponível para assinatura. Status: '+(s.status||'desconhecido');return}
+    statusEl.classList.add('ok');statusEl.innerHTML='<b>Solicitação válida.</b><br>Link disponível até '+new Date(s.expiresAt).toLocaleString('pt-BR')+'.';
+    document.getElementById('nome').value=a.customer?.name||'';document.getElementById('cpf').value=a.customer?.document||'';
+    document.getElementById('resumo').innerHTML=`<div class="item"><small>Pedido</small><br><b>${esc(a.orderId||'—')}</b></div><div class="item"><small>Total financiado</small><br><b>${money((a.financedAmountCents||0)/100)}</b></div><div class="item"><small>Parcelas</small><br><b>${Number(a.installmentCount||0)}x</b></div><div class="item"><small>Primeiro vencimento</small><br><b>${esc(a.firstDueDate||'—')}</b></div>`;
+    document.getElementById('documentos').innerHTML=(s.documents||[]).map((d,i)=>`<a href="${esc(d.url)}" target="_blank" rel="noopener">📄 ${esc(d.title||d.type||'Documento '+(i+1))}</a>`).join('')||'<p>Nenhum documento disponível.</p>';
+    conteudo.classList.remove('hidden');
+  }catch(e){statusEl.classList.add('error');statusEl.textContent=e.message}
+}
+document.getElementById('assinar').addEventListener('click',async()=>{
+  const btn=document.getElementById('assinar');const signerName=document.getElementById('nome').value.trim();const signerDocument=document.getElementById('cpf').value.replace(/\D/g,'');const acceptedTerms=document.getElementById('aceite').checked;
+  if(!acceptedTerms||signerName.length<3||signerDocument.length<11){alert('Preencha o nome, o CPF e confirme o aceite dos termos.');return}
+  btn.disabled=true;btn.textContent='Registrando assinatura...';
+  try{const j=await api('/payments/crediario/assinaturas/'+encodeURIComponent(token)+'/assinar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signerName,signerDocument,acceptedTerms})});conteudo.classList.add('hidden');statusEl.classList.add('ok');statusEl.innerHTML='<h2>Assinatura concluída</h2><p>Seus documentos foram assinados com sucesso.</p><p><b>Comprovante:</b> '+esc(j.signature?.evidenceId||'registrado')+'</p><p>O pedido agora aguarda a emissão do carnê.</p>'}catch(e){alert(e.message);btn.disabled=false;btn.textContent='Assinar eletronicamente'}
+});
+carregar();
+</script>
+</body>
+</html>

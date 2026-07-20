@@ -273,6 +273,25 @@
                   </div>
                 </div>
               </label>
+
+              <label class="pay-method" id="label-crediario">
+                <input name="pay" type="radio" value="crediario_ariana"/>
+                <div class="pay-method-body">
+                  <div>
+                    <div class="pay-title">Crediário Ariana</div>
+                    <div class="pay-desc">Carnê Cora em até 15 parcelas</div>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div id="crediario-config" class="hidden rounded-xl border border-blue-200 bg-blue-50 p-4 mt-4">
+              <h3 class="font-bold text-primary-blue mb-2">Crediário Ariana</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div><label class="block text-xs font-bold text-gray-600 mb-1">Número de parcelas</label><select id="crediario-parcelas" class="w-full border rounded-lg px-3 py-2"></select></div>
+                <div><label class="block text-xs font-bold text-gray-600 mb-1">Primeiro vencimento</label><input id="crediario-primeiro-vencimento" type="date" class="w-full border rounded-lg px-3 py-2"/></div>
+              </div>
+              <div id="crediario-preview" class="text-sm text-gray-700 mt-3"></div>
             </div>
 
             <hr class="divider"/>
@@ -447,7 +466,7 @@
       return base > 0 ? +(base / 0.83).toFixed(2) : 0;
     }
     function arianaUnitPriceForPayment(item, method) {
-      return (String(method || '').toLowerCase() === 'card') ? arianaMarketplacePrice(item) : arianaSellerBasePrice(item);
+      return ['card','crediario_ariana'].includes(String(method || '').toLowerCase()) ? arianaMarketplacePrice(item) : arianaSellerBasePrice(item);
     }
 
 const computeCartTotal = () =>
@@ -455,6 +474,14 @@ const computeCartTotal = () =>
         const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1);
         const price = safeNumber(i.price ?? i.valor ?? 0);
         return sum + price * qty;
+      }, 0);
+
+    // Total usado exclusivamente como valor declarado na cotação do frete.
+    // Mantém o mesmo padrão da página do produto: preço-base/PIX.
+    const computeShippingDeclaredTotal = () =>
+      (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
+        return sum + (arianaSellerBasePrice(i) * qty);
       }, 0);
 
     const pick = (...vals) => {
@@ -735,7 +762,9 @@ async function quoteShippingForCep(cepDestino) {
 
   const pkg = computePackage();
   const cleanCep = String(cepDestino || '').replace(/\D/g, '');
-  const subtotal = computeCartTotal();
+  // Não usa o total cheio do cartão como valor declarado do frete.
+  // Usa exatamente a mesma base enviada pela tela de detalhes do produto.
+  const subtotal = computeShippingDeclaredTotal();
   const payload = {
     cepDestino: cleanCep,
     destinationCep: cleanCep,
@@ -765,26 +794,26 @@ async function quoteShippingForCep(cepDestino) {
       sellerName: it.sellerName || 'Ariana Móveis',
       quantity: safeNumber(it.quantity ?? 1),
       qty: safeNumber(it.quantity ?? 1),
-      unitPrice: arianaMarketplacePrice(it),
-      totalPrice: arianaMarketplacePrice(it) * safeNumber(it.quantity ?? 1),
+      unitPrice: arianaSellerBasePrice(it),
+      totalPrice: arianaSellerBasePrice(it) * safeNumber(it.quantity ?? 1),
       pesoKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
       weightKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
       weight: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
-      alturaCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.height ?? 0),
-      heightCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.height ?? 0),
-      height: safeNumber(it.alturaCm ?? it.heightCm ?? it.height ?? 0),
-      larguraCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.width ?? 0),
-      widthCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.width ?? 0),
-      width: safeNumber(it.larguraCm ?? it.widthCm ?? it.width ?? 0),
-      comprimentoCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.length ?? 0),
-      lengthCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.length ?? 0),
-      length: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.length ?? 0),
+      alturaCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height ?? 0),
+      heightCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height ?? 0),
+      height: safeNumber(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height ?? 0),
+      larguraCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width ?? 0),
+      widthCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width ?? 0),
+      width: safeNumber(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width ?? 0),
+      comprimentoCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length ?? 0),
+      lengthCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length ?? 0),
+      length: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length ?? 0),
     }))
   };
 
   // Usa somente a rota unificada do backend para cotar Frenet/Correios corretamente.
   const endpoints = [
-    `${getApiBaseUrl()}/shipping/quote`,
+    `${getApiBaseUrl()}/shipping/logistics/quote`,
   ];
 
   let best = null;
@@ -809,46 +838,7 @@ async function quoteShippingForCep(cepDestino) {
         ...(data?.quote ? [data.quote] : []),
       ].map((q) => normalizeCheckoutShippingOption(q, data)).filter(Boolean);
       if (candidates.length) {
-        const shippingPriority = (q) => {
-          const txt = `${q.provider || ''} ${q.service || ''} ${q.name || ''}`.toLowerCase();
-
-          // 1) Ariana Entrega / frete local
-          if (
-            txt.includes('ariana') ||
-            txt.includes('free_local') ||
-            txt.includes('ariana_free_local') ||
-            txt.includes('own_delivery') ||
-            txt.includes('entrega própria') ||
-            txt.includes('entrega propria')
-          ) return 1;
-
-          // 2) Correios tem preferência quando a Ariana Entrega não se encaixar
-          if (
-            txt.includes('correios') ||
-            txt.includes('pac') ||
-            txt.includes('sedex') ||
-            txt.includes('03298') ||
-            txt.includes('03328') ||
-            txt.includes('03220') ||
-            txt.includes('03212')
-          ) return 2;
-
-          // 3) Rodocap
-          if (txt.includes('rodocap')) return 3;
-
-          // 4) Frenet
-          if (txt.includes('frenet')) return 4;
-
-          return 99;
-        };
-
-        candidates.sort((a, b) => {
-          const pa = shippingPriority(a);
-          const pb = shippingPriority(b);
-          if (pa !== pb) return pa - pb;
-          return Number(a.price ?? 1e9) - Number(b.price ?? 1e9);
-        });
-
+        candidates.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
         best = candidates[0];
         full = data;
         break;
@@ -1441,7 +1431,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
       if (!allowed.includes(selectedPayCode)) {
         selectedPayCode = allowed[0] || "card";
-        selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
+        selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : (selectedPayCode === "crediario_ariana" ? "Crediário Ariana" : "Cartão de Crédito"));
         const radio = document.querySelector(`input[name="pay"][value="${selectedPayCode}"]`);
         if (radio) radio.checked = true;
       }
@@ -1627,12 +1617,19 @@ async function quoteShippingForSelectedAddress(addrObj) {
       try {
         const paySelected = document.querySelector('input[name="pay"]:checked')?.value || selectedPayCode || 'card';
         selectedPayCode = paySelected;
-        selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : 'Cartão de Crédito');
+        selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : (paySelected === 'crediario_ariana' ? 'Crediário Ariana' : 'Cartão de Crédito'));
         updatePayMethodClasses();
         const totalsComputed = updateTotalsUI();
 
         const desc = totalsComputed.discountPercent || getDiscountPercentFor(paySelected);
-        const valorFinal = totalsComputed.grandTotal;
+        let valorFinal = totalsComputed.grandTotal;
+        let crediarioSimulation = null;
+        if (selectedPayCode === 'crediario_ariana') {
+          const installmentCount = Number(document.getElementById('crediario-parcelas')?.value || 1);
+          const creditBase = Number(totalsComputed.grandTotalOriginal || totalsComputed.grandTotal || 0);
+          crediarioSimulation = window.ArianaCrediarioEngine.simulate(creditBase, installmentCount);
+          valorFinal = crediarioSimulation.financedAmount;
+        }
 
         const addrN = normalizeAddress(selectedAddrObj);
         if (!addrN.number) addrN.number = "S/N";
@@ -1710,12 +1707,12 @@ async function quoteShippingForSelectedAddress(addrObj) {
           manufacturer: inferManufacturerFromCart(cart),
           payment: {
             method: selectedPayCode,
-            gateway: 'mercadopago',
+            gateway: selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago',
             routing: {
               largeSupplier: isLargeSupplierCart(cart),
               cardGateway: 'mercadopago',
               pixBoletoGateway: 'mercadopago',
-              defaultGateway: 'mercadopago'
+              defaultGateway: selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'
             }
           },
           total: valorFinal,
@@ -1725,6 +1722,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
             shipping: totalsComputed.shipping,
             grandTotalOriginal: totalsComputed.grandTotalOriginal || totalsComputed.grandTotal,
             grandTotal: valorFinal,
+            creditBaseAmount: crediarioSimulation?.baseAmount || undefined,
+            creditBaseAmountCents: crediarioSimulation?.baseAmountCents || undefined,
+            financedAmount: crediarioSimulation?.financedAmount || undefined,
+            financedAmountCents: crediarioSimulation?.financedAmountCents || undefined,
             discountValue: totalsComputed.discountValue || 0,
             paymentDiscountValue: totalsComputed.paymentDiscountValue || 0,
             couponCode: totalsComputed.couponCode || '',
@@ -1743,6 +1744,20 @@ async function quoteShippingForSelectedAddress(addrObj) {
             }
           },
           status: "pending_payment",
+          paymentStatus: selectedPayCode === 'crediario_ariana' ? 'AWAITING_PAYMENT' : 'pending',
+          crediario: selectedPayCode === 'crediario_ariana' ? {
+            provider: 'cora',
+            installments: Number(document.getElementById('crediario-parcelas')?.value || 1),
+            installmentCount: crediarioSimulation?.installmentCount,
+            installmentDivisor: crediarioSimulation?.divisor,
+            baseAmount: crediarioSimulation?.baseAmount,
+            baseAmountCents: crediarioSimulation?.baseAmountCents,
+            financedAmount: crediarioSimulation?.financedAmount,
+            financedAmountCents: crediarioSimulation?.financedAmountCents,
+            installmentPlan: crediarioSimulation?.installments?.map((amountCents,index)=>({number:index+1,originalAmountCents:amountCents,status:'OPEN'})),
+            firstDueDate: document.getElementById('crediario-primeiro-vencimento')?.value || '',
+            status: 'PENDING_ISSUANCE'
+          } : undefined,
           createdAt: new Date().toISOString()
         };
 
@@ -1764,7 +1779,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           localStorage.setItem("ariana_moveis_cart", JSON.stringify(cart || []));
         } catch (_) {}
 
-        try { localStorage.setItem("arianaLastOrderGateway", "mercadopago"); } catch (_) {}
+        try { localStorage.setItem("arianaLastOrderGateway", selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'); } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
         window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
@@ -1808,7 +1823,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           if (!radio) return;
           radio.checked = true;
           selectedPayCode = radio.value;
-          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
+          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : (selectedPayCode === "crediario_ariana" ? "Crediário Ariana" : "Cartão de Crédito"));
           updatePayMethodClasses();
           updateTotalsUI();
         });
@@ -1817,7 +1832,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
       document.querySelectorAll('input[name="pay"]').forEach((radio) => {
         radio.addEventListener('change', (e) => {
           selectedPayCode = e.target.value;
-          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : "Cartão de Crédito");
+          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : (selectedPayCode === "crediario_ariana" ? "Crediário Ariana" : "Cartão de Crédito"));
           updatePayMethodClasses();
           updateTotalsUI();
         });
@@ -2023,5 +2038,50 @@ async function quoteShippingForSelectedAddress(addrObj) {
 })();
 </script>
 
+
+<script>
+window.ArianaCrediarioEngine=(function(){
+  const divisors={1:.75,2:.74,3:.73,4:.72,5:.71,6:.70,7:.6833,8:.6667,9:.65,10:.6333,11:.6167,12:.60,13:.5833,14:.5667,15:.55};
+  function simulate(baseAmount,count){
+    const n=Math.max(1,Math.min(15,Number(count||1)));
+    const baseCents=Math.round(Number(baseAmount||0)*100);
+    const divisor=divisors[n];
+    const financedCents=Math.round(baseCents/divisor);
+    const regular=Math.floor(financedCents/n);
+    const installments=Array.from({length:n},(_,i)=>i===n-1?financedCents-regular*(n-1):regular);
+    return {baseAmountCents:baseCents,financedAmountCents:financedCents,baseAmount:baseCents/100,financedAmount:financedCents/100,installmentCount:n,divisor,installments};
+  }
+  return {divisors,simulate};
+})();
+</script>
+
+<script>
+(function fase6Checkout(){
+  function moneyBR(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));}
+  function initCrediario(){
+    const select=document.getElementById('crediario-parcelas');
+    const due=document.getElementById('crediario-primeiro-vencimento');
+    if(select&&!select.options.length){for(let i=1;i<=15;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'x';select.appendChild(o);}select.value='15';}
+    if(due&&!due.value){const d=new Date();d.setDate(d.getDate()+30);due.value=d.toISOString().slice(0,10);}
+    const refresh=()=>{
+      const checked=document.querySelector('input[name="pay"]:checked')?.value;
+      const box=document.getElementById('crediario-config');
+      if(box)box.classList.toggle('hidden',checked!=='crediario_ariana');
+      if(checked==='crediario_ariana'){
+        window.selectedPayCode='crediario_ariana';window.selectedPay='Crediário Ariana';
+        const totals=typeof updateTotalsUI==='function'?updateTotalsUI():{};
+        const base=Number(totals?.grandTotalOriginal||totals?.grandTotal||0);
+        const n=Number(select?.value||1);const pv=document.getElementById('crediario-preview');
+        const sim=window.ArianaCrediarioEngine.simulate(base,n);
+        window.arianaCrediarioSimulation=sim;
+        if(pv)pv.innerHTML='<div><b>Preço à vista no Crediário: '+moneyBR(sim.baseAmount)+'</b></div><div>Total financiado: <b>'+moneyBR(sim.financedAmount)+'</b></div><div>'+n+'x: '+sim.installments.map((v,i)=>(i===n-1?'última ': '')+moneyBR(v/100)).slice(-2).join(' • ')+'</div><div>Divisor: '+sim.divisor.toFixed(4)+'</div><div>Primeiro vencimento: '+(due?.value?new Date(due.value+'T00:00:00').toLocaleDateString('pt-BR'):'não informado')+'</div>';
+      }
+    };
+    document.querySelectorAll('input[name="pay"]').forEach(r=>r.addEventListener('change',refresh));
+    select?.addEventListener('change',refresh);due?.addEventListener('change',refresh);refresh();
+  }
+  document.addEventListener('DOMContentLoaded',initCrediario);
+})();
+</script>
 </body>
 </html>

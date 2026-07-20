@@ -1,0 +1,2525 @@
+
+const CATEGORIAS_ARIANA = ["Ar Condicionado","Automotivo","Bebês & Infantil","Beleza e Saúde","Brinquedos","Camas & Cabeceiras","Colchões","Eletrodomésticos","Eletroportáteis","Esporte & Lazer","Ferramentas & Segurança","Freezers","Fritadeira elétrica","Games","Geladeiras & Refrigeradores","Informática","Malas","Móveis","Notebooks e Computadores","Perfumes","Pet Shop","Pneus","Quinzena do Consumidor!","Salas de Jantar","Saúde & Higiene","Smart Tv","Smartphones","Som e Áudio","Supermercado","Utilidades Domésticas","Ventiladores"];
+const PRODUCT_IMAGE_FALLBACK = 'https://placehold.co/400x400/EEEEEE/666666?text=SEM+IMAGEM';
+
+let API_BASE =
+  window.API_BASE ||
+  localStorage.getItem('API_BASE') ||
+  'https://ariana-backend.onrender.com/api';
+
+let API_ORIGIN =
+  window.API_ORIGIN ||
+  String(API_BASE).replace(/\/api\/?$/i, '');
+let currentView = 'dashboard';
+let allProductsCache = [];
+let allCategoriesCache = [];
+let allOrdersCache = [];
+let allUsersCache = [];
+let allNotificationsCache = [];
+let enterpriseHomologationRequestsCache = [];
+let currentHomologationRequestId = null;
+let enterpriseLastSimulatorCertificate = null;
+let notificationsBooted = false;
+let knownNotificationIds = new Set();
+let editingProductId = null;
+let productImagesCache = [];
+let pollers = [];
+
+function escHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function fixMojibakeText(value=''){
+  let text = String(value || '');
+  const map = {'ðŸ›’':'🛒','ðŸ“¦':'📦','ðŸšš':'🚚','ðŸ­':'🏭','Ã§':'ç','Ã£':'ã','Ã¡':'á','Ã©':'é','Ã­':'í','Ã³':'ó','Ãº':'ú','Ã¢':'â','Ãª':'ê','Ãµ':'õ','Âº':'º'};
+  for (const [bad, good] of Object.entries(map)) text = text.split(bad).join(good);
+  return text.trim();
+}
+function cleanNotificationTitleClient(value=''){
+  const text = fixMojibakeText(value || 'Notificação');
+  const lower = text.toLowerCase();
+  if(lower.includes('nova venda')) return 'Nova venda recebida';
+  if(lower.includes('pedido atualizado')) return 'Pedido atualizado';
+  if(lower.includes('seller aprovado')) return 'Seller aprovado';
+  if(lower.includes('seller recusado')) return 'Seller recusado';
+  if(lower.includes('seller atualizou')) return 'Seller atualizou pedido';
+  return text.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+/gu, '').trim() || 'Notificação';
+}
+function formatNotificationMessageClient(message=''){
+  const text = fixMojibakeText(message).replace(/\s+-\s+/g, ' • ').trim();
+  return escHtml(text).replace(/\n/g, '<br>');
+}
+function parseMoneyBRClient(value, fallback=0){
+  if(value === null || value === undefined || value === '') return Number(fallback || 0);
+  if(typeof value === 'number') return Number.isFinite(value) ? value : Number(fallback || 0);
+  let raw = String(value).trim().replace(/R\$/gi,'').replace(/\s+/g,'');
+  if(!raw) return Number(fallback || 0);
+  if(raw.includes(',')) raw = raw.replace(/\./g,'').replace(',', '.');
+  const n = Number(raw.replace(/[^0-9.-]/g,''));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : Number(fallback || 0);
+}
+function formatMoneyInputBR(value){
+  const n = parseMoneyBRClient(value, 0);
+  return n ? n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+}
+
+
+async function downloadAdminProtectedFile(path, filename) {
+  const res = await fetch(`${String(API_BASE).replace(/\/+$/,'')}${path.startsWith('/') ? path : '/' + path}`, {
+    headers: buildHeadersAuth({ Accept: '*/*' })
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const data = await res.json(); msg = data.error || data.message || msg; } catch(_e) {}
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function adminInvoiceFromPayload(data = {}) {
+  return data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || data || {};
+}
+
+
+function openAdminFiscalDoc(path) {
+  const token = getAdminToken();
+  const url = `${String(API_BASE).replace(/\/+$/,'')}${path.startsWith('/') ? path : '/' + path}${path.includes('?') ? '&' : '?'}redirect=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+  window.open(url, '_blank');
+}
+
+async function loadAdminOrderNfe(orderId) {
+  const box = document.getElementById('admin-order-nfe-content');
+  if (!box || !orderId) return;
+  box.innerHTML = '<span class="text-gray-500 text-sm">Carregando NF-e...</span>';
+  try {
+    const data = await apiRequest(`/admin/orders/${encodeURIComponent(orderId)}/nfe`, { headers: buildHeadersAuth() });
+    const inv = adminInvoiceFromPayload(data);
+    const number = inv.number || inv.numero || inv.invoiceNumber || data.number || '';
+    const serie = inv.series || inv.serie || data.serie || '';
+    const key = inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || data.invoiceKey || '';
+    if (!number && !key && !inv.danfeUrl && !inv.xmlUrl) {
+      box.innerHTML = '<span class="text-gray-500 text-sm">NF-e ainda não disponível para este pedido.</span>';
+      return;
+    }
+    box.innerHTML = `
+      <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div><span class="text-gray-500">NF-e:</span> <b>${escHtml(number || 'Disponível')}</b>${serie ? ` <span class="text-gray-500">Série ${escHtml(serie)}</span>` : ''}</div>
+          ${key ? `<div class="md:col-span-2 break-all"><span class="text-gray-500">Chave:</span> <b>${escHtml(key)}</b></div>` : ''}
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
+          <button type="button" onclick="openAdminFiscalDoc('/admin/orders/${encodeURIComponent(orderId)}/danfe')" class="px-3 py-2 rounded-lg bg-primary-blue text-white text-sm font-bold"><i class="fas fa-file-pdf mr-2"></i>Baixar DANFE</button>
+          <button type="button" onclick="downloadAdminProtectedFile('/admin/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml').catch(e=>displayMessage(e.message,'error'))" class="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-bold"><i class="fas fa-file-code mr-2"></i>Baixar XML</button>
+          <button type="button" onclick="loadAdminOrderNfe('${String(orderId).replace(/'/g, '')}')" class="px-3 py-2 rounded-lg bg-white border text-gray-700 text-sm font-bold"><i class="fas fa-rotate mr-2"></i>Atualizar</button>
+        </div>
+      </div>`;
+  } catch(e) {
+    box.innerHTML = `<span class="text-gray-500 text-sm">NF-e ainda não disponível: ${escHtml(e.message || '')}</span>`;
+  }
+}
+
+function adminNfeFormValue(id) {
+  return String(document.getElementById(id)?.value || '').trim();
+}
+
+window.saveAdminOrderNfeFromSige = async function(orderId) {
+  const id = String(orderId || document.getElementById('modal-order-doc-id')?.value || '').trim();
+  if (!id) {
+    displayMessage('Pedido não identificado para salvar a NF-e.', 'error');
+    return;
+  }
+
+  const codigoNfe = adminNfeFormValue('admin-nfe-codigo');
+  const serieNfe = adminNfeFormValue('admin-nfe-serie') || '1';
+  const cnpjEmpresaEmissora = adminNfeFormValue('admin-nfe-cnpj') || '48126915000174';
+
+  if (!codigoNfe) {
+    displayMessage('Informe o número/código da NF-e emitida no SIGE.', 'error');
+    document.getElementById('admin-nfe-codigo')?.focus();
+    return;
+  }
+
+  const btn = document.getElementById('btn-admin-save-nfe');
+  const original = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Localizando NF-e...';
+  }
+
+  try {
+    await apiRequest('/admin/sige/fiscal/salvar-nfe', {
+      method: 'POST',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify({
+        orderId: id,
+        codigoNfe,
+        serieNfe,
+        cnpjEmpresaEmissora
+      })
+    });
+
+    displayMessage('NF-e salva no pedido. XML e DANFE liberados para o painel e para o cliente.', 'success');
+    await loadAdminOrderNfe(id);
+    await loadOrders();
+  } catch (error) {
+    displayMessage(`Erro ao salvar NF-e: ${error.message}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = original || '<i class="fas fa-cloud-download-alt mr-2"></i>Localizar e salvar NF-e';
+    }
+  }
+}
+
+
+function formatCurrency(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0))}
+function toJSDate(v){ if(!v) return null; if(v instanceof Date) return v; if(typeof v==='number') return new Date(v); if(typeof v==='string'){const d=new Date(v); return isNaN(d)?null:d;} if(v.seconds) return new Date(v.seconds*1000); return null; }
+function formatDateTime(v){const d=toJSDate(v); return d?d.toLocaleString('pt-BR'):'—'}
+function formatDateOnly(v){const d=toJSDate(v); return d?d.toLocaleDateString('pt-BR'):'—'}
+function nowISO(){return new Date().toISOString()}
+function getAdminToken(){return localStorage.getItem('admin_token')||''}
+function getAdminRole(){return String(localStorage.getItem('admin_role')||'admin').toLowerCase()}
+function getAdminPermissions(){
+  try { return JSON.parse(localStorage.getItem('admin_permissions') || '[]') || []; } catch(_e) { return []; }
+}
+function hasAdminPerm(permission){
+  const role = getAdminRole();
+  if(role === 'admin') return true;
+  const perms = getAdminPermissions();
+  return Array.isArray(perms) && (perms.includes('*') || perms.includes(permission));
+}
+function hasAnyAdminPerm(...permissions){
+  return permissions.some((permission) => hasAdminPerm(permission));
+}
+function canAccessView(view){
+  const role = getAdminRole();
+  if(role === 'admin') return true;
+  if(view === 'products') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate');
+  if(view === 'coupons') return hasAnyAdminPerm('coupons:read','coupons:create','coupons:update','coupons:delete','products:read');
+  if(view === 'dashboard') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate','coupons:read');
+  return false;
+}
+function applyAdminPermissionsToUI(){
+  const role = getAdminRole();
+  const isAdmin = role === 'admin';
+
+  document.querySelectorAll('.view-link').forEach((link) => {
+    const view = link.dataset.view || '';
+    if(isAdmin || canAccessView(view)) link.classList.remove('hidden');
+    else link.classList.add('hidden');
+  });
+
+  const allowedStart = isAdmin ? 'dashboard' : (canAccessView('products') ? 'products' : 'dashboard');
+  if(!isAdmin && !canAccessView(currentView)) currentView = allowedStart;
+}
+function buildHeadersAuth(extra={}){const t=getAdminToken(); return t?{...extra,Authorization:`Bearer ${t}`}:{...extra}}
+function displayMessage(message,type='info'){
+  const container=document.getElementById('toast-container');
+  const toast=document.createElement('div');
+  const color={success:'bg-success-green',error:'bg-error-red',info:'bg-primary-blue'}[type]||'bg-primary-blue';
+  toast.className=`p-4 rounded-lg text-white shadow-lg ${color} animate-fade`;
+  toast.textContent=message; container.appendChild(toast);
+  setTimeout(()=>{toast.style.opacity='0';setTimeout(()=>toast.remove(),300)},3500);
+}
+window.toast=displayMessage;
+function resolveAdminImageUrl(value){
+  const raw=String(value||'').trim();
+  if(!raw||raw.includes('${')||/^blob:/i.test(raw)) return PRODUCT_IMAGE_FALLBACK;
+  if(/^https?:\/\//i.test(raw)||/^data:/i.test(raw)) return raw;
+  if(raw.startsWith('/')) return `${API_ORIGIN}${raw}`;
+  return `${API_ORIGIN}/${raw.replace(/^\.?\//,'')}`;
+}
+function normalizeImageEntry(img){
+  if(!img) return null;
+  if(typeof img==='string'){const v=String(img).trim(); if(!v) return null; return {url:v,path:v,name:v.split('/').pop(),isMain:false};}
+  const url=String(img.url||img.imageUrl||img.downloadURL||img.downloadUrl||img.image||'').trim();
+  if(!url) return null;
+  return {url, path:String(img.path||img.fullPath||img.filePath||url).trim(), name:String(img.name||url.split('/').pop()||'imagem').trim(), isMain:img.isMain===true, contentType:img.contentType||''};
+}
+function normalizeProduct(p){
+  const images=(Array.isArray(p.images)?p.images:[]).map(normalizeImageEntry).filter(Boolean);
+  const fallback=String(p.mainImageUrl||p.imageUrl||p.image||p.imagem||'').trim();
+  if(!images.length&&fallback) images.push({url:fallback,path:p.mainImagePath||fallback,name:fallback.split('/').pop(),isMain:true});
+  if(images.length&&!images.some(x=>x.isMain)) images[0].isMain=true;
+  const main=images.find(x=>x.isMain)||images[0]||null;
+  return {...p, id:String(p.id||p._id||''), images, imageUrl:main?main.url:fallback, mainImageUrl:main?main.url:fallback, image:main?main.url:fallback, mainImagePath:main?(main.path||main.url):(p.mainImagePath||'')};
+}
+
+function syncProductStateFromServer(saved){
+  const product = normalizeProduct(saved?.product || saved || {});
+  const id = String(product.id || product._id || editingProductId || '');
+  if(id) editingProductId = id;
+  if (id) {
+    const idx = allProductsCache.findIndex(x => String(x.id||x._id) === id);
+    if (idx >= 0) allProductsCache[idx] = product;
+    else allProductsCache.unshift(product);
+  }
+  productImagesCache = (Array.isArray(product.images) ? product.images : []).map(normalizeImageEntry).filter(Boolean);
+  if(!productImagesCache.length && product.imageUrl) {
+    productImagesCache = [{ url: product.imageUrl, path: product.mainImagePath || product.imageUrl, name: 'principal', isMain: true }];
+  }
+  return product;
+}
+async function apiRequest(path, opts = {}) {
+  const normalizedPath = `${path.startsWith('/') ? '' : '/'}${path}`;
+
+  const headers = { ...(opts.headers || {}) };
+  const token = getAdminToken();
+
+  const isFormData =
+    typeof FormData !== 'undefined' &&
+    opts.body instanceof FormData;
+
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const base =
+    window.API_BASE ||
+    localStorage.getItem('API_BASE') ||
+    API_BASE;
+
+  const url =
+    `${String(base).replace(/\/+$/, '')}${normalizedPath}`;
+
+  const res = await fetch(url, {
+    ...opts,
+    headers
+  });
+
+  const ct = res.headers.get('content-type') || '';
+
+  const data = ct.includes('application/json')
+    ? await res.json().catch(() => null)
+    : await res.text().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(
+      (data && (data.error || data.message)) ||
+      `HTTP ${res.status}`
+    );
+  }
+
+  API_BASE = base;
+  API_ORIGIN = String(base).replace(/\/api\/?$/i, '');
+
+  window.API_BASE = API_BASE;
+  window.API_ORIGIN = API_ORIGIN;
+
+  return data;
+}
+function closeModal(id){const el=document.getElementById(id); if(el){el.classList.add('hidden');el.classList.remove('flex')}}
+window.closeModal=closeModal;
+function updateSidebarActiveLink(view){document.querySelectorAll('.view-link').forEach(link=>{link.classList.remove('bg-dark-gray-bg'); if(link.dataset.view===view) link.classList.add('bg-dark-gray-bg')})}
+function stopPollers(){pollers.forEach(clearInterval); pollers=[]}
+function startPoller(fn, ms=20000){ const id=setInterval(fn,ms); pollers.push(id); }
+function renderUserDisplayName(name){document.getElementById('user-display-name').textContent=`Bem-vindo, ${name||'Admin'}!`;}
+
+function setAuthLayout(isLogged){
+  const sidebar = document.getElementById('sidebar');
+  const header = document.getElementById('admin-header');
+  const main = document.getElementById('main-content');
+  if(sidebar) sidebar.classList.toggle('hidden', !isLogged);
+  if(header) header.classList.toggle('hidden', !isLogged);
+  if(main) main.classList.toggle('p-6', !!isLogged);
+  if(main) main.classList.toggle('p-4', !isLogged);
+  if(!isLogged){
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    const login = document.getElementById('login-view');
+    if(login) login.classList.remove('hidden');
+    const title = document.getElementById('view-title');
+    if(title) title.textContent = 'Login';
+  }
+}
+function isLoggedInAdmin(){ return !!getAdminToken(); }
+
+
+window.changeView = async function(viewName, force=false){
+  if(!isLoggedInAdmin()){ setAuthLayout(false); return; }
+  applyAdminPermissionsToUI();
+  if(!canAccessView(viewName)){
+    displayMessage('Você não tem permissão para acessar esta área.','error');
+    viewName = hasAnyAdminPerm('products:read','products:create','products:update','posters:generate') ? 'products' : 'dashboard';
+  }
+  if(viewName!==currentView||force){ currentView=viewName; }
+  const phonesPanel = document.getElementById('phones-config-panel'); if(phonesPanel) phonesPanel.classList.add('hidden');
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  const el=document.getElementById(`${viewName}-view`); if(!el) return; el.classList.remove('hidden');
+  document.getElementById('view-title').textContent=viewName.charAt(0).toUpperCase()+viewName.slice(1); updateSidebarActiveLink(viewName);
+  if(viewName==='atendimentos' && phonesPanel) phonesPanel.classList.remove('hidden');
+  if(viewName==='dashboard') await renderDashboardView();
+  if(viewName==='products') await renderProductsView();
+  if(viewName==='marketing') await renderMarketingView();
+  if(viewName==='orders') await renderOrdersView();
+  if(viewName==='users') await renderUsersView();
+  if(viewName==='categories') await renderCategoriesView();
+  if(viewName==='payments') await renderPaymentsView();
+  if(viewName==='coupons') await renderCouponsView();
+  if(viewName==='enterprise') await renderEnterpriseView();
+  if(viewName==='atendimentos') await renderAtendimentosView();
+  if(window.innerWidth<768) document.getElementById('sidebar').classList.add('-translate-x-full');
+}
+
+async function fetchAdminMe(){ return apiRequest('/admin/me',{headers:buildHeadersAuth()}) }
+window.handleSignIn = async function(){
+  const email=document.getElementById('login-email').value.trim().toLowerCase();
+  const password=document.getElementById('login-password').value;
+  const btn=document.getElementById('login-btn'); const original=btn.innerHTML; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Entrando...'; btn.disabled=true;
+  try {
+    const data=await apiRequest('/admin/login',{method:'POST',body:JSON.stringify({email,password})});
+    localStorage.setItem('admin_token',data.token||'');
+    unlockNotificationPermission();
+
+    const me = await fetchAdminMe().catch(() => null);
+    const adminName = (me && (me.name || me.email)) || data.name || data.user?.name || email;
+    const adminEmail = (me && me.email) || data.email || data.user?.email || email;
+    const adminId = String((me && (me.id || me._id)) || data.id || data.userId || data.uid || data.user?.id || data.user?._id || '');
+
+    localStorage.setItem('admin_name', adminName);
+    localStorage.setItem('admin_email', adminEmail);
+    localStorage.setItem('admin_id', adminId);
+    localStorage.setItem('admin_role', (me && me.role) || data.role || 'admin');
+    localStorage.setItem('admin_permissions', JSON.stringify((me && me.permissions) || data.permissions || []));
+    applyAdminPermissionsToUI();
+
+    setAuthLayout(true);
+    document.getElementById('login-view').classList.add('hidden');
+    renderUserDisplayName(adminName);
+    await bootAuthed(currentView || 'dashboard');
+    displayMessage('Login realizado com sucesso!','success');
+  } catch(e){displayMessage(`Erro no login: ${e.message}`,'error');}
+  finally{btn.innerHTML=original; btn.disabled=false;}
+}
+window.handleSignOut = async function(){
+  localStorage.removeItem('admin_token'); localStorage.removeItem('admin_name'); localStorage.removeItem('admin_email'); localStorage.removeItem('admin_id'); localStorage.removeItem('admin_role'); localStorage.removeItem('admin_permissions');
+  stopPollers(); currentView='dashboard';
+  setAuthLayout(false);
+  renderUserDisplayName('');
+}
+async function bootAuthed(targetView='dashboard'){
+  setAuthLayout(true);
+  stopPollers();
+  const me = await fetchAdminMe().catch(() => null);
+  if (me) {
+    const adminName = me.name || me.email || localStorage.getItem('admin_name') || 'Admin';
+    renderUserDisplayName(adminName);
+    localStorage.setItem('admin_name', adminName);
+    if (me.email) localStorage.setItem('admin_email', me.email);
+    if (me.id || me._id) localStorage.setItem('admin_id', String(me.id || me._id));
+    localStorage.setItem('admin_role', me.role || 'admin');
+    localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
+    applyAdminPermissionsToUI();
+  }
+  await Promise.allSettled([loadCategories(), loadProducts(), loadOrders(), loadUsers(), loadNotifications(), loadTelefones()]);
+  await window.changeView(targetView || currentView || 'dashboard', true);
+  startPoller(async()=>{ if(currentView==='dashboard') await renderDashboardView(); await loadNotifications(); }, 20000);
+}
+document.addEventListener('submit', function(ev){
+  const form = ev && ev.target;
+  if(form && form.id === 'product-form'){
+    ev.preventDefault();
+    ev.stopPropagation();
+    window.handleProductSaveClick(ev);
+    return false;
+  }
+}, true);
+
+
+// ============================================================
+// ADMIN - CUPONS DE DESCONTO
+// Tela integrada ao painel principal. Usa rotas:
+// GET /admin/coupons | POST /admin/coupons | PATCH /admin/coupons/:id | DELETE /admin/coupons/:id
+// Validação pública esperada no checkout: POST /coupons/validate
+// ============================================================
+let allCouponsCache = [];
+
+function normalizeCouponForAdmin(coupon = {}) {
+  const id = String(coupon.id || coupon._id || coupon.couponId || '').trim();
+  const type = String(coupon.type || coupon.discountType || 'percent').toLowerCase();
+  const code = String(coupon.code || coupon.codigo || '').toUpperCase().trim();
+  return {
+    ...coupon,
+    id,
+    code,
+    description: coupon.description || coupon.descricao || '',
+    type: type === 'fixed' || type === 'amount' || type === 'valor' ? 'fixed' : 'percent',
+    value: Number(coupon.value ?? coupon.discountValue ?? coupon.valor ?? 0),
+    minSubtotal: Number(coupon.minSubtotal ?? coupon.minOrderValue ?? coupon.valorMinimo ?? 0),
+    maxDiscount: coupon.maxDiscount === null || coupon.maxDiscount === undefined || coupon.maxDiscount === '' ? '' : Number(coupon.maxDiscount),
+    usageLimit: coupon.usageLimit === null || coupon.usageLimit === undefined || coupon.usageLimit === '' ? '' : Number(coupon.usageLimit),
+    usedCount: Number(coupon.usedCount || coupon.used || coupon.usos || 0),
+    active: coupon.active !== false,
+    startsAt: coupon.startsAt || coupon.startDate || '',
+    expiresAt: coupon.expiresAt || coupon.endDate || '',
+    appliesTo: coupon.appliesTo || 'all',
+    notes: coupon.notes || ''
+  };
+}
+
+function couponDateInputValue(value) {
+  const d = toJSDate(value);
+  if (!d) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+function couponStatusBadge(coupon) {
+  const c = normalizeCouponForAdmin(coupon);
+  const nowDate = new Date();
+  const expires = toJSDate(c.expiresAt);
+  if (!c.active) return '<span class="px-2 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-700">Inativo</span>';
+  if (expires && expires < nowDate) return '<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">Expirado</span>';
+  return '<span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Ativo</span>';
+}
+
+function readCouponForm() {
+  const value = parseMoneyBRClient(document.getElementById('coupon-value')?.value || '0', 0);
+  const type = String(document.getElementById('coupon-type')?.value || 'percent');
+  return {
+    code: String(document.getElementById('coupon-code')?.value || '').toUpperCase().replace(/\s+/g, '').trim(),
+    description: String(document.getElementById('coupon-description')?.value || '').trim(),
+    type,
+    value,
+    minSubtotal: parseMoneyBRClient(document.getElementById('coupon-min-subtotal')?.value || '0', 0),
+    maxDiscount: document.getElementById('coupon-max-discount')?.value ? parseMoneyBRClient(document.getElementById('coupon-max-discount')?.value, 0) : null,
+    usageLimit: document.getElementById('coupon-usage-limit')?.value ? Number(document.getElementById('coupon-usage-limit')?.value) : null,
+    startsAt: document.getElementById('coupon-starts-at')?.value || null,
+    expiresAt: document.getElementById('coupon-expires-at')?.value || null,
+    active: document.getElementById('coupon-active')?.checked !== false,
+    appliesTo: document.getElementById('coupon-applies-to')?.value || 'all',
+    notes: String(document.getElementById('coupon-notes')?.value || '').trim()
+  };
+}
+
+function clearCouponForm() {
+  const ids = ['coupon-id','coupon-code','coupon-description','coupon-value','coupon-min-subtotal','coupon-max-discount','coupon-usage-limit','coupon-starts-at','coupon-expires-at','coupon-notes'];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const type = document.getElementById('coupon-type'); if (type) type.value = 'percent';
+  const active = document.getElementById('coupon-active'); if (active) active.checked = true;
+  const applies = document.getElementById('coupon-applies-to'); if (applies) applies.value = 'all';
+  const btn = document.getElementById('coupon-submit-btn'); if (btn) btn.innerHTML = '<i class="fas fa-save mr-2"></i>Salvar cupom';
+}
+
+function fillCouponForm(coupon) {
+  const c = normalizeCouponForAdmin(coupon);
+  document.getElementById('coupon-id').value = c.id;
+  document.getElementById('coupon-code').value = c.code;
+  document.getElementById('coupon-description').value = c.description || '';
+  document.getElementById('coupon-type').value = c.type;
+  document.getElementById('coupon-value').value = c.type === 'percent' ? String(c.value || '') : formatMoneyInputBR(c.value);
+  document.getElementById('coupon-min-subtotal').value = formatMoneyInputBR(c.minSubtotal || 0);
+  document.getElementById('coupon-max-discount').value = c.maxDiscount === '' ? '' : formatMoneyInputBR(c.maxDiscount);
+  document.getElementById('coupon-usage-limit').value = c.usageLimit === '' ? '' : String(c.usageLimit);
+  document.getElementById('coupon-starts-at').value = couponDateInputValue(c.startsAt);
+  document.getElementById('coupon-expires-at').value = couponDateInputValue(c.expiresAt);
+  document.getElementById('coupon-active').checked = c.active !== false;
+  document.getElementById('coupon-applies-to').value = c.appliesTo || 'all';
+  document.getElementById('coupon-notes').value = c.notes || '';
+  const btn = document.getElementById('coupon-submit-btn'); if (btn) btn.innerHTML = '<i class="fas fa-pen mr-2"></i>Atualizar cupom';
+  document.getElementById('coupon-code')?.focus();
+}
+
+async function loadCoupons() {
+  try {
+    const data = await apiRequest('/admin/coupons?sortBy=createdAt&sortDir=desc&limit=500', { headers: buildHeadersAuth() });
+    const rows = Array.isArray(data) ? data : (data.coupons || data.items || data.docs || data.results || []);
+    allCouponsCache = rows.map(normalizeCouponForAdmin);
+  } catch (error) {
+    allCouponsCache = [];
+    const body = document.getElementById('coupons-table-body');
+    if (body) {
+      body.innerHTML = `<tr><td colspan="8" class="px-4 py-6 text-center text-red-600">Erro ao carregar cupons: ${escHtml(error.message)}. Confirme se o server.js com as rotas de cupons também foi publicado no Render.</td></tr>`;
+    }
+    throw error;
+  }
+}
+
+function renderCouponsTable() {
+  const body = document.getElementById('coupons-table-body');
+  if (!body) return;
+  const q = String(document.getElementById('coupon-search')?.value || '').toLowerCase().trim();
+  const rows = allCouponsCache.filter((c) => !q || `${c.code} ${c.description}`.toLowerCase().includes(q));
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Nenhum cupom encontrado.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map((c) => {
+    const discount = c.type === 'percent' ? `${Number(c.value || 0)}%` : formatCurrency(c.value || 0);
+    const expires = c.expiresAt ? formatDateOnly(c.expiresAt) : 'Sem validade';
+    return `
+      <tr class="border-b hover:bg-gray-50">
+        <td class="px-4 py-3"><b class="font-black text-gray-900">${escHtml(c.code)}</b><br><small class="text-gray-500">${escHtml(c.description || '')}</small></td>
+        <td class="px-4 py-3 text-sm">${escHtml(c.type === 'percent' ? 'Percentual' : 'Valor fixo')}</td>
+        <td class="px-4 py-3 text-sm font-bold">${escHtml(discount)}</td>
+        <td class="px-4 py-3 text-sm">${formatCurrency(c.minSubtotal || 0)}</td>
+        <td class="px-4 py-3 text-sm">${c.maxDiscount === '' ? '—' : formatCurrency(c.maxDiscount)}</td>
+        <td class="px-4 py-3 text-sm">${c.usageLimit === '' ? `${c.usedCount || 0} / ∞` : `${c.usedCount || 0} / ${c.usageLimit}`}</td>
+        <td class="px-4 py-3 text-sm">${couponStatusBadge(c)}<br><small class="text-gray-500">${escHtml(expires)}</small></td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          <button type="button" onclick="editCoupon('${escHtml(c.id)}')" class="px-3 py-2 rounded-lg bg-blue-50 text-primary-blue text-xs font-bold mr-1"><i class="fas fa-edit"></i></button>
+          <button type="button" onclick="toggleCoupon('${escHtml(c.id)}')" class="px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700 text-xs font-bold mr-1"><i class="fas fa-power-off"></i></button>
+          <button type="button" onclick="deleteCoupon('${escHtml(c.id)}')" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-bold"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+window.editCoupon = function(id) {
+  const coupon = allCouponsCache.find((c) => String(c.id) === String(id));
+  if (!coupon) return displayMessage('Cupom não encontrado na tela.', 'error');
+  fillCouponForm(coupon);
+};
+
+window.toggleCoupon = async function(id) {
+  const coupon = allCouponsCache.find((c) => String(c.id) === String(id));
+  if (!coupon) return;
+  try {
+    await apiRequest(`/admin/coupons/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify({ active: !coupon.active })
+    });
+    displayMessage(coupon.active ? 'Cupom desativado.' : 'Cupom ativado.', 'success');
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (error) {
+    displayMessage(`Erro ao alterar cupom: ${error.message}`, 'error');
+  }
+};
+
+window.deleteCoupon = async function(id) {
+  const coupon = allCouponsCache.find((c) => String(c.id) === String(id));
+  if (!confirm(`Excluir o cupom ${coupon?.code || id}?`)) return;
+  try {
+    await apiRequest(`/admin/coupons/${encodeURIComponent(id)}`, { method: 'DELETE', headers: buildHeadersAuth() });
+    displayMessage('Cupom excluído com sucesso.', 'success');
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (error) {
+    displayMessage(`Erro ao excluir cupom: ${error.message}`, 'error');
+  }
+};
+
+window.saveCoupon = async function(event) {
+  event?.preventDefault?.();
+  const payload = readCouponForm();
+  if (!payload.code) return displayMessage('Informe o código do cupom.', 'error');
+  if (!payload.value || payload.value <= 0) return displayMessage('Informe o valor do desconto.', 'error');
+  if (payload.type === 'percent' && payload.value > 100) return displayMessage('Cupom percentual não pode ser maior que 100%.', 'error');
+
+  const id = String(document.getElementById('coupon-id')?.value || '').trim();
+  const btn = document.getElementById('coupon-submit-btn');
+  const old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...'; }
+
+  try {
+    await apiRequest(id ? `/admin/coupons/${encodeURIComponent(id)}` : '/admin/coupons', {
+      method: id ? 'PATCH' : 'POST',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify(payload)
+    });
+    displayMessage(id ? 'Cupom atualizado com sucesso.' : 'Cupom criado com sucesso.', 'success');
+    clearCouponForm();
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (error) {
+    displayMessage(`Erro ao salvar cupom: ${error.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = old || '<i class="fas fa-save mr-2"></i>Salvar cupom'; }
+  }
+};
+
+async function renderCouponsView() {
+  const content = document.getElementById('coupons-content');
+  if (!content) return;
+  content.innerHTML = `
+    <div class="space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 class="text-2xl font-black text-gray-900"><i class="fas fa-ticket-alt text-primary-blue mr-2"></i>Cupons de Desconto</h2>
+            <p class="text-sm text-gray-500 mt-1">Crie cupons por percentual ou valor fixo, defina mínimo de compra, limite de uso e validade.</p>
+          </div>
+          <button type="button" onclick="loadCoupons().then(renderCouponsTable).catch(e=>displayMessage(e.message,'error'))" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold"><i class="fas fa-rotate mr-2"></i>Atualizar</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
+        <form id="coupon-form" onsubmit="window.saveCoupon(event)" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+          <input type="hidden" id="coupon-id">
+          <div>
+            <h3 class="text-lg font-black text-gray-800">Cadastro do cupom</h3>
+            <p class="text-xs text-gray-500">Exemplo: BEMVINDO10, FRETE20, PIX5.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-black text-gray-500 uppercase mb-1">Código</label>
+            <input id="coupon-code" class="w-full border rounded-xl px-3 py-2 uppercase" placeholder="EX: BEMVINDO10">
+          </div>
+          <div>
+            <label class="block text-xs font-black text-gray-500 uppercase mb-1">Descrição</label>
+            <input id="coupon-description" class="w-full border rounded-xl px-3 py-2" placeholder="Ex: Desconto de boas-vindas">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Tipo</label>
+              <select id="coupon-type" class="w-full border rounded-xl px-3 py-2">
+                <option value="percent">Percentual (%)</option>
+                <option value="fixed">Valor fixo (R$)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Desconto</label>
+              <input id="coupon-value" class="w-full border rounded-xl px-3 py-2" placeholder="10 ou 50,00">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Compra mínima</label>
+              <input id="coupon-min-subtotal" class="w-full border rounded-xl px-3 py-2" placeholder="0,00">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Desconto máximo</label>
+              <input id="coupon-max-discount" class="w-full border rounded-xl px-3 py-2" placeholder="Opcional">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Início</label>
+              <input id="coupon-starts-at" type="date" class="w-full border rounded-xl px-3 py-2">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Validade</label>
+              <input id="coupon-expires-at" type="date" class="w-full border rounded-xl px-3 py-2">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Limite de uso</label>
+              <input id="coupon-usage-limit" type="number" min="0" class="w-full border rounded-xl px-3 py-2" placeholder="Ilimitado">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-gray-500 uppercase mb-1">Aplicação</label>
+              <select id="coupon-applies-to" class="w-full border rounded-xl px-3 py-2">
+                <option value="all">Todos os produtos</option>
+                <option value="ariana">Somente Ariana</option>
+                <option value="seller">Produtos seller</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-black text-gray-500 uppercase mb-1">Observação interna</label>
+            <textarea id="coupon-notes" rows="2" class="w-full border rounded-xl px-3 py-2" placeholder="Opcional"></textarea>
+          </div>
+          <label class="flex items-center gap-2 text-sm font-bold text-gray-700"><input id="coupon-active" type="checkbox" checked> Cupom ativo</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button id="coupon-submit-btn" type="submit" class="px-4 py-3 rounded-xl bg-primary-blue text-white font-black"><i class="fas fa-save mr-2"></i>Salvar cupom</button>
+            <button type="button" onclick="clearCouponForm()" class="px-4 py-3 rounded-xl bg-gray-100 text-gray-700 font-black">Limpar</button>
+          </div>
+        </form>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div>
+              <h3 class="text-lg font-black text-gray-800">Cupons cadastrados</h3>
+              <p class="text-xs text-gray-500">Lista salva no MongoDB via backend.</p>
+            </div>
+            <input id="coupon-search" oninput="renderCouponsTable()" class="border rounded-xl px-3 py-2 text-sm" placeholder="Buscar cupom">
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 border-b">
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Cupom</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Tipo</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Desconto</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Mínimo</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Máximo</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Usos</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th>
+                  <th class="px-4 py-3 text-xs uppercase text-gray-500 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="coupons-table-body"><tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Carregando cupons...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  try {
+    await loadCoupons();
+    renderCouponsTable();
+  } catch (_error) {}
+}
+
+
+async function init(){
+  document.getElementById('sidebar-toggle').addEventListener('click',()=>document.getElementById('sidebar').classList.toggle('-translate-x-full'));
+  document.getElementById('notif-btn').addEventListener('click',()=>{ unlockNotificationPermission(); document.getElementById('notif-dropdown').classList.toggle('hidden'); });
+  document.getElementById('notif-mark-read').addEventListener('click', markNotificationsRead);
+  document.addEventListener('blur', function(ev){ if(ev.target && ev.target.id === 'product-price') ev.target.value = formatMoneyInputBR(ev.target.value); }, true);
+  const token=getAdminToken();
+  if(token){
+    try{
+      setAuthLayout(true);
+      const me=await fetchAdminMe();
+      renderUserDisplayName(me.name||me.email||'Admin');
+      localStorage.setItem('admin_role', me.role || 'admin');
+      localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
+      applyAdminPermissionsToUI();
+      document.getElementById('login-view').classList.add('hidden');
+      await bootAuthed(currentView || 'dashboard');
+      return;
+    }catch(e){ window.handleSignOut(); }
+  }
+  setAuthLayout(false);
+}
+
+async function readSetting(key, fallback={}){ try{const data=await apiRequest(`/admin/settings/${encodeURIComponent(key)}`,{headers:buildHeadersAuth()}); return data && data.key ? {...fallback, ...(data.value||{}), key:data.key} : (data||fallback);}catch(e){return fallback;} }
+async function writeSetting(key, data){ return apiRequest(`/admin/settings/${encodeURIComponent(key)}`,{method:'PATCH',headers:buildHeadersAuth(),body:JSON.stringify(data||{})}) }
+window.salvarConfigTelefones = async function(){
+  try{ const tel0800=document.getElementById('cfg-0800').value.trim(); const tel4004=document.getElementById('cfg-4004').value.trim(); await writeSetting('contact',{tel0800,tel4004,updatedAt:nowISO()}); displayMessage('Telefones salvos na nuvem!','success'); }catch(e){ displayMessage(`Erro ao salvar telefones: ${e.message}`,'error'); }
+}
+async function loadTelefones(){ const data=await readSetting('contact',{}); document.getElementById('cfg-0800').value=data.tel0800||''; document.getElementById('cfg-4004').value=data.tel4004||''; }
+
+async function loadProducts(){
+  const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()});
+  const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
+  allProductsCache = rows.map(normalizeProduct);
+}
+
+function productExportRows(products = []) {
+  return (products || []).map((p) => {
+    const category = p.categoryName || p.category || '';
+    const active = p.active === false ? 'Não' : 'Sim';
+    const updated = formatDateTime(p.updatedAt || p.createdAt || '');
+    return {
+      nome: p.name || '',
+      sku: p.sku || '',
+      categoria: category,
+      marca: p.brand || '',
+      preco: Number(p.price || 0),
+      precoPix: Number(p.pixPrice || 0),
+      precoAntigo: p.oldPrice !== undefined && p.oldPrice !== null && p.oldPrice !== '' ? Number(p.oldPrice || 0) : '',
+      estoque: Number(p.stock || 0),
+      ativo: active,
+      vendedor: p.sellerName || p.sellerId || 'Ariana Móveis',
+      imagem: p.mainImageUrl || p.imageUrl || p.image || '',
+      atualizado: updated
+    };
+  });
+}
+
+async function fetchAllProductsForExport() {
+  try {
+    const data = await apiRequest('/admin/products/export/all?limit=20000', { headers: buildHeadersAuth() });
+    const rows = Array.isArray(data) ? data : (data.items || data.docs || data.results || []);
+    return rows.map(normalizeProduct);
+  } catch (error) {
+    console.warn('Falha ao buscar exportação completa, usando cache local:', error);
+    if (!allProductsCache.length) await loadProducts();
+    return allProductsCache;
+  }
+}
+
+function buildProductsExportTable(rows = []) {
+  const headers = ['Produto', 'SKU', 'Categoria', 'Marca', 'Preço', 'Preço PIX', 'Preço antigo', 'Estoque', 'Ativo', 'Vendedor', 'Imagem', 'Atualizado'];
+  const escapeCell = (value) => escHtml(String(value ?? ''));
+  const body = rows.map((r) => `
+    <tr>
+      <td>${escapeCell(r.nome)}</td>
+      <td>${escapeCell(r.sku)}</td>
+      <td>${escapeCell(r.categoria)}</td>
+      <td>${escapeCell(r.marca)}</td>
+      <td>${escapeCell(formatCurrency(r.preco))}</td>
+      <td>${escapeCell(r.precoPix ? formatCurrency(r.precoPix) : '')}</td>
+      <td>${escapeCell(r.precoAntigo !== '' ? formatCurrency(r.precoAntigo) : '')}</td>
+      <td>${escapeCell(r.estoque)}</td>
+      <td>${escapeCell(r.ativo)}</td>
+      <td>${escapeCell(r.vendedor)}</td>
+      <td>${escapeCell(r.imagem)}</td>
+      <td>${escapeCell(r.atualizado)}</td>
+    </tr>`).join('');
+
+  return `<table><thead><tr>${headers.map((h) => `<th>${escapeCell(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+window.exportProductsExcel = async function(){
+  try {
+    displayMessage('Gerando Excel de produtos...', 'info');
+    const products = await fetchAllProductsForExport();
+    const rows = productExportRows(products);
+    const table = buildProductsExportTable(rows);
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${table}</body></html>`;
+    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `produtos-ariana-moveis-${date}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    displayMessage(`Excel gerado com ${rows.length} produto(s).`, 'success');
+  } catch (error) {
+    displayMessage(`Erro ao gerar Excel: ${error.message}`, 'error');
+  }
+}
+
+window.printProductsPdf = async function(){
+  try {
+    displayMessage('Gerando relatório para PDF...', 'info');
+    const products = await fetchAllProductsForExport();
+    const rows = productExportRows(products);
+    const table = buildProductsExportTable(rows);
+    const generatedAt = new Date().toLocaleString('pt-BR');
+    const win = window.open('', '_blank');
+    if (!win) throw new Error('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.');
+
+    const reportHtml = [
+      '<!DOCTYPE html>',
+      '<html lang="pt-br">',
+      '<head>',
+      '<meta charset="UTF-8">',
+      '<title>Relatório de Produtos - Ariana Móveis</title>',
+      '<style>',
+      'body{font-family:Arial,sans-serif;color:#111827;margin:24px;background:#fff;}',
+      '.header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #1d4ed8;padding-bottom:14px;margin-bottom:18px;}',
+      'h1{margin:0;font-size:24px;color:#0f172a;}',
+      '.sub{font-size:12px;color:#64748b;margin-top:6px;line-height:1.45;}',
+      '.badge{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-weight:700;font-size:12px;}',
+      'table{width:100%;border-collapse:collapse;font-size:10px;}',
+      'th{background:#1d4ed8;color:#fff;text-align:left;padding:8px 6px;white-space:nowrap;}',
+      'td{border-bottom:1px solid #e5e7eb;padding:7px 6px;vertical-align:top;word-break:break-word;}',
+      'tr:nth-child(even) td{background:#f8fafc;}',
+      '@media print{body{margin:10mm;} .no-print{display:none;} th{background:#1d4ed8!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}',
+      '</style>',
+      '</head>',
+      '<body>',
+      '<div class="header">',
+      '<div>',
+      '<h1>Ariana Móveis - Relatório de Produtos</h1>',
+      '<div class="sub">Gerado em ' + escHtml(generatedAt) + '<br>Total de produtos: ' + rows.length + '</div>',
+      '</div>',
+      '<div class="badge">PDF / Impressão</div>',
+      '</div>',
+      '<button class="no-print" onclick="window.print()" style="margin-bottom:14px;padding:10px 14px;border:0;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer">Imprimir / Salvar PDF</button>',
+      table,
+      '</body>',
+      '</html>'
+    ].join('');
+
+    win.document.open();
+    win.document.write(reportHtml);
+    win.document.close();
+    setTimeout(() => {
+      try { win.focus(); win.print(); } catch (_e) {}
+    }, 500);
+    displayMessage(`Relatório aberto com ${rows.length} produto(s).`, 'success');
+  } catch (error) {
+    displayMessage(`Erro ao gerar PDF: ${error.message}`, 'error');
+  }
+}
+async function loadCategories(){
+  const data = await apiRequest('/admin/categories?sortBy=name&sortDir=asc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
+  allCategoriesCache = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
+}
+async function loadOrders(){
+  const data = await apiRequest('/admin/orders?sortBy=createdAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
+  allOrdersCache = Array.isArray(data)?data:(data.items||data.docs||data.results||data.orders||[]);
+}
+async function loadUsers(){
+  const data = await apiRequest('/admin/users?sortBy=createdAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
+  allUsersCache = Array.isArray(data)?data:(data.items||data.docs||data.results||data.users||[]);
+}
+
+function getNotificationId(n){ return String(n.id || n._id || n.relatedId || `${n.title || ''}-${n.createdAt || ''}`); }
+function unlockNotificationPermission(){
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(()=>{});
+  }
+}
+function playPanelNotificationSound(){
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.20, ctx.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.48);
+  } catch(_e) {}
+}
+function showDesktopNotification(n){
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const title = n.title || 'Nova notificação';
+    const body = n.message || 'Há uma atualização no painel Ariana Móveis.';
+    const notify = new Notification(title, { body, icon: './favicon.png', tag: getNotificationId(n) });
+    notify.onclick = () => { window.focus(); window.changeView('orders'); notify.close(); };
+  } catch(_e) {}
+}
+function handleIncomingNotifications(rows = []){
+  const unreadRows = rows.filter(n => String(n.status || 'unread').toLowerCase() !== 'read');
+  const newRows = unreadRows.filter(n => !knownNotificationIds.has(getNotificationId(n)));
+  const shouldAlert = notificationsBooted && newRows.length > 0;
+  knownNotificationIds = new Set(rows.map(getNotificationId));
+  notificationsBooted = true;
+  if (!shouldAlert) return;
+  const first = newRows[0];
+  playPanelNotificationSound();
+  displayMessage(first.title || 'Nova atualização no painel!', first.severity === 'success' ? 'success' : 'info');
+  showDesktopNotification(first);
+  if (currentView === 'dashboard') renderDashboardView().catch(()=>{});
+  if (currentView === 'orders') renderOrdersView().catch(()=>{});
+}
+
+async function loadNotifications(){
+  const data = await apiRequest('/admin/notifications?sortBy=createdAt&sortDir=desc&limit=20',{headers:buildHeadersAuth()}).catch(()=>[]);
+  allNotificationsCache = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
+  renderNotifications();
+  handleIncomingNotifications(allNotificationsCache);
+}
+function renderNotifications(){
+  const list=document.getElementById('notif-list'); const badge=document.getElementById('notif-badge');
+  const unread=allNotificationsCache.filter(n=>String(n.status||'unread').toLowerCase()!=='read');
+  badge.textContent=String(unread.length); badge.classList.toggle('hidden', unread.length===0);
+  if(!allNotificationsCache.length){list.innerHTML='<div class="p-4 text-sm text-gray-500">Sem notificações.</div>'; return;}
+  list.innerHTML=allNotificationsCache.map(n=>{
+    const unreadClass = String(n.status||'unread').toLowerCase()!=='read' ? 'bg-blue-50' : 'bg-white';
+    const related = String(n.relatedId || '').trim();
+    return `<button class="w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 ${unreadClass}" onclick="window.openNotificationRelated('${escHtml(related)}')"><div class="text-sm font-semibold text-gray-800">${escHtml(cleanNotificationTitleClient(n.title||'Notificação'))}</div><div class="text-xs text-gray-600 mt-1">${formatNotificationMessageClient(n.message||'')}</div><div class="text-[11px] text-gray-400 mt-1">${formatDateTime(n.createdAt)}</div></button>`;
+  }).join('');
+}
+window.openNotificationRelated = async function(relatedId=''){
+  document.getElementById('notif-dropdown')?.classList.add('hidden');
+  await window.changeView('orders');
+  if(relatedId){
+    setTimeout(()=>{
+      const row = document.querySelector(`[data-order-id="${CSS.escape(relatedId)}"]`);
+      if(row){ row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('ring-2','ring-blue-400'); setTimeout(()=>row.classList.remove('ring-2','ring-blue-400'),2500); }
+    },300);
+  }
+}
+async function markNotificationsRead(){
+  try{ for(const n of allNotificationsCache){ if(String(n.status||'').toLowerCase()!=='read'){ await apiRequest(`/admin/notifications/${encodeURIComponent(n.id||n._id)}`,{method:'PATCH',headers:buildHeadersAuth(),body:JSON.stringify({status:'read'})}); } } await loadNotifications(); }catch(e){ displayMessage(e.message,'error'); }
+}
+
+
+async function fetchEnterpriseData(endpoint, fallback = {}){
+  try {
+    const data = await apiRequest(endpoint, { headers: buildHeadersAuth() });
+    return data || fallback;
+  } catch (error) {
+    console.warn('Enterprise endpoint error:', endpoint, error.message);
+    return { ok:false, error:error.message, ...fallback };
+  }
+}
+function enterpriseRows(data, keys = []){
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data?.[key])) return data[key];
+  return data?.items || data?.docs || data?.results || data?.orders || data?.logs || data?.queue || [];
+}
+function enterpriseStatusBadge(status=''){
+  const s = String(status || '').toLowerCase();
+  const cls = s.includes('error') || s.includes('fail') || s.includes('dead') ? 'bg-red-100 text-red-700' : s.includes('pend') ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700';
+  return `<span class="px-2 py-1 rounded-full text-xs font-bold ${cls}">${escHtml(status || 'ok')}</span>`;
+}
+
+window.enterpriseSyncCatalogSample = async function(){
+  if(!confirm('Criar/atualizar 3 produtos Enterprise de teste da Ariana Demo?')) return;
+  try {
+    displayMessage('Sincronizando catálogo Enterprise de teste...', 'info');
+    const payload = {
+      manufacturer: 'ariana_demo',
+      sellerId: 'ariana_demo',
+      sellerName: 'Ariana Demo',
+      items: [
+        { sku: 'AD-GEL44TESTE', name: 'Geladeira Teste Ariana Demo Enterprise', description: 'Produto de teste recebido via catálogo Enterprise.', category: 'Geladeiras & Refrigeradores', brand: 'Ariana Demo', price: 2500, stock: 12, weight: 60, length: 70, height: 175, width: 70, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Ariana+Demo' },
+        { sku: 'AD-LAV12TESTE', name: 'Lavadora Teste Ariana Demo Enterprise', description: 'Lavadora de teste recebida via catálogo Enterprise.', category: 'Eletrodomésticos', brand: 'Ariana Demo', price: 1899, stock: 7, weight: 45, length: 65, height: 100, width: 65, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Lavadora' },
+        { sku: 'AD-MICROTESTE', name: 'Micro-ondas Teste Ariana Demo Enterprise', description: 'Micro-ondas de teste recebido via catálogo Enterprise.', category: 'Eletroportáteis', brand: 'Ariana Demo', price: 699, stock: 20, weight: 12, length: 45, height: 30, width: 55, imageUrl: 'https://placehold.co/600x600/eef2ff/1d4ed8?text=Microondas' }
+      ]
+    };
+    const data = await apiRequest('/enterprise/catalog/sync', { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify(payload) });
+    displayMessage(`Catálogo sincronizado: ${data.success || 0} produto(s), ${data.errors || 0} erro(s).`, data.errors ? 'info' : 'success');
+    await renderEnterpriseView();
+  } catch (error) {
+    displayMessage(`Erro ao sincronizar catálogo: ${error.message}`, 'error');
+  }
+}
+
+window.enterpriseSyncProductSample = async function(){
+  if(!confirm('Atualizar o produto AD-GEL44TESTE para testar estoque/preço/status?')) return;
+  try{
+    const payload = {
+      manufacturer: 'ariana_demo',
+      sellerId: 'ariana_demo',
+      price: 2299,
+      stock: 3,
+      active: true,
+      availability: 'available',
+      status: 'updated_by_enterprise_test'
+    };
+    const data = await apiRequest('/enterprise/products/AD-GEL44TESTE/sync', { method:'POST', headers:buildHeadersAuth({'x-ariana-key': localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || ''}), body:JSON.stringify(payload) });
+    displayMessage('Estoque/preço sincronizados no produto teste.', 'success');
+    // Não recarrega a tela aqui; recarregar apagava o progresso e o log do simulador.
+    return data;
+  }catch(e){
+    displayMessage(`Erro no teste de estoque/preço: ${e.message}`, 'error');
+  }
+}
+
+
+window.enterpriseSaveWebhookSecret = function(){
+  const el = document.getElementById('enterprise-webhook-secret');
+  const value = String(el?.value || '').trim();
+  if(!value){ displayMessage('Informe a chave ENTERPRISE_WEBHOOK_SECRET antes de salvar.', 'error'); return; }
+  localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET', value);
+  displayMessage('Chave de teste salva neste navegador.', 'success');
+}
+
+window.enterpriseCopyText = async function(text){
+  try{
+    await navigator.clipboard.writeText(String(text || ''));
+    displayMessage('Copiado para a área de transferência.', 'success');
+  }catch(_e){
+    displayMessage('Não foi possível copiar automaticamente. Selecione e copie manualmente.', 'info');
+  }
+}
+
+window.enterpriseSaveManufacturer = async function(){
+  const manufacturer = String(document.getElementById('enterprise-form-manufacturer')?.value || '').trim().toLowerCase();
+  const endpoint = String(document.getElementById('enterprise-form-endpoint')?.value || '').trim();
+  const method = String(document.getElementById('enterprise-form-method')?.value || 'POST').trim().toUpperCase();
+  const enabled = document.getElementById('enterprise-form-enabled')?.checked !== false;
+  const authType = String(document.getElementById('enterprise-form-auth-type')?.value || '').trim();
+  const authToken = String(document.getElementById('enterprise-form-auth-token')?.value || '').trim();
+  if(!manufacturer){ displayMessage('Informe o nome do fabricante.', 'error'); return; }
+  try{
+    await apiRequest('/enterprise/manufacturers', {
+      method:'POST',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({ manufacturer, endpoint, method, enabled, authType, authToken })
+    });
+    displayMessage('Fabricante salvo com sucesso.', 'success');
+    await renderEnterpriseView();
+  }catch(error){
+    displayMessage(`Erro ao salvar fabricante: ${error.message}`, 'error');
+  }
+}
+
+window.enterpriseDispatchQueueItem = async function(queueId){
+  const id = String(queueId || '').trim();
+  if(!id) return;
+  if(!confirm(`Enviar agora a fila ${id}?`)) return;
+  try{
+    await apiRequest(`/enterprise/queue/${encodeURIComponent(id)}/dispatch`, { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify({}) });
+    displayMessage('Envio manual executado.', 'success');
+    await renderEnterpriseView();
+  }catch(error){
+    displayMessage(`Erro ao enviar fila: ${error.message}`, 'error');
+  }
+}
+
+
+
+function enterpriseStatusText(status=''){
+  const map = {
+    pending: 'Aguardando análise',
+    in_review: 'Em análise',
+    sandbox: 'Sandbox liberado',
+    approved: 'Aprovado',
+    production: 'Produção liberada',
+    rejected: 'Reprovado'
+  };
+  const key = String(status || '').toLowerCase().trim();
+  return map[key] || status || 'Aguardando análise';
+}
+function enterpriseArrayText(value){
+  if(Array.isArray(value)) return value.filter(Boolean).join(', ');
+  if(typeof value === 'string') return value;
+  return '';
+}
+function enterpriseGetHomologationId(r){
+  return String(r?._id || r?.id || r?.requestId || '').trim();
+}
+function enterpriseFindHomologationRequest(requestId){
+  const id = String(requestId || '').trim();
+  return enterpriseHomologationRequestsCache.find((r) =>
+    String(r?._id || '') === id ||
+    String(r?.id || '') === id ||
+    String(r?.requestId || '') === id
+  ) || null;
+}
+function enterpriseDetailRow(label, value){
+  return `<div class="p-4 rounded-xl bg-gray-50 border border-gray-100"><div class="text-[11px] uppercase font-black text-gray-400 mb-1">${escHtml(label)}</div><div class="text-sm font-bold text-gray-800 break-words whitespace-pre-wrap">${escHtml(value || '—')}</div></div>`;
+}
+
+function enterpriseCredentialValue(value){
+  return String(value || '').trim();
+}
+function enterpriseCredentialBlock(label, value){
+  const v = enterpriseCredentialValue(value);
+  const safe = escHtml(v || 'Não gerado');
+  const copyArg = escHtml(v).replace(/'/g, '&#39;');
+  return `<div class="p-4 rounded-xl bg-slate-900 text-white border border-slate-700">
+    <div class="text-[11px] uppercase font-black text-slate-400 mb-2">${escHtml(label)}</div>
+    <div class="font-mono text-xs break-all bg-black/25 rounded-lg p-3 border border-white/10">${safe}</div>
+    ${v ? `<button type="button" onclick="window.enterpriseCopyText('${copyArg}')" class="mt-3 px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black hover:bg-slate-100"><i class="fas fa-copy mr-1"></i>Copiar</button>` : ''}
+  </div>`;
+}
+function enterpriseSandboxCredentials(request){
+  return request?.sandboxCredentials || request?.sandbox || request?.credentials?.sandbox || {};
+}
+window.enterpriseOpenHomologationDetails = function(requestId){
+  const r = enterpriseFindHomologationRequest(requestId);
+  if(!r){ displayMessage('Não encontrei os dados desta solicitação. Atualize o painel e tente novamente.', 'error'); return; }
+  currentHomologationRequestId = enterpriseGetHomologationId(r);
+  const modal = document.getElementById('homologation-detail-modal');
+  const content = document.getElementById('homologation-modal-content');
+  const subtitle = document.getElementById('homologation-modal-subtitle');
+  if(!modal || !content) return;
+  const protocol = r.requestId || r.protocol || r._id || '—';
+  if(subtitle) subtitle.textContent = `Protocolo ${protocol} • ${enterpriseStatusText(r.statusLabel || r.status || 'pending')}`;
+  const integrations = enterpriseArrayText(r.integrationTypes || r.integrations || r.modules || r.integrationType);
+  const status = enterpriseStatusText(r.statusLabel || r.status || 'pending');
+  const createdAt = formatDateTime(r.createdAt || r.requestedAt || r.created_at);
+  const updatedAt = formatDateTime(r.updatedAt || r.updated_at);
+  const history = Array.isArray(r.history || r.statusHistory) ? (r.history || r.statusHistory) : [];
+  content.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+      <div class="lg:col-span-2 p-5 rounded-2xl bg-blue-50 border border-blue-100">
+        <div class="text-xs uppercase font-black text-blue-500 mb-1">Protocolo</div>
+        <div class="text-2xl font-black text-blue-900">${escHtml(protocol)}</div>
+        <div class="text-sm text-blue-700 mt-2">Solicitação enviada em ${escHtml(createdAt)}.</div>
+      </div>
+      <div class="p-5 rounded-2xl bg-gray-50 border border-gray-100">
+        <div class="text-xs uppercase font-black text-gray-400 mb-1">Status atual</div>
+        <div>${enterpriseStatusBadge(status)}</div>
+        <div class="text-xs text-gray-500 mt-3">Atualizado em ${escHtml(updatedAt)}</div>
+      </div>
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Dados da empresa</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      ${enterpriseDetailRow('Razão social / Empresa', r.companyName)}
+      ${enterpriseDetailRow('Nome fantasia', r.tradeName)}
+      ${enterpriseDetailRow('CNPJ', r.cnpj)}
+      ${enterpriseDetailRow('Site', r.website)}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Responsável</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      ${enterpriseDetailRow('Nome', r.responsibleName)}
+      ${enterpriseDetailRow('Cargo', r.responsibleRole)}
+      ${enterpriseDetailRow('E-mail', r.email)}
+      ${enterpriseDetailRow('Telefone / WhatsApp', r.phone)}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Integração</h4>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+      ${enterpriseDetailRow('ERP utilizado', r.erp)}
+      ${enterpriseDetailRow('Volume de produtos', r.productVolume)}
+      ${enterpriseDetailRow('Volume mensal de pedidos', r.orderVolume)}
+      <div class="md:col-span-3">${enterpriseDetailRow('Integrações desejadas', integrations)}</div>
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Mensagem / observações</h4>
+    <div class="p-4 rounded-xl bg-gray-50 border border-gray-100 mb-5 text-sm text-gray-700 whitespace-pre-wrap">${escHtml(r.message || 'Nenhuma observação informada.')}</div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      ${enterpriseDetailRow('Observação interna', r.adminNotes || r.notes)}
+      ${enterpriseDetailRow('Ambiente', r.environment || (String(r.status||'').toLowerCase()==='sandbox' ? 'Sandbox' : 'Aguardando liberação'))}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Credenciais Sandbox</h4>
+    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-5">
+      ${Object.keys(enterpriseSandboxCredentials(r)).length ? `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          ${enterpriseCredentialBlock('API Key de teste', enterpriseSandboxCredentials(r).apiKey)}
+          ${enterpriseCredentialBlock('Webhook Secret de teste', enterpriseSandboxCredentials(r).webhookSecret)}
+          ${enterpriseCredentialBlock('Client ID', enterpriseSandboxCredentials(r).clientId)}
+          ${enterpriseCredentialBlock('Base URL', enterpriseSandboxCredentials(r).baseUrl)}
+        </div>
+        <div class="mt-3 text-xs text-slate-500">Gerado em ${escHtml(formatDateTime(enterpriseSandboxCredentials(r).generatedAt))} por ${escHtml(enterpriseSandboxCredentials(r).generatedBy || 'admin')}. Essas credenciais são apenas para homologação, não liberam produção.</div>
+      ` : `
+        <div class="text-sm text-slate-600"><b>Nenhuma chave Sandbox gerada ainda.</b><br>Clique em <b>Sandbox</b> para gerar automaticamente API Key, Client ID e Webhook Secret de teste.</div>
+      `}
+    </div>
+
+    <h4 class="font-black text-gray-800 mb-3 text-lg">Histórico</h4>
+    <div class="rounded-xl border border-gray-100 overflow-hidden">
+      ${history.length ? history.map((h) => `<div class="p-3 border-b last:border-b-0 text-sm"><b>${escHtml(enterpriseStatusText(h.status || h.label || h.action))}</b><div class="text-xs text-gray-500">${escHtml(formatDateTime(h.date || h.createdAt || h.at))} ${h.by ? '• '+escHtml(h.by) : ''}</div>${h.note ? `<div class="text-gray-600 mt-1">${escHtml(h.note)}</div>` : ''}</div>`).join('') : '<div class="p-4 text-sm text-gray-500">Nenhum histórico detalhado registrado ainda.</div>'}
+    </div>
+  `;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+window.enterpriseCloseHomologationModal = function(){
+  const modal = document.getElementById('homologation-detail-modal');
+  if(modal){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
+}
+window.enterpriseSetHomologationStatusFromModal = async function(status){
+  if(!currentHomologationRequestId){ displayMessage('Nenhuma solicitação selecionada.', 'error'); return; }
+  await window.enterpriseSetHomologationStatus(currentHomologationRequestId, status);
+  const modal = document.getElementById('homologation-detail-modal');
+  if(modal && !modal.classList.contains('hidden')){
+    const refreshed = enterpriseFindHomologationRequest(currentHomologationRequestId);
+    if(refreshed) window.enterpriseOpenHomologationDetails(currentHomologationRequestId);
+  }
+}
+
+window.enterpriseRegenerateSandboxFromModal = async function(){
+  if(!currentHomologationRequestId){ displayMessage('Nenhuma solicitação selecionada.', 'error'); return; }
+  if(!confirm('Gerar uma NOVA chave Sandbox para esta solicitação? A chave anterior deixará de ser a recomendada para novos testes.')) return;
+  await window.enterpriseSetHomologationStatus(currentHomologationRequestId, 'sandbox', { regenerate: true });
+}
+window.enterprisePrintHomologationDetails = function(){
+  const r = enterpriseFindHomologationRequest(currentHomologationRequestId);
+  if(!r){ displayMessage('Abra uma solicitação antes de imprimir.', 'error'); return; }
+  const protocol = r.requestId || r.protocol || r._id || '—';
+  const integrations = enterpriseArrayText(r.integrationTypes || r.integrations || r.modules || r.integrationType);
+  const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Ficha de Homologação ${escHtml(protocol)}</title><style>body{font-family:Arial,sans-serif;color:#111827;margin:28px}h1{color:#0047ab;margin:0 0 6px}.muted{color:#64748b}.box{border:1px solid #dbe3ef;border-radius:12px;padding:14px;margin:12px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:14px;font-weight:700;white-space:pre-wrap}.footer{margin-top:28px;font-size:12px;color:#64748b;border-top:1px solid #e5e7eb;padding-top:12px}@media print{button{display:none}}</style></head><body><button onclick="window.print()" style="padding:10px 14px;background:#0047ab;color:#fff;border:0;border-radius:8px;font-weight:700;margin-bottom:18px">Imprimir / Salvar PDF</button><h1>Ariana Enterprise</h1><div class="muted">Ficha de Solicitação de Homologação</div><div class="box"><div class="label">Protocolo</div><div class="value">${escHtml(protocol)}</div></div><div class="grid"><div class="box"><div class="label">Empresa</div><div class="value">${escHtml(r.companyName||'—')}</div></div><div class="box"><div class="label">Nome fantasia</div><div class="value">${escHtml(r.tradeName||'—')}</div></div><div class="box"><div class="label">CNPJ</div><div class="value">${escHtml(r.cnpj||'—')}</div></div><div class="box"><div class="label">Site</div><div class="value">${escHtml(r.website||'—')}</div></div><div class="box"><div class="label">Responsável</div><div class="value">${escHtml(r.responsibleName||'—')}</div></div><div class="box"><div class="label">E-mail</div><div class="value">${escHtml(r.email||'—')}</div></div><div class="box"><div class="label">Telefone</div><div class="value">${escHtml(r.phone||'—')}</div></div><div class="box"><div class="label">ERP</div><div class="value">${escHtml(r.erp||'—')}</div></div><div class="box"><div class="label">Volume de produtos</div><div class="value">${escHtml(r.productVolume||'—')}</div></div><div class="box"><div class="label">Volume de pedidos</div><div class="value">${escHtml(r.orderVolume||'—')}</div></div></div><div class="box"><div class="label">Integrações desejadas</div><div class="value">${escHtml(integrations||'—')}</div></div><div class="box"><div class="label">Mensagem</div><div class="value">${escHtml(r.message||'—')}</div></div><div class="box"><div class="label">Status</div><div class="value">${escHtml(enterpriseStatusText(r.statusLabel||r.status||'pending'))}</div></div><div class="footer">Ariana Móveis • contato@arianamoveis.com.br • Gerado em ${escHtml(new Date().toLocaleString('pt-BR'))}</div><script>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const win = window.open('', '_blank');
+  if(!win){ displayMessage('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.', 'error'); return; }
+  win.document.open(); win.document.write(html); win.document.close();
+}
+
+window.enterpriseSetHomologationStatus = async function(requestId, status, options = {}){
+  const id = String(requestId || '').trim();
+  const nextStatus = String(status || '').trim();
+
+  if(!id){
+    displayMessage('Solicitação inválida. Atualize a página e tente novamente.', 'error');
+    return;
+  }
+
+  const labels = {
+    pending: 'Aguardando análise',
+    in_review: 'Em análise',
+    sandbox: 'Sandbox liberado',
+    approved: 'Aprovado',
+    production: 'Produção liberada',
+    rejected: 'Reprovado'
+  };
+
+  const label = labels[nextStatus] || nextStatus || 'novo status';
+  const confirmMessages = {
+    in_review: 'Marcar esta solicitação como EM ANÁLISE?',
+    sandbox: 'Liberar esta solicitação para SANDBOX?',
+    approved: 'Aprovar esta solicitação?',
+    production: 'Liberar esta solicitação para PRODUÇÃO?',
+    rejected: 'Reprovar esta solicitação?'
+  };
+
+  const shouldConfirm = confirmMessages[nextStatus] || `Alterar status para ${label}?`;
+  if(!confirm(shouldConfirm)) return;
+
+  let adminNotes = '';
+  if(nextStatus === 'rejected'){
+    adminNotes = prompt('Informe o motivo da reprovação, se desejar:', '') || '';
+  }
+
+  try{
+    const updated = await apiRequest(`/enterprise/homologation-requests/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: buildHeadersAuth(),
+      body: JSON.stringify({ status: nextStatus, adminNotes, regenerate: options.regenerate === true })
+    });
+
+    const updatedRequest = updated?.request;
+    if(updatedRequest){
+      const idx = enterpriseHomologationRequestsCache.findIndex((r) => enterpriseGetHomologationId(r) === id || String(r.requestId||'') === id);
+      if(idx >= 0) enterpriseHomologationRequestsCache[idx] = updatedRequest;
+    }
+
+    displayMessage(`Solicitação atualizada para: ${label}.`, 'success');
+    await renderEnterpriseView();
+  }catch(error){
+    displayMessage(`Erro ao atualizar homologação: ${error.message}`, 'error');
+  }
+}
+
+
+
+function enterpriseBuildCertificateCode(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  const rand = Math.random().toString(36).slice(2,8).toUpperCase();
+  return `ARI-ENT-${y}${m}${day}-${rand}`;
+}
+function enterpriseSetCertificateButton(enabled){
+  const btn = document.getElementById('enterprise-sim-certificate-btn');
+  if(!btn) return;
+  btn.disabled = !enabled;
+  btn.classList.toggle('opacity-50', !enabled);
+  btn.classList.toggle('cursor-not-allowed', !enabled);
+}
+function enterpriseCreateSimulatorCertificate(seconds=''){
+  const adminEmail = localStorage.getItem('admin_email') || localStorage.getItem('admin_name') || 'admin';
+  enterpriseLastSimulatorCertificate = {
+    code: enterpriseBuildCertificateCode(),
+    companyName: 'Ariana Demo / Homologação Sandbox',
+    cnpj: 'Ambiente de teste',
+    environment: 'Sandbox',
+    status: 'Homologação aprovada',
+    generatedAt: new Date(),
+    generatedBy: adminEmail,
+    duration: seconds,
+    modules: ['Catálogo', 'Estoque', 'Preço', 'Pedidos', 'NF-e', 'XML', 'DANFE', 'Rastreio', 'Webhooks']
+  };
+  enterpriseSetCertificateButton(true);
+  return enterpriseLastSimulatorCertificate;
+}
+window.enterprisePrintSimulatorCertificate = function(){
+  const cert = enterpriseLastSimulatorCertificate || enterpriseCreateSimulatorCertificate('');
+  const date = cert.generatedAt ? new Date(cert.generatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+  const modules = (cert.modules || []).map(m => `<span class="pill">✓ ${escHtml(m)}</span>`).join('');
+  const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Certificado de Homologação - Ariana Enterprise</title><style>
+    *{box-sizing:border-box} body{margin:0;background:#eef2ff;font-family:Arial,Helvetica,sans-serif;color:#0f172a;padding:28px}.sheet{max-width:980px;margin:0 auto;background:#fff;border:1px solid #dbeafe;border-radius:24px;overflow:hidden;box-shadow:0 18px 60px rgba(15,23,42,.16)}.hero{background:linear-gradient(135deg,#073b8e,#1d4ed8,#38bdf8);color:white;padding:42px 46px}.brand{font-size:15px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;opacity:.92}.title{font-size:42px;line-height:1.05;font-weight:900;margin:14px 0 8px}.subtitle{font-size:17px;opacity:.95}.content{padding:38px 46px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.box{border:1px solid #e5e7eb;background:#f8fafc;border-radius:16px;padding:18px}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em;margin-bottom:8px}.value{font-size:19px;font-weight:900;color:#111827;word-break:break-word}.status{display:inline-block;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:12px 18px;border-radius:999px;font-size:18px;font-weight:900}.modules{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.pill{display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:9px 12px;font-weight:800;font-size:13px}.footer{padding:22px 46px;background:#f8fafc;border-top:1px solid #e5e7eb;color:#64748b;font-size:12px;display:flex;justify-content:space-between;gap:16px}.code{font-family:monospace;font-weight:900;color:#0f172a}.actions{text-align:center;margin:22px 0}.actions button{background:#1d4ed8;color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:900;cursor:pointer}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;border:0}.actions{display:none}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}.pill,.status{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><section class="sheet"><div class="hero"><div class="brand">Ariana Enterprise</div><div class="title">Certificado de Homologação</div><div class="subtitle">Validação de integração Sandbox concluída com sucesso.</div></div><div class="content"><div class="grid"><div class="box"><div class="label">Empresa / Ambiente</div><div class="value">${escHtml(cert.companyName)}</div></div><div class="box"><div class="label">CNPJ</div><div class="value">${escHtml(cert.cnpj)}</div></div><div class="box"><div class="label">Ambiente</div><div class="value">${escHtml(cert.environment)}</div></div><div class="box"><div class="label">Status</div><div class="status">${escHtml(cert.status)}</div></div><div class="box"><div class="label">Código do certificado</div><div class="value code">${escHtml(cert.code)}</div></div><div class="box"><div class="label">Data da homologação</div><div class="value">${escHtml(date)}</div></div></div><div style="margin-top:24px" class="box"><div class="label">Módulos homologados</div><div class="modules">${modules}</div></div><div style="margin-top:24px" class="box"><div class="label">Resumo técnico</div><div class="value" style="font-size:15px;line-height:1.6;font-weight:700">Catálogo, estoque, preço, pedido, NF-e, XML, DANFE, rastreio e webhooks foram testados no simulador Enterprise. ${cert.duration ? `Tempo total: ${escHtml(cert.duration)}s.` : ''}</div></div></div><div class="footer"><div>Ariana Móveis • contato@arianamoveis.com.br</div><div>Gerado por ${escHtml(cert.generatedBy)}</div></div></section></body></html>`;
+  const win = window.open('', '_blank');
+  if(!win){ displayMessage('O navegador bloqueou a janela do certificado. Libere pop-ups para este site.', 'error'); return; }
+  win.document.open(); win.document.write(html); win.document.close(); setTimeout(()=>{ try{ win.focus(); }catch(_e){} }, 300);
+}
+
+function enterpriseSimulatorSetStep(step, status, message){
+  const row = document.getElementById(`enterprise-sim-step-${step}`);
+  if(!row) return;
+  const badge = row.querySelector('[data-sim-status]');
+  const msg = row.querySelector('[data-sim-message]');
+  const dot = row.querySelector('[data-sim-dot]');
+  const map = {
+    idle: ['Aguardando', 'bg-gray-100 text-gray-500', 'bg-gray-300'],
+    running: ['Executando...', 'bg-blue-100 text-blue-700', 'bg-blue-500'],
+    ok: ['OK', 'bg-green-100 text-green-700', 'bg-green-500'],
+    error: ['Erro', 'bg-red-100 text-red-700', 'bg-red-500']
+  };
+  const cfg = map[status] || map.idle;
+  if(badge){ badge.className = `px-2 py-1 rounded-full text-[11px] font-black ${cfg[1]}`; badge.textContent = cfg[0]; }
+  if(dot){ dot.className = `w-3 h-3 rounded-full ${cfg[2]}`; }
+  if(msg) msg.textContent = message || '';
+}
+function enterpriseSimulatorProgress(percent){
+  const bar = document.getElementById('enterprise-sim-progress-bar');
+  const text = document.getElementById('enterprise-sim-progress-text');
+  const p = Math.max(0, Math.min(100, Number(percent || 0)));
+  if(bar) bar.style.width = `${p}%`;
+  if(text) text.textContent = `${p}%`;
+}
+function enterpriseSimulatorLog(line, type='info'){
+  const box = document.getElementById('enterprise-sim-log');
+  if(!box) return;
+  const color = type === 'error' ? 'text-red-700' : type === 'ok' ? 'text-green-700' : 'text-gray-700';
+  const time = new Date().toLocaleTimeString('pt-BR');
+  box.innerHTML = `<div class="${color}"><b>${time}</b> • ${escHtml(line)}</div>` + box.innerHTML;
+}
+window.enterpriseRunSimulatorStep = async function(step){
+  const labels = { catalog:'Catálogo', stock_price:'Estoque e preço', order:'Pedido', invoice:'NF-e', tracking:'Rastreio' };
+  enterpriseSimulatorSetStep(step, 'running', 'Enviando teste...');
+  enterpriseSimulatorLog(`Iniciando teste: ${labels[step] || step}`);
+  try{
+    const data = await apiRequest(`/enterprise/simulator/${encodeURIComponent(step)}`, {
+      method:'POST',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({ manufacturer:'ariana_demo', sandbox:true })
+    });
+    enterpriseSimulatorSetStep(step, 'ok', data?.message || 'Teste concluído com sucesso.');
+    enterpriseSimulatorLog(`✅ ${labels[step] || step}: aprovado`, 'ok');
+    // Não recarrega a tela aqui; recarregar apagava o progresso e o log do simulador.
+    return data;
+  }catch(error){
+    enterpriseSimulatorSetStep(step, 'error', error.message || 'Falha no teste.');
+    enterpriseSimulatorLog(`❌ ${labels[step] || step}: ${error.message}`, 'error');
+    throw error;
+  }
+}
+window.enterpriseRunSimulatorAll = async function(){
+  const steps = ['catalog','stock_price','order','invoice','tracking'];
+  if(!confirm('Executar homologação completa de teste? Isso criará/atualizará produtos e pedido demo no ambiente Enterprise.')) return;
+  enterpriseSimulatorProgress(0);
+  enterpriseSimulatorLog('Homologação completa iniciada.');
+  const started = performance.now();
+  for(let i=0;i<steps.length;i++){
+    try{
+      await window.enterpriseRunSimulatorStep(steps[i]);
+      enterpriseSimulatorProgress(Math.round(((i+1)/steps.length)*100));
+    }catch(_e){
+      displayMessage('Homologação interrompida por erro. Veja o log do simulador.', 'error');
+      return;
+    }
+  }
+  const seconds = ((performance.now() - started) / 1000).toFixed(2).replace('.', ',');
+  enterpriseSimulatorLog(`🏁 Homologação completa aprovada em ${seconds}s.`, 'ok');
+  enterpriseCreateSimulatorCertificate(seconds);
+  displayMessage(`Homologação simulada aprovada em ${seconds}s. Agora você já pode gerar o certificado.`, 'success');
+  // Mantém o painel do simulador visível com os cards verdes, barra 100% e log final.
+}
+window.enterpriseResetSimulator = function(){
+  ['catalog','stock_price','order','invoice','tracking'].forEach(step => enterpriseSimulatorSetStep(step, 'idle', 'Aguardando execução.'));
+  enterpriseSimulatorProgress(0);
+  enterpriseLastSimulatorCertificate = null;
+  enterpriseSetCertificateButton(false);
+  const box = document.getElementById('enterprise-sim-log');
+  if(box) box.innerHTML = '<div class="text-gray-500">Nenhum teste executado ainda.</div>';
+}
+function enterpriseSimulatorCard(){
+  const steps = [
+    ['catalog','Catálogo','Cria/atualiza produtos demo via API Enterprise.'],
+    ['stock_price','Estoque e preço','Altera preço, estoque, disponibilidade e status.'],
+    ['order','Pedido','Cria um pedido Enterprise de homologação.'],
+    ['invoice','NF-e / XML / DANFE','Anexa dados fiscais ao pedido demo.'],
+    ['tracking','Rastreio','Atualiza transportadora, código e link de rastreamento.']
+  ];
+  return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+    <div class="p-5 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div>
+        <h3 class="font-black text-gray-800 flex items-center gap-2"><i class="fas fa-vial-circle-check text-primary-blue"></i> Simulador de Homologação Enterprise</h3>
+        <p class="text-xs text-gray-500 mt-1">Execute testes de catálogo, estoque, preço, pedido, NF-e e rastreio sem depender de uma fábrica real.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="window.enterpriseRunSimulatorAll()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-black shadow hover:opacity-90"><i class="fas fa-play mr-2"></i>Executar todos os testes</button>
+        <button type="button" onclick="window.enterpriseResetSimulator()" class="px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50"><i class="fas fa-rotate-left mr-2"></i>Limpar painel</button>
+        <button id="enterprise-sim-certificate-btn" type="button" onclick="window.enterprisePrintSimulatorCertificate()" disabled class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-black shadow hover:bg-secondary-light-blue opacity-50 cursor-not-allowed"><i class="fas fa-certificate mr-2"></i>Gerar certificado</button>
+      </div>
+    </div>
+    <div class="p-5">
+      <div class="mb-5">
+        <div class="flex items-center justify-between text-xs font-black text-gray-500 mb-2"><span>Progresso da homologação</span><span id="enterprise-sim-progress-text">0%</span></div>
+        <div class="h-3 rounded-full bg-gray-100 overflow-hidden"><div id="enterprise-sim-progress-bar" class="h-full bg-success-green transition-all duration-300" style="width:0%"></div></div>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-5 gap-3 mb-5">
+        ${steps.map(([id,title,desc]) => `<div id="enterprise-sim-step-${id}" class="p-4 rounded-2xl border border-gray-100 bg-gray-50">
+          <div class="flex items-center justify-between gap-2 mb-2"><span data-sim-dot class="w-3 h-3 rounded-full bg-gray-300"></span><span data-sim-status class="px-2 py-1 rounded-full text-[11px] font-black bg-gray-100 text-gray-500">Aguardando</span></div>
+          <div class="font-black text-gray-800 text-sm">${escHtml(title)}</div>
+          <div class="text-xs text-gray-500 mt-1 min-h-[34px]">${escHtml(desc)}</div>
+          <div data-sim-message class="text-[11px] text-gray-400 mt-2">Aguardando execução.</div>
+          <button type="button" onclick="window.enterpriseRunSimulatorStep('${id}')" class="mt-3 w-full px-3 py-2 rounded-xl bg-primary-blue text-white text-xs font-black hover:bg-secondary-light-blue">Testar</button>
+        </div>`).join('')}
+      </div>
+      <div class="rounded-2xl border border-gray-100 overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b text-xs uppercase font-black text-gray-500">Log da execução</div>
+        <div id="enterprise-sim-log" class="p-4 text-xs space-y-1 max-h-40 overflow-y-auto bg-white"><div class="text-gray-500">Nenhum teste executado ainda.</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function renderEnterpriseView(){
+  const box = document.getElementById('enterprise-content');
+  if(!box) return;
+  box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"><div class="flex items-center gap-3 text-primary-blue font-bold"><i class="fas fa-spinner fa-spin"></i> Carregando integrações Enterprise...</div></div>`;
+
+  const [dashboard, logsData, queueData, catalogData, productsData, homologationRequestsData] = await Promise.all([
+    fetchEnterpriseData('/enterprise/dashboard', {}),
+    fetchEnterpriseData('/enterprise/logs?limit=12', {}),
+    fetchEnterpriseData('/enterprise/queue?limit=12', {}),
+    fetchEnterpriseData('/enterprise/catalog/summary', {}),
+    fetchEnterpriseData('/enterprise/products?limit=12', {}),
+    fetchEnterpriseData('/enterprise/homologation-requests?limit=20', {})
+  ]);
+
+  const orders = enterpriseRows(dashboard, ['latestOrders','orders','recentOrders']).slice(0, 10);
+  const manufacturers = enterpriseRows(dashboard, ['manufacturers','integrations']).slice(0, 30);
+  const logs = enterpriseRows(logsData, ['logs','items']).slice(0, 12);
+  const queue = enterpriseRows(queueData, ['queue','items']).slice(0, 12);
+  const catalogProducts = enterpriseRows(productsData, ['products','items']).slice(0, 12);
+  const catalogFallbackProducts = enterpriseRows(catalogData, ['lastProducts','products']).slice(0, 12);
+  const productsToShow = catalogProducts.length ? catalogProducts : catalogFallbackProducts;
+  const homologationRequests = enterpriseRows(homologationRequestsData, ['items','requests']).slice(0, 20);
+  enterpriseHomologationRequestsCache = homologationRequests;
+  window.enterpriseHomologationRequestsCache = enterpriseHomologationRequestsCache;
+  const homologationSummary = homologationRequestsData.summary || {};
+  const catalogManufacturers = enterpriseRows(catalogData, ['manufacturers']).slice(0, 20);
+  const catalogSummary = catalogData.summary || {};
+  const totalCatalogProducts = Number(catalogSummary.totalProducts || productsToShow.length || 0);
+  const activeCatalogProducts = Number(catalogSummary.activeProducts || productsToShow.filter(p=>p.active !== false).length || 0);
+  const outOfStockCatalogProducts = Number(catalogSummary.outOfStock || productsToShow.filter(p=>Number(p.stock||0)<=0).length || 0);
+  const summary = dashboard.summary || dashboard.metrics || dashboard || {};
+  const totalOrders = Number(summary.totalOrders ?? summary.ordersTotal ?? orders.length ?? 0);
+  const totalManufacturers = Number(summary.totalManufacturers ?? summary.manufacturersTotal ?? manufacturers.length ?? 0);
+  const pendingQueue = Number(summary.pendingQueue ?? summary.queuePending ?? queue.filter(q => String(q.status||'').toLowerCase().includes('pend')).length ?? 0);
+  const totalLogs = Number(summary.totalLogs ?? summary.logsTotal ?? logs.length ?? 0);
+  const pendingHomologations = Number(homologationSummary.pending || homologationRequests.filter(r => String(r.status||'').toLowerCase()==='pending').length || 0);
+  const erroredQueue = queue.filter(q => ['error','retrying','dead','failed'].some(s => String(q.status||'').toLowerCase().includes(s))).length;
+  const base = String(window.API_BASE || localStorage.getItem('API_BASE') || API_BASE || '').replace(/\/+$/, '');
+  const enterpriseKey = localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || '';
+  const errorBlock = [dashboard?.error, logsData?.error, queueData?.error, catalogData?.error, productsData?.error].filter(Boolean).map(e=>`<div class="mb-2 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 font-bold">${escHtml(e)}</div>`).join('');
+
+  box.innerHTML = `
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-network-wired text-primary-blue"></i> Integrações Enterprise</h2><p class="text-gray-500 text-sm">Fabricantes e ERPs integrados por API, sem alterar sellers, checkout, pagamentos, logística ou etiquetas atuais.</p></div>
+      <div class="flex flex-wrap gap-2"><a href="enterprise_api_explorer.html" target="_blank" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-code mr-2"></i>API Explorer</a><button type="button" onclick="window.enterpriseSyncCatalogSample()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-cloud-arrow-down mr-2"></i>Catálogo teste</button><button type="button" onclick="window.enterpriseSyncProductSample()" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-arrows-rotate mr-2"></i>Teste estoque/preço</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
+    </div>${errorBlock}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fabricantes</div><div class="text-3xl font-black text-primary-blue mt-2">${totalManufacturers}</div><div class="text-xs text-gray-500 mt-1">Integrações configuradas</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Pedidos Enterprise</div><div class="text-3xl font-black text-success-green mt-2">${totalOrders}</div><div class="text-xs text-gray-500 mt-1">Recebidos via API</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fila pendente</div><div class="text-3xl font-black text-yellow-500 mt-2">${pendingQueue}</div><div class="text-xs text-gray-500 mt-1">Envios/retentativas</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Falhas na fila</div><div class="text-3xl font-black ${erroredQueue ? 'text-error-red' : 'text-success-green'} mt-2">${erroredQueue}</div><div class="text-xs text-gray-500 mt-1">Itens com erro/retry</div></div>
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Catálogo</div><div class="text-3xl font-black text-gray-800 mt-2">${totalCatalogProducts}</div><div class="text-xs text-gray-500 mt-1">${activeCatalogProducts} ativos • ${outOfStockCatalogProducts} sem estoque</div></div>
+    </div>
+
+    ${enterpriseSimulatorCard()}
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status e endpoint configurado para cada parceiro</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Método</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs font-bold text-gray-600">${escHtml(m.method||'POST')}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"><h3 class="font-black text-gray-800 mb-1">Cadastrar fabricante</h3><p class="text-xs text-gray-500 mb-4">Use para criar/alterar endpoint de envio de pedidos.</p><div class="space-y-3"><input id="enterprise-form-manufacturer" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="fabricante: whirlpool, samsung..."><input id="enterprise-form-endpoint" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="https://api.fabricante.com/orders"><div class="grid grid-cols-2 gap-2"><select id="enterprise-form-method" class="border rounded-xl px-3 py-2 text-sm"><option>POST</option><option>PUT</option></select><select id="enterprise-form-auth-type" class="border rounded-xl px-3 py-2 text-sm"><option value="">Sem auth extra</option><option value="bearer">Bearer</option><option value="apiKey">API Key</option></select></div><input id="enterprise-form-auth-token" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="token/chave do fabricante"><label class="flex items-center gap-2 text-sm"><input id="enterprise-form-enabled" type="checkbox" checked> Ativo</label><button onclick="window.enterpriseSaveManufacturer()" class="w-full px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold">Salvar fabricante</button></div></div>
+    </div>
+
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+      <div class="p-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div><h3 class="font-black text-gray-800">Solicitações de homologação</h3><p class="text-xs text-gray-500">Pedidos enviados pelo formulário público Ariana Developers • Pendentes: ${pendingHomologations}</p></div>
+        <a href="solicitacao-homologacao.html" target="_blank" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold"><i class="fas fa-arrow-up-right-from-square mr-2"></i>Ver formulário</a>
+      </div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Protocolo</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Empresa</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Contato</th><th class="px-4 py-3 text-xs uppercase text-gray-500">ERP</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${homologationRequests.map(r=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(r.requestId||r._id||'—')}</td><td class="px-4 py-3 text-sm"><div class="font-bold">${escHtml(r.companyName||'—')}</div><div class="text-xs text-gray-500">${escHtml(r.cnpj||'')}</div></td><td class="px-4 py-3 text-xs"><div>${escHtml(r.responsibleName||'—')}</div><div class="text-gray-500">${escHtml(r.email||'')}</div><div class="text-gray-500">${escHtml(r.phone||'')}</div></td><td class="px-4 py-3 text-sm">${escHtml(r.erp||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(r.statusLabel||r.status||'pending')}</td><td class="px-4 py-3"><div class="flex flex-wrap gap-2"><button onclick="window.enterpriseOpenHomologationDetails('${escHtml(r._id||r.id||r.requestId||'')}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Detalhes</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'in_review')" class="px-3 py-1 rounded-lg bg-yellow-500 text-white text-xs font-bold">Analisar</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'sandbox')" class="px-3 py-1 rounded-lg bg-success-green text-white text-xs font-bold">Sandbox</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'rejected')" class="px-3 py-1 rounded-lg bg-error-red text-white text-xs font-bold">Reprovar</button></div></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">Nenhuma solicitação de homologação encontrada.</td></tr>'}</tbody></table></div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos pedidos Enterprise</h3><p class="text-xs text-gray-500">Pedidos recebidos por fabricantes/ERPs</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${orders.map(o=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(o.manufacturerDispatch?.externalOrderId||o.externalOrderId||o.id||o._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.manufacturer||o.sellerIds?.[0]||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(o.status_integracao||o.status||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum pedido Enterprise encontrado.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fila Enterprise</h3><p class="text-xs text-gray-500">Pedidos e retentativas de envio para fabricantes</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fila</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Tentativas</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${queue.map(q=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(q.queueId||q.id||q._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(q.manufacturer||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(q.status||'—')}</td><td class="px-4 py-3 text-sm">${Number(q.attempts||0)}</td><td class="px-4 py-3"><button onclick="window.enterpriseDispatchQueueItem('${escHtml(q.queueId||q.id||q._id||'')}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Enviar</button></td></tr>`).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">Fila vazia.</td></tr>'}</tbody></table></div></div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Produtos sincronizados</h3><p class="text-xs text-gray-500">Produtos atualizados por API de fabricante</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">SKU</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th></tr></thead><tbody>${productsToShow.map(p=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(p.sku||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(p.name||'—')}</td><td class="px-4 py-3 text-sm">${formatCurrency(p.price||0)}</td><td class="px-4 py-3 text-sm">${Number(p.stock||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum produto sincronizado ainda.</td></tr>'}</tbody></table></div></div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Logs recentes</h3><p class="text-xs text-gray-500">Eventos de integração</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Evento</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Mensagem</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th></tr></thead><tbody>${logs.map(l=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(l.eventType||l.type||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(l.manufacturer||'—')}</td><td class="px-4 py-3 text-xs text-gray-600">${escHtml(l.message||l.status||'—')}</td><td class="px-4 py-3 text-xs text-gray-500">${formatDateTime(l.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum log encontrado.</td></tr>'}</tbody></table></div></div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Credenciais e endpoints API</h3><p class="text-xs text-gray-500">Documentação rápida para fabricantes. A chave real fica no Render como ENTERPRISE_WEBHOOK_SECRET.</p></div><div class="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 text-sm"><div class="space-y-3"><label class="block text-xs font-bold uppercase text-gray-500">Chave de teste neste navegador</label><div class="flex gap-2"><input id="enterprise-webhook-secret" type="password" class="flex-1 border rounded-xl px-3 py-2" value="${escHtml(enterpriseKey)}" placeholder="Cole ENTERPRISE_WEBHOOK_SECRET para testes externos"><button onclick="window.enterpriseSaveWebhookSecret()" class="px-4 py-2 rounded-xl bg-success-green text-white font-bold">Salvar</button></div><p class="text-xs text-gray-500">Essa chave não é exibida pelo backend; este campo só guarda no seu navegador para facilitar testes.</p></div><div class="space-y-2"><div class="font-bold text-gray-800">Endpoints principais</div>${['POST /enterprise/catalog/push','POST /enterprise/products/{sku}/sync','POST /enterprise/orders','POST /enterprise/orders/{orderId}/tracking','POST /enterprise/orders/{orderId}/invoice','GET /enterprise/queue'].map(e=>`<button class="block w-full text-left px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-mono" onclick="window.enterpriseCopyText('${escHtml(base + '/api/' + e.replace(/^[A-Z]+\s+\//,'').replace('{sku}','AD-GEL44TESTE').replace('{orderId}','WHIRLPOOL-TESTE-001'))}')">${escHtml(e)}</button>`).join('')}</div></div></div>
+  `;
+}
+
+async function renderDashboardView(){
+  await Promise.allSettled([loadProducts(),loadOrders(),loadNotifications()]);
+  const revenue=allOrdersCache.reduce((s,o)=>s+Number(o.total||o.totalAmount||0),0);
+  const pending=allOrdersCache.filter(o=>String(o.status||'').toLowerCase().includes('pend')).length;
+  document.getElementById('dashboard-content').innerHTML=`
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Total de Produtos</div><div class="text-3xl font-extrabold mt-2 text-primary-blue">${allProductsCache.length}</div></div>
+      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Pedidos Totais</div><div class="text-3xl font-extrabold mt-2 text-primary-blue">${allOrdersCache.length}</div></div>
+      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Faturamento</div><div class="text-3xl font-extrabold mt-2 text-success-green">${formatCurrency(revenue)}</div></div>
+      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Pedidos Pendentes</div><div class="text-3xl font-extrabold mt-2 text-error-red">${pending}</div></div>
+    </div>
+    <div class="bg-white mt-6 rounded-lg shadow-md overflow-hidden">
+      <div class="p-5 border-b flex items-center justify-between"><h2 class="text-lg font-semibold text-primary-blue">Últimos pedidos</h2><button class="text-sm text-primary-blue hover:underline" onclick="window.changeView('orders')">Ver todos</button></div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Total</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${allOrdersCache.slice(0,10).map(o=>`<tr class="border-t" data-order-id="${escHtml(String(o.id||o._id||''))}"><td class="px-4 py-3 text-sm">${escHtml(String(o.id||o._id||''))}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||o.nomeCliente||'—')}</td><td class="px-4 py-3 text-sm">${formatCurrency(o.total||0)}</td><td class="px-4 py-3 text-sm">${escHtml(o.status||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum pedido.</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+function productCategoryOptions(selected=''){ return `<option value="">Selecione</option>` + allCategoriesCache.map(c=>{const name=String(c.name||c.categoryName||'').trim(); return `<option value="${escHtml(name)}" ${name===selected?'selected':''}>${escHtml(name)}</option>`}).join(''); }
+function productFlagsMarkup(p={}){ return `
+  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isOffer" ${p.isOffer?'checked':''}><span>Oferta</span></label>
+  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isFavorite" ${p.isFavorite?'checked':''}><span>Favorito</span></label>
+  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isHighlight" ${p.isHighlight?'checked':''}><span>Destaque</span></label>
+  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isBestSeller" ${p.isBestSeller?'checked':''}><span>Mais vendido</span></label>
+  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isNewArrival" ${p.isNewArrival?'checked':''}><span>Lançamento</span></label>
+  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isRecommended" ${p.isRecommended?'checked':''}><span>Recomendado</span></label>`; }
+function renderProductsTable(){
+  return allProductsCache.map(p=>{
+    const category=String(p.categoryName||p.category||p.categoria||'Sem categoria');
+    const stockClass=Number(p.stock||0)>0?'bg-success-green/20 text-success-green':'bg-error-red/20 text-error-red';
+    return `<tr class="align-middle hover:bg-gray-50 transition-colors border-t">
+      <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${resolveAdminImageUrl(p.mainImageUrl||p.imageUrl||p.image)}" alt="Imagem do Produto" onerror="this.onerror=null;this.src='${PRODUCT_IMAGE_FALLBACK}'"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
+      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
+      <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
+      <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
+      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
+}
+function renderProductImages(){
+  const box=document.getElementById('product-images-grid'); if(!box) return;
+  if(!productImagesCache.length){ box.innerHTML='<div class="col-span-full text-sm text-gray-500 py-8 text-center border rounded-lg">Nenhuma imagem adicionada.</div>'; return; }
+  box.innerHTML=productImagesCache.map(img=>{ const safeUrl=resolveAdminImageUrl(img.url); return `<div class="border border-gray-200 rounded-xl p-3 bg-white"><div class="aspect-square bg-gray-50 rounded-lg overflow-hidden border"><img src="${safeUrl}" alt="Imagem" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='${PRODUCT_IMAGE_FALLBACK}'"></div><div class="mt-2 text-xs text-gray-600 break-all">${escHtml(img.name||'imagem')}</div><div class="mt-3 flex flex-wrap gap-2"><button class="px-2 py-1 rounded text-xs ${img.isMain?'bg-success-green text-white':'bg-gray-100 text-gray-700'}" onclick="window.setMainImage('${encodeURIComponent(img.name||'')}')">${img.isMain?'Principal':'Tornar principal'}</button><button class="px-2 py-1 rounded text-xs bg-red-50 text-red-600" onclick="window.deleteImage('${encodeURIComponent(img.name||'')}')">Excluir</button></div></div>`; }).join('');
+}
+function resetProductForm(){
+  editingProductId=null; productImagesCache=[];
+  const form=document.getElementById('product-form'); if(form) form.reset();
+  const categorySel=document.getElementById('product-category'); if(categorySel) categorySel.innerHTML=productCategoryOptions('');
+  const idField=document.getElementById('product-id'); if(idField) idField.value='';
+  const fileInput=document.getElementById('product-images-input'); if(fileInput) fileInput.value='';
+  document.getElementById('product-submit-btn').innerHTML='Salvar Produto';
+  document.getElementById('product-form-title').textContent='Cadastrar / Editar Produto';
+  renderProductImages();
+}
+window.editProduct = function(id){
+  const p=allProductsCache.find(x=>String(x.id||x._id)===String(id)); if(!p) return;
+  editingProductId=String(p.id||p._id); document.getElementById('product-id').value=editingProductId;
+  document.getElementById('product-name').value=p.name||''; document.getElementById('product-category').innerHTML=productCategoryOptions(p.categoryName||p.category||'');
+  document.getElementById('product-price').value=Number(p.price||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
+  if(specsEl) {
+    let specValue = p.technicalSpecs || p.technicalSpecification || p.technicalSpecifications || p.specifications || p.specification || p.specs || p.fichaTecnica || p.ficha_tecnica || p.especificacaoTecnica || p.especificacoesTecnicas || p.especificacoes || p.technicalDetails || '';
+    if(!specValue && (p.attributes || p.atributos)){
+      const obj = p.attributes || p.atributos;
+      specValue = Object.entries(obj).map(([k,v]) => `${k}: ${v && typeof v === 'object' ? (v.value || v.valor || JSON.stringify(v)) : v}`).join('\n');
+    }
+    specsEl.value = specValue;
+  }
+  document.getElementById('product-weight').value=p.weight||1; document.getElementById('product-length').value=p.length||20; document.getElementById('product-height').value=p.height||10; document.getElementById('product-width').value=p.width||15;
+  ['Offer','Favorite','Highlight','BestSeller','NewArrival','Recommended'].forEach(k=>{const el=document.getElementById(`product-is${k}`); if(el) el.checked=!!p[`is${k}`]});
+  productImagesCache=(Array.isArray(p.images)?p.images:[]).map(normalizeImageEntry).filter(Boolean); if(!productImagesCache.length && p.imageUrl) productImagesCache=[{url:p.imageUrl,path:p.mainImagePath||p.imageUrl,name:'principal',isMain:true}];
+  document.getElementById('product-form-title').textContent=`Editar Produto: ${p.name||''}`; document.getElementById('product-submit-btn').innerHTML='Atualizar Produto'; renderProductImages(); window.scrollTo({top:0,behavior:'smooth'});
+}
+window.deleteProduct = async function(id){ if(!hasAdminPerm('products:delete')){ displayMessage('Você não tem permissão para excluir produtos.','error'); return; } if(!confirm('Excluir este produto?')) return; try{ await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()}); await loadProducts(); resetProductForm(); displayMessage('Produto excluído com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
+function getMarketingCreativeSettings(){
+  const defaults = {
+    ctaText: 'COMPRE DIRETO DO SITE',
+    siteUrl: 'https://arianamoveis.com.br/',
+    siteLabel: 'arianamoveis.com.br',
+    footerLabel: 'arianamoveis.com.br',
+    mascotImageUrl: './ariana-mascote-sem-fundo.png',
+    useMascot: true
+  };
+  try {
+    return { ...defaults, ...(JSON.parse(localStorage.getItem('ariana_marketing_creative_settings') || '{}') || {}) };
+  } catch(_e) {
+    return defaults;
+  }
+}
+
+function buildPosterPayload(variant){
+  const cfg = getMarketingCreativeSettings();
+  return {
+    variant,
+    ctaText: cfg.ctaText,
+    ctaLabel: cfg.ctaText,
+    siteUrl: cfg.siteUrl,
+    siteLabel: cfg.siteLabel,
+    footerLabel: cfg.footerLabel,
+    whatsappLabel: cfg.siteLabel,
+    replaceWhatsappWithSite: true,
+    useMascot: !!cfg.useMascot,
+    mascotImageUrl: cfg.mascotImageUrl
+  };
+}
+
+window.saveMarketingCreativeSettings = function(){
+  const cfg = {
+    ctaText: document.getElementById('mk-cta-text')?.value?.trim() || 'COMPRE DIRETO DO SITE',
+    siteUrl: document.getElementById('mk-site-url')?.value?.trim() || 'https://arianamoveis.com.br/',
+    siteLabel: document.getElementById('mk-site-label')?.value?.trim() || 'arianamoveis.com.br',
+    footerLabel: document.getElementById('mk-footer-label')?.value?.trim() || 'arianamoveis.com.br',
+    mascotImageUrl: document.getElementById('mk-mascot-url')?.value?.trim() || './ariana-mascote-sem-fundo.png',
+    useMascot: document.getElementById('mk-use-mascot')?.checked !== false
+  };
+  localStorage.setItem('ariana_marketing_creative_settings', JSON.stringify(cfg));
+  displayMessage('Configuração dos cartazes salva neste painel.', 'success');
+  const preview = document.getElementById('mk-mascot-preview');
+  if(preview) preview.src = cfg.mascotImageUrl;
+}
+
+window.uploadMarketingMascot = async function(){
+  const input = document.getElementById('mk-mascot-file');
+  if(!input || !input.files || !input.files[0]) { displayMessage('Escolha a imagem PNG da mascote sem fundo.', 'error'); return; }
+  try{
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('folder', 'marketing/mascote');
+    const data = await apiRequest('/admin/uploads', { method:'POST', headers: buildHeadersAuth(), body: fd });
+    const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
+    const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
+    if(!url) throw new Error('Upload concluído, mas a URL não retornou.');
+    document.getElementById('mk-mascot-url').value = url;
+    window.saveMarketingCreativeSettings();
+    displayMessage('Mascote enviada e salva para os cartazes.', 'success');
+  }catch(e){
+    displayMessage(`Erro ao enviar mascote: ${e.message}`, 'error');
+  }
+}
+
+window.generateProductPoster = async function(id, variant = 'square'){
+  if(!hasAdminPerm('posters:generate')){ displayMessage('Você não tem permissão para gerar posters.','error'); return; }
+  const productId = String(id || editingProductId || '').trim();
+  if(!productId){ displayMessage('Salve ou selecione um produto antes de gerar o cartaz.','error'); return; }
+  const label = variant === 'story' ? 'story' : 'poster';
+  try{
+    displayMessage(`Gerando ${label} automático...`, 'info');
+    const data = await apiRequest(`/admin/posters/product/${encodeURIComponent(productId)}`,{
+      method:'POST',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify(buildPosterPayload(variant))
+    });
+    if(data && data.url){
+      window.open(data.url, '_blank');
+      displayMessage(`${label.charAt(0).toUpperCase()+label.slice(1)} gerado e salvo no Cloudinary!`, 'success');
+      await loadProducts().catch(()=>null);
+      if(currentView === 'products') await renderProductsView().catch(()=>null);
+    } else {
+      displayMessage(`${label} gerado, mas não recebi a URL.`, 'info');
+    }
+  }catch(e){
+    displayMessage(`Erro ao gerar ${label}: ${e.message}`, 'error');
+  }
+}
+
+async function runMarketingAction(endpoint, payload = {}, successMessage = 'Ação concluída com sucesso!'){
+  const data = await apiRequest(endpoint, {
+    method:'POST',
+    headers:buildHeadersAuth(),
+    body:JSON.stringify(payload)
+  });
+  displayMessage(successMessage,'success');
+  return data;
+}
+
+window.generateAllProductPosters = async function(variant = 'square'){
+  const label = variant === 'story' ? 'stories' : 'posters';
+  if(!confirm(`Gerar ${label} para todos os produtos ativos? Isso pode demorar se houver muitos produtos.`)) return;
+  try{
+    const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters');
+    const original=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='Gerando...';}
+    const data = await runMarketingAction('/admin/posters/bulk', { ...buildPosterPayload(variant), limit: 1000 }, `${label.charAt(0).toUpperCase()+label.slice(1)} gerados: ${label}.`);
+    displayMessage(`Concluído: ${data.success||0} sucesso(s), ${data.failed||0} falha(s).`,'info');
+    await loadProducts().catch(()=>null);
+    if(btn){btn.disabled=false;btn.innerHTML=original;}
+  }catch(e){ displayMessage(`Erro ao gerar ${label}: ${e.message}`,'error'); const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters'); if(btn) btn.disabled=false; }
+}
+
+window.generateBannerDrafts = async function(){
+  if(!confirm('Gerar prévias automáticas de TODOS os formatos do painel banner? Nada será publicado no site sem sua aprovação.')) return;
+  try{
+    const btn=document.getElementById('btn-generate-banner-drafts'); const original=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='Gerando prévias...';}
+    const data = await runMarketingAction('/admin/marketing/banner-drafts/generate', { ...getMarketingCreativeSettings(), replaceWhatsappWithSite: true }, 'Prévia(s) de banners gerada(s) como rascunho.');
+    displayMessage(`${data.count||0} rascunho(s) criado(s). Revise antes de publicar.`,'info');
+    await renderMarketingView();
+    if(btn){btn.disabled=false;btn.innerHTML=original;}
+  }catch(e){ displayMessage(`Erro ao gerar rascunhos: ${e.message}`,'error'); const btn=document.getElementById('btn-generate-banner-drafts'); if(btn) btn.disabled=false; }
+}
+
+window.generateEverythingDraftMode = async function(){
+  if(!confirm('Gerar posters, stories e todos os banners do painel em rascunho? Os banners NÃO serão publicados automaticamente.')) return;
+  try{
+    const btn=document.getElementById('btn-generate-everything'); const original=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='Gerando tudo...';}
+    const data = await runMarketingAction('/admin/marketing/generate-all-drafts', { ...getMarketingCreativeSettings(), replaceWhatsappWithSite: true, limit: 1000 }, 'Geração geral concluída.');
+    displayMessage(`Posters: ${data.postersSuccess||0} | Stories: ${data.storiesSuccess||0} | Banners rascunho: ${data.bannerDrafts||0}`,'success');
+    await loadProducts().catch(()=>null);
+    await renderMarketingView();
+    if(btn){btn.disabled=false;btn.innerHTML=original;}
+  }catch(e){ displayMessage(`Erro na geração geral: ${e.message}`,'error'); const btn=document.getElementById('btn-generate-everything'); if(btn) btn.disabled=false; }
+}
+
+async function loadBannerDrafts(){
+  const data = await apiRequest('/admin/marketing/banner-drafts',{headers:buildHeadersAuth()});
+  return Array.isArray(data?.drafts) ? data.drafts : [];
+}
+
+window.publishBannerDraft = async function(id){
+  if(!confirm('Publicar este banner no site agora?')) return;
+  try{
+    await runMarketingAction(`/admin/marketing/banner-drafts/${encodeURIComponent(id)}/publish`, {}, 'Banner publicado no site com sucesso.');
+    await renderMarketingView();
+  }catch(e){ displayMessage(`Erro ao publicar banner: ${e.message}`,'error'); }
+}
+
+window.deleteBannerDraft = async function(id){
+  if(!confirm('Excluir este rascunho de banner?')) return;
+  try{
+    await apiRequest(`/admin/marketing/banner-drafts/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()});
+    displayMessage('Rascunho excluído.','success');
+    await renderMarketingView();
+  }catch(e){ displayMessage(`Erro ao excluir rascunho: ${e.message}`,'error'); }
+}
+
+function renderBannerDraftCards(drafts=[]){
+  if(!drafts.length) return '<div class="p-8 text-center text-sm text-gray-500 border rounded-2xl bg-gray-50">Nenhum banner em rascunho ainda. Clique em “Gerar prévias de banners”.</div>';
+  const aspectBySlot = (slot='') => {
+    slot = String(slot || '').toLowerCase();
+    if(slot.includes('vertical')) return 'aspect-[2/3]';
+    if(slot.includes('home_card')) return 'aspect-square';
+    if(slot.includes('mini')) return 'aspect-[16/9]';
+    if(slot.includes('footer')) return 'aspect-[24/5]';
+    if(slot.includes('main')) return 'aspect-[4/1]';
+    return 'aspect-[24/7]';
+  };
+  return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">${drafts.map(d=>{
+    const id=escHtml(d.id||d._id||d.slot||'');
+    const slot=escHtml(d.targetSlot||d.slot||'');
+    const products=Array.isArray(d.products)?d.products:[];
+    const aspect=aspectBySlot(slot);
+    return `<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div class="bg-slate-100 ${aspect} overflow-hidden flex items-center justify-center">
+        <img src="${escHtml(d.imageUrl||d.image||'')}" class="w-full h-full object-contain bg-slate-100" onerror="this.style.display='none'">
+      </div>
+      <div class="p-4">
+        <div class="flex items-start justify-between gap-3"><div><h3 class="font-black text-gray-900">${escHtml(d.title||'Banner automático')}</h3><p class="text-sm text-gray-500 mt-1">Destino: ${slot}</p></div><span class="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold">RASCUNHO</span></div>
+        <p class="text-sm text-gray-600 mt-3">${escHtml(d.subtitle||'')}</p>
+        <div class="mt-3 text-xs text-gray-500">Produtos usados: ${products.map(p=>escHtml(p.name||'produto')).join(', ') || 'seleção automática'}</div>
+        <div class="mt-4 flex flex-wrap gap-2"><a href="${escHtml(d.imageUrl||d.image||'#')}" target="_blank" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Ver prévia</a><button onclick="window.publishBannerDraft('${id}')" class="px-3 py-2 rounded-md bg-success-green text-white text-sm font-semibold">Publicar este banner</button><button onclick="window.deleteBannerDraft('${id}')" class="px-3 py-2 rounded-md bg-error-red text-white text-sm font-semibold">Excluir</button></div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderMarketingView(){
+  const box=document.getElementById('marketing-content');
+  if(!box) return;
+  box.innerHTML='<div class="bg-white p-6 rounded-xl shadow-sm text-gray-500">Carregando marketing automático...</div>';
+  let drafts=[];
+  try{ drafts=await loadBannerDrafts(); }catch(_e){ drafts=[]; }
+  box.innerHTML=`
+    <div class="space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-100">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div><h2 class="text-2xl font-black text-gray-900">Marketing automático Ariana Móveis</h2><p class="text-sm text-gray-500 mt-1">Gere posters, stories e todos os formatos de banners do painel. Ao aprovar, o banner ocupa o mesmo slot que o painel manual edita e o index lê.</p></div>
+          <button id="btn-generate-everything" onclick="window.generateEverythingDraftMode()" class="px-5 py-3 rounded-xl bg-primary-blue text-white font-black shadow hover:opacity-90">GERAR TUDO EM RASCUNHO</button>
+        </div>
+        ${(() => { const cfg = getMarketingCreativeSettings(); return `
+        <div class="mt-6 p-5 rounded-2xl border border-blue-100 bg-blue-50">
+          <div class="flex flex-col lg:flex-row gap-5 items-start">
+            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="md:col-span-2"><h3 class="text-lg font-black text-primary-blue">Texto do botão dos cartazes</h3><p class="text-sm text-gray-600">Troca o rodapé de WhatsApp por compra direta no site.</p></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Texto do botão</label><input id="mk-cta-text" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.ctaText)}"></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Texto abaixo do botão</label><input id="mk-site-label" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.siteLabel)}"></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Endereço do site</label><input id="mk-site-url" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.siteUrl)}"></div>
+              <div><label class="block text-xs font-bold text-gray-500 mb-1">Rodapé</label><input id="mk-footer-label" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.footerLabel)}"></div>
+              <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-500 mb-1">URL da mascote PNG sem fundo</label><input id="mk-mascot-url" class="w-full border rounded-xl px-3 py-2" value="${escHtml(cfg.mascotImageUrl)}"></div>
+              <div class="md:col-span-2 flex flex-wrap items-center gap-3">
+                <label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700"><input type="checkbox" id="mk-use-mascot" ${cfg.useMascot ? 'checked' : ''}> Usar mascote nos stories</label>
+                <input id="mk-mascot-file" type="file" accept="image/png,image/webp,image/jpeg" class="text-sm">
+                <button type="button" onclick="window.uploadMarketingMascot()" class="px-4 py-2 rounded-xl bg-white border text-primary-blue font-bold">Enviar mascote</button>
+                <button type="button" onclick="window.saveMarketingCreativeSettings()" class="px-4 py-2 rounded-xl bg-primary-blue text-white font-bold">Salvar configuração</button>
+              </div>
+            </div>
+            <div class="w-32 h-44 bg-white rounded-2xl border flex items-end justify-center overflow-hidden">
+              <img id="mk-mascot-preview" src="${escHtml(cfg.mascotImageUrl)}" class="max-w-full max-h-full object-contain" onerror="this.style.display='none'">
+            </div>
+          </div>
+        </div>`; })()}
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <button id="btn-generate-all-posters" onclick="window.generateAllProductPosters('square')" class="p-5 rounded-2xl border border-blue-100 bg-blue-50 text-left hover:shadow"><div class="text-lg font-black text-primary-blue">Gerar todos os posters</div><div class="text-sm text-gray-600 mt-1">1080x1080 para todos os produtos ativos.</div></button>
+          <button id="btn-generate-all-stories" onclick="window.generateAllProductPosters('story')" class="p-5 rounded-2xl border border-green-100 bg-green-50 text-left hover:shadow"><div class="text-lg font-black text-green-700">Gerar todos os stories</div><div class="text-sm text-gray-600 mt-1">1080x1920 para WhatsApp/Instagram.</div></button>
+          <button id="btn-generate-banner-drafts" onclick="window.generateBannerDrafts()" class="p-5 rounded-2xl border border-yellow-100 bg-yellow-50 text-left hover:shadow"><div class="text-lg font-black text-yellow-800">Gerar banners do painel</div><div class="text-sm text-gray-600 mt-1">Cria rascunhos para todos os slots oficiais do index e do painel banner.</div></button>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-100">
+        <div class="flex items-center justify-between mb-5"><div><h2 class="text-xl font-black text-gray-900">Banners em rascunho</h2><p class="text-sm text-gray-500">Revise a arte antes de publicar. O mesmo banner poderá ser alterado depois pelo painel de banners manual.</p></div><button onclick="renderMarketingView()" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Atualizar</button></div>
+        ${renderBannerDraftCards(drafts)}
+      </div>
+    </div>`;
+}
+
+window.setMainImage = async function(encodedName){ const name=decodeURIComponent(encodedName); if(!editingProductId) return; productImagesCache=productImagesCache.map(img=>({...img,isMain:img.name===name})); if(!productImagesCache.some(x=>x.isMain)&&productImagesCache.length) productImagesCache[0].isMain=true; renderProductImages(); await persistProductImages(); }
+window.deleteImage = async function(encodedName){ const name=decodeURIComponent(encodedName); if(!editingProductId) return; const img=productImagesCache.find(x=>x.name===name); if(!img) return; if(!confirm(`Excluir a imagem ${name}?`)) return; try{ if(img.path){ await apiRequest(`/admin/uploads?path=${encodeURIComponent(img.path)}`,{method:'DELETE',headers:buildHeadersAuth()}).catch(()=>null); } productImagesCache=productImagesCache.filter(x=>x.name!==name); if(productImagesCache.length&&!productImagesCache.some(x=>x.isMain)) productImagesCache[0].isMain=true; await persistProductImages(); renderProductImages(); displayMessage('Imagem removida com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
+async function persistProductImages(){
+  if(!editingProductId) return;
+  const existing = allProductsCache.find(x => String(x.id||x._id) === String(editingProductId)) || {};
+  const main=productImagesCache.find(x=>x.isMain)||productImagesCache[0]||{};
+  const saved = await apiRequest(`/admin/products/${encodeURIComponent(editingProductId)}`,{
+    method:'PATCH',
+    headers:buildHeadersAuth(),
+    body:JSON.stringify({
+      name: document.getElementById('product-name')?.value?.trim() || existing.name || '',
+      category: document.getElementById('product-category')?.value || existing.category || existing.categoryName || '',
+      categoryName: document.getElementById('product-category')?.value || existing.categoryName || existing.category || '',
+      price: parseMoneyBRClient(document.getElementById('product-price')?.value ?? existing.price ?? 0),
+      stock: Number(document.getElementById('product-stock')?.value ?? existing.stock ?? 0),
+      sku: document.getElementById('product-sku')?.value?.trim() || existing.sku || '',
+      description: document.getElementById('product-description')?.value?.trim() || existing.description || '',
+      technicalSpecs: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalSpecs || existing.technicalSpecifications || existing.specifications || '',
+      technicalSpecification: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalSpecification || existing.technicalSpecs || existing.specifications || '',
+      technicalSpecifications: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalSpecifications || existing.technicalSpecs || existing.specifications || '',
+      specifications: document.getElementById('product-technical-specs')?.value?.trim() || existing.specifications || existing.technicalSpecs || existing.technicalSpecifications || '',
+      specification: document.getElementById('product-technical-specs')?.value?.trim() || existing.specification || existing.specifications || existing.technicalSpecs || '',
+      specs: document.getElementById('product-technical-specs')?.value?.trim() || existing.specs || existing.specifications || existing.technicalSpecs || '',
+      fichaTecnica: document.getElementById('product-technical-specs')?.value?.trim() || existing.fichaTecnica || existing.technicalSpecs || '',
+      ficha_tecnica: document.getElementById('product-technical-specs')?.value?.trim() || existing.ficha_tecnica || existing.technicalSpecs || '',
+      especificacaoTecnica: document.getElementById('product-technical-specs')?.value?.trim() || existing.especificacaoTecnica || existing.technicalSpecs || '',
+      especificacoesTecnicas: document.getElementById('product-technical-specs')?.value?.trim() || existing.especificacoesTecnicas || existing.technicalSpecs || '',
+      especificacoes: document.getElementById('product-technical-specs')?.value?.trim() || existing.especificacoes || existing.technicalSpecs || '',
+      technicalDetails: document.getElementById('product-technical-specs')?.value?.trim() || existing.technicalDetails || existing.technicalSpecs || '',
+      attributes: parseTechnicalSpecsToObject(document.getElementById('product-technical-specs')?.value?.trim() || ''),
+      atributos: parseTechnicalSpecsToObject(document.getElementById('product-technical-specs')?.value?.trim() || ''),
+      weight: Number(document.getElementById('product-weight')?.value ?? existing.weight ?? 1),
+      length: Number(document.getElementById('product-length')?.value ?? existing.length ?? 20),
+      height: Number(document.getElementById('product-height')?.value ?? existing.height ?? 10),
+      width: Number(document.getElementById('product-width')?.value ?? existing.width ?? 15),
+      sellerId: existing.sellerId || 'ArianaMoveis',
+      sellerName: existing.sellerName || 'Ariana Móveis',
+      soldBy: existing.soldBy || 'Ariana Móveis',
+      deliveredBy: existing.deliveredBy || 'Ariana Móveis',
+      storeName: existing.storeName || 'Ariana Móveis',
+      lojaNome: existing.lojaNome || 'Ariana Móveis',
+      lojaTipo: existing.lojaTipo || 'propria',
+      isOwnProduct: existing.isOwnProduct !== false,
+      isMarketplacePartner: !!existing.isMarketplacePartner,
+      isOffer: document.getElementById('product-isOffer')?.checked ?? !!existing.isOffer,
+      isFavorite: document.getElementById('product-isFavorite')?.checked ?? !!existing.isFavorite,
+      isHighlight: document.getElementById('product-isHighlight')?.checked ?? !!existing.isHighlight,
+      isBestSeller: document.getElementById('product-isBestSeller')?.checked ?? !!existing.isBestSeller,
+      isNewArrival: document.getElementById('product-isNewArrival')?.checked ?? !!existing.isNewArrival,
+      isRecommended: document.getElementById('product-isRecommended')?.checked ?? !!existing.isRecommended,
+      images: productImagesCache,
+      image: main.url||'',
+      imageUrl: main.url||'',
+      mainImageUrl: main.url||'',
+      mainImagePath: main.path||'',
+      imageUrls: productImagesCache.map(i=>i.url),
+      imagePaths: productImagesCache.map(i=>i.path||i.url),
+      updatedAt:nowISO()
+    })
+  });
+  syncProductStateFromServer(saved);
+  renderProductImages();
+}
+window.handleProductSaveClick = async function(e){
+  if(e){
+    if(typeof e.preventDefault === 'function') e.preventDefault();
+    if(typeof e.stopPropagation === 'function') e.stopPropagation();
+  }
+  return saveProductFromForm(e);
+}
+
+
+function parseTechnicalSpecsToObject(text){
+  const out = {};
+  String(text || '')
+    .split(/\r?\n|;\s*/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .forEach((line, idx) => {
+      const parts = line.split(/:\s*/);
+      if(parts.length > 1){
+        const key = parts.shift().trim();
+        const value = parts.join(': ').trim();
+        if(key && value) out[key] = value;
+      } else {
+        out[`Item ${idx + 1}`] = line;
+      }
+    });
+  return out;
+}
+
+async function saveProductFromForm(e){
+  if(editingProductId && !hasAdminPerm('products:update')){ displayMessage('Você não tem permissão para atualizar produtos.','error'); return; }
+  if(!editingProductId && !hasAdminPerm('products:create')){ displayMessage('Você não tem permissão para cadastrar produtos.','error'); return; }
+  if(e){
+    if(typeof e.preventDefault === 'function') e.preventDefault();
+    if(typeof e.stopPropagation === 'function') e.stopPropagation();
+  }
+  try{
+    const currentMain=(productImagesCache.find(x=>x.isMain)||productImagesCache[0]||{});
+    const currentIdField=document.getElementById('product-id');
+    const currentFormId=String(currentIdField?.value||editingProductId||'').trim();
+    const technicalSpecsText = document.getElementById('product-technical-specs')?.value?.trim() || '';
+    const technicalSpecsObject = parseTechnicalSpecsToObject(technicalSpecsText);
+    const payload={
+      name:document.getElementById('product-name').value.trim(),
+      category:document.getElementById('product-category').value,
+      categoryName:document.getElementById('product-category').value,
+      price:parseMoneyBRClient(document.getElementById('product-price').value||0),
+      stock:Number(document.getElementById('product-stock').value||0),
+      sku:document.getElementById('product-sku').value.trim(),
+      description:document.getElementById('product-description').value.trim(),
+      technicalSpecs:technicalSpecsText,
+      technicalSpecification:technicalSpecsText,
+      technicalSpecifications:technicalSpecsText,
+      specifications:technicalSpecsText,
+      specification:technicalSpecsText,
+      specs:technicalSpecsText,
+      fichaTecnica:technicalSpecsText,
+      ficha_tecnica:technicalSpecsText,
+      especificacaoTecnica:technicalSpecsText,
+      especificacoesTecnicas:technicalSpecsText,
+      especificacoes:technicalSpecsText,
+      technicalDetails:technicalSpecsText,
+      attributes:technicalSpecsObject,
+      atributos:technicalSpecsObject,
+      weight:Number(document.getElementById('product-weight').value||1),
+      length:Number(document.getElementById('product-length').value||20),
+      height:Number(document.getElementById('product-height').value||10),
+      width:Number(document.getElementById('product-width').value||15),
+      isOffer:document.getElementById('product-isOffer').checked,
+      isFavorite:document.getElementById('product-isFavorite').checked,
+      isHighlight:document.getElementById('product-isHighlight').checked,
+      isBestSeller:document.getElementById('product-isBestSeller').checked,
+      isNewArrival:document.getElementById('product-isNewArrival').checked,
+      isRecommended:document.getElementById('product-isRecommended').checked,
+      sellerId:'ArianaMoveis', sellerName:'Ariana Móveis', soldBy:'Ariana Móveis', deliveredBy:'Ariana Móveis', storeName:'Ariana Móveis', lojaNome:'Ariana Móveis', lojaTipo:'propria', isOwnProduct:true, isMarketplacePartner:false,
+      images:productImagesCache,
+      image:currentMain.url||'',
+      imageUrl:currentMain.url||'',
+      mainImageUrl:currentMain.url||'',
+      mainImagePath:currentMain.path||'',
+      imageUrls:productImagesCache.map(i=>i.url).filter(Boolean),
+      imagePaths:productImagesCache.map(i=>i.path||i.url).filter(Boolean),
+      updatedAt:nowISO()
+    };
+    if(!payload.name) throw new Error('Informe o nome do produto');
+    if(!payload.category) throw new Error('Selecione a categoria');
+
+    const saveBtn=document.getElementById('product-submit-btn');
+    const uploadBtn=document.getElementById('product-upload-btn');
+    const originalSave=saveBtn.innerHTML;
+    const originalUpload=uploadBtn ? uploadBtn.innerHTML : '';
+    saveBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Salvando...';
+    saveBtn.disabled=true;
+    if(uploadBtn){ uploadBtn.disabled=true; uploadBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Aguardando...'; }
+
+    try{
+      const wasEditing = !!currentFormId;
+      const endpoint=wasEditing?`/admin/products/${encodeURIComponent(currentFormId)}`:'/admin/products';
+      const method=wasEditing?'PATCH':'POST';
+      const saved=await apiRequest(endpoint,{method,headers:buildHeadersAuth(),body:JSON.stringify(payload)});
+      const synced=syncProductStateFromServer(saved);
+      const resolvedId=String(synced?.id||synced?._id||saved?.id||saved?._id||saved?.product?.id||saved?.product?._id||currentFormId||'').trim();
+      if(!resolvedId) throw new Error('Produto salvo sem ID de retorno.');
+      editingProductId=resolvedId;
+      if(currentIdField) currentIdField.value=resolvedId;
+
+      const input=document.getElementById('product-images-input');
+      const pendingFiles=Array.from(input?.files||[]);
+      if(pendingFiles.length){
+        await uploadProductImages({ productId: resolvedId, files: pendingFiles, silentSuccess: true, keepInput: false });
+      }
+
+      await loadProducts();
+      await renderProductsView();
+      window.editProduct(resolvedId);
+
+      const successMessage=pendingFiles.length
+        ? (wasEditing ? 'Produto e imagens atualizados com sucesso!' : 'Produto e imagens salvos com sucesso!')
+        : (wasEditing ? 'Produto atualizado com sucesso!' : 'Produto salvo com sucesso!');
+      displayMessage(successMessage,'success');
+    } finally {
+      saveBtn.innerHTML=originalSave;
+      saveBtn.disabled=false;
+      if(uploadBtn){ uploadBtn.innerHTML=originalUpload; uploadBtn.disabled=false; }
+    }
+  }catch(err){displayMessage(err.message,'error');}
+}
+window.handleProductUploadClick = async function(e){
+  if(e){
+    if(typeof e.preventDefault === 'function') e.preventDefault();
+    if(typeof e.stopPropagation === 'function') e.stopPropagation();
+  }
+  return uploadProductImages({});
+}
+
+async function uploadProductImages(options={}){
+  if(!hasAnyAdminPerm('uploads:create','products:create','products:update')){ displayMessage('Você não tem permissão para enviar imagens.','error'); return; }
+  try{
+    const productId=String(options.productId||document.getElementById('product-id')?.value||editingProductId||'').trim();
+    if(!productId) throw new Error('Salve o produto primeiro antes de enviar imagens');
+    editingProductId=productId;
+    const input=document.getElementById('product-images-input');
+    const files=Array.isArray(options.files) ? options.files : Array.from(input?.files||[]);
+    if(!files.length) throw new Error('Selecione pelo menos uma imagem');
+    const btn=document.getElementById('product-upload-btn');
+    const original=btn ? btn.innerHTML : '';
+    if(btn){ btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Enviando...'; btn.disabled=true; }
+    try{
+      const uploaded=[];
+      for(const file of files){
+        const fd=new FormData();
+        fd.append('file',file);
+        fd.append('path','produtos');
+        const data=await apiRequest('/admin/uploads',{method:'POST',headers:buildHeadersAuth(),body:fd});
+        const url=data.url||data.downloadURL||data.imageUrl;
+        if(!url) throw new Error('Upload concluído sem URL pública');
+        uploaded.push({
+          name:data.filename||file.name||`imagem_${Date.now()}`,
+          url,
+          path:data.path||data.fullPath||data.filePath||data.public_id||url,
+          isMain:productImagesCache.length===0 && uploaded.length===0,
+          contentType:file.type||data.contentType||''
+        });
+      }
+      productImagesCache=[...productImagesCache,...uploaded];
+      if(productImagesCache.length&&!productImagesCache.some(x=>x.isMain)) productImagesCache[0].isMain=true;
+      await persistProductImages();
+      await loadProducts();
+      const refreshed=allProductsCache.find(x=>String(x.id||x._id)===productId);
+      if(refreshed) syncProductStateFromServer(refreshed);
+      renderProductImages();
+      if(input && !options.keepInput) input.value='';
+      if(!options.silentSuccess) displayMessage('Imagens carregadas com sucesso!','success');
+      return productImagesCache;
+    } finally {
+      if(btn){ btn.innerHTML=original; btn.disabled=false; }
+    }
+  }catch(e){displayMessage(`Erro no upload: ${e.message}`,'error'); throw e;}
+}
+async function renderProductsView(){
+  await Promise.allSettled([loadProducts(), loadCategories()]);
+  const box=document.getElementById('products-content');
+  box.innerHTML=`
+    ${getAdminRole() !== 'admin' ? '<div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900"><b>Acesso limitado:</b> você tem permissão somente nas funções liberadas para produtos/posters.</div>' : ''}
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div class="xl:col-span-2 bg-white p-5 rounded-lg shadow-md">
+        <div class="flex items-center justify-between mb-4"><h2 id="product-form-title" class="text-2xl font-bold text-text-dark">Cadastrar / Editar Produto</h2><button type="button" id="product-reset-btn" class="px-3 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-semibold">Limpar</button></div>
+        <form id="product-form" class="space-y-4" onsubmit="return false;">
+          <input type="hidden" id="product-id">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Nome do produto</label><input id="product-name" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label><select id="product-category" class="w-full border border-gray-300 rounded-lg px-3 py-2">${productCategoryOptions('')}</select></div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Preço</label><input id="product-price" type="text" inputmode="decimal" placeholder="0,00" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Estoque</label><input id="product-stock" type="number" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">SKU</label><input id="product-sku" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+          </div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label><textarea id="product-description" class="w-full min-h-[110px] border border-gray-300 rounded-lg px-3 py-2" placeholder="Descrição comercial do produto para aparecer na página de detalhes."></textarea></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Especificação Técnica</label><textarea id="product-technical-specs" class="w-full min-h-[120px] border border-gray-300 rounded-lg px-3 py-2" placeholder="Ex: Marca, modelo, voltagem, dimensões, capacidade, material, garantia e demais informações técnicas."></textarea><p class="text-xs text-gray-500 mt-1">Use este campo para ficha técnica separada da descrição do produto.</p></div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Peso (kg)</label><input id="product-weight" type="number" step="0.01" value="1" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Comprimento</label><input id="product-length" type="number" step="1" value="20" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Altura</label><input id="product-height" type="number" step="1" value="10" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Largura</label><input id="product-width" type="number" step="1" value="15" class="w-full border border-gray-300 rounded-lg px-3 py-2"></div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-gray-700">${productFlagsMarkup({})}</div>
+          <div class="flex flex-wrap items-center justify-end gap-3 pt-2"><button type="button" id="product-poster-btn" class="px-4 py-2 rounded-md bg-success-green text-white font-semibold hover:opacity-90">Gerar Poster</button><button type="button" id="product-story-btn" class="px-4 py-2 rounded-md bg-secondary-light-blue text-white font-semibold hover:opacity-90">Gerar Story</button><button type="button" id="product-submit-btn" onclick="window.handleProductSaveClick(event)" class="px-4 py-2 rounded-md bg-primary-blue text-white font-semibold hover:bg-secondary-light-blue">Salvar Produto</button></div>
+        </form>
+      </div>
+      <div class="bg-white p-5 rounded-lg shadow-md">
+        <h3 class="text-xl font-bold text-text-dark mb-3">Imagens</h3>
+        <p class="text-sm text-gray-500 mb-3">Salve o produto primeiro e depois envie as imagens. A principal é a que vai aparecer no site.</p>
+        <input id="product-images-input" type="file" multiple accept="image/*" class="w-full border border-gray-300 rounded-lg px-3 py-2 mb-3">
+        <button type="button" id="product-upload-btn" class="w-full px-4 py-2 rounded-md bg-success-green text-white font-semibold hover:opacity-90 mb-4">Enviar Imagem(ns)</button>
+        <div id="product-images-grid" class="grid grid-cols-2 gap-3"></div>
+      </div>
+    </div>
+    <div class="bg-white p-5 rounded-lg shadow-md mt-6 overflow-hidden">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+        <div><h2 class="text-xl font-bold text-text-dark">Produtos cadastrados</h2><p class="text-sm text-gray-500">Também dá para gerar artes em lote pela tela Marketing IA.</p></div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="window.exportProductsExcel()" class="px-4 py-2 rounded-md bg-success-green text-white text-sm font-bold hover:opacity-90"><i class="fas fa-file-excel mr-2"></i>Exportar Excel</button>
+            <button type="button" onclick="window.printProductsPdf()" class="px-4 py-2 rounded-md bg-primary-blue text-white text-sm font-bold hover:bg-secondary-light-blue"><i class="fas fa-file-pdf mr-2"></i>PDF / Imprimir</button>
+          </div>
+        <div class="flex flex-wrap gap-2"><button type="button" onclick="window.generateAllProductPosters('square')" class="px-3 py-2 rounded-md bg-success-green text-white text-xs font-bold">Gerar posters de todos</button><button type="button" onclick="window.generateAllProductPosters('story')" class="px-3 py-2 rounded-md bg-secondary-light-blue text-white text-xs font-bold">Gerar stories de todos</button><button type="button" onclick="window.changeView('marketing')" class="px-3 py-2 rounded-md bg-primary-blue text-white text-xs font-bold">Banners em rascunho</button></div>
+      </div>
+      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Marcadores</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${renderProductsTable()}</tbody></table></div>
+    </div>`;
+  const productForm=document.getElementById('product-form');
+  const productSaveBtn=document.getElementById('product-submit-btn');
+  const productUploadBtn=document.getElementById('product-upload-btn');
+  const productResetBtn=document.getElementById('product-reset-btn');
+  const productPosterBtn=document.getElementById('product-poster-btn');
+  const productStoryBtn=document.getElementById('product-story-btn');
+  if(productForm){
+    productForm.onsubmit=function(ev){
+      if(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      return false;
+    };
+  }
+  if(productSaveBtn) productSaveBtn.onclick=window.handleProductSaveClick;
+  if(productUploadBtn) productUploadBtn.onclick=window.handleProductUploadClick;
+  if(productResetBtn) productResetBtn.onclick=resetProductForm;
+  if(productPosterBtn) productPosterBtn.onclick=()=>window.generateProductPoster(editingProductId,'square');
+  if(productStoryBtn) productStoryBtn.onclick=()=>window.generateProductPoster(editingProductId,'story');
+  if (editingProductId) {
+    window.editProduct(editingProductId);
+  } else {
+    resetProductForm();
+  }
+}
+async function renderCategoriesView(){
+  await loadCategories();
+  const box=document.getElementById('categories-content');
+  box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><div class="flex items-center justify-between mb-4"><h2 class="text-2xl font-bold text-text-dark">Categorias</h2><button id="seed-categories-btn" class="px-4 py-2 rounded-md bg-primary-blue text-white text-sm font-semibold">Cadastrar categorias padrão</button></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Nome</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Slug</th></tr></thead><tbody>${allCategoriesCache.map(c=>`<tr class="border-t"><td class="px-4 py-3">${escHtml(c.name||'')}</td><td class="px-4 py-3 text-sm text-gray-500">${escHtml(c.slug||'')}</td></tr>`).join('') || '<tr><td colspan="2" class="px-4 py-8 text-center text-sm text-gray-500">Nenhuma categoria cadastrada.</td></tr>'}</tbody></table></div></div>`;
+  document.getElementById('seed-categories-btn').addEventListener('click', seedCategories);
+}
+async function seedCategories(){
+  try{
+    for(const name of CATEGORIAS_ARIANA){ if(allCategoriesCache.some(c=>String(c.name||'').toLowerCase()===name.toLowerCase())) continue; await apiRequest('/admin/categories',{method:'POST',headers:buildHeadersAuth(),body:JSON.stringify({name,slug:name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')})}); }
+    await loadCategories(); await renderCategoriesView(); displayMessage('Categorias padrão cadastradas!','success');
+  }catch(e){displayMessage(e.message,'error');}
+}
+async function renderOrdersView(){
+  await loadOrders();
+  const box=document.getElementById('orders-content');
+  box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><h2 class="text-2xl font-bold text-text-dark mb-4">Pedidos</h2><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Total</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ações</th></tr></thead><tbody>${allOrdersCache.map(o=>`<tr class="border-t" data-order-id="${escHtml(String(o.id||o._id||''))}"><td class="px-4 py-3 text-sm">${escHtml(String(o.id||o._id||''))}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||o.nomeCliente||'—')}</td><td class="px-4 py-3 text-sm">${formatDateTime(o.createdAt)}</td><td class="px-4 py-3 text-sm">${formatCurrency(o.total||0)}</td><td class="px-4 py-3 text-sm">${escHtml(o.status||'—')}</td><td class="px-4 py-3 text-sm"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.openOrderModal('${escHtml(String(o.id||o._id||''))}')">Ver / Atualizar</button></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum pedido.</td></tr>'}</tbody></table></div></div>`;
+}
+window.openOrderModal = function(id){
+  const order=allOrdersCache.find(o=>String(o.id||o._id)===String(id));
+  if(!order) return;
+  document.getElementById('modal-order-id').textContent=`#${id}`;
+  document.getElementById('modal-order-doc-id').value=id;
+  document.getElementById('update-status').value=order.status||'Aguardando Pagamento';
+  document.getElementById('update-tracking-code').value=order.trackingCode||'';
+  document.getElementById('modal-content-details').innerHTML=`
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div><div class="text-sm text-gray-500">Cliente</div><div class="font-semibold">${escHtml(order.customerName||'—')}</div></div>
+      <div><div class="text-sm text-gray-500">Total</div><div class="font-semibold">${formatCurrency(order.total||0)}</div></div>
+      <div><div class="text-sm text-gray-500">Status atual</div><div class="font-semibold">${escHtml(order.status||'—')}</div></div>
+      <div><div class="text-sm text-gray-500">Criado em</div><div class="font-semibold">${formatDateTime(order.createdAt)}</div></div>
+    </div>
+    <div class="mt-4">
+      <div class="text-sm text-gray-500 mb-2">Itens</div>
+      <div class="space-y-2">${(order.items||[]).map(i=>`<div class="border rounded-lg p-3"><div class="font-medium">${escHtml(i.name||'Item')}</div><div class="text-sm text-gray-500">Qtd: ${Number(i.qty||i.quantity||1)} · ${formatCurrency(i.unitPrice||i.price||0)}</div></div>`).join('') || '<div class="text-sm text-gray-500">Sem itens.</div>'}</div>
+    </div>
+    <div class="mt-5 pt-4 border-t">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <h4 class="text-lg font-semibold">NF-e / XML / DANFE</h4>
+        <button type="button" onclick="loadAdminOrderNfe('${String(id).replace(/'/g, '')}')" class="px-3 py-2 rounded-lg bg-white border text-gray-700 text-xs font-bold"><i class="fas fa-rotate mr-1"></i>Atualizar</button>
+      </div>
+      <div id="admin-order-nfe-content"><span class="text-gray-500 text-sm">Carregando NF-e...</span></div>
+      <div class="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+        <div class="flex items-start gap-3 mb-3">
+          <div class="w-9 h-9 rounded-lg bg-primary-blue text-white flex items-center justify-center"><i class="fas fa-file-invoice"></i></div>
+          <div>
+            <div class="font-black text-gray-800">Localizar NF-e emitida no SIGE</div>
+            <div class="text-xs text-gray-500">Use este botão depois de emitir a nota manualmente no SIGE. Ele consulta o SIGE e salva XML/DANFE no pedido.</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[11px] uppercase font-black text-gray-500 mb-1">Nº / Código NF-e</label>
+            <input id="admin-nfe-codigo" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Ex: 1446">
+          </div>
+          <div>
+            <label class="block text-[11px] uppercase font-black text-gray-500 mb-1">Série</label>
+            <input id="admin-nfe-serie" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value="1" placeholder="Ex: 1">
+          </div>
+          <div>
+            <label class="block text-[11px] uppercase font-black text-gray-500 mb-1">CNPJ Emitente</label>
+            <input id="admin-nfe-cnpj" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value="48126915000174" placeholder="CNPJ Ariana">
+          </div>
+        </div>
+        <button id="btn-admin-save-nfe" type="button" onclick="saveAdminOrderNfeFromSige('${String(id).replace(/'/g, '')}')" class="mt-3 w-full px-4 py-2 rounded-lg bg-primary-blue text-white text-sm font-black hover:bg-secondary-light-blue">
+          <i class="fas fa-cloud-download-alt mr-2"></i>Localizar e salvar NF-e no pedido
+        </button>
+      </div>
+    </div>`;
+  const modal=document.getElementById('order-detail-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  const modalScroll = modal.querySelector('.overflow-y-auto');
+  if (modalScroll) modalScroll.scrollTop = 0;
+  loadAdminOrderNfe(id);
+}
+window.handleOrderUpdate = async function(){
+  try{
+    const id=document.getElementById('modal-order-doc-id').value;
+    const status=document.getElementById('update-status').value;
+    const trackingCode=document.getElementById('update-tracking-code').value.trim();
+
+    const result = await apiRequest(`/admin/orders/${encodeURIComponent(id)}`,{
+      method:'PATCH',
+      headers:buildHeadersAuth(),
+      body:JSON.stringify({status, statusLabel:status, trackingCode, updatedAt:nowISO()})
+    });
+
+    console.log('[PEDIDO ATUALIZADO / WHATSAPP]', result);
+
+    closeModal('order-detail-modal');
+    await loadOrders();
+    await renderOrdersView();
+    await loadDashboardSafe();
+
+    const waAdminOk = result?.adminWhatsapp?.ok === true || Array.isArray(result?.adminWhatsapp?.results) && result.adminWhatsapp.results.some(x=>x.ok);
+    const waClientOk = result?.whatsapp?.ok === true;
+    const adminReason = result?.adminWhatsapp?.reason || result?.adminWhatsapp?.error || '';
+    const clientReason = result?.whatsapp?.reason || result?.whatsapp?.error || '';
+
+    if(waAdminOk || waClientOk) {
+      displayMessage('Pedido atualizado e WhatsApp disparado!', 'success');
+    } else if(adminReason || clientReason) {
+      displayMessage(`Pedido atualizado. WhatsApp não enviado: ${adminReason || clientReason}`, 'info');
+    } else {
+      displayMessage('Pedido atualizado com sucesso!', 'success');
+    }
+  }catch(e){
+    displayMessage(e.message,'error');
+  }
+}
+async function renderUsersView(){ await loadUsers(); const box=document.getElementById('users-content'); box.innerHTML=`<div class="bg-white p-5 rounded-lg shadow-md overflow-hidden"><h2 class="text-2xl font-bold text-text-dark mb-4">Usuários</h2><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Nome</th><th class="px-4 py-3 text-xs uppercase text-gray-500">E-mail</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Perfil</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${allUsersCache.map(u=>`<tr class="border-t"><td class="px-4 py-3 text-sm">${escHtml(u.name||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(u.email||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(u.role||'customer')}</td><td class="px-4 py-3 text-sm">${u.isActive===false?'<span class="px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold">Inativo</span>':'<span class="px-2 py-1 rounded-full bg-green-50 text-green-600 text-xs font-semibold">Ativo</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum usuário.</td></tr>'}</tbody></table></div></div>`; }
+
+async function loadAtendimentoDashboardMetrics(rows = []){
+  let dashboard = null;
+  try {
+    dashboard = await apiRequest('/admin/atendimento/dashboard', { headers: buildHeadersAuth() });
+  } catch(_e) {
+    dashboard = null;
+  }
+
+  const localRows = Array.isArray(rows) ? rows : [];
+  const novoRows = localRows.filter(at => String(at.status || 'Novo').toLowerCase() === 'novo');
+  const sacLocal = novoRows.filter(at => String(at.tipo || at.departamento || at.department || '').toLowerCase().includes('sac')).length;
+  const finLocal = novoRows.filter(at => String(at.tipo || at.departamento || at.department || '').toLowerCase().includes('fin')).length;
+  const totalLocal = novoRows.length;
+
+  const queue = dashboard?.queue || dashboard?.fila || {};
+  const ratings = dashboard?.ratings || dashboard?.avaliacoes || {};
+  const critical = dashboard?.critical || dashboard?.criticos || {};
+
+  return {
+    total: Number(queue.total ?? dashboard?.clientesAguardando ?? totalLocal ?? 0),
+    sac: Number(queue.sac ?? dashboard?.sacAguardando ?? sacLocal ?? 0),
+    financeiro: Number(queue.financeiro ?? dashboard?.financeiroAguardando ?? finLocal ?? 0),
+    media: ratings.media ?? dashboard?.mediaAvaliacoes ?? '—',
+    avaliacoesHoje: ratings.totalHoje ?? ratings.total ?? dashboard?.avaliacoesHoje ?? 0,
+    criticosHoje: Number(critical.hoje ?? critical.totalHoje ?? dashboard?.alertasCriticosHoje ?? 0),
+    tempoMedio: dashboard?.tempoMedioResposta || dashboard?.tempoMedio || '—',
+    fonte: dashboard ? 'Dados do atendimento em tempo real' : 'Dados parciais do painel'
+  };
+}
+
+function renderAtendimentoDashboardCards(metrics = {}){
+  const setText = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = String(value ?? '—'); };
+  setText('metric-at-total', metrics.total ?? 0);
+  setText('metric-at-sac', metrics.sac ?? 0);
+  setText('metric-at-fin', metrics.financeiro ?? 0);
+  setText('metric-at-media', metrics.media === '—' ? '—' : String(metrics.media).replace('.', ','));
+  setText('metric-at-critical', metrics.criticosHoje ?? 0);
+
+  const status = document.getElementById('atendimento-dashboard-status');
+  if(status){
+    status.textContent = metrics.fonte || 'Atualizado';
+    status.className = 'text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-600';
+  }
+
+  const box = document.getElementById('atendimento-dashboard-summary');
+  if(box){
+    box.innerHTML = `
+      <div class="p-4 rounded-xl bg-blue-50 border border-blue-100">
+        <div class="text-xs uppercase font-black text-blue-500">Fila atual</div>
+        <div class="mt-2 text-gray-800 font-bold">${Number(metrics.total || 0)} cliente(s) aguardando</div>
+        <div class="text-xs text-gray-500 mt-1">SAC: ${Number(metrics.sac || 0)} • Financeiro: ${Number(metrics.financeiro || 0)}</div>
+      </div>
+      <div class="p-4 rounded-xl bg-yellow-50 border border-yellow-100">
+        <div class="text-xs uppercase font-black text-yellow-600">Avaliações</div>
+        <div class="mt-2 text-gray-800 font-bold">Média: ${escHtml(metrics.media || '—')}</div>
+        <div class="text-xs text-gray-500 mt-1">${Number(metrics.avaliacoesHoje || 0)} avaliação(ões) hoje</div>
+      </div>
+      <div class="p-4 rounded-xl bg-red-50 border border-red-100">
+        <div class="text-xs uppercase font-black text-red-500">Risco operacional</div>
+        <div class="mt-2 text-gray-800 font-bold">${Number(metrics.criticosHoje || 0)} alerta(s) crítico(s)</div>
+        <div class="text-xs text-gray-500 mt-1">Tempo médio: ${escHtml(metrics.tempoMedio || '—')}</div>
+      </div>`;
+  }
+}
+
+
+
+function showAtendimentoMessage(message){
+  const text = String(message || '').trim() || 'Sem mensagem registrada.';
+  try {
+    alert('MENSAGEM DO ATENDIMENTO:\n\n' + text);
+  } catch(_e) {}
+}
+
+function bindAtendimentoButtons(){
+  const refreshBtn = document.getElementById('atendimento-refresh-btn');
+  if(refreshBtn && !refreshBtn.dataset.bound){
+    refreshBtn.dataset.bound = '1';
+    refreshBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const original = refreshBtn.innerHTML;
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Atualizando...';
+      try {
+        await renderAtendimentosView();
+        displayMessage('Atendimentos atualizados!', 'success');
+      } catch(err) {
+        displayMessage('Erro ao atualizar atendimentos: ' + (err.message || err), 'error');
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = original;
+      }
+    });
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const viewBtn = ev.target.closest && ev.target.closest('.at-view');
+  if(viewBtn){
+    ev.preventDefault();
+    showAtendimentoMessage(viewBtn.dataset.msg || '');
+  }
+});
+
+
+window.renderAtendimentosView = renderAtendimentosView;
+async function renderAtendimentosView(){
+  bindAtendimentoButtons();
+  const data = await apiRequest('/admin/atendimentos?sortBy=createdAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()}).catch(()=>[]);
+  const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
+  const atendimentoMetrics = await loadAtendimentoDashboardMetrics(rows).catch(() => ({}));
+  renderAtendimentoDashboardCards(atendimentoMetrics);
+  const tbody=document.getElementById('table-atendimentos-body'); const badge=document.getElementById('badge-atendimentos');
+  let novos=0; tbody.innerHTML=rows.map(at=>{const id=String(at.id||at._id||''); const status=String(at.status||'Novo'); if(status==='Novo') novos++; return `<tr class="border-b border-gray-50 hover:bg-gray-50/50 transition"><td class="px-6 py-4"><div class="font-bold text-gray-800">#${escHtml(at.protocolo||id||'---')}</div><div class="text-[10px] text-gray-400">${formatDateTime(at.createdAt||at.data)}</div></td><td class="px-6 py-4"><div class="text-sm font-semibold text-gray-700">${escHtml(at.nome||at.name||'---')}</div><div class="text-xs text-gray-500">${escHtml(at.email||'')}</div></td><td class="px-6 py-4"><span class="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-600">${escHtml(at.tipo||'Atendimento')}</span></td><td class="px-6 py-4 text-center"><select data-id="${escHtml(id)}" class="at-status text-xs border-none bg-gray-100 rounded-lg p-1 font-semibold"><option value="Novo" ${status==='Novo'?'selected':''}>Novo</option><option value="Em Andamento" ${status==='Em Andamento'?'selected':''}>Em Andamento</option><option value="Resolvido" ${status==='Resolvido'?'selected':''}>Resolvido</option></select></td><td class="px-6 py-4 text-right"><button type="button" class="at-view p-2 text-blue-500 hover:bg-blue-50 rounded-lg" data-msg="${escHtml(at.mensagem||at.message||'')}"><i class="fas fa-eye"></i></button></td></tr>`; }).join('') || '<tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">Nenhum atendimento.</td></tr>';
+  badge.textContent=String(novos); badge.classList.toggle('hidden',novos===0);
+  document.querySelectorAll('.at-status').forEach(sel=>sel.onchange=async e=>{const id=e.target.dataset.id; try{ await apiRequest(`/admin/atendimentos/${encodeURIComponent(id)}`,{method:'PATCH',headers:buildHeadersAuth(),body:JSON.stringify({status:e.target.value})}); displayMessage('Status atualizado!','success'); }catch(err){displayMessage(err.message,'error')}});
+  bindAtendimentoButtons();
+}
+async function renderPaymentsView(){
+  const payments = await readSetting('payments', {mercadopago:{enabled:true,pix:true,boleto:true,publicKey:''},pagarme:{enabled:true,apiKey:'',endpoint:'https://api.pagar.me/core/v5'}});
+  const shipping = await readSetting('shipping', {correios:{enabled:true,origemCep:'',servicos:['03328','03298'],pesoKgPadrao:1,alturaCmPadrao:10,larguraCmPadrao:15,comprimentoCmPadrao:20,valorDeclaradoPadrao:0},carriers:{ownDelivery:{enabled:true,tiers:[{maxKm:30,price:35},{maxKm:60,price:70}]}}});
+  const whatsapp = await readSetting('whatsapp_evolution', {enabled:false,apiUrl:'http://167.86.108.75:8081',apiKey:'',instanceName:'Ariana_Oficial',webhookUrl:'',autoNotifyOrderStatus:true,defaultCountryCode:'55',testNumber:'',testMessage:'Olá! Este é um teste da integração WhatsApp da Ariana Móveis.'});
+  const box=document.getElementById('payments-content');
+  box.innerHTML=`
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div class="bg-white p-5 rounded-lg shadow-md space-y-4">
+        <h2 class="text-2xl font-bold text-text-dark">Pagamentos</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Mercado Pago Public Key</label><input id="pay-mp-public-key" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(payments.mercadopago?.publicKey||'')}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Pagar.me Endpoint</label><input id="pay-pagarme-endpoint" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(payments.pagarme?.endpoint||'')}"></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"><label class="inline-flex items-center gap-2"><input type="checkbox" id="pay-mp-enabled" ${payments.mercadopago?.enabled?'checked':''}><span>MP ativo</span></label><label class="inline-flex items-center gap-2"><input type="checkbox" id="pay-mp-pix" ${payments.mercadopago?.pix!==false?'checked':''}><span>Pix</span></label><label class="inline-flex items-center gap-2"><input type="checkbox" id="pay-mp-boleto" ${payments.mercadopago?.boleto!==false?'checked':''}><span>Boleto</span></label><label class="inline-flex items-center gap-2"><input type="checkbox" id="pay-pagarme-enabled" ${payments.pagarme?.enabled?'checked':''}><span>Pagar.me ativo</span></label></div>
+        <div class="flex gap-3"><button id="save-payments-btn" class="px-4 py-2 rounded-md bg-primary-blue text-white font-semibold">Salvar Pagamentos</button><button id="test-pix-btn" class="px-4 py-2 rounded-md bg-gray-100 text-gray-700 font-semibold">Testar Pix</button></div>
+      </div>
+      <div class="bg-white p-5 rounded-lg shadow-md space-y-4">
+        <h2 class="text-2xl font-bold text-text-dark">Frete & Correios</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">CEP origem</label><input id="ship-origem-cep" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(shipping.correios?.origemCep||'')}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Serviços Correios</label><input id="ship-servicos" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml((shipping.correios?.servicos||[]).join(','))}"></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Peso padrão</label><input id="ship-peso" type="number" step="0.01" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${Number(shipping.correios?.pesoKgPadrao||1)}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Altura</label><input id="ship-altura" type="number" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${Number(shipping.correios?.alturaCmPadrao||10)}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Largura</label><input id="ship-largura" type="number" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${Number(shipping.correios?.larguraCmPadrao||15)}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Comprimento</label><input id="ship-comprimento" type="number" step="1" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${Number(shipping.correios?.comprimentoCmPadrao||20)}"></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"><label class="inline-flex items-center gap-2"><input type="checkbox" id="ship-correios-enabled" ${shipping.correios?.enabled?'checked':''}><span>Correios ativo</span></label><label class="inline-flex items-center gap-2"><input type="checkbox" id="ship-own-enabled" ${shipping.carriers?.ownDelivery?.enabled?'checked':''}><span>Entrega própria</span></label></div>
+        <button id="save-shipping-btn" class="px-4 py-2 rounded-md bg-primary-blue text-white font-semibold">Salvar Frete</button>
+      </div>
+      <div class="bg-white p-5 rounded-lg shadow-md space-y-4 xl:col-span-2">
+        <h2 class="text-2xl font-bold text-text-dark">WhatsApp / Operação</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">API URL</label><input id="wa-api-url" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(whatsapp.apiUrl||'')}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Instância</label><input id="wa-instance" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(whatsapp.instanceName||'')}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label><input id="wa-webhook" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(whatsapp.webhookUrl||'')}"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Número teste</label><input id="wa-test-number" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(whatsapp.testNumber||'')}"></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Mensagem teste</label><input id="wa-test-message" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="${escHtml(whatsapp.testMessage||'')}"></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"><label class="inline-flex items-center gap-2"><input type="checkbox" id="wa-enabled" ${whatsapp.enabled?'checked':''}><span>WhatsApp ativo</span></label><label class="inline-flex items-center gap-2"><input type="checkbox" id="wa-auto-status" ${whatsapp.autoNotifyOrderStatus?'checked':''}><span>Notificar status</span></label></div>
+        <button id="save-whatsapp-btn" class="px-4 py-2 rounded-md bg-primary-blue text-white font-semibold">Salvar WhatsApp</button>
+      </div>
+    </div>`;
+  document.getElementById('save-payments-btn').onclick=savePaymentsSettings;
+  document.getElementById('test-pix-btn').onclick=testPix;
+  document.getElementById('save-shipping-btn').onclick=saveShippingSettings;
+  document.getElementById('save-whatsapp-btn').onclick=saveWhatsappSettings;
+}
+async function savePaymentsSettings(){ try{ await writeSetting('payments',{mercadopago:{enabled:document.getElementById('pay-mp-enabled').checked,pix:document.getElementById('pay-mp-pix').checked,boleto:document.getElementById('pay-mp-boleto').checked,publicKey:document.getElementById('pay-mp-public-key').value.trim()}, pagarme:{enabled:document.getElementById('pay-pagarme-enabled').checked,endpoint:document.getElementById('pay-pagarme-endpoint').value.trim()}, updatedAt:nowISO()}); displayMessage('Configurações de pagamento salvas!','success'); }catch(e){displayMessage(e.message,'error')} }
+async function saveShippingSettings(){ try{ await apiRequest('/admin/shipping/rules',{method:'POST',headers:buildHeadersAuth(),body:JSON.stringify({correios:{enabled:document.getElementById('ship-correios-enabled').checked,origemCep:document.getElementById('ship-origem-cep').value.trim(),servicos:document.getElementById('ship-servicos').value.split(',').map(s=>s.trim()).filter(Boolean),pesoKgPadrao:Number(document.getElementById('ship-peso').value||1),alturaCmPadrao:Number(document.getElementById('ship-altura').value||10),larguraCmPadrao:Number(document.getElementById('ship-largura').value||15),comprimentoCmPadrao:Number(document.getElementById('ship-comprimento').value||20)},carriers:{ownDelivery:{enabled:document.getElementById('ship-own-enabled').checked}},updatedAt:nowISO()})}); displayMessage('Configurações de frete salvas!','success'); }catch(e){displayMessage(e.message,'error')} }
+async function saveWhatsappSettings(){ try{ await writeSetting('whatsapp_evolution',{enabled:document.getElementById('wa-enabled').checked,apiUrl:document.getElementById('wa-api-url').value.trim(),instanceName:document.getElementById('wa-instance').value.trim(),webhookUrl:document.getElementById('wa-webhook').value.trim(),testNumber:document.getElementById('wa-test-number').value.trim(),testMessage:document.getElementById('wa-test-message').value.trim(),autoNotifyOrderStatus:document.getElementById('wa-auto-status').checked,updatedAt:nowISO()}); displayMessage('Configurações de WhatsApp salvas!','success'); }catch(e){displayMessage(e.message,'error')} }
+async function testPix(){ try{ const data=await apiRequest('/payments/mp/pix',{method:'POST',body:JSON.stringify({amount:1,description:'Teste Pix Admin Ariana Móveis',email:'admin@arianamoveis.com'})}); displayMessage(data?.ok===false ? 'Pix teste retornou erro.' : 'Pix teste enviado. Confira a resposta no console.','info'); console.log('[PIX TEST]', data); }catch(e){ displayMessage(e.message,'error'); } }
+async function loadDashboardSafe(){ if(currentView==='dashboard') await renderDashboardView(); }
+
+document.addEventListener('DOMContentLoaded', init);

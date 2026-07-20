@@ -1203,77 +1203,122 @@ function carregarHeader() {
     </div>
 
     <div class="bg-primary-blue text-white py-4 md:py-6">
-      <div class="max-w-[1440px] mx-auto px-3 sm:px-6 flex items-center gap-3 sm:gap-6 md:gap-10">
+      <div
+        class="max-w-[1440px] mx-auto px-3 sm:px-6 grid items-center gap-4 md:gap-6 lg:gap-8"
+        style="grid-template-columns:minmax(0,auto) minmax(280px,1fr) minmax(0,auto);"
+      >
 
-        <div class="flex items-center flex-shrink-0 min-w-0 md:min-w-[330px] pr-2 gap-3 overflow-visible">
-          
-        <a href="/" class="relative group flex items-center">
-            <img 
+        <!-- BLOCO DA MARCA: mascote + nome + slogan -->
+        <div class="flex items-center justify-start flex-shrink-0 min-w-0 overflow-visible">
+          <a
+            href="/"
+            class="group flex items-center gap-2 md:gap-3 min-w-0"
+            aria-label="Página inicial Ariana Móveis"
+          >
+            <img
               src="assets/imagens/avatar-ariana.png"
-              alt="Ariana Móveis"
-              class="w-24 h-24 md:w-32 md:h-32 object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.10]" style="margin-top:-18px;margin-bottom:-18px;position:relative;z-index:5;"
+              alt="Mascote Ariana Móveis"
+              class="w-24 h-24 md:w-32 md:h-32 object-contain bg-transparent flex-shrink-0 transition-transform duration-300 group-hover:scale-[1.06]"
+              style="margin-top:-18px;margin-bottom:-18px;position:relative;z-index:5;"
             >
-            
-          <a href="/"
-            class="flex flex-col justify-center gap-1 hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
-            <div class="flex items-baseline gap-2 text-2xl md:text-4xl font-black tracking-tighter italic">
-              <span class="ariana-logo-gradient">ARIANA</span>
-              <span class="text-secondary-light-blue text-sm md:text-lg font-black tracking-wide leading-none">MÓVEIS</span>
-            </div>
-            <div class="hidden md:flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-[0.28em] text-white/85 pl-1">
-              <span>Online</span>
-              <span class="text-secondary-light-blue/90">•</span>
-              <span>Para todo Brasil</span>
+
+            <div class="flex flex-col items-center justify-center min-w-0 text-center leading-none">
+              <div class="flex items-baseline justify-center gap-2 whitespace-nowrap">
+                <span class="ariana-logo-gradient text-2xl md:text-4xl font-black tracking-tighter italic">
+                  ARIANA
+                </span>
+                <span class="text-secondary-light-blue text-sm md:text-lg font-black tracking-wide">
+                  MÓVEIS
+                </span>
+              </div>
+
+              <div
+                class="hidden md:flex items-center justify-center gap-2 mt-2 whitespace-nowrap text-[10px] md:text-xs font-black uppercase tracking-[0.22em] text-white/90"
+              >
+                <span>Online</span>
+                <span class="text-secondary-light-blue">•</span>
+                <span>Para todo o Brasil</span>
+              </div>
             </div>
           </a>
         </div>
 
-        <form class="hidden lg:flex flex-1 max-w-[920px] mx-auto group" onsubmit="window.applySearchFilter(event)">
-          <div class="relative flex w-full">
-            <input type="search" id="search-input-desktop"
+        <!-- BLOCO CENTRAL: pesquisa -->
+        <form
+          class="hidden lg:flex w-full min-w-0 justify-center"
+          onsubmit="window.applySearchFilter(event)"
+        >
+          <div class="relative flex w-full max-w-[760px]">
+            <input
+              type="search"
+              id="search-input-desktop"
               placeholder="O que você está procurando hoje?"
-              class="w-full h-14 pl-6 pr-14 text-black rounded-xl border-none focus:ring-4 focus:ring-secondary-light-blue/30 transition-all text-lg shadow-inner">
-            <button type="submit"
-              class="absolute right-0 top-0 h-14 px-6 bg-secondary-light-blue text-primary-blue rounded-r-xl hover:bg-white transition-colors">
+              class="w-full h-14 pl-6 pr-16 text-black rounded-xl border-none focus:ring-4 focus:ring-secondary-light-blue/30 transition-all text-lg shadow-inner"
+            >
+            <button
+              type="submit"
+              class="absolute right-0 top-0 h-14 px-6 bg-secondary-light-blue text-primary-blue rounded-r-xl hover:bg-white transition-colors"
+              aria-label="Pesquisar"
+            >
               <i class="fas fa-search text-xl"></i>
             </button>
           </div>
         </form>
 
-        <div class="flex items-center gap-4 md:gap-8">
+        <!-- BLOCO DIREITO: conta + carrinho + menu -->
+        <div class="flex items-center justify-end gap-2 sm:gap-3 md:gap-5 flex-shrink-0">
 
           <div class="relative">
-            <button type="button" id="account-btn"
-              class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/10 transition-all group"
-              aria-haspopup="true" aria-expanded="false">
-              <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-secondary-light-blue transition-colors">
+            <button
+              type="button"
+              id="account-btn"
+              class="flex items-center gap-3 px-2 md:px-3 py-2 rounded-xl hover:bg-white/10 transition-all group"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-secondary-light-blue transition-colors flex-shrink-0">
                 <i class="fas fa-user text-xl text-white group-hover:text-primary-blue"></i>
               </div>
-              <div class="hidden xl:block text-left leading-tight">
+
+              <div class="hidden xl:block text-left leading-tight min-w-0">
                 <p class="text-[10px] uppercase font-black opacity-60">Entrar / Conta</p>
                 <p id="header-user-name" class="text-sm font-bold truncate max-w-[130px]">Minha conta</p>
                 <p id="auth-subtitle" class="text-[11px] opacity-80 -mt-0.5 truncate max-w-[180px]">Defina seu endereço</p>
               </div>
-              <i id="account-caret" class="fas fa-chevron-down text-[10px] opacity-50"></i>
+
+              <i id="account-caret" class="fas fa-chevron-down text-[10px] opacity-50 hidden sm:block"></i>
             </button>
 
-            <div id="account-popover"
-              class="hidden fixed md:absolute right-3 md:right-0 top-[88px] md:top-auto md:mt-4 w-[calc(100vw-24px)] md:w-[320px] max-w-[320px] bg-white text-gray-900 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden z-[120]">
+            <div
+              id="account-popover"
+              class="hidden fixed md:absolute right-3 md:right-0 top-[88px] md:top-auto md:mt-4 w-[calc(100vw-24px)] md:w-[320px] max-w-[320px] bg-white text-gray-900 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden z-[120]"
+            >
               <div id="account-popover-inner"></div>
             </div>
           </div>
 
           <div class="relative">
-            <a id="cart-link" href="carrinho.html" class="flex-shrink-0 flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-all group">
+            <a
+              id="cart-link"
+              href="carrinho.html"
+              class="flex-shrink-0 flex items-center p-2 hover:bg-white/10 rounded-xl transition-all group"
+              aria-label="Carrinho"
+            >
               <div class="relative">
                 <i class="fas fa-shopping-basket text-3xl text-secondary-light-blue"></i>
-                <span id="cart-counter-nav"
-                    class="absolute -top-2 -right-2 bg-red-600 text-white text-[11px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-primary-blue shadow-lg">0</span>
+                <span
+                  id="cart-counter-nav"
+                  class="absolute -top-2 -right-2 bg-red-600 text-white text-[11px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-primary-blue shadow-lg"
+                >0</span>
               </div>
             </a>
           </div>
 
-          <button id="menu-mobile-trigger" class="md:hidden text-3xl p-2 rounded-lg hover:bg-white/10">
+          <button
+            id="menu-mobile-trigger"
+            class="md:hidden text-3xl p-2 rounded-lg hover:bg-white/10"
+            aria-label="Abrir menu"
+          >
             <i class="fas fa-bars"></i>
           </button>
         </div>

@@ -18,11 +18,181 @@
     .seller-input{width:100%;border:1px solid #dbe3ef;border-radius:16px;padding:14px 14px 14px 44px;font-size:14px;outline:none;background:#fff;transition:.18s ease}.seller-input:focus{border-color:var(--primary-blue);box-shadow:0 0 0 4px rgba(46,109,164,.14)}
     .input-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#8aa0ba}.seller-hero{background:linear-gradient(180deg,#fff 0%,#f7f9fc 100%)}.seller-kicker{background:#eef6ff;border:1px solid #d8e9fb;color:var(--primary-blue)}.seller-form-card{background:#fff;border:1px solid #e3eaf3}.toast{box-shadow:0 14px 32px rgba(15,23,42,.18);transition:opacity .3s ease-out,transform .3s ease-out}
     .step-dot{width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:900;border:1px solid #dbe3ef;background:#fff;color:#64748b}.step-dot.active{background:var(--primary-blue);color:#fff;border-color:var(--primary-blue)}.step-dot.done{background:#16a34a;color:#fff;border-color:#16a34a}.step-pane{display:none}.step-pane.active{display:block}.choice-card{border:1px solid #dbe3ef;border-radius:18px;padding:14px;cursor:pointer;background:#fff}.choice-card.active{border-color:var(--primary-blue);box-shadow:0 0 0 4px rgba(46,109,164,.12)}
-  </style>
+  
+
+/* PATCH: logo padrão Ariana Móveis igual ao Dashboard - somente logo */
+.am-sidebar-logo{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  padding:0 1rem 20px 1rem!important;
+  margin:0 0 18px 0!important;
+  min-height:58px!important;
+  width:100%!important;
+  max-width:100%!important;
+  overflow:visible!important;
+  border-bottom:1px solid rgba(255,255,255,.13)!important;
+  text-decoration:none!important;
+}
+.am-logo-wordmark{
+  display:inline-flex!important;
+  align-items:flex-end!important;
+  gap:.34em!important;
+  line-height:.88!important;
+  white-space:nowrap!important;
+  font-family:Inter,Arial,sans-serif!important;
+  font-style:italic!important;
+  font-weight:1000!important;
+  letter-spacing:-.055em!important;
+  text-transform:uppercase!important;
+  font-size:28px!important;
+  width:auto!important;
+  max-width:none!important;
+  overflow:visible!important;
+  transform:none!important;
+}
+.am-logo-wordmark .am-logo-ariana{
+  color:#fff!important;
+  font-size:1em!important;
+  font-weight:1000!important;
+  line-height:.88!important;
+}
+.am-logo-wordmark .am-logo-moveis{
+  color:#56B5FF!important;
+  font-size:.50em!important;
+  font-weight:1000!important;
+  margin-bottom:.12em!important;
+  letter-spacing:-.035em!important;
+  line-height:.9!important;
+}
+aside#sidebar .am-logo-wordmark,
+.side .am-logo-wordmark,
+.sidebar .am-logo-wordmark,
+.bg-dark-bg .am-logo-wordmark{
+  font-size:28px!important;
+  transform:none!important;
+  overflow:visible!important;
+}
+aside#sidebar > a.am-sidebar-logo,
+aside#sidebar > a.text-white:first-of-type,
+.sidebar > a.am-sidebar-logo,
+.side > a.am-sidebar-logo{
+  display:flex!important;
+  align-items:center!important;
+  padding-left:1rem!important;
+  padding-right:1rem!important;
+  margin-bottom:1.15rem!important;
+  min-height:58px!important;
+  overflow:visible!important;
+}
+aside#sidebar .px-4:first-child::before,
+.side h1::before,
+.sidebar .brand-mark,
+.brand-mark{
+  content:none!important;
+  display:none!important;
+}
+
+</style>
+
+
+<!-- PATCH VISUAL PROFISSIONAL ARIANA MÓVEIS - 2026-07-09 -->
+<style id="ariana-seller-professional-ui">
+:root{
+  --am-blue:#0047AB!important;
+  --am-blue-2:#063b86!important;
+  --am-yellow:#ffd43b!important;
+  --am-bg:#f3f6fb!important;
+  --am-card:#ffffff!important;
+  --am-text:#0f172a!important;
+  --am-muted:#64748b!important;
+  --am-line:#e2e8f0!important;
+  --am-shadow:0 14px 34px rgba(15,23,42,.075)!important;
+}
+html,body{font-family:Inter,Arial,sans-serif!important;background:var(--am-bg)!important;color:var(--am-text)!important;}
+body{letter-spacing:-.01em;}
+/* Fundos antigos */
+.bg-gray-100,.bg-fundo,.bg-slate-50{background:var(--am-bg)!important}.text-primary-blue{color:var(--am-blue)!important}.bg-primary-blue{background:var(--am-blue)!important}.border-primary-blue{border-color:var(--am-blue)!important}
+/* Sidebar Seller/Admin */
+aside#sidebar, aside.sidebar, .side, .sidebar, .bg-dark-bg, .bg-dark-gray-bg{
+  background:linear-gradient(180deg,#0047AB 0%,#052b63 54%,#061f45 100%)!important;
+  box-shadow:14px 0 36px rgba(15,23,42,.12)!important;
+}
+aside#sidebar, .side, .sidebar{border-right:1px solid rgba(255,255,255,.08)!important;}
+aside#sidebar .px-4:first-child span, aside#sidebar .px-4:first-child, .side h1, .sidebar .brand, .sidebar h1{
+  color:#fff!important;letter-spacing:.01em!important;
+}
+aside#sidebar .px-4:first-child, .side h1{
+  padding-bottom:20px!important;margin-bottom:18px!important;border-bottom:1px solid rgba(255,255,255,.13)!important;
+}
+aside#sidebar nav a, .nav button, .sidebar-link, aside nav a{
+  display:flex!important;align-items:center!important;gap:12px!important;border-radius:16px!important;padding:12px 14px!important;color:rgba(255,255,255,.86)!important;font-weight:850!important;text-decoration:none!important;transition:.16s ease!important;background:transparent!important;box-shadow:none!important;
+}
+aside#sidebar nav a:hover, aside#sidebar nav a.active, .nav button:hover, .nav button.active, .sidebar-link:hover, .sidebar-link.active, aside nav a:hover{
+  background:rgba(255,255,255,.14)!important;color:#fff!important;transform:translateX(2px)!important;
+}
+#btn-sair, a[id*="sair"], a[href="#"][id*="logout"], #logout-btn{color:#fecaca!important;margin-top:18px!important;}
+/* Área principal */
+main, .main, .flex-1, .flex-grow{min-width:0!important;}
+.main, main.flex-grow, .flex-1.flex.flex-col, body>div.flex-1{background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 330px,#f3f6fb 100%)!important;}
+header, .topbar, .top, .bg-white.border-b{
+  background:rgba(255,255,255,.92)!important;backdrop-filter:blur(14px)!important;border-color:rgba(226,232,240,.9)!important;
+}
+h1,h2,h3{color:var(--am-text)!important;line-height:1.12!important;}
+p,.help,.sub,.muted,.text-gray-600,.text-slate-500{color:var(--am-muted)!important;}
+/* Cards e painéis */
+.card,.box,.stat,.quick-card,.rounded-2xl.bg-white,.bg-white.rounded-2xl,.seller-form-card,section.bg-white,.shadow-soft,.receipt,.empty,[class*="shadow"]{
+  border:1px solid var(--am-line)!important;border-radius:24px!important;background:#fff!important;box-shadow:var(--am-shadow)!important;
+}
+.card{padding:20px!important;}
+.stat{padding:18px!important;}
+.stat small,.label,label,.text-xs.uppercase{font-size:11px!important;font-weight:950!important;text-transform:uppercase!important;letter-spacing:.055em!important;color:var(--am-muted)!important;}
+.stat b{font-size:30px!important;color:var(--am-blue)!important;}
+/* Botões */
+button,a[class*="bg-primary-blue"],.primary,.btn-primary,.green,.yellow,.light,.gray,.red,.small,
+button.bg-primary-blue,button.bg-blue-600,button.bg-green-600,button.bg-red-600{
+  border-radius:14px!important;min-height:42px!important;font-weight:900!important;transition:.16s ease!important;text-decoration:none!important;border:1px solid transparent!important;
+}
+button:hover,a[class*="bg-primary-blue"]:hover{transform:translateY(-1px)!important;filter:brightness(.98)!important;}
+.primary,button.bg-primary-blue,.bg-primary-blue,a.bg-primary-blue{background:var(--am-blue)!important;color:#fff!important;box-shadow:0 10px 22px rgba(0,71,171,.18)!important;}
+.light,.gray{background:#f8fafc!important;color:#10213f!important;border-color:#dbe3ee!important;}
+.green,button.bg-green-600{background:#16a34a!important;color:#fff!important;}
+.red,button.bg-red-600{background:#dc2626!important;color:#fff!important;}
+.yellow{background:var(--am-yellow)!important;color:#10213f!important;border-color:#facc15!important;}
+/* Inputs */
+input,select,textarea,.seller-input{
+  border:1px solid #d7dee9!important;border-radius:15px!important;background:#fff!important;min-height:44px!important;font-weight:650!important;color:#0f172a!important;
+}
+input:focus,select:focus,textarea:focus,.seller-input:focus{border-color:var(--am-blue)!important;box-shadow:0 0 0 4px rgba(0,71,171,.12)!important;}
+/* Tabelas/listas */
+table{border-collapse:separate!important;border-spacing:0 10px!important;width:100%!important;}
+thead th{font-size:11px!important;text-transform:uppercase!important;color:var(--am-muted)!important;letter-spacing:.05em!important;border:0!important;background:transparent!important;}
+tbody tr{background:#fff!important;box-shadow:0 8px 18px rgba(15,23,42,.04)!important;}
+tbody td{border-top:1px solid #edf2f7!important;border-bottom:1px solid #edf2f7!important;padding:14px!important;}
+tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 0 0 16px!important;}tbody td:last-child{border-right:1px solid #edf2f7!important;border-radius:0 16px 16px 0!important;}
+/* Badges */
+.pill,.badge,.status-novo,.status-respondido,[class*="status-"]{border-radius:999px!important;padding:6px 10px!important;font-size:11px!important;font-weight:950!important;}
+/* Grids comuns */
+.stats{gap:14px!important}.filters{gap:12px!important}.quick-grid{gap:14px!important}.form-grid{gap:12px!important}.action-bar{gap:10px!important;}
+/* Responsivo */
+@media(max-width:920px){
+  body{display:block!important;}
+  aside#sidebar,.side{position:static!important;width:100%!important;min-height:auto!important;height:auto!important;transform:none!important;padding:18px!important;}
+  aside#sidebar nav,.nav{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
+  .main,main,.flex-1,.flex-grow{margin-left:0!important;max-width:none!important;width:100%!important;padding:14px!important;}
+  header,.top{position:sticky!important;top:0!important;z-index:20!important;padding:14px!important;}
+  .stats{grid-template-columns:1fr 1fr!important;}
+  .filters,.layout,.form-grid,.action-bar,.quick-grid{grid-template-columns:1fr!important;}
+  .card,.box{border-radius:20px!important;padding:16px!important;}
+  button,.primary,.light,.green,.red,.yellow,.gray{width:100%!important;}
+}
+@media(max-width:560px){.stats{grid-template-columns:1fr!important;} aside#sidebar nav,.nav{grid-template-columns:1fr!important;}}
+</style>
+
 </head>
 <body class="min-h-screen">
 <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3"></div>
-<header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-5 flex items-center justify-between gap-4"><a href="/" class="flex items-center gap-3"><div class="w-12 h-12 rounded-2xl bg-primary-blue text-white flex items-center justify-center shadow-soft"><i class="fas fa-store text-xl"></i></div><div class="leading-tight"><div class="text-2xl font-black italic text-primary-blue tracking-tight">ARIANA <span class="text-sky-500">MÓVEIS</span></div><div class="text-[11px] uppercase tracking-[0.24em] font-black text-slate-500">Marketplace</div></div></a><div class="hidden md:flex items-center gap-4 text-sm font-bold text-slate-600"><a href="/" class="hover:text-primary-blue">Início</a><a href="quem_somos.html" class="hover:text-primary-blue">Quem somos</a><a href="seller_login.html" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-primary-blue">Entrar como seller</a></div></div></header>
+<header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-5 py-5 flex items-center justify-between gap-4"><a href="/" class="flex items-center gap-3"><div class="leading-tight"><span class="am-logo-wordmark" style="--am-logo-ariana:#2E6DA4" aria-label="Ariana Móveis"><span class="am-logo-ariana">ARIANA</span><span class="am-logo-moveis">MÓVEIS</span></span></div></a><div class="hidden md:flex items-center gap-4 text-sm font-bold text-slate-600"><a href="/" class="hover:text-primary-blue">Início</a><a href="quem_somos.html" class="hover:text-primary-blue">Quem somos</a><a href="seller_login.html" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-primary-blue">Entrar como seller</a></div></div></header>
 <main><section class="relative overflow-hidden seller-hero text-slate-900"><div class="absolute inset-0 opacity-70" style="background:radial-gradient(circle at 18% 15%,rgba(86,181,255,.20) 0,transparent 30%),radial-gradient(circle at 82% 5%,rgba(46,109,164,.10) 0,transparent 26%);"></div><div class="relative max-w-7xl mx-auto px-5 py-10 lg:py-14 grid lg:grid-cols-[.92fr_1.08fr] gap-8 items-start"><div class="lg:sticky lg:top-6"><p class="inline-flex items-center gap-2 px-4 py-2 rounded-full seller-kicker text-xs font-black uppercase tracking-[0.18em]"><i class="fas fa-handshake"></i> Venda na Ariana Móveis</p><h1 class="mt-6 text-4xl lg:text-5xl font-black leading-tight tracking-tight text-slate-950">Venda seus produtos na Ariana Móveis</h1><p class="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl">Cadastre sua empresa e tenha acesso ao painel de vendas, gestão de pedidos, recebimentos e logística integrada.</p><div class="mt-8 grid sm:grid-cols-3 gap-3"><div class="rounded-2xl bg-white border border-slate-200 p-4 shadow-soft"><i class="fas fa-shield-alt text-primary-blue text-xl"></i><div class="mt-2 font-black">Aprovação rápida</div><div class="text-sm text-slate-500">Análise comercial feita pela equipe Ariana.</div></div><div class="rounded-2xl bg-white border border-slate-200 p-4 shadow-soft"><i class="fas fa-industry text-primary-blue text-xl"></i><div class="mt-2 font-black">Venda em todo o Brasil</div><div class="text-sm text-slate-500">Marketplace preparado para lojistas, distribuidores e marcas.</div></div><div class="rounded-2xl bg-white border border-slate-200 p-4 shadow-soft"><i class="fas fa-truck text-primary-blue text-xl"></i><div class="mt-2 font-black">Logística integrada</div><div class="text-sm text-slate-500">Entrega própria ou etiqueta Ariana Móveis.</div></div></div></div>
 <div class="seller-form-card text-slate-900 rounded-[28px] shadow-soft p-6 sm:p-8"><div class="flex items-start justify-between gap-4"><div><h2 class="text-2xl sm:text-3xl font-black tracking-tight">Solicitação de parceria</h2><p class="mt-2 text-sm text-slate-600">Preencha as etapas abaixo. Após a análise, nossa equipe libera o painel do vendedor e configura os recebimentos.</p></div><div class="w-12 h-12 rounded-2xl bg-sky-50 text-primary-blue flex items-center justify-center"><i class="fas fa-user-plus text-lg"></i></div></div>
 <div class="mt-6 grid grid-cols-6 gap-2" id="stepbar"></div>
@@ -56,4 +226,21 @@ function renderReview(){const sellerType=document.querySelector('input[name="sel
 function setButtonLoading(isLoading){const btn=$('btnSubmit');const text=$('btnText');const spinner=$('btnSpinner');if(!btn)return;btn.disabled=isLoading;btn.classList.toggle('opacity-70',isLoading);if(text)text.textContent=isLoading?'Enviando solicitação...':'Enviar solicitação';if(spinner)spinner.classList.toggle('hidden',!isLoading)}
 $('signup-form')?.addEventListener('submit',async(e)=>{e.preventDefault();if(!validateStep())return;const password=val('password'), confirmPassword=val('confirmPassword');if(password.length<6)return showAlert('A senha precisa ter no mínimo 6 caracteres.');if(password!==confirmPassword)return showAlert('As senhas não conferem.');if(!$('terms').checked)return showAlert('Confirme que as informações são verdadeiras.');setButtonLoading(true);try{const sellerType=document.querySelector('input[name="sellerType"]:checked')?.value||'loja_parceira';const payload={sellerType,partnerType:sellerType,companyType:sellerType,name:val('name'),ownerName:val('name'),responsibleRole:val('responsibleRole'),factoryName:val('factoryName'),razaoSocial:val('factoryName'),legalName:val('factoryName'),storeName:val('storeName'),brandName:val('storeName'),companyWebsite:normalizeWebsiteValue()||val('companyWebsite'),stateRegistration:val('stateRegistration'),email:val('email'),contactEmail:val('email'),companyEmail:val('companyEmail'),phone:val('phone'),whatsapp:val('phone'),cnpj:val('cpfCnpj'),cpfCnpj:val('cpfCnpj'),cpf_cnpj:val('cpfCnpj'),document:val('cpfCnpj'),cep:val('cep'),city:val('city'),cidade:val('city'),uf:val('uf'),address:val('address'),endereco:val('address'),number:val('number'),numero:val('number'),district:val('district'),bairro:val('district'),logisticsMode:val('logisticsMode'),pickupCep:val('pickupCep'),cepColeta:val('pickupCep'),shippingDeadline:val('shippingDeadline'),carrierName:val('carrierName'),usesArianaLabel:val('logisticsMode')==='ariana_label'||val('logisticsMode')==='mixed',bankName:val('bankName'),bankCode:val('bankCode'),bankAgency:val('bankAgency'),agency:val('bankAgency'),agencyDigit:val('agencyDigit'),bankAccountNumber:val('bankAccount'),accountNumber:val('bankAccount'),bankAccount:val('bankAccount'),accountDigit:val('accountDigit'),accountCheckDigit:val('accountDigit'),accountType:val('accountType'),bankHolderName:val('bankHolderName'),bankHolderDocument:val('bankHolderDocument'),requestedTempPass:password,status:'pending_onboarding',active:false,accountTypeProfile:'seller',bankAccountData:{bank:val('bankName'),bankName:val('bankName'),bankCode:val('bankCode'),agency:val('bankAgency'),agencyDigit:val('agencyDigit'),account:val('bankAccount'),accountDigit:val('accountDigit'),accountType:val('accountType'),holderName:val('bankHolderName'),holderDocument:val('bankHolderDocument')}};const res=await fetch(API_BASE+"/seller/partner-request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});let data=null;try{data=await res.json()}catch(_){}if(!res.ok)throw new Error(data?.message||data?.error||'Não foi possível enviar sua solicitação agora.');const rid=data?.id||data?.sellerId||data?.seller?.sellerId||data?.seller?._id||data?._id;if(rid)localStorage.setItem('partner_request_id',rid);showAlert('Solicitação enviada com sucesso. Nossa equipe fará a análise e entrará em contato.','success');toast('Solicitação enviada com sucesso.','success');setTimeout(()=>{window.location.href=rid?'seller_sucesso.html?rid='+encodeURIComponent(rid):'seller_sucesso.html'},900)}catch(err){console.error('Erro no cadastro de seller:',err);showAlert('Erro ao enviar solicitação: '+err.message);toast('Erro ao enviar solicitação.','error');setButtonLoading(false)}});
 updateStep();
-</script></body></html>
+</script>
+
+<script id="ariana-seller-professional-ui-js">
+(function(){
+  try{
+    var page=(location.pathname.split('/').pop()||'').toLowerCase();
+    document.querySelectorAll('aside a, .side .nav button').forEach(function(el){
+      var href=(el.getAttribute('href')||'').toLowerCase();
+      if(href && href.indexOf(page)>=0){el.classList.add('active');}
+    });
+    document.querySelectorAll('aside#sidebar .px-4:first-child span').forEach(function(el){
+      if(/ariana/i.test(el.textContent||'')) el.textContent='ARIANA MÓVEIS';
+    });
+  }catch(e){}
+})();
+</script>
+
+</body></html>

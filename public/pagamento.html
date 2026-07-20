@@ -92,6 +92,12 @@
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
 
+      <button class="btn-choice" data-method="crediario_ariana" type="button">
+        <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">🏦</div>
+        <div class="flex-1"><div class="font-bold">Crediário Ariana</div><div class="text-xs text-slate-500">Carnê Cora em até 15 parcelas</div></div>
+        <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
+      </button>
+
       <div class="pt-6">
         <button id="btn-continue" disabled class="btn-primary opacity-50 flex items-center justify-center gap-2" type="button">
           Continuar
@@ -204,6 +210,21 @@
         <h3 class="text-lg font-bold">Boleto Bancário</h3>
         <p class="text-slate-500 text-sm">Ao clicar no botão abaixo, geraremos o boleto para o seu pedido. A compensação leva de 1 a 3 dias úteis.</p>
         <button id="btn-generate-boleto" class="btn-primary" type="button">Gerar Boleto Agora</button>
+      </div>
+    </div>
+
+
+    <div id="panel-crediario" class="hidden space-y-6">
+      <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">← Voltar</button>
+      <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 space-y-5">
+        <div class="text-center"><div class="text-5xl mb-3">🏦</div><h3 class="text-lg font-bold">Crediário Ariana</h3><p class="text-slate-500 text-sm">A Cora gerará o carnê e os boletos automaticamente.</p></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div><label class="text-[11px] font-bold text-slate-400 uppercase">Parcelas</label><select id="cora-installments" class="mp-input h-12"></select></div>
+          <div><label class="text-[11px] font-bold text-slate-400 uppercase">Primeiro vencimento</label><input id="cora-first-due-date" type="date" class="mp-input h-12"/></div>
+        </div>
+        <div id="cora-preview" class="rounded-xl bg-indigo-50 border border-indigo-100 p-4 text-sm"></div>
+        <button id="btn-generate-cora" class="btn-primary" type="button">Solicitar análise de crédito</button>
+        <div id="cora-result" class="hidden rounded-xl border border-green-200 bg-green-50 p-4"></div>
       </div>
     </div>
 
@@ -1297,5 +1318,20 @@
       unmountCardForm();
     });
   </script>
+
+<script>
+(function fase6Cora(){
+  const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
+  const pick=(...v)=>v.find(x=>x!==undefined&&x!==null&&x!=='');
+  function initFields(){const sel=document.getElementById('cora-installments');if(sel&&!sel.options.length){for(let i=1;i<=15;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'x';sel.appendChild(o);}sel.value=String(orderData?.crediario?.installments||15);}const due=document.getElementById('cora-first-due-date');if(due&&!due.value){const d=new Date();d.setDate(d.getDate()+30);due.value=orderData?.crediario?.firstDueDate||d.toISOString().slice(0,10);}refresh();sel?.addEventListener('change',refresh);due?.addEventListener('change',refresh);document.getElementById('btn-generate-cora')?.addEventListener('click',generate);}
+  function total(){return Number(orderData?.totals?.grandTotal||orderData?.total||0);}
+  function refresh(){const n=Number(document.getElementById('cora-installments')?.value||1);const due=document.getElementById('cora-first-due-date')?.value;const box=document.getElementById('cora-preview');const base=Number(orderData?.crediario?.baseAmount??orderData?.totals?.creditBaseAmount??orderData?.totals?.grandTotalOriginal??total()??0);const sim=window.ArianaCrediarioEngine.simulate(base,n);window.coraCrediarioSimulation=sim;if(box)box.innerHTML='<div><b>Preço à vista no Crediário: '+money(sim.baseAmount)+'</b></div><div>Total financiado: <b>'+money(sim.financedAmount)+'</b></div><div>'+n+' parcelas • divisor '+sim.divisor.toFixed(4)+'</div><div>Primeira: '+money(sim.installments[0]/100)+' • última: '+money(sim.installments[sim.installments.length-1]/100)+'</div><div>Primeiro vencimento: '+(due?new Date(due+'T00:00:00').toLocaleDateString('pt-BR'):'—')+'</div>';}
+  function customer(){const c=orderData?.customer||{};const a=orderData?.shippingAddress||orderData?.address||{};return {name:pick(c.name,orderData?.customerName),email:pick(c.email,orderData?.customerEmail),document:pick(c.cpf,orderData?.cpf),phone:pick(c.phone,orderData?.customerPhone),address:{street:pick(a.street,a.logradouro),number:pick(a.number,a.numero,'S/N'),district:pick(a.district,a.bairro),city:pick(a.city,a.cidade),state:pick(a.state,a.uf),zipCode:pick(a.zipCode,a.cep)}};}
+  async function generate(){const btn=document.getElementById('btn-generate-cora');const n=Number(document.getElementById('cora-installments')?.value||1);const firstDueDate=document.getElementById('cora-first-due-date')?.value;if(!firstDueDate){setAlert('error','Informe o primeiro vencimento.');return;}btn.disabled=true;btn.textContent='Enviando para análise...';setAlert('loading','Enviando o pedido para análise de crédito da Ariana Móveis...');try{const sim=window.coraCrediarioSimulation||window.ArianaCrediarioEngine.simulate(Number(orderData?.crediario?.baseAmount??orderData?.totals?.creditBaseAmount??orderData?.totals?.grandTotalOriginal??total()??0),n);const payload={orderId,customer:customer(),baseAmountCents:sim.baseAmountCents,financedAmountCents:sim.financedAmountCents,installments:n,firstDueDate,plan:{baseAmountCents:sim.baseAmountCents,financedAmountCents:sim.financedAmountCents,installmentCount:n,divisor:sim.divisor,firstDueDate,installments:sim.installments}};const data=await apiFetch('/payments/crediario/analises',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const analysis=data?.analysis||{};const normalized={...orderData,paymentMethod:'crediario_ariana',payment_method:'crediario_ariana',paymentStatus:'PENDING_CREDIT_ANALYSIS',status:'pending_credit_analysis',statusLabel:'Aguardando análise de crédito',crediario:{...(orderData?.crediario||{}),analysisId:analysis.analysisId||analysis._id,analysisStatus:analysis.status||'PENDENTE_ANALISE',baseAmountCents:sim.baseAmountCents,financedAmountCents:sim.financedAmountCents,installmentCount:n,installmentDivisor:sim.divisor,firstDueDate,installmentPlan:sim.installments}};localStorage.setItem('arianaLastOrder',JSON.stringify(normalized));const result=document.getElementById('cora-result');if(result){result.classList.remove('hidden');result.innerHTML='<b>✅ Solicitação enviada para análise.</b><br><span>O carnê será emitido somente após aprovação e assinatura dos documentos.</span>';}setAlert('success','Pedido enviado para análise de crédito.');setTimeout(()=>location.href='pedido_confirmado.html?orderId='+encodeURIComponent(orderId),1200);}catch(e){console.error(e);setAlert('error','Não foi possível solicitar a análise: '+(e.message||e));}finally{btn.disabled=false;btn.textContent='Solicitar análise de crédito';}}
+  const originalOpen=window.openSelectedMethod;window.openSelectedMethod=function(method){if(method==='crediario_ariana'){selectedMethod=method;document.getElementById('section-choice')?.classList.add('hidden');['panel-card','panel-pix','panel-boleto'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));document.getElementById('panel-crediario')?.classList.remove('hidden');updateResumoForSelectedMethod('card');initFields();return;}return originalOpen(method);};
+  const originalShow=window.showChoice;window.showChoice=function(){document.getElementById('panel-crediario')?.classList.add('hidden');return originalShow();};
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{initFields();document.querySelectorAll('.btn-choice').forEach(b=>{if(b.dataset.method==='crediario_ariana')b.addEventListener('dblclick',()=>window.openSelectedMethod('crediario_ariana'));});const c=document.getElementById('btn-continue');c?.addEventListener('click',()=>{if(c.dataset.method==='crediario_ariana')window.openSelectedMethod('crediario_ariana');});const m=new URLSearchParams(location.search).get('method');if(m==='crediario_ariana')setTimeout(()=>window.openSelectedMethod(m),400);},0);});
+})();
+</script>
 </body>
 </html>

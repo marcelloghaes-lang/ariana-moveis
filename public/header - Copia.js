@@ -1213,7 +1213,16 @@ function carregarHeader() {
               alt="Ariana Móveis"
               class="w-24 h-24 md:w-32 md:h-32 object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.10]" style="margin-top:-18px;margin-bottom:-18px;position:relative;z-index:5;"
             >
+            <span
+              class="hidden md:flex items-center gap-2 ml-3 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-[11px] font-black uppercase tracking-wider text-white backdrop-blur-sm transition-all duration-300 group-hover:bg-white/20 group-hover:border-white/25"
+              style="animation: arianaPulse 3s ease-in-out infinite;"
             
+              >
+              <span class="inline-block w-2 h-2 rounded-full bg-green-400"></span>
+              feita pra você
+            </span>
+          </a>
+
           <a href="/"
             class="flex flex-col justify-center gap-1 hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
             <div class="flex items-baseline gap-2 text-2xl md:text-4xl font-black tracking-tighter italic">
