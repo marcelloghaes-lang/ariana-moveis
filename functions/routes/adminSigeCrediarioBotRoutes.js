@@ -3497,43 +3497,72 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
   function applyWhatsappDeliveryStatus(log, statusData = {}) {
     const now = new Date();
-    const status = statusData.status || 'UNKNOWN';
+    const status = String(statusData.status || 'UNKNOWN').toUpperCase();
 
-    log.deliveryStatus = status;
-    log.deliveryStatusUpdatedAt = now;
-    if (statusData.messageId && !log.messageId) log.messageId = statusData.messageId;
-    if (statusData.remoteJid && !log.remoteJid) log.remoteJid = statusData.remoteJid;
+    const prioridade = {
+      UNKNOWN: 0,
+      PENDING: 1,
+      SENT: 2,
+      DELIVERED: 3,
+      READ: 4
+    };
 
-    if (status === 'SENT' && !log.sentAt) log.sentAt = now;
-    if (status === 'DELIVERED' && !log.deliveredAt) log.deliveredAt = now;
-    if (status === 'READ' && !log.readAt) log.readAt = now;
-    if (status === 'FAILED') {
-      log.failedAt = now;
-      log.erro = log.erro || `Status WhatsApp: ${statusData.rawStatus || 'FAILED'}`;
+    const statusAtual = String(log.deliveryStatus || 'UNKNOWN').toUpperCase();
+    const prioridadeAtual = prioridade[statusAtual] ?? 0;
+    const prioridadeNova = prioridade[status] ?? 0;
+
+    const podeAtualizar =
+      status === 'FAILED'
+      || statusAtual === 'FAILED'
+      || prioridadeNova >= prioridadeAtual;
+
+    if (podeAtualizar) {
+      log.deliveryStatus = status;
+      log.deliveryStatusUpdatedAt = now;
     }
 
-    log.ackHistory = Array.isArray(log.ackHistory) ? log.ackHistory : [];
+    if (statusData.messageId && !log.messageId) {
+      log.messageId = statusData.messageId;
+    }
+
+    if (statusData.remoteJid && !log.remoteJid) {
+      log.remoteJid = statusData.remoteJid;
+    }
+
+    if (status === 'SENT' && !log.sentAt) {
+      log.sentAt = now;
+    }
+
+    if (status === 'DELIVERED' && !log.deliveredAt) {
+      log.deliveredAt = now;
+    }
+
+    if (status === 'READ' && !log.readAt) {
+      log.readAt = now;
+    }
+
+    if (status === 'FAILED') {
+      log.failedAt = now;
+      log.erro =
+        log.erro
+        || `Status WhatsApp: ${statusData.rawStatus || 'FAILED'}`;
+    }
+
+    log.ackHistory = Array.isArray(log.ackHistory)
+      ? log.ackHistory
+      : [];
+
     log.ackHistory.push({
       em: now,
       status,
       rawStatus: statusData.rawStatus || '',
       payload: statusData.payload || null
     });
-    if (log.ackHistory.length > 50) log.ackHistory = log.ackHistory.slice(-50);
-  }
 
-  function validarWebhookFinanceiroWhatsapp(req) {
-    const configured = String(process.env.FINANCEIRO_WHATSAPP_WEBHOOK_TOKEN || '').trim();
-    if (!configured) return true;
-    const informed = String(
-      req.headers['x-financeiro-webhook-token']
-      || req.headers['x-webhook-token']
-      || req.query?.token
-      || ''
-    ).trim();
-    return informed && informed === configured;
+    if (log.ackHistory.length > 50) {
+      log.ackHistory = log.ackHistory.slice(-50);
+    }
   }
-
 
   async function migrarLogsAntigosWhatsappFinanceiro({
     req = {},
