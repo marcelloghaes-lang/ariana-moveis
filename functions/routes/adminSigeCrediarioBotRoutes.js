@@ -3445,18 +3445,22 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     || {};
 
   const messageId = String(
-    key?.id
-    || data?.messageId
-    || data?.message_id
-    || data?.id
-    || message?.messageId
-    || message?.id
-    || update?.messageId
-    || update?.message_id
-    || payload?.messageId
-    || payload?.message_id
-    || ''
-  ).trim();
+  key?.id
+  || data?.keyId
+  || data?.key_id
+  || data?.messageKey?.id
+  || data?.messageId
+  || data?.message_id
+  || data?.id
+  || message?.messageId
+  || message?.id
+  || update?.messageId
+  || update?.message_id
+  || payload?.keyId
+  || payload?.messageId
+  || payload?.message_id
+  || ''
+).trim();
 
   const remoteJid = String(
     key?.remoteJid
