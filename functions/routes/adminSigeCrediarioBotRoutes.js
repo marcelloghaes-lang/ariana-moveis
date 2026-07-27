@@ -5237,6 +5237,124 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   );
 
+  // FASE 19.1.2.1 - Um único envio técnico controlado.
+  app.post(
+    '/api/admin/financeiro/regua-whatsapp/teste-real-controlado',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.cobranca'),
+    async (req, res) => {
+      try {
+        const confirmacao = String(req.body?.confirmacao || '').trim();
+        if (confirmacao !== 'ENVIAR_UMA_MENSAGEM_DE_TESTE') {
+          return res.status(400).json({
+            ok: false,
+            error: 'Confirmacao obrigatoria invalida para o teste real controlado.'
+          });
+        }
+
+        const numero = normalizePhone(req.body?.numero || '', '55');
+        if (!numero || !/^55\d{10,11}$/.test(numero)) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Numero de teste invalido. Use DDI 55, DDD e numero.'
+          });
+        }
+
+        const origem = 'fase_19_1_teste_controlado';
+        const mensagem = 'Teste tecnico controlado da Ariana Moveis. Nao e uma cobranca. Nenhuma acao e necessaria.';
+        const agora = new Date();
+        const uniqueKey = `${origem}:${agora.toISOString()}:${numero.slice(-4)}`;
+
+        const whatsapp = await waSendTextMessage({
+          number: numero,
+          text: mensagem,
+          delay: 0
+        });
+
+        const messageId = String(
+          whatsapp?.data?.key?.id
+          || whatsapp?.data?.messageId
+          || whatsapp?.messageId
+          || ''
+        );
+        const remoteJid = String(
+          whatsapp?.data?.key?.remoteJid
+          || whatsapp?.data?.remoteJid
+          || ''
+        );
+        const deliveryStatus = String(
+          whatsapp?.data?.status
+          || whatsapp?.statusText
+          || 'PENDING'
+        ).toUpperCase();
+
+        const log = await FinanceiroReguaWhatsappLog.create({
+          uniqueKey,
+          origem,
+          tipoEvento: 'TESTE_REAL_CONTROLADO',
+          dataReferencia: agora.toISOString().slice(0, 10),
+          clienteNome: 'Homologacao Ariana Moveis',
+          telefone: numero,
+          parcelaLabel: '',
+          documento: 'Teste tecnico Fase 19.1',
+          diasAtraso: 0,
+          valor: 0,
+          mensagem,
+          dryRun: false,
+          enviado: true,
+          enviadoEm: agora,
+          erro: '',
+          whatsappResultado: whatsapp,
+          metadata: {
+            fase: '19.1',
+            controlado: true,
+            solicitadoPor: getFinanceiroActor(req)
+          },
+          deliveryStatus,
+          deliveryStatusUpdatedAt: agora,
+          messageId,
+          remoteJid,
+          retryCount: 0,
+          ackHistory: [{
+            em: agora,
+            status: deliveryStatus,
+            rawStatus: deliveryStatus,
+            payload: { origem }
+          }]
+        });
+
+        await registrarAuditoriaFinanceira({
+          req,
+          acao: 'WHATSAPP_TESTE_REAL_CONTROLADO',
+          entidade: 'FinanceiroReguaWhatsappLog',
+          entidadeId: String(log._id),
+          codigo: uniqueKey,
+          depois: {
+            origem,
+            enviado: true,
+            deliveryStatus,
+            messageIdConfigurado: Boolean(messageId)
+          },
+          metadata: { numeroFinal: numero.slice(-4) }
+        });
+
+        return res.status(201).json({
+          ok: true,
+          enviado: true,
+          limite: 1,
+          origem,
+          logId: String(log._id),
+          messageId,
+          deliveryStatus
+        });
+      } catch (error) {
+        return res.status(error.statusCode || 500).json({
+          ok: false,
+          error: error.message || 'Erro ao executar o teste real controlado.'
+        });
+      }
+    }
+  );
   app.get(
     '/api/admin/financeiro/regua-whatsapp/monitor',
     adminRequired,
