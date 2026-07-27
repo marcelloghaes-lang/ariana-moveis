@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 dotenv.config();
 
 export const PORT = Number(process.env.PORT || 3000);
-export const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
+export const JWT_SECRET = process.env.JWT_SECRET;
 export const MONGODB_URI = process.env.MONGODB_URI || '';
 export const MONGODB_DB = process.env.MONGODB_DB || 'ariana_moveis_db';
 export const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
