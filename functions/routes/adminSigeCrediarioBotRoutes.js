@@ -3216,14 +3216,15 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     req = {},
     enabled = true,
     webhookUrl = '',
-    dryRun = false
+    dryRun = false,
+    confirmacao = ''
   } = {}) {
-    const releaseConfig = getFinanceiroReleaseConfig();
-    if (!dryRun && !releaseConfig.webhookRealLiberado) {
-      const error = new Error(
-        'ConfiguraÃ§Ã£o real bloqueada. Defina FINANCEIRO_WHATSAPP_REAL_WEBHOOK_ENABLED=true somente apÃ³s o deploy homologado.'
-      );
-      error.statusCode = 409;
+    const confirmacaoEsperada = 'RECONFIGURAR_WEBHOOK_FINANCEIRO';
+    const confirmacaoRecebida = String(confirmacao || '').trim();
+
+    if (!dryRun && confirmacaoRecebida !== confirmacaoEsperada) {
+      const error = new Error("Confirmacao obrigatoria invalida para reconfigurar o webhook financeiro.");
+      error.statusCode = 400;
       throw error;
     }
     const cfg = await getWhatsappSettings();
@@ -5091,7 +5092,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           req,
           enabled: req.body?.enabled !== false,
           webhookUrl: req.body?.webhookUrl || '',
-          dryRun: req.body?.dryRun === true
+          dryRun: req.body?.dryRun === true,
+          confirmacao: req.body?.confirmacao || ''
         });
         return res.json(result);
       } catch (error) {
