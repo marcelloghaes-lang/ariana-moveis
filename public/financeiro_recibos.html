@@ -362,41 +362,7 @@
           </div>
           <table><thead><tr><th>Cliente</th><th>Documento / Descrição</th><th>Vencimento</th><th>Original</th><th>Multa</th><th>Juros</th><th>Atualizado</th><th>Status</th><th>Ação</th></tr></thead><tbody id="sigeLancBody"><tr><td colspan="6">Nenhuma consulta realizada.</td></tr></tbody></table>
         </div>
-        <div class="card" style="margin-top:20px">
-          <div class="history-header">
-            <div>
-              <h2>📋 Gestão de Carnês Digitais SIGE</h2>
-              <p class="help">O carnê é criado somente na primeira vez. Nas consultas seguintes, o mesmo registro é aberto e atualizado com parcelas, pagamentos e saldos oficiais do SIGE.</p>
-            </div>
-          </div>
 
-          <div class="actions">
-            <input id="sigeCarneBusca" placeholder="Nome, CPF ou telefone do cliente">
-            <button class="blue" onclick="criarOuAtualizarSigeCarne()">💾 Criar ou atualizar carnê</button>
-            <button class="light" onclick="buscarCarnesDigitais()">🔎 Buscar carnês emitidos</button>
-          </div>
-
-          <div id="sigeCarneBox" class="receipt" style="margin-top:14px">Pesquise um carnê existente ou crie o primeiro registro do cliente.</div>
-
-          <div class="card" style="margin-top:18px;padding:16px;background:#f8fafc">
-            <div class="history-header">
-              <div>
-                <h2 style="font-size:18px">Carnês digitais salvos</h2>
-                <p class="help">Busca no MongoDB por cliente, CPF, telefone ou código permanente.</p>
-              </div>
-              <div class="history-search">
-                <input id="sigeCarneListaBusca" placeholder="Buscar carnê emitido">
-                <button class="light" onclick="buscarCarnesDigitais()">Buscar</button>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Código</th><th>Cliente</th><th>Parcelas</th><th>Saldo</th><th>Última atualização</th><th>Ações</th></tr></thead>
-                <tbody id="sigeCarnesDigitaisBody"><tr><td colspan="6">Clique em buscar para carregar os carnês.</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
       </section>
 
 
@@ -1317,6 +1283,17 @@
             <button class="green" onclick="abrirCriacaoCarneGestao()">➕ Criar ou atualizar carnê</button>
           </div>
 
+          <div id="gcCriacaoCarne" class="receipt hidden" style="margin-top:16px">
+            <h3 style="margin:0 0 6px">Criar ou atualizar carnê pelo SIGE</h3>
+            <p class="help">Informe nome, CPF ou telefone. O sistema atualiza o registro permanente e não cria duplicidade.</p>
+            <div class="actions">
+              <input id="sigeCarneBusca" placeholder="Nome, CPF ou telefone do cliente">
+              <button class="blue" onclick="criarOuAtualizarSigeCarne()">💾 Consultar e atualizar</button>
+              <button class="light" onclick="fecharCriacaoCarneGestao()">Fechar</button>
+            </div>
+            <div id="sigeCarneBox" class="receipt" style="margin-top:12px">Informe o cliente para consultar o SIGE.</div>
+          </div>
+
           <div class="carne-kpis">
             <div class="carne-kpi"><small>Carnês encontrados</small><b id="gcKpiCarnes">0</b></div>
             <div class="carne-kpi"><small>Saldo total</small><b id="gcKpiSaldo">R$ 0,00</b></div>
@@ -1786,7 +1763,7 @@ async function login(){
   }catch(e){toast('Não foi possível conectar ao backend: '+(e.message||e))}
 }
 function logout(){localStorage.removeItem('admin_token');location.reload()}
-function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='monitorWhatsapp')carregarMonitorWhatsapp();if(name==='homologacao')carregarChecklistRelease(false);if(name==='sige'){testarSigeStatus();buscarCarnesDigitais();}if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='filaCobranca'){inicializarFilaCobranca();carregarFilaCobranca();}if(name==='promessasPagamento')carregarPromessasPagamento(1);if(name==='recuperacaoCredito')inicializarRecuperacaoCredito();if(name==='tratativasFinanceiras')carregarTratativas(1);if(name==='prevencaoRisco')carregarRiscosClientes(1);if(name==='autoCobranca')loadAutoCobrancaConfig();if(name==='dashboardCrediario')loadDashboardCrediario();if(name==='perfisCredito')loadPerfisCredito();if(name==='analises')loadAnalisesCredito();if(name==='gestaoCarnes')pesquisarGestaoCarnes(1);if(name==='sincronizacao'){carregarStatusSincronizacao();carregarHistoricoSincronizacao();}if(name==='segurancaFinanceira'){carregarConfiguracaoFinanceira();carregarAuditoriaFinanceira();}if(name==='operacaoFinanceira'){}if(name==='cora')iniciarCora();if(name==='whatsappCrediario'){carregarConfigCrediarioWhatsApp();carregarHistoricoCrediarioWhatsApp();}if(name==='novo')setTimeout(()=>nome.focus(),120)}
+function showTab(name,btn){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));document.getElementById('tab-'+name).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(name==='clientes')loadClientes();if(name==='historico')loadRecibos();if(name==='cobrancas')loadCobrancas();if(name==='monitorWhatsapp')carregarMonitorWhatsapp();if(name==='homologacao')carregarChecklistRelease(false);if(name==='sige'){testarSigeStatus();}if(name==='inadimplentes')loadSigeInadimplentesCentral();if(name==='filaCobranca'){inicializarFilaCobranca();carregarFilaCobranca();}if(name==='promessasPagamento')carregarPromessasPagamento(1);if(name==='recuperacaoCredito')inicializarRecuperacaoCredito();if(name==='tratativasFinanceiras')carregarTratativas(1);if(name==='prevencaoRisco')carregarRiscosClientes(1);if(name==='autoCobranca')loadAutoCobrancaConfig();if(name==='dashboardCrediario')loadDashboardCrediario();if(name==='perfisCredito')loadPerfisCredito();if(name==='analises')loadAnalisesCredito();if(name==='gestaoCarnes')pesquisarGestaoCarnes(1);if(name==='sincronizacao'){carregarStatusSincronizacao();carregarHistoricoSincronizacao();}if(name==='segurancaFinanceira'){carregarConfiguracaoFinanceira();carregarAuditoriaFinanceira();}if(name==='operacaoFinanceira'){}if(name==='cora')iniciarCora();if(name==='whatsappCrediario'){carregarConfigCrediarioWhatsApp();carregarHistoricoCrediarioWhatsApp();}if(name==='novo')setTimeout(()=>nome.focus(),120)}
 function getForm(){return{clienteId:clienteId.value.trim(),clienteNome:nome.value.trim(),nome:nome.value.trim(),telefone:telefone.value.trim(),cpf:cpf.value.trim(),contrato:contrato.value.trim(),produto:produto.value.trim()||'Compra na loja',valorPago:valor.value.trim(),parcela:formatParcelaCliente(parcela.value.trim()),formaPagamento:forma.value,dataPagamento:data.value,observacao:obs.value.trim()}}
 function preview(){const f=getForm();previewBox.innerHTML=`<div class="brand">Ariana Móveis</div><p>Comprovante de pagamento de parcela</p><div class="row"><strong>Cliente</strong><span>${esc(f.nome)||'—'}</span></div><div class="row"><strong>CPF</strong><span>${esc(f.cpf)||'—'}</span></div><div class="row"><strong>Produto</strong><span>${esc(f.produto)||'—'}</span></div><div class="row"><strong>Parcela</strong><span>${esc(formatParcelaCliente(f.parcela))||'—'}</span></div><div class="row"><strong>Forma</strong><span>${esc(f.formaPagamento)}</span></div><div class="row"><strong>Data</strong><span>${f.dataPagamento?new Date(f.dataPagamento+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</span></div><div class="row"><strong>Valor pago</strong><span class="money">${money(String(f.valorPago).replace(/\./g,'').replace(',','.'))}</span></div>`}
 function clearSelectedCliente(){selectedCliente=null;clienteId.value='';clienteSelecionado.classList.add('hidden');clienteHistorico.classList.add('hidden');clienteAviso.classList.add('hidden')}
@@ -1834,20 +1811,50 @@ async function printRecibo(id){
   }
 }
 
+function numeroCobranca(v){
+  if(typeof v==='number')return Number.isFinite(v)?v:0;
+  const s=String(v??'').trim();
+  if(!s)return 0;
+  const normalizado=s.includes(',')?s.replace(/\./g,'').replace(',','.'):s;
+  const n=Number(normalizado);
+  return Number.isFinite(n)?n:0;
+}
+function formatarValorCobranca(v){
+  return numeroCobranca(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function dadosFinanceirosCobranca(d={}){
+  const financeiro=d.atualizacaoFinanceira||{};
+  const valorDigitado=numeroCobranca(cobrancaValor?.value);
+  const valorOriginal=numeroCobranca(
+    d.valorOriginal ?? financeiro.saldoOriginal ?? d.saldoParcela ?? d.saldo ?? d.valorPago ?? d.valor ?? valorDigitado
+  );
+  const multa=Math.max(0,numeroCobranca(d.multa ?? financeiro.multa ?? 0));
+  const juros=Math.max(0,numeroCobranca(d.juros ?? financeiro.juros ?? 0));
+  const calculado=valorOriginal+multa+juros;
+  const valorAtualizadoBase=numeroCobranca(
+    d.valorAtualizado ?? financeiro.valorAtualizado ?? valorDigitado ?? calculado
+  );
+  const valorAtualizado=valorDigitado>0?valorDigitado:(valorAtualizadoBase>0?valorAtualizadoBase:calculado);
+  return {valorOriginal,multa,juros,valorAtualizado};
+}
 function cobrancaTextoPreview(d){
   const nome=d.nome||d.clienteNome||'cliente';
   const tipo=tipoCobranca?.value||'normal';
   const urgente=tipo==='urgente';
   const produto=(cobrancaProduto?.value||d.produto||'').trim();
   const parc=formatParcelaCliente((cobrancaParcela?.value||d.parcela||'').trim());
-  const val=(cobrancaValor?.value||d.valorPago||d.valor||'').toString().trim();
+  const valores=dadosFinanceirosCobranca(d);
+  const possuiAtualizacao=valores.multa>0||valores.juros>0||valores.valorAtualizado>valores.valorOriginal+0.009;
+  const linhasValor=possuiAtualizacao
+    ? `${valores.valorOriginal>0?'💰 Valor original: R$ '+formatarValorCobranca(valores.valorOriginal)+'\n':''}${valores.multa>0?'⚠️ Multa: R$ '+formatarValorCobranca(valores.multa)+'\n':''}${valores.juros>0?'📈 Juros: R$ '+formatarValorCobranca(valores.juros)+'\n':''}${valores.valorAtualizado>0?'✅ Valor atualizado: R$ '+formatarValorCobranca(valores.valorAtualizado)+'\n':''}`
+    : (valores.valorAtualizado>0?'💰 Valor: R$ '+formatarValorCobranca(valores.valorAtualizado)+'\n':'');
   return `${urgente?'🚨 Aviso urgente de pendência financeira':'🔔 Aviso de pendência financeira'}
 
 Olá, ${nome}.
 
 ${urgente?'Constam nota(s)/parcela(s) em atraso em nosso sistema. Solicitamos contato com urgência para regularização ou esclarecimentos.':'Informamos que existe nota/parcela em atraso em nosso sistema.'}
 
-${produto?'📦 Referência: '+produto+'\n':''}${parc?'📌 Parcela: '+parc+'\n':''}${val?'💰 Valor: R$ '+val+'\n':''}${d.documento||d.recibo?'🧾 Documento: '+(d.documento||d.recibo)+'\n':''}
+${produto?'📦 Referência: '+produto+'\n':''}${parc?'📌 Parcela: '+parc+'\n':''}${linhasValor}${d.documento||d.recibo?'🧾 Documento: '+(d.documento||d.recibo)+'\n':''}
 ${urgente?'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.':'Por favor, entre em contato com a loja para mais informações ou regularização.'}
 
 📲 WhatsApp financeiro:
@@ -1881,7 +1888,9 @@ function preencherCobranca(d){
   cobrancaAlvo=d||{};
   cobrancaProduto.value=d.produto||'';
   cobrancaParcela.value=formatParcelaCliente(d.parcela||'');
-  cobrancaValor.value=d.valorPago?String(Number(d.valorPago).toFixed(2)).replace('.',','):'';
+  const valores=dadosFinanceirosCobranca(d);
+  cobrancaAlvo={...d,...valores};
+  cobrancaValor.value=valores.valorAtualizado>0?formatarValorCobranca(valores.valorAtualizado):'';
   preencherResumoCobranca();
   atualizarBoxTelefoneCobranca();
   previewCobranca();
@@ -1945,7 +1954,18 @@ async function enviarCobrancaSelecionada(){
     toast('Informe e salve o celular do cliente antes de enviar.');
     return;
   }
-  const payload={tipo:tipoCobranca.value,produto:cobrancaProduto.value,parcela:cobrancaParcela.value,valor:String(cobrancaValor.value).replace(/\./g,'').replace(',','.'),telefone:telefoneAtual};
+  const valores=dadosFinanceirosCobranca(cobrancaAlvo);
+  const payload={
+    tipo:tipoCobranca.value,
+    produto:cobrancaProduto.value,
+    parcela:cobrancaParcela.value,
+    valor:valores.valorAtualizado,
+    valorOriginal:valores.valorOriginal,
+    multa:valores.multa,
+    juros:valores.juros,
+    valorAtualizado:valores.valorAtualizado,
+    telefone:telefoneAtual
+  };
   const endpoint=cobrancaAlvo.kind==='sige'
     ? '/admin/sige/cobranca'
     : (cobrancaAlvo.kind==='cliente'
@@ -2039,18 +2059,36 @@ function renderSigeLancamentos(rows){
 }
 function cobrarLancamentoSige(i){
   const l=(window.sigeLancamentosCache||[])[Number(i)]; if(!l)return;
+  const financeiro=l.atualizacaoFinanceira||{};
+  const valorOriginal=Number(financeiro.saldoOriginal??l.saldo??l.valor??0);
+  const multa=Number(financeiro.multa||0);
+  const juros=Number(financeiro.juros||0);
+  const valorAtualizado=Number(financeiro.valorAtualizado??(valorOriginal+multa+juros));
   openCobrancasTab();
-  setTimeout(()=>preencherCobranca({kind:'sige',nome:l.cliente||l.nome,clienteNome:l.cliente||l.nome,telefone:l.telefone||'',produto:l.descricao||'Pendência financeira SIGE',parcela:l.documento||'',valorPago:l.saldo&&l.saldo>0?l.saldo:l.valor,documento:l.documento||l.codigo,codigo:l.codigo}),120);
+  setTimeout(()=>preencherCobranca({
+    kind:'sige',
+    nome:l.cliente||l.nome,
+    clienteNome:l.cliente||l.nome,
+    telefone:l.telefone||'',
+    produto:l.descricao||'Pendência financeira SIGE',
+    parcela:l.parcelaLabel||l.documento||'',
+    valorPago:valorAtualizado,
+    valorOriginal,
+    multa,
+    juros,
+    valorAtualizado,
+    atualizacaoFinanceira:financeiro,
+    documento:l.documento||l.codigo,
+    codigo:l.codigo
+  }),120);
 }
 
 
 function abrirAbaSigeSeguro(){
-  const tab=document.getElementById('tab-sige');
-  if(tab){document.querySelectorAll('[id^="tab-"]').forEach(e=>e.classList.add('hidden'));tab.classList.remove('hidden')}
-  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
-  const btn=[...document.querySelectorAll('.nav button')].find(b=>(b.textContent||'').toLowerCase().includes('sige'));
-  if(btn)btn.classList.add('active');
-  try{testarSigeStatus()}catch(_e){}
+  const btn=[...document.querySelectorAll('.nav button')].find(b=>(b.textContent||'').includes('Gestão de Carnês'));
+  if(btn)showTab('gestaoCarnes',btn);
+  const painel=document.getElementById('gcCriacaoCarne');
+  if(painel)painel.classList.remove('hidden');
   setTimeout(()=>{const box=document.getElementById('sigeCarneBusca'); if(box){box.scrollIntoView({behavior:'smooth',block:'center'}); box.focus();}},80);
 }
 function verCarnePorNome(nomeCliente){
@@ -2086,7 +2124,7 @@ async function criarOuAtualizarSigeCarne(){
     const carne=data.carne||{};
     renderSigeCarne({...carne,...(carne.snapshot||{}),cliente:carne.cliente?.nome||'',cpf:carne.cliente?.cpf||'',telefone:carne.cliente?.telefone||'',cidade:carne.cliente?.cidade||'',uf:carne.cliente?.uf||''});
     toast(data.criadoAgora?'Carnê criado e salvo com sucesso.':'O mesmo carnê foi atualizado com os valores atuais.');
-    await buscarCarnesDigitais();
+    await pesquisarGestaoCarnes(1);
   }catch(e){
     if(box)box.innerHTML='Erro ao sincronizar carnê: '+esc(e.message||e);
   }
@@ -2133,7 +2171,7 @@ async function abrirCarneDigital(id){
   try{
     const data=await apiJson('/admin/financeiro/carnes/'+encodeURIComponent(id));
     const c=data.carne||{};
-    document.getElementById('sigeCarneBusca').value=c.cliente?.nome||c.cliente?.cpf||'';
+    const busca=document.getElementById('sigeCarneBusca'); if(busca)busca.value=c.cliente?.nome||c.cliente?.cpf||'';
     renderSigeCarne({...c,...(c.snapshot||{}),cliente:c.cliente?.nome||'',cpf:c.cliente?.cpf||'',telefone:c.cliente?.telefone||'',cidade:c.cliente?.cidade||'',uf:c.cliente?.uf||''});
   }catch(e){
     if(box)box.innerHTML='Erro ao abrir carnê: '+esc(e.message||e);
@@ -2152,7 +2190,7 @@ async function atualizarCarneDigital(id){
     const c=data.carne||{};
     renderSigeCarne({...c,...(c.snapshot||{}),cliente:c.cliente?.nome||'',cpf:c.cliente?.cpf||'',telefone:c.cliente?.telefone||'',cidade:c.cliente?.cidade||'',uf:c.cliente?.uf||''});
     toast('Carnê atualizado sem criar outro registro.');
-    await buscarCarnesDigitais();
+    await pesquisarGestaoCarnes(1);
   }catch(e){
     if(box)box.innerHTML='Erro ao atualizar carnê: '+esc(e.message||e);
   }
@@ -3384,9 +3422,68 @@ function limparFiltrosGestaoCarnes(){
 }
 
 function abrirCriacaoCarneGestao(){
-  const btn=[...document.querySelectorAll('.nav button')].find(b=>b.textContent.includes('SIGE Online'));
-  if(btn)showTab('sige',btn);
-  setTimeout(()=>document.getElementById('sigeCarneBusca')?.focus(),150);
+  const painel=document.getElementById('gcCriacaoCarne');
+  if(painel)painel.classList.remove('hidden');
+  setTimeout(()=>{
+    const input=document.getElementById('sigeCarneBusca');
+    if(input){input.scrollIntoView({behavior:'smooth',block:'center'});input.focus();}
+  },100);
+}
+function fecharCriacaoCarneGestao(){
+  document.getElementById('gcCriacaoCarne')?.classList.add('hidden');
+}
+
+async function carregarHistoricoWhatsappCarne(carne={}){
+  const box=document.getElementById('gcWhatsappHistorico');
+  if(!box)return;
+
+  box.innerHTML='<div class="muted">Carregando histórico do WhatsApp...</div>';
+
+  try{
+    const params=new URLSearchParams({
+      limit:'50',
+      carneId:String(carne.id||''),
+      carneCodigo:String(carne.codigo||''),
+      telefone:String(carne.cliente?.telefone||'')
+    });
+
+    const data=await apiJson('/admin/financeiro/regua-whatsapp/monitor?'+params.toString());
+    const rows=Array.isArray(data.monitor?.recentes)?data.monitor.recentes:[];
+
+    box.innerHTML=`<div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data e hora</th>
+            <th>Tipo</th>
+            <th>Telefone</th>
+            <th>Status</th>
+            <th>Tentativas</th>
+            <th>Observação</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.length?rows.map(row=>{
+            const status=String(row.deliveryStatus||'UNKNOWN').toUpperCase();
+            const cls=status==='READ'||status==='DELIVERED'
+              ? 'ok'
+              : (status==='FAILED'?'danger':'pending');
+            const dataEvento=row.enviadoEm||row.deliveryStatusUpdatedAt||row.createdAt;
+            return `<tr>
+              <td>${dataEvento?new Date(dataEvento).toLocaleString('pt-BR'):'—'}</td>
+              <td>${esc(row.tipoEvento||'—')}</td>
+              <td>${esc(row.telefone||'—')}</td>
+              <td><span class="pill ${cls}">${esc(status)}</span></td>
+              <td>${Number(row.retryCount||0)}</td>
+              <td>${row.erro?'<span style="color:#991b1b">Erro registrado</span>':'—'}</td>
+            </tr>`;
+          }).join(''):'<tr><td colspan="6">Nenhuma mensagem de WhatsApp registrada para este carnê.</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+  }catch(e){
+    box.innerHTML='<div class="cred-dash-error">Erro ao carregar o histórico do WhatsApp: '+esc(e.message||e)+'</div>';
+  }
 }
 
 async function abrirCarneGestao(id){
@@ -3420,16 +3517,65 @@ async function abrirCarneGestao(id){
       <div class="row"><span>Atualizado por</span><span>${esc(c.ultimaSincronizacaoPor||'—')}</span></div>
     </div>
     <h3 style="margin-top:18px">Compras e contratos</h3>
-    ${grupos.length?grupos.map(g=>`<div class="receipt" style="margin-top:10px">
-      <b>${esc(g.documento||'Compra')}</b>
-      <div class="muted">${esc(g.descricao||'')}</div>
-      <div class="row"><span>Total</span><span>${money(g.total||0)}</span></div>
-      <div class="row"><span>Pago</span><span>${money(g.pago||0)}</span></div>
-      <div class="row"><span>Saldo original</span><span>${money(g.saldo||0)}</span></div>
-      <div class="row"><span>Multa</span><span>${money(g.multa||0)}</span></div>
-      <div class="row"><span>Juros</span><span>${money(g.juros||0)}</span></div>
-      <div class="row"><span>Valor atualizado</span><span><b>${money(g.valorAtualizado||g.saldo||0)}</b></span></div>
-    </div>`).join(''):'<div class="notice">Nenhum grupo financeiro salvo.</div>'}`;
+    ${grupos.length?grupos.map(g=>{
+      const parcelas=Array.isArray(g.parcelas)?g.parcelas:[];
+      return `<div class="receipt" style="margin-top:10px">
+        <b>${esc(g.documento||'Compra')}</b>
+        <div class="muted">${esc(g.descricao||'')}</div>
+        <div class="row"><span>Total</span><span>${money(g.total||0)}</span></div>
+        <div class="row"><span>Pago</span><span>${money(g.pago||0)}</span></div>
+        <div class="row"><span>Saldo original</span><span>${money(g.saldo||0)}</span></div>
+        <div class="row"><span>Multa</span><span>${money(g.multa||0)}</span></div>
+        <div class="row"><span>Juros</span><span>${money(g.juros||0)}</span></div>
+        <div class="row"><span>Valor atualizado</span><span><b>${money(g.valorAtualizado||g.saldo||0)}</b></span></div>
+
+        <h4 style="margin:16px 0 8px">Parcelas do contrato</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Parcela</th>
+                <th>Vencimento</th>
+                <th>Valor original</th>
+                <th>Multa</th>
+                <th>Juros</th>
+                <th>Valor atualizado</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${parcelas.length?parcelas.map(p=>{
+                const calc=p.atualizacaoFinanceira||calcularAtualizacaoParcela(
+                  Number(p.saldoParcela??p.saldo??p.valorParcela??p.valor??0),
+                  p.dataVencimento,
+                  p.status
+                );
+                const status=p.status==='paga'
+                  ? '<span class="pill ok">Paga</span>'
+                  : (p.status==='atrasada'
+                    ? '<span class="pill" style="background:#fee2e2;color:#991b1b">Atrasada</span>'
+                    : '<span class="pill pending">Em aberto</span>');
+                const dias=Number(calc.diasAtraso||0);
+                return `<tr>
+                  <td><b>${esc(p.parcelaLabel||p.parcelaNumero||'—')}</b></td>
+                  <td>${p.dataVencimento?formatDateBR(p.dataVencimento):'—'}${dias>0?`<br><small style="color:#b91c1c">${dias} dia(s) em atraso</small>`:''}</td>
+                  <td>${money(calc.original??calc.saldoOriginal??p.valorParcela??p.valor??0)}</td>
+                  <td>${money(calc.multa??0)}</td>
+                  <td>${money(calc.juros??0)}</td>
+                  <td><b>${money(calc.atualizado??calc.valorAtualizado??p.saldoParcela??p.valorParcela??0)}</b></td>
+                  <td>${status}</td>
+                </tr>`;
+              }).join(''):'<tr><td colspan="7">Nenhuma parcela salva neste contrato.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join(''):'<div class="notice">Nenhum grupo financeiro salvo.</div>'}
+    <h3 style="margin-top:18px">Histórico do WhatsApp</h3>
+    <div id="gcWhatsappHistorico" class="receipt">
+      <div class="muted">Carregando histórico do WhatsApp...</div>
+    </div>`;
+    await carregarHistoricoWhatsappCarne(c);
     box.scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){
     box.innerHTML='Erro ao abrir carnê: '+esc(e.message||e);
@@ -3635,15 +3781,146 @@ async function enviarCarneGestaoWhatsapp(id){
   }
 }
 
+function urlPublicaSegura(value){
+  try{
+    const url=new URL(String(value||''));
+    return ['http:','https:'].includes(url.protocol)?url.href:'';
+  }catch{return ''}
+}
+
+function statusCoraLabel(status){
+  const value=String(status||'UNKNOWN').toUpperCase();
+  const labels={OPEN:'Em aberto',PAID:'Pago',PARTIALLY_PAID:'Pago parcialmente',CANCELLED:'Cancelado',CANCELED:'Cancelado',PROCESSING:'Processando',PENDING_CONFIRMATION:'Aguardando confirmaÃ§Ã£o',OVERDUE:'Vencido',FAILED:'Falhou',UNKNOWN:'Desconhecido'};
+  return labels[value]||value;
+}
+
+function statusCoraClass(status){
+  const value=String(status||'').toUpperCase();
+  if(value==='PAID')return 'ok';
+  if(['CANCELLED','CANCELED','FAILED','OVERDUE'].includes(value))return 'danger';
+  return 'pending';
+}
+
+async function copiarLinhaDigitavelCora(value){
+  const texto=String(value||'').replace(/\D/g,'');
+  if(!texto){toast('Linha digitÃ¡vel indisponÃ­vel.');return}
+  try{
+    await navigator.clipboard.writeText(texto);
+    toast('Linha digitÃ¡vel copiada.');
+  }catch{
+    const area=document.createElement('textarea');
+    area.value=texto;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
+    toast('Linha digitÃ¡vel copiada.');
+  }
+}
+
+async function vincularEmissaoCoraAoCarne(carneId,chargeId){
+  if(!confirm('Vincular esta emissão Cora permanentemente a este carnê?'))return;
+  try{
+    const data=await apiJson('/admin/financeiro/carnes/'+encodeURIComponent(carneId)+'/cora-vinculo',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chargeId})
+    });
+    toast(data.message||'Emissão Cora vinculada.');
+    await abrirSegundaViaCarne(carneId);
+  }catch(e){
+    toast('Erro ao vincular: '+(e.message||e));
+  }
+}
+
+async function desvincularEmissaoCoraDoCarne(carneId){
+  if(!confirm('Remover o vínculo com a emissão Cora? Os boletos não serão apagados.'))return;
+  try{
+    const data=await apiJson('/admin/financeiro/carnes/'+encodeURIComponent(carneId)+'/cora-vinculo',{
+      method:'DELETE'
+    });
+    toast(data.message||'Vínculo Cora removido.');
+    await abrirSegundaViaCarne(carneId);
+  }catch(e){
+    toast('Erro ao remover vínculo: '+(e.message||e));
+  }
+}
+
 async function abrirSegundaViaCarne(id){
   const box=document.getElementById('gcDetalhe');
-  if(box){box.classList.remove('hidden');box.innerHTML='Carregando segunda via...';}
+  if(box){box.classList.remove('hidden');box.innerHTML='Carregando segunda via da Cora...';}
   try{
     const data=await apiJson('/admin/financeiro/carnes/'+encodeURIComponent(id)+'/segunda-via');
-    await abrirCarneGestao(id);
+    const carne=data.carne||{};
+    const charges=Array.isArray(data.coraCharges)?data.coraCharges:(data.coraCharge?[data.coraCharge]:[]);
+    const linkedId=String(data.coraLinkedChargeId||carne.coraChargeId||'');
+
+    if(!charges.length){
+      box.innerHTML=`<div class="history-header">
+        <div><h2>🧾 Segunda via</h2><p class="help">${esc(carne.cliente?.nome||'Cliente')} • ${esc(carne.codigo||'')}</p></div>
+        <button class="light" onclick="abrirCarneGestao('${esc(id)}')">← Voltar ao carnê</button>
+      </div>
+      <div class="warn"><b>Nenhum boleto Cora localizado.</b><br>Este carnê do SIGE não possui uma emissão Cora vinculada pelos dados atuais. Nenhum boleto foi criado ou alterado nesta consulta.</div>`;
+      toast(data.message||'Nenhum boleto Cora localizado.');
+      return;
+    }
+
+    const aviso=data.coraVinculoAutomatico
+      ? `<div class="notice" style="margin-bottom:14px"><b>✅ Vínculo automático concluído.</b><br>A emissão compatível foi salva neste carnê. Nas próximas consultas, a segunda via abrirá diretamente este registro.</div>`
+      : (!linkedId&&charges.length>1
+        ? `<div class="notice" style="margin-bottom:14px"><b>Foram encontradas ${charges.length} emissões Cora.</b><br>Confira a descrição, as datas e os valores e clique em <b>Vincular esta emissão</b> na opção correta.</div>`
+        : '');
+
+    box.innerHTML=`<div class="history-header">
+      <div><h2>🧾 Segunda via Cora</h2><p class="help">${esc(carne.cliente?.nome||'Cliente')} • ${esc(carne.codigo||'')}</p></div>
+      <div class="actions" style="margin-top:0">
+        ${linkedId?`<button class="red small" type="button" onclick="desvincularEmissaoCoraDoCarne('${esc(id)}')">Remover vínculo</button>`:''}
+        <button class="light" onclick="abrirCarneGestao('${esc(id)}')">← Voltar ao carnê</button>
+      </div>
+    </div>
+    ${aviso}
+    ${charges.map((charge,chargeIndex)=>{
+      const pdfCompleto=urlPublicaSegura(charge.documentUrl);
+      const invoices=Array.isArray(charge.invoices)?charge.invoices:[];
+      const vinculada=Boolean(charge.linked||String(charge.id||'')===linkedId);
+      return `<div class="receipt" style="margin-bottom:18px;${vinculada?'border:2px solid #22c55e;':''}">
+        <div class="history-header" style="margin-bottom:8px">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <b style="font-size:17px">Emissão ${chargeIndex+1}</b>
+              ${vinculada?'<span class="pill ok">✅ Vinculada a este carnê</span>':''}
+            </div>
+            <div class="muted">Referência: ${esc(charge.internalReference||charge.code||'—')} • Emitido em ${charge.createdAt?new Date(charge.createdAt).toLocaleString('pt-BR'):'—'}</div>
+          </div>
+          <span class="pill ${statusCoraClass(charge.status)}">${esc(statusCoraLabel(charge.status))}</span>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          ${pdfCompleto?`<a href="${esc(pdfCompleto)}" target="_blank" rel="noopener noreferrer"><button class="blue" type="button">📄 Abrir carnê completo</button></a>`:'<span class="muted">PDF completo indisponível.</span>'}
+          ${!vinculada?`<button class="green" type="button" onclick="vincularEmissaoCoraAoCarne('${esc(id)}','${esc(charge.id)}')">🔗 Vincular esta emissão</button>`:''}
+        </div>
+        <div class="table-wrap" style="margin-top:14px">
+          <table>
+            <thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Linha digitável</th><th>Ações</th></tr></thead>
+            <tbody>
+              ${invoices.length?invoices.map(invoice=>{
+                const boletoUrl=urlPublicaSegura(invoice.url);
+                const digitable=String(invoice.digitable||'').replace(/\D/g,'');
+                return `<tr>
+                  <td><b>${Number(invoice.numero||0)||'—'}/${Number(charge.installments||invoices.length)||invoices.length}</b><br><small>${esc(invoice.description||'')}</small></td>
+                  <td>${invoice.dueDate?formatDateBR(invoice.dueDate):'—'}</td>
+                  <td><b>${money(Number(invoice.totalAmountCents||0)/100)}</b></td>
+                  <td><span class="pill ${statusCoraClass(invoice.status)}">${esc(statusCoraLabel(invoice.status))}</span></td>
+                  <td><span style="font-family:monospace;font-size:11px;word-break:break-all">${esc(digitable||'—')}</span></td>
+                  <td><div class="row-actions" style="min-width:170px">
+                    ${boletoUrl?`<a href="${esc(boletoUrl)}" target="_blank" rel="noopener noreferrer"><button class="light small" type="button">Abrir boleto</button></a>`:''}
+                    ${digitable?`<button class="yellow small" type="button" onclick="copiarLinhaDigitavelCora('${digitable}')">Copiar linha</button>`:''}
+                  </div></td>
+                </tr>`;
+              }).join(''):'<tr><td colspan="6">Nenhuma parcela registrada nesta emissão.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('')}`;
     toast(data.message||'Segunda via carregada.');
   }catch(e){
-    if(box)box.innerHTML='Erro: '+esc(e.message||e);
+    if(box)box.innerHTML='Erro ao carregar a segunda via: '+esc(e.message||e);
   }
 }
 

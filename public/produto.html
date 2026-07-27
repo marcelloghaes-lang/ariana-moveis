@@ -159,7 +159,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             position: absolute;
             top: -5px;
             right: -10px;
-            background-color: #2E6DA4;
+            background-color: #0B4AA2;
             color: white;
             border-radius: 9999px;
             padding: 0 6px;
@@ -233,7 +233,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
         }
 
         .thumbnail-image.active {
-            border-color: #2E6DA4;
+            border-color: #0B4AA2;
         }
 
         #thumbnail-gallery {
@@ -245,9 +245,9 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #e5f1ff;
-            border: 2px dashed #a2c8e6;
-            color: #2E6DA4;
+            background-color: #EFF6FF;
+            border: 2px dashed #77D0FF;
+            color: #0B4AA2;
             font-weight: bold;
             border-radius: 8px;
             text-align: center;
@@ -1807,6 +1807,8 @@ function addToCart(action = 'add') {
 
             writeCartArray(cart);
             cartItems = cart;
+            // Qualquer inclusão/alteração no carrinho exige uma nova revisão da garantia.
+            try { localStorage.removeItem('ariana_warranty_reviewed_cart_sig'); } catch (_) {}
             updateCartCounter();
 
             if (typeof window.loadCartCounter === 'function') {
@@ -1815,7 +1817,7 @@ function addToCart(action = 'add') {
             }
 
             if (action === 'buy_now') {
-                window.location.href = 'carrinho.html';
+                window.location.href = 'garantia_estendida.html';
                 return;
             }
 
@@ -2460,7 +2462,7 @@ function renderShippingQuotes(result, cep) {
                 return `
                   <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary-blue cursor-pointer">
                     <div class="flex items-center gap-3">
-                      <input type="radio" name="shippingOption" value="${q.service}" data-price="${price}" data-name="${name}" class="accent-[#2E6DA4]" ${checked}>
+                      <input type="radio" name="shippingOption" value="${q.service}" data-price="${price}" data-name="${name}" class="accent-[#0B4AA2]" ${checked}>
                       <div class="flex flex-col">
                         <span class="font-semibold text-text-dark">${name}</span>
                         <span class="text-xs text-gray-500">Prazo: ${deadline}</span>

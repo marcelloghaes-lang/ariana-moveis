@@ -429,35 +429,30 @@ const msg = document.getElementById('msg');
       return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
     }
     async function fetchWithApiFallback(path, init = {}) {
-  const bases = IS_LOCAL_HOST ? [API_BASE_LOCAL, API_BASE_RENDER] : [API_BASE_RENDER, API_BASE_LOCAL];
-  let lastError = null;
-  let lastResponse = null;
-
-  for (const base of bases) {
-    try {
+      // Durante os testes locais, nunca alterna silenciosamente para o Render.
+      // Isso impedia perceber erros do backend local e fazia o painel recarregar
+      // banners antigos da produção.
+      const base = String(window.API_BASE || API_BASE).replace(/\/$/, '');
       const url = `${base}${path}`;
-      const res = await fetch(url, init);
 
-      if (!res.ok && [404, 405, 502, 503, 504].includes(res.status) && base !== bases[bases.length - 1]) {
-        lastResponse = res;
-        continue;
+      let res;
+      try {
+        res = await fetch(url, {
+          ...init,
+          cache: 'no-store',
+          headers: {
+            ...(init.headers || {}),
+            'X-Requested-With': 'ArianaBannerAdmin'
+          }
+        });
+      } catch (error) {
+        throw new Error(`Não foi possível acessar ${url}. Confirme se o backend local está rodando na porta 3000.`);
       }
 
-          window.API_BASE = base;
-          window.API_ORIGIN = String(base).replace(/\/api\/?$/i, "");
-          try {
-            localStorage.setItem("API_BASE", base);
-            localStorage.setItem("API_BASE_URL", base);
-            localStorage.setItem("API_ORIGIN", window.API_ORIGIN);
-          } catch (_) {}
-          return res;
-        } catch (err) {
-          lastError = err;
-        }
-      }
-
-      if (lastResponse) return lastResponse;
-      throw lastError || new Error('Nenhuma API disponível no momento.');
+      // Mantém a API fixa; não troca para outro servidor escondido.
+      window.API_BASE = base;
+      window.API_ORIGIN = String(base).replace(/\/api\/?$/i, '');
+      return res;
     }
 
     const ADMIN_EMAILS = ['marcelloghaes@gmail.com', 'wandersonnunes581@gmail.com'];
@@ -491,7 +486,8 @@ const msg = document.getElementById('msg');
       const url = String(imageUrl || '').trim();
       if(url){
         const img = document.createElement('img');
-        img.src = url;
+        const cacheSeparator = url.includes('?') ? '&' : '?';
+        img.src = `${url}${cacheSeparator}v=${Date.now()}`;
         img.alt = bannerId;
         img.loading = 'lazy';
         img.onerror = () => {
@@ -676,9 +672,7 @@ const msg = document.getElementById('msg');
       formData.append('name', bannerId);
 
       const attempts = [
-        { path: '/admin/uploads', init: { method:'POST', headers: authHeaders(), body: formData } },
-        { path: '/upload', init: { method:'POST', headers: authHeaders(), body: formData } },
-        { path: '/banners/upload', init: { method:'POST', headers: authHeaders(), body: formData } }
+        { path: '/admin/uploads', init: { method:'POST', headers: authHeaders(), body: formData } }
       ];
       let lastError = null;
 
@@ -797,14 +791,6 @@ const msg = document.getElementById('msg');
             headers: authHeaders({ 'Content-Type':'application/json' }),
             body: JSON.stringify(payload)
           }
-        },
-        {
-          path: '/admin/banners/bulk',
-          init: {
-            method:'POST',
-            headers: authHeaders({ 'Content-Type':'application/json' }),
-            body: JSON.stringify({ banners: [payload] })
-          }
         }
       ];
 
@@ -844,8 +830,7 @@ const msg = document.getElementById('msg');
         const token = getAdminToken();
         const routes = token
           ? [
-              { path:'/admin/banners', init:{ cache:'no-store', headers: authHeaders() } },
-              { path:'/banners', init:{ cache:'no-store' } }
+              { path:'/admin/banners', init:{ cache:'no-store', headers: authHeaders() } }
             ]
           : [
               { path:'/banners', init:{ cache:'no-store' } }
@@ -935,22 +920,6 @@ const msg = document.getElementById('msg');
             headers: authHeaders({ 'Content-Type':'application/json' }),
             body: JSON.stringify({ banners })
           }
-        },
-        {
-          path: '/banners/bulk',
-          init: {
-            method:'POST',
-            headers: authHeaders({ 'Content-Type':'application/json' }),
-            body: JSON.stringify({ banners })
-          }
-        },
-        {
-          path: '/admin/banners',
-          init: {
-            method:'POST',
-            headers: authHeaders({ 'Content-Type':'application/json' }),
-            body: JSON.stringify(payloadById)
-          }
         }
       ];
 
@@ -963,7 +932,11 @@ const msg = document.getElementById('msg');
             const errData = await parseJsonSafe(res);
             throw new Error(errData.error || errData.message || `Erro ao salvar (${res.status})`);
           }
-          toast('ok','Salvo com sucesso!');
+          const savedData = await parseJsonSafe(res);
+          if (savedData.ok === false) throw new Error(savedData.error || 'O servidor recusou o salvamento.');
+          const savedCount = Number(savedData.count || savedData.banners?.length || banners.length);
+          toast('ok', `${savedCount} banners salvos no Mongo com sucesso!`);
+          await loadAll();
           return;
         } catch (e) {
           lastError = e;

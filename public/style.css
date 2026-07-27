@@ -6,9 +6,9 @@
 /* 1. VARIÁVEIS DE COR (NOVO BRANDING) */
 :root{
   /* Cor principal da Ariana Móveis (Marrom) */
-  --cor-primaria: #8B4513;
+  --cor-primaria: #0B4AA2;
   /* Cor secundária / destaque (Verde) */
-  --cor-secundaria: #388E3C;
+  --cor-secundaria: #0B4AA2;
   /* Fundo do site */
   --cor-fundo: #f8f9fa;
   /* Texto padrão */
@@ -96,7 +96,7 @@ h1{
   transition: background-color .3s;
   height:100%;
 }
-.search-bar button:hover{ background-color:#6a360a; }
+.search-bar button:hover{ background-color:#073777; }
 
 /* AÇÕES DO USUÁRIO */
 .user-actions{
@@ -186,7 +186,7 @@ h1{
   width:100%;
   transition: background-color .3s;
 }
-.produto button:hover{ background-color:#6a360a; }
+.produto button:hover{ background-color:#073777; }
 
 /* 6. CONTADOR DO CARRINHO */
 .contador-carrinho{
@@ -237,7 +237,7 @@ select{
   margin-top:20px;
   background-color:var(--cor-secundaria);
 }
-.btn-checkout:hover{ background-color:#27ae60; }
+.btn-checkout:hover{ background-color:#073777; }
 
 /* 8. LAYOUT DE CHECKOUT */
 .checkout-layout{
@@ -355,7 +355,7 @@ select{
   cursor:pointer;
   font-size:1em;
 }
-.frete-simulacao-detalhes button:hover{ background-color:#27ae60; }
+.frete-simulacao-detalhes button:hover{ background-color:#073777; }
 
 .buy-actions{ margin-top:20px; display:flex; gap:15px; align-items:center; }
 .buy-actions input#quantidade-detalhe{
@@ -371,7 +371,7 @@ select{
   cursor:pointer;
   font-size:16px;
 }
-#btn-adicionar:hover{ background-color:#27ae60; }
+#btn-adicionar:hover{ background-color:#073777; }
 #btn-favoritar{
   background-color:var(--cor-fundo);
   color:var(--cor-texto);
@@ -440,7 +440,7 @@ select{
   border-radius:4px;
   cursor:pointer;
 }
-.checkout-link .btn-checkout:hover{ background-color:#27ae60; }
+.checkout-link .btn-checkout:hover{ background-color:#073777; }
 
 /* 12. RESPONSIVIDADE */
 @media (max-width: 768px){

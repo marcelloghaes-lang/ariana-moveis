@@ -183,7 +183,46 @@ function toJSDate(v){ if(!v) return null; if(v instanceof Date) return v; if(typ
 function formatDateTime(v){const d=toJSDate(v); return d?d.toLocaleString('pt-BR'):'—'}
 function formatDateOnly(v){const d=toJSDate(v); return d?d.toLocaleDateString('pt-BR'):'—'}
 function nowISO(){return new Date().toISOString()}
-function getAdminToken(){return localStorage.getItem('admin_token')||''}
+function getAdminToken(){
+  return localStorage.getItem('admin_token') ||
+    localStorage.getItem('adminToken') ||
+    sessionStorage.getItem('admin_token') ||
+    sessionStorage.getItem('adminToken') ||
+    '';
+}
+
+function clearAdminSessionStorage(){
+  const keys = [
+    'admin_token',
+    'adminToken',
+    'admin_name',
+    'admin_email',
+    'admin_id',
+    'admin_role',
+    'admin_permissions',
+    'adminRefreshToken',
+    'admin_refresh_token'
+  ];
+
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      keys.forEach((key) => storage.removeItem(key));
+    } catch (_error) {}
+  }
+}
+
+function redirectToOfficialAdminLogin(reason='session-ended'){
+  if (window.__ARIANA_REDIRECTING_TO_ADMIN_LOGIN__) return;
+  window.__ARIANA_REDIRECTING_TO_ADMIN_LOGIN__ = true;
+
+  clearAdminSessionStorage();
+  stopPollers();
+
+  const loginUrl = new URL('admin_login.html', window.location.href);
+  loginUrl.searchParams.set('reason', reason);
+  window.location.replace(loginUrl.toString());
+}
+
 function getAdminRole(){return String(localStorage.getItem('admin_role')||'admin').toLowerCase()}
 function getAdminPermissions(){
   try { return JSON.parse(localStorage.getItem('admin_permissions') || '[]') || []; } catch(_e) { return []; }
@@ -329,23 +368,25 @@ function setAuthLayout(isLogged){
   const sidebar = document.getElementById('sidebar');
   const header = document.getElementById('admin-header');
   const main = document.getElementById('main-content');
+  const embeddedLogin = document.getElementById('login-view');
+
   if(sidebar) sidebar.classList.toggle('hidden', !isLogged);
   if(header) header.classList.toggle('hidden', !isLogged);
   if(main) main.classList.toggle('p-6', !!isLogged);
   if(main) main.classList.toggle('p-4', !isLogged);
-  if(!isLogged){
-    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-    const login = document.getElementById('login-view');
-    if(login) login.classList.remove('hidden');
-    const title = document.getElementById('view-title');
-    if(title) title.textContent = 'Login';
-  }
+
+  // O formulário antigo permanece no HTML apenas por compatibilidade,
+  // mas nunca mais deve ser exibido.
+  if(embeddedLogin) embeddedLogin.classList.add('hidden');
 }
 function isLoggedInAdmin(){ return !!getAdminToken(); }
 
 
 window.changeView = async function(viewName, force=false){
-  if(!isLoggedInAdmin()){ setAuthLayout(false); return; }
+  if(!isLoggedInAdmin()){
+    redirectToOfficialAdminLogin('token-missing');
+    return;
+  }
   applyAdminPermissionsToUI();
   if(!canAccessView(viewName)){
     displayMessage('Você não tem permissão para acessar esta área.','error');
@@ -371,40 +412,16 @@ window.changeView = async function(viewName, force=false){
 }
 
 async function fetchAdminMe(){ return apiRequest('/admin/me',{headers:buildHeadersAuth()}) }
-window.handleSignIn = async function(){
-  const email=document.getElementById('login-email').value.trim().toLowerCase();
-  const password=document.getElementById('login-password').value;
-  const btn=document.getElementById('login-btn'); const original=btn.innerHTML; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Entrando...'; btn.disabled=true;
-  try {
-    const data=await apiRequest('/admin/login',{method:'POST',body:JSON.stringify({email,password})});
-    localStorage.setItem('admin_token',data.token||'');
-    unlockNotificationPermission();
-
-    const me = await fetchAdminMe().catch(() => null);
-    const adminName = (me && (me.name || me.email)) || data.name || data.user?.name || email;
-    const adminEmail = (me && me.email) || data.email || data.user?.email || email;
-    const adminId = String((me && (me.id || me._id)) || data.id || data.userId || data.uid || data.user?.id || data.user?._id || '');
-
-    localStorage.setItem('admin_name', adminName);
-    localStorage.setItem('admin_email', adminEmail);
-    localStorage.setItem('admin_id', adminId);
-    localStorage.setItem('admin_role', (me && me.role) || data.role || 'admin');
-    localStorage.setItem('admin_permissions', JSON.stringify((me && me.permissions) || data.permissions || []));
-    applyAdminPermissionsToUI();
-
-    setAuthLayout(true);
-    document.getElementById('login-view').classList.add('hidden');
-    renderUserDisplayName(adminName);
-    await bootAuthed(currentView || 'dashboard');
-    displayMessage('Login realizado com sucesso!','success');
-  } catch(e){displayMessage(`Erro no login: ${e.message}`,'error');}
-  finally{btn.innerHTML=original; btn.disabled=false;}
+window.handleSignIn = function(){
+  // O login oficial é feito exclusivamente em admin_login.html.
+  redirectToOfficialAdminLogin('login-required');
 }
 window.handleSignOut = async function(){
-  localStorage.removeItem('admin_token'); localStorage.removeItem('admin_name'); localStorage.removeItem('admin_email'); localStorage.removeItem('admin_id'); localStorage.removeItem('admin_role'); localStorage.removeItem('admin_permissions');
-  stopPollers(); currentView='dashboard';
-  setAuthLayout(false);
+  clearAdminSessionStorage();
+  stopPollers();
+  currentView='dashboard';
   renderUserDisplayName('');
+  redirectToOfficialAdminLogin('logout');
 }
 async function bootAuthed(targetView='dashboard'){
   setAuthLayout(true);
@@ -766,21 +783,30 @@ async function init(){
   document.getElementById('notif-btn').addEventListener('click',()=>{ unlockNotificationPermission(); document.getElementById('notif-dropdown').classList.toggle('hidden'); });
   document.getElementById('notif-mark-read').addEventListener('click', markNotificationsRead);
   document.addEventListener('blur', function(ev){ if(ev.target && ev.target.id === 'product-price') ev.target.value = formatMoneyInputBR(ev.target.value); }, true);
+
   const token=getAdminToken();
-  if(token){
-    try{
-      setAuthLayout(true);
-      const me=await fetchAdminMe();
-      renderUserDisplayName(me.name||me.email||'Admin');
-      localStorage.setItem('admin_role', me.role || 'admin');
-      localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
-      applyAdminPermissionsToUI();
-      document.getElementById('login-view').classList.add('hidden');
-      await bootAuthed(currentView || 'dashboard');
-      return;
-    }catch(e){ window.handleSignOut(); }
+
+  if(!token){
+    redirectToOfficialAdminLogin('token-missing');
+    return;
   }
-  setAuthLayout(false);
+
+  try{
+    setAuthLayout(true);
+    const me=await fetchAdminMe();
+    renderUserDisplayName(me.name||me.email||'Admin');
+    localStorage.setItem('admin_role', me.role || 'admin');
+    localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
+    applyAdminPermissionsToUI();
+
+    const embeddedLogin=document.getElementById('login-view');
+    if(embeddedLogin) embeddedLogin.classList.add('hidden');
+
+    await bootAuthed(currentView || 'dashboard');
+  }catch(error){
+    console.warn('[admin-auth] Sessão inválida:', error?.message || error);
+    redirectToOfficialAdminLogin('session-invalid');
+  }
 }
 
 async function readSetting(key, fallback={}){ try{const data=await apiRequest(`/admin/settings/${encodeURIComponent(key)}`,{headers:buildHeadersAuth()}); return data && data.key ? {...fallback, ...(data.value||{}), key:data.key} : (data||fallback);}catch(e){return fallback;} }

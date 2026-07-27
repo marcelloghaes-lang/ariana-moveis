@@ -1,0 +1,10 @@
+📁 Uploads em: C:\Users\marcelo\OneDrive\Desktop\ariana-fase18-3-clean\functions\uploads
+[financeiro automação] Desativada por FINANCEIRO_AUTOMACAO_ENABLED=false.
+[financeiro régua WhatsApp] Desativada. Use FINANCEIRO_REGUA_WHATSAPP_ENABLED=true após homologação.
+[legacyRoutes] 127 rota(s) específica(s) priorizada(s) antes do CRUD genérico.
+🚀 Ariana Enterprise Mongo rodando na porta 3101
+📁 Uploads em: C:\Users\marcelo\OneDrive\Desktop\ariana-fase18-3-clean\functions\uploads
+🌐 Base local: http://localhost:3101/api
+⏸️ Automação financeira: desativada
+📵 Régua financeira WhatsApp: desativada até homologação
+🔐 Webhook financeiro WhatsApp: protegido por token

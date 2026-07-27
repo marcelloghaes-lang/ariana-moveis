@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Usuários e Permissões | Ariana Móveis</title>
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="js/api-config.js"></script>
+  <style>
+    :root{--blue:#0047ab;--dark:#062b63;--soft:#eff6ff}
+    body{font-family:Inter,Arial,sans-serif;background:#f3f4f6;color:#111827}
+    .brand{background:linear-gradient(135deg,var(--blue),var(--dark))}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:20px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+    .btn{border-radius:12px;padding:.72rem 1rem;font-weight:800;transition:.15s}
+    .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{filter:brightness(.92)}
+    .btn-light{background:#fff;border:1px solid #d1d5db}.btn-light:hover{background:#f9fafb}
+    .field{width:100%;border:1px solid #d1d5db;border-radius:12px;padding:.72rem .85rem;outline:none;background:#fff}
+    .field:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,71,171,.12)}
+    .permission-group{border:1px solid #e5e7eb;border-radius:16px;padding:14px;background:#fafafa}
+    .toast{position:fixed;right:18px;top:18px;z-index:9999;max-width:380px;padding:14px 18px;border-radius:14px;color:white;font-weight:700;box-shadow:0 12px 35px rgba(0,0,0,.2)}
+    .modal-bg{background:rgba(2,6,23,.62)}
+    .badge{display:inline-flex;align-items:center;border-radius:999px;padding:.25rem .65rem;font-size:.75rem;font-weight:800}
+    @media(max-width:700px){.desktop-table{display:none}.mobile-list{display:block}}
+    @media(min-width:701px){.desktop-table{display:block}.mobile-list{display:none}}
+  </style>
+</head>
+<body>
+  <header class="brand text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div class="text-2xl font-black italic tracking-tight">ARIANA <span class="text-blue-200 text-base">MÓVEIS</span></div>
+        <div class="text-blue-100 text-sm">Usuários e Permissões</div>
+      </div>
+      <div class="flex gap-2">
+        <a href="admin_auditoria.html" class="btn bg-white/15 text-white border border-white/30"><i class="fas fa-clipboard-list mr-2"></i>Auditoria</a><a href="admin_sessoes.html" class="btn bg-white/15 text-white border border-white/30"><i class="fas fa-shield-halved mr-2"></i>Segurança</a><a href="admin_painel.html" class="btn bg-white text-blue-800"><i class="fas fa-arrow-left mr-2"></i>Voltar ao painel</a>
+        <button id="new-user-btn" class="btn bg-yellow-400 text-blue-950"><i class="fas fa-user-plus mr-2"></i>Novo usuário</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-5">
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-4" id="metrics">
+      <div class="card p-5"><div class="text-xs font-black uppercase text-gray-400">Total</div><div id="m-total" class="text-3xl font-black mt-2">—</div></div>
+      <div class="card p-5"><div class="text-xs font-black uppercase text-gray-400">Administradores</div><div id="m-admin" class="text-3xl font-black mt-2 text-blue-700">—</div></div>
+      <div class="card p-5"><div class="text-xs font-black uppercase text-gray-400">Colaboradores</div><div id="m-staff" class="text-3xl font-black mt-2 text-indigo-600">—</div></div>
+      <div class="card p-5"><div class="text-xs font-black uppercase text-gray-400">Ativos</div><div id="m-active" class="text-3xl font-black mt-2 text-green-600">—</div></div>
+    </section>
+
+    <section class="card p-4 md:p-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+        <div><h1 class="text-xl font-black">Contas administrativas</h1><p class="text-sm text-gray-500">Cadastre usuários e libere somente os módulos necessários.</p></div>
+        <div class="flex gap-2">
+          <input id="search" class="field" style="min-width:260px" placeholder="Buscar nome ou e-mail">
+          <button id="refresh" class="btn btn-light" title="Atualizar"><i class="fas fa-rotate"></i></button>
+        </div>
+      </div>
+      <div id="loading" class="py-12 text-center text-gray-500"><i class="fas fa-circle-notch fa-spin mr-2"></i>Carregando usuários...</div>
+      <div id="empty" class="hidden py-12 text-center text-gray-500">Nenhum usuário administrativo encontrado.</div>
+      <div class="desktop-table overflow-x-auto hidden" id="table-wrap">
+        <table class="w-full text-left">
+          <thead><tr class="border-b text-xs uppercase text-gray-400"><th class="p-3">Usuário</th><th class="p-3">Perfil</th><th class="p-3">Permissões</th><th class="p-3">Status</th><th class="p-3">Último acesso</th><th class="p-3 text-right">Ações</th></tr></thead>
+          <tbody id="user-rows"></tbody>
+        </table>
+      </div>
+      <div id="mobile-users" class="mobile-list hidden space-y-3"></div>
+    </section>
+  </main>
+
+  <div id="user-modal" class="hidden fixed inset-0 modal-bg z-50 overflow-y-auto p-4">
+    <div class="card max-w-4xl mx-auto my-4 overflow-hidden">
+      <div class="brand text-white p-5 flex justify-between items-center">
+        <div><h2 id="modal-title" class="text-xl font-black">Novo usuário</h2><p class="text-sm text-blue-100">Defina o perfil e os módulos liberados.</p></div>
+        <button class="text-3xl" onclick="closeUserModal()">×</button>
+      </div>
+      <form id="user-form" class="p-5 space-y-5">
+        <input type="hidden" id="user-id">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="font-bold text-sm">Nome completo<input id="name" class="field mt-1" required minlength="2"></label>
+          <label class="font-bold text-sm">E-mail<input id="email" class="field mt-1" type="email" required></label>
+          <label class="font-bold text-sm">Perfil<select id="role" class="field mt-1"><option value="staff">Colaborador</option><option value="admin">Administrador geral</option></select></label>
+          <label class="font-bold text-sm">Modelo de permissões<select id="preset" class="field mt-1"><option value="custom">Personalizado</option><option value="readonly">Somente leitura</option><option value="catalogo">Gestor de catálogo</option><option value="marketing">Marketing</option><option value="atendimento">Atendimento</option><option value="financeiro">Financeiro</option><option value="logistica">Logística</option><option value="enterprise">Enterprise</option></select></label>
+          <label id="password-box" class="font-bold text-sm md:col-span-2">Senha provisória<input id="password" class="field mt-1" type="password" minlength="8" placeholder="Mínimo de 8 caracteres"><span class="block font-normal text-xs text-gray-500 mt-1">No cadastro, a senha é obrigatória. Na edição, use “Redefinir senha”.</span></label>
+        </div>
+        <div class="flex flex-wrap gap-5 text-sm font-semibold">
+          <label><input id="is-active" type="checkbox" checked class="mr-2">Usuário ativo</label>
+          <label><input id="must-change" type="checkbox" checked class="mr-2">Solicitar troca de senha no primeiro acesso</label>
+        </div>
+        <div>
+          <div class="flex items-center justify-between gap-3 mb-3"><h3 class="font-black">Permissões por módulo</h3><button type="button" id="clear-perms" class="text-sm font-bold text-blue-700">Limpar seleção</button></div>
+          <div id="permission-groups" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+          <div id="admin-note" class="hidden mt-3 p-3 rounded-xl bg-blue-50 text-blue-800 text-sm font-semibold">Administrador geral recebe acesso completo automaticamente.</div>
+        </div>
+        <div class="flex justify-end gap-2 border-t pt-4"><button type="button" class="btn btn-light" onclick="closeUserModal()">Cancelar</button><button id="save-user" class="btn btn-primary" type="submit"><i class="fas fa-save mr-2"></i>Salvar usuário</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  const MODULES = {
+    'Painel': ['dashboard:read'],
+    'Atendimentos': ['atendimentos:read','atendimentos:update'],
+    'Produtos': ['products:read','products:create','products:update','products:delete','products:import','products:export','products:bulk'],
+    'Categorias': ['categories:read','categories:create','categories:update','categories:delete'],
+    'Banners': ['banners:read','banners:create','banners:update','banners:delete'],
+    'Marketing': ['marketing:read','marketing:create','marketing:update','marketing:delete','coupons:read','coupons:create','coupons:update','coupons:delete','uploads:create','posters:generate','posters:generate:bulk'],
+    'Pedidos': ['orders:read','orders:update','orders:cancel'],
+    'Clientes': ['customers:read','customers:update'],
+    'Sellers': ['sellers:read','sellers:approve','sellers:update'],
+    'Pagamentos': ['payments:read','payments:receive','payments:cancel','payments:refund'],
+    'Financeiro': ['finance:read','finance:export','finance:reports'],
+    'Crediário': ['crediario:read','crediario:create','crediario:update','crediario:receive','crediario:renegotiate','crediario:cancel','crediario:documents'],
+    'Logística': ['shipping:read','shipping:quote','shipping:label','shipping:dispatch','shipping:cancel','shipping:tracking','shipping:rodocap'],
+    'Correios e Transportadoras': ['correios:read','correios:create','carriers:manage'],
+    'SIGE': ['sige:read','sige:create','sige:update'],
+    'Enterprise': ['enterprise:read','enterprise:update','enterprise:sandbox','enterprise:homologation','enterprise:production','enterprise:logs','enterprise:credentials','enterprise:apikeys','enterprise:webhooks'],
+    'Relatórios': ['reports:read','reports:export'],
+    'Configurações': ['settings:read','settings:update']
+  };
+  const PERMISSION_LABEL = {
+    'dashboard:read':'Visualizar painel',
+    'atendimentos:read':'Visualizar atendimentos','atendimentos:update':'Editar atendimentos',
+    'products:read':'Visualizar produtos','products:create':'Cadastrar produtos','products:update':'Editar produtos','products:delete':'Excluir produtos','products:import':'Importar produtos','products:export':'Exportar produtos','products:bulk':'Alteração em lote',
+    'categories:read':'Visualizar categorias','categories:create':'Cadastrar categorias','categories:update':'Editar categorias','categories:delete':'Excluir categorias',
+    'banners:read':'Visualizar banners','banners:create':'Cadastrar banners','banners:update':'Editar banners','banners:delete':'Excluir banners',
+    'marketing:read':'Visualizar campanhas','marketing:create':'Criar campanhas','marketing:update':'Editar campanhas','marketing:delete':'Excluir campanhas',
+    'coupons:read':'Visualizar cupons','coupons:create':'Cadastrar cupons','coupons:update':'Editar cupons','coupons:delete':'Excluir cupons','uploads:create':'Enviar imagens','posters:generate':'Gerar cartaz','posters:generate:bulk':'Gerar cartazes em lote',
+    'orders:read':'Visualizar pedidos','orders:update':'Editar pedidos','orders:cancel':'Cancelar pedidos',
+    'customers:read':'Visualizar clientes','customers:update':'Editar clientes',
+    'sellers:read':'Visualizar sellers','sellers:approve':'Aprovar sellers','sellers:update':'Editar sellers',
+    'payments:read':'Visualizar pagamentos','payments:receive':'Receber pagamentos','payments:cancel':'Cancelar pagamento','payments:refund':'Estornar pagamento',
+    'finance:read':'Visualizar financeiro','finance:export':'Exportar financeiro','finance:reports':'Relatórios financeiros',
+    'crediario:read':'Consultar cadastro e contratos','crediario:create':'Criar contrato','crediario:update':'Editar contrato','crediario:receive':'Receber parcelas','crediario:renegotiate':'Renegociar contrato','crediario:cancel':'Cancelar contrato','crediario:documents':'Emitir documentos',
+    'shipping:read':'Visualizar logística','shipping:quote':'Cotar frete','shipping:label':'Emitir etiqueta','shipping:dispatch':'Despachar pedido','shipping:cancel':'Cancelar postagem','shipping:tracking':'Acompanhar rastreamento','shipping:rodocap':'Operar Rodocap',
+    'correios:read':'Visualizar Correios','correios:create':'Gerar postagem nos Correios','carriers:manage':'Gerenciar transportadoras',
+    'sige:read':'Visualizar SIGE','sige:create':'Criar venda no SIGE','sige:update':'Atualizar integração SIGE',
+    'enterprise:read':'Visualizar Enterprise','enterprise:update':'Editar Enterprise','enterprise:sandbox':'Gerenciar Sandbox','enterprise:homologation':'Gerenciar Homologação','enterprise:production':'Liberar Produção','enterprise:logs':'Visualizar logs','enterprise:credentials':'Gerenciar credenciais','enterprise:apikeys':'Gerenciar API Keys','enterprise:webhooks':'Gerenciar webhooks',
+    'reports:read':'Visualizar relatórios','reports:export':'Exportar relatórios',
+    'settings:read':'Visualizar configurações','settings:update':'Editar configurações'
+  };
+
+  const PERMISSION_DEPENDENCIES = {
+    'atendimentos:update':['atendimentos:read'],
+    'products:create':['products:read'],'products:update':['products:read'],'products:delete':['products:update','products:read'],'products:import':['products:read'],'products:export':['products:read'],'products:bulk':['products:update','products:read'],
+    'categories:create':['categories:read'],'categories:update':['categories:read'],'categories:delete':['categories:update','categories:read'],
+    'banners:create':['banners:read'],'banners:update':['banners:read'],'banners:delete':['banners:update','banners:read'],
+    'marketing:create':['marketing:read'],'marketing:update':['marketing:read'],'marketing:delete':['marketing:update','marketing:read'],
+    'coupons:create':['coupons:read'],'coupons:update':['coupons:read'],'coupons:delete':['coupons:update','coupons:read'],
+    'posters:generate':['uploads:create'],'posters:generate:bulk':['posters:generate','uploads:create'],
+    'orders:update':['orders:read'],'orders:cancel':['orders:update','orders:read'],'customers:update':['customers:read'],
+    'sellers:approve':['sellers:read'],'sellers:update':['sellers:read'],'payments:receive':['payments:read'],'payments:cancel':['payments:read'],'payments:refund':['payments:read'],
+    'finance:export':['finance:read'],'finance:reports':['finance:read'],'crediario:create':['crediario:read'],'crediario:update':['crediario:read'],'crediario:receive':['crediario:read'],
+    'crediario:renegotiate':['crediario:update','crediario:read'],'crediario:cancel':['crediario:update','crediario:read'],'crediario:documents':['crediario:read'],
+    'shipping:quote':['shipping:read'],'shipping:label':['shipping:read'],'shipping:dispatch':['shipping:read'],'shipping:cancel':['shipping:read'],'shipping:tracking':['shipping:read'],'shipping:rodocap':['shipping:read'],
+    'correios:create':['correios:read'],'sige:create':['sige:read'],'sige:update':['sige:read'],'enterprise:update':['enterprise:read'],'enterprise:sandbox':['enterprise:read'],
+    'enterprise:homologation':['enterprise:read'],'enterprise:production':['enterprise:homologation','enterprise:read'],'enterprise:logs':['enterprise:read'],'enterprise:credentials':['enterprise:read'],
+    'enterprise:apikeys':['enterprise:read'],'enterprise:webhooks':['enterprise:read'],'reports:export':['reports:read'],'settings:update':['settings:read']
+  };
+  let users=[], presets={}, currentUserId='';
+  const $=id=>document.getElementById(id);
+  function getApiBase(){
+    const configured=String(window.API_BASE_URL||window.__API_BASE_URL__||'').replace(/\/+$/,'');
+    if(configured) return configured.endsWith('/api')?configured:configured+'/api';
+    return location.hostname==='localhost'||location.hostname==='127.0.0.1'?'http://localhost:3000/api':'/api';
+  }
+  const API=getApiBase();
+  function getToken(){for(const k of ['adminToken','admin_token','token','authToken']){const v=localStorage.getItem(k)||sessionStorage.getItem(k);if(v)return v}return ''}
+  async function api(path,options={}){const token=getToken();if(!token){location.href='admin_painel.html';throw new Error('Faça login novamente.')}const r=await fetch(API+path,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(options.headers||{})}});const data=await r.json().catch(()=>({}));if(r.status===401){location.href='admin_painel.html';throw new Error('Sessão expirada.')}if(!r.ok)throw new Error(data.error||data.message||'Falha na operação.');return data}
+  function toast(message,ok=true){const d=document.createElement('div');d.className='toast '+(ok?'bg-green-600':'bg-red-600');d.textContent=message;document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
+  function fmtDate(v){if(!v)return 'Nunca';try{return new Date(v).toLocaleString('pt-BR')}catch{return '—'}}
+  function isTemporarilyLocked(u){return Boolean(u?.lockedUntil&&new Date(u.lockedUntil).getTime()>Date.now())}
+  function lockRemaining(v){
+    if(!v)return '';
+    const ms=Math.max(0,new Date(v).getTime()-Date.now());
+    const minutes=Math.max(1,Math.ceil(ms/60000));
+    return `${minutes} min`;
+  }
+  function esc(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+  function permSummary(u){if(u.role==='admin'||u.permissions?.includes('*'))return 'Acesso completo';return (u.permissions||[]).length+' permissões'}
+  function render(){
+    const q=$('search').value.trim().toLowerCase();const list=users.filter(u=>!q||u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q));
+    $('m-total').textContent=users.length;$('m-admin').textContent=users.filter(u=>u.role==='admin').length;$('m-staff').textContent=users.filter(u=>u.role==='staff').length;$('m-active').textContent=users.filter(u=>u.isActive).length;
+    $('loading').classList.add('hidden');$('empty').classList.toggle('hidden',list.length>0);$('table-wrap').classList.toggle('hidden',list.length===0);$('mobile-users').classList.toggle('hidden',list.length===0);
+    $('user-rows').innerHTML=list.map(u=>`<tr class="border-b hover:bg-gray-50"><td class="p-3"><div class="font-black">${esc(u.name)}</div><div class="text-xs text-gray-500">${esc(u.email)}</div>${u.id===currentUserId?'<span class="badge bg-blue-100 text-blue-700 mt-1">Sua conta</span>':''}${u.isSuperAdmin?'<span class="badge bg-yellow-100 text-yellow-800 mt-1 ml-1"><i class="fas fa-crown mr-1"></i>Conta mestre</span>':''}</td><td class="p-3"><span class="badge ${u.role==='admin'?'bg-blue-100 text-blue-700':'bg-indigo-100 text-indigo-700'}">${u.role==='admin'?'Administrador':'Colaborador'}</span></td><td class="p-3 text-sm">${permSummary(u)}</td><td class="p-3">${isTemporarilyLocked(u)?`<span class="badge bg-red-100 text-red-700"><i class="fas fa-lock mr-1"></i>Bloqueado temporariamente</span><div class="text-xs text-red-600 mt-1">Libera em ${lockRemaining(u.lockedUntil)} · ${fmtDate(u.lockedUntil)}</div>`:`<span class="badge ${u.isActive?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${u.isActive?'Ativo':'Bloqueado'}</span>`}</td><td class="p-3 text-sm text-gray-500">${fmtDate(u.lastLoginAt)}${u.lastLoginBrowser?`<div class="text-xs text-gray-400 mt-1">${esc(u.lastLoginBrowser)} · ${esc(u.lastLoginOs||'')} · ${esc(u.lastLoginDevice||'')}</div>`:''}</td><td class="p-3 text-right whitespace-nowrap">${actionButtons(u)}</td></tr>`).join('');
+    $('mobile-users').innerHTML=list.map(u=>`<div class="card p-4"><div class="flex justify-between gap-3"><div><div class="font-black">${esc(u.name)}</div><div class="text-xs text-gray-500">${esc(u.email)}</div></div>${isTemporarilyLocked(u)?'<span class="badge bg-red-100 text-red-700"><i class="fas fa-lock mr-1"></i>Bloqueado temporariamente</span>':`<span class="badge ${u.isActive?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${u.isActive?'Ativo':'Bloqueado'}</span>`}</div>${isTemporarilyLocked(u)?`<div class="text-xs text-red-600 mt-2">Libera em ${lockRemaining(u.lockedUntil)} · ${fmtDate(u.lockedUntil)}</div>`:''}<div class="text-sm mt-3">${u.role==='admin'?'Administrador geral':'Colaborador'} · ${permSummary(u)}</div><div class="mt-3 flex flex-wrap gap-2">${actionButtons(u)}</div></div>`).join('');
+  }
+  function actionButtons(u){
+    const protectedAccount=u.isSuperAdmin===true;
+    const unlockButton=isTemporarilyLocked(u)
+      ? `<button class="btn bg-green-100 text-green-800 text-sm" onclick="unlockUser('${u.id}')" title="Desbloquear agora"><i class="fas fa-lock-open"></i></button>`
+      : '';
+    return `<a class="btn btn-light text-sm inline-block" href="admin_sessoes.html?userId=${u.id}" title="Sessões e acessos"><i class="fas fa-shield-halved"></i></a><button class="btn btn-light text-sm" onclick="editUser('${u.id}')"><i class="fas fa-pen"></i></button><button class="btn btn-light text-sm" onclick="resetPassword('${u.id}')" title="Redefinir senha"><i class="fas fa-key"></i></button>${unlockButton}<button class="btn ${u.isActive?'bg-amber-100 text-amber-800':'bg-green-100 text-green-800'} text-sm" onclick="toggleStatus('${u.id}',${!u.isActive})" ${u.id===currentUserId||protectedAccount?'disabled title="Conta protegida"':''}><i class="fas ${u.isActive?'fa-ban':'fa-check'}"></i></button><button class="btn bg-red-100 text-red-700 text-sm" onclick="deleteUser('${u.id}')" ${u.id===currentUserId||protectedAccount?'disabled title="Conta protegida"':''}><i class="fas fa-trash"></i></button>`;
+  }
+  function updateModuleState(moduleName){
+    const master=document.querySelector(`.module-all[data-module="${CSS.escape(moduleName)}"]`);
+    const group=[...document.querySelectorAll(`.perm[data-module="${CSS.escape(moduleName)}"]`)];
+    if(!master||!group.length)return;
+    const selected=group.filter(p=>p.checked).length;
+    master.checked=selected===group.length;
+    master.indeterminate=selected>0&&selected<group.length;
+  }
+  function applyDependencies(permission){
+    const queue=[permission],visited=new Set();
+    while(queue.length){const current=queue.shift();if(visited.has(current))continue;visited.add(current);for(const dep of PERMISSION_DEPENDENCIES[current]||[]){const box=document.querySelector(`.perm[value="${CSS.escape(dep)}"]`);if(box&&!box.checked){box.checked=true;queue.push(dep)}}}
+  }
+  function removeDependents(permission){
+    document.querySelectorAll('.perm:checked').forEach(box=>{const deps=PERMISSION_DEPENDENCIES[box.value]||[];if(deps.includes(permission))box.checked=false});
+    let changed=true;while(changed){changed=false;document.querySelectorAll('.perm:checked').forEach(box=>{const deps=PERMISSION_DEPENDENCIES[box.value]||[];if(deps.some(dep=>{const d=document.querySelector(`.perm[value="${CSS.escape(dep)}"]`);return d&&!d.checked})){box.checked=false;changed=true}})}
+  }
+  function renderPermissions(){
+    $('permission-groups').innerHTML=Object.entries(MODULES).map(([name,items])=>`<div class="permission-group"><label class="font-black flex items-center mb-2 cursor-pointer"><input type="checkbox" class="module-all mr-2" data-module="${esc(name)}"><span>${esc(name)}</span><span class="ml-auto text-xs text-gray-400">Selecionar tudo</span></label><div class="space-y-2">${items.map(p=>`<label class="block text-sm"><input type="checkbox" class="perm mr-2" value="${p}" data-module="${esc(name)}">${PERMISSION_LABEL[p]||p}</label>`).join('')}</div></div>`).join('');
+    document.querySelectorAll('.module-all').forEach(c=>c.addEventListener('change',()=>{document.querySelectorAll(`.perm[data-module="${CSS.escape(c.dataset.module)}"]`).forEach(p=>p.checked=c.checked);updateModuleState(c.dataset.module)}));
+    document.querySelectorAll('.perm').forEach(box=>box.addEventListener('change',()=>{if(box.checked)applyDependencies(box.value);else removeDependents(box.value);Object.keys(MODULES).forEach(updateModuleState);$('preset').value='custom'}));
+  }
+  async function load(){try{const [list,meta]=await Promise.all([api('/admin/users'),api('/admin/users/permissions')]);users=list.users||[];currentUserId=list.currentUserId||'';presets=meta.presets||{};render()}catch(e){$('loading').textContent=e.message;toast(e.message,false)}}
+  function selectedPermissions(){return [...document.querySelectorAll('.perm:checked')].map(x=>x.value)}
+  function setPermissions(items=[]){document.querySelectorAll('.perm').forEach(x=>x.checked=items.includes(x.value));document.querySelectorAll('.perm:checked').forEach(x=>applyDependencies(x.value));Object.keys(MODULES).forEach(updateModuleState)}
+  function updateRoleUi(){const admin=$('role').value==='admin';$('permission-groups').classList.toggle('opacity-40',admin);$('permission-groups').style.pointerEvents=admin?'none':'';$('admin-note').classList.toggle('hidden',!admin)}
+  function openNew(){ $('user-form').reset();$('role').disabled=false;$('email').readOnly=false;$('user-id').value='';$('modal-title').textContent='Novo usuário';$('password-box').classList.remove('hidden');$('password').required=true;$('is-active').checked=true;$('must-change').checked=true;setPermissions([]);updateRoleUi();$('user-modal').classList.remove('hidden') }
+  function closeUserModal(){$('role').disabled=false;$('email').readOnly=false;$('user-modal').classList.add('hidden')}
+  function editUser(id){const u=users.find(x=>x.id===id);if(!u)return;$('user-id').value=u.id;$('name').value=u.name;$('email').value=u.email;$('role').value=u.role;$('role').disabled=u.isSuperAdmin===true;$('email').readOnly=u.isSuperAdmin===true;$('preset').value='custom';$('is-active').checked=u.isActive;$('must-change').checked=u.mustChangePassword;$('password-box').classList.add('hidden');$('password').required=false;setPermissions(u.permissions||[]);$('modal-title').textContent='Editar usuário';updateRoleUi();$('user-modal').classList.remove('hidden')}
+  async function saveUser(e){e.preventDefault();const id=$('user-id').value;const payload={name:$('name').value.trim(),email:$('email').value.trim(),role:$('role').value,isActive:$('is-active').checked,mustChangePassword:$('must-change').checked,permissions:selectedPermissions()};if(!id)payload.password=$('password').value;try{$('save-user').disabled=true;await api(id?'/admin/users/'+id:'/admin/users',{method:id?'PUT':'POST',body:JSON.stringify(payload)});toast(id?'Usuário atualizado.':'Usuário criado.');closeUserModal();await load()}catch(e){toast(e.message,false)}finally{$('save-user').disabled=false}}
+  async function toggleStatus(id,isActive){if(!confirm(isActive?'Ativar este usuário?':'Bloquear este usuário?'))return;try{await api('/admin/users/'+id+'/status',{method:'PATCH',body:JSON.stringify({isActive})});toast(isActive?'Usuário ativado.':'Usuário bloqueado.');await load()}catch(e){toast(e.message,false)}}
+  async function unlockUser(id){
+    const u=users.find(x=>x.id===id);
+    if(!confirm(`Desbloquear agora a conta de ${u?.name||'este usuário'}?`))return;
+    try{
+      await api('/admin/users/'+id+'/security',{method:'PATCH',body:JSON.stringify({unlock:true})});
+      toast('Usuário desbloqueado com sucesso.');
+      await load();
+    }catch(e){toast(e.message,false)}
+  }
+  async function resetPassword(id){const p=prompt('Digite a nova senha provisória (mínimo 8 caracteres):');if(p===null)return;if(p.length<8){toast('A senha precisa ter pelo menos 8 caracteres.',false);return}try{await api('/admin/users/'+id+'/password',{method:'PATCH',body:JSON.stringify({password:p,mustChangePassword:true})});toast('Senha redefinida com sucesso.')}catch(e){toast(e.message,false)}}
+  async function deleteUser(id){const u=users.find(x=>x.id===id);if(!confirm(`Excluir permanentemente ${u?.name||'este usuário'}?`))return;try{await api('/admin/users/'+id,{method:'DELETE'});toast('Usuário excluído.');await load()}catch(e){toast(e.message,false)}}
+  $('new-user-btn').onclick=openNew;$('refresh').onclick=load;$('search').oninput=render;$('user-form').onsubmit=saveUser;$('role').onchange=updateRoleUi;$('preset').onchange=()=>{const key=$('preset').value;if(key!=='custom')setPermissions(presets[key]||[])};$('clear-perms').onclick=()=>setPermissions([]);
+  window.closeUserModal=closeUserModal;window.editUser=editUser;window.toggleStatus=toggleStatus;window.unlockUser=unlockUser;window.resetPassword=resetPassword;window.deleteUser=deleteUser;
+  renderPermissions();load();
+  </script>
+</body>
+</html>

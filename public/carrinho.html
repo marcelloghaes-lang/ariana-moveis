@@ -1,225 +1,64 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Seu Carrinho | Ariana Móveis</title>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Meu carrinho | Ariana Móveis</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
-
-  <style>
-    body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; }
-
-    .header-ajustado {
-      background-color: #2E6DA4;
-      color: white;
-      padding: 15px 40px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .voltar-loja-original {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      text-decoration: none;
-      color: white;
-      font-size: 14px;
-      font-weight: 500;
-      text-transform: uppercase;
-    }
-
-    .ambiente-seguro-original {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-align: left;
-    }
-
-    .escudo-original {
-      width: 45px;
-      height: 45px;
-      background: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .texto-seguro-original {
-      font-size: 13px;
-      line-height: 1.1;
-      text-transform: uppercase;
-    }
-
-    .texto-seguro-original strong {
-      font-size: 18px;
-      display: block;
-    }
-
-    .cart-item {
-      transition: all .4s ease;
-    }
-  </style>
+  <link rel="stylesheet" href="checkout-ariana.css">
 </head>
-
-<body class="bg-fundo-claro font-sans text-text-dark">
-
-  <header class="shadow-xl">
-    <div class="header-ajustado">
-      <a href="index.html" class="voltar-loja-original">
-        <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
-        <span>VOLTAR PARA A LOJA</span>
-      </a>
-
-      <div class="text-2xl font-bold tracking-wider uppercase">
-        ARIANA MOVEIS
+<body>
+<header class="ar-header">
+  <div class="ar-header-inner">
+    <a class="ar-logo" href="index.html">ARIANA MÓVEIS</a>
+    <div class="ar-secure"><i class="fas fa-lock"></i> ambiente seguro</div>
+  </div>
+</header>
+<main class="ar-page">
+  <a class="ar-back" href="index.html"><i class="fas fa-chevron-left"></i> Voltar para a loja</a>
+  <h1 class="ar-title">Meu carrinho</h1>
+  <div id="message-box" class="hidden"></div>
+  <div class="ar-layout">
+    <section class="ar-main">
+      <div id="cart-items-container">
+        <div id="loading-message" class="ar-card">Carregando itens do carrinho...</div>
       </div>
-
-      <div class="ambiente-seguro-original">
-        <div class="escudo-original">
-          <svg viewBox="0 0 24 24" width="28" height="28">
-            <path d="M12 2L3 6v4a9 9 0 009 9 9 9 0 009-9V6L12 2z" fill="#2E6DA4"/>
-            <path d="M12 11V7m0 0a1 1 0 011 1v3a1 1 0 01-2 0V8a1 1 0 011-1z" stroke="white" stroke-width="1.5" fill="none"/>
-            <rect x="10" y="11" width="4" height="4" rx="1" fill="white"/>
-          </svg>
+      <div class="ar-card">
+        <h2 class="ar-card-title">Calcule a entrega</h2>
+        <div class="ar-freight-row">
+          <input id="frete-cep" class="ar-field" placeholder="Digite o CEP" maxlength="9">
+          <button id="btn-calcular-frete" class="ar-secondary">Calcular</button>
         </div>
-        <div class="texto-seguro-original">
-          Ambiente <br>
-          <strong>SEGURO</strong>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 mt-10">
-    <h1 class="text-4xl font-extrabold text-primary-blue mb-8 border-b pb-4">Seu Carrinho</h1>
-
-    <div id="message-box" class="hidden"></div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-      <div id="cart-items-container" class="lg:col-span-2 space-y-4">
-        <div class="bg-gray-100 p-4 rounded-lg font-medium text-center text-gray-500" id="loading-message">
-          Carregando itens do carrinho...
+        <div id="frete" style="margin-top:13px;font-size:14px">
+          <span id="frete-text">A calcular</span>
+          <div id="frete-options" style="margin-top:12px;display:none"></div>
         </div>
       </div>
-
-      <div class="lg:col-span-1">
-        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 sticky top-28">
-          <h2 class="text-2xl font-bold text-text-dark mb-4">Resumo</h2>
-
-          <div class="space-y-3 border-b pb-4 mb-4 text-gray-700">
-            <div class="flex justify-between">
-              <span>Subtotal:</span>
-              <span id="subtotal">R$ 0,00</span>
-            </div>
-
-            <div class="flex justify-between">
-              <span>Frete:</span>
-              <span id="frete" class="flex flex-col items-end gap-2">
-                <span id="frete-text">A calcular</span>
-                <span class="flex items-center gap-2">
-                  <input id="frete-cep" placeholder="CEP" maxlength="9" class="border rounded-md px-2 py-1 text-xs w-24 text-gray-700" />
-                  <button id="btn-calcular-frete" class="text-xs font-bold text-primary-blue border border-primary-blue px-2 py-1 rounded-md hover:bg-primary-blue hover:text-white transition">Calcular</button>
-                </span>
-              </span>
-            </div>
-
-            <div class="flex justify-between">
-              <span>Desconto:</span>
-              <span id="desconto" class="text-red-500">- R$ 0,00</span>
-            </div>
-
-            <div class="rounded-xl bg-gray-50 border border-gray-200 p-3">
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Cupom de desconto</label>
-              <div class="flex gap-2">
-                <input id="coupon-code" placeholder="Digite seu cupom" class="flex-1 border rounded-md px-3 py-2 text-sm text-gray-700 uppercase" autocomplete="off" />
-                <button id="btn-aplicar-cupom" type="button" class="text-xs font-bold text-primary-blue border border-primary-blue px-3 py-2 rounded-md hover:bg-primary-blue hover:text-white transition">Aplicar</button>
-              </div>
-              <div id="coupon-message" class="text-xs mt-2 text-gray-500"></div>
-            </div>
-          </div>
-
-          <div class="flex justify-between text-xl font-extrabold text-primary-blue mb-6">
-            <span>Total:</span>
-            <span id="total-price">R$ 0,00</span>
-          </div>
-
-          <button id="finalizar-compra-btn" class="block w-full text-center bg-primary-blue text-white py-3 rounded-lg text-lg font-semibold hover:bg-dark-bg transition-colors shadow-lg">
-            Finalizar Compra
-          </button>
-
-          <a href="index.html" class="block w-full text-center text-primary-blue mt-3 py-2 border border-primary-blue rounded-lg hover:bg-primary-blue hover:text-white transition-colors">
-            Continuar Comprando
-          </a>
+    </section>
+    <aside class="ar-summary">
+      <h2>Resumo</h2>
+      <div class="ar-summary-line"><span>Subtotal</span><strong id="subtotal">R$ 0,00</strong></div>
+      <div class="ar-summary-line"><span>Frete</span><strong id="frete-summary">A calcular</strong></div>
+      <div class="ar-summary-line"><span>Desconto</span><strong id="desconto" style="color:var(--ariana-red)">- R$ 0,00</strong></div>
+      <div class="ar-card" style="box-shadow:none;margin:18px 0 0;padding:15px">
+        <div style="font-size:12px;font-weight:800;color:var(--ariana-muted);text-transform:uppercase;margin-bottom:9px">Cupom</div>
+        <div class="ar-coupon">
+          <input id="coupon-code" class="ar-field" placeholder="Digite seu cupom" autocomplete="off">
+          <button id="btn-aplicar-cupom">Aplicar</button>
         </div>
+        <div id="coupon-message" style="font-size:12px;color:var(--ariana-muted);margin-top:8px"></div>
       </div>
-    </div>
-  </main>
-
-  <footer class="bg-dark-bg text-white mt-12 pt-10">
-    <div class="max-w-7xl mx-auto px-8 grid grid-cols-2 md:grid-cols-4 gap-12 pb-8">
-
-      <div class="footer-column space-y-2 text-gray-300">
-        <h3 class="text-lg font-bold text-primary-blue mb-4">Ariana Móveis</h3>
-        <p class="text-sm">Rua Olegário de Andrade, 54A</p>
-        <p class="text-sm">Bairro Amazonas - Guanhães/MG</p>
-        <p class="text-sm">CEP: 39740-000</p>
-        <p class="text-sm mt-3">CNPJ: 48.126.915/0001-74</p>
-      </div>
-
-      <div class="footer-column space-y-2 text-gray-300">
-        <h3 class="text-lg font-semibold mb-3 text-primary-blue">Contato</h3>
-        <p class="text-sm"><i class="fas fa-phone mr-1"></i> (33) 98514-7119</p>
-        <p class="text-sm"><i class="fas fa-envelope mr-1"></i> sndigital@outlook.com.br</p>
-        <p class="text-sm mt-3 font-semibold">Horário de Atendimento:</p>
-        <p class="text-xs">Seg. a Sex.: 08:00 às 18:00</p>
-        <p class="text-xs">Sáb.: 08:00 às 12:00</p>
-      </div>
-
-      <div class="footer-column space-y-2 text-gray-300">
-        <h3 class="text-lg font-semibold mb-3 text-primary-blue">Atendimento</h3>
-        <ul class="space-y-2 text-sm">
-          <li><a href="meus_pedidos.html" class="hover:text-secondary-light-blue transition-colors">Meus Pedidos</a></li>
-          <li><a href="minha_conta.html" class="hover:text-secondary-light-blue transition-colors">Minha Conta</a></li>
-          <li><a href="politica_trocas.html" class="hover:text-secondary-light-blue transition-colors">Política de Trocas</a></li>
-          <li><a href="fale_conosco.html" class="hover:text-secondary-light-blue transition-colors">Fale Conosco</a></li>
-          <li><a href="assistencia.html" class="hover:text-secondary-light-blue transition-colors">Assistência Técnica</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-column space-y-4 text-gray-300">
-        <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
-        <div class="social-icons flex space-x-4 text-2xl">
-          <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
-          <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
-          <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
-        </div>
-
-        <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
-        <div class="flex flex-nowrap items-center gap-2">
-          <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
-          <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
-          <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
-          <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
-          <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
-          <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
-      &copy; 2025 Ariana Móveis. Todos os direitos reservados.
-    </div>
-  </footer>
-
-    <script src="js/api-config.js"></script>
+      <div class="ar-summary-total"><span>Total</span><strong id="total-price">R$ 0,00</strong></div>
+      <div id="pix-incentive"></div>
+      <button id="finalizar-compra-btn" class="ar-primary">Continuar</button>
+    </aside>
+  </div>
+</main>
+<script src="js/api-config.js"></script>
     <script src="marketplace-core.js"></script>
   <script src="marketplace-core_global_payments.js"></script>
   <script src="js/layout-fit.js" defer></script>
@@ -437,59 +276,178 @@
       }, 0);
     }
 
+    function isExplicitFreeShipping(q = {}) {
+      const flags = [
+        q.isFree, q.free, q.freeShipping, q.freteGratis, q.gratis,
+        q.isRegionalFree, q.regionalFree, q.arianaRegionalFree
+      ];
+      if (flags.some((v) => v === true || String(v).toLowerCase() === 'true')) return true;
+
+      const reason = String(
+        q.freeReason || q.reason || q.rule || q.ruleType || q.type || q.name || q.label || q.service || ''
+      ).toLowerCase();
+
+      return /frete\s*gr[aá]tis|gr[aá]tis|regional\s*free|ariana\s*regional/.test(reason);
+    }
+
+    function parseShippingMoney(value) {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+      let text = String(value ?? '').trim();
+      if (!text) return NaN;
+      text = text.replace(/R\$|\s/g, '');
+      if (text.includes(',') && text.includes('.')) {
+        text = text.replace(/\./g, '').replace(',', '.');
+      } else if (text.includes(',')) {
+        text = text.replace(',', '.');
+      }
+      text = text.replace(/[^0-9.-]/g, '');
+      const parsed = Number(text);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+
     function normalizeShippingOption(q, fallbackRaw = null) {
-      if (!q || typeof q !== 'object') return null;
-      const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
-      if (!Number.isFinite(price)) return null;
+      if (!q || typeof q !== 'object' || q.unavailable === true || q.available === false) return null;
+
+      const rawPrice = q.effectivePrice ?? q.price ?? q.valor ?? q.cost ?? q.amount ??
+        q.value ?? q.finalPrice ?? q.totalPrice ?? q.shippingPrice ?? q.freightPrice ?? q.frete;
+      if (rawPrice === undefined || rawPrice === null || rawPrice === '') return null;
+
+      const price = parseShippingMoney(rawPrice);
+      if (!Number.isFinite(price) || price < 0) return null;
+
+      const explicitFree = isExplicitFreeShipping(q);
+
+      // Valor zero sem uma regra explícita de gratuidade normalmente significa
+      // cotação incompleta/indisponível. Nunca transformamos isso em "Frete grátis".
+      if (price === 0 && !explicitFree) return null;
+
       return {
         price,
+        effectivePrice: price,
+        explicitFree,
         name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
-        service: q.service || q.name || q.label || 'Frete',
-        carrier: q.carrier || q.provider || q.name || 'Transportadora',
-        raw: fallbackRaw || q
+        service: q.service || q.code || q.codigo || q.name || q.label || 'Frete',
+        carrier: q.carrier || q.provider || q.transportadora || q.name || 'Transportadora',
+        deadline: q.deadline || q.prazo || q.deliveryDays || q.days || q.estimatedDays || null,
+        raw: q,
+        responseRaw: fallbackRaw || q
       };
     }
 
+    function extractShippingOptionsFromResponse(data) {
+      if (!data || typeof data !== 'object') throw new Error('Resposta de frete inválida.');
+
+      const candidates = [];
+      if (Array.isArray(data.options)) candidates.push(...data.options);
+      if (Array.isArray(data.quotes)) candidates.push(...data.quotes);
+      if (Array.isArray(data.services)) candidates.push(...data.services);
+      if (Array.isArray(data.data?.options)) candidates.push(...data.data.options);
+      if (Array.isArray(data.data?.quotes)) candidates.push(...data.data.quotes);
+      if (Array.isArray(data.results)) candidates.push(...data.results);
+      if (Array.isArray(data.data?.results)) candidates.push(...data.data.results);
+      if (Array.isArray(data.shipments)) candidates.push(...data.shipments);
+      if (Array.isArray(data.data?.shipments)) candidates.push(...data.data.shipments);
+      if (Array.isArray(data.fretes)) candidates.push(...data.fretes);
+      if (Array.isArray(data.data?.fretes)) candidates.push(...data.data.fretes);
+      if (data.cheapest && typeof data.cheapest === 'object') candidates.push(data.cheapest);
+      if (data.quote && typeof data.quote === 'object') candidates.push(data.quote);
+      if (data.ok && (data.price != null || data.effectivePrice != null || data.valor != null)) candidates.push(data);
+
+      const seen = new Set();
+      const options = candidates
+        .map((opt) => normalizeShippingOption(opt, data))
+        .filter(Boolean)
+        .filter((opt) => {
+          const key = `${String(opt.service).toLowerCase()}|${opt.price}|${String(opt.carrier).toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => a.price - b.price);
+
+      if (!options.length) {
+        throw new Error(data?.detail || data?.error || data?.message || 'Nenhuma opção de frete válida foi encontrada para este CEP.');
+      }
+      return options;
+    }
+
+    function formatShippingDeadline(option) {
+      const value = option?.deadline;
+      if (value === undefined || value === null || value === '') return '';
+      if (typeof value === 'number' || /^\d+$/.test(String(value))) return ` • até ${value} dias úteis`;
+      return ` • ${String(value)}`;
+    }
+
+    function renderShippingOptions(options, selectedService = '') {
+      const box = document.getElementById('frete-options');
+      if (!box) return;
+
+      const list = Array.isArray(options) ? options : [];
+      if (!list.length) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+
+      box.style.display = 'grid';
+      box.style.gap = '8px';
+      box.innerHTML = list.map((option, index) => {
+        const checked = String(option.service) === String(selectedService) || (!selectedService && index === 0);
+        const priceLabel = option.explicitFree ? 'Grátis' : window.formatPrice(option.price);
+        return `
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid ${checked ? '#0B4AA2' : '#d7dee8'};padding:12px 14px;background:${checked ? '#eef5ff' : '#fff'};cursor:pointer">
+            <span style="display:flex;align-items:flex-start;gap:10px;min-width:0">
+              <input type="radio" name="shipping-option" value="${String(option.service).replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} style="margin-top:3px">
+              <span>
+                <strong style="display:block;color:#172033">${option.name}</strong>
+                <small style="color:#667085">${option.carrier || ''}${formatShippingDeadline(option)}</small>
+              </span>
+            </span>
+            <strong style="white-space:nowrap;color:#0B4AA2">${priceLabel}</strong>
+          </label>`;
+      }).join('');
+
+      box.querySelectorAll('input[name="shipping-option"]').forEach((radio) => {
+        radio.addEventListener('change', async () => {
+          const chosen = list.find((opt) => String(opt.service) === String(radio.value));
+          if (!chosen) return;
+
+          shippingState = {
+            ...shippingState,
+            status: 'quoted',
+            price: Number(chosen.price),
+            effectivePrice: Number(chosen.price),
+            explicitFree: !!chosen.explicitFree,
+            service: chosen.service,
+            name: chosen.name,
+            carrier: chosen.carrier,
+            selectedOption: chosen,
+            options: list
+          };
+
+          try {
+            localStorage.setItem('ariana_selected_shipping', JSON.stringify({
+              cep: shippingState.cep,
+              service: chosen.service,
+              name: chosen.name,
+              carrier: chosen.carrier,
+              quotedPrice: Number(chosen.price),
+              effectivePrice: Number(chosen.price),
+              explicitFree: !!chosen.explicitFree,
+              updatedAt: Date.now(),
+              endpoint: shippingState.endpoint,
+              raw: chosen.raw
+            }));
+          } catch (_) {}
+
+          renderShippingOptions(list, chosen.service);
+          await recalculateTotals();
+        });
+      });
+    }
+
     function extractBestShippingOptionFromResponse(data) {
-      if (!data || typeof data !== 'object') {
-        throw new Error('Resposta de frete inválida.');
-      }
-
-      if (data.cheapest && typeof data.cheapest === 'object') {
-        const normalized = normalizeShippingOption(data.cheapest, data);
-        if (normalized) return normalized;
-      }
-
-      if (Array.isArray(data.options) && data.options.length) {
-        const validOptions = data.options
-          .filter((opt) => !opt?.unavailable)
-          .map((opt) => normalizeShippingOption(opt, data))
-          .filter(Boolean);
-        if (validOptions.length) {
-          return validOptions.reduce((best, current) => current.price < best.price ? current : best);
-        }
-      }
-
-      if (Array.isArray(data.quotes) && data.quotes.length) {
-        const validQuotes = data.quotes
-          .map((q) => normalizeShippingOption(q, data))
-          .filter(Boolean);
-        if (validQuotes.length) {
-          return validQuotes.reduce((best, current) => current.price < best.price ? current : best);
-        }
-      }
-
-      if (data.ok && (data.price != null || data.effectivePrice != null)) {
-        const normalized = normalizeShippingOption(data, data);
-        if (normalized) return normalized;
-      }
-
-      if (data.quote && typeof data.quote === 'object') {
-        const normalized = normalizeShippingOption(data.quote, data);
-        if (normalized) return normalized;
-      }
-
-      throw new Error(data?.detail || data?.error || data?.message || 'Sem opções de frete para este CEP.');
+      return extractShippingOptionsFromResponse(data)[0];
     }
 
     async function quoteCorreios(cepDestino) {
@@ -524,7 +482,13 @@
         heightCm: pkg.alturaCm,
         height: pkg.alturaCm,
         items: buildShippingItemsPayload(),
-        isArianaOrder: isArianaOrderFromCartItems(cartItems)
+        sellerId: cartItems[0]?.sellerId || null,
+        sellerName: cartItems[0]?.sellerName || cartItems[0]?.soldBy || 'Ariana Móveis',
+        isArianaOrder: isArianaOrderFromCartItems(cartItems),
+        useArianaLocalRule: isArianaOrderFromCartItems(cartItems),
+        useArianaLogistics: isArianaOrderFromCartItems(cartItems),
+        enableArianaLogistics: isArianaOrderFromCartItems(cartItems),
+        shippingRule: isArianaOrderFromCartItems(cartItems) ? 'ariana_local' : undefined
       };
 
       const apiBase = (localStorage.getItem('API_BASE') || window.API_BASE || API_BASE || '').replace(/\/+$/, '');
@@ -582,24 +546,33 @@
         throw new Error(data?.detail || data?.error || data?.message || 'Frete indisponível.');
       }
 
-      const best = extractBestShippingOptionFromResponse(data);
+      const options = extractShippingOptionsFromResponse(data);
+      const best = options[0];
 
-      let frete = Number(best.price || 0);
+      let frete = Number(best.price);
+      let thresholdFree = false;
       if (defs.freeShippingAbove > 0 && subtotal >= defs.freeShippingAbove) {
         frete = 0;
+        thresholdFree = true;
       }
 
       shippingState = {
         status: 'quoted',
-        price: Number(best.price || 0),
-        effectivePrice: Number(frete || 0),
+        price: Number(best.price),
+        effectivePrice: Number(frete),
+        explicitFree: !!best.explicitFree || thresholdFree,
+        thresholdFree,
         service: best.service,
         raw: data,
         cep,
         name: best.name,
         carrier: best.carrier,
-        endpoint: usedEndpoint
+        endpoint: usedEndpoint,
+        selectedOption: best,
+        options
       };
+
+      renderShippingOptions(options, best.service);
 
       try {
         localStorage.setItem('ariana_selected_shipping', JSON.stringify({
@@ -608,7 +581,8 @@
           name: best.name,
           carrier: best.carrier,
           quotedPrice: Number(best.price || 0),
-          effectivePrice: Number(frete || 0),
+          effectivePrice: Number(frete),
+          explicitFree: !!shippingState.explicitFree,
           updatedAt: Date.now(),
           endpoint: usedEndpoint,
           raw: data
@@ -715,9 +689,34 @@
       return null;
     }
 
+    function getWarrantyCartSignature(items = cartItems) {
+      return (Array.isArray(items) ? items : [])
+        .map((item) => {
+          const id = String(resolveCartProductId(item) || item?.id || item?._id || item?.name || 'produto');
+          const quantity = parseInt(item?.quantity || 1, 10) || 1;
+          return `${id}:${quantity}`;
+        })
+        .sort()
+        .join('|');
+    }
+
+    function cartAlreadyPassedWarranty() {
+      const currentSignature = getWarrantyCartSignature();
+      const reviewedSignature = String(localStorage.getItem('ariana_warranty_reviewed_cart_sig') || '');
+      return !!currentSignature && currentSignature === reviewedSignature;
+    }
+
     window.checkOutOrLogin = function() {
       if (cartItems.length === 0) {
         window.displayMessage('Seu carrinho está vazio. Adicione itens antes de finalizar a compra.', 'error', 'message-box');
+        return;
+      }
+
+      // Todo carrinho novo ou alterado precisa passar uma vez pela proteção do produto.
+      // Depois da revisão, o cliente volta ao carrinho e pode seguir normalmente ao checkout.
+      if (!cartAlreadyPassedWarranty()) {
+        sessionStorage.setItem('ariana_warranty_origin', 'cart');
+        window.location.href = 'garantia_estendida.html';
         return;
       }
 
@@ -1015,12 +1014,16 @@
 
       let frete = Number(shippingState?.effectivePrice ?? shippingState?.price ?? 0) || 0;
 
+      let thresholdFree = false;
       if (defs.freeShippingAbove > 0 && totalPixBase >= defs.freeShippingAbove) {
         frete = 0;
+        thresholdFree = true;
       }
 
       if (shippingState && shippingState.status === 'quoted') {
         shippingState.effectivePrice = frete;
+        shippingState.thresholdFree = thresholdFree;
+        shippingState.explicitFree = !!shippingState.selectedOption?.explicitFree || thresholdFree;
         try {
           const saved = localStorage.getItem('ariana_selected_shipping');
           if (saved) {
@@ -1040,7 +1043,9 @@
       const totalPixComFreteFinal = Math.max(0, totalPixComFrete - couponDiscount);
       const totalPrazoComFreteFinal = Math.max(0, totalPrazoComFrete - couponDiscount);
       const economiaPix = Math.max(0, totalPrazo - totalPixBase);
-      const descontoTotal = economiaPix + couponDiscount;
+      // O desconto de 17% já está demonstrado no preço PIX. No campo “Desconto”
+      // mostramos somente cupom aplicado, evitando duplicar visualmente o abatimento.
+      const descontoTotal = couponDiscount;
 
       try {
         localStorage.setItem('ariana_cart_totals', JSON.stringify({
@@ -1065,8 +1070,10 @@
         } else if (shippingState.status === 'error') {
           freteTextEl.textContent = 'Erro ao calcular';
         } else if (shippingState.status === 'quoted') {
-          if (frete === 0) {
+          if (frete === 0 && shippingState.explicitFree) {
             freteTextEl.textContent = 'Grátis';
+          } else if (frete === 0) {
+            freteTextEl.textContent = 'Frete indisponível';
           } else {
             const nome = shippingState.name || shippingState.service || '';
             freteTextEl.textContent = (nome ? nome + ': ' : '') + window.formatPrice(frete);
@@ -1185,7 +1192,8 @@
           }
 
           localStorage.setItem('shipping_cep', maskCep(cep));
-          shippingState = { status: 'loading', price: 0, effectivePrice: 0, service: null, raw: null, cep };
+          shippingState = { status: 'loading', price: 0, effectivePrice: 0, explicitFree: false, service: null, raw: null, cep };
+          renderShippingOptions([]);
           await recalculateTotals();
 
           try {
@@ -1194,7 +1202,8 @@
             window.displayMessage('Frete calculado.', 'success', 'message-box');
           } catch (e) {
             console.error('[cart] frete erro:', e);
-            shippingState = { status: 'error', price: 0, effectivePrice: 0, service: null, raw: String(e), cep };
+            shippingState = { status: 'error', price: 0, effectivePrice: 0, explicitFree: false, service: null, raw: String(e), cep };
+            renderShippingOptions([]);
             await recalculateTotals();
             const msg = String(e?.message || e || 'Erro ao calcular frete.');
             window.displayMessage(msg.includes('Sem opções de frete') ? msg : 'Erro ao calcular frete. Verifique o CEP e tente novamente.', 'error', 'message-box', 6000);
@@ -1235,5 +1244,16 @@
       }
     });
   </script>
-</body>
-</html>
+
+
+<script>
+(function(){
+ const source=document.getElementById('frete-text');
+ const target=document.getElementById('frete-summary');
+ if(source&&target){
+   new MutationObserver(()=>target.textContent=source.textContent).observe(source,{childList:true,subtree:true,characterData:true});
+   target.textContent=source.textContent;
+ }
+})();
+</script>
+</body></html>

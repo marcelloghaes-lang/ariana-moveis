@@ -110,19 +110,19 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
 <aside class="hidden bg-dark-bg w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out z-30" id="sidebar">
 <a class="admin-brand-logo" href="#"><span class="brand-ariana">ARIANA</span><span class="brand-moveis">MÓVEIS</span></a>
 <nav class="flex flex-col space-y-2">
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="dashboard" href="#" onclick="window.changeView('dashboard')"><i class="fas fa-home"></i><span>Dashboard</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="atendimentos" href="#" onclick="window.changeView('atendimentos')"><i class="fas fa-headset"></i><div class="flex-1 flex items-center justify-between"><span>Atendimentos</span><span class="hidden bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full" id="badge-atendimentos">0</span></div></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="products" href="#" onclick="window.changeView('products')"><i class="fas fa-box"></i><span>Produtos</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="marketing" href="#" onclick="window.changeView('marketing')"><i class="fas fa-bullhorn"></i><span>Marketing IA</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="orders" href="#" onclick="window.changeView('orders')"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="logistica_etiquetas.html?from=admin"><i class="fas fa-truck"></i><span>Logística</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="admin_partner_requests.html"><i class="fas fa-store"></i><span>Aprovar Sellers</span><span class="hidden ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full" id="badge-partner-requests">0</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="enterprise" href="#" onclick="window.changeView('enterprise')"><i class="fas fa-network-wired"></i><span>Enterprise</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" href="admin_enterprise.html"><i class="fas fa-building-shield"></i><span>Enterprise Pro</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="users" href="#" onclick="window.changeView('users')"><i class="fas fa-users"></i><span>Usuários</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="categories" href="#" onclick="window.changeView('categories')"><i class="fas fa-tags"></i><span>Categorias</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="payments" href="#" onclick="window.changeView('payments')"><i class="fas fa-money-check-alt"></i><span>Pagamentos</span></a>
-<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="coupons" href="#" onclick="window.changeView('coupons')"><i class="fas fa-ticket-alt"></i><span>Cupons</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="dashboard" data-permission="dashboard:read" href="#" onclick="window.changeView('dashboard')"><i class="fas fa-home"></i><span>Dashboard</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="atendimentos" data-permission="atendimentos:read" href="#" onclick="window.changeView('atendimentos')"><i class="fas fa-headset"></i><div class="flex-1 flex items-center justify-between"><span>Atendimentos</span><span class="hidden bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full" id="badge-atendimentos">0</span></div></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="products" data-permission="products:read" href="#" onclick="window.changeView('products')"><i class="fas fa-box"></i><span>Produtos</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="marketing" data-permission="banners:read,posters:generate,posters:generate:bulk" href="#" onclick="window.changeView('marketing')"><i class="fas fa-bullhorn"></i><span>Marketing IA</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="orders" data-permission="orders:read" href="#" onclick="window.changeView('orders')"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" data-permission="shipping:read,correios:read" href="logistica_etiquetas.html?from=admin"><i class="fas fa-truck"></i><span>Logística</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" data-permission="sellers:read,sellers:approve" href="admin_partner_requests.html"><i class="fas fa-store"></i><span>Aprovar Sellers</span><span class="hidden ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full" id="badge-partner-requests">0</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="enterprise" data-permission="enterprise:read" href="#" onclick="window.changeView('enterprise')"><i class="fas fa-network-wired"></i><span>Enterprise</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" data-permission="enterprise:read" href="admin_enterprise.html"><i class="fas fa-building-shield"></i><span>Enterprise Pro</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white" data-admin-only href="admin_usuarios.html"><i class="fas fa-users-gear"></i><span>Usuários e Permissões</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="categories" data-permission="categories:read" href="#" onclick="window.changeView('categories')"><i class="fas fa-tags"></i><span>Categorias</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="payments" data-permission="payments:read,finance:read" href="#" onclick="window.changeView('payments')"><i class="fas fa-money-check-alt"></i><span>Pagamentos</span></a>
+<a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white view-link" data-view="coupons" data-permission="coupons:read" href="#" onclick="window.changeView('coupons')"><i class="fas fa-ticket-alt"></i><span>Cupons</span></a>
 <a class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-red-400 mt-auto" href="#" onclick="window.handleSignOut()"><i class="fas fa-sign-out-alt"></i><span>Sair</span></a>
 </nav>
 </aside>
@@ -188,7 +188,7 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 <div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1">Número 0800</label><input class="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 transition" id="cfg-0800" placeholder="0800 000 0000" type="text"/></div>
 <div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1">Número 4004 (Capitais)</label><input class="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 transition" id="cfg-4004" placeholder="4004-0000" type="text"/></div>
-<div class="flex items-end"><button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition flex items-center justify-center gap-2" onclick="window.salvarConfigTelefones()"><i class="fas fa-save"></i> ATUALIZAR NÚMEROS</button></div>
+<div class="flex items-end"><button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition flex items-center justify-center gap-2" data-permission="settings:update" onclick="window.salvarConfigTelefones()"><i class="fas fa-save"></i> ATUALIZAR NÚMEROS</button></div>
 </div>
 </div>
 </div>
@@ -202,7 +202,7 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
 <div id="modal-content-details"></div>
 <div class="mt-6 pt-4 border-t">
 <h4 class="text-lg font-semibold mb-3">Atualizar Status &amp; Rastreio</h4>
-<form id="update-order-form" onsubmit="event.preventDefault(); window.handleOrderUpdate(event)">
+<form id="update-order-form" data-permission="orders:update" onsubmit="event.preventDefault(); window.handleOrderUpdate(event)">
 <input id="modal-order-doc-id" type="hidden"/>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 <div><label class="block text-sm font-medium text-gray-700" for="update-status">Status</label><select class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-primary-blue focus:border-primary-blue" id="update-status" required=""><option value="Aguardando Pagamento">Aguardando Pagamento</option><option value="Pagamento Confirmado">Pagamento Confirmado</option><option value="Em Separação">Em Separação</option><option value="Em Transporte">Em Transporte</option><option value="Entregue">Entregue</option><option value="Cancelado">Cancelado</option></select></div>
@@ -235,6 +235,7 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
 </div>
 <script src="js/api-config.js"></script>
 <script src="js/admin_painel.js?v=20260707-fix2"></script>
+<script src="js/admin_access_control.js?v=20260722-phase6"></script>
 <script src="js/admin_alertas_sono.js?v=20260707-fix2"></script>
 </body>
 </html>

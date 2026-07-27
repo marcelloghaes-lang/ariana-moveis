@@ -18,9 +18,9 @@
       outline:none;
       background:#fff;
     }
-    .mp-input:focus{ box-shadow:0 0 0 3px rgba(59,130,246,.15); border-color:#60a5fa; }
+    .mp-input:focus{ box-shadow:0 0 0 3px rgba(119,208,255,.20); border-color:#77D0FF; }
     .btn-primary{
-      background:#0ea5e9;
+      background:#0B4AA2;
       color:#fff;
       font-weight:800;
       border-radius:1rem;
@@ -42,14 +42,19 @@
       align-items:center;
       gap:1rem;
     }
-    .btn-choice:hover{ border-color:#0ea5e9; background:#f0f9ff; }
-    .btn-choice.active{ border-color:#0ea5e9; background:#f0f9ff; box-shadow:0 0 0 3px rgba(14,165,233,.1); }
+    .btn-choice:hover{ border-color:#0B4AA2; background:#EFF6FF; }
+    .btn-choice.active{ border-color:#0B4AA2; background:#EFF6FF; box-shadow:0 0 0 3px rgba(11,74,162,.10); }
+
+    /* A forma de pagamento já é escolhida no checkout original. */
+    #section-choice{ display:none !important; }
   </style>
+<link rel="stylesheet" href="checkout-ariana.css">
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans leading-relaxed">
+  <header class="ar-header"><div class="ar-header-inner"><a class="ar-logo" href="index.html">ARIANA MÓVEIS</a><div class="ar-secure">🔒 Ambiente seguro</div></div></header>
 
-  <div class="max-w-2xl mx-auto px-4 py-8">
-    <div class="mb-8 flex items-center justify-between">
+  <div class="ar-payment-page">
+    <div class="payment-heading">
       <h1 class="text-2xl font-black tracking-tight">Pagamento</h1>
       <div id="order-id-display" class="text-xs font-mono text-slate-400"></div>
     </div>
@@ -532,19 +537,26 @@
     }
 
     window.showChoice = () => {
-      document.getElementById("section-choice").classList.remove("hidden");
-      document.getElementById("panel-card").classList.add("hidden");
-      document.getElementById("panel-pix").classList.add("hidden");
-      document.getElementById("panel-boleto").classList.add("hidden");
+      // A escolha da forma de pagamento pertence ao checkout original.
+      // O botão "Voltar" não deve abrir outra tela de escolha nesta página.
       unmountCardForm();
+      const checkoutUrl = `checkout.html${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ""}`;
+      try {
+        const referrer = document.referrer ? new URL(document.referrer) : null;
+        if (referrer && referrer.origin === window.location.origin && !/pagamento(?:\.html)?$/i.test(referrer.pathname)) {
+          window.history.back();
+          return;
+        }
+      } catch (_) {}
+      window.location.href = checkoutUrl;
     };
 
     function showPanel(id) {
-      document.getElementById("section-choice").classList.add("hidden");
-      document.getElementById("panel-card").classList.add("hidden");
-      document.getElementById("panel-pix").classList.add("hidden");
-      document.getElementById("panel-boleto").classList.add("hidden");
-      document.getElementById(id).classList.remove("hidden");
+      document.getElementById("section-choice")?.classList.add("hidden");
+      ["panel-card", "panel-pix", "panel-boleto", "panel-crediario"].forEach((panelId) => {
+        document.getElementById(panelId)?.classList.add("hidden");
+      });
+      document.getElementById(id)?.classList.remove("hidden");
     }
 
     function normalizeOrder(raw) {
@@ -1173,45 +1185,93 @@
       const panelCard = document.getElementById("panel-card");
       const panelPix = document.getElementById("panel-pix");
       const panelBoleto = document.getElementById("panel-boleto");
+      const panelCrediario = document.getElementById("panel-crediario");
 
       if (choice) choice.classList.add("hidden");
       if (panelCard) panelCard.classList.add("hidden");
       if (panelPix) panelPix.classList.add("hidden");
       if (panelBoleto) panelBoleto.classList.add("hidden");
+      if (panelCrediario) panelCrediario.classList.add("hidden");
 
       if (normalized === "card" && panelCard) panelCard.classList.remove("hidden");
       if (normalized === "pix" && panelPix) panelPix.classList.remove("hidden");
       if (normalized === "boleto" && panelBoleto) panelBoleto.classList.remove("hidden");
     }
 
-    async function tryAutoOpenMethod() {
-      const params = new URLSearchParams(window.location.search);
-      const method = (
-        params.get("method") ||
-        localStorage.getItem("arianaCheckoutSelectedPay") ||
-        localStorage.getItem("arianaLastOrderPayment") ||
-        ""
-      ).trim().toLowerCase();
+    function normalizeSelectedPaymentMethod(value) {
+      const method = String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[\s-]+/g, "_");
 
+      if (["card", "credit_card", "credito", "cartao", "cartao_credito", "pagarme_card"].includes(method)) return "card";
+      if (["pix", "pagarme_pix", "instant_payment"].includes(method)) return "pix";
+      if (["boleto", "bank_slip", "pagarme_boleto"].includes(method)) return "boleto";
+      if (["crediario", "crediario_ariana", "carne", "carne_cora", "cora"].includes(method)) return "crediario_ariana";
+      return "";
+    }
+
+    function resolveSelectedPaymentMethod() {
+      const params = new URLSearchParams(window.location.search);
+      const candidates = [
+        params.get("method"),
+        params.get("paymentMethod"),
+        params.get("payment_method"),
+        params.get("formaPagamento"),
+        params.get("forma_pagamento"),
+        orderData?.paymentMethod,
+        orderData?.payment_method,
+        orderData?.payment?.method,
+        orderData?.payment?.type,
+        orderData?.totals?.paymentMethod,
+        localStorage.getItem("arianaCheckoutSelectedPay"),
+        localStorage.getItem("arianaLastOrderPayment"),
+        localStorage.getItem("selectedPaymentMethod"),
+        localStorage.getItem("paymentMethod")
+      ];
+
+      for (const candidate of candidates) {
+        const normalized = normalizeSelectedPaymentMethod(candidate);
+        if (normalized) return normalized;
+      }
+      return "";
+    }
+
+    async function tryAutoOpenMethod() {
+      const method = resolveSelectedPaymentMethod();
       if (!method) return false;
 
+      selectedMethod = method;
+      try {
+        localStorage.setItem("arianaCheckoutSelectedPay", method);
+        localStorage.setItem("arianaLastOrderPayment", method);
+      } catch (_) {}
+
       if (method === "card") {
-        selectedMethod = "card";
         showPanel("panel-card");
         updateResumoForSelectedMethod("card");
         await mountCardFormSafe();
         return true;
-      } else if (method === "pix") {
-        selectedMethod = "pix";
+      }
+
+      if (method === "pix") {
         showPanel("panel-pix");
         updateResumoForSelectedMethod("pix");
-        document.getElementById("pix-loading").classList.remove("hidden");
-        document.getElementById("pix-content").classList.add("hidden");
+        document.getElementById("pix-loading")?.classList.remove("hidden");
+        document.getElementById("pix-content")?.classList.add("hidden");
         return true;
-      } else if (method === "boleto") {
-        selectedMethod = "boleto";
+      }
+
+      if (method === "boleto") {
         showPanel("panel-boleto");
         updateResumoForSelectedMethod("boleto");
+        return true;
+      }
+
+      if (method === "crediario_ariana") {
+        window.openSelectedMethod("crediario_ariana");
         return true;
       }
 
@@ -1303,7 +1363,9 @@
         await loadOrder();
         const openedByMethod = await tryAutoOpenMethod();
         if (!openedByMethod) {
-          showChoice();
+          setAlert("error", "A forma de pagamento não foi recebida. Voltando ao checkout para você selecionar novamente...");
+          setTimeout(() => window.showChoice(), 1200);
+          return;
         }
         startPolling();
       } catch (e) {

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nova Venda | Ariana Móveis</title>
+  <link rel="stylesheet" href="televendas.css">
+  <link rel="stylesheet" href="televendas-nova-venda.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <div>
+        <div class="brand-name">ARIANA <span>MÓVEIS</span></div>
+        <div class="brand-subtitle">Nova venda assistida</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="back-link" href="televendas_painel.html">← Voltar ao painel</a>
+      <div class="operator">
+        <div class="operator-avatar">MN</div>
+        <div><strong>Marcelo Nunes</strong><small>Atendente</small></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="sale-page">
+    <section class="sale-header">
+      <div>
+        <p class="eyebrow">FASE 2 — NOVA VENDA</p>
+        <h1>Monte a venda junto com o cliente</h1>
+        <p class="muted">Cadastre o cliente, escolha os produtos, defina frete, garantia, desconto e parcelas.</p>
+      </div>
+      <div class="sale-progress">
+        <span class="active">1 Cliente</span>
+        <span>2 Produtos</span>
+        <span>3 Condição</span>
+        <span>4 Link</span>
+      </div>
+    </section>
+
+    <div class="sale-layout">
+      <div class="sale-main">
+        <section class="form-card">
+          <div class="section-title">
+            <div><span class="step-number">1</span><h2>Cliente</h2></div>
+            <button class="text-button" id="btn-clear-customer" type="button">Limpar dados</button>
+          </div>
+
+          <div class="form-grid">
+            <label class="field field-span-2">
+              <span>Nome completo</span>
+              <input id="customer-name" type="text" placeholder="Nome do cliente">
+            </label>
+            <label class="field">
+              <span>CPF</span>
+              <input id="customer-cpf" type="text" placeholder="000.000.000-00">
+            </label>
+            <label class="field">
+              <span>Telefone / WhatsApp</span>
+              <input id="customer-phone" type="tel" placeholder="(31) 99999-9999">
+            </label>
+            <label class="field">
+              <span>E-mail</span>
+              <input id="customer-email" type="email" placeholder="cliente@email.com">
+            </label>
+            <label class="field">
+              <span>CEP</span>
+              <input id="customer-cep" type="text" placeholder="00000-000">
+            </label>
+            <label class="field field-span-2">
+              <span>Endereço</span>
+              <input id="customer-address" type="text" placeholder="Rua, número, bairro, cidade e UF">
+            </label>
+          </div>
+        </section>
+
+        <section class="form-card">
+          <div class="section-title">
+            <div><span class="step-number">2</span><h2>Produtos</h2></div>
+          </div>
+
+          <label class="product-search">
+            <span>⌕</span>
+            <input id="product-search" type="search" placeholder="Pesquise por nome, SKU ou categoria">
+          </label>
+
+          <div class="product-results" id="product-results"></div>
+
+          <div class="selected-products">
+            <h3>Itens da venda</h3>
+            <div id="selected-products-list"></div>
+            <div class="empty-products" id="empty-products">Nenhum produto adicionado.</div>
+          </div>
+        </section>
+
+        <section class="form-card">
+          <div class="section-title">
+            <div><span class="step-number">3</span><h2>Entrega e garantia</h2></div>
+          </div>
+
+          <div class="delivery-grid">
+            <label class="field">
+              <span>Tipo de entrega</span>
+              <select id="shipping-method">
+                <option value="">Selecione</option>
+                <option value="ariana">Ariana Logística</option>
+                <option value="correios">Correios</option>
+                <option value="rodocap">Rodocap</option>
+                <option value="total_express">Total Express</option>
+                <option value="retirada">Retirada na loja</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Valor do frete</span>
+              <input id="shipping-price" type="number" min="0" step="0.01" placeholder="0,00">
+            </label>
+            <label class="field">
+              <span>Prazo estimado</span>
+              <input id="shipping-deadline" type="text" placeholder="Ex.: 5 dias úteis">
+            </label>
+            <label class="toggle-field">
+              <input id="extended-warranty" type="checkbox">
+              <span class="toggle"></span>
+              <div>
+                <strong>Garantia estendida</strong>
+                <small>Adicionar proteção extra aos produtos elegíveis.</small>
+              </div>
+            </label>
+            <label class="field warranty-price-wrap hidden" id="warranty-price-wrap">
+              <span>Valor da garantia</span>
+              <input id="warranty-price" type="number" min="0" step="0.01" placeholder="0,00">
+            </label>
+          </div>
+        </section>
+
+        <section class="form-card">
+          <div class="section-title">
+            <div><span class="step-number">4</span><h2>Condição de pagamento</h2></div>
+          </div>
+
+          <div class="payment-grid">
+            <label class="field">
+              <span>Forma de pagamento</span>
+              <select id="payment-method">
+                <option value="card">Cartão de crédito</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Parcelas definidas com o cliente</span>
+              <select id="installments"></select>
+            </label>
+            <label class="field">
+              <span>Desconto autorizado (R$)</span>
+              <input id="discount-value" type="number" min="0" step="0.01" value="0">
+            </label>
+            <label class="field">
+              <span>Observação interna</span>
+              <input id="internal-note" type="text" placeholder="Ex.: Cliente solicitou entrega após dia 20">
+            </label>
+          </div>
+
+          <div class="security-note">
+            <strong>🔒 Condição protegida</strong>
+            <p>As parcelas escolhidas aqui ficarão bloqueadas no link. O cliente preencherá os dados pessoais e do cartão, mas não poderá alterar a quantidade de parcelas.</p>
+          </div>
+        </section>
+      </div>
+
+      <aside class="sale-summary">
+        <div class="summary-sticky">
+          <h2>Resumo da venda</h2>
+          <div class="summary-line"><span>Produtos</span><strong id="summary-products">R$ 0,00</strong></div>
+          <div class="summary-line"><span>Frete</span><strong id="summary-shipping">R$ 0,00</strong></div>
+          <div class="summary-line"><span>Garantia</span><strong id="summary-warranty">R$ 0,00</strong></div>
+          <div class="summary-line discount-line"><span>Desconto</span><strong id="summary-discount">- R$ 0,00</strong></div>
+          <div class="summary-divider"></div>
+          <div class="summary-total"><span>Total</span><strong id="summary-total">R$ 0,00</strong></div>
+          <div class="installment-preview" id="installment-preview">Selecione os produtos para calcular as parcelas.</div>
+
+          <button class="primary-button generate-button" id="btn-generate-link" type="button">Gerar link de pagamento</button>
+          <button class="secondary-button full-button" id="btn-save-draft" type="button">Salvar rascunho</button>
+
+          <div class="summary-help">
+            <strong>Após gerar o link:</strong>
+            <small>O cliente preencherá os dados e o pagamento ficará em análise de segurança.</small>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="modal-backdrop hidden" id="link-modal">
+    <div class="modal link-modal">
+      <button class="modal-close" id="link-modal-close">×</button>
+      <div class="success-symbol">✓</div>
+      <p class="eyebrow">LINK GERADO</p>
+      <h2>Venda preparada com sucesso</h2>
+      <p class="muted">A condição de pagamento foi salva e as parcelas ficarão bloqueadas para o cliente.</p>
+
+      <div class="generated-link-card">
+        <small>Link de pagamento</small>
+        <div id="generated-link"></div>
+      </div>
+
+      <div class="generated-condition">
+        <span id="generated-order"></span>
+        <strong id="generated-installments"></strong>
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary-button" id="btn-copy-generated-link">Copiar link</button>
+        <button class="whatsapp-button" id="btn-send-generated-whatsapp">Enviar no WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+  <script src="televendas-nova-venda.js"></script>
+</body>
+</html>

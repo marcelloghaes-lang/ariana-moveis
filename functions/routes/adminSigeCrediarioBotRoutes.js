@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // ROTAS ADMIN SIGE / CREDIÃRIO / BOTS - ARIANA MÃ“VEIS
 // ExtraÃ­do de legacyRoutes.js sem alterar endpoints, regras ou respostas.
 // ============================================================
@@ -214,6 +214,16 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     grupos: { type: [mongoose.Schema.Types.Mixed], default: [] },
     parcelas: { type: [mongoose.Schema.Types.Mixed], default: [] },
     snapshot: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // Vínculo permanente com a emissão Cora correta.
+    coraChargeId: { type: String, default: '', index: true },
+    coraCode: { type: String, default: '', index: true },
+    coraInternalReference: { type: String, default: '', index: true },
+    coraDocumentUrl: { type: String, default: '' },
+    coraStatus: { type: String, default: '', index: true },
+    coraVinculadoEm: { type: Date, default: null, index: true },
+    coraVinculadoPor: { type: String, default: '' },
+
     ultimaSincronizacaoEm: { type: Date, default: null, index: true },
     ultimaSincronizacaoPor: { type: String, default: '' },
     criadoPor: { type: String, default: '' },
@@ -1539,6 +1549,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       })) : [],
       parcelas: normalizarIdentificacaoParcelas(Array.isArray(row.parcelas) ? row.parcelas : []),
       snapshot: row.snapshot || {},
+      coraChargeId: row.coraChargeId || '',
+      coraCode: row.coraCode || '',
+      coraInternalReference: row.coraInternalReference || '',
+      coraDocumentUrl: row.coraDocumentUrl || '',
+      coraStatus: row.coraStatus || '',
+      coraVinculadoEm: row.coraVinculadoEm || null,
+      coraVinculadoPor: row.coraVinculadoPor || '',
       ultimaSincronizacaoEm: row.ultimaSincronizacaoEm || null,
       ultimaSincronizacaoPor: row.ultimaSincronizacaoPor || '',
       criadoPor: row.criadoPor || '',
@@ -2093,7 +2110,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const agora = new Date();
     const usuario = String(req.admin?.email || req.auth?.email || req.user?.email || 'admin');
     let existente = await FinanceiroCarneDigital.findOne({ uniqueKey });
-    const criadoAgora = !existente;
+    let criadoAgora = !existente;
 
     if (!existente) {
       let codigo = createCarneCode();
@@ -2109,7 +2126,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
     }
 
-    const resumoAnterior = existente.resumo || {};
+    let resumoAnterior = existente.resumo || {};
     existente.cliente = {
       nome: String(data.cliente || ''),
       nomeNormalizado: normalizeCarneIdentity(data.cliente || ''),
@@ -2142,7 +2159,64 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       existente.historico = existente.historico.slice(-100);
     }
 
-    await existente.save();
+    try {
+      await existente.save();
+    } catch (saveError) {
+      const duplicateUniqueKey =
+        Number(saveError?.code || 0) === 11000 &&
+        (
+          String(saveError?.message || '').includes('uniqueKey_1') ||
+          saveError?.keyPattern?.uniqueKey ||
+          saveError?.keyValue?.uniqueKey
+        );
+
+      if (!duplicateUniqueKey) throw saveError;
+
+      // Duas sincronizações podem chegar quase ao mesmo tempo.
+      // O índice uniqueKey protege contra duplicidade; neste caso,
+      // recuperamos o registro que venceu a corrida e o atualizamos.
+      existente = await FinanceiroCarneDigital.findOne({ uniqueKey });
+      if (!existente) throw saveError;
+
+      criadoAgora = false;
+      resumoAnterior = existente.resumo || {};
+
+      existente.cliente = {
+        nome: String(data.cliente || ''),
+        nomeNormalizado: normalizeCarneIdentity(data.cliente || ''),
+        cpf: cleanPhone(data.cpf || ''),
+        telefone: normalizePhone(data.telefone || '', '55'),
+        cidade: String(data.cidade || ''),
+        uf: String(data.uf || '')
+      };
+      existente.resumo = data.resumo || {};
+      existente.grupos = Array.isArray(data.grupos) ? data.grupos : [];
+      existente.parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
+      existente.snapshot = {
+        fonteFinanceira: data.fonteFinanceira || 'sige',
+        fonte: data.fonte || 'lancamentos_sige',
+        total: Number(data.total || 0),
+        arquitetura: data.arquitetura || {},
+        auditoriaMongo: data.auditoriaMongo || null
+      };
+      existente.ultimaSincronizacaoEm = agora;
+      existente.ultimaSincronizacaoPor = usuario;
+      existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
+      existente.historico.push({
+        tipo: 'SINCRONIZADO',
+        em: agora,
+        por: usuario,
+        resumoAnterior,
+        resumoAtual: data.resumo || {},
+        recuperadoDeConcorrencia: true
+      });
+      if (existente.historico.length > 100) {
+        existente.historico = existente.historico.slice(-100);
+      }
+
+      await existente.save();
+    }
+
     await registrarAuditoriaFinanceira({
       req,
       acao: criadoAgora ? 'CARNE_CRIADO' : 'CARNE_SINCRONIZADO',
@@ -3188,6 +3262,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       origem: item.origem || '',
       tipoEvento: item.tipoEvento || '',
       dataReferencia: item.dataReferencia || '',
+      carneId: item.carneId ? String(item.carneId) : '',
+      carneCodigo: item.carneCodigo || '',
+      documento: item.documento || '',
       clienteNome: maskFinanceiroWhatsappName(item.clienteNome),
       telefone: maskFinanceiroWhatsappPhone(item.telefone),
       parcelaLabel: item.parcelaLabel || '',
@@ -3564,6 +3641,24 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   }
 
+  function validarWebhookFinanceiroWhatsapp(req) {
+    const configured = String(
+      process.env.FINANCEIRO_WHATSAPP_WEBHOOK_TOKEN || ''
+    ).trim();
+
+    if (!configured) return true;
+
+    const informed = String(
+      req.headers?.['x-financeiro-webhook-token']
+      || req.headers?.['x-webhook-token']
+      || req.query?.token
+      || ''
+    ).trim();
+
+    return Boolean(informed && informed === configured);
+  }
+
+
   async function migrarLogsAntigosWhatsappFinanceiro({
     req = {},
     limite = 1000,
@@ -3714,9 +3809,43 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
   async function resumirMonitorWhatsappFinanceiro({
     minutosPendente = 15,
-    limite = 50
+    limite = 50,
+    carneId = '',
+    carneCodigo = '',
+    telefone = ''
   } = {}) {
     const staleDate = new Date(Date.now() - Math.max(1, Number(minutosPendente || 15)) * 60000);
+    const identityFilters = [];
+
+    const carneIdNormalizado = String(carneId || '').trim();
+    if (carneIdNormalizado && mongoose.Types.ObjectId.isValid(carneIdNormalizado)) {
+      identityFilters.push({ carneId: new mongoose.Types.ObjectId(carneIdNormalizado) });
+    }
+
+    const carneCodigoNormalizado = String(carneCodigo || '').trim();
+    if (carneCodigoNormalizado) {
+      identityFilters.push({
+        carneCodigo: new RegExp(`^${escapeRegex(carneCodigoNormalizado)}$`, 'i')
+      });
+    }
+
+    const telefoneNormalizado = cleanPhone(telefone || '');
+    if (telefoneNormalizado) {
+      const telefoneFinal = telefoneNormalizado.slice(-11);
+      identityFilters.push({
+        telefone: new RegExp(`${escapeRegex(telefoneFinal)}$`)
+      });
+    }
+
+    const applyIdentityFilter = (query = {}) => {
+      if (!identityFilters.length) return query;
+      return {
+        $and: [
+          { $or: identityFilters },
+          query
+        ]
+      };
+    };
 
     const [
       pending,
@@ -3727,22 +3856,36 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       failed,
       recent
     ] = await Promise.all([
-      FinanceiroReguaWhatsappLog.countDocuments({ enviado: true, deliveryStatus: 'PENDING' }),
-      FinanceiroReguaWhatsappLog.countDocuments({
-        enviado: true,
-        deliveryStatus: 'PENDING',
-        enviadoEm: { $lte: staleDate }
-      }),
-      FinanceiroReguaWhatsappLog.countDocuments({ enviado: true, deliveryStatus: 'SENT' }),
-      FinanceiroReguaWhatsappLog.countDocuments({ enviado: true, deliveryStatus: 'DELIVERED' }),
-      FinanceiroReguaWhatsappLog.countDocuments({ enviado: true, deliveryStatus: 'READ' }),
-      FinanceiroReguaWhatsappLog.countDocuments({
-        $or: [
-          { deliveryStatus: 'FAILED' },
-          { enviado: false, erro: { $ne: '' } }
-        ]
-      }),
-      FinanceiroReguaWhatsappLog.find({})
+      FinanceiroReguaWhatsappLog.countDocuments(
+        applyIdentityFilter({ enviado: true, deliveryStatus: 'PENDING' })
+      ),
+      FinanceiroReguaWhatsappLog.countDocuments(
+        applyIdentityFilter({
+          enviado: true,
+          deliveryStatus: 'PENDING',
+          enviadoEm: { $lte: staleDate }
+        })
+      ),
+      FinanceiroReguaWhatsappLog.countDocuments(
+        applyIdentityFilter({ enviado: true, deliveryStatus: 'SENT' })
+      ),
+      FinanceiroReguaWhatsappLog.countDocuments(
+        applyIdentityFilter({ enviado: true, deliveryStatus: 'DELIVERED' })
+      ),
+      FinanceiroReguaWhatsappLog.countDocuments(
+        applyIdentityFilter({ enviado: true, deliveryStatus: 'READ' })
+      ),
+      FinanceiroReguaWhatsappLog.countDocuments(
+        applyIdentityFilter({
+          $or: [
+            { deliveryStatus: 'FAILED' },
+            { enviado: false, erro: { $ne: '' } }
+          ]
+        })
+      ),
+      FinanceiroReguaWhatsappLog.find(
+        identityFilters.length ? { $or: identityFilters } : {}
+      )
         .sort({ createdAt: -1 })
         .limit(Math.max(1, Math.min(Number(limite || 50), 200)))
         .lean()
@@ -3756,6 +3899,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       lidos: read,
       falhas: failed,
       minutosPendente: Number(minutosPendente || 15),
+      filtros: {
+        carneId: carneIdNormalizado,
+        carneCodigo: carneCodigoNormalizado,
+        telefone: telefoneNormalizado ? telefoneNormalizado.slice(-4).padStart(telefoneNormalizado.length, '*') : ''
+      },
       recentes: recent
     };
   }
@@ -5440,7 +5588,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const monitor = await resumirMonitorWhatsappFinanceiro({
           minutosPendente: req.query.minutosPendente || 15,
-          limite: req.query.limit || 50
+          limite: req.query.limit || 50,
+          carneId: req.query.carneId || '',
+          carneCodigo: req.query.carneCodigo || '',
+          telefone: req.query.telefone || ''
         });
         return res.json({
           ok: true,
@@ -6080,6 +6231,180 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   );
 
+  function normalizarCoraChargeParaSegundaVia(charge = {}) {
+    const invoices = Array.isArray(charge.invoices) ? charge.invoices : [];
+    return {
+      id: String(charge._id || charge.id || ''),
+      code: String(charge.code || ''),
+      internalReference: String(charge.internalReference || ''),
+      orderId: String(charge.orderId || ''),
+      environment: String(charge.environment || ''),
+      status: String(charge.status || 'UNKNOWN'),
+      documentUrl: String(charge.documentUrl || ''),
+      totalAmountCents: Number(charge.totalAmountCents || 0),
+      installments: Number(charge.installments || invoices.length || 0),
+      createdAt: charge.createdAt || null,
+      customer: {
+        name: String(charge.customer?.name || ''),
+        document: String(charge.customer?.document?.identity || '')
+      },
+      invoices: invoices.map((invoice, index) => ({
+        numero: index + 1,
+        id: String(invoice?.id || invoice?.invoice_id || ''),
+        status: String(invoice?.status || 'UNKNOWN'),
+        totalAmountCents: Number(invoice?.total_amount || invoice?.totalAmount || 0),
+        totalPaidCents: Number(invoice?.total_paid || invoice?.totalPaid || 0),
+        dueDate: invoice?.payment_terms?.due_date || invoice?.due_date || null,
+        description: String(invoice?.services?.[0]?.name || invoice?.description || ''),
+        barcode: String(invoice?.payment_options?.bank_slip?.barcode || ''),
+        digitable: String(invoice?.payment_options?.bank_slip?.digitable || ''),
+        ourNumber: String(invoice?.payment_options?.bank_slip?.our_number || ''),
+        url: String(invoice?.payment_options?.bank_slip?.url || '')
+      }))
+    };
+  }
+
+  async function salvarVinculoCoraNoCarne({ row, charge, req, origem = 'MANUAL' } = {}) {
+    if (!row || !charge) return null;
+    const antes = {
+      coraChargeId: row.coraChargeId || '',
+      coraCode: row.coraCode || '',
+      coraInternalReference: row.coraInternalReference || ''
+    };
+
+    row.coraChargeId = String(charge._id || charge.id || '');
+    row.coraCode = String(charge.code || '');
+    row.coraInternalReference = String(charge.internalReference || '');
+    row.coraDocumentUrl = String(charge.documentUrl || '');
+    row.coraStatus = String(charge.status || '');
+    row.coraVinculadoEm = new Date();
+    row.coraVinculadoPor = getFinanceiroActor(req);
+    row.historico = Array.isArray(row.historico) ? row.historico : [];
+    row.historico.push({
+      tipo: 'CORA_VINCULADO',
+      em: new Date(),
+      por: getFinanceiroActor(req),
+      origem,
+      chargeId: row.coraChargeId,
+      code: row.coraCode,
+      internalReference: row.coraInternalReference
+    });
+    if (row.historico.length > 100) row.historico = row.historico.slice(-100);
+    await row.save();
+
+    await registrarAuditoriaFinanceira({
+      req,
+      acao: 'CARNE_CORA_VINCULADO',
+      entidade: 'FinanceiroCarneDigital',
+      entidadeId: String(row._id),
+      codigo: row.codigo,
+      antes,
+      depois: {
+        coraChargeId: row.coraChargeId,
+        coraCode: row.coraCode,
+        coraInternalReference: row.coraInternalReference
+      },
+      metadata: { origem, somenteVinculo: true }
+    });
+    return row;
+  }
+
+  app.post(
+    '/api/admin/financeiro/carnes/:id/cora-vinculo',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.editar'),
+    async (req, res) => {
+      try {
+        const id = String(req.params.id || '').trim();
+        const chargeId = String(req.body?.chargeId || '').trim();
+        if (!chargeId) return res.status(400).json({ ok: false, error: 'Informe a emissão Cora que será vinculada.' });
+
+        const filter = mongoose.Types.ObjectId.isValid(id)
+          ? { _id: new mongoose.Types.ObjectId(id) }
+          : { codigo: id };
+        const row = await FinanceiroCarneDigital.findOne(filter);
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
+
+        const bancoFinanceiro = mongoose.connection.client.db(
+          MONGODB_DB || process.env.MONGODB_DB || mongoose.connection.db?.databaseName
+        );
+        const coraCharges = bancoFinanceiro.collection('cora_charges');
+        const chargeFilter = mongoose.Types.ObjectId.isValid(chargeId)
+          ? { _id: new mongoose.Types.ObjectId(chargeId) }
+          : { $or: [{ code: chargeId }, { internalReference: chargeId }] };
+        const charge = await coraCharges.findOne(chargeFilter);
+        if (!charge) return res.status(404).json({ ok: false, error: 'Emissão Cora não encontrada.' });
+
+        const cpfCarne = cleanPhone(row.cliente?.cpf || '');
+        const cpfCora = cleanPhone(charge.customer?.document?.identity || '');
+        if (cpfCarne && cpfCora && cpfCarne !== cpfCora && req.body?.confirmarCpfDiferente !== true) {
+          return res.status(409).json({
+            ok: false,
+            error: 'O CPF da emissão Cora é diferente do CPF do carnê. O vínculo não foi realizado.',
+            code: 'CORA_CPF_DIFERENTE'
+          });
+        }
+
+        await salvarVinculoCoraNoCarne({ row, charge, req, origem: 'MANUAL_PAINEL' });
+        return res.json({
+          ok: true,
+          message: 'Emissão Cora vinculada ao carnê com sucesso.',
+          carne: normalizeCarneDigital(row),
+          coraCharge: normalizarCoraChargeParaSegundaVia(charge)
+        });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao vincular a emissão Cora.' });
+      }
+    }
+  );
+
+  app.delete(
+    '/api/admin/financeiro/carnes/:id/cora-vinculo',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.editar'),
+    async (req, res) => {
+      try {
+        const id = String(req.params.id || '').trim();
+        const filter = mongoose.Types.ObjectId.isValid(id)
+          ? { _id: new mongoose.Types.ObjectId(id) }
+          : { codigo: id };
+        const row = await FinanceiroCarneDigital.findOne(filter);
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
+
+        const antes = {
+          coraChargeId: row.coraChargeId || '',
+          coraCode: row.coraCode || '',
+          coraInternalReference: row.coraInternalReference || ''
+        };
+        row.coraChargeId = '';
+        row.coraCode = '';
+        row.coraInternalReference = '';
+        row.coraDocumentUrl = '';
+        row.coraStatus = '';
+        row.coraVinculadoEm = null;
+        row.coraVinculadoPor = '';
+        row.historico = Array.isArray(row.historico) ? row.historico : [];
+        row.historico.push({ tipo: 'CORA_DESVINCULADO', em: new Date(), por: getFinanceiroActor(req), antes });
+        if (row.historico.length > 100) row.historico = row.historico.slice(-100);
+        await row.save();
+
+        await registrarAuditoriaFinanceira({
+          req,
+          acao: 'CARNE_CORA_DESVINCULADO',
+          entidade: 'FinanceiroCarneDigital',
+          entidadeId: String(row._id),
+          codigo: row.codigo,
+          antes,
+          depois: { coraChargeId: '', coraCode: '', coraInternalReference: '' }
+        });
+
+        return res.json({ ok: true, message: 'Vínculo Cora removido.', carne: normalizeCarneDigital(row) });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao remover o vínculo Cora.' });
+      }
+    }
+  );
+
   app.get(
     '/api/admin/financeiro/carnes/:id/segunda-via',
     adminRequired,
@@ -6091,20 +6416,119 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ? { _id: new mongoose.Types.ObjectId(id) }
           : { codigo: id };
         const row = await FinanceiroCarneDigital.findOne(filter);
-        if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
+
+        const bancoFinanceiro = mongoose.connection.client.db(
+          MONGODB_DB || process.env.MONGODB_DB || mongoose.connection.db?.databaseName
+        );
+        const coraCharges = bancoFinanceiro.collection('cora_charges');
+
+        // 1. Um vínculo salvo sempre tem prioridade absoluta.
+        let chargeVinculada = null;
+        if (row.coraChargeId) {
+          const linkedFilter = mongoose.Types.ObjectId.isValid(row.coraChargeId)
+            ? { _id: new mongoose.Types.ObjectId(row.coraChargeId) }
+            : { $or: [{ code: row.coraChargeId }, { internalReference: row.coraChargeId }] };
+          chargeVinculada = await coraCharges.findOne(linkedFilter);
+          if (chargeVinculada) {
+            row.coraCode = String(chargeVinculada.code || row.coraCode || '');
+            row.coraInternalReference = String(chargeVinculada.internalReference || row.coraInternalReference || '');
+            row.coraDocumentUrl = String(chargeVinculada.documentUrl || row.coraDocumentUrl || '');
+            row.coraStatus = String(chargeVinculada.status || row.coraStatus || '');
+            await row.save();
+          }
+        }
+
+        const cpf = cleanPhone(row.cliente?.cpf || '');
+        const referencias = [
+          row.codigo,
+          row.uniqueKey,
+          ...(Array.isArray(row.grupos) ? row.grupos.flatMap((grupo) => [
+            grupo?.documento,
+            grupo?.codigo,
+            grupo?.codigoVenda,
+            grupo?.descricao
+          ]) : [])
+        ].map((value) => String(value || '').trim()).filter(Boolean);
+
+        const filtros = [];
+        if (cpf) filtros.push({ 'customer.document.identity': cpf });
+        for (const referencia of referencias.slice(0, 20)) {
+          filtros.push({ internalReference: referencia });
+          filtros.push({ code: referencia });
+        }
+
+        const rowsCora = filtros.length
+          ? await coraCharges.find({ $or: filtros }).sort({ createdAt: -1 }).limit(20).toArray()
+          : [];
+
+        if (chargeVinculada && !rowsCora.some((item) => String(item._id) === String(chargeVinculada._id))) {
+          rowsCora.unshift(chargeVinculada);
+        }
+
+        const tokensReferencia = referencias
+          .flatMap((value) => String(value).match(/\d{3,}/g) || [])
+          .filter((value, index, arr) => arr.indexOf(value) === index);
+
+        const cobrancas = rowsCora.map((charge) => {
+          const texto = JSON.stringify({
+            code: charge.code,
+            internalReference: charge.internalReference,
+            orderId: charge.orderId,
+            invoices: charge.invoices
+          }).toLowerCase();
+          const cpfCharge = cleanPhone(charge.customer?.document?.identity || '');
+          const linked = Boolean(row.coraChargeId && String(charge._id) === String(row.coraChargeId));
+          let score = linked ? 10000 : (cpf && cpfCharge === cpf ? 100 : 0);
+          score += tokensReferencia.filter((token) => texto.includes(token.toLowerCase())).length * 20;
+          return { score, linked, raw: charge, charge: normalizarCoraChargeParaSegundaVia(charge) };
+        }).sort((a, b) => b.score - a.score || new Date(b.charge.createdAt || 0) - new Date(a.charge.createdAt || 0));
+
+        // 2. Migração automática segura para carnês antigos:
+        // somente quando há uma única emissão para o CPF, ou um vencedor inequívoco por referência.
+        let vinculoAutomatico = false;
+        if (!row.coraChargeId && cobrancas.length) {
+          const top = cobrancas[0];
+          const second = cobrancas[1];
+          const unicoCpf = cobrancas.length === 1 && top.score >= 100;
+          const vencedorPorReferencia = top.score >= 120 && (!second || top.score - second.score >= 20);
+          if (unicoCpf || vencedorPorReferencia) {
+            await salvarVinculoCoraNoCarne({ row, charge: top.raw, req, origem: 'AUTOMATICO_SEGUNDA_VIA' });
+            top.linked = true;
+            top.score = 10000;
+            vinculoAutomatico = true;
+            cobrancas.sort((a, b) => b.score - a.score);
+          }
+        }
 
         await registrarAuditoriaFinanceira({
           req,
           acao: 'CARNE_SEGUNDA_VIA_ABERTA',
           entidade: 'FinanceiroCarneDigital',
           entidadeId: String(row._id),
-          codigo: row.codigo
+          codigo: row.codigo,
+          metadata: {
+            coraEncontrados: cobrancas.length,
+            coraSelecionadoId: cobrancas[0]?.charge?.id || '',
+            coraVinculadoId: row.coraChargeId || '',
+            vinculoAutomatico,
+            somenteConsulta: true
+          }
         });
 
         return res.json({
           ok: true,
           carne: normalizeCarneDigital(row),
-          message: 'Segunda via carregada a partir do mesmo carnÃª permanente.'
+          coraCharge: cobrancas[0]?.charge || null,
+          coraCharges: cobrancas.map((item) => ({ ...item.charge, linked: item.linked })),
+          coraLinkedChargeId: row.coraChargeId || '',
+          coraVinculoAutomatico: vinculoAutomatico,
+          coraMatchAmbiguous: !row.coraChargeId && cobrancas.length > 1 && cobrancas[0].score === cobrancas[1].score,
+          message: cobrancas.length
+            ? (row.coraChargeId
+              ? 'Segunda via aberta pela emissão Cora vinculada ao carnê.'
+              : 'Segunda via localizada nos boletos Cora já emitidos.')
+            : 'Carnê carregado, mas nenhum boleto Cora emitido foi localizado para este cliente.'
         });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar a segunda via.' });
@@ -8874,7 +9298,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         clienteNome,
         produto: req.body.produto || req.body.descricao || 'PendÃªncia financeira SIGE',
         parcela: req.body.parcela || '',
-        valor: parseSigeMoney(req.body.valor || req.body.saldo || 0),
+        valor: parseSigeMoney(req.body.valor || req.body.valorAtualizado || req.body.saldo || 0),
+        valorOriginal: parseSigeMoney(req.body.valorOriginal || req.body.saldoOriginal || req.body.valor || 0),
+        multa: parseSigeMoney(req.body.multa || 0),
+        juros: parseSigeMoney(req.body.juros || 0),
+        valorAtualizado: parseSigeMoney(req.body.valorAtualizado || req.body.valor || req.body.saldo || 0),
         documento: req.body.documento || req.body.codigo || '',
         contrato: req.body.contrato || '',
         tipo: req.body.tipo || 'normal'
@@ -9381,7 +9809,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         clienteNome: cliente.nome,
         produto: body.produto || 'PendÃªncia financeira',
         parcela: body.parcela || '',
-        valor: body.valor || 0,
+        valor: body.valor || body.valorAtualizado || 0,
+        valorOriginal: body.valorOriginal || body.valor || 0,
+        multa: body.multa || 0,
+        juros: body.juros || 0,
+        valorAtualizado: body.valorAtualizado || body.valor || 0,
         documento: body.documento || cliente.contrato || '',
         contrato: cliente.contrato || '',
         tipo: body.tipo || body.tipoCobranca || 'normal'
@@ -9434,7 +9866,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         clienteNome: r.clienteNome,
         produto: req.body?.produto || r.produto,
         parcela: req.body?.parcela || r.parcela,
-        valor: req.body?.valor || r.valorPago,
+        valor: req.body?.valor || req.body?.valorAtualizado || r.valorPago,
+        valorOriginal: req.body?.valorOriginal || req.body?.valor || r.valorPago,
+        multa: req.body?.multa || 0,
+        juros: req.body?.juros || 0,
+        valorAtualizado: req.body?.valorAtualizado || req.body?.valor || r.valorPago,
         documento: r.documento || r.recibo,
         recibo: r.recibo,
         contrato: r.contrato,

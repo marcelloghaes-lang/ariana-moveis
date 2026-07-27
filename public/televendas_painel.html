@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Televendas | Ariana Móveis</title>
+  <link rel="stylesheet" href="televendas.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <div>
+        <div class="brand-name">ARIANA <span>MÓVEIS</span></div>
+        <div class="brand-subtitle">Painel de Televendas</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-button" id="btn-refresh" title="Atualizar painel">↻</button>
+      <div class="operator">
+        <div class="operator-avatar">MN</div>
+        <div><strong>Marcelo Nunes</strong><small>Atendente</small></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <nav>
+        <button class="nav-item active" data-status="all"><span class="nav-icon">▦</span> Visão geral</button>
+        <button class="nav-item" data-status="link_gerado"><span class="nav-icon">🔗</span> Links gerados</button>
+        <button class="nav-item" data-status="aguardando_pagamento"><span class="nav-icon">◆</span> PIX aguardando</button>
+        <button class="nav-item" data-status="em_analise"><span class="nav-icon">⏱</span> Cartões em análise</button>
+        <button class="nav-item" data-status="aprovado"><span class="nav-icon">✓</span> Aprovadas</button>
+        <button class="nav-item" data-status="recusado"><span class="nav-icon">!</span> Recusadas</button>
+        <a class="nav-item analysis-link" href="televendas_analise.html"><span class="nav-icon">⚙</span> Central de pagamentos</a>
+      </nav>
+      <div class="support-card">
+        <strong>Atendimento seguro</strong>
+        <small>Cartões passam por análise. PIX só libera após confirmação do gateway.</small>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="page-header">
+        <div>
+          <p class="eyebrow">TELEVENDAS ARIANA</p>
+          <h1>Controle de vendas assistidas</h1>
+          <p class="muted">Crie vendas, envie links de pagamento e acompanhe cada confirmação.</p>
+        </div>
+        <button class="primary-button" id="btn-new-sale"><span>＋</span> Nova venda</button>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card"><div class="summary-icon blue">🔗</div><div><small>Links gerados</small><strong id="count-link">0</strong></div></article>
+        <article class="summary-card"><div class="summary-icon yellow">⏱</div><div><small>Em análise / aguardando</small><strong id="count-analysis">0</strong></div></article>
+        <article class="summary-card"><div class="summary-icon green">✓</div><div><small>Aprovadas</small><strong id="count-approved">0</strong></div></article>
+        <article class="summary-card"><div class="summary-icon red">!</div><div><small>Recusadas</small><strong id="count-refused">0</strong></div></article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-toolbar">
+          <div><h2>Vendas recentes</h2><p class="muted">Acompanhe cada negociação do primeiro contato até a aprovação.</p></div>
+          <div class="toolbar-controls">
+            <label class="search-box"><span>⌕</span><input id="search-input" type="search" placeholder="Cliente, pedido ou telefone"></label>
+            <select id="status-filter">
+              <option value="all">Todos os status</option>
+              <option value="rascunho">Rascunho</option>
+              <option value="link_gerado">Link gerado</option>
+              <option value="cliente_acessou">Cliente acessou</option>
+              <option value="aguardando_pagamento">PIX aguardando</option>
+              <option value="em_analise">Cartão em análise</option>
+              <option value="aprovado">Aprovado</option>
+              <option value="recusado">Recusado</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pedido</th><th>Cliente</th><th>Atendente</th><th>Valor</th><th>Parcelas</th><th>Status</th><th>Atualização</th><th></th></tr></thead>
+            <tbody id="sales-table-body"></tbody>
+          </table>
+        </div>
+        <div class="empty-state hidden" id="empty-state"><div class="empty-icon">☷</div><h3>Nenhuma venda encontrada</h3><p>Altere os filtros ou crie uma nova venda.</p></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="sale-modal">
+    <div class="modal">
+      <button class="modal-close" id="modal-close">×</button>
+      <div class="modal-header">
+        <div><p class="eyebrow">DETALHES DA VENDA</p><h2 id="modal-order">Pedido</h2></div>
+        <span id="modal-status" class="status-badge"></span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-block"><small>Cliente</small><strong id="modal-client"></strong><span id="modal-phone"></span></div>
+        <div class="detail-block"><small>Atendente</small><strong id="modal-operator"></strong><span id="modal-created"></span></div>
+        <div class="detail-block"><small>Total</small><strong id="modal-total"></strong><span id="modal-installments"></span></div>
+        <div class="detail-block"><small>Pagamento</small><strong>Cartão ou PIX</strong><span>Condição protegida pelo link</span></div>
+      </div>
+      <div class="timeline" id="modal-timeline"></div>
+      <div class="payment-link-box">
+        <div><small>Link de pagamento</small><div id="modal-link" class="link-text"></div></div>
+        <div class="link-actions"><button class="secondary-button" id="btn-copy-link">Copiar link</button><button class="whatsapp-button" id="btn-whatsapp">Enviar no WhatsApp</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+  <script src="televendas-painel.js"></script>
+</body>
+</html>

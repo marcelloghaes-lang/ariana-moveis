@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Análise de Pagamentos | Ariana Móveis</title>
+  <link rel="stylesheet" href="televendas-analise.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <div>
+        <strong>ARIANA <span>MÓVEIS</span></strong>
+        <small>Central de pagamentos</small>
+      </div>
+    </div>
+    <a href="televendas_painel.html">← Voltar ao painel</a>
+  </header>
+
+  <main>
+    <section class="page-header">
+      <div>
+        <p>FASE 4</p>
+        <h1>Análise e confirmação de pagamentos</h1>
+        <span>Cartões aguardam análise. PIX é liberado após confirmação do gateway.</span>
+      </div>
+      <button id="refresh">Atualizar</button>
+    </section>
+
+    <section class="stats">
+      <article><small>Cartões em análise</small><strong id="count-card">0</strong></article>
+      <article><small>PIX aguardando</small><strong id="count-pix">0</strong></article>
+      <article><small>Aprovados</small><strong id="count-approved">0</strong></article>
+      <article><small>Recusados</small><strong id="count-refused">0</strong></article>
+    </section>
+
+    <section class="panel">
+      <div class="filters">
+        <input id="search" type="search" placeholder="Pedido, cliente ou telefone">
+        <select id="status-filter">
+          <option value="all">Todos</option>
+          <option value="em_analise">Cartão em análise</option>
+          <option value="aguardando_pagamento">PIX aguardando</option>
+          <option value="aprovado">Aprovados</option>
+          <option value="recusado">Recusados</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Pagamento</th>
+              <th>Valor</th>
+              <th>Status</th>
+              <th>Atualização</th>
+              <th>Ações de homologação</th>
+            </tr>
+          </thead>
+          <tbody id="payments-body"></tbody>
+        </table>
+      </div>
+
+      <div id="empty" class="empty hidden">Nenhum pagamento encontrado.</div>
+    </section>
+
+    <section class="notice">
+      <strong>Ambiente de homologação local</strong>
+      <p>Os botões abaixo simulam os retornos que futuramente virão dos webhooks do gateway. Em produção, aprovação e recusa não dependerão de ação manual nesta tela.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="televendas-analise.js"></script>
+</body>
+</html>

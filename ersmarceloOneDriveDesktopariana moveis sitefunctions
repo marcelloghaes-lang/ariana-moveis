@@ -1,0 +1,23 @@
+warning: in the working copy of 'functions/package.json', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/functions/package.json b/functions/package.json[m
+[1mindex 8725874..5c8f8ed 100644[m
+[1m--- a/functions/package.json[m
+[1m+++ b/functions/package.json[m
+[36m@@ -14,7 +14,7 @@[m
+   },[m
+   "dependencies": {[m
+     "@sendgrid/mail": "^8.1.0",[m
+[31m-    "axios": "^1.6.0",[m
+[32m+[m[32m    "axios": "^1.18.1",[m
+     "bcryptjs": "^3.0.3",[m
+     "cloudinary": "^2.9.0",[m
+     "cors": "^2.8.6",[m
+[36m@@ -26,6 +26,7 @@[m
+     "mongoose": "^8.0.0",[m
+     "multer": "^1.4.5-lts.2",[m
+     "nodemailer": "^8.0.10",[m
+[31m-    "sharp": "^0.34.5"[m
+[32m+[m[32m    "sharp": "^0.34.5",[m
+[32m+[m[32m    "uuid": "^14.0.1"[m
+   }[m
+ }[m

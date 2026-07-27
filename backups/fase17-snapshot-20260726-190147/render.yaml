@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ariana-moveis
+    env: node
+    rootDir: functions
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    healthCheckPath: /debug/build
+    autoDeploy: true

@@ -1,393 +1,147 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Checkout | ARIANA MÓVEIS</title>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Finalizar compra | Ariana Móveis</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
-
-  <style>
-    .card {
-      background: #fff;
-      border: 1px solid #f0f0f0;
-      border-radius: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,.04);
-      padding: 1.5rem;
-    }
-    .card-title {
-      font-size: 1.25rem;
-      font-weight: 900;
-      margin-bottom: .4rem;
-      color: #111827;
-    }
-    .card-subtitle {
-      font-size: 1rem;
-      font-weight: 800;
-      margin-bottom: .75rem;
-      color: #111827;
-    }
-    .muted {
-      color: #6b7280;
-      font-size: .92rem;
-    }
-    .totals-grid {
-      display: grid;
-      gap: .75rem;
-      margin-top: 1rem;
-    }
-    .totals-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-      font-size: .95rem;
-      color: #374151;
-    }
-    .totals-row.total {
-      font-size: 1.125rem;
-      font-weight: 900;
-      color: #2E6DA4;
-      padding-top: .4rem;
-      border-top: 1px solid #e5e7eb;
-    }
-    .actions {
-      display: flex;
-      justify-content: space-between;
-      gap: .75rem;
-      margin-top: 1.25rem;
-      flex-wrap: wrap;
-    }
-    .btn {
-      border: none;
-      border-radius: .9rem;
-      font-weight: 800;
-      padding: .95rem 1.2rem;
-      cursor: pointer;
-      transition: .2s ease;
-    }
-    .btn-primary {
-      background: #2E6DA4;
-      color: #fff;
-    }
-    .btn-primary:hover {
-      filter: brightness(.95);
-    }
-    .btn-secondary {
-      background: #f3f4f6;
-      color: #111827;
-    }
-    .btn-secondary:hover {
-      background: #e5e7eb;
-    }
-    .pay-grid {
-      display: grid;
-      gap: .75rem;
-      margin-top: 1rem;
-    }
-    .pay-method {
-      display: block;
-      border: 1px solid #e5e7eb;
-      border-radius: 1rem;
-      padding: 1rem;
-      cursor: pointer;
-      transition: .2s ease;
-      background: #fff;
-    }
-    .pay-method:hover {
-      border-color: #2E6DA4;
-      box-shadow: 0 1px 6px rgba(46,109,164,.08);
-    }
-    .pay-method input {
-      display: none;
-    }
-    .pay-method.active {
-      border-color: #2E6DA4;
-      background: #eff6ff;
-    }
-    .pay-method-body {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-    }
-    .pay-title {
-      font-weight: 900;
-      color: #111827;
-    }
-    .pay-desc {
-      color: #6b7280;
-      font-size: .9rem;
-      margin-top: .15rem;
-    }
-    .divider {
-      margin: 1rem 0;
-      border: none;
-      border-top: 1px solid #e5e7eb;
-    }
-    .resumo-list {
-      display: grid;
-      gap: .7rem;
-    }
-    .resumo-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: .75rem;
-      font-size: .85rem;
-      color: #374151;
-      border-bottom: 1px dashed #eee;
-      padding-bottom: .5rem;
-    }
-    .addr-card {
-      border: 1px solid #e5e7eb;
-      background: #fff;
-      padding: 1rem 1.25rem;
-      border-radius: 1rem;
-      cursor: pointer;
-      transition: all .2s ease;
-      position: relative;
-    }
-    .addr-card:hover {
-      border-color: #2E6DA4;
-      box-shadow: 0 1px 6px rgba(46,109,164,.08);
-    }
-    .addr-card.active {
-      border-color: #2E6DA4;
-      background: #eff6ff;
-    }
-  </style>
+  <link rel="stylesheet" href="checkout-ariana.css">
 </head>
-
-<body class="bg-fundo-claro font-sans text-text-dark">
-  <div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(248,248,248,.92);display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:#2E6DA4;font-weight:800;">
-    Carregando...
+<body>
+<div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:#f7f8fa;display:flex;align-items:center;justify-content:center;color:#0B4AA2;font-weight:800">Carregando...</div>
+<header class="ar-header">
+  <div class="ar-header-inner">
+    <a class="ar-logo" href="index.html">ARIANA MÓVEIS</a>
+    <div class="ar-secure"><i class="fas fa-lock"></i> checkout seguro</div>
+  </div>
+</header>
+<main class="ar-page">
+  <div class="ar-stepbar">
+    <div class="ar-step is-active"><div id="step-dot-1" class="ar-step-dot">1</div>Entrega</div>
+    <div class="ar-step"><div id="step-dot-2" class="ar-step-dot">2</div>Revisão</div>
+    <div class="ar-step"><div id="step-dot-3" class="ar-step-dot">3</div>Pagamento</div>
   </div>
 
-  <header class="bg-primary-blue text-white p-4 shadow-md">
-    <div class="container mx-auto flex justify-between items-center">
-      <a class="text-2xl font-bold tracking-tighter italic" href="index.html">ARIANA MOVEIS</a>
-      <div class="flex items-center space-x-4">
-        <i class="fas fa-lock text-sm opacity-70"></i>
-        <span class="text-xs font-bold uppercase tracking-widest">Checkout Seguro</span>
-      </div>
-    </div>
-  </header>
-
-  <main class="container mx-auto p-4 md:p-8 max-w-6xl">
-    <div class="flex justify-between items-center max-w-2xl mx-auto mb-10">
-      <div class="text-center flex-1">
-        <div class="w-8 h-8 bg-primary-blue text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-1">1</div>
-        <span class="text-[10px] font-black uppercase">Entrega</span>
-      </div>
-      <div class="h-1 bg-gray-200 flex-1 mb-6"></div>
-      <div class="text-center flex-1">
-        <div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-2">2</div>
-        <span class="text-[10px] font-black uppercase text-gray-400">Pagamento</span>
-      </div>
-      <div class="h-1 bg-gray-200 flex-1 mb-6"></div>
-      <div class="text-center flex-1">
-        <div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold" id="step-dot-3">3</div>
-        <span class="text-[10px] font-black uppercase text-gray-400">Fim</span>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <div class="lg:col-span-7 space-y-6">
-
-        <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100" id="step-1">
-          <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-black">Endereço de entrega</h2>
-            <a class="text-blue-600 underline" href="minha_conta.html?tab=address&amp;from=checkout">
-              Novo endereço
-            </a>
+  <div class="ar-layout">
+    <section class="ar-main">
+      <section id="step-1">
+        <h1 class="ar-title">Onde você quer receber seu pedido?</h1>
+        <div class="ar-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:15px">
+            <h2 class="ar-card-title" style="margin:0">Endereço de entrega</h2>
+            <a href="minha_conta.html?tab=address&amp;from=checkout" style="color:#0B4AA2;font-size:13px;font-weight:800">Cadastrar novo endereço</a>
           </div>
+          <p class="ar-card-subtitle" style="margin-top:9px">Escolha um endereço já cadastrado.</p>
+          <div id="address-options"></div>
+        </div>
+        <div class="ar-actions" style="justify-content:flex-end">
+          <button id="btn-next-1" class="ar-primary" style="width:auto;min-width:220px" disabled>Continuar</button>
+        </div>
+      </section>
 
-          <div class="text-sm text-gray-500 -mt-4 mb-6">
-            Selecione onde você quer receber seu pedido.
-          </div>
-
-          <div class="grid grid-cols-1 gap-3" id="address-options"></div>
-
-          <div class="mt-8 flex justify-end">
-            <button class="bg-primary-blue text-white px-10 py-3 rounded-xl font-bold opacity-50 cursor-not-allowed transition-all" disabled id="btn-next-1" type="button">
-              Ir para pagamento <i class="fas fa-arrow-right ml-2"></i>
-            </button>
-          </div>
-        </section>
-
-        <section class="hidden" id="step-2">
-          <div class="card">
-            <h2 class="card-title">Resumo e frete</h2>
-            <p class="muted">Confira os valores antes de ir para o pagamento.</p>
-
-            <div class="totals-grid">
-              <div class="totals-row"><span>Produtos</span><strong id="products-total-main">R$ 0,00</strong></div>
-              <div class="totals-row"><span>Frete</span><strong id="shipping-price-main">R$ 0,00</strong></div>
-              <div class="totals-row total"><span>Total</span><strong id="total-geral-main">R$ 0,00</strong></div>
+      <section id="step-2" class="hidden">
+        <h1 class="ar-title">Confira a entrega</h1>
+        <div class="ar-card">
+          <h2 class="ar-card-title">Forma de entrega</h2>
+          <div class="ar-action-row is-selected">
+            <span class="ar-icon"><i class="fas fa-truck"></i></span>
+            <div class="ar-row-body">
+              <div class="ar-row-title">Entrega no endereço selecionado</div>
+              <div class="ar-row-desc">O prazo e o valor foram calculados conforme seu CEP e os itens do pedido.</div>
             </div>
-
-            <div class="actions">
-              <button class="btn btn-secondary" id="btn-back-2" type="button">Voltar</button>
-              <button class="btn btn-primary" id="btn-next-2" type="button">Continuar</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="hidden" id="step-3">
-          <div class="card">
-            <h2 class="card-title">Forma de pagamento</h2>
-            <p class="muted">Escolha como deseja pagar. Você será redirecionado para <strong>pagamento.html</strong>.</p>
-
-            <div class="pay-grid">
-              <label class="pay-method active" id="label-pix">
-                <input checked name="pay" type="radio" value="pix"/>
-                <div class="pay-method-body">
-                  <div>
-                    <div class="pay-title">Pix</div>
-                    <div class="pay-desc">Aprovação rápida</div>
-                  </div>
-                </div>
-              </label>
-
-              <label class="pay-method" id="label-card">
-                <input name="pay" type="radio" value="card"/>
-                <div class="pay-method-body">
-                  <div>
-                    <div class="pay-title">Cartão</div>
-                    <div class="pay-desc">Parcelamento no pagamento</div>
-                  </div>
-                </div>
-              </label>
-
-              <label class="pay-method" id="label-boleto">
-                <input name="pay" type="radio" value="boleto"/>
-                <div class="pay-method-body">
-                  <div>
-                    <div class="pay-title">Boleto</div>
-                    <div class="pay-desc">Compensação bancária</div>
-                  </div>
-                </div>
-              </label>
-
-              <label class="pay-method" id="label-crediario">
-                <input name="pay" type="radio" value="crediario_ariana"/>
-                <div class="pay-method-body">
-                  <div>
-                    <div class="pay-title">Crediário Ariana</div>
-                    <div class="pay-desc">Carnê Cora em até 15 parcelas</div>
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <div id="crediario-config" class="hidden rounded-xl border border-blue-200 bg-blue-50 p-4 mt-4">
-              <h3 class="font-bold text-primary-blue mb-2">Crediário Ariana</h3>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div><label class="block text-xs font-bold text-gray-600 mb-1">Número de parcelas</label><select id="crediario-parcelas" class="w-full border rounded-lg px-3 py-2"></select></div>
-                <div><label class="block text-xs font-bold text-gray-600 mb-1">Primeiro vencimento</label><input id="crediario-primeiro-vencimento" type="date" class="w-full border rounded-lg px-3 py-2"/></div>
-              </div>
-              <div id="crediario-preview" class="text-sm text-gray-700 mt-3"></div>
-            </div>
-
-            <hr class="divider"/>
-
-            <h3 class="card-subtitle">Itens do pedido</h3>
-            <div class="muted" id="resumo-end" style="margin-bottom:10px;"></div>
-            <div class="resumo-list" id="lista-resumo-main"></div>
-
-            <div class="rounded-xl bg-gray-50 border border-gray-200 p-3 mt-4">
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Cupom de desconto</label>
-              <div class="flex gap-2">
-                <input id="coupon-code" placeholder="Digite seu cupom" class="flex-1 border rounded-md px-3 py-2 text-sm text-gray-700 uppercase" autocomplete="off" />
-                <button id="btn-aplicar-cupom" type="button" class="text-xs font-bold text-primary-blue border border-primary-blue px-3 py-2 rounded-md hover:bg-primary-blue hover:text-white transition">Aplicar</button>
-              </div>
-              <div id="coupon-message" class="text-xs mt-2 text-gray-500"></div>
-            </div>
-
-            <div class="totals-grid" style="margin-top:12px;">
-              <div class="totals-row total"><span>Total</span><strong id="resumo-total">R$ 0,00</strong></div>
-            </div>
-
-            <div class="actions">
-              <button class="btn btn-secondary" id="btn-back-3" type="button">Voltar</button>
-              <button class="btn btn-primary" id="btn-pay" type="button">Ir para pagamento</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="hidden text-center py-16 bg-white rounded-2xl shadow-sm" id="step-4">
-          <i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
-          <h2 class="text-3xl font-black">Pedido criado!</h2>
-          <p class="text-gray-500 mb-6" id="step4-subtitle">Seu pedido foi recebido.</p>
-
-          <div class="hidden max-w-2xl mx-auto text-left p-5 rounded-2xl border border-gray-200 bg-gray-50" id="payment-result">
-            <p class="font-bold mb-2" id="payment-result-title">Pagamento</p>
-
-            <div class="hidden" id="boleto-result">
-              <p class="text-sm text-gray-600 mb-3">Boleto gerado com sucesso. Você pode abrir o boleto e copiar a linha digitável.</p>
-              <div class="grid md:grid-cols-2 gap-3">
-                <div>
-                  <label class="text-sm font-semibold">Linha digitável</label>
-                  <div class="flex gap-2 mt-1">
-                    <input class="flex-1 p-3 rounded-lg border border-gray-300 bg-white" id="boleto-digitable" readonly type="text"/>
-                    <button class="px-4 py-3 rounded-lg bg-gray-900 text-white font-bold" id="btn-copy-digitable">Copiar</button>
-                  </div>
-                </div>
-                <div>
-                  <label class="text-sm font-semibold">Link do boleto</label>
-                  <a class="block mt-1 p-3 rounded-lg border border-gray-300 bg-white text-primary-blue font-bold" href="#" id="boleto-link" target="_blank">
-                    Abrir boleto
-                  </a>
-                </div>
-              </div>
-              <p class="text-xs text-gray-500 mt-3">ID do pagamento: <span id="boleto-payment-id"></span></p>
-            </div>
-
-            <div class="hidden" id="pix-result">
-              <p class="text-sm text-gray-600 mb-3">PIX gerado. Use o QR Code para pagar.</p>
-              <div class="flex flex-col md:flex-row gap-4 items-start">
-                <img alt="QR Code PIX" class="w-56 h-56 rounded-xl border border-gray-200 bg-white object-contain" id="pix-qr-img"/>
-                <div class="flex-1">
-                  <label class="text-sm font-semibold">Copia e cola</label>
-                  <div class="flex gap-2 mt-1">
-                    <textarea class="flex-1 p-3 rounded-lg border border-gray-300 bg-white" id="pix-copy" readonly rows="4"></textarea>
-                    <button class="px-4 py-3 rounded-lg bg-gray-900 text-white font-bold" id="btn-copy-pix">Copiar</button>
-                  </div>
-                  <p class="text-xs text-gray-500 mt-2">ID do pagamento: <span id="pix-payment-id"></span></p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <a class="bg-primary-blue text-white px-8 py-3 rounded-xl font-bold text-center" href="minha_conta.html">Ver Meus Pedidos</a>
-            <a class="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold text-center" href="index.html">Voltar para a loja</a>
-          </div>
-        </section>
-      </div>
-
-      <div class="lg:col-span-5">
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-4">
-          <h3 class="font-black text-lg mb-4 border-b pb-2">Resumo do pedido</h3>
-
-          <div class="space-y-3 mb-4 max-h-60 overflow-y-auto pr-2" id="lista-resumo-side"></div>
-
-          <div class="border-t pt-4 space-y-2">
-            <div class="flex justify-between text-gray-500"><span>Produtos</span><span id="products-total-side">R$ 0,00</span></div>
-            <div class="flex justify-between text-gray-500"><span>Frete</span><span class="text-gray-700 font-bold" id="shipping-price-side">A calcular</span></div>
-            <div class="flex justify-between text-xl font-black text-primary-blue"><span>Total</span><span id="total-geral-side">R$ 0,00</span></div>
+            <strong id="shipping-price-main">R$ 0,00</strong>
           </div>
         </div>
-      </div>
-    </div>
-  </main>
+        <div class="ar-card">
+          <h2 class="ar-card-title">Valores do pedido</h2>
+          <div class="ar-summary-line"><span>Produtos</span><strong id="products-total-main">R$ 0,00</strong></div>
+          <div class="ar-summary-line"><span>Frete</span><strong id="shipping-price-main-copy">R$ 0,00</strong></div>
+          <div class="ar-summary-total"><span>Total</span><strong id="total-geral-main">R$ 0,00</strong></div>
+        </div>
+        <div class="ar-actions">
+          <button id="btn-back-2" class="ar-secondary">Voltar</button>
+          <button id="btn-next-2" class="ar-primary" style="width:auto;min-width:220px">Continuar</button>
+        </div>
+      </section>
 
-  <script src="js/api-config.js"></script>
+      <section id="step-3" class="hidden">
+        <h1 class="ar-title">Como você quer pagar?</h1>
+        <div class="ar-card">
+          <h2 class="ar-card-title">Formas de pagamento</h2>
+          <div class="ar-pay-grid">
+            <label class="pay-method active" id="label-pix">
+              <input checked name="pay" type="radio" value="pix">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-bolt"></i></span><div><div class="pay-title">Pix</div><div class="pay-desc">Pagamento à vista com aprovação rápida.</div></div></div>
+            </label>
+            <label class="pay-method" id="label-card">
+              <input name="pay" type="radio" value="card">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-credit-card"></i></span><div><div class="pay-title">Cartão de crédito</div><div class="pay-desc">Escolha as parcelas na próxima etapa.</div></div></div>
+            </label>
+            <label class="pay-method" id="label-boleto">
+              <input name="pay" type="radio" value="boleto">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-barcode"></i></span><div><div class="pay-title">Boleto bancário</div><div class="pay-desc">Compensação bancária após o pagamento.</div></div></div>
+            </label>
+            <label class="pay-method" id="label-crediario">
+              <input name="pay" type="radio" value="crediario_ariana">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-file-invoice-dollar"></i></span><div><div class="pay-title">Crediário Ariana</div><div class="pay-desc">Solicite uma análise de crédito em uma tela dedicada.</div></div><span class="ar-row-arrow">›</span></div>
+            </label>
+          </div>
+          <div id="crediario-config" class="hidden">
+            <select id="crediario-parcelas"></select>
+            <input id="crediario-primeiro-vencimento" type="date">
+            <div id="crediario-preview"></div>
+          </div>
+        </div>
+
+        <div class="ar-card">
+          <h2 class="ar-card-title">Itens do pedido</h2>
+          <div id="resumo-end" class="ar-card-subtitle"></div>
+          <div id="lista-resumo-main" class="resumo-list"></div>
+        </div>
+
+        <div class="ar-card">
+          <h2 class="ar-card-title">Cupom de desconto</h2>
+          <div class="ar-coupon">
+            <input id="coupon-code" class="ar-field" placeholder="Digite seu cupom" autocomplete="off">
+            <button id="btn-aplicar-cupom">Aplicar</button>
+          </div>
+          <div id="coupon-message" style="font-size:12px;color:var(--ariana-muted);margin-top:8px"></div>
+          <div class="ar-summary-total"><span>Total</span><strong id="resumo-total">R$ 0,00</strong></div>
+        </div>
+        <div class="ar-actions">
+          <button id="btn-back-3" class="ar-secondary">Voltar</button>
+          <button id="btn-pay" class="ar-primary" style="width:auto;min-width:220px">Continuar para pagamento</button>
+        </div>
+      </section>
+
+      <section id="step-4" class="hidden">
+        <div class="ar-status">
+          <div class="ar-status-icon"><i class="fas fa-check"></i></div>
+          <h2>Pedido criado</h2>
+          <p id="step4-subtitle">Seu pedido foi recebido.</p>
+          <div id="payment-result" class="hidden">
+            <div id="boleto-result" class="hidden"><input id="boleto-digitable"><a id="boleto-link"></a><span id="boleto-payment-id"></span><button id="btn-copy-digitable"></button></div>
+            <div id="pix-result" class="hidden"><img id="pix-qr-img"><textarea id="pix-copy"></textarea><span id="pix-payment-id"></span><button id="btn-copy-pix"></button></div>
+            <div id="payment-result-title"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <aside class="ar-summary">
+      <h2>Resumo do pedido</h2>
+      <div id="lista-resumo-side" class="ar-summary-products"></div>
+      <div class="ar-summary-line"><span>Produtos</span><strong id="products-total-side">R$ 0,00</strong></div>
+      <div class="ar-summary-line"><span>Entrega</span><strong id="shipping-price-side">A calcular</strong></div>
+      <div class="ar-summary-total"><span>Total</span><strong id="total-geral-side">R$ 0,00</strong></div>
+    </aside>
+  </div>
+</main>
+<script src="js/api-config.js"></script>
   <script src="marketplace-core.js"></script>
   <script src="marketplace-core_global_payments.js"></script>
   <script src="js/layout-fit.js" defer></script>
@@ -2083,5 +1837,34 @@ window.ArianaCrediarioEngine=(function(){
   document.addEventListener('DOMContentLoaded',initCrediario);
 })();
 </script>
-</body>
-</html>
+
+
+<script>
+(function(){
+  function saveDraft(){
+    try{
+      const totals=window.__lastCheckoutTotals||(typeof updateTotalsUI==='function'?updateTotalsUI():{})||{};
+      const draft={
+        createdAt:Date.now(),
+        cart:typeof cart!=='undefined'?cart:[],
+        address:typeof selectedAddrObj!=='undefined'?selectedAddrObj:null,
+        addressText:typeof selectedAddrText!=='undefined'?selectedAddrText:'',
+        shippingQuote:typeof shippingQuote!=='undefined'?shippingQuote:null,
+        totals
+      };
+      localStorage.setItem('ariana_crediario_checkout_draft',JSON.stringify(draft));
+    }catch(_ ){}
+  }
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('#label-crediario'))return;
+    e.preventDefault();e.stopImmediatePropagation();saveDraft();location.href='crediario_ariana.html';
+  },true);
+  const source=document.getElementById('shipping-price-main');
+  const copy=document.getElementById('shipping-price-main-copy');
+  if(source&&copy){
+    new MutationObserver(()=>copy.textContent=source.textContent).observe(source,{childList:true,subtree:true,characterData:true});
+    copy.textContent=source.textContent;
+  }
+})();
+</script>
+</body></html>

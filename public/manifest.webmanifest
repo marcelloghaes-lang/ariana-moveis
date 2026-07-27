@@ -1,22 +1,46 @@
 {
-  "name": "Ariana Móveis - Painel",
-  "short_name": "Ariana Seller",
-  "start_url": "/seller_dashboard",
+  "name": "Financeiro Ariana Móveis",
+  "short_name": "Financeiro Ariana",
+  "description": "Painel financeiro, crediário, recibos, SIGE e boletos Cora da Ariana Móveis.",
+  "id": "./financeiro_recibos.html",
+  "start_url": "./financeiro_recibos.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2E6DA4",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#f3f6fb",
+  "theme_color": "#0047AB",
+  "lang": "pt-BR",
+  "orientation": "any",
   "icons": [
     {
-      "src": "icon-admin-192.png",
+      "src": "./icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-admin-512.png",
+      "src": "./icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Boletos Cora",
+      "short_name": "Boletos",
+      "description": "Abrir o painel financeiro para emissão e consulta de boletos.",
+      "url": "./financeiro_recibos.html#cora",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

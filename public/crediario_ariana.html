@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crediário Ariana | Ariana Móveis</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link rel="stylesheet" href="checkout-ariana.css">
+</head>
+<body>
+<header class="ar-header"><div class="ar-header-inner"><a class="ar-logo" href="index.html">ARIANA MÓVEIS</a><div class="ar-secure"><i class="fas fa-lock"></i> ambiente seguro</div></div></header>
+<main class="ar-page">
+<a class="ar-back" href="checkout.html"><i class="fas fa-chevron-left"></i> Voltar para o pagamento</a>
+<div class="ar-layout">
+<section class="ar-main">
+<h1 class="ar-title">Crediário Ariana</h1>
+
+<div id="crediario-stage-request" class="ar-card">
+  <h2 class="ar-card-title">Solicitar análise de crédito</h2>
+  <p class="ar-card-subtitle">As parcelas só serão liberadas depois que a equipe da Ariana Móveis analisar e aprovar sua solicitação.</p>
+  <div class="ar-action-row is-selected">
+    <span class="ar-icon"><i class="fas fa-user-check"></i></span>
+    <div class="ar-row-body"><div class="ar-row-title">Análise feita pela Ariana Móveis</div><div class="ar-row-desc">Após o envio, entraremos em contato informando a aprovação ou recusa.</div></div>
+  </div>
+  <label style="display:block;font-size:13px;font-weight:800;margin:18px 0 7px">Observação (opcional)</label>
+  <textarea id="crediario-note" class="ar-field" rows="3" placeholder="Escreva alguma informação para nossa equipe"></textarea>
+  <button id="btn-crediario-request" class="ar-primary">Enviar solicitação para análise</button>
+  <div id="crediario-request-message" style="font-size:13px;margin-top:10px;color:var(--ariana-muted)"></div>
+</div>
+
+<div id="crediario-stage-waiting" class="hidden ar-status">
+  <div class="ar-status-icon"><i class="fas fa-hourglass-half"></i></div>
+  <h2>Análise em andamento</h2>
+  <p>Recebemos sua solicitação. A equipe da Ariana Móveis entrará em contato para informar o resultado. Nenhuma parcela é exibida ou gerada enquanto a análise estiver pendente.</p>
+  <div class="ar-timeline">
+    <div class="ar-timeline-row"><span class="ar-timeline-dot">1</span><div><strong>Solicitação recebida</strong><br>Os dados foram encaminhados.</div></div>
+    <div class="ar-timeline-row"><span class="ar-timeline-dot">2</span><div><strong>Análise da equipe</strong><br>Ariana Móveis verifica a proposta.</div></div>
+    <div class="ar-timeline-row"><span class="ar-timeline-dot">3</span><div><strong>Contato com o cliente</strong><br>O resultado será informado pelos dados cadastrados.</div></div>
+  </div>
+  <button id="btn-crediario-refresh" class="ar-secondary" style="margin-top:22px">Consultar resultado</button>
+  <div id="crediario-status-message" style="font-size:13px;margin-top:10px;color:var(--ariana-muted)"></div>
+</div>
+
+<div id="crediario-stage-approved" class="hidden ar-card">
+  <h2 class="ar-card-title">Análise aprovada</h2>
+  <p class="ar-card-subtitle">Agora escolha uma das opções de parcelamento liberadas.</p>
+  <div id="crediario-installments" class="ar-installments"></div>
+  <button id="btn-crediario-confirm" class="ar-primary" disabled>Confirmar parcelamento</button>
+</div>
+
+<div id="crediario-stage-rejected" class="hidden ar-status">
+  <div class="ar-status-icon" style="background:#c62828"><i class="fas fa-times"></i></div>
+  <h2 style="color:#c62828">Análise não aprovada</h2>
+  <p>Neste momento não foi possível aprovar o Crediário Ariana. Nossa equipe poderá orientar sobre as demais formas de pagamento.</p>
+  <a href="checkout.html" class="ar-secondary" style="display:inline-block;text-decoration:none;margin-top:22px">Escolher outra forma</a>
+</div>
+</section>
+
+<aside class="ar-summary">
+<h2>Resumo do pedido</h2>
+<div id="crediario-summary-items" class="ar-summary-products"></div>
+<div class="ar-summary-line"><span>Produtos</span><strong id="crediario-products">R$ 0,00</strong></div>
+<div class="ar-summary-line"><span>Entrega</span><strong id="crediario-shipping">R$ 0,00</strong></div>
+<div class="ar-summary-total"><span>Valor-base</span><strong id="crediario-base">R$ 0,00</strong></div>
+<p style="font-size:12px;line-height:1.5;color:var(--ariana-muted)">O valor financiado só aparece depois da aprovação e da escolha das parcelas.</p>
+</aside>
+</div>
+</main>
+<script src="js/api-config.js"></script>
+<script>
+(function(){
+ const API_BASE=window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api';
+ const brl=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
+ let draft={},analysis=null,selected=null;
+ try{draft=JSON.parse(localStorage.getItem('ariana_crediario_checkout_draft')||'{}')||{}}catch(_){}
+ const totals=draft.totals||{};
+ const products=Number(totals.productsPrazo??totals.products??0)||0;
+ const shipping=Number(totals.shipping??draft.shippingQuote?.effectivePrice??draft.shippingQuote?.price??0)||0;
+ const base=Number(totals.cardBaseTotal??totals.creditBaseTotal??(products+shipping))||(products+shipping);
+ const cart=Array.isArray(draft.cart)?draft.cart:[];
+ document.getElementById('crediario-products').textContent=brl(products);
+ document.getElementById('crediario-shipping').textContent=shipping?brl(shipping):'Grátis';
+ document.getElementById('crediario-base').textContent=brl(base);
+ document.getElementById('crediario-summary-items').innerHTML=cart.map(i=>`<div class="ar-summary-line"><span>${Number(i.quantity||1)}x ${i.name||i.nome||'Produto'}</span><strong>${brl((Number(i.marketplacePrice||i.cardPrice||i.fullPrice||i.price||0)||0)*Number(i.quantity||1))}</strong></div>`).join('');
+ function token(){for(const k of ['token','authToken','customerToken','ariana_token']){const v=localStorage.getItem(k);if(v)return String(v).replace(/^Bearer\s+/i,'')}return''}
+ async function api(path,options={}){
+   const h={Accept:'application/json',...(options.headers||{})};if(token())h.Authorization='Bearer '+token();
+   const r=await fetch(API_BASE+path,{...options,headers:h});const d=await r.json().catch(()=>({}));
+   if(!r.ok)throw new Error(d.message||d.error||('HTTP '+r.status));return d;
+ }
+ function show(id){['crediario-stage-request','crediario-stage-waiting','crediario-stage-approved','crediario-stage-rejected'].forEach(x=>document.getElementById(x).classList.add('hidden'));document.getElementById(id).classList.remove('hidden')}
+ function applyStatus(a){
+   analysis=a||{};localStorage.setItem('ariana_crediario_analysis',JSON.stringify(analysis));
+   const s=String(analysis.status||analysis.analysisStatus||'PENDING').toUpperCase();
+   if(['APPROVED','APROVADO'].includes(s)){show('crediario-stage-approved');renderPlans()}
+   else if(['REJECTED','RECUSADO','DENIED'].includes(s))show('crediario-stage-rejected');
+   else show('crediario-stage-waiting');
+ }
+ function simulate(n){const d={1:1,2:.94,3:.91,4:.88,5:.85,6:.82,7:.79,8:.76,9:.73,10:.70,11:.67,12:.64,13:.61,14:.58,15:.55};const total=Math.round(base/(d[n]||1)*100)/100;return{installments:n,total,installment:Math.round(total/n*100)/100}}
+ function renderPlans(){const box=document.getElementById('crediario-installments');box.innerHTML='';for(let n=1;n<=15;n++){const s=simulate(n),b=document.createElement('button');b.className='ar-installment';b.type='button';b.innerHTML=`<strong>${n}x de ${brl(s.installment)}</strong><small>Total financiado: ${brl(s.total)}</small>`;b.onclick=()=>{selected=s;box.querySelectorAll('button').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');document.getElementById('btn-crediario-confirm').disabled=false};box.appendChild(b)}}
+ document.getElementById('btn-crediario-request').onclick=async()=>{
+   const btn=document.getElementById('btn-crediario-request'),msg=document.getElementById('crediario-request-message');btn.disabled=true;msg.textContent='Enviando...';
+   try{
+     const payload={orderId:localStorage.getItem('arianaLastOrderId')||'',baseAmountCents:Math.round(base*100),note:document.getElementById('crediario-note').value.trim(),checkoutDraft:draft};
+     const d=await api('/payments/crediario/analises',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});applyStatus(d.analysis||d)
+   }catch(e){msg.textContent='Não foi possível enviar: '+e.message}finally{btn.disabled=false}
+ };
+ document.getElementById('btn-crediario-refresh').onclick=async()=>{
+   const id=analysis?.analysisId||analysis?._id||analysis?.id,msg=document.getElementById('crediario-status-message');
+   if(!id){msg.textContent='Aguardando identificação da análise.';return}msg.textContent='Consultando...';
+   try{let d;try{d=await api('/payments/crediario/analises/'+encodeURIComponent(id))}catch(_){d=await api('/payments/crediario/analises?analysisId='+encodeURIComponent(id))}applyStatus(d.analysis||d)}catch(e){msg.textContent='A análise continua pendente.'}
+ };
+ document.getElementById('btn-crediario-confirm').onclick=()=>{if(!selected)return;localStorage.setItem('ariana_crediario_selected_plan',JSON.stringify(selected));location.href='pedido_confirmado.html?crediario=aprovado'};
+ try{const saved=JSON.parse(localStorage.getItem('ariana_crediario_analysis')||'null');if(saved)applyStatus(saved)}catch(_){}
+})();
+</script>
+</body></html>

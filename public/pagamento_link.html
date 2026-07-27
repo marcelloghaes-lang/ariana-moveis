@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pagamento Seguro | Ariana Móveis</title>
+  <link rel="stylesheet" href="pagamento-link.css">
+</head>
+<body>
+  <header class="checkout-header">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <div>
+        <div class="brand-name">ARIANA <span>MÓVEIS</span></div>
+        <small>Pagamento seguro</small>
+      </div>
+    </div>
+    <div class="secure-badge">🔒 Ambiente protegido</div>
+  </header>
+
+  <main class="checkout-shell">
+    <section class="checkout-main">
+      <div class="page-intro">
+        <p class="eyebrow">PAGAMENTO DO PEDIDO</p>
+        <h1>Finalize sua compra</h1>
+        <p>Confira os dados do pedido e escolha entre cartão de crédito ou PIX.</p>
+      </div>
+
+      <section class="card order-card">
+        <div class="section-heading">
+          <div>
+            <span class="step">1</span>
+            <h2>Resumo do pedido</h2>
+          </div>
+          <strong id="order-code">Pedido</strong>
+        </div>
+
+        <div id="order-items" class="order-items"></div>
+
+        <div class="totals">
+          <div><span>Produtos</span><strong id="subtotal-value">R$ 0,00</strong></div>
+          <div><span>Frete</span><strong id="shipping-value">R$ 0,00</strong></div>
+          <div><span>Garantia</span><strong id="warranty-value">R$ 0,00</strong></div>
+          <div class="discount"><span>Desconto</span><strong id="discount-value">- R$ 0,00</strong></div>
+          <div class="grand-total"><span>Total</span><strong id="total-value">R$ 0,00</strong></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div><span class="step">2</span><h2>Seus dados</h2></div>
+        </div>
+
+        <div class="form-grid">
+          <label class="field span-2">
+            <span>Nome completo</span>
+            <input id="customer-name" type="text" autocomplete="name">
+          </label>
+          <label class="field">
+            <span>CPF</span>
+            <input id="customer-cpf" type="text" inputmode="numeric" placeholder="000.000.000-00">
+          </label>
+          <label class="field">
+            <span>Telefone</span>
+            <input id="customer-phone" type="tel" autocomplete="tel">
+          </label>
+          <label class="field span-2">
+            <span>E-mail</span>
+            <input id="customer-email" type="email" autocomplete="email" placeholder="cliente@email.com">
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div><span class="step">3</span><h2>Forma de pagamento</h2></div>
+        </div>
+
+        <div class="payment-tabs">
+          <button class="payment-tab active" data-payment="card" type="button">
+            <span class="payment-icon">💳</span>
+            <span><strong>Cartão de crédito</strong><small>Parcela definida pelo atendente</small></span>
+          </button>
+          <button class="payment-tab" data-payment="pix" type="button">
+            <span class="payment-icon">◆</span>
+            <span><strong>PIX</strong><small>Pagamento à vista</small></span>
+          </button>
+        </div>
+
+        <div id="card-payment" class="payment-panel">
+          <div class="locked-condition">
+            <div>
+              <small>Condição combinada</small>
+              <strong id="locked-installments">12x de R$ 0,00</strong>
+            </div>
+            <span>🔒 Parcelas bloqueadas</span>
+          </div>
+
+          <div class="form-grid">
+            <label class="field span-2">
+              <span>Número do cartão</span>
+              <input id="card-number" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000">
+            </label>
+            <label class="field span-2">
+              <span>Nome impresso no cartão</span>
+              <input id="card-name" type="text" autocomplete="cc-name" placeholder="Como aparece no cartão">
+            </label>
+            <label class="field">
+              <span>Validade</span>
+              <input id="card-expiry" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA">
+            </label>
+            <label class="field">
+              <span>CVV</span>
+              <input id="card-cvv" type="password" inputmode="numeric" autocomplete="cc-csc" maxlength="4" placeholder="000">
+            </label>
+            <label class="field span-2">
+              <span>Bandeira</span>
+              <select id="card-brand">
+                <option value="">Detectar automaticamente</option>
+                <option value="visa">Visa</option>
+                <option value="mastercard">Mastercard</option>
+                <option value="elo">Elo</option>
+                <option value="amex">American Express</option>
+                <option value="hipercard">Hipercard</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="security-message">
+            <strong>Seus dados são protegidos.</strong>
+            <span>A Ariana Móveis não exibe os dados do cartão para o atendente.</span>
+          </div>
+
+          <button id="btn-pay-card" class="primary-button" type="button">Enviar pagamento para análise</button>
+        </div>
+
+        <div id="pix-payment" class="payment-panel hidden">
+          <div class="pix-intro">
+            <div class="pix-logo">PIX</div>
+            <div>
+              <h3>Pagamento rápido pelo PIX</h3>
+              <p>Ao continuar, será gerado um código PIX com validade temporária.</p>
+            </div>
+          </div>
+
+          <div class="pix-total">
+            <span>Valor à vista</span>
+            <strong id="pix-total-value">R$ 0,00</strong>
+          </div>
+
+          <button id="btn-generate-pix" class="primary-button" type="button">Gerar código PIX</button>
+
+          <div id="pix-generated" class="pix-generated hidden">
+            <img id="pix-qr-image" class="pix-qr-image hidden" alt="QR Code PIX">
+            <div class="pix-copy">
+              <small>Código PIX copia e cola</small>
+              <textarea id="pix-code" readonly></textarea>
+              <button id="btn-copy-pix" class="secondary-button" type="button">Copiar código PIX</button>
+            </div>
+            <div class="pix-expiration">Código válido por <strong id="pix-timer">15:00</strong></div>
+            <a id="pix-ticket-link" class="secondary-button hidden" target="_blank" rel="noopener">Abrir página oficial do PIX</a>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <aside class="checkout-sidebar">
+      <div class="sidebar-card">
+        <h2>Resumo do pagamento</h2>
+        <div class="sidebar-customer">
+          <small>Cliente</small>
+          <strong id="sidebar-customer-name">—</strong>
+        </div>
+        <div class="sidebar-total">
+          <span>Total</span>
+          <strong id="sidebar-total-value">R$ 0,00</strong>
+        </div>
+        <div class="sidebar-condition">
+          <small>Condição selecionada</small>
+          <strong id="sidebar-condition-value">Cartão</strong>
+        </div>
+        <div class="info-box">
+          Após o envio, o pagamento ficará em <strong>análise de segurança</strong>. Não tente pagar novamente enquanto o status estiver sendo analisado.
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="analysis-screen" class="status-screen hidden">
+    <div class="status-card">
+      <div class="status-symbol">⏱</div>
+      <p class="eyebrow">PAGAMENTO RECEBIDO</p>
+      <h1>Pagamento em análise de segurança</h1>
+      <p>Recebemos os dados do seu pagamento. Agora ele será verificado antes da aprovação definitiva.</p>
+
+      <div class="status-details">
+        <div><span>Pedido</span><strong id="status-order">—</strong></div>
+        <div><span>Valor</span><strong id="status-total">R$ 0,00</strong></div>
+        <div><span>Forma de pagamento</span><strong id="status-method">—</strong></div>
+        <div><span>Status</span><strong class="analysis-label">Em análise</strong></div>
+      </div>
+
+      <div class="warning-box">
+        <strong>Não envie o pagamento novamente.</strong>
+        <span>A Ariana Móveis atualizará o pedido assim que a análise for concluída.</span>
+      </div>
+
+      <button id="btn-back-order" class="secondary-button" type="button">Acompanhar meu pedido</button>
+    </div>
+  </div>
+
+  <div id="invalid-link" class="status-screen hidden">
+    <div class="status-card">
+      <div class="status-symbol error">!</div>
+      <h1>Link de pagamento inválido</h1>
+      <p>Não foi possível localizar esta venda. Solicite um novo link ao atendente da Ariana Móveis.</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script>
+    window.ARIANA_PAYMENT_CONFIG = {
+      API_BASE: (location.hostname === "127.0.0.1" || location.hostname === "localhost")
+        ? "http://localhost:3000/api"
+        : "https://ariana-backend.onrender.com/api",
+      PAGARME_PUBLIC_KEY: "pk_p4x3LJWT9Ofd79lV"
+    };
+  </script>
+  <script src="pagamento-link.js"></script>
+</body>
+</html>

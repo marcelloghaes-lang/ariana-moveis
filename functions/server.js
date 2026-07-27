@@ -1723,7 +1723,14 @@ function buildCrediarioCobrancaMessage(data = {}) {
   const tipo = String(data.tipo || data.tipoCobranca || 'normal').toLowerCase();
   const produto = String(data.produto || '').trim();
   const parcela = formatCrediarioParcela(data.parcela || '');
-  const valor = Number(data.valor || data.valorPago || 0);
+  const valorOriginal = Number(data.valorOriginal ?? data.valor ?? data.valorPago ?? 0);
+  const multa = Math.max(0, Number(data.multa || 0));
+  const juros = Math.max(0, Number(data.juros || 0));
+  const valorAtualizadoInformado = Number(data.valorAtualizado ?? 0);
+  const valorAtualizado = valorAtualizadoInformado > 0
+    ? valorAtualizadoInformado
+    : Math.max(0, valorOriginal + multa + juros);
+  const possuiAtualizacao = multa > 0 || juros > 0 || valorAtualizado > valorOriginal + 0.009;
   const documento = String(data.documento || data.recibo || data.contrato || '').trim();
   const urgente = tipo.includes('urg');
 
@@ -1735,6 +1742,15 @@ function buildCrediarioCobrancaMessage(data = {}) {
     ? 'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.'
     : 'Por favor, entre em contato com a loja para mais informações ou regularização.';
 
+  const linhasValor = possuiAtualizacao
+    ? [
+        valorOriginal > 0 ? `💰 Valor original: ${formatMoneyBRL(valorOriginal)}` : '',
+        multa > 0 ? `⚠️ Multa: ${formatMoneyBRL(multa)}` : '',
+        juros > 0 ? `📈 Juros: ${formatMoneyBRL(juros)}` : '',
+        valorAtualizado > 0 ? `✅ Valor atualizado: ${formatMoneyBRL(valorAtualizado)}` : ''
+      ]
+    : [valorAtualizado > 0 ? `💰 Valor: ${formatMoneyBRL(valorAtualizado)}` : ''];
+
   const linhas = [
     cabecalho,
     '',
@@ -1744,7 +1760,7 @@ function buildCrediarioCobrancaMessage(data = {}) {
     '',
     produto ? `📦 Referência: ${produto}` : '',
     parcela ? `📌 Parcela: ${parcela}` : '',
-    valor > 0 ? `💰 Valor: ${formatMoneyBRL(valor)}` : '',
+    ...linhasValor,
     documento ? `🧾 Documento: ${documento}` : '',
     '',
     fechamento,
@@ -1758,10 +1774,37 @@ function buildCrediarioCobrancaMessage(data = {}) {
   return linhas.filter((linha) => linha !== '').join('\n');
 }
 
-async function sendCrediarioCobrancaWhatsapp({ telefone = '', clienteNome = '', produto = '', parcela = '', valor = 0, documento = '', recibo = '', contrato = '', tipo = 'normal' } = {}) {
+async function sendCrediarioCobrancaWhatsapp({
+  telefone = '',
+  clienteNome = '',
+  produto = '',
+  parcela = '',
+  valor = 0,
+  valorOriginal = 0,
+  multa = 0,
+  juros = 0,
+  valorAtualizado = 0,
+  documento = '',
+  recibo = '',
+  contrato = '',
+  tipo = 'normal'
+} = {}) {
   const number = normalizePhone(telefone || '', '55');
   if (!number) throw new Error('Telefone do cliente inválido para envio da cobrança.');
-  const text = buildCrediarioCobrancaMessage({ clienteNome, produto, parcela, valor, documento, recibo, contrato, tipo });
+  const text = buildCrediarioCobrancaMessage({
+    clienteNome,
+    produto,
+    parcela,
+    valor,
+    valorOriginal,
+    multa,
+    juros,
+    valorAtualizado,
+    documento,
+    recibo,
+    contrato,
+    tipo
+  });
   return waSendTextMessage({ number, text });
 }
 

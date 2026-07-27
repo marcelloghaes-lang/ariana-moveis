@@ -1,0 +1,351 @@
+﻿   1: import crypto from 'crypto';
+   2: import { getCoraConfig, getCoraSafeStatus } from '../integrations/cora/coraConfig.js';
+   3: import { getCoraAccessToken, getCoraTokenCacheStatus } from '../integrations/cora/coraAuth.js';
+   4: import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../integrations/cora/coraInstallmentService.js';
+   5: import { getCoraAuditModel, getCoraChargeModel } from '../integrations/cora/coraChargeModel.js';
+   6: import { calculateCrediarioPlan, moneyToCents, centsToMoney, CREDIARIO_DIVISORS } from '../services/crediarioEngine.js';
+   7: 
+   8: function safeError(error) {
+   9:   return {
+  10:     code: error?.code || 'CORA_ERROR',
+  11:     message: error?.message || 'Falha na integraÃ§Ã£o Cora',
+  12:     providerStatus: error?.providerStatus || null,
+  13:     details: error?.details || null,
+  14:     requestId: error?.trace?.requestId || '',
+  15:     traceId: error?.trace?.traceId || ''
+  16:   };
+  17: }
+  18: function digits(value = '') { return String(value || '').replace(/\D/g, ''); }
+  19: function json(doc) { return typeof doc?.toObject === 'function' ? doc.toObject() : doc; }
+  20: function buildDirectInput(body = {}) {
+  21:   return {
+  22:     code: body.code || body.internalReference || body.reference,
+  23:     totalAmount: body.totalAmount ?? body.amount ?? body.total,
+  24:     installments: body.installments ?? body.parcelas,
+  25:     firstDueDate: body.firstDueDate ?? body.primeiroVencimento,
+  26:     dueDates: body.dueDates ?? body.vencimentos,
+  27:     dayOfMonth: body.dayOfMonth ?? body.diaVencimento,
+  28:     customer: body.customer || {
+  29:       name: body.customerName ?? body.nomeCliente,
+  30:       email: body.customerEmail ?? body.emailCliente,
+  31:       document: body.customerDocument ?? body.cpfCnpj,
+  32:       address: body.customerAddress ?? body.enderecoCliente
+  33:     },
+  34:     serviceName: body.serviceName || 'Compra Ariana MÃ³veis',
+  35:     description: body.description || 'CarnÃª de pagamentos Ariana MÃ³veis',
+  36:     paymentTerms: body.paymentTerms || {},
+  37:     notification: body.notification
+  38:   };
+  39: }
+  40: function statusFromInvoices(invoices = []) {
+  41:   if (!Array.isArray(invoices) || !invoices.length) return 'OPEN';
+  42:   const statuses = invoices.map((item) => String(item?.status || '').toUpperCase());
+  43:   if (statuses.every((s) => ['PAID', 'SETTLED'].includes(s))) return 'PAID';
+  44:   if (statuses.some((s) => ['PAID', 'SETTLED'].includes(s))) return 'PARTIALLY_PAID';
+  45:   if (statuses.every((s) => ['CANCELLED', 'CANCELED'].includes(s))) return 'CANCELLED';
+  46:   return 'OPEN';
+  47: }
+  48: 
+  49: 
+  50: function resolveCrediarioBaseCents(order = {}, body = {}) {
+  51:   const direct = Number(
+  52:     body.baseAmountCents ??
+  53:     order.crediario?.baseAmountCents ??
+  54:     order.totals?.creditBaseAmountCents ??
+  55:     order.totals?.cardTotalCents ??
+  56:     0
+  57:   );
+  58:   if (Number.isFinite(direct) && direct > 0) return Math.round(direct);
+  59: 
+  60:   const money = Number(
+  61:     body.baseAmount ??
+  62:     order.crediario?.baseAmount ??
+  63:     order.totals?.creditBaseAmount ??
+  64:     order.totals?.grandTotalOriginal ??
+  65:     order.cardTotal ??
+  66:     order.total ??
+  67:     0
+  68:   );
+  69:   return moneyToCents(money);
+  70: }
+  71: 
+  72: function buildDueDates(firstDueDate, count) {
+  73:   const first = new Date(`${String(firstDueDate || '').slice(0, 10)}T12:00:00`);
+  74:   if (Number.isNaN(first.getTime())) return [];
+  75:   const day = first.getDate();
+  76:   return Array.from({ length: count }, (_, index) => {
+  77:     const d = new Date(first.getFullYear(), first.getMonth() + index, 1, 12, 0, 0, 0);
+  78:     const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  79:     d.setDate(Math.min(day, lastDay));
+  80:     return d.toISOString().slice(0, 10);
+  81:   });
+  82: }
+  83: 
+  84: export default function registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order } = {}) {
+  85:   if (!app) throw new Error('registerCoraRoutes: app Ã© obrigatÃ³rio.');
+  86:   if (typeof adminRequired !== 'function') throw new Error('registerCoraRoutes: adminRequired Ã© obrigatÃ³rio.');
+  87:   const paymentRequired = typeof authRequired === 'function' ? authRequired : adminRequired;
+  88:   const CoraCharge = mongoose ? getCoraChargeModel(mongoose) : null;
+  89:   const CoraAuditLog = mongoose ? getCoraAuditModel(mongoose) : null;
+  90: 
+  91:   async function saveTrace(chargeId, action, trace = {}) {
+  92:     if (!CoraAuditLog) return;
+  93:     await CoraAuditLog.create({
+  94:       chargeId: String(chargeId || ''), action,
+  95:       method: trace.method || '', url: trace.url || '', status: trace.status ?? null,
+  96:       durationMs: Number(trace.durationMs || 0), requestId: trace.requestId || '', traceId: trace.traceId || '',
+  97:       idempotencyKey: trace.idempotencyKey || '', requestHeaders: trace.requestHeaders || {},
+  98:       requestBody: trace.requestBody ?? null, responseHeaders: trace.responseHeaders || {},
+  99:       responseBody: trace.responseBody ?? null,
+ 100:       error: trace.networkError ? { message: trace.networkError } : null
+ 101:     });
+ 102:   }
+ 103: 
+ 104: 
+ 105:   function orderIdFrom(value = '') {
+ 106:     return String(value || '').trim();
+ 107:   }
+ 108: 
+ 109:   function normalizeChargeForOrder(chargeDoc = {}) {
+ 110:     const charge = json(chargeDoc) || {};
+ 111:     return {
+ 112:       provider: 'cora',
+ 113:       chargeId: String(charge._id || charge.id || ''),
+ 114:       code: String(charge.code || ''),
+ 115:       status: String(charge.status || 'OPEN'),
+ 116:       installments: Number(charge.installments || 0),
+ 117:       documentUrl: String(charge.documentUrl || ''),
+ 118:       invoices: Array.isArray(charge.invoices) ? charge.invoices : [],
+ 119:       providerRequestId: String(charge.providerRequestId || ''),
+ 120:       providerTraceId: String(charge.providerTraceId || ''),
+ 121:       firstDueDate: charge.requestPayload?.installment?.due_date?.dates?.[0] || null,
+ 122:       updatedAt: new Date()
+ 123:     };
+ 124:   }
+ 125: 
+ 126:   async function findOrderRaw(orderId) {
+ 127:     const id = orderIdFrom(orderId);
+ 128:     if (!Order || !id) return null;
+ 129:     const query = mongoose?.Types?.ObjectId?.isValid(id)
+ 130:       ? { _id: new mongoose.Types.ObjectId(id) }
+ 131:       : { $or: [{ orderId: id }, { code: id }, { number: id }, { externalId: id }] };
+ 132:     return Order.collection.findOne(query);
+ 133:   }
+ 134: 
+ 135:   function customerCanAccessOrder(order = {}, req = {}) {
+ 136:     if (req.admin?.admin === true || String(req.auth?.role || '').toLowerCase() === 'admin') return true;
+ 137:     const userId = String(req.user?._id || req.auth?.id || '').trim();
+ 138:     if (!userId) return false;
+ 139:     const candidates = [order.userId, order.customerId, order.clientId, order.user?._id, order.customer?._id]
+ 140:       .map((value) => String(value || '').trim())
+ 141:       .filter(Boolean);
+ 142:     return candidates.includes(userId);
+ 143:   }
+ 144: 
+ 145:   async function updateOrderCora(orderId, chargeDoc, extra = {}) {
+ 146:     if (!Order || !orderId) return null;
+ 147:     const id = orderIdFrom(orderId);
+ 148:     const query = mongoose?.Types?.ObjectId?.isValid(id)
+ 149:       ? { _id: new mongoose.Types.ObjectId(id) }
+ 150:       : { $or: [{ orderId: id }, { code: id }, { number: id }, { externalId: id }] };
+ 151:     const crediario = normalizeChargeForOrder(chargeDoc);
+ 152:     const paidStatuses = ['PAID', 'SETTLED'];
+ 153:     const finalPaid = paidStatuses.includes(String(crediario.status || '').toUpperCase());
+ 154:     const set = {
+ 155:       paymentMethod: 'crediario_ariana',
+ 156:       payment_method: 'crediario_ariana',
+ 157:       paymentStatus: finalPaid ? 'PAID' : 'AWAITING_PAYMENT',
+ 158:       status: finalPaid ? 'paid' : 'pending_payment',
+ 159:       statusLabel: finalPaid ? 'Pago' : 'Aguardando pagamento',
+ 160:       'payment.provider': 'cora',
+ 161:       'payment.method': 'crediario_ariana',
+ 162:       'payment.status': crediario.status,
+ 163:       'payment.chargeId': crediario.chargeId,
+ 164:       'payment.documentUrl': crediario.documentUrl,
+ 165:       crediario: { ...crediario, ...(extra.crediario || {}) },
+ 166:       updatedAt: new Date(),
+ 167:       ...extra.set
+ 168:     };
+ 169:     await Order.collection.updateOne(query, { $set: set });
+ 170:     return Order.collection.findOne(query);
+ 171:   }
+ 172: 
+ 173:   function invoiceMatchesEvent(invoice = {}, event = {}) {
+ 174:     const eventData = event.data || event.invoice || event;
+ 175:     const ids = [eventData.id, eventData.invoice_id, eventData.invoiceId, event.id]
+ 176:       .map((v) => String(v || '').trim()).filter(Boolean);
+ 177:     const codes = [eventData.code, eventData.invoice_code, eventData.external_id]
+ 178:       .map((v) => String(v || '').trim()).filter(Boolean);
+ 179:     const invoiceIds = [invoice.id, invoice.invoice_id, invoice.invoiceId]
+ 180:       .map((v) => String(v || '').trim()).filter(Boolean);
+ 181:     const invoiceCodes = [invoice.code, invoice.external_id]
+ 182:       .map((v) => String(v || '').trim()).filter(Boolean);
+ 183:     return ids.some((id) => invoiceIds.includes(id)) || codes.some((code) => invoiceCodes.includes(code));
+ 184:   }
+ 185: 
+ 186:   async function executeEmission(charge, input, action = 'ISSUE_INSTALLMENT_BOOK') {
+ 187:     charge.attempts = Number(charge.attempts || 0) + 1;
+ 188:     charge.lastAttemptAt = new Date();
+ 189:     charge.status = 'PROCESSING';
+ 190:     await charge.save();
+ 191:     try {
+ 192:       const result = await issueCoraInstallmentBook(input, {
+ 193:         idempotencyKey: charge.idempotencyKey,
+ 194:         onTrace: (trace) => saveTrace(charge._id, action, trace)
+ 195:       });
+ 196:       const response = result.response || {};
+ 197:       charge.status = statusFromInvoices(response.result || []);
+ 198:       charge.documentUrl = String(response.document_url || response.documentUrl || '');
+ 199:       charge.invoices = Array.isArray(response.result) ? response.result : [];
+ 200:       charge.providerResponse = response;
+ 201:       charge.providerRequestId = result?.trace?.requestId || '';
+ 202:       charge.providerTraceId = result?.trace?.traceId || '';
+ 203:       charge.error = null;
+ 204:       charge.nextCheckAt = null;
+ 205:       charge.resolvedAt = new Date();
+ 206:       await charge.save();
+ 207:       return { ok: true, charge };
+ 208:     } catch (error) {
+ 209:       const providerStatus = Number(error?.providerStatus || 0);
+ 210:       const uncertain = providerStatus === 504 || error?.code === 'CORA_NETWORK_ERROR';
+ 211:       charge.status = uncertain ? 'PENDING_CONFIRMATION' : 'FAILED';
+ 212:       charge.error = safeError(error);
+ 213:       charge.providerRequestId = error?.trace?.requestId || '';
+ 214:       charge.providerTraceId = error?.trace?.traceId || '';
+ 215:       charge.nextCheckAt = uncertain ? new Date(Date.now() + Number(process.env.CORA_PENDING_RETRY_MS || 5 * 60 * 1000)) : null;
+ 216:       await charge.save();
+ 217:       error.charge = charge;
+ 218:       throw error;
+ 219:     }
+ 220:   }
+ 221: 
+ 222:   app.get('/api/admin/cora/status', adminRequired, async (_req, res) => {
+ 223:     const config = getCoraSafeStatus();
+ 224:     if (!config.enabled || !config.clientIdConfigured || !config.certificateConfigured || !config.privateKeyConfigured) {
+ 225:       return res.status(503).json({ ok: false, authenticated: false, config, token: getCoraTokenCacheStatus(), error: 'IntegraÃ§Ã£o Cora ainda nÃ£o estÃ¡ completamente configurada.' });
+ 226:     }
+ 227:     try {
+ 228:       await getCoraAccessToken({ forceRefresh: true });
+ 229:       return res.json({ ok: true, authenticated: true, config, token: getCoraTokenCacheStatus() });
+ 230:     } catch (error) {
+ 231:       return res.status(Number(error.statusCode || 502)).json({ ok: false, authenticated: false, config, token: getCoraTokenCacheStatus(), error: safeError(error) });
+ 232:     }
+ 233:   });
+ 234: 
+ 235: 
+ 236:   // Fase 6.3: simulaÃ§Ã£o oficial no backend. O navegador nunca define o valor financiado.
+ 237:   app.post('/api/payments/crediario/simular', paymentRequired, async (req, res) => {
+ 238:     try {
+ 239:       const orderId = orderIdFrom(req.body?.orderId || req.body?.pedidoId || '');
+ 240:       let order = null;
+ 241:       if (orderId) {
+ 242:         order = await findOrderRaw(orderId);
+ 243:         if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado.' });
+ 244:         if (!customerCanAccessOrder(order, req)) return res.status(403).json({ ok: false, error: 'Este pedido nÃ£o pertence ao usuÃ¡rio autenticado.' });
+ 245:       }
+ 246:       const installmentCount = Number(req.body?.installments ?? req.body?.parcelas ?? order?.crediario?.installments ?? 1);
+ 247:       const baseAmountCents = resolveCrediarioBaseCents(order || {}, req.body || {});
+ 248:       const plan = calculateCrediarioPlan({ baseAmountCents, installmentCount });
+ 249:       const firstDueDate = req.body?.firstDueDate || req.body?.primeiroVencimento || order?.crediario?.firstDueDate || '';
+ 250:       const dueDates = buildDueDates(firstDueDate, plan.installmentCount);
+ 251:       return res.json({
+ 252:         ok: true,
+ 253:         rule: 'ARIANA_CREDIARIO_V1',
+ 254:         divisors: CREDIARIO_DIVISORS,
+ 255:         ...plan,
+ 256:         baseAmount: centsToMoney(plan.baseAmountCents),
+ 257:         financedAmount: centsToMoney(plan.financedAmountCents),
+ 258:         installments: plan.installments.map((item, index) => ({
+ 259:           ...item,
+ 260:           amount: centsToMoney(item.originalAmountCents),
+ 261:           dueDate: dueDates[index] || null
+ 262:         }))
+ 263:       });
+ 264:     } catch (error) {
+ 265:       return res.status(400).json({ ok: false, error: error.message || 'Falha ao simular o crediÃ¡rio.' });
+ 266:     }
+ 267:   });
+ 268: 
+ 269:   // Fase 6.2: emissÃ£o pelo fluxo real da venda, sem Postman.
+ 270:   app.post('/api/payments/cora/carne', paymentRequired, async (req, res) => {
+ 271:     if (!CoraCharge) return res.status(500).json({ ok: false, error: 'mongoose nÃ£o registrado na rota Cora.' });
+ 272:     if (!Order) return res.status(500).json({ ok: false, error: 'Modelo Order nÃ£o registrado na rota Cora.' });
+ 273: 
+ 274:     let charge;
+ 275:     try {
+ 276:       const orderId = orderIdFrom(req.body?.orderId || req.body?.pedidoId || req.body?.externalId);
+ 277:       if (!orderId) return res.status(400).json({ ok: false, error: 'orderId Ã© obrigatÃ³rio.' });
+ 278: 
+ 279:       const order = await findOrderRaw(orderId);
+ 280:       if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado.' });
+ 281:       if (!customerCanAccessOrder(order, req)) return res.status(403).json({ ok: false, error: 'Este pedido nÃ£o pertence ao usuÃ¡rio autenticado.' });
+ 282: 
+ 283:       const installmentCount = Number(req.body?.installments ?? req.body?.parcelas ?? order.crediario?.installments ?? 1);
+ 284:       const baseAmountCents = resolveCrediarioBaseCents(order, req.body || {});
+ 285:       const plan = calculateCrediarioPlan({ baseAmountCents, installmentCount });
+ 286:       const requestedAmount = centsToMoney(plan.financedAmountCents);
+ 287:       const firstDueDate = req.body?.firstDueDate || req.body?.primeiroVencimento || order.crediario?.firstDueDate || '';
+ 288:       const dueDates = buildDueDates(firstDueDate, plan.installmentCount);
+ 289: 
+ 290:       const customer = req.body?.customer || order.customer || order.client || order.user || {};
+ 291:       const input = buildDirectInput({
+ 292:         ...req.body,
+ 293:         code: req.body?.code || `ARIANA-${orderId}`.slice(0, 120),
+ 294:         internalReference: orderId,
+ 295:         totalAmount: requestedAmount,
+ 296:         installments: plan.installmentCount,
+ 297:         dueDates: dueDates.length ? dueDates : req.body?.dueDates,
+ 298:         customer
+ 299:       });
+ 300:       const payload = buildCoraInstallmentPayload(input);
+ 301:       const config = getCoraConfig();
+ 302:       const internalReference = orderId;
+ 303:       const idempotencyKey = String(req.headers['idempotency-key'] || req.body?.idempotencyKey || `order:${orderId}:cora:v1`);
+ 304: 
+ 305:       const duplicate = await CoraCharge.findOne({
+ 306:         $or: [
+ 307:           { idempotencyKey },
+ 308:           { orderId, kind: 'INSTALLMENT_BOOK', status: { $in: ['PROCESSING', 'PENDING_CONFIRMATION', 'OPEN', 'PARTIALLY_PAID', 'PAID'] } }
+ 309:         ]
+ 310:       }).sort({ createdAt: -1 });
+ 311: 
+ 312:       if (duplicate && req.body?.forceNew !== true) {
+ 313:         await updateOrderCora(orderId, duplicate);
+ 314:         return res.status(200).json({ ok: true, reused: true, carne: duplicate, charge: duplicate });
+ 315:       }
+ 316: 
+ 317:       charge = await CoraCharge.create({
+ 318:         orderId,
+ 319:         source: 'CHECKOUT',
+ 320:         internalReference,
+ 321:         code: payload.code,
+ 322:         environment: config.environment,
+ 323:         idempotencyKey,
+ 324:         status: 'PROCESSING',
+ 325:         totalAmountCents: payload.service.amount,
+ 326:         installments: payload.installment.number_of,
+ 327:         customer: payload.customer,
+ 328:         requestPayload: payload,
+ 329:         createdBy: String(req.user?._id || req.auth?.id || req.admin?.id || '')
+ 330:       });
+ 331: 
+ 332:       await updateOrderCora(orderId, charge, {
+ 333:         set: {
+ 334:           paymentStatus: 'PROCESSING',
+ 335:           status: 'pending_payment',
+ 336:           total: requestedAmount,
+ 337:           'totals.creditBaseAmount': centsToMoney(plan.baseAmountCents),
+ 338:           'totals.creditBaseAmountCents': plan.baseAmountCents,
+ 339:           'totals.financedAmount': requestedAmount,
+ 340:           'totals.financedAmountCents': plan.financedAmountCents,
+ 341:           'crediario.baseAmountCents': plan.baseAmountCents,
+ 342:           'crediario.financedAmountCents': plan.financedAmountCents,
+ 343:           'crediario.installmentDivisor': plan.divisor,
+ 344:           'crediario.installmentCount': plan.installmentCount,
+ 345:           'crediario.installmentPlan': plan.installments.map((item, index) => ({ ...item, dueDate: dueDates[index] || null, status: 'OPEN' }))
+ 346:         }
+ 347:       });
+ 348:       const result = await executeEmission(charge, input, 'CHECKOUT_ISSUE_INSTALLMENT_BOOK');
+ 349:       const updatedOrder = await updateOrderCora(orderId, result.charge);
+ 350:       return res.status(201).json({ ok: true, carne: result.charge, charge: result.charge, order: updatedOrder });
+ 351:     } catch (error) {

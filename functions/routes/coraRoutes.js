@@ -88,6 +88,65 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
   const CoraCharge = mongoose ? getCoraChargeModel(mongoose) : null;
   const CoraAuditLog = mongoose ? getCoraAuditModel(mongoose) : null;
 
+  async function vincularChargeAoCarneFinanceiro(chargeDoc = {}, body = {}) {
+    if (!mongoose || !chargeDoc) return { linked: false, reason: 'MONGOOSE_OR_CHARGE_MISSING' };
+    try {
+      const db = mongoose.connection.db;
+      if (!db) return { linked: false, reason: 'DATABASE_NOT_READY' };
+      const carnes = db.collection('financeiro_carnes_digitais');
+      const charge = json(chargeDoc) || {};
+      const chargeId = String(charge._id || charge.id || '');
+      if (!chargeId) return { linked: false, reason: 'CHARGE_ID_MISSING' };
+
+      const explicitId = String(body.financeiroCarneId || body.carneId || '').trim();
+      const cpf = digits(charge.customer?.document?.identity || body.customerDocument || body.cpfCnpj || '');
+      let carne = null;
+
+      if (explicitId && mongoose.Types.ObjectId.isValid(explicitId)) {
+        carne = await carnes.findOne({ _id: new mongoose.Types.ObjectId(explicitId) });
+      }
+      if (!carne && cpf) {
+        const matches = await carnes.find({ 'cliente.cpf': cpf, status: { $ne: 'ARQUIVADO' } }).limit(2).toArray();
+        if (matches.length === 1) carne = matches[0];
+      }
+      if (!carne) return { linked: false, reason: 'FINANCE_BOOKLET_NOT_UNIQUE_OR_NOT_FOUND' };
+
+      const now = new Date();
+      await carnes.updateOne(
+        { _id: carne._id },
+        {
+          $set: {
+            coraChargeId: chargeId,
+            coraCode: String(charge.code || ''),
+            coraInternalReference: String(charge.internalReference || ''),
+            coraDocumentUrl: String(charge.documentUrl || ''),
+            coraStatus: String(charge.status || ''),
+            coraVinculadoEm: now,
+            coraVinculadoPor: String(body.createdBy || 'cora_emission')
+          },
+          $push: {
+            historico: {
+              $each: [{
+                tipo: 'CORA_VINCULADO',
+                em: now,
+                por: 'cora_emission',
+                origem: explicitId ? 'EMISSAO_EXPLICITA' : 'EMISSAO_CPF_UNICO',
+                chargeId,
+                code: String(charge.code || ''),
+                internalReference: String(charge.internalReference || '')
+              }],
+              $slice: -100
+            }
+          }
+        }
+      );
+      return { linked: true, carneId: String(carne._id), carneCodigo: String(carne.codigo || '') };
+    } catch (error) {
+      console.warn('[cora vínculo financeiro]', error.message || error);
+      return { linked: false, reason: error.message || 'LINK_ERROR' };
+    }
+  }
+
   async function saveTrace(chargeId, action, trace = {}) {
     if (!CoraAuditLog) return;
     await CoraAuditLog.create({
@@ -396,7 +455,8 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
         requestPayload: payload, createdBy: String(req.admin?.id || req.auth?.id || req.user?._id || '')
       });
       const result = await executeEmission(charge, input);
-      return res.status(201).json(result);
+      const financeiroVinculo = await vincularChargeAoCarneFinanceiro(result.charge, req.body || {});
+      return res.status(201).json({ ...result, financeiroVinculo });
     } catch (error) {
       if (error?.code === 11000) return res.status(409).json({ ok: false, error: 'Requisição duplicada detectada pela chave de idempotência.' });
       const uncertain = Number(error?.providerStatus || 0) === 504 || error?.code === 'CORA_NETWORK_ERROR';
