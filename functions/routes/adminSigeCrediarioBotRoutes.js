@@ -3128,26 +3128,46 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
   // FASE 19.0.3 - Proteção de segredos e dados pessoais nas respostas administrativas.
   function sanitizeFinanceiroWhatsappProviderData(data = null) {
-    if (data === null || data === undefined) return data;
-    const safe = redact(data);
-    if (!safe || typeof safe !== 'object') return safe;
-    const cloned = JSON.parse(JSON.stringify(safe));
+    const sensitiveKey = /token|authorization|apikey|api[-_]?key|secret|password/i;
+    const headerContainerKey = /^headers?$/i;
 
-    if (cloned.headers && typeof cloned.headers === 'object') {
-      for (const key of Object.keys(cloned.headers)) {
-        cloned.headers[key] = cloned.headers[key] ? 'CONFIGURADO' : '';
+    function walk(value, parentKey = '') {
+      if (value === null || value === undefined) return value;
+
+      if (Array.isArray(value)) {
+        return value.map((item) => walk(item, parentKey));
       }
+
+      if (typeof value !== 'object') {
+        if (sensitiveKey.test(parentKey)) {
+          return value ? 'CONFIGURADO' : '';
+        }
+        return value;
+      }
+
+      const output = {};
+      for (const [key, item] of Object.entries(value)) {
+        if (headerContainerKey.test(key) && item && typeof item === 'object') {
+          output[key] = {};
+          for (const headerName of Object.keys(item)) {
+            output[key][headerName] = item[headerName] ? 'CONFIGURADO' : '';
+          }
+          continue;
+        }
+
+        if (sensitiveKey.test(key)) {
+          output[key] = item ? 'CONFIGURADO' : '';
+          continue;
+        }
+
+        output[key] = walk(item, key);
+      }
+
+      return output;
     }
 
-    for (const key of Object.keys(cloned)) {
-      if (/token|authorization|apikey|api[-_]?key|secret|password/i.test(key)) {
-        cloned[key] = cloned[key] ? 'CONFIGURADO' : '';
-      }
-    }
-
-    return cloned;
+    return walk(redact(data));
   }
-
   function maskFinanceiroWhatsappPhone(value = '') {
     const digits = String(value || '').replace(/\D/g, '');
     if (!digits) return '';
