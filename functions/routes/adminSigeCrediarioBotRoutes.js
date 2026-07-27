@@ -3389,63 +3389,107 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   }
 
   function normalizeWhatsappDeliveryStatus(value = '') {
-    const raw = String(value || '').trim().toUpperCase();
-    const map = {
-      PENDING: 'PENDING',
-      SERVER_ACK: 'SENT',
-      SENT: 'SENT',
-      DELIVERY_ACK: 'DELIVERED',
-      DELIVERED: 'DELIVERED',
-      READ: 'READ',
-      PLAYED: 'READ',
-      READ_ACK: 'READ',
-      ERROR: 'FAILED',
-      FAILED: 'FAILED',
-      FAILURE: 'FAILED'
-    };
-    return map[raw] || 'UNKNOWN';
-  }
+  const raw = String(value ?? '').trim().toUpperCase();
+
+  const map = {
+    '0': 'PENDING',
+    '1': 'FAILED',
+    '2': 'PENDING',
+    '3': 'SENT',
+    '4': 'DELIVERED',
+    '5': 'READ',
+    '6': 'READ',
+
+    PENDING: 'PENDING',
+
+    SERVER_ACK: 'SENT',
+    SERVERACK: 'SENT',
+    SENT: 'SENT',
+
+    DELIVERY_ACK: 'DELIVERED',
+    DELIVERYACK: 'DELIVERED',
+    DELIVERED: 'DELIVERED',
+
+    READ: 'READ',
+    READ_ACK: 'READ',
+    READACK: 'READ',
+    PLAYED: 'READ',
+
+    ERROR: 'FAILED',
+    FAILED: 'FAILED',
+    FAILURE: 'FAILED'
+  };
+
+  return map[raw] || 'UNKNOWN';
+}
 
   function extractWhatsappStatusPayload(payload = {}) {
-    const data = payload?.data || payload?.body || payload;
-    const key = data?.key || data?.message?.key || payload?.key || {};
-    const update = data?.update || data?.messageUpdate || payload?.update || {};
+  const originalData = payload?.data ?? payload?.body ?? payload;
 
-    const messageId = String(
-      key?.id
-      || data?.messageId
-      || data?.id
-      || update?.messageId
-      || payload?.messageId
-      || ''
-    );
+  const data = Array.isArray(originalData)
+    ? originalData[0] || {}
+    : originalData || {};
 
-    const remoteJid = String(
-      key?.remoteJid
-      || data?.remoteJid
-      || update?.remoteJid
-      || payload?.remoteJid
-      || ''
-    );
+  const message = data?.message || {};
+  const key =
+    data?.key
+    || message?.key
+    || payload?.key
+    || {};
 
-    const rawStatus = String(
-      data?.status
-      || data?.ack
-      || update?.status
-      || update?.ack
-      || payload?.status
-      || payload?.ack
-      || ''
-    );
+  const update =
+    data?.update
+    || data?.messageUpdate
+    || message?.update
+    || payload?.update
+    || {};
 
-    return {
-      messageId,
-      remoteJid,
-      rawStatus,
-      status: normalizeWhatsappDeliveryStatus(rawStatus),
-      payload: redact(payload)
-    };
-  }
+  const messageId = String(
+    key?.id
+    || data?.messageId
+    || data?.message_id
+    || data?.id
+    || message?.messageId
+    || message?.id
+    || update?.messageId
+    || update?.message_id
+    || payload?.messageId
+    || payload?.message_id
+    || ''
+  ).trim();
+
+  const remoteJid = String(
+    key?.remoteJid
+    || key?.remoteJidAlt
+    || data?.remoteJid
+    || data?.remote_jid
+    || message?.remoteJid
+    || update?.remoteJid
+    || payload?.remoteJid
+    || ''
+  ).trim();
+
+  const rawStatusValue =
+    update?.status
+    ?? update?.ack
+    ?? data?.status
+    ?? data?.ack
+    ?? message?.status
+    ?? message?.ack
+    ?? payload?.status
+    ?? payload?.ack
+    ?? '';
+
+  const rawStatus = String(rawStatusValue ?? '').trim();
+
+  return {
+    messageId,
+    remoteJid,
+    rawStatus,
+    status: normalizeWhatsappDeliveryStatus(rawStatus),
+    payload: redact(payload)
+  };
+}
 
   function applyWhatsappDeliveryStatus(log, statusData = {}) {
     const now = new Date();
