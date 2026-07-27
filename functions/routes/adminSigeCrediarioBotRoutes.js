@@ -3121,11 +3121,77 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       ok: true,
       url,
       instanceName: cfg.instanceName,
-      data: response.data || null,
+      data: sanitizeFinanceiroWhatsappProviderData(response.data || null),
       status: response.status
     };
   }
 
+  // FASE 19.0.3 - Proteção de segredos e dados pessoais nas respostas administrativas.
+  function sanitizeFinanceiroWhatsappProviderData(data = null) {
+    if (data === null || data === undefined) return data;
+    const safe = redact(data);
+    if (!safe || typeof safe !== 'object') return safe;
+    const cloned = JSON.parse(JSON.stringify(safe));
+
+    if (cloned.headers && typeof cloned.headers === 'object') {
+      for (const key of Object.keys(cloned.headers)) {
+        cloned.headers[key] = cloned.headers[key] ? 'CONFIGURADO' : '';
+      }
+    }
+
+    for (const key of Object.keys(cloned)) {
+      if (/token|authorization|apikey|api[-_]?key|secret|password/i.test(key)) {
+        cloned[key] = cloned[key] ? 'CONFIGURADO' : '';
+      }
+    }
+
+    return cloned;
+  }
+
+  function maskFinanceiroWhatsappPhone(value = '') {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) return '';
+    const final = digits.slice(-4);
+    return `${'*'.repeat(Math.max(4, digits.length - 4))}${final}`;
+  }
+
+  function maskFinanceiroWhatsappName(value = '') {
+    const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '';
+    return `${words[0]} ${'*'.repeat(Math.max(3, words.slice(1).join(' ').length || 3))}`;
+  }
+
+  function sanitizeFinanceiroWhatsappMonitorRecord(row = {}) {
+    const item = row && typeof row.toObject === 'function' ? row.toObject() : { ...(row || {}) };
+    return {
+      _id: item._id,
+      origem: item.origem || '',
+      tipoEvento: item.tipoEvento || '',
+      dataReferencia: item.dataReferencia || '',
+      clienteNome: maskFinanceiroWhatsappName(item.clienteNome),
+      telefone: maskFinanceiroWhatsappPhone(item.telefone),
+      parcelaLabel: item.parcelaLabel || '',
+      diasAtraso: Number(item.diasAtraso || 0),
+      valor: Number(item.valor || 0),
+      dryRun: Boolean(item.dryRun),
+      enviado: Boolean(item.enviado),
+      enviadoEm: item.enviadoEm || null,
+      deliveryStatus: item.deliveryStatus || 'UNKNOWN',
+      deliveryStatusUpdatedAt: item.deliveryStatusUpdatedAt || null,
+      sentAt: item.sentAt || null,
+      deliveredAt: item.deliveredAt || null,
+      readAt: item.readAt || null,
+      retryCount: Number(item.retryCount || 0),
+      erro: item.erro ? 'REGISTRADO' : '',
+      ackHistory: Array.isArray(item.ackHistory)
+        ? item.ackHistory.slice(-10).map((ack) => ({
+            em: ack?.em || null,
+            status: ack?.status || 'UNKNOWN',
+            rawStatus: ack?.rawStatus || ''
+          }))
+        : []
+    };
+  }
   async function configurarWebhookEvolutionFinanceiro({
     req = {},
     enabled = true,
@@ -3226,7 +3292,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         url: finalUrl,
         events: payload.events,
         tokenHeaderConfigured: Boolean(webhookToken),
-        providerResponse: redact(response.data || null)
+        providerResponse: sanitizeFinanceiroWhatsappProviderData(response.data || null)
       }
     });
 
@@ -3238,7 +3304,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       webhookUrl: finalUrl,
       events: payload.events,
       tokenHeaderConfigured: Boolean(webhookToken),
-      data: response.data || null,
+      data: sanitizeFinanceiroWhatsappProviderData(response.data || null),
       status: response.status
     };
   }
@@ -5159,7 +5225,15 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           minutosPendente: req.query.minutosPendente || 15,
           limite: req.query.limit || 50
         });
-        return res.json({ ok: true, monitor });
+        return res.json({
+          ok: true,
+          monitor: {
+            ...monitor,
+            recentes: Array.isArray(monitor?.recentes)
+              ? monitor.recentes.map(sanitizeFinanceiroWhatsappMonitorRecord)
+              : []
+          }
+        });
       } catch (error) {
         return res.status(500).json({
           ok: false,
