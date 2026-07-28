@@ -131,6 +131,8 @@ console.log(`📁 Uploads em: ${uploadsDir}`);
 const allowedOrigins = [
   'http://127.0.0.1:5500',
   'http://localhost:5500',
+  'http://127.0.0.1:3000',
+  'http://localhost:3000',
   'https://ariana-moveis-oficial.onrender.com',
   'https://ariana-moveis.onrender.com',
   'https://arianamoveis.com.br',
@@ -141,57 +143,96 @@ const allowedOrigins = [
 
 const envFrontendOrigins = String(process.env.FRONTEND_URLS || '')
   .split(',')
-  .map((item) => item.trim())
+  .map((item) => item.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
-const dynamicAllowedOrigins = Array.from(new Set([...allowedOrigins, ...envFrontendOrigins]));
+const dynamicAllowedOrigins = Array.from(new Set(
+  [...allowedOrigins, ...envFrontendOrigins]
+    .map((origin) => String(origin || '').trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+));
+
+function normalizeCorsOrigin(origin = '') {
+  return String(origin || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+const normalizedAllowedOrigins = new Set(
+  dynamicAllowedOrigins.map(normalizeCorsOrigin)
+);
 
 function isAllowedOrigin(origin = '') {
+  // Requisições de servidor, Postman, webhooks e aplicativos podem não enviar Origin.
   if (!origin) return true;
-  if (dynamicAllowedOrigins.includes(origin)) return true;
-  return /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
+
+  const normalized = normalizeCorsOrigin(origin);
+  if (normalizedAllowedOrigins.has(normalized)) return true;
+
+  // Domínios oficiais da Ariana Móveis.
+  if (/^https:\/\/(www\.)?arianamoveis\.(com\.br|site)$/i.test(normalized)) return true;
+
+  // Ambientes de homologação publicados na Render.
+  if (/^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(normalized)) return true;
+
+  // Desenvolvimento local em qualquer porta.
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized)) return true;
+
+  return false;
 }
+
+const corsAllowedHeaders = [
+  'Origin',
+  'X-Requested-With',
+  'Content-Type',
+  'Accept',
+  'Authorization',
+  'Cache-Control',
+  'Pragma',
+  'x-ariana-key',
+  'X-Ariana-Key',
+  'x-api-key',
+  'X-API-Key',
+  'x-webhook-signature',
+  'X-Webhook-Signature'
+];
 
 const corsOptions = {
   origin(origin, callback) {
     if (isAllowedOrigin(origin)) return callback(null, true);
-    return callback(new Error(`CORS bloqueado: ${origin}`));
+    console.warn('[CORS BLOQUEADO]', origin);
+    return callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-    'Origin',
-    'x-ariana-key',
-    'X-Ariana-Key',
-    'x-api-key',
-    'X-API-Key',
-    'x-webhook-signature',
-    'X-Webhook-Signature'
-  ],
+  allowedHeaders: corsAllowedHeaders,
   exposedHeaders: ['Content-Length', 'Content-Type'],
-  credentials: false,
-  optionsSuccessStatus: 204,
+  credentials: true,
+  optionsSuccessStatus: 204
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-// Headers extras para o API Explorer Ariana Enterprise.
-// Permite que o navegador envie x-ariana-key, Bearer e assinaturas de webhook sem bloquear no preflight CORS.
+// CORS precisa vir antes de express.json() e antes de todas as rotas.
+// Este middleware manual garante os cabeçalhos também nas respostas OPTIONS.
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  const origin = String(req.headers.origin || '').trim();
+
   if (origin && isAllowedOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
+
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-ariana-key, X-Ariana-Key, x-api-key, X-API-Key, x-webhook-signature, X-Webhook-Signature');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  res.setHeader('Access-Control-Allow-Headers', corsAllowedHeaders.join(','));
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req.method === 'OPTIONS') {
+    if (!origin || isAllowedOrigin(origin)) return res.sendStatus(204);
+    return res.status(403).json({ ok: false, error: 'Origem não autorizada pelo CORS.' });
+  }
+
   return next();
 });
+
+app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 

@@ -19,3 +19,4 @@ functions/.env
 functions/cora-secrets/
 *.backup
 .env*
+backups/

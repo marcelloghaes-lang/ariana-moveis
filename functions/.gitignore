@@ -15,3 +15,11 @@ functions/.env
 !firestore.rules
 !storage.rules
 functions/cora-secrets/
+node_modules
+.env
+functions/.env
+functions/cora-secrets/
+*.backup
+.env*
+backups/
+*.env*

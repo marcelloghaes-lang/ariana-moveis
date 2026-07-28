@@ -17,3 +17,28 @@ functions/.env
 node_modules
 node_modules
 functions/cora-secrets/
+# Bloqueio total de chaves (Segurança Máxima)
+*.json
+ariana-moveis-final-*.json
+*-adminsdk-*.json
+service-account.json
+.env
+backend/.env
+functions/.env
+
+# Abrir exceção APENAS para arquivos de configuração do sistema
+!package.json
+!package-lock.json
+!firebase.json
+!firestore.indexes.json
+!firestore.rules
+!storage.rules
+functions/cora-secrets/
+node_modules
+.env
+functions/.env
+functions/cora-secrets/
+*.backup
+.env*
+backups/
+*.env*
