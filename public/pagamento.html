@@ -18,9 +18,9 @@
       outline:none;
       background:#fff;
     }
-    .mp-input:focus{ box-shadow:0 0 0 3px rgba(119,208,255,.20); border-color:#77D0FF; }
+    .mp-input:focus{ box-shadow:0 0 0 3px rgba(86,181,255,.22); border-color:#56B5FF; }
     .btn-primary{
-      background:#0B4AA2;
+      background:#2E6DA4;
       color:#fff;
       font-weight:800;
       border-radius:1rem;
@@ -42,13 +42,34 @@
       align-items:center;
       gap:1rem;
     }
-    .btn-choice:hover{ border-color:#0B4AA2; background:#EFF6FF; }
-    .btn-choice.active{ border-color:#0B4AA2; background:#EFF6FF; box-shadow:0 0 0 3px rgba(11,74,162,.10); }
+    .btn-choice:hover{ border-color:#2E6DA4; background:#EEF7FF; }
+    .btn-choice.active{ border-color:#2E6DA4; background:#EEF7FF; box-shadow:0 0 0 3px rgba(46,109,164,.12); }
 
     /* A forma de pagamento já é escolhida no checkout original. */
     #section-choice{ display:none !important; }
   </style>
 <link rel="stylesheet" href="checkout-ariana.css">
+
+<style id="ariana-brand-consistency">
+  :root{
+    --ariana-blue:#2E6DA4;
+    --ariana-blue-dark:#245A88;
+    --ariana-blue-light:#56B5FF;
+    --ariana-blue-soft:#EEF7FF;
+    --ariana-yellow:#FFD400;
+  }
+  body{background:#f6f8fc;color:#172033;}
+  .ar-header{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-logo,.ar-secure{color:#fff!important;}
+  .ar-primary,.btn-primary{background:var(--ariana-blue)!important;color:#fff!important;border-color:var(--ariana-blue)!important;}
+  .ar-primary:hover,.btn-primary:hover{background:var(--ariana-blue-dark)!important;}
+  .ar-secondary{background:#fff!important;color:var(--ariana-blue)!important;border:2px solid var(--ariana-blue)!important;}
+  .ar-secondary:hover{background:var(--ariana-blue-soft)!important;}
+  .ar-title,.ar-card-title,.text-primary-blue{color:var(--ariana-blue)!important;}
+  .ar-step.is-active .ar-step-dot,.ar-step-dot.is-active{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-field:focus,.mp-input:focus{border-color:var(--ariana-blue-light)!important;box-shadow:0 0 0 3px rgba(119,208,255,.24)!important;}
+  .pay-method.active,.ar-action-row.is-selected,.btn-choice.active{border-color:var(--ariana-blue)!important;background:var(--ariana-blue-soft)!important;}
+</style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans leading-relaxed">
   <header class="ar-header"><div class="ar-header-inner"><a class="ar-logo" href="index.html">ARIANA MÓVEIS</a><div class="ar-secure">🔒 Ambiente seguro</div></div></header>

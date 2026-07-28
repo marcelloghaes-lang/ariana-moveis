@@ -10,9 +10,30 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
   <link rel="stylesheet" href="checkout-ariana.css">
+
+<style id="ariana-brand-consistency">
+  :root{
+    --ariana-blue:#2E6DA4;
+    --ariana-blue-dark:#245A88;
+    --ariana-blue-light:#56B5FF;
+    --ariana-blue-soft:#EEF7FF;
+    --ariana-yellow:#FFD400;
+  }
+  body{background:#f6f8fc;color:#172033;}
+  .ar-header{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-logo,.ar-secure{color:#fff!important;}
+  .ar-primary,.btn-primary{background:var(--ariana-blue)!important;color:#fff!important;border-color:var(--ariana-blue)!important;}
+  .ar-primary:hover,.btn-primary:hover{background:var(--ariana-blue-dark)!important;}
+  .ar-secondary{background:#fff!important;color:var(--ariana-blue)!important;border:2px solid var(--ariana-blue)!important;}
+  .ar-secondary:hover{background:var(--ariana-blue-soft)!important;}
+  .ar-title,.ar-card-title,.text-primary-blue{color:var(--ariana-blue)!important;}
+  .ar-step.is-active .ar-step-dot,.ar-step-dot.is-active{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-field:focus,.mp-input:focus{border-color:var(--ariana-blue-light)!important;box-shadow:0 0 0 3px rgba(119,208,255,.24)!important;}
+  .pay-method.active,.ar-action-row.is-selected,.btn-choice.active{border-color:var(--ariana-blue)!important;background:var(--ariana-blue-soft)!important;}
+</style>
 </head>
 <body>
-<div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:#f7f8fa;display:flex;align-items:center;justify-content:center;color:#0B4AA2;font-weight:800">Carregando...</div>
+<div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:#f7f8fa;display:flex;align-items:center;justify-content:center;color:#2E6DA4;font-weight:800">Carregando...</div>
 <header class="ar-header">
   <div class="ar-header-inner">
     <a class="ar-logo" href="index.html">ARIANA MÓVEIS</a>
@@ -33,7 +54,7 @@
         <div class="ar-card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:15px">
             <h2 class="ar-card-title" style="margin:0">Endereço de entrega</h2>
-            <a href="minha_conta.html?tab=address&amp;from=checkout" style="color:#0B4AA2;font-size:13px;font-weight:800">Cadastrar novo endereço</a>
+            <a href="minha_conta.html?tab=address&amp;from=checkout" style="color:#2E6DA4;font-size:13px;font-weight:800">Cadastrar novo endereço</a>
           </div>
           <p class="ar-card-subtitle" style="margin-top:9px">Escolha um endereço já cadastrado.</p>
           <div id="address-options"></div>
@@ -482,9 +503,10 @@ const computeCartTotal = () =>
     }
 
     function isArianaSeller(item) {
-      const sid = String(item && item.sellerId ? item.sellerId : 'admin').toLowerCase().trim();
-      const sname = String(item && item.sellerName ? item.sellerName : 'Ariana Móveis').toLowerCase();
-      return sid === 'admin' || sname.indexOf('ariana') !== -1;
+      const sid = String(item?.sellerId || item?.seller_id || '').toLowerCase().trim();
+      const sname = String(item?.sellerName || item?.soldBy || item?.storeName || item?.vendorName || '').toLowerCase().trim();
+      if (!sid && !sname) return true;
+      return sid === 'admin' || sid === 'ariana' || sid.includes('ariana') || sname.includes('ariana');
     }
 
     function isArianaOrderFromCartItems(items) {

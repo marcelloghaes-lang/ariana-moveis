@@ -56,6 +56,27 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
 })();
 </script>
 
+
+<style id="ariana-brand-consistency">
+  :root{
+    --ariana-blue:#2E6DA4;
+    --ariana-blue-dark:#245A88;
+    --ariana-blue-light:#56B5FF;
+    --ariana-blue-soft:#EEF7FF;
+    --ariana-yellow:#FFD400;
+  }
+  body{background:#f6f8fc;color:#172033;}
+  .ar-header{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-logo,.ar-secure{color:#fff!important;}
+  .ar-primary,.btn-primary{background:var(--ariana-blue)!important;color:#fff!important;border-color:var(--ariana-blue)!important;}
+  .ar-primary:hover,.btn-primary:hover{background:var(--ariana-blue-dark)!important;}
+  .ar-secondary{background:#fff!important;color:var(--ariana-blue)!important;border:2px solid var(--ariana-blue)!important;}
+  .ar-secondary:hover{background:var(--ariana-blue-soft)!important;}
+  .ar-title,.ar-card-title,.text-primary-blue{color:var(--ariana-blue)!important;}
+  .ar-step.is-active .ar-step-dot,.ar-step-dot.is-active{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-field:focus,.mp-input:focus{border-color:var(--ariana-blue-light)!important;box-shadow:0 0 0 3px rgba(119,208,255,.24)!important;}
+  .pay-method.active,.ar-action-row.is-selected,.btn-choice.active{border-color:var(--ariana-blue)!important;background:var(--ariana-blue-soft)!important;}
+</style>
 </head>
 
 <style>
@@ -159,7 +180,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             position: absolute;
             top: -5px;
             right: -10px;
-            background-color: #0B4AA2;
+            background-color: #2E6DA4;
             color: white;
             border-radius: 9999px;
             padding: 0 6px;
@@ -233,7 +254,7 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
         }
 
         .thumbnail-image.active {
-            border-color: #0B4AA2;
+            border-color: #2E6DA4;
         }
 
         #thumbnail-gallery {
@@ -245,9 +266,9 @@ window.resolveApiImageUrl = window.resolveApiImageUrl || function(value){
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #EFF6FF;
-            border: 2px dashed #77D0FF;
-            color: #0B4AA2;
+            background-color: #EEF7FF;
+            border: 2px dashed #56B5FF;
+            color: #2E6DA4;
             font-weight: bold;
             border-radius: 8px;
             text-align: center;
@@ -2242,7 +2263,7 @@ function updateClientHeaderUI(user) {
 function normalizeQuoteOption(q, raw) {
     if (!q || typeof q !== 'object' || q.unavailable) return null;
     const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
-    if (!Number.isFinite(price)) return null;
+    if (!Number.isFinite(price) || price < 0) return null;
     const deadlineDays = Number(q.deadlineDays ?? q.prazoDias ?? q.prazoEntrega ?? q.deadline ?? 0) || null;
     return {
         service: q.service || q.coProduto || q.name || q.label || 'frete',
@@ -2260,9 +2281,8 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
     const ship = pickProductShippingData();
     const qty = Math.max(1, Number(quantity || 1) || 1);
     const cep = sanitizeCep(cepDestino);
-    const unitPrice = safeNumber((productData && (productData.price ?? productData.preco)), 0);
+    const unitPrice = safeNumber((productData && (productData.sellerBasePrice ?? productData.pixPrice ?? productData.price ?? productData.preco)), 0);
     const arianaProduct = isArianaProduct(productData);
-    const snDigitalProduct = isSNDigitalProduct(productData);
     const payload = {
         cepDestino: cep,
         destinationCep: cep,
@@ -2270,23 +2290,23 @@ async function quoteUnifiedShipping(cepDestino, quantity) {
         pesoKg: ship.pesoKg,
         weightKg: ship.pesoKg,
         weight: ship.pesoKg,
+        subtotal: unitPrice * qty,
+        total: unitPrice * qty,
         productPrice: unitPrice * qty,
         invoiceValue: unitPrice * qty,
         valorNota: unitPrice * qty,
-        sellerId: productData?.sellerId || null,
+        sellerId: productData?.sellerId || 'admin',
         sellerName: productData?.sellerName || productData?.soldBy || 'Ariana Móveis',
-        shippingRule: (arianaProduct || snDigitalProduct) ? 'ariana_local' : undefined,
-        isArianaOrder: arianaProduct || snDigitalProduct,
-        useArianaLocalRule: arianaProduct || snDigitalProduct,
-        useArianaLogistics: arianaProduct || snDigitalProduct,
-        enableArianaLogistics: arianaProduct || snDigitalProduct,
+        // O backend aplica as regras configuradas (Ariana Entrega, Rodocap,
+        // Correios ou Frenet). O frontend apenas informa se o pedido é Ariana.
+        isArianaOrder: arianaProduct,
         quantity: qty,
         items: [{
             id: productData?._id || productData?.id || null,
             productId: productData?._id || productData?.id || null,
             name: productData?.name || productData?.nome || 'Produto',
-            sellerId: productData?.sellerId || null,
-            sellerName: productData?.sellerName || productData?.soldBy || null,
+            sellerId: productData?.sellerId || 'admin',
+            sellerName: productData?.sellerName || productData?.soldBy || 'Ariana Móveis',
             quantity: qty,
             qty,
             unitPrice,
@@ -2462,7 +2482,7 @@ function renderShippingQuotes(result, cep) {
                 return `
                   <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary-blue cursor-pointer">
                     <div class="flex items-center gap-3">
-                      <input type="radio" name="shippingOption" value="${q.service}" data-price="${price}" data-name="${name}" class="accent-[#0B4AA2]" ${checked}>
+                      <input type="radio" name="shippingOption" value="${q.service}" data-price="${price}" data-name="${name}" class="accent-[#2E6DA4]" ${checked}>
                       <div class="flex flex-col">
                         <span class="font-semibold text-text-dark">${name}</span>
                         <span class="text-xs text-gray-500">Prazo: ${deadline}</span>

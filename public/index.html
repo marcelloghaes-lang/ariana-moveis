@@ -1638,6 +1638,102 @@ const __homeGetUsedIds = (excludeSections = []) => {
   return used;
 };
 
+
+
+const __homeNormalizeText = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+const __homeProductSearchText = (product = {}) => __homeNormalizeText([
+  product.name, product.nome, product.title, product.slug,
+  product.category, product.categoria, product.categoryName, product.categorySlug,
+  product.subcategory, product.subcategoryName, product.subcategorySlug,
+  product.department, product.departamento, product.brand, product.marca
+].filter(Boolean).join(' '));
+
+const __homeIncludesAny = (text, terms = []) => terms.some((term) => text.includes(term));
+
+const __homeFurnitureTerms = [
+  'moveis', 'movel', 'sofa', 'poltrona', 'rack', 'painel', 'estante',
+  'guarda roupa', 'roupeiro', 'comoda', 'criado mudo', 'mesa', 'cadeira',
+  'conjunto de jantar', 'sala de jantar', 'cama', 'colchao', 'box',
+  'cabeceira', 'armario', 'balcao', 'cozinha modulada', 'escrivaninha',
+  'home office', 'sapateira', 'aparador', 'buffet', 'banqueta'
+];
+
+const __homeApplianceElectronicTerms = [
+  'eletrodomestico', 'eletrodomesticos', 'eletroeletronico', 'eletronico',
+  'geladeira', 'refrigerador', 'freezer', 'fogao', 'cooktop', 'forno',
+  'microondas', 'micro ondas', 'lavadora', 'maquina de lavar', 'tanquinho',
+  'secadora', 'lava loucas', 'aspirador', 'ventilador', 'climatizador',
+  'ar condicionado', 'bebedouro', 'purificador', 'liquidificador',
+  'batedeira', 'cafeteira', 'air fryer', 'fritadeira', 'sanduicheira',
+  'ferro de passar', 'tv', 'smart tv', 'televisor', 'caixa de som',
+  'soundbar', 'home theater', 'radio', 'fone', 'headset', 'earbud',
+  'smartphone', 'celular', 'tablet', 'notebook', 'computador', 'monitor',
+  'impressora', 'roteador', 'modem', 'camera', 'video game', 'console'
+];
+
+const __homeIsFurniture = (product) => {
+  const text = __homeProductSearchText(product);
+  return __homeIncludesAny(text, __homeFurnitureTerms);
+};
+
+const __homeIsApplianceOrElectronic = (product) => {
+  const text = __homeProductSearchText(product);
+  return __homeIncludesAny(text, __homeApplianceElectronicTerms) && !__homeIsFurniture(product);
+};
+
+const __homeCategoryKey = (product = {}) => {
+  const explicit = __homeNormalizeText(
+    product.categoryName || product.category || product.categoria ||
+    product.subcategoryName || product.subcategory || product.department || product.departamento || ''
+  );
+  if (explicit) return explicit;
+
+  const text = __homeProductSearchText(product);
+  const groups = [
+    ['sofas e poltronas', ['sofa', 'poltrona']],
+    ['quarto', ['guarda roupa', 'roupeiro', 'comoda', 'cama', 'colchao', 'cabeceira', 'criado mudo']],
+    ['sala e jantar', ['rack', 'painel', 'estante', 'mesa', 'cadeira', 'conjunto de jantar', 'buffet', 'aparador']],
+    ['cozinha moveis', ['armario', 'balcao', 'cozinha modulada']],
+    ['refrigeracao', ['geladeira', 'refrigerador', 'freezer']],
+    ['cozinha eletro', ['fogao', 'cooktop', 'forno', 'microondas', 'micro ondas', 'air fryer', 'fritadeira']],
+    ['lavanderia', ['lavadora', 'maquina de lavar', 'tanquinho', 'secadora']],
+    ['climatizacao', ['ventilador', 'climatizador', 'ar condicionado']],
+    ['audio', ['caixa de som', 'soundbar', 'fone', 'headset', 'earbud', 'radio']],
+    ['televisores', ['smart tv', 'televisor', ' tv ']],
+    ['celulares', ['smartphone', 'celular', 'iphone', 'galaxy', 'moto g', 'xiaomi', 'redmi']],
+    ['informatica', ['notebook', 'computador', 'monitor', 'impressora', 'roteador', 'modem']],
+    ['acessorios', ['cabo', 'suporte', 'carregador', 'pelicula', 'capinha', 'case']]
+  ];
+  const found = groups.find(([, terms]) => __homeIncludesAny(` ${text} `, terms));
+  return found ? found[0] : `outros-${__homeNormalizeText(product.brand || product.marca || product.name || product.nome || 'produto').split(' ')[0] || 'produto'}`;
+};
+
+const __homeTakeCategoryBalanced = (source, limit, excludeIds = new Set(), maxPerCategory = 2) => {
+  const result = [];
+  const seen = new Set();
+  const categoryCounts = new Map();
+
+  for (const product of Array.isArray(source) ? source : []) {
+    const key = __homeGetProductKey(product);
+    if (!key || excludeIds.has(key) || seen.has(key)) continue;
+    const category = __homeCategoryKey(product);
+    const count = categoryCounts.get(category) || 0;
+    if (count >= maxPerCategory) continue;
+    result.push(product);
+    seen.add(key);
+    categoryCounts.set(category, count + 1);
+    if (result.length >= limit) break;
+  }
+
+  return result;
+};
+
 const loadProducts = async () => {
   const loadingContainer = document.getElementById('loading-container');
   const productGrid = document.getElementById('featured-product-grid');
@@ -1701,9 +1797,11 @@ const loadProducts = async () => {
       };
     });
 
+    // 1ª seção: somente móveis.
+    const furnitureSource = __homeSortByRecent(allProducts.filter(__homeIsFurniture));
     const featuredPick = __homeSaveSelection(
       'featured',
-      __homeTakeUnique(__homeSortByRecent(allProducts), HOME_SECTION_LIMITS.featured)
+      __homeTakeUnique(furnitureSource, HOME_SECTION_LIMITS.featured)
     );
 
     if (productGrid) {
@@ -1730,9 +1828,12 @@ const loadOffers = () => {
   if (!section) return;
 
   const usedIds = __homeGetUsedIds(['offers']);
-  const flagged = allProducts.filter((p) => p.isOffer === true || (Array.isArray(p.homeSections) && p.homeSections.includes('offers')));
-  const fallback = __homeSortByRecent(allProducts);
-  const source = flagged.length > 0 ? __homeSortByRecent(flagged) : fallback;
+  // 2ª seção: somente eletrodomésticos e eletroeletrônicos.
+  const eligible = allProducts.filter(__homeIsApplianceOrElectronic);
+  const flagged = eligible.filter((p) => p.isOffer === true || (Array.isArray(p.homeSections) && p.homeSections.includes('offers')));
+  const source = flagged.length > 0
+    ? [...__homeSortByRecent(flagged), ...__homeSortByRecent(eligible.filter((p) => !flagged.includes(p)))]
+    : __homeSortByRecent(eligible);
   const pick = __homeSaveSelection('offers', __homeTakeUnique(source, HOME_SECTION_LIMITS.offers, usedIds));
 
   if (pick.length > 0) {
@@ -1767,7 +1868,11 @@ const loadRecommended = () => {
     );
   }
 
-  const pick = __homeSaveSelection('recommended', __homeTakeUnique(source, HOME_SECTION_LIMITS.recommended, usedIds));
+  // 3ª seção: produtos variados, com no máximo 2 itens da mesma categoria.
+  const pick = __homeSaveSelection(
+    'recommended',
+    __homeTakeCategoryBalanced(source, HOME_SECTION_LIMITS.recommended, usedIds, 2)
+  );
 
   if (pick.length > 0) {
     renderProductCards(pick, 'recommended-grid');

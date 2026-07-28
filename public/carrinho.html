@@ -10,6 +10,27 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
   <link rel="stylesheet" href="checkout-ariana.css">
+
+<style id="ariana-brand-consistency">
+  :root{
+    --ariana-blue:#2E6DA4;
+    --ariana-blue-dark:#245A88;
+    --ariana-blue-light:#56B5FF;
+    --ariana-blue-soft:#EEF7FF;
+    --ariana-yellow:#FFD400;
+  }
+  body{background:#f6f8fc;color:#172033;}
+  .ar-header{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-logo,.ar-secure{color:#fff!important;}
+  .ar-primary,.btn-primary{background:var(--ariana-blue)!important;color:#fff!important;border-color:var(--ariana-blue)!important;}
+  .ar-primary:hover,.btn-primary:hover{background:var(--ariana-blue-dark)!important;}
+  .ar-secondary{background:#fff!important;color:var(--ariana-blue)!important;border:2px solid var(--ariana-blue)!important;}
+  .ar-secondary:hover{background:var(--ariana-blue-soft)!important;}
+  .ar-title,.ar-card-title,.text-primary-blue{color:var(--ariana-blue)!important;}
+  .ar-step.is-active .ar-step-dot,.ar-step-dot.is-active{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-field:focus,.mp-input:focus{border-color:var(--ariana-blue-light)!important;box-shadow:0 0 0 3px rgba(119,208,255,.24)!important;}
+  .pay-method.active,.ar-action-row.is-selected,.btn-choice.active{border-color:var(--ariana-blue)!important;background:var(--ariana-blue-soft)!important;}
+</style>
 </head>
 <body>
 <header class="ar-header">
@@ -218,9 +239,11 @@
     }
 
     function isArianaSeller(item) {
-      const sid = String(item && item.sellerId ? item.sellerId : 'admin').toLowerCase().trim();
-      const sname = String(item && item.sellerName ? item.sellerName : 'Ariana Móveis').toLowerCase();
-      return sid === 'admin' || sname.indexOf('ariana') !== -1;
+      const sid = String(item?.sellerId || item?.seller_id || '').toLowerCase().trim();
+      const sname = String(item?.sellerName || item?.soldBy || item?.storeName || item?.vendorName || '').toLowerCase().trim();
+      // Produtos antigos da própria loja nem sempre possuem sellerId gravado.
+      if (!sid && !sname) return true;
+      return sid === 'admin' || sid === 'ariana' || sid.includes('ariana') || sname.includes('ariana');
     }
 
     function isArianaOrderFromCartItems(items) {
@@ -315,11 +338,9 @@
       const price = parseShippingMoney(rawPrice);
       if (!Number.isFinite(price) || price < 0) return null;
 
-      const explicitFree = isExplicitFreeShipping(q);
-
-      // Valor zero sem uma regra explícita de gratuidade normalmente significa
-      // cotação incompleta/indisponível. Nunca transformamos isso em "Frete grátis".
-      if (price === 0 && !explicitFree) return null;
+      // A rota unificada pode devolver R$ 0,00 para a regra regional/gratuita
+      // mesmo sem uma flag específica. O checkout já aceita esse retorno.
+      const explicitFree = price === 0 || isExplicitFreeShipping(q);
 
       return {
         price,
@@ -395,7 +416,7 @@
         const checked = String(option.service) === String(selectedService) || (!selectedService && index === 0);
         const priceLabel = option.explicitFree ? 'Grátis' : window.formatPrice(option.price);
         return `
-          <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid ${checked ? '#0B4AA2' : '#d7dee8'};padding:12px 14px;background:${checked ? '#eef5ff' : '#fff'};cursor:pointer">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid ${checked ? '#2E6DA4' : '#d7dee8'};padding:12px 14px;background:${checked ? '#eef5ff' : '#fff'};cursor:pointer">
             <span style="display:flex;align-items:flex-start;gap:10px;min-width:0">
               <input type="radio" name="shipping-option" value="${String(option.service).replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} style="margin-top:3px">
               <span>
@@ -403,7 +424,7 @@
                 <small style="color:#667085">${option.carrier || ''}${formatShippingDeadline(option)}</small>
               </span>
             </span>
-            <strong style="white-space:nowrap;color:#0B4AA2">${priceLabel}</strong>
+            <strong style="white-space:nowrap;color:#2E6DA4">${priceLabel}</strong>
           </label>`;
       }).join('');
 
@@ -484,11 +505,9 @@
         items: buildShippingItemsPayload(),
         sellerId: cartItems[0]?.sellerId || null,
         sellerName: cartItems[0]?.sellerName || cartItems[0]?.soldBy || 'Ariana Móveis',
-        isArianaOrder: isArianaOrderFromCartItems(cartItems),
-        useArianaLocalRule: isArianaOrderFromCartItems(cartItems),
-        useArianaLogistics: isArianaOrderFromCartItems(cartItems),
-        enableArianaLogistics: isArianaOrderFromCartItems(cartItems),
-        shippingRule: isArianaOrderFromCartItems(cartItems) ? 'ariana_local' : undefined
+        // A rota unificada identifica e aplica as regras salvas no painel.
+        // Não forçamos uma regra fixa no frontend.
+        isArianaOrder: isArianaOrderFromCartItems(cartItems)
       };
 
       const apiBase = (localStorage.getItem('API_BASE') || window.API_BASE || API_BASE || '').replace(/\/+$/, '');
