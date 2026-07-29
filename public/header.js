@@ -1179,6 +1179,57 @@ function carregarHeader() {
         text-shadow: 0 2px 10px rgba(255,255,255,.18);
         filter: drop-shadow(0 10px 18px rgba(0,0,0,.22));
       }
+
+      /* Layout do topo sem depender das classes arbitrárias do Tailwind compilado. */
+      .ariana-header-main-row{
+        display:flex;
+        align-items:center;
+        gap:12px;
+      }
+      .ariana-header-brand{
+        display:flex;
+        align-items:center;
+        flex:1 1 auto;
+        min-width:0;
+      }
+      .ariana-header-search-desktop{display:none;}
+      .ariana-header-actions{
+        display:flex;
+        align-items:center;
+        flex:0 0 auto;
+        gap:4px;
+      }
+      @media (min-width:1024px){
+        .ariana-header-main-row{
+          display:grid !important;
+          grid-template-columns:320px minmax(420px, 1fr) 270px;
+          align-items:center;
+          column-gap:24px;
+        }
+        .ariana-header-brand{
+          width:320px;
+          min-width:320px;
+          justify-self:start;
+        }
+        .ariana-header-search-desktop{
+          display:flex !important;
+          width:100%;
+          max-width:920px;
+          min-width:0;
+          margin:0 auto;
+          justify-self:center;
+        }
+        .ariana-header-actions{
+          width:270px;
+          justify-content:flex-end;
+          justify-self:end;
+          gap:24px;
+        }
+      }
+      @media (max-width:1023px){
+        .ariana-header-main-row{justify-content:space-between;}
+        .ariana-header-brand{max-width:calc(100% - 150px);}
+      }
     </style>
 
     <div class="hidden md:block bg-gray-50 text-gray-500 text-[11px] border-b border-gray-200">
@@ -1203,9 +1254,9 @@ function carregarHeader() {
     </div>
 
     <div class="bg-primary-blue text-white py-4 md:py-6">
-      <div class="max-w-[1440px] mx-auto px-3 sm:px-6 flex items-center gap-3 sm:gap-6 md:gap-10">
+      <div class="ariana-header-main-row max-w-[1440px] mx-auto px-3 sm:px-6">
 
-        <div class="flex items-center flex-1 md:flex-none min-w-0 md:min-w-[330px] pr-1 md:pr-2 gap-1 sm:gap-2 md:gap-3 overflow-visible">
+        <div class="ariana-header-brand pr-1 md:pr-2 gap-1 sm:gap-2 md:gap-3 overflow-visible">
           <a href="/" class="relative group flex items-center flex-shrink-0" aria-label="Ariana Móveis">
             <img
               src="assets/imagens/avatar-ariana.png"
@@ -1224,7 +1275,7 @@ function carregarHeader() {
           </a>
         </div>
 
-        <form class="hidden lg:flex flex-1 max-w-[920px] mx-auto group" onsubmit="window.applySearchFilter(event)">
+        <form class="ariana-header-search-desktop group" onsubmit="window.applySearchFilter(event)">
           <div class="relative flex w-full">
             <input type="search" id="search-input-desktop"
               placeholder="O que você está procurando hoje?"
@@ -1236,7 +1287,7 @@ function carregarHeader() {
           </div>
         </form>
 
-        <div class="flex items-center flex-shrink-0 gap-1 sm:gap-3 md:gap-8">
+        <div class="ariana-header-actions">
 
           <div class="relative">
             <button type="button" id="account-btn"
