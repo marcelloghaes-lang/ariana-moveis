@@ -66,7 +66,11 @@ function getModels(mongoose) {
 
   const analysisSchema = new mongoose.Schema({
     analysisId: { type: String, unique: true, index: true },
-    orderId: { type: String, required: true, index: true },
+    orderId: { type: String, default: '', index: true },
+    origin: { type: String, enum: ['SITE','LOJA_FISICA','WHATSAPP'], default: 'SITE', index: true },
+    conversationId: { type: String, default: '', index: true },
+    documentCollectionStatus: { type: String, default: 'NAO_INICIADA', index: true },
+    purchase: { type: mongoose.Schema.Types.Mixed, default: null },
     customerId: { type: String, default: '', index: true },
     customer: {
       name: { type: String, default: '' },
@@ -76,9 +80,9 @@ function getModels(mongoose) {
     },
     status: { type: String, enum: ANALYSIS_STATUSES, default: 'PENDENTE_ANALISE', index: true },
     baseAmountCents: { type: Number, required: true },
-    financedAmountCents: { type: Number, required: true },
-    installmentCount: { type: Number, required: true },
-    installmentDivisor: { type: Number, required: true },
+    financedAmountCents: { type: Number, default: 0 },
+    installmentCount: { type: Number, default: 0 },
+    installmentDivisor: { type: Number, default: 0 },
     firstDueDate: { type: String, default: '' },
     installmentPlan: { type: [mongoose.Schema.Types.Mixed], default: [] },
     requestedDocuments: { type: [String], default: [] },
@@ -242,6 +246,7 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
 
   async function updateOrder(orderId, set = {}) {
     const id = text(orderId, 120);
+    if (!id) return null;
     const query = mongoose.Types.ObjectId.isValid(id)
       ? { _id: new mongoose.Types.ObjectId(id) }
       : { $or: [{ orderId: id }, { code: id }, { number: id }, { externalId: id }] };
@@ -449,50 +454,190 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
 
       const plan = body.plan || body.crediario || {};
       const baseAmountCents = cents(plan.baseAmountCents || body.baseAmountCents);
-      const financedAmountCents = cents(plan.financedAmountCents || body.financedAmountCents);
-      const installmentCount = Number(plan.installmentCount || body.installments || 0);
-      const installmentDivisor = Number(plan.divisor || body.installmentDivisor || 0);
-      if (baseAmountCents <= 0 || financedAmountCents <= 0 || installmentCount < 1 || installmentCount > 15 || installmentDivisor <= 0) {
-        return res.status(400).json({ ok: false, error: 'Plano de crediário inválido.' });
+      if (baseAmountCents <= 0) {
+        return res.status(400).json({ ok: false, error: 'Valor-base do pedido inválido.' });
       }
 
+      // A escolha do plano acontece somente depois da aprovação.
+      const financedAmountCents = cents(plan.financedAmountCents || body.financedAmountCents) || baseAmountCents;
+      const installmentCount = Math.min(15, Math.max(0, Number(plan.installmentCount || body.installments || 0)));
+      const installmentDivisor = Math.max(0, Number(plan.divisor || body.installmentDivisor || 0));
       const customer = body.customer || order.customer || {};
+      const customerPhone = digits(
+        customer.phone || customer.telefone || order.customerPhone || order.phone ||
+        order.shippingAddress?.phone || order.billingAddress?.phone || order.customer?.phone
+      );
+
       const analysis = await Analysis.create({
-        analysisId: publicId('analise'), orderId,
+        analysisId: publicId('analise'),
+        orderId,
+        origin: 'SITE',
+        conversationId: '',
+        documentCollectionStatus: customerPhone ? 'CONVITE_ENVIADO' : 'AGUARDANDO_TELEFONE',
         customerId: String(req.user?._id || req.auth?.id || ''),
         customer: {
-          name: text(customer.name || customer.nome || order.customerName, 160),
-          document: digits(customer.document || customer.cpf || order.customerDocument),
-          email: text(customer.email || order.customerEmail, 160),
-          phone: digits(customer.phone || customer.telefone || order.customerPhone)
+          name: text(customer.name || customer.nome || order.customerName || order.customer?.name, 160),
+          document: digits(customer.document || customer.cpf || order.customerDocument || order.customer?.document),
+          email: text(customer.email || order.customerEmail || order.customer?.email, 160),
+          phone: customerPhone
         },
-        status: 'PENDENTE_ANALISE', baseAmountCents, financedAmountCents,
-        installmentCount, installmentDivisor,
+        status: customerPhone ? 'AGUARDANDO_DOCUMENTOS' : 'PENDENTE_ANALISE',
+        baseAmountCents,
+        financedAmountCents,
+        installmentCount,
+        installmentDivisor,
         firstDueDate: text(body.firstDueDate || plan.firstDueDate, 10),
         installmentPlan: Array.isArray(plan.installments) ? plan.installments : [],
-        history: [{ action: 'ANALYSIS_REQUESTED', toStatus: 'PENDENTE_ANALISE', actorId: String(req.user?._id || ''), actorName: text(req.user?.name || 'Cliente', 120) }]
+        internalNote: text(body.note || body.observacao, 3000),
+        purchase: {
+          source: 'SITE',
+          items: Array.isArray(body.checkoutDraft?.cart) ? body.checkoutDraft.cart.slice(0, 100) : [],
+          shipping: body.checkoutDraft?.shippingQuote || null,
+          totals: body.checkoutDraft?.totals || null
+        },
+        history: [{
+          action: 'ANALYSIS_REQUESTED',
+          toStatus: customerPhone ? 'AGUARDANDO_DOCUMENTOS' : 'PENDENTE_ANALISE',
+          actorId: String(req.user?._id || ''),
+          actorName: text(req.user?.name || 'Cliente', 120),
+          note: text(body.note || body.observacao, 1000),
+          metadata: { origin: 'SITE' }
+        }]
       });
 
       await updateOrder(orderId, {
-        paymentMethod: 'crediario_ariana', paymentStatus: 'PENDING_CREDIT_ANALYSIS',
-        status: 'pending_credit_analysis', statusLabel: 'Aguardando análise de crédito',
-        'crediario.analysisId': analysis.analysisId, 'crediario.analysisStatus': analysis.status,
-        'crediario.baseAmountCents': baseAmountCents, 'crediario.financedAmountCents': financedAmountCents,
-        'crediario.installmentCount': installmentCount, 'crediario.installmentDivisor': installmentDivisor,
-        'crediario.firstDueDate': analysis.firstDueDate, 'crediario.installmentPlan': analysis.installmentPlan
+        paymentMethod: 'crediario_ariana',
+        paymentStatus: 'PENDING_CREDIT_ANALYSIS',
+        status: 'pending_credit_analysis',
+        statusLabel: customerPhone ? 'Aguardando documentos do crediário' : 'Aguardando análise de crédito',
+        'crediario.analysisId': analysis.analysisId,
+        'crediario.analysisStatus': analysis.status,
+        'crediario.origin': 'SITE',
+        'crediario.baseAmountCents': baseAmountCents,
+        'crediario.financedAmountCents': financedAmountCents,
+        'crediario.installmentCount': installmentCount,
+        'crediario.installmentDivisor': installmentDivisor,
+        'crediario.firstDueDate': analysis.firstDueDate,
+        'crediario.installmentPlan': analysis.installmentPlan
       });
-      return res.status(201).json({ ok: true, analysis });
+
+      let whatsapp = null;
+      if (customerPhone) {
+        try {
+          whatsapp = await sendCrediarioWhatsApp({
+            phone: customerPhone,
+            message: `Olá${analysis.customer.name ? `, ${analysis.customer.name.split(' ')[0]}` : ''}! 👋 Recebemos sua solicitação do *Crediário Ariana Móveis* referente ao pedido *${orderId}*. Para iniciar o envio seguro dos seus dados e documentos, responda *ACEITO* nesta conversa.`,
+            metadata: {
+              eventType: 'CREDIT_ANALYSIS_INVITE',
+              origin: 'SITE',
+              orderId,
+              analysisId: analysis.analysisId
+            }
+          });
+          analysis.history.push({
+            action: 'WHATSAPP_INVITE_SENT',
+            fromStatus: analysis.status,
+            toStatus: analysis.status,
+            actorName: 'Sistema',
+            metadata: { provider: whatsapp.provider, messageId: whatsapp.messageId }
+          });
+          await analysis.save();
+        } catch (sendError) {
+          analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
+          analysis.history.push({ action: 'WHATSAPP_INVITE_FAILED', actorName: 'Sistema', note: text(sendError.message, 1000) });
+          await analysis.save();
+        }
+      }
+
+      return res.status(201).json({ ok: true, analysis, whatsapp });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao solicitar análise.' });
     }
   });
 
-  app.get('/api/payments/crediario/analises/:orderId', authRequired, async (req, res) => {
-    const order = await findOrder(req.params.orderId);
-    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
-    if (!customerOwns(order, req)) return res.status(403).json({ ok: false, error: 'Acesso negado.' });
-    const analysis = await Analysis.findOne({ orderId: text(req.params.orderId, 120) }).sort({ createdAt: -1 });
+  app.get('/api/payments/crediario/analises/:id', authRequired, async (req, res) => {
+    const id = text(req.params.id, 120);
+    const analysis = await Analysis.findOne({ $or: [{ analysisId: id }, { orderId: id }] }).sort({ createdAt: -1 });
+    if (!analysis) return res.status(404).json({ ok: false, error: 'Análise não encontrada.' });
+
+    const userId = String(req.user?._id || req.auth?.id || '');
+    if (analysis.customerId && String(analysis.customerId) !== userId) {
+      const order = analysis.orderId ? await findOrder(analysis.orderId) : null;
+      if (!order || !customerOwns(order, req)) return res.status(403).json({ ok: false, error: 'Acesso negado.' });
+    }
     return res.json({ ok: true, analysis });
+  });
+
+
+  app.post('/api/admin/crediario/analises/loja', adminRequired, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const phone = digits(body.phone || body.telefone);
+      const baseAmountCents = cents(body.baseAmountCents || body.valorCentavos);
+      const customerName = text(body.customerName || body.nome, 160);
+      if (!customerName || !phone || baseAmountCents <= 0) {
+        return res.status(400).json({ ok: false, error: 'Informe nome, WhatsApp e valor da compra.' });
+      }
+
+      const analysis = await Analysis.create({
+        analysisId: publicId('analise'),
+        orderId: text(body.orderId || body.pedidoId, 120),
+        origin: 'LOJA_FISICA',
+        conversationId: '',
+        documentCollectionStatus: 'CONVITE_ENVIADO',
+        customerId: text(body.customerId, 120),
+        customer: {
+          name: customerName,
+          document: digits(body.document || body.cpf),
+          email: text(body.email, 160),
+          phone
+        },
+        status: 'AGUARDANDO_DOCUMENTOS',
+        baseAmountCents,
+        financedAmountCents: baseAmountCents,
+        installmentCount: 0,
+        installmentDivisor: 0,
+        internalNote: text(body.note || body.observacao, 3000),
+        purchase: {
+          source: 'LOJA_FISICA',
+          description: text(body.purchaseDescription || body.produto, 1000),
+          seller: text(body.seller || body.vendedor, 160),
+          storeReference: text(body.storeReference || body.referencia, 160)
+        },
+        history: [{
+          action: 'ANALYSIS_REQUESTED',
+          toStatus: 'AGUARDANDO_DOCUMENTOS',
+          actorId: String(req.admin?.id || req.auth?.id || ''),
+          actorName: text(req.admin?.name || req.user?.name || 'Administrador', 120),
+          note: text(body.note || body.observacao, 1000),
+          metadata: { origin: 'LOJA_FISICA' }
+        }]
+      });
+
+      let whatsapp = null;
+      try {
+        whatsapp = await sendCrediarioWhatsApp({
+          phone,
+          message: `Olá, ${customerName.split(' ')[0]}! 👋 A equipe da *Ariana Móveis* abriu uma solicitação de crediário para sua compra${body.purchaseDescription || body.produto ? ` de *${text(body.purchaseDescription || body.produto, 180)}*` : ''}. Para iniciar o envio seguro dos seus dados e documentos, responda *ACEITO* nesta conversa.`,
+          metadata: {
+            eventType: 'CREDIT_ANALYSIS_INVITE',
+            origin: 'LOJA_FISICA',
+            orderId: analysis.orderId,
+            analysisId: analysis.analysisId
+          }
+        });
+        analysis.history.push({ action: 'WHATSAPP_INVITE_SENT', actorName: 'Sistema', metadata: { provider: whatsapp.provider, messageId: whatsapp.messageId } });
+        await analysis.save();
+      } catch (sendError) {
+        analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
+        analysis.history.push({ action: 'WHATSAPP_INVITE_FAILED', actorName: 'Sistema', note: text(sendError.message, 1000) });
+        await analysis.save();
+      }
+
+      return res.status(201).json({ ok: true, analysis, whatsapp });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error.message || 'Falha ao abrir solicitação da loja.' });
+    }
   });
 
   app.get('/api/admin/crediario/analises/dashboard', adminRequired, async (_req, res) => {
@@ -507,6 +652,7 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
     const query = {};
     if (req.query.status) query.status = text(req.query.status, 50);
+    if (req.query.origin) query.origin = text(req.query.origin, 30).toUpperCase();
     const q = text(req.query.q, 120);
     if (q) query.$or = [
       { orderId: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
