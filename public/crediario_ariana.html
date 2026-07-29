@@ -41,7 +41,25 @@
  try{draft=JSON.parse(localStorage.getItem('ariana_crediario_checkout_draft')||'{}')||{}}catch(_){}
  const totals=draft.totals||{};const products=Number(totals.productsPrazo??totals.products??0)||0;const shipping=Number(totals.shipping??draft.shippingQuote?.effectivePrice??draft.shippingQuote?.price??0)||0;const base=Number(totals.cardBaseTotal??totals.creditBaseTotal??(products+shipping))||(products+shipping);const cart=Array.isArray(draft.cart)?draft.cart:[];
  document.getElementById('crediario-products').textContent=brl(products);document.getElementById('crediario-shipping').textContent=shipping?brl(shipping):'Grátis';document.getElementById('crediario-base').textContent=brl(base);document.getElementById('crediario-summary-items').innerHTML=cart.map(i=>`<div class="ar-summary-line"><span>${Number(i.quantity||1)}x ${i.name||i.nome||'Produto'}</span><strong>${brl((Number(i.marketplacePrice||i.cardPrice||i.fullPrice||i.price||0)||0)*Number(i.quantity||1))}</strong></div>`).join('');
- function token(){for(const k of ['token','authToken','customerToken','ariana_token']){const v=localStorage.getItem(k);if(v)return String(v).replace(/^Bearer\s+/i,'')}return''}
+ function token(){
+   const clean=v=>String(v||'').trim().replace(/^Bearer\s+/i,'');
+   const valid=v=>{const t=clean(v);return t&&t!=='null'&&t!=='undefined'&&t!=='false'?t:''};
+   const keys=['token','authToken','userToken','customerToken','ariana_token','accessToken','jwt','jwtToken'];
+   for(const storage of [localStorage,sessionStorage]){
+     for(const k of keys){const t=valid(storage.getItem(k));if(t)return t}
+     for(const k of ['currentUser','user','usuarioLogado','clienteLogado','authUser','ariana_user']){
+       try{
+         const obj=JSON.parse(storage.getItem(k)||'null');
+         const t=valid(obj?.token||obj?.authToken||obj?.userToken||obj?.customerToken||obj?.accessToken||obj?.jwt||obj?.jwtToken);
+         if(t)return t;
+       }catch(_){}
+     }
+   }
+   if(typeof window.getAuthToken==='function'){
+     try{const t=valid(window.getAuthToken());if(t)return t}catch(_){}
+   }
+   return'';
+ }
  async function api(path,options={}){const h={Accept:'application/json',...(options.headers||{})};if(token())h.Authorization='Bearer '+token();const r=await fetch(API_BASE+path,{...options,headers:h});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||d.error||('HTTP '+r.status));return d}
  function show(id){['crediario-stage-request','crediario-stage-waiting','crediario-stage-approved','crediario-stage-rejected'].forEach(x=>document.getElementById(x).classList.add('hidden'));document.getElementById(id).classList.remove('hidden')}
  function applyStatus(a){analysis=a||{};localStorage.setItem('ariana_crediario_analysis',JSON.stringify(analysis));const s=String(analysis.status||analysis.analysisStatus||'PENDENTE_ANALISE').toUpperCase();if(['APPROVED','APROVADO'].includes(s)){show('crediario-stage-approved');renderPlans()}else if(['REJECTED','RECUSADO','REPROVADO','DENIED'].includes(s))show('crediario-stage-rejected');else{show('crediario-stage-waiting');const ds=String(analysis.documentCollectionStatus||'').toUpperCase();document.getElementById('crediario-waiting-text').innerHTML=ds==='DOCUMENTOS_RECEBIDOS'?'Seus documentos foram recebidos. Agora aguarde a análise da equipe Ariana Móveis.':'Recebemos sua solicitação. Verifique seu WhatsApp e responda <strong>ACEITO</strong> para iniciar o envio dos documentos.'}}

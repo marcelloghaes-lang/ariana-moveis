@@ -731,13 +731,8 @@
         return;
       }
 
-      // Todo carrinho novo ou alterado precisa passar uma vez pela proteção do produto.
-      // Depois da revisão, o cliente volta ao carrinho e pode seguir normalmente ao checkout.
-      if (!cartAlreadyPassedWarranty()) {
-        sessionStorage.setItem('ariana_warranty_origin', 'cart');
-        window.location.href = 'garantia_estendida.html';
-        return;
-      }
+      // A garantia estendida não é mais aberta pelo carrinho.
+      // Ela permanece disponível somente no fluxo seguinte, evitando oferta duplicada.
 
       const localUser = getCurrentUserLike();
       const legacyLogged = hasLegacyLogin();

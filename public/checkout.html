@@ -178,6 +178,10 @@
       window.API_ORIGIN ||
       String(API_BASE).replace(/\/api\/?$/i, "");
 
+    // Evita que scripts globais reabram a garantia no checkout.
+    // A oferta deve acontecer uma única vez dentro do fluxo de compra.
+    sessionStorage.setItem('ariana_warranty_checkout_active', '1');
+
     let user = null;
     let customerProfile = null;
     let selectedAddrObj = null;
