@@ -1205,25 +1205,21 @@ function carregarHeader() {
     <div class="bg-primary-blue text-white py-4 md:py-6">
       <div class="max-w-[1440px] mx-auto px-3 sm:px-6 flex items-center gap-3 sm:gap-6 md:gap-10">
 
-        <div class="flex items-center flex-shrink-0 min-w-0 md:min-w-[330px] pr-2 gap-3 overflow-visible">
-          
-        <a href="/" class="relative group flex items-center">
-            <img 
+        <div class="flex items-center flex-1 md:flex-none min-w-0 md:min-w-[330px] pr-1 md:pr-2 gap-1 sm:gap-2 md:gap-3 overflow-visible">
+          <a href="/" class="relative group flex items-center flex-shrink-0" aria-label="Ariana Móveis">
+            <img
               src="assets/imagens/avatar-ariana.png"
               alt="Ariana Móveis"
-              class="w-24 h-24 md:w-32 md:h-32 object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.10]" style="margin-top:-18px;margin-bottom:-18px;position:relative;z-index:5;"
+              class="w-16 h-16 sm:w-20 sm:h-20 md:w-32 md:h-32 object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.10]"
+              style="margin-top:-14px;margin-bottom:-14px;position:relative;z-index:5;"
             >
-            
+          </a>
+
           <a href="/"
-            class="flex flex-col justify-center gap-1 hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
-            <div class="flex items-baseline gap-2 text-2xl md:text-4xl font-black tracking-tighter italic">
+            class="flex items-center hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
+            <div class="flex items-baseline gap-1 sm:gap-2 text-xl sm:text-2xl md:text-4xl font-black tracking-tighter italic min-w-0">
               <span class="ariana-logo-gradient">ARIANA</span>
-              <span class="text-secondary-light-blue text-sm md:text-lg font-black tracking-wide leading-none">MÓVEIS</span>
-            </div>
-            <div class="hidden md:flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-[0.28em] text-white/85 pl-1">
-              <span>Online</span>
-              <span class="text-secondary-light-blue/90">•</span>
-              <span>Para todo Brasil</span>
+              <span class="text-secondary-light-blue text-[11px] sm:text-sm md:text-lg font-black tracking-wide leading-none">MÓVEIS</span>
             </div>
           </a>
         </div>
@@ -1240,13 +1236,13 @@ function carregarHeader() {
           </div>
         </form>
 
-        <div class="flex items-center gap-4 md:gap-8">
+        <div class="flex items-center flex-shrink-0 gap-1 sm:gap-3 md:gap-8">
 
           <div class="relative">
             <button type="button" id="account-btn"
-              class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/10 transition-all group"
+              class="flex items-center gap-2 px-1 sm:px-2 md:px-3 py-2 rounded-xl hover:bg-white/10 transition-all group"
               aria-haspopup="true" aria-expanded="false">
-              <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-secondary-light-blue transition-colors">
+              <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-secondary-light-blue transition-colors">
                 <i class="fas fa-user text-xl text-white group-hover:text-primary-blue"></i>
               </div>
               <div class="hidden xl:block text-left leading-tight">
@@ -1264,23 +1260,23 @@ function carregarHeader() {
           </div>
 
           <div class="relative">
-            <a id="cart-link" href="carrinho.html" class="flex-shrink-0 flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-all group">
+            <a id="cart-link" href="carrinho.html" class="flex-shrink-0 flex items-center gap-2 p-1 sm:p-2 hover:bg-white/10 rounded-xl transition-all group">
               <div class="relative">
-                <i class="fas fa-shopping-basket text-3xl text-secondary-light-blue"></i>
+                <i class="fas fa-shopping-basket text-2xl sm:text-3xl text-secondary-light-blue"></i>
                 <span id="cart-counter-nav"
                     class="absolute -top-2 -right-2 bg-red-600 text-white text-[11px] font-black rounded-full w-6 h-6 flex items-center justify-center border-2 border-primary-blue shadow-lg">0</span>
               </div>
             </a>
           </div>
 
-          <button id="menu-mobile-trigger" class="md:hidden text-3xl p-2 rounded-lg hover:bg-white/10">
+          <button id="menu-mobile-trigger" class="md:hidden text-2xl sm:text-3xl p-1 sm:p-2 rounded-lg hover:bg-white/10">
             <i class="fas fa-bars"></i>
           </button>
         </div>
       </div>
     </div>
 
-    <div class="lg:hidden px-6 pb-4 bg-primary-blue">
+    <div class="lg:hidden px-3 sm:px-6 pb-4 bg-primary-blue">
       <form class="relative flex w-full" onsubmit="window.applySearchFilter(event)">
         <input type="search" id="search-input-mobile" placeholder="O que você procura hoje?"
           class="w-full h-12 pl-5 pr-14 text-black rounded-xl border-none focus:outline-none text-base shadow-lg">
@@ -1358,8 +1354,7 @@ function carregarHeader() {
       <div class="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-white text-black shadow-2xl p-6 flex flex-col">
         <div class="flex justify-between items-start mb-8">
           <div class="leading-none">
-            <span class="block font-black text-2xl text-primary-blue italic">ARIANA</span>
-            <span class="block mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Online • Para todo Brasil</span>
+            <span class="block font-black text-2xl text-primary-blue italic">ARIANA MÓVEIS</span>
           </div>
           <button id="close-mobile-menu" class="p-2 rounded-lg hover:bg-gray-100">
             <i class="fas fa-times text-2xl text-gray-400"></i>
