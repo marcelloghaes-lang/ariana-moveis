@@ -43,24 +43,93 @@
  document.getElementById('crediario-products').textContent=brl(products);document.getElementById('crediario-shipping').textContent=shipping?brl(shipping):'Grátis';document.getElementById('crediario-base').textContent=brl(base);document.getElementById('crediario-summary-items').innerHTML=cart.map(i=>`<div class="ar-summary-line"><span>${Number(i.quantity||1)}x ${i.name||i.nome||'Produto'}</span><strong>${brl((Number(i.marketplacePrice||i.cardPrice||i.fullPrice||i.price||0)||0)*Number(i.quantity||1))}</strong></div>`).join('');
  function token(){
    const clean=v=>String(v||'').trim().replace(/^Bearer\s+/i,'');
-   const valid=v=>{const t=clean(v);return t&&t!=='null'&&t!=='undefined'&&t!=='false'?t:''};
-   const keys=['token','authToken','userToken','customerToken','ariana_token','accessToken','jwt','jwtToken'];
+   const valid=v=>{
+     const t=clean(v);
+     return t&&t!=='null'&&t!=='undefined'&&t!=='false'&&t.length>20?t:'';
+   };
+
+   const directKeys=[
+     'token','authToken','userToken','customerToken','clientToken','clienteToken',
+     'ariana_token','arianaToken','accessToken','access_token','jwt','jwtToken',
+     'customer_token','cliente_token','user_token','client_token'
+   ];
+
+   const objectKeys=[
+     'currentUser','user','usuarioLogado','clienteLogado','authUser','ariana_user',
+     'arianaUser','clientArianaMoveis','customerSession','userData','userProfile'
+   ];
+
+   const readTokenFromObject=obj=>{
+     if(!obj||typeof obj!=='object')return'';
+     const candidates=[
+       obj.token,obj.authToken,obj.userToken,obj.customerToken,obj.clientToken,
+       obj.clienteToken,obj.ariana_token,obj.arianaToken,obj.accessToken,
+       obj.access_token,obj.jwt,obj.jwtToken,
+       obj.auth?.token,obj.auth?.accessToken,obj.session?.token,obj.data?.token,
+       obj.user?.token,obj.usuario?.token,obj.cliente?.token
+     ];
+     for(const value of candidates){
+       const found=valid(value);
+       if(found)return found;
+     }
+     return'';
+   };
+
    for(const storage of [localStorage,sessionStorage]){
-     for(const k of keys){const t=valid(storage.getItem(k));if(t)return t}
-     for(const k of ['currentUser','user','usuarioLogado','clienteLogado','authUser','ariana_user']){
+     for(const key of directKeys){
+       const found=valid(storage.getItem(key));
+       if(found)return found;
+     }
+
+     for(const key of objectKeys){
        try{
-         const obj=JSON.parse(storage.getItem(k)||'null');
-         const t=valid(obj?.token||obj?.authToken||obj?.userToken||obj?.customerToken||obj?.accessToken||obj?.jwt||obj?.jwtToken);
-         if(t)return t;
+         const raw=storage.getItem(key);
+         if(!raw)continue;
+         const found=readTokenFromObject(JSON.parse(raw));
+         if(found)return found;
        }catch(_){}
      }
    }
-   if(typeof window.getAuthToken==='function'){
-     try{const t=valid(window.getAuthToken());if(t)return t}catch(_){}
+
+   for(const fnName of ['getAuthToken','getCustomerToken','getClientToken']){
+     if(typeof window[fnName]==='function'){
+       try{
+         const found=valid(window[fnName]());
+         if(found)return found;
+       }catch(_){}
+     }
    }
+
    return'';
  }
- async function api(path,options={}){const h={Accept:'application/json',...(options.headers||{})};if(token())h.Authorization='Bearer '+token();const r=await fetch(API_BASE+path,{...options,headers:h});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||d.error||('HTTP '+r.status));return d}
+
+ function redirectToLogin(){
+   try{
+     sessionStorage.setItem('post_login_redirect','crediario_ariana.html');
+     sessionStorage.setItem('post_login_from',location.href);
+     localStorage.setItem('ariana_post_login_redirect','crediario_ariana.html');
+   }catch(_){}
+   location.href='login_cadastro.html?redirect='+encodeURIComponent('crediario_ariana.html');
+ }
+
+ async function api(path,options={}){
+   const authToken=token();
+   const h={Accept:'application/json',...(options.headers||{})};
+   if(authToken)h.Authorization='Bearer '+authToken;
+
+   const r=await fetch(API_BASE+path,{...options,headers:h});
+   const d=await r.json().catch(()=>({}));
+
+   if(r.status===401){
+     const error=new Error(d.message||d.error||'Faça login para continuar.');
+     error.code='AUTH_REQUIRED';
+     error.status=401;
+     throw error;
+   }
+
+   if(!r.ok)throw new Error(d.message||d.error||('HTTP '+r.status));
+   return d;
+ }
  function show(id){['crediario-stage-request','crediario-stage-waiting','crediario-stage-approved','crediario-stage-rejected'].forEach(x=>document.getElementById(x).classList.add('hidden'));document.getElementById(id).classList.remove('hidden')}
  function applyStatus(a){analysis=a||{};localStorage.setItem('ariana_crediario_analysis',JSON.stringify(analysis));const s=String(analysis.status||analysis.analysisStatus||'PENDENTE_ANALISE').toUpperCase();if(['APPROVED','APROVADO'].includes(s)){show('crediario-stage-approved');renderPlans()}else if(['REJECTED','RECUSADO','REPROVADO','DENIED'].includes(s))show('crediario-stage-rejected');else{show('crediario-stage-waiting');const ds=String(analysis.documentCollectionStatus||'').toUpperCase();document.getElementById('crediario-waiting-text').innerHTML=ds==='DOCUMENTOS_RECEBIDOS'?'Seus documentos foram recebidos. Agora aguarde a análise da equipe Ariana Móveis.':'Recebemos sua solicitação. Verifique seu WhatsApp e responda <strong>ACEITO</strong> para iniciar o envio dos documentos.'}}
  function simulate(n){const d={1:1,2:.94,3:.91,4:.88,5:.85,6:.82,7:.79,8:.76,9:.73,10:.70,11:.67,12:.64,13:.61,14:.58,15:.55};const total=Math.round(base/(d[n]||1)*100)/100;return{installments:n,total,installment:Math.round(total/n*100)/100}}
@@ -119,10 +188,40 @@
  }
  document.getElementById('btn-crediario-request').onclick=async()=>{
    const btn=document.getElementById('btn-crediario-request'),msg=document.getElementById('crediario-request-message');
-   btn.disabled=true;btn.textContent='Enviando...';msg.style.color='var(--ariana-muted)';msg.textContent='Localizando o pedido e enviando a solicitação...';
-   try{const d=await submitCreditAnalysis();msg.style.color='#15803d';msg.textContent='Solicitação enviada com sucesso. Aguarde o contato pelo WhatsApp.';applyStatus(d.analysis||d)}
-   catch(e){console.error('[crediario] falha ao solicitar análise:',e);msg.style.color='#b91c1c';msg.textContent='Não foi possível enviar: '+(e?.message||'erro desconhecido')}
-   finally{btn.disabled=false;btn.textContent='Enviar solicitação para análise'}
+
+   if(!token()){
+     msg.style.color='#b91c1c';
+     msg.textContent='Sua sessão precisa ser renovada. Redirecionando para o login...';
+     setTimeout(redirectToLogin,500);
+     return;
+   }
+
+   btn.disabled=true;
+   btn.textContent='Enviando...';
+   msg.style.color='var(--ariana-muted)';
+   msg.textContent='Localizando o pedido e enviando a solicitação...';
+
+   try{
+     const d=await submitCreditAnalysis();
+     msg.style.color='#15803d';
+     msg.textContent='Solicitação enviada com sucesso. Aguarde o contato pelo WhatsApp.';
+     applyStatus(d.analysis||d);
+   }catch(e){
+     console.error('[crediario] falha ao solicitar análise:',e);
+
+     if(e?.code==='AUTH_REQUIRED'||e?.status===401||/faça login|sessão expirou|token inválido/i.test(String(e?.message||''))){
+       msg.style.color='#b91c1c';
+       msg.textContent='Sua sessão expirou. Redirecionando para o login...';
+       setTimeout(redirectToLogin,700);
+       return;
+     }
+
+     msg.style.color='#b91c1c';
+     msg.textContent='Não foi possível enviar: '+(e?.message||'erro desconhecido');
+   }finally{
+     btn.disabled=false;
+     btn.textContent='Enviar solicitação para análise';
+   }
  };
  document.getElementById('btn-crediario-refresh').onclick=async()=>{const id=analysis?.analysisId||analysis?._id||analysis?.id,msg=document.getElementById('crediario-status-message');if(!id){msg.textContent='Aguardando identificação da análise.';return}msg.textContent='Consultando...';try{const d=await api('/payments/crediario/analises/'+encodeURIComponent(id));applyStatus(d.analysis||d);msg.textContent='Status atualizado.'}catch(e){msg.textContent='A análise continua pendente.'}};
  document.getElementById('btn-crediario-confirm').onclick=()=>{if(!selected)return;localStorage.setItem('ariana_crediario_selected_plan',JSON.stringify(selected));location.href='pedido_confirmado.html?crediario=aprovado'};
