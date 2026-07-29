@@ -191,11 +191,11 @@
       </div>
 
       <div id="content-address" class="tab-pane" style="display:none;">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
           <h2 class="text-2xl font-black flex items-center">
             <i class="fas fa-map-pin mr-4 text-primary-blue"></i> Meus Endereços
           </h2>
-          <div class="flex space-x-2">
+          <div class="flex flex-wrap gap-2">
             <a href="checkout.html" id="btn-back-purchase" class="px-4 py-2 border rounded-lg font-bold uppercase flex items-center">
               <i class="fas fa-arrow-left mr-2"></i> Voltar para a compra
             </a>
@@ -303,7 +303,17 @@
 <script defer src="./header.js"></script>
 <script defer src="./footer.js"></script>
 <script src="js/layout-fit.js" defer></script>
-<script src="./marketplace-core.js"></script>
+<script>
+// Carrega marketplace-core apenas quando o arquivo existir.
+// A tela de conta/endereço não depende dele para funcionar.
+(function loadMarketplaceCoreSafely(){
+  const script = document.createElement('script');
+  script.src = './marketplace-core.js';
+  script.async = false;
+  script.onerror = () => console.warn('[minha-conta] marketplace-core.js não encontrado; tela seguirá normalmente.');
+  document.head.appendChild(script);
+})();
+</script>
 <script src="js/header_auth_fix.js" defer></script>
 
 <script>
@@ -522,12 +532,13 @@ function syncHeaderCityUFFromAddress(addr) {
 async function setPrimaryAddress(addr) {
   const id = String(addr?._id || addr?.id || '');
   if (!id) throw new Error('Endereço sem ID.');
+  const userId = getCurrentUserId();
   const payload = { isDefault: true, default: true, principal: true, main: true, isPrimary: true };
-  try {
-    await apiPut(`/addresses/${id}`, payload);
-  } catch (_) {
-    await apiPost(`/addresses/${id}/set-default`, payload).catch(() => null);
-  }
+  return requestWithFallback([
+    { path: `/addresses/${encodeURIComponent(id)}`, options: { method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(payload) } },
+    { path: `/addresses/${encodeURIComponent(id)}/set-default`, options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(payload) } },
+    userId ? { path: `/users/${encodeURIComponent(userId)}/addresses/${encodeURIComponent(id)}`, options: { method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(payload) } } : null
+  ].filter(Boolean));
 }
 
 
@@ -549,44 +560,109 @@ function getStoredUser() {
   return null;
 }
 
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: getAuthHeaders() });
-  if (res.status === 401) { window.location.href = 'login_cadastro.html'; return; }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || `Erro GET ${path}`);
+function getCurrentUserId() {
+  const stored = getStoredUser() || {};
+  const candidates = [
+    stored._id, stored.id, stored.uid, stored.userId,
+    currentProfile?._id, currentProfile?.id, currentProfile?.uid, currentProfile?.userId
+  ];
+  return String(candidates.find(Boolean) || '').trim();
+}
+
+function extractList(data, keys = []) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+  for (const key of keys) {
+    if (Array.isArray(data[key])) return data[key];
+  }
+  if (data.item && Array.isArray(data.item)) return data.item;
+  if (data.data && Array.isArray(data.data)) return data.data;
+  return [];
+}
+
+function normalizeAddress(addr = {}) {
+  return {
+    ...addr,
+    _id: addr._id || addr.id || addr.addressId || '',
+    id: addr.id || addr._id || addr.addressId || '',
+    name: addr.name || addr.label || addr.nome || addr.apelido || 'Endereço',
+    cep: addr.cep || addr.zipCode || addr.postalCode || '',
+    logradouro: addr.logradouro || addr.street || addr.rua || addr.address || '',
+    numero: addr.numero || addr.number || addr.addressNumber || '',
+    complemento: addr.complemento || addr.complement || '',
+    bairro: addr.bairro || addr.neighborhood || addr.district || '',
+    cidade: addr.cidade || addr.city || addr.localidade || addr.municipio || '',
+    uf: normalizeUF(addr.uf || addr.UF || addr.state || addr.estado || ''),
+    isDefault: !!(addr.isDefault || addr.default || addr.isPrimary || addr.primary || addr.principal || addr.main)
+  };
+}
+
+async function requestJson(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, options);
+  const contentType = res.headers.get('content-type') || '';
+  const data = contentType.includes('application/json')
+    ? await res.json().catch(() => ({}))
+    : await res.text().catch(() => '');
+
+  if (res.status === 401) {
+    const error = new Error((data && data.error) || 'Sessão expirada. Faça login novamente.');
+    error.status = 401;
+    setTimeout(() => { window.location.href = 'login_cadastro.html'; }, 250);
+    throw error;
+  }
+
+  if (!res.ok) {
+    const error = new Error((data && typeof data === 'object' && (data.error || data.message)) || `Erro HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
+
   return data;
+}
+
+async function requestWithFallback(attempts = []) {
+  let lastError = null;
+  for (const attempt of attempts) {
+    if (!attempt?.path) continue;
+    try {
+      return await requestJson(attempt.path, attempt.options || {});
+    } catch (error) {
+      lastError = error;
+      if (error?.status === 401) throw error;
+      // 404/405 indicam rota incompatível; tenta a próxima.
+      if (![404, 405].includes(Number(error?.status || 0))) {
+        console.warn('[minha-conta] tentativa falhou:', attempt.path, error?.message || error);
+      }
+    }
+  }
+  throw lastError || new Error('Nenhuma rota compatível respondeu.');
+}
+
+async function apiGet(path) {
+  return requestJson(path, { headers: getAuthHeaders() });
 }
 
 async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+  return requestJson(path, {
+    method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(body || {})
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || `Erro POST ${path}`);
-  return data;
 }
 
 async function apiPut(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "PATCH",
+  return requestJson(path, {
+    method: 'PATCH',
     headers: getAuthHeaders(),
     body: JSON.stringify(body || {})
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || `Erro PATCH ${path}`);
-  return data;
 }
 
 async function apiDelete(path) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "DELETE",
+  return requestJson(path, {
+    method: 'DELETE',
     headers: getAuthHeaders()
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || data?.message || `Erro DELETE ${path}`);
-  return data;
 }
 
 async function loadProfile() {
@@ -693,47 +769,68 @@ async function loadOrders() {
 
 async function loadAddresses() {
   const list = document.getElementById('lista-enderecos-cards');
+  if (!list) return;
+
+  list.innerHTML = `<div class="col-span-full text-center py-8 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando endereços...</div>`;
+
   try {
-    const addrs = await apiGet(`/addresses`);
-    currentAddresses = Array.isArray(addrs) ? addrs : (addrs.items || addrs.addresses || []);
+    const userId = getCurrentUserId();
+    const attempts = [
+      { path: '/addresses', options: { headers: getAuthHeaders() } },
+      userId ? { path: `/users/${encodeURIComponent(userId)}/addresses`, options: { headers: getAuthHeaders() } } : null,
+      { path: '/me/addresses', options: { headers: getAuthHeaders() } }
+    ].filter(Boolean);
 
-    const principalAddress =
-      currentAddresses.find(a => a && (a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main)) ||
-      currentAddresses[0];
+    const addrs = await requestWithFallback(attempts);
+    currentAddresses = extractList(addrs, ['items', 'addresses', 'enderecos', 'results', 'data'])
+      .map(normalizeAddress)
+      .filter(addr => addr.id || addr.logradouro || addr.cep);
 
-    if (principalAddress) {
-      syncHeaderCityUFFromAddress(principalAddress);
-    }
+    const principalAddress = currentAddresses.find(a => a.isDefault) || currentAddresses[0];
+    if (principalAddress) syncHeaderCityUFFromAddress(principalAddress);
 
     if (!currentAddresses.length) {
-      list.innerHTML = "<p class='text-gray-400 italic'>Nenhum endereço cadastrado.</p>";
+      list.innerHTML = `
+        <div class="col-span-full text-center py-10 border border-dashed border-gray-300 rounded-xl bg-gray-50">
+          <i class="fas fa-map-marker-alt text-3xl text-primary-blue mb-3"></i>
+          <p class="font-bold text-gray-700">Nenhum endereço cadastrado.</p>
+          <p class="text-sm text-gray-500 mt-1">Clique em “Adicionar novo” para cadastrar o endereço de entrega.</p>
+        </div>`;
       applyProfileLocks();
       return;
     }
 
     const preferredId = getPreferredAddressId();
     list.innerHTML = currentAddresses.map((addr, index) => {
-      const id = String(addr._id || addr.id || '');
-      const isPrimary = !!(addr.isDefault || addr.default || addr.isPrimary || addr.primary || addr.principal || addr.main);
-      const isSelected = preferredId && preferredId === id;
+      const id = String(addr.id || addr._id || '');
+      const isPrimary = !!addr.isDefault;
+      const isSelected = preferredId ? preferredId === id : isPrimary;
+      const cityUF = [addr.cidade, addr.uf].filter(Boolean).join('/');
       return `
       <div class="address-card ${isSelected ? 'selected' : ''}" data-address-id="${id}" onclick="window.selectAddress(this)">
-        <button onclick="event.stopPropagation(); window.deleteAddr('${id}', ${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+        <button type="button" aria-label="Excluir endereço" onclick="event.stopPropagation(); window.deleteAddr('${id}', ${index})" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
           <i class="fas fa-trash"></i>
         </button>
-        <h4 class="font-bold text-primary-blue uppercase">${addr.name || 'Endereço'}</h4>
-        <p class="text-sm text-gray-600">${addr.logradouro || ''}, ${addr.numero || ''}</p>
-        <p class="text-sm text-gray-500">${addr.bairro ? addr.bairro + ' • ' : ''}${addr.cidade || ''}/${addr.uf || ''} ${addr.cep ? '• CEP ' + formatCEP(addr.cep) : ''}</p>
-        ${isPrimary ? `<span class="inline-block mt-3 text-xs font-black px-2 py-1 rounded-full bg-blue-100 text-primary-blue">Principal</span>` : ``}
+        <h4 class="font-bold text-primary-blue uppercase pr-8">${addr.name || 'Endereço'}</h4>
+        <p class="text-sm text-gray-700 mt-2">${addr.logradouro || 'Rua não informada'}${addr.numero ? ', ' + addr.numero : ''}</p>
+        ${addr.complemento ? `<p class="text-sm text-gray-500">${addr.complemento}</p>` : ''}
+        <p class="text-sm text-gray-500">${addr.bairro ? addr.bairro + ' • ' : ''}${cityUF}${addr.cep ? ' • CEP ' + formatCEP(addr.cep) : ''}</p>
+        ${isPrimary ? `<span class="inline-block mt-3 text-xs font-black px-2 py-1 rounded-full bg-blue-100 text-primary-blue">Principal</span>` : ''}
         <div class="mt-4 flex flex-wrap gap-2">
           <button type="button" onclick="event.stopPropagation(); window.chooseAddressForCheckout('${id}')" class="px-3 py-2 rounded-lg border border-primary-blue text-primary-blue font-bold text-xs">Usar no checkout</button>
-          <button type="button" onclick="event.stopPropagation(); window.makePrimaryAddress('${id}')" class="px-3 py-2 rounded-lg border font-bold text-xs">${isPrimary ? 'Endereço principal' : 'Definir principal'}</button>
+          <button type="button" ${isPrimary ? 'disabled' : ''} onclick="event.stopPropagation(); window.makePrimaryAddress('${id}')" class="px-3 py-2 rounded-lg border font-bold text-xs ${isPrimary ? 'opacity-60 cursor-not-allowed' : ''}">${isPrimary ? 'Endereço principal' : 'Definir principal'}</button>
         </div>
-      </div>
-    `}).join('');
+      </div>`;
+    }).join('');
     applyProfileLocks();
   } catch (e) {
-    list.innerHTML = "<p class='text-red-500'>Erro ao carregar endereços.</p>";
+    console.error('[minha-conta] erro ao carregar endereços:', e);
+    list.innerHTML = `
+      <div class="col-span-full p-5 rounded-xl border border-red-200 bg-red-50 text-red-700">
+        <p class="font-bold"><i class="fas fa-triangle-exclamation mr-2"></i>Erro ao carregar endereços</p>
+        <p class="text-sm mt-1">${String(e?.message || 'Não foi possível consultar seus endereços.')}</p>
+        <button type="button" onclick="loadAddresses()" class="mt-3 px-4 py-2 rounded-lg bg-primary-blue text-white font-bold text-sm">Tentar novamente</button>
+      </div>`;
   }
 }
 
@@ -765,12 +862,20 @@ window.makePrimaryAddress = async function(id) {
 };
 
 window.deleteAddr = async function(id, index) {
-  if (!confirm("Excluir este endereço?")) return;
+  if (!id) return displayMessage('Endereço sem identificação.', 'error');
+  if (!confirm('Excluir este endereço?')) return;
   try {
-    await apiDelete(`/addresses/${id}`);
-    displayMessage("Endereço excluído");
-    loadAddresses();
-  } catch (e) { displayMessage("Erro ao excluir", "error"); }
+    const userId = getCurrentUserId();
+    await requestWithFallback([
+      { path: `/addresses/${encodeURIComponent(id)}`, options: { method: 'DELETE', headers: getAuthHeaders() } },
+      userId ? { path: `/users/${encodeURIComponent(userId)}/addresses/${encodeURIComponent(id)}`, options: { method: 'DELETE', headers: getAuthHeaders() } } : null
+    ].filter(Boolean));
+    displayMessage('Endereço excluído.');
+    await loadAddresses();
+  } catch (e) {
+    console.error('[minha-conta] erro ao excluir endereço:', e);
+    displayMessage(e?.message || 'Erro ao excluir endereço.', 'error');
+  }
 };
 
 async function fetchViaCepAndFill(rawCep) {
@@ -903,7 +1008,9 @@ async function saveProfile(e) {
 
 async function saveAddress(e) {
   e.preventDefault();
-  const newAddr = {
+  const form = document.getElementById('form-address');
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  const newAddr = normalizeAddress({
     name: document.getElementById('address-label').value.trim(),
     cep: onlyDigits(document.getElementById('address-cep').value),
     logradouro: document.getElementById('address-street').value.trim(),
@@ -911,24 +1018,37 @@ async function saveAddress(e) {
     complemento: document.getElementById('address-complement').value.trim(),
     bairro: document.getElementById('address-neighborhood').value.trim(),
     cidade: document.getElementById('address-city').value.trim(),
-    uf: document.getElementById('address-state').value.trim().toUpperCase(),
-  };
+    uf: normalizeUF(document.getElementById('address-state').value)
+  });
+
+  if (newAddr.cep.length !== 8) return displayMessage('Informe um CEP válido com 8 números.', 'error');
+  if (!newAddr.logradouro || !newAddr.numero || !newAddr.bairro || !newAddr.cidade || newAddr.uf.length !== 2) {
+    return displayMessage('Preencha rua, número, bairro, cidade e UF.', 'error');
+  }
 
   try {
-    const saved = await apiPost(`/addresses`, newAddr);
-    const addrSaved = saved?.item || saved?.address || saved;
-    if (addrSaved) {
-      saveCheckoutAddressSelection(addrSaved);
-      syncHeaderCityUFFromAddress(addrSaved);
-    }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SALVANDO...'; }
+    const userId = getCurrentUserId();
+    const saved = await requestWithFallback([
+      { path: '/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } },
+      userId ? { path: `/users/${encodeURIComponent(userId)}/addresses`, options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } } : null,
+      { path: '/me/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } }
+    ].filter(Boolean));
+
+    const addrSaved = normalizeAddress(saved?.item || saved?.address || saved?.data || saved || newAddr);
+    saveCheckoutAddressSelection(addrSaved);
+    syncHeaderCityUFFromAddress(addrSaved);
     document.getElementById('modal-endereco').classList.add('hidden');
-    document.getElementById('form-address').reset();
-    displayMessage("Endereço salvo!");
+    form?.reset();
+    displayMessage('Endereço salvo!');
     await loadAddresses();
-    if (addrSaved && getCheckoutMode()) {
-      setTimeout(() => { window.location.href = 'checkout.html'; }, 300);
-    }
-  } catch (e) { displayMessage("Erro ao salvar endereço", "error"); }
+    if (getCheckoutMode()) setTimeout(() => { window.location.href = 'checkout.html'; }, 300);
+  } catch (e) {
+    console.error('[minha-conta] erro ao salvar endereço:', e);
+    displayMessage(e?.message || 'Erro ao salvar endereço.', 'error');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'SALVAR'; }
+  }
 }
 
 function bindEvents() {
@@ -976,18 +1096,20 @@ async function init() {
   if (!token) { window.location.href = 'login_cadastro.html'; return; }
 
   bindEvents();
-  try {
-    await Promise.all([loadProfile(), loadAddresses(), loadOrders()]);
-    const params = new URLSearchParams(window.location.search);
-    const initialTab = params.get('tab') || (getCheckoutMode() ? 'address' : 'dashboard');
-    switchTab(initialTab);
-    const backCheckout = document.getElementById('btn-back-checkout');
-    if (backCheckout && getCheckoutMode()) backCheckout.classList.remove('hidden');
-    document.getElementById('loading-message').style.display = 'none';
-    document.getElementById('dashboard-content').style.display = 'grid';
-  } catch (e) {
-    console.error(e);
-  }
+  const results = await Promise.allSettled([loadProfile(), loadAddresses(), loadOrders()]);
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') console.error('[minha-conta] falha na carga inicial', index, result.reason);
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const initialTab = params.get('tab') || (getCheckoutMode() ? 'address' : 'dashboard');
+  switchTab(initialTab);
+  const backCheckout = document.getElementById('btn-back-checkout');
+  if (backCheckout && getCheckoutMode()) backCheckout.classList.remove('hidden');
+  const loading = document.getElementById('loading-message');
+  const dashboard = document.getElementById('dashboard-content');
+  if (loading) loading.style.display = 'none';
+  if (dashboard) dashboard.style.display = 'grid';
 }
 
 document.addEventListener('DOMContentLoaded', init);
