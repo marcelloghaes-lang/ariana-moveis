@@ -572,29 +572,56 @@ const msg = document.getElementById('msg');
     }
 
     function normalizeIncomingBanners(incoming){
-      const pickKey = (item) => item?.id || item?.slot || item?.slotId || item?.key || item?._id || '';
-      const mapItems = (items) => Object.fromEntries(
-        items.map(item => {
-          const raw = item || {};
-          const key = pickKey(raw);
-          return [key, {
-            ...raw,
-            id: raw.id || key,
-            key: raw.key || raw.id || key,
-            slot: raw.slot || key,
-            imageUrl: String(raw.imageUrl || raw.image || raw.url || '').trim(),
-            image: String(raw.image || raw.imageUrl || raw.url || '').trim(),
-            linkUrl: String(raw.linkUrl || raw.href || raw.link || '').trim(),
-            href: String(raw.href || raw.linkUrl || raw.link || '').trim(),
-            alt: String(raw.alt || '').trim(),
-            path: String(raw.path || raw.public_id || raw.filePath || '').trim(),
-            active: raw.active === true || String(raw.active).toLowerCase() === 'true'
-          }];
-        }).filter(([k]) => !!k)
-      );
-      if (Array.isArray(incoming)) return mapItems(incoming);
-      if (incoming && Array.isArray(incoming.banners)) return mapItems(incoming.banners);
-      return incoming && typeof incoming === 'object' ? incoming : {};
+      const pickKey = (item) => item?.slot || item?.id || item?.slotId || item?.key || item?._id || '';
+
+      const unwrap = (value) => {
+        if (Array.isArray(value)) return value;
+        if (!value || typeof value !== 'object') return [];
+        if (Array.isArray(value.banners)) return value.banners;
+        if (Array.isArray(value.items)) return value.items;
+        if (Array.isArray(value.docs)) return value.docs;
+        if (Array.isArray(value.results)) return value.results;
+        if (Array.isArray(value.data)) return value.data;
+        if (value.data && typeof value.data === 'object') return unwrap(value.data);
+
+        // Também aceita resposta em mapa: { index_main: {...}, ... }
+        return Object.entries(value)
+          .filter(([key, item]) => key && item && typeof item === 'object' && !['ok','count','total','page','limit'].includes(key))
+          .map(([key, item]) => ({ ...item, slot: item.slot || item.id || item.key || key }));
+      };
+
+      const list = unwrap(incoming);
+      const normalized = {};
+
+      for (const item of list) {
+        const raw = item || {};
+        const key = String(pickKey(raw) || '').trim();
+        if (!key) continue;
+
+        const imageUrl = String(
+          raw.imageUrl || raw.image || raw.url || raw.secure_url || raw.downloadURL || ''
+        ).trim();
+
+        const linkUrl = String(
+          raw.linkUrl || raw.href || raw.link || ''
+        ).trim();
+
+        normalized[key] = {
+          ...raw,
+          id: String(raw.id || key).trim(),
+          key: String(raw.key || key).trim(),
+          slot: String(raw.slot || key).trim(),
+          imageUrl,
+          image: imageUrl,
+          linkUrl,
+          href: linkUrl,
+          alt: String(raw.alt || '').trim(),
+          path: String(raw.path || raw.public_id || raw.filePath || raw.fullPath || '').trim(),
+          active: raw.active === true || String(raw.active).toLowerCase() === 'true'
+        };
+      }
+
+      return normalized;
     }
 
     async function waitFirebaseReady(){
@@ -616,6 +643,12 @@ const msg = document.getElementById('msg');
       'footer_banner',
       'produto_detail_horizontal_1','produto_detail_horizontal_2'
     ];
+
+    // Mantém uma cópia do que realmente veio do Mongo e do que acabou de ser enviado.
+    // Isso impede o botão “Salvar tudo” de apagar URLs existentes quando algum campo
+    // ainda não foi preenchido ou não foi renderizado corretamente.
+    let bannerDocsMap = {};
+    const uploadState = {};
 
     function readForm(){
       const out = {};
@@ -716,6 +749,10 @@ const msg = document.getElementById('msg');
           try{
             toast('info','Enviando imagem...');
             const uploaded = await uploadBannerImage(file, bannerId);
+            uploadState[bannerId] = {
+              imageUrl: String(uploaded.url || '').trim(),
+              path: String(uploaded.path || '').trim()
+            };
             const urlField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
             if(urlField) urlField.value = uploaded.url;
 
@@ -735,6 +772,9 @@ const msg = document.getElementById('msg');
             }
             if(pathField) pathField.value = uploaded.path || '';
 
+            const activeField = document.querySelector(`.field[data-field="active"][data-banner="${bannerId}"], select[data-field="active"][data-banner="${bannerId}"]`);
+            if (activeField) activeField.value = 'true';
+            setChip(bannerId, true);
             setPreview(bannerId, uploaded.url);
             await saveSingleBannerById(bannerId);
             toast('ok','Imagem enviada e salva no Mongo!');
@@ -765,12 +805,23 @@ const msg = document.getElementById('msg');
     async function saveSingleBannerById(bannerId){
       if(!getAdminToken()) throw new Error('Faça login para salvar.');
 
-      const imageUrl = ($(`[data-banner="${bannerId}"][data-field="imageUrl"]`)?.value || '').trim();
-      const linkUrl = ($(`[data-banner="${bannerId}"][data-field="linkUrl"]`)?.value || '').trim();
+      const existing = bannerDocsMap[bannerId] || {};
+      const uploaded = uploadState[bannerId] || {};
+
+      const formImage = ($(`[data-banner="${bannerId}"][data-field="imageUrl"]`)?.value || '').trim();
+      const formLink = ($(`[data-banner="${bannerId}"][data-field="linkUrl"]`)?.value || '').trim();
+      const formPath = ($(`[data-banner="${bannerId}"][data-field="path"]`)?.value || '').trim();
       const alt = ($(`[data-banner="${bannerId}"][data-field="alt"]`)?.value || '').trim();
       const active = ($(`[data-banner="${bannerId}"][data-field="active"]`)?.value || 'false') === 'true';
 
-      const payload = {
+      const imageUrl = formImage || uploaded.imageUrl || existing.imageUrl || existing.image || '';
+      const linkUrl = formLink || existing.linkUrl || existing.href || existing.link || '';
+      const path = formPath || uploaded.path || existing.path || existing.filePath || existing.public_id || '';
+
+      if (!imageUrl) throw new Error('A imagem foi enviada, mas a URL pública não está disponível.');
+
+      const payload = sanitizeBannerForSave({
+        ...existing,
         id: bannerId,
         slot: bannerId,
         key: bannerId,
@@ -779,46 +830,34 @@ const msg = document.getElementById('msg');
         image: imageUrl,
         linkUrl,
         href: linkUrl,
-        alt,
+        alt: alt || existing.alt || '',
+        path,
         updatedAt: Date.now()
-      };
+      });
 
-      const attempts = [
-        {
-          path: '/admin/banners',
-          init: {
-            method:'POST',
-            headers: authHeaders({ 'Content-Type':'application/json' }),
-            body: JSON.stringify(payload)
-          }
-        }
-      ];
+      const res = await fetchWithApiFallback('/admin/banners', {
+        method:'POST',
+        headers: authHeaders({ 'Content-Type':'application/json' }),
+        body: JSON.stringify(payload)
+      });
 
-      let lastError = null;
-      for (const attempt of attempts) {
-        try {
-          const res = await fetchWithApiFallback(attempt.path, attempt.init);
-          const data = await parseJsonSafe(res);
-          if(!res.ok) throw new Error(data.error || data.message || `Erro ao salvar (${res.status})`);
+      const data = await parseJsonSafe(res);
+      if(!res.ok) throw new Error(data.error || data.message || `Erro ao salvar (${res.status})`);
 
-          const saved = (data && (data.banner || data.item || (Array.isArray(data.banners) ? data.banners[0] : null) || data)) || payload;
-          const savedImage = String(saved.imageUrl || saved.image || imageUrl || '').trim();
-          const savedHref = String(saved.linkUrl || saved.href || linkUrl || '').trim();
+      const savedRaw = data.banner || data.item || data.data || data;
+      const savedMap = normalizeIncomingBanners(Array.isArray(savedRaw) ? savedRaw : [savedRaw]);
+      const saved = savedMap[bannerId] || payload;
 
-          const imgField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
-          const linkField = document.querySelector(`.field[data-field="linkUrl"][data-banner="${bannerId}"]`);
-          if (imgField) imgField.value = savedImage;
-          if (linkField) linkField.value = savedHref;
+      bannerDocsMap[bannerId] = { ...payload, ...saved };
+      delete uploadState[bannerId];
 
-          setPreview(bannerId, savedImage);
-          setChip(bannerId, !!(saved.active === true || active));
-          return saved;
-        } catch (err) {
-          lastError = err;
-        }
-      }
+      const savedImage = String(saved.imageUrl || saved.image || imageUrl).trim();
+      const imgField = document.querySelector(`.field[data-field="imageUrl"][data-banner="${bannerId}"]`);
+      if (imgField) imgField.value = savedImage;
 
-      throw lastError || new Error('Falha ao salvar banner.');
+      setPreview(bannerId, savedImage);
+      setChip(bannerId, saved.active === true || active);
+      return bannerDocsMap[bannerId];
     }
 
     async function loadAll(){
@@ -845,6 +884,7 @@ const msg = document.getElementById('msg');
             res = await fetchWithApiFallback(route.path, route.init);
             if(!res.ok) throw new Error(`Erro ao carregar banners (${res.status})`);
             dataMap = normalizeIncomingBanners(await parseJsonSafe(res));
+            bannerDocsMap = { ...dataMap };
             lastErr = null;
             break;
           } catch (err) {
@@ -856,6 +896,7 @@ const msg = document.getElementById('msg');
 
         for(const id of BANNER_IDS){
           const data = dataMap[id] || {};
+          if (data.imageUrl) delete uploadState[id];
           const active = !!data.active;
 
           const sel = $(`[data-banner="${id}"][data-field="active"]`);
@@ -901,50 +942,136 @@ const msg = document.getElementById('msg');
         return;
       }
 
-      const payload = readForm();
-      const banners = Object.values(payload).map(sanitizeBannerForSave).map(item => ({
-        ...item,
-        slot: item.slot || item.id,
-        image: item.image || item.imageUrl || '',
-        href: item.href || item.linkUrl || '',
-        imageUrl: item.image || item.imageUrl || '',
-        linkUrl: item.href || item.linkUrl || ''
-      }));
-      const payloadById = Object.fromEntries(banners.map(item => [item.id, item]));
+      const formMap = readForm();
+      const banners = BANNER_IDS.map(id => {
+        const existing = bannerDocsMap[id] || {};
+        const uploaded = uploadState[id] || {};
+        const form = formMap[id] || {};
 
-      const attempts = [
-        {
-          path: '/admin/banners/bulk',
-          init: {
-            method:'POST',
-            headers: authHeaders({ 'Content-Type':'application/json' }),
-            body: JSON.stringify({ banners })
-          }
-        }
-      ];
+        const imageUrl = String(
+          form.imageUrl || uploaded.imageUrl || existing.imageUrl || existing.image || ''
+        ).trim();
 
-      let lastError = null;
+        const path = String(
+          form.path || uploaded.path || existing.path || existing.filePath || existing.fullPath || existing.public_id || ''
+        ).trim();
 
-      for (const attempt of attempts) {
-        try {
-          const res = await fetchWithApiFallback(attempt.path, attempt.init);
-          if(!res.ok){
-            const errData = await parseJsonSafe(res);
-            throw new Error(errData.error || errData.message || `Erro ao salvar (${res.status})`);
-          }
-          const savedData = await parseJsonSafe(res);
-          if (savedData.ok === false) throw new Error(savedData.error || 'O servidor recusou o salvamento.');
-          const savedCount = Number(savedData.count || savedData.banners?.length || banners.length);
-          toast('ok', `${savedCount} banners salvos no Mongo com sucesso!`);
-          await loadAll();
-          return;
-        } catch (e) {
-          lastError = e;
-        }
+        const linkUrl = String(
+          form.linkUrl || existing.linkUrl || existing.href || existing.link || ''
+        ).trim();
+
+        return sanitizeBannerForSave({
+          ...existing,
+          ...form,
+          id,
+          slot: id,
+          key: id,
+          imageUrl,
+          image: imageUrl,
+          path,
+          linkUrl,
+          href: linkUrl,
+          alt: String(form.alt || existing.alt || '').trim(),
+          active: form.active === true
+        });
+      }).filter(item => {
+        // Não cria documentos totalmente vazios nem apaga imagens já salvas.
+        return item.imageUrl || item.linkUrl || item.alt || item.active || bannerDocsMap[item.id];
+      });
+
+      if (!banners.length) {
+        toast('warn','Nenhum banner preenchido para salvar.');
+        return;
       }
 
-      console.error('[admin-banners] erro ao salvar', lastError);
-      toast('err', (lastError && lastError.message) ? lastError.message : 'Erro ao salvar no servidor.');
+      const btn = document.getElementById('btn-save-all');
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-60');
+      }
+
+      try {
+        let bulkSaved = false;
+        let bulkError = null;
+
+        const bulkRes = await fetchWithApiFallback('/admin/banners/bulk', {
+          method:'POST',
+          headers: authHeaders({ 'Content-Type':'application/json' }),
+          body: JSON.stringify({ banners })
+        });
+
+        const bulkData = await parseJsonSafe(bulkRes);
+
+        if (bulkRes.ok && bulkData.ok !== false) {
+          bulkSaved = true;
+        } else {
+          bulkError = new Error(bulkData.error || bulkData.message || `Erro no salvamento em lote (${bulkRes.status})`);
+        }
+
+        // Fallback seguro: salva individualmente sem apagar os banners que já existem.
+        if (!bulkSaved) {
+          console.warn('[admin-banners] bulk indisponível; salvando item por item.', bulkError);
+
+          for (const item of banners) {
+            const itemRes = await fetchWithApiFallback('/admin/banners', {
+              method:'POST',
+              headers: authHeaders({ 'Content-Type':'application/json' }),
+              body: JSON.stringify(item)
+            });
+            const itemData = await parseJsonSafe(itemRes);
+            if (!itemRes.ok || itemData.ok === false) {
+              throw new Error(itemData.error || itemData.message || `Erro ao salvar ${item.id} (${itemRes.status})`);
+            }
+          }
+        }
+
+        // Confirma o que realmente ficou gravado antes de limpar ou recarregar a tela.
+        const verifyRes = await fetchWithApiFallback('/admin/banners', {
+          cache:'no-store',
+          headers: authHeaders()
+        });
+        const verifyData = await parseJsonSafe(verifyRes);
+        if (!verifyRes.ok) throw new Error(verifyData.error || verifyData.message || 'Os banners foram enviados, mas não foi possível confirmar o Mongo.');
+
+        const verifiedMap = normalizeIncomingBanners(verifyData);
+        const missing = banners.filter(item => item.imageUrl && !verifiedMap[item.id]?.imageUrl);
+
+        if (missing.length) {
+          throw new Error(`O servidor não confirmou a imagem de: ${missing.map(x => x.id).join(', ')}`);
+        }
+
+        bannerDocsMap = { ...verifiedMap };
+        for (const id of Object.keys(uploadState)) delete uploadState[id];
+
+        // Atualiza os campos usando a resposta confirmada, sem uma segunda chamada que possa zerar a tela.
+        for (const id of BANNER_IDS) {
+          const data = bannerDocsMap[id] || {};
+          const sel = $(`[data-banner="${id}"][data-field="active"]`);
+          const img = $(`[data-banner="${id}"][data-field="imageUrl"]`);
+          const link = $(`[data-banner="${id}"][data-field="linkUrl"]`);
+          const alt = $(`[data-banner="${id}"][data-field="alt"]`);
+          const pathField = $(`[data-banner="${id}"][data-field="path"]`);
+
+          if (sel) sel.value = data.active ? 'true' : 'false';
+          if (img) img.value = data.imageUrl || '';
+          if (link) link.value = data.linkUrl || '';
+          if (alt) alt.value = data.alt || '';
+          if (pathField) pathField.value = data.path || '';
+
+          setChip(id, !!data.active);
+          setPreview(id, data.imageUrl || '');
+        }
+
+        toast('ok', `${banners.length} banners salvos e confirmados no Mongo!`);
+      } catch (error) {
+        console.error('[admin-banners] erro ao salvar', error);
+        toast('err', error?.message || 'Erro ao salvar no servidor.');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('opacity-60');
+        }
+      }
     }
 
     document.addEventListener('input', (e)=>{
