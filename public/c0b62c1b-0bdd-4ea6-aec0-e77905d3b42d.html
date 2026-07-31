@@ -235,15 +235,6 @@ footer, .site-footer, .footer, .footer-wrap {
 
 #mini-banners-section .group:hover img,
 #hero-banners-section .group:hover img,
-#home-cards-section img{
-  width:100% !important;
-  height:100% !important;
-  object-fit:cover !important;
-  object-position:center center !important;
-  display:block !important;
-  background:#fff !important;
-}
-
 #home-cards-section .group:hover img,
 #secondary-banner-1-section .group:hover img,
 #secondary-banner-2-section .group:hover img,
@@ -691,7 +682,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <img id="home_card_1_image"
                  src="https://placehold.co/800x800/2E6DA4/ffffff?text=Carregando+Card+1"
                  alt="Card de destaque 1"
-                 class="w-full h-full object-cover object-center bg-white"
+                 class="w-full h-full object-contain bg-white"
                  loading="lazy">
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
@@ -706,7 +697,7 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <img id="home_card_2_image"
                  src="https://placehold.co/800x800/56B5FF/1D2B3A?text=Carregando+Card+2"
                  alt="Card de destaque 2"
-                 class="w-full h-full object-cover object-center bg-white"
+                 class="w-full h-full object-contain bg-white"
                  loading="lazy">
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
@@ -721,27 +712,13 @@ window.__toNumberBR = window.__toNumberBR || function(v, fallback = 0){
             <img id="home_card_3_image"
                  src="https://placehold.co/800x800/1D2B3A/ffffff?text=Carregando+Card+3"
                  alt="Card de destaque 3"
-                 class="w-full h-full object-cover object-center bg-white"
+                 class="w-full h-full object-contain bg-white"
                  loading="lazy">
             <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
               <p id="home_card_3_status" class="text-white text-xs font-medium bg-dark-bg/60 inline-block px-2 py-1 rounded-md"></p>
             </div>
           </div>
-        </a>
-      </div>
-    </section>
-
-    <!-- PRODUTOS ENTRE OS CARDS E O BANNER SECUNDÁRIO -->
-    <section id="home-cards-products-section" class="hidden page-wrap content-pad">
-      <h2 class="text-3xl font-extrabold text-text-dark mb-6 border-b-2 border-primary-blue/30 pb-2 flex items-center">
-        <i class="fas fa-house text-primary-blue mr-3"></i> Mais opções para sua casa
-      </h2>
-      <div id="home-cards-products-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"></div>
-      <div class="text-center mt-8">
-        <a href="todos_produtos.html"
-           class="inline-flex items-center justify-center px-6 py-2 border border-primary-blue text-base font-medium rounded-lg text-primary-blue bg-white hover:bg-fundo-claro shadow-md transition-colors">
-          Ver todos os produtos <i class="fas fa-arrow-right ml-2"></i>
         </a>
       </div>
     </section>
@@ -1279,35 +1256,6 @@ const loadClientAddress = () => {
       index_mini_4: { sectionId: 'mini-banners-section', linkId: 'mini_banner_4_link', imgId: 'mini_banner_4_image', statusId: 'mini_banner_4_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 4' },
       index_mini_5: { sectionId: 'mini-banners-section', linkId: 'mini_banner_5_link', imgId: 'mini_banner_5_image', statusId: 'mini_banner_5_status', defaultHref: 'todos_produtos.html', placeholderText: 'Mini Banner 5' },
 
-      // CARDS DA HOME (3)
-      home_card_1: {
-        sectionId: 'home-cards-section',
-        containerId: 'home_card_1_link',
-        linkId: 'home_card_1_link',
-        imgId: 'home_card_1_image',
-        statusId: 'home_card_1_status',
-        defaultHref: 'todos_produtos.html?q=moveis',
-        placeholderText: 'Card Home 1',
-      },
-      home_card_2: {
-        sectionId: 'home-cards-section',
-        containerId: 'home_card_2_link',
-        linkId: 'home_card_2_link',
-        imgId: 'home_card_2_image',
-        statusId: 'home_card_2_status',
-        defaultHref: 'todos_produtos.html?q=smart tv',
-        placeholderText: 'Card Home 2',
-      },
-      home_card_3: {
-        sectionId: 'home-cards-section',
-        containerId: 'home_card_3_link',
-        linkId: 'home_card_3_link',
-        imgId: 'home_card_3_image',
-        statusId: 'home_card_3_status',
-        defaultHref: 'todos_produtos.html?q=eletrodomesticos',
-        placeholderText: 'Card Home 3',
-      },
-
       // SECUNDÁRIOS + FOOTER (mantidos)
       index_secondary_1: {
         sectionId: 'secondary-banner-1-section',
@@ -1389,9 +1337,6 @@ const loadAllBanners = async () => {
     index_mini_3: ['index_mini_3','mini_3','mini3'],
     index_mini_4: ['index_mini_4','mini_4','mini4'],
     index_mini_5: ['index_mini_5','mini_5','mini5'],
-    home_card_1: ['home_card_1','home-card-1','card_home_1','card-home-1'],
-    home_card_2: ['home_card_2','home-card-2','card_home_2','card-home-2'],
-    home_card_3: ['home_card_3','home-card-3','card_home_3','card-home-3'],
     index_secondary_1: ['index_secondary_1','secondary_1','secundario_1'],
     index_secondary_2: ['index_secondary_2','secondary_2','secundario_2'],
     footer_banner: ['footer_banner','footer']
@@ -1418,10 +1363,7 @@ const loadAllBanners = async () => {
     const href = banner.linkUrl || banner.href || banner.link || slot.defaultHref || '#';
     const image = banner.imageUrl || banner.image || banner.url || banner.src || '';
     if (linkEl) linkEl.href = href;
-    if (imgEl && image) {
-      imgEl.src = image;
-      imgEl.alt = String(banner.alt || slot.placeholderText || imgEl.alt || 'Banner Ariana Móveis');
-    }
+    if (imgEl && image) imgEl.src = image;
   };
 
   try {
@@ -1601,8 +1543,7 @@ const HOME_SECTION_LIMITS = {
   recommended: 15,
   newArrivals: 10,
   cellphones: 5,
-  more: 5,
-  homeCardsProducts: 5
+  more: 5
 };
 
 const __homeSectionSelections = {};
@@ -1872,7 +1813,6 @@ const loadProducts = async () => {
     loadNewArrivals();
     loadCellphones();
     loadMoreProducts();
-    loadHomeCardsProducts();
   } catch (error) {
     console.error('Erro ao carregar produtos do MongoDB:', error);
     if (productGrid) {
@@ -2020,51 +1960,6 @@ const loadCellphones = () => {
 
   if (pick.length > 0) {
     renderProductCards(pick, 'cellphones-grid');
-    section.classList.remove('hidden');
-  } else {
-    section.classList.add('hidden');
-  }
-};
-
-const loadHomeCardsProducts = () => {
-  const section = document.getElementById('home-cards-products-section');
-  if (!section) return;
-
-  const source = __homeSortByRecent(allProducts);
-  const usedIds = __homeGetUsedIds(['homeCardsProducts']);
-
-  let pick = __homeTakeCategoryBalanced(
-    source,
-    HOME_SECTION_LIMITS.homeCardsProducts,
-    usedIds,
-    2
-  );
-
-  // Catálogo pequeno: completa sem repetir os produtos da primeira seção.
-  if (pick.length < HOME_SECTION_LIMITS.homeCardsProducts) {
-    const featuredIds = new Set(
-      (__homeSectionSelections.featured || [])
-        .map(__homeGetProductKey)
-        .filter(Boolean)
-    );
-    const pickedIds = new Set(pick.map(__homeGetProductKey).filter(Boolean));
-    const excluded = new Set([...featuredIds, ...pickedIds]);
-
-    pick = [
-      ...pick,
-      ...__homeTakeCategoryBalanced(
-        source,
-        HOME_SECTION_LIMITS.homeCardsProducts - pick.length,
-        excluded,
-        2
-      )
-    ];
-  }
-
-  pick = __homeSaveSelection('homeCardsProducts', pick);
-
-  if (pick.length > 0) {
-    renderProductCards(pick, 'home-cards-products-grid');
     section.classList.remove('hidden');
   } else {
     section.classList.add('hidden');

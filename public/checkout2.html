@@ -1,0 +1,1896 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Finalizar compra | Ariana Móveis</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="css/tailwind.min.css">
+  <link rel="stylesheet" href="checkout-ariana.css">
+
+<style id="ariana-brand-consistency">
+  :root{
+    --ariana-blue:#2E6DA4;
+    --ariana-blue-dark:#245A88;
+    --ariana-blue-light:#56B5FF;
+    --ariana-blue-soft:#EEF7FF;
+    --ariana-yellow:#FFD400;
+  }
+  body{background:#f6f8fc;color:#172033;}
+  .ar-header{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-logo,.ar-secure{color:#fff!important;}
+  .ar-primary,.btn-primary{background:var(--ariana-blue)!important;color:#fff!important;border-color:var(--ariana-blue)!important;}
+  .ar-primary:hover,.btn-primary:hover{background:var(--ariana-blue-dark)!important;}
+  .ar-secondary{background:#fff!important;color:var(--ariana-blue)!important;border:2px solid var(--ariana-blue)!important;}
+  .ar-secondary:hover{background:var(--ariana-blue-soft)!important;}
+  .ar-title,.ar-card-title,.text-primary-blue{color:var(--ariana-blue)!important;}
+  .ar-step.is-active .ar-step-dot,.ar-step-dot.is-active{background:var(--ariana-blue)!important;color:#fff!important;}
+  .ar-field:focus,.mp-input:focus{border-color:var(--ariana-blue-light)!important;box-shadow:0 0 0 3px rgba(119,208,255,.24)!important;}
+  .pay-method.active,.ar-action-row.is-selected,.btn-choice.active{border-color:var(--ariana-blue)!important;background:var(--ariana-blue-soft)!important;}
+</style>
+</head>
+<body>
+<div id="auth-guard-overlay" style="position:fixed;inset:0;z-index:9999;background:#f7f8fa;display:flex;align-items:center;justify-content:center;color:#2E6DA4;font-weight:800">Carregando...</div>
+<header class="ar-header">
+  <div class="ar-header-inner">
+    <a class="ar-logo" href="index.html">ARIANA MÓVEIS</a>
+    <div class="ar-secure"><i class="fas fa-lock"></i> checkout seguro</div>
+  </div>
+</header>
+<main class="ar-page">
+  <div class="ar-stepbar">
+    <div class="ar-step is-active"><div id="step-dot-1" class="ar-step-dot">1</div>Entrega</div>
+    <div class="ar-step"><div id="step-dot-2" class="ar-step-dot">2</div>Revisão</div>
+    <div class="ar-step"><div id="step-dot-3" class="ar-step-dot">3</div>Pagamento</div>
+  </div>
+
+  <div class="ar-layout">
+    <section class="ar-main">
+      <section id="step-1">
+        <h1 class="ar-title">Onde você quer receber seu pedido?</h1>
+        <div class="ar-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:15px">
+            <h2 class="ar-card-title" style="margin:0">Endereço de entrega</h2>
+            <a href="minha_conta.html?tab=address&amp;from=checkout" style="color:#2E6DA4;font-size:13px;font-weight:800">Cadastrar novo endereço</a>
+          </div>
+          <p class="ar-card-subtitle" style="margin-top:9px">Escolha um endereço já cadastrado.</p>
+          <div id="address-options"></div>
+        </div>
+        <div class="ar-actions" style="justify-content:flex-end">
+          <button id="btn-next-1" class="ar-primary" style="width:auto;min-width:220px" disabled>Continuar</button>
+        </div>
+      </section>
+
+      <section id="step-2" class="hidden">
+        <h1 class="ar-title">Confira a entrega</h1>
+        <div class="ar-card">
+          <h2 class="ar-card-title">Forma de entrega</h2>
+          <div class="ar-action-row is-selected">
+            <span class="ar-icon"><i class="fas fa-truck"></i></span>
+            <div class="ar-row-body">
+              <div class="ar-row-title">Entrega no endereço selecionado</div>
+              <div class="ar-row-desc">O prazo e o valor foram calculados conforme seu CEP e os itens do pedido.</div>
+            </div>
+            <strong id="shipping-price-main">R$ 0,00</strong>
+          </div>
+        </div>
+        <div class="ar-card">
+          <h2 class="ar-card-title">Valores do pedido</h2>
+          <div class="ar-summary-line"><span>Produtos</span><strong id="products-total-main">R$ 0,00</strong></div>
+          <div class="ar-summary-line"><span>Frete</span><strong id="shipping-price-main-copy">R$ 0,00</strong></div>
+          <div class="ar-summary-total"><span>Total</span><strong id="total-geral-main">R$ 0,00</strong></div>
+        </div>
+        <div class="ar-actions">
+          <button id="btn-back-2" class="ar-secondary">Voltar</button>
+          <button id="btn-next-2" class="ar-primary" style="width:auto;min-width:220px">Continuar</button>
+        </div>
+      </section>
+
+      <section id="step-3" class="hidden">
+        <h1 class="ar-title">Como você quer pagar?</h1>
+        <div class="ar-card">
+          <h2 class="ar-card-title">Formas de pagamento</h2>
+          <div class="ar-pay-grid">
+            <label class="pay-method active" id="label-pix">
+              <input checked name="pay" type="radio" value="pix">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-bolt"></i></span><div><div class="pay-title">Pix</div><div class="pay-desc">Pagamento à vista com aprovação rápida.</div></div></div>
+            </label>
+            <label class="pay-method" id="label-card">
+              <input name="pay" type="radio" value="card">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-credit-card"></i></span><div><div class="pay-title">Cartão de crédito</div><div class="pay-desc">Escolha as parcelas na próxima etapa.</div></div></div>
+            </label>
+            <label class="pay-method" id="label-boleto">
+              <input name="pay" type="radio" value="boleto">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-barcode"></i></span><div><div class="pay-title">Boleto bancário</div><div class="pay-desc">Compensação bancária após o pagamento.</div></div></div>
+            </label>
+            <label class="pay-method" id="label-crediario">
+              <input name="pay" type="radio" value="crediario_ariana">
+              <div class="pay-method-body"><span class="ar-icon"><i class="fas fa-file-invoice-dollar"></i></span><div><div class="pay-title">Crediário Ariana</div><div class="pay-desc">Solicite uma análise de crédito em uma tela dedicada.</div></div><span class="ar-row-arrow">›</span></div>
+            </label>
+          </div>
+          <div id="crediario-config" class="hidden">
+            <select id="crediario-parcelas"></select>
+            <input id="crediario-primeiro-vencimento" type="date">
+            <div id="crediario-preview"></div>
+          </div>
+        </div>
+
+        <div class="ar-card">
+          <h2 class="ar-card-title">Itens do pedido</h2>
+          <div id="resumo-end" class="ar-card-subtitle"></div>
+          <div id="lista-resumo-main" class="resumo-list"></div>
+        </div>
+
+        <div class="ar-card">
+          <h2 class="ar-card-title">Cupom de desconto</h2>
+          <div class="ar-coupon">
+            <input id="coupon-code" class="ar-field" placeholder="Digite seu cupom" autocomplete="off">
+            <button id="btn-aplicar-cupom">Aplicar</button>
+          </div>
+          <div id="coupon-message" style="font-size:12px;color:var(--ariana-muted);margin-top:8px"></div>
+          <div class="ar-summary-total"><span>Total</span><strong id="resumo-total">R$ 0,00</strong></div>
+        </div>
+        <div class="ar-actions">
+          <button id="btn-back-3" class="ar-secondary">Voltar</button>
+          <button id="btn-pay" class="ar-primary" style="width:auto;min-width:220px">Continuar para pagamento</button>
+        </div>
+      </section>
+
+      <section id="step-4" class="hidden">
+        <div class="ar-status">
+          <div class="ar-status-icon"><i class="fas fa-check"></i></div>
+          <h2>Pedido criado</h2>
+          <p id="step4-subtitle">Seu pedido foi recebido.</p>
+          <div id="payment-result" class="hidden">
+            <div id="boleto-result" class="hidden"><input id="boleto-digitable"><a id="boleto-link"></a><span id="boleto-payment-id"></span><button id="btn-copy-digitable"></button></div>
+            <div id="pix-result" class="hidden"><img id="pix-qr-img"><textarea id="pix-copy"></textarea><span id="pix-payment-id"></span><button id="btn-copy-pix"></button></div>
+            <div id="payment-result-title"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <aside class="ar-summary">
+      <h2>Resumo do pedido</h2>
+      <div id="lista-resumo-side" class="ar-summary-products"></div>
+      <div class="ar-summary-line"><span>Produtos</span><strong id="products-total-side">R$ 0,00</strong></div>
+      <div class="ar-summary-line"><span>Entrega</span><strong id="shipping-price-side">A calcular</strong></div>
+      <div class="ar-summary-total"><span>Total</span><strong id="total-geral-side">R$ 0,00</strong></div>
+    </aside>
+  </div>
+</main>
+<script src="js/api-config.js"></script>
+  <script src="marketplace-core.js"></script>
+  <script src="marketplace-core_global_payments.js"></script>
+  <script src="js/layout-fit.js" defer></script>
+  <script src="js/header_auth_fix.js" defer></script>
+
+  <script>
+    const API_BASE =
+      window.API_BASE ||
+      localStorage.getItem("API_BASE") ||
+      "https://ariana-backend.onrender.com/api";
+
+    const API_ORIGIN =
+      window.API_ORIGIN ||
+      String(API_BASE).replace(/\/api\/?$/i, "");
+
+    // Evita que scripts globais reabram a garantia no checkout.
+    // A oferta deve acontecer uma única vez dentro do fluxo de compra.
+    sessionStorage.setItem('ariana_warranty_checkout_active', '1');
+
+    let user = null;
+    let customerProfile = null;
+    let selectedAddrObj = null;
+    let selectedAddrText = null;
+    let selectedPay = "Pix";
+    let selectedPayCode = "pix";
+    let addressesCache = [];
+    let settingsShipping = null;
+    let settingsPayments = null;
+    let shippingQuote = null;
+
+    let cart = (() => {
+      try {
+        const raw = localStorage.getItem("arianaMoveisCart") || localStorage.getItem("ariana_moveis_cart") || "[]";
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    })();
+
+    const COST_SAFE_FLAGS = {
+      enableRemoteShippingApi: localStorage.getItem('ENABLE_REMOTE_SHIPPING_API') === 'true',
+      enableFirestoreSettings: false,
+      enableProductRecommendations: false,
+      enableProductShippingFetch: false,
+    };
+
+    const brl = (value) =>
+      new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
+
+    const safeNumber = (v) => {
+      if (v === undefined || v === null) return 0;
+      if (typeof v === "string") {
+        let s = v.trim();
+        if (!s) return 0;
+        s = s.replace(/[^\d,.\-]/g, "");
+        const lastComma = s.lastIndexOf(",");
+        const lastDot = s.lastIndexOf(".");
+        if (lastComma !== -1 && lastDot !== -1) {
+          if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
+          else s = s.replace(/,/g, "");
+        } else if (lastComma !== -1 && lastDot === -1) {
+          s = s.replace(",", ".");
+        }
+        const n = Number(s);
+        return Number.isFinite(n) ? n : 0;
+      }
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    
+    function arianaSellerBasePrice(item) {
+      return safeNumber(item?.sellerBasePrice ?? item?.pixPrice ?? item?.basePrice ?? item?.price ?? item?.preco ?? 0);
+    }
+    function arianaMarketplacePrice(item) {
+      const explicit = safeNumber(item?.marketplacePrice ?? item?.cardPrice ?? item?.fullPrice ?? item?.precoPrazo ?? 0);
+      if (explicit > 0) return explicit;
+      const base = arianaSellerBasePrice(item);
+      return base > 0 ? +(base / 0.83).toFixed(2) : 0;
+    }
+    function arianaUnitPriceForPayment(item, method) {
+      return ['card','crediario_ariana'].includes(String(method || '').toLowerCase()) ? arianaMarketplacePrice(item) : arianaSellerBasePrice(item);
+    }
+
+const computeCartTotal = () =>
+      (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1);
+        const price = safeNumber(i.price ?? i.valor ?? 0);
+        return sum + price * qty;
+      }, 0);
+
+    // Total usado exclusivamente como valor declarado na cotação do frete.
+    // Mantém o mesmo padrão da página do produto: preço-base/PIX.
+    const computeShippingDeclaredTotal = () =>
+      (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
+        return sum + (arianaSellerBasePrice(i) * qty);
+      }, 0);
+
+    const pick = (...vals) => {
+      for (const v of vals) {
+        if (v === undefined || v === null) continue;
+        const s = String(v).trim();
+        if (s) return s;
+      }
+      return "";
+    };
+
+    const onlyDigits = (s) => String(s || "").replace(/\D+/g, "");
+    const normalizeCpf = (cpf) => {
+      const d = onlyDigits(cpf);
+      return d.length === 11 ? d : "";
+    };
+    const normalizePhone = (p) => onlyDigits(p);
+    const normalizeUF = (uf) => String(uf || "").trim().toUpperCase().slice(0, 2);
+    const normalizeCep = (cep) => {
+      const d = onlyDigits(cep);
+      return d.length === 8 ? d : "";
+    };
+
+    const splitFullName = (full) => {
+      const p = String(full || "").trim().split(/\s+/).filter(Boolean);
+      if (!p.length) return { first_name: "", last_name: "" };
+      if (p.length === 1) return { first_name: p[0], last_name: "" };
+      return { first_name: p[0], last_name: p.slice(1).join(" ") };
+    };
+
+    const normalizeAddress = (addr) => {
+      const a = addr || {};
+      return {
+        id: a.id || a._id || "",
+        street: pick(a.street, a.logradouro, a.rua, a.address, a.endereco),
+        number: pick(a.number, a.numero, a.street_number),
+        complement: pick(a.complement, a.complemento),
+        neighborhood: pick(a.neighborhood, a.bairro),
+        city: pick(a.city, a.cidade),
+        state: normalizeUF(pick(a.state, a.uf, a.federal_unit)),
+        cep: normalizeCep(pick(a.cep, a.zip, a.zip_code, a.postal_code)),
+        nickname: pick(a.nickname, a.name, a.label)
+      };
+    };
+
+    const buildMpPayerAndShipments = ({ authUser, customerProfile, cpfDigits, normalizedAddr }) => {
+      const fullName =
+        pick(customerProfile?.name, customerProfile?.nome, authUser?.name, authUser?.displayName) ||
+        (authUser?.email ? authUser.email.split("@")[0] : "Cliente");
+
+      const nm = splitFullName(fullName);
+      const phoneDigits = onlyDigits(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || ""));
+      const area_code = phoneDigits.length >= 10 ? phoneDigits.slice(0, 2) : "";
+      const number = phoneDigits.length >= 10 ? phoneDigits.slice(2, 11) : phoneDigits;
+
+      const payer = {
+        email: authUser?.email || "",
+        first_name: nm.first_name,
+        last_name: nm.last_name,
+        identification: { type: "CPF", number: cpfDigits },
+        phone: { area_code, number },
+        address: {
+          zip_code: normalizedAddr.cep,
+          street_name: normalizedAddr.street,
+          street_number: String(normalizedAddr.number || "S/N"),
+          neighborhood: normalizedAddr.neighborhood,
+          city: normalizedAddr.city,
+          federal_unit: normalizedAddr.state
+        }
+      };
+
+      const receiver_address = {
+        zip_code: normalizedAddr.cep,
+        street_name: normalizedAddr.street,
+        street_number: String(normalizedAddr.number || "S/N"),
+        neighborhood: normalizedAddr.neighborhood,
+        city_name: normalizedAddr.city,
+        state_name: normalizedAddr.state,
+        apartment: normalizedAddr.complement || "",
+        receiver_name: fullName
+      };
+
+      return { payer, receiver_address, fullName };
+    };
+
+    const validateMpBasics = ({ cpfDigits, addr }) => {
+      const probs = [];
+      if (!cpfDigits || cpfDigits.length !== 11) probs.push("CPF inválido.");
+      if (!addr.cep) probs.push("CEP inválido.");
+      if (!addr.street) probs.push("Rua/logradouro vazio.");
+      if (!addr.neighborhood) probs.push("Bairro vazio.");
+      if (!addr.city) probs.push("Cidade vazia.");
+      if (!addr.state) probs.push("UF vazia.");
+      return probs;
+    };
+
+    const resolveCartProductId = (it) => {
+      if (!it) return null;
+      return (
+        it.id ||
+        it.productId ||
+        it.produtoId ||
+        it.docId ||
+        it.firestoreId ||
+        it.productDocId ||
+        it.pid ||
+        it.sku ||
+        it.codigo ||
+        it.code ||
+        null
+      );
+    };
+
+    const normalizeItemShippingFields = (it) => {
+      const dims = it?.dimensions || it?.dimension || it?.medidas || it?.dimensoes || {};
+      const pesoKg = it?.pesoKg ?? it?.weightKg ?? it?.peso ?? it?.shippingWeightKg ?? null;
+      const alturaCm = it?.alturaCm ?? it?.heightCm ?? it?.altura ?? dims?.altura ?? dims?.height ?? null;
+      const larguraCm = it?.larguraCm ?? it?.widthCm ?? it?.largura ?? dims?.largura ?? dims?.width ?? null;
+      const comprimentoCm = it?.comprimentoCm ?? it?.lengthCm ?? it?.comprimento ?? dims?.comprimento ?? dims?.length ?? null;
+
+      return {
+        pesoKg: pesoKg != null ? Number(pesoKg) : null,
+        alturaCm: alturaCm != null ? Number(alturaCm) : null,
+        larguraCm: larguraCm != null ? Number(larguraCm) : null,
+        comprimentoCm: comprimentoCm != null ? Number(comprimentoCm) : null,
+      };
+    };
+
+    cart = (Array.isArray(cart) ? cart : []).map((it) => ({
+      ...it,
+      id: resolveCartProductId(it) || it.id,
+      ...normalizeItemShippingFields(it),
+      quantity: Number(it.quantity ?? it.qty ?? it.qtd ?? 1) || 1,
+      price: Number(it.price) || 0,
+    }));
+
+    try {
+      localStorage.setItem("arianaMoveisCart", JSON.stringify(cart));
+      localStorage.setItem("ariana_moveis_cart", JSON.stringify(cart));
+    } catch (_) {}
+
+    function getApiBaseUrl() {
+      const v = localStorage.getItem('API_BASE') || localStorage.getItem('API_BASE_URL') || '';
+      if (v) return v.replace(/\/+$/, '');
+      return API_BASE;
+    }
+
+    function normalizeShippingDefaults(s = {}) {
+      return {
+        originCep: (s.originCep || s.cepOrigem || '39740-000'),
+        services: Array.isArray(s.services) ? s.services : (Array.isArray(s.servicos) ? s.servicos : ['03328','03298','03220','03212']),
+        defaultWeightKg: Number(s.defaultWeightKg ?? s.pesoKgPadrao ?? 1) || 1,
+        defaultHeightCm: Number(s.defaultHeightCm ?? s.alturaCmPadrao ?? 10) || 10,
+        defaultWidthCm: Number(s.defaultWidthCm ?? s.larguraCmPadrao ?? 15) || 15,
+        defaultLengthCm: Number(s.defaultLengthCm ?? s.comprimentoCmPadrao ?? 20) || 20,
+        defaultDeclaredValue: Number(s.defaultDeclaredValue ?? s.valorDeclaradoPadrao ?? 0) || 0,
+        freeShippingAbove: Number(s.freeShippingAbove ?? s.freteGratisAcima ?? 0) || 0,
+      };
+    }
+
+    const num = (v, fb = 0) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fb;
+    };
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+    function getDiscountPercentFor(method) {
+      const p = settingsPayments || {};
+      const obj =
+        method === 'boleto' ? (p.boleto || {}) :
+        (p.pix || {});
+      if (obj && obj.enabled === false) return 0;
+      const raw = num(obj?.discountPercent ?? obj?.descontoPercent ?? obj?.descontoPix, 0);
+      return raw > 0 ? clamp(raw, 0, 90) : 17;
+    }
+
+    function getDiscountFactorFor(method) {
+      const d = getDiscountPercentFor(method);
+      return (100 - d) / 100;
+    }
+
+    async function loadSettings() {
+      if (settingsShipping && settingsPayments) return { shipping: settingsShipping, payments: settingsPayments };
+
+      settingsShipping = normalizeShippingDefaults({});
+      settingsPayments = {};
+
+      try {
+        if (typeof window.getPaymentSettings === 'function') {
+          settingsPayments = await window.getPaymentSettings(false);
+        }
+      } catch (_) {}
+
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/settings/shipping`, { headers: { "Content-Type": "application/json" } });
+        if (res.ok) {
+          const data = await res.json();
+          const payload = data?.item || data?.shipping || data || {};
+          settingsShipping = normalizeShippingDefaults(payload);
+        }
+      } catch (_) {}
+
+      return { shipping: settingsShipping, payments: settingsPayments };
+    }
+
+    async function enrichCartShipping() {
+      await loadSettings();
+      const defs = settingsShipping || normalizeShippingDefaults({});
+      cart = cart.map((it) => ({
+        ...it,
+        pesoKg: Number(it.pesoKg) || defs.defaultWeightKg,
+        alturaCm: Number(it.alturaCm) || defs.defaultHeightCm,
+        larguraCm: Number(it.larguraCm) || defs.defaultWidthCm,
+        comprimentoCm: Number(it.comprimentoCm) || defs.defaultLengthCm,
+      }));
+    }
+
+    function computePackage() {
+      const items = Array.isArray(cart) ? cart : [];
+      let pesoKg = 0;
+      let alturaCm = 0;
+      let larguraCm = 0;
+      let comprimentoCm = 0;
+
+      for (const it of items) {
+        const q = Number(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1;
+        const w = Number(it?.pesoKg ?? 1) || 1;
+        const h = Number(it?.alturaCm ?? 10) || 10;
+        const wi = Number(it?.larguraCm ?? 10) || 10;
+        const l = Number(it?.comprimentoCm ?? 10) || 10;
+
+        pesoKg += w * q;
+        alturaCm = Math.max(alturaCm, h);
+        larguraCm = Math.max(larguraCm, wi);
+        comprimentoCm += l * q;
+      }
+
+      pesoKg = Math.max(0.1, Math.round(pesoKg * 100) / 100);
+      alturaCm = Math.max(1, Math.round(alturaCm));
+      larguraCm = Math.max(1, Math.round(larguraCm));
+      comprimentoCm = Math.max(1, Math.round(comprimentoCm));
+
+      return { pesoKg, alturaCm, larguraCm, comprimentoCm };
+    }
+
+    function isArianaSeller(item) {
+      const sid = String(item?.sellerId || item?.seller_id || '').toLowerCase().trim();
+      const sname = String(item?.sellerName || item?.soldBy || item?.storeName || item?.vendorName || '').toLowerCase().trim();
+      if (!sid && !sname) return true;
+      return sid === 'admin' || sid === 'ariana' || sid.includes('ariana') || sname.includes('ariana');
+    }
+
+    function isArianaOrderFromCartItems(items) {
+      if (!Array.isArray(items) || items.length === 0) return false;
+      for (let i = 0; i < items.length; i++) {
+        if (!isArianaSeller(items[i])) return false;
+      }
+      return true;
+    }
+
+
+function normalizeCheckoutShippingOption(q, raw = null) {
+  if (!q || typeof q !== 'object' || q.unavailable) return null;
+  const price = Number(q.effectivePrice ?? q.price ?? q.valor ?? 0);
+  if (!Number.isFinite(price)) return null;
+  return {
+    provider: q.provider || q.carrier || 'shipping',
+    price,
+    service: q.service || q.name || q.label || 'Frete',
+    name: q.name || q.label || q.carrier || q.provider || q.service || 'Frete',
+    deadlineDays: Number(q.deadlineDays ?? q.prazoDias ?? q.prazoEntrega ?? q.deadline ?? 0) || null,
+    raw: raw || q,
+  };
+}
+
+async function quoteShippingForCep(cepDestino) {
+  await loadSettings();
+  await enrichCartShipping();
+
+  const pkg = computePackage();
+  const cleanCep = String(cepDestino || '').replace(/\D/g, '');
+  // Não usa o total cheio do cartão como valor declarado do frete.
+  // Usa exatamente a mesma base enviada pela tela de detalhes do produto.
+  const subtotal = computeShippingDeclaredTotal();
+  const payload = {
+    cepDestino: cleanCep,
+    destinationCep: cleanCep,
+    cep: cleanCep,
+    subtotal,
+    total: subtotal,
+    invoiceValue: subtotal,
+    valorNota: subtotal,
+    pesoKg: pkg.pesoKg,
+    weightKg: pkg.pesoKg,
+    weight: pkg.pesoKg,
+    alturaCm: pkg.alturaCm,
+    heightCm: pkg.alturaCm,
+    height: pkg.alturaCm,
+    larguraCm: pkg.larguraCm,
+    widthCm: pkg.larguraCm,
+    width: pkg.larguraCm,
+    comprimentoCm: pkg.comprimentoCm,
+    lengthCm: pkg.comprimentoCm,
+    length: pkg.comprimentoCm,
+    isArianaOrder: isArianaOrderFromCartItems(cart),
+    items: (Array.isArray(cart) ? cart : []).map((it) => ({
+      id: it.id || it.productId || null,
+      productId: it.id || it.productId || null,
+      name: it.name || 'Produto',
+      sellerId: it.sellerId || 'admin',
+      sellerName: it.sellerName || 'Ariana Móveis',
+      quantity: safeNumber(it.quantity ?? 1),
+      qty: safeNumber(it.quantity ?? 1),
+      unitPrice: arianaSellerBasePrice(it),
+      totalPrice: arianaSellerBasePrice(it) * safeNumber(it.quantity ?? 1),
+      pesoKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
+      weightKg: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
+      weight: safeNumber(it.pesoKg ?? it.weightKg ?? it.weight ?? 0),
+      alturaCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height ?? 0),
+      heightCm: safeNumber(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height ?? 0),
+      height: safeNumber(it.alturaCm ?? it.heightCm ?? it.altura ?? it.height ?? 0),
+      larguraCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width ?? 0),
+      widthCm: safeNumber(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width ?? 0),
+      width: safeNumber(it.larguraCm ?? it.widthCm ?? it.largura ?? it.width ?? 0),
+      comprimentoCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length ?? 0),
+      lengthCm: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length ?? 0),
+      length: safeNumber(it.comprimentoCm ?? it.lengthCm ?? it.comprimento ?? it.length ?? 0),
+    }))
+  };
+
+  // Usa somente a rota unificada do backend para cotar Frenet/Correios corretamente.
+  const endpoints = [
+    `${getApiBaseUrl()}/shipping/logistics/quote`,
+  ];
+
+  let best = null;
+  let full = null;
+  let lastError = '';
+  for (const endpoint of endpoints) {
+    try {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        lastError = data?.error || data?.message || `HTTP ${r.status}`;
+        continue;
+      }
+      const candidates = [
+        ...(Array.isArray(data?.options) ? data.options : []),
+        ...(Array.isArray(data?.quotes) ? data.quotes : []),
+        ...(data?.cheapest ? [data.cheapest] : []),
+        ...(data?.quote ? [data.quote] : []),
+      ].map((q) => normalizeCheckoutShippingOption(q, data)).filter(Boolean);
+      if (candidates.length) {
+        candidates.sort((a, b) => Number(a.price ?? 1e9) - Number(b.price ?? 1e9));
+        best = candidates[0];
+        full = data;
+        break;
+      }
+      lastError = data?.error || data?.message || 'Nenhuma opção de frete disponível para este CEP.';
+    } catch (err) {
+      lastError = err?.message || String(err || '');
+    }
+  }
+
+  if (!best) throw new Error(lastError || 'Falha ao cotar frete');
+
+  shippingQuote = {
+    provider: best.provider,
+    price: Number(best.price) || 0,
+    service: best.service || null,
+    name: best.name || best.service || 'Frete',
+    deadlineDays: best.deadlineDays ?? null,
+    raw: best.raw || best,
+    pkg,
+    cepDestino: cleanCep,
+    request: payload,
+    full: full
+  };
+
+  try {
+    localStorage.setItem('ariana_selected_shipping', JSON.stringify({
+      cep: cleanCep,
+      service: shippingQuote.service,
+      name: shippingQuote.name,
+      quotedPrice: shippingQuote.price,
+      effectivePrice: shippingQuote.price,
+      updatedAt: Date.now(),
+      raw: full
+    }));
+  } catch (_) {}
+
+  return shippingQuote;
+}
+
+async function quoteShippingForSelectedAddress(addrObj) {
+  await loadSettings();
+  const cep = String(addrObj?.cep || addrObj?.zip || '').replace(/\D/g,'');
+
+  // Não usa cache antigo, porque o cache pode ter salvo a opção mais barata
+  // antes da nova regra de prioridade: Ariana Entrega -> Correios -> Rodocap -> Frenet.
+  try { localStorage.removeItem('ariana_selected_shipping'); } catch (_) {}
+
+  return quoteShippingForCep(cep);
+}
+
+    function normalizeCouponCode(value) {
+      return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    }
+
+    function readStoredCoupon() {
+      try { return JSON.parse(localStorage.getItem('ariana_coupon_result') || 'null') || null; } catch (_) { return null; }
+    }
+
+    function storeCouponResult(data) {
+      try {
+        if (data && data.code) {
+          localStorage.setItem('ariana_coupon_result', JSON.stringify(data));
+          localStorage.setItem('ariana_checkout_coupon', JSON.stringify(data));
+        } else {
+          localStorage.removeItem('ariana_coupon_result');
+          localStorage.removeItem('ariana_checkout_coupon');
+        }
+      } catch (_) {}
+    }
+
+    function getAppliedCoupon(baseValue) {
+      const code = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || '');
+      const saved = readStoredCoupon();
+      if (!code) return { code: '', valid: false, value: 0, message: '' };
+      if (!saved || normalizeCouponCode(saved.code) !== code) {
+        return { code, valid: false, value: 0, message: 'Clique em Aplicar para validar o cupom.' };
+      }
+      const rawValue = Number(saved.discountValue ?? saved.discount ?? saved.value ?? 0);
+      const value = Math.min(Number(baseValue || 0), Math.max(0, Number.isFinite(rawValue) ? rawValue : 0));
+      return { ...saved, code, valid: saved.valid !== false && value > 0, value, message: saved.message || (value > 0 ? `Cupom ${code} aplicado.` : 'Cupom sem desconto disponível.') };
+    }
+
+    async function validateCouponRemote(code, baseValue) {
+      const cleanCode = normalizeCouponCode(code);
+      if (!cleanCode) {
+        localStorage.removeItem('ariana_applied_coupon');
+        storeCouponResult(null);
+        return { code: '', valid: false, value: 0, message: '' };
+      }
+      const payload = {
+        code: cleanCode,
+        subtotal: Number(baseValue || 0),
+        total: Number(baseValue || 0),
+        items: cart.map((item) => ({
+          productId: item.id || item.productId || item._id || '',
+          sellerId: item.sellerId || '',
+          category: item.category || item.categoryName || '',
+          quantity: Number(item.quantity || 1),
+          price: arianaSellerBasePrice(item)
+        }))
+      };
+      try {
+        const res = await fetch(`${String(API_BASE).replace(/\/+$/, '')}/coupons/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.valid === false || data.ok === false) {
+          const result = { code: cleanCode, valid: false, value: 0, discountValue: 0, message: data.message || data.error || 'Cupom inválido ou expirado.' };
+          storeCouponResult(result);
+          return result;
+        }
+        const discountValue = Number(data.discountValue ?? data.discount ?? data.value ?? data.amount ?? 0) || 0;
+        const result = { ...data, code: cleanCode, valid: true, value: discountValue, discountValue, message: data.message || `Cupom ${cleanCode} aplicado.` };
+        localStorage.setItem('ariana_applied_coupon', cleanCode);
+        storeCouponResult(result);
+        return result;
+      } catch (_) {
+        const result = { code: cleanCode, valid: false, value: 0, discountValue: 0, message: 'Não foi possível validar o cupom agora.' };
+        storeCouponResult(result);
+        return result;
+      }
+    }
+
+    function getCurrentPaymentDiscount() {
+      const checkedMethod = document.querySelector('input[name="pay"]:checked')?.value;
+      const method = selectedPayCode || checkedMethod || 'pix';
+      const percent = (method === 'pix' || method === 'boleto') ? getDiscountPercentFor(method) : 0;
+      return { method, percent, factor: (100 - percent) / 100 };
+    }
+
+    function upsertDiscountLine(containerEl, discountValue, percent, method) {
+      if (!containerEl) return;
+      let line = containerEl.querySelector('.discount-line-auto');
+      if (!line) {
+        line = document.createElement('div');
+        line.className = 'totals-row discount-line-auto';
+        const totalLine = containerEl.querySelector('.totals-row.total');
+        containerEl.insertBefore(line, totalLine || null);
+      }
+      if (discountValue > 0) {
+        const label = method === 'boleto' ? 'Desconto no boleto' : 'Desconto no Pix';
+        line.style.display = '';
+        line.innerHTML = `<span>${label} (${percent}% OFF)</span><strong style="color:#00a650;">- ${brl(discountValue)}</strong>`;
+      } else {
+        line.style.display = 'none';
+        line.innerHTML = '';
+      }
+    }
+
+    function updateTotalsUI() {
+      const products = computeCartTotal();
+      const ship = Number(shippingQuote?.effectivePrice ?? shippingQuote?.price ?? 0) || 0;
+      const defs = settingsShipping || normalizeShippingDefaults({});
+      const shippingFinal = (defs.freeShippingAbove > 0 && products >= defs.freeShippingAbove) ? 0 : ship;
+      const grandOriginal = products + shippingFinal;
+      const discountInfo = getCurrentPaymentDiscount();
+      const paymentDiscountValue = discountInfo.percent > 0 ? grandOriginal * (discountInfo.percent / 100) : 0;
+      const coupon = getAppliedCoupon(Math.max(0, grandOriginal - paymentDiscountValue));
+      const discountValue = paymentDiscountValue + coupon.value;
+      const grand = Math.max(0, grandOriginal - discountValue);
+
+      const productsEls = [
+        document.getElementById('products-total-main'),
+        document.getElementById('products-total-side')
+      ];
+      productsEls.forEach(el => { if (el) el.textContent = brl(products); });
+
+      const shipEls = [
+        document.getElementById('shipping-price-main'),
+        document.getElementById('shipping-price-side')
+      ];
+      shipEls.forEach(el => {
+        if (!el) return;
+        el.textContent = shippingQuote ? (shippingFinal === 0 ? 'Grátis' : `${(shippingQuote.name || 'Frete')}: ${brl(shippingFinal)}`) : 'A calcular';
+      });
+
+      document.querySelectorAll('.totals-grid').forEach((grid) => {
+        if (grid.querySelector('.totals-row.total')) {
+          upsertDiscountLine(grid, discountValue, discountInfo.percent, discountInfo.method);
+        }
+      });
+
+      const totalEls = [
+        document.getElementById('total-geral-main'),
+        document.getElementById('total-geral-side'),
+        document.getElementById('resumo-total')
+      ];
+      totalEls.forEach(el => { if (el) el.textContent = brl(grand); });
+
+      const couponInput = document.getElementById('coupon-code');
+      const couponMsg = document.getElementById('coupon-message');
+      if (couponInput && !couponInput.value) couponInput.value = coupon.code || '';
+      if (couponMsg) {
+        couponMsg.textContent = coupon.message || 'Digite um cupom válido da Ariana Móveis.';
+        couponMsg.className = 'text-xs mt-2 ' + (coupon.valid ? 'text-green-600 font-semibold' : 'text-gray-500');
+      }
+
+      try { atualizarVisualPagamentos(grandOriginal); } catch (_) {}
+
+      return {
+        products,
+        shipping: shippingFinal,
+        grandTotalOriginal: grandOriginal,
+        discountPercent: discountInfo.percent,
+        discountValue,
+        paymentDiscountValue,
+        couponCode: coupon.code || '',
+        couponDiscount: coupon.value || 0,
+        grandTotal: grand,
+        paymentMethod: discountInfo.method
+      };
+    }
+
+    function atualizarVisualPagamentos(totalCheio) {
+      const total = Number(totalCheio || 0);
+      const descPix = getDiscountPercentFor('pix');
+      const fatorPix = getDiscountFactorFor('pix');
+      const valorPix = total * fatorPix;
+      const formatadoPix = brl(valorPix);
+      const descBoleto = getDiscountPercentFor('boleto');
+      const fatorBoleto = getDiscountFactorFor('boleto');
+      const valorBoleto = total * fatorBoleto;
+      const formatadoBoleto = brl(valorBoleto);
+      const mlGreen = "#00a650";
+
+      const pixLabel = document.getElementById('label-pix');
+      if (pixLabel) {
+        const body = pixLabel.querySelector('.pay-method-body');
+        if (body) {
+          body.innerHTML = `
+            <div class="flex justify-between items-center w-full">
+              <div>
+                <div class="pay-title">Pix</div>
+                <div class="pay-desc">Aprovação rápida</div>
+              </div>
+              <div style="color:${mlGreen};font-weight:800;">${formatadoPix} ${descPix > 0 ? `<small>(${descPix}% OFF)</small>` : ``}</div>
+            </div>
+          `;
+        }
+      }
+
+      const boletoLabel = document.getElementById('label-boleto');
+      if (boletoLabel) {
+        const body = boletoLabel.querySelector('.pay-method-body');
+        if (body) {
+          body.innerHTML = `
+            <div class="flex justify-between items-center w-full">
+              <div>
+                <div class="pay-title">Boleto</div>
+                <div class="pay-desc">Compensação bancária</div>
+              </div>
+              <div style="color:${mlGreen};font-weight:800;">${formatadoBoleto} ${descBoleto > 0 ? `<small>(${descBoleto}% OFF)</small>` : ``}</div>
+            </div>
+          `;
+        }
+      }
+    }
+
+    const setLoadingButton = (btn, loading, text = null) => {
+      if (!btn) return;
+      btn.disabled = !!loading;
+      if (loading) {
+        btn.dataset.originalText = btn.dataset.originalText || btn.innerText;
+        btn.innerText = text || "PROCESSANDO...";
+        btn.classList.add("opacity-80");
+      } else {
+        btn.innerText = btn.dataset.originalText || btn.innerText;
+        btn.classList.remove("opacity-80");
+      }
+    };
+
+    function getStoredUser() {
+      const sources = [
+        localStorage.getItem('currentUser'),
+        localStorage.getItem('clienteLogado'),
+        localStorage.getItem('usuarioLogado')
+      ];
+
+      for (const raw of sources) {
+        if (!raw) continue;
+        try {
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === 'object') {
+            return {
+              uid: obj.uid || obj.id || obj._id || "",
+              id: obj.id || obj.uid || obj._id || "",
+              name: obj.name || obj.nome || obj.displayName || "",
+              displayName: obj.displayName || obj.name || obj.nome || "",
+              email: obj.email || "",
+              phone: obj.phone || obj.telefone || obj.celular || "",
+              cpf: obj.cpf || "",
+              addresses: obj.addresses || obj.enderecos || [],
+              address: obj.address || obj.endereco || null
+            };
+          }
+        } catch (_) {
+          if (raw.includes("@")) {
+            return { uid: "", id: "", name: "", displayName: "", email: raw };
+          }
+        }
+      }
+
+      const clientSession = sessionStorage.getItem('clientArianaMoveis');
+      if (clientSession) {
+        try {
+          const obj = JSON.parse(clientSession);
+          return {
+            uid: obj.uid || obj.id || "",
+            id: obj.id || obj.uid || "",
+            name: obj.name || obj.nome || "",
+            displayName: obj.displayName || obj.name || obj.nome || "",
+            email: obj.email || "",
+            phone: obj.phone || obj.telefone || obj.celular || "",
+            cpf: obj.cpf || "",
+            addresses: obj.addresses || obj.enderecos || [],
+            address: obj.address || obj.endereco || null
+          };
+        } catch (_) {}
+      }
+
+      return null;
+    }
+
+
+    function getAuthToken() {
+      return (
+        localStorage.getItem("token") ||
+        localStorage.getItem("authToken") ||
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("customerToken") ||
+        localStorage.getItem("admin_token") ||
+        sessionStorage.getItem("token") ||
+        ""
+      );
+    }
+
+    function getAuthHeaders() {
+      const token = getAuthToken();
+      return token
+        ? { "Content-Type": "application/json", "Authorization": "Bearer " + token }
+        : { "Content-Type": "application/json" };
+    }
+
+
+    async function apiGet(path) {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) {
+    let msg = `Erro GET ${path}`;
+    try {
+      const j = await res.json();
+      msg = j?.error || j?.message || msg;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+    async function apiPost(path, payload) {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    let msg = "Erro ao salvar";
+    try {
+      const j = await res.json();
+      msg = j?.error || j?.message || msg;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+    async function bootAuthAndProfile() {
+      const overlay = document.getElementById("auth-guard-overlay");
+
+      user = getStoredUser();
+
+      if (!user || !(user.uid || user.id || user.email)) {
+        const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `login_cadastro.html?redirect=${returnTo}`;
+        return false;
+      }
+
+      customerProfile = {
+        uid: user.uid || user.id || "",
+        name: user.name || user.displayName || "",
+        nome: user.name || user.displayName || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        telefone: user.phone || "",
+        cpf: user.cpf || ""
+      };
+
+      if (overlay) overlay.remove();
+      if (!getAuthToken()) {
+        console.warn("[checkout] usuário encontrado no storage, mas sem token. As rotas protegidas podem falhar.");
+      }
+      return true;
+    }
+
+    async function loadAddresses() {
+      addressesCache = [];
+      const uid = user?.uid || user?.id || "";
+
+      if (Array.isArray(user?.addresses) && user.addresses.length) {
+        addressesCache = user.addresses.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
+      } else if (user?.address && typeof user.address === "object") {
+        addressesCache = [{ id: user.address.id || user.address._id || "address_doc", ...user.address }];
+      }
+
+      try {
+        const data = await apiGet(`/addresses`);
+        const items = Array.isArray(data) ? data : (data.items || data.addresses || []);
+        if (items.length) {
+          addressesCache = items.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
+        }
+      } catch (_) {
+        if (!addressesCache.length && uid) {
+          try {
+            const data = await apiGet(`/users/${encodeURIComponent(uid)}/addresses`);
+            const items = Array.isArray(data) ? data : (data.items || data.addresses || []);
+            addressesCache = items.map((a, i) => ({ id: a.id || a._id || `address_${i}`, ...a }));
+          } catch (_) {}
+        }
+      }
+
+      renderAddressSelect();
+      tryAutoSelectAddress();
+    }
+
+
+    function getStoredCheckoutAddressId() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('ariana_checkout_address') || 'null');
+        return saved?.id ? String(saved.id) : '';
+      } catch (_) { return ''; }
+    }
+
+    function persistCheckoutAddress(addr) {
+      if (!addr) return;
+      const normalized = normalizeAddress(addr);
+      try {
+        localStorage.setItem('ariana_checkout_address', JSON.stringify({
+          id: String(addr.id || addr._id || ''),
+          raw: addr,
+          normalized
+        }));
+      } catch (_) {}
+    }
+
+    function tryAutoSelectAddress() {
+      if (!Array.isArray(addressesCache) || !addressesCache.length) return;
+      const preferredId = getStoredCheckoutAddressId();
+      let addr = null;
+      if (preferredId) {
+        addr = addressesCache.find((a) => String(a.id || a._id || '') === preferredId) || null;
+      }
+      if (!addr) {
+        addr = addressesCache.find((a) => !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main)) || addressesCache[0];
+      }
+      const el = document.querySelector(`.addr-card[data-addr-id="${String(addr?.id || addr?._id || '')}"]`);
+      if (el && addr) setAddr(el, String(addr.id || addr._id || ''));
+    }
+
+    function renderAddressSelect() {
+      const container = document.getElementById("address-options");
+      if (!container) return;
+
+      if (addressesCache.length === 0) {
+        container.innerHTML = `<div class="col-span-full py-4 text-gray-500 italic">Nenhum endereço cadastrado. <a class="text-blue-600 underline font-semibold" href="minha_conta.html?tab=address&from=checkout">Clique aqui para cadastrar</a>.</div>`;
+        return;
+      }
+
+      container.innerHTML = addressesCache.map((a) => {
+        const n = normalizeAddress(a);
+        const nickname = n.nickname || "Endereço";
+        const line1 = [n.street, n.number].filter(Boolean).join(", ");
+        const line2 = [n.city, n.state].filter(Boolean).join(" - ") + (n.cep ? ` • CEP ${n.cep}` : "");
+
+        const isPrimary = !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main);
+        const tag = (a.tag || a.type || a.label || "").toString().trim();
+        const pill = (tag || (isPrimary ? "Endereço principal" : "")).trim();
+
+        return `
+          <div class="addr-card" data-addr-id="${a.id}">
+            <div class="flex items-start gap-4">
+              <div class="mt-1 w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-transparent dot"></span>
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <p class="text-sm font-extrabold text-gray-800 truncate">${nickname}</p>
+                  ${pill ? `<span class="text-[11px] font-bold px-2 py-1 rounded-full bg-secondary-light-blue text-primary-blue border border-blue-100">${pill}</span>` : ``}
+                </div>
+                <p class="mt-2 font-bold text-gray-900">${line1 || "—"}</p>
+                <p class="text-sm text-gray-500">${line2 || "—"}</p>
+                <p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>
+              </div>
+
+              <div class="check-icon text-gray-200">
+                <i class="fas fa-check-circle text-2xl"></i>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function setAddr(el, addrId) {
+      const addr = addressesCache.find((a) => String(a.id) === String(addrId));
+      if (!addr) return;
+
+      selectedAddrObj = normalizeAddress(addr);
+      selectedAddrText = `${[selectedAddrObj.street, selectedAddrObj.number].filter(Boolean).join(", ")} - ${[selectedAddrObj.city, selectedAddrObj.state].filter(Boolean).join("/")}`.trim();
+      persistCheckoutAddress({ ...(addr || {}), id: addr.id || addr._id || addrId });
+
+      try {
+        const cep = String(selectedAddrObj.cep || '').replace(/\D/g,'');
+        if (cep && cep.length === 8) {
+          const shipEls = [document.getElementById('shipping-price-main'), document.getElementById('shipping-price-side')];
+          shipEls.forEach(node => { if (node) { node.classList.add('opacity-70'); node.textContent = 'Calculando...'; } });
+          await quoteShippingForSelectedAddress(selectedAddrObj);
+        } else {
+          shippingQuote = null;
+        }
+      } catch (e) {
+        console.error('[checkout] frete erro:', e);
+        shippingQuote = null;
+        const shipEls = [document.getElementById('shipping-price-main'), document.getElementById('shipping-price-side')];
+        shipEls.forEach(node => { if (node) node.textContent = 'Erro ao calcular'; });
+      } finally {
+        const shipEls = [document.getElementById('shipping-price-main'), document.getElementById('shipping-price-side')];
+        shipEls.forEach(node => { if (node) node.classList.remove('opacity-70'); });
+        updateTotalsUI();
+      }
+
+      document.querySelectorAll(".addr-card").forEach((c) => {
+        c.classList.remove("active", "border-primary-blue", "bg-blue-50");
+        const icon = c.querySelector(".check-icon");
+        if (icon) icon.classList.replace("text-primary-blue", "text-gray-200");
+        const d = c.querySelector(".dot");
+        if (d) d.classList.remove("bg-primary-blue");
+        const ring = c.querySelector("div.w-5.h-5");
+        if (ring) ring.classList.replace("border-primary-blue", "border-gray-300");
+      });
+
+      el.classList.add("active", "border-primary-blue", "bg-blue-50");
+      const dot = el.querySelector(".dot");
+      if (dot) dot.classList.add("bg-primary-blue");
+      const ring = el.querySelector("div.w-5.h-5");
+      if (ring) ring.classList.replace("border-gray-300", "border-primary-blue");
+      const ic = el.querySelector(".check-icon");
+      if (ic) ic.classList.replace("text-gray-200", "text-primary-blue");
+
+      const btn = document.getElementById("btn-next-1");
+      if (btn) {
+        btn.classList.remove("opacity-50", "cursor-not-allowed");
+        btn.disabled = false;
+      }
+    }
+
+    async function applyPaymentSettingsUI() {
+      try { await loadSettings(); } catch (_) {}
+
+      const mp = (settingsPayments && (settingsPayments.mercadopago || settingsPayments.mercadoPago || settingsPayments.mp)) || {};
+      const enPix = mp.enablePix !== false;
+      const enCard = mp.enableCard !== false;
+      const enBoleto = mp.enableBoleto !== false;
+
+      const labelPix = document.getElementById("label-pix");
+      const labelCard = document.getElementById("label-card");
+      const labelBoleto = document.getElementById("label-boleto");
+
+      if (labelPix) labelPix.style.display = enPix ? "" : "none";
+      if (labelCard) labelCard.style.display = enCard ? "" : "none";
+      if (labelBoleto) labelBoleto.style.display = enBoleto ? "" : "none";
+
+      const allowed = [];
+      if (enPix) allowed.push("pix");
+      if (enCard) allowed.push("card");
+      if (enBoleto) allowed.push("boleto");
+
+      if (!allowed.includes(selectedPayCode)) {
+        selectedPayCode = allowed[0] || "card";
+        selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : (selectedPayCode === "crediario_ariana" ? "Crediário Ariana" : "Cartão de Crédito"));
+        const radio = document.querySelector(`input[name="pay"][value="${selectedPayCode}"]`);
+        if (radio) radio.checked = true;
+      }
+
+      updatePayMethodClasses();
+    }
+
+    function updatePayMethodClasses() {
+      document.querySelectorAll('.pay-method').forEach((el) => el.classList.remove('active'));
+      const active = document.querySelector(`input[name="pay"][value="${selectedPayCode}"]`)?.closest('.pay-method');
+      if (active) active.classList.add('active');
+    }
+
+    function goToStep(n) {
+      document.querySelectorAll('section[id^="step-"]').forEach((s) => s.classList.add("hidden"));
+      document.getElementById(`step-${n}`)?.classList.remove("hidden");
+
+      [1, 2, 3].forEach(stepNum => {
+        const dot = document.getElementById(`step-dot-${stepNum}`);
+        const label = dot?.parentElement?.querySelector("span");
+        if (!dot) return;
+        if (stepNum <= n) {
+          dot.classList.remove("bg-gray-300");
+          dot.classList.add("bg-primary-blue");
+          label?.classList.remove("text-gray-400");
+        } else {
+          dot.classList.remove("bg-primary-blue");
+          dot.classList.add("bg-gray-300");
+          label?.classList.add("text-gray-400");
+        }
+      });
+
+      if (n === 3) {
+        applyPaymentSettingsUI();
+        document.getElementById("resumo-end").innerText = selectedAddrText || "—";
+      }
+    }
+
+    function renderCart() {
+      const listMain = document.getElementById("lista-resumo-main");
+      const listSide = document.getElementById("lista-resumo-side");
+
+      if (!Array.isArray(cart) || cart.length === 0) {
+        const empty = `<p class="text-xs text-gray-400">Seu carrinho está vazio.</p>`;
+        if (listMain) listMain.innerHTML = empty;
+        if (listSide) listSide.innerHTML = empty;
+        shippingQuote = null;
+        updateTotalsUI();
+        return;
+      }
+
+      const html = cart.map((i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
+        const name = i.name || i.title || "Produto";
+        const price = safeNumber(i.price ?? i.valor ?? 0);
+        return `
+          <div class="resumo-item">
+            <span>${qty}x ${name}</span>
+            <span class="font-bold">${brl(price * qty)}</span>
+          </div>
+        `;
+      }).join("");
+
+      if (listMain) listMain.innerHTML = html;
+      if (listSide) listSide.innerHTML = html;
+
+      updateTotalsUI();
+    }
+
+
+    function extractOrderIdFromResponse(response) {
+      const tryPaths = [
+        response?.id,
+        response?._id,
+        response?.orderId,
+        response?.pedidoId,
+        response?.item?.id,
+        response?.item?._id,
+        response?.item?.orderId,
+        response?.order?.id,
+        response?.order?._id,
+        response?.order?.orderId,
+        response?.data?.id,
+        response?.data?._id,
+        response?.data?.orderId,
+        response?.result?.id,
+        response?.result?._id,
+        response?.result?.orderId,
+        response?.pedido?.id,
+        response?.pedido?._id
+      ];
+      for (const v of tryPaths) {
+        if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+      }
+      return "";
+    }
+
+    function persistLastOrder(orderId, paymentMethod, orderResponse) {
+      try {
+        if (orderId) localStorage.setItem("arianaLastOrderId", orderId);
+        if (paymentMethod) localStorage.setItem("arianaLastOrderPayment", paymentMethod);
+        if (orderResponse) localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderResponse));
+      } catch (_) {}
+    }
+
+    const LARGE_SUPPLIER_KEYWORDS = [
+      'WHIRLPOOL', 'SAMSUNG', 'MOTOROLA', 'ELECTROLUX', 'ELETROLUX', 'BRASTEMP',
+      'CONSUL', 'LG', 'PHILCO', 'MONDIAL', 'MAGALU', 'MAGAZINE LUIZA', 'AMERICANAS',
+      'MIDEA', 'PANDIN', 'ITATIAIA', 'MOVAL', 'HB MOVEIS', 'HB MÓVEIS', 'HENN',
+      'DJ MOVEIS', 'DJ MÓVEIS', 'DEMOBILE', 'CARRARO', 'RUFATO', 'KAPPESBERG'
+    ];
+
+    function normalizeGatewayText(value) {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, ' ')
+        .trim();
+    }
+
+    function inferManufacturerFromCart(items) {
+      const list = Array.isArray(items) ? items : [];
+      const text = normalizeGatewayText(list.map((item) => [
+        item?.sellerName, item?.sellerId, item?.manufacturer, item?.brand, item?.vendorName, item?.storeName, item?.name
+      ].filter(Boolean).join(' ')).join(' '));
+
+      const match = LARGE_SUPPLIER_KEYWORDS.find((keyword) => text.includes(normalizeGatewayText(keyword)));
+      if (match) return match;
+
+      const firstNamed = list.find((item) => item?.sellerName || item?.manufacturer || item?.brand || item?.vendorName || item?.storeName);
+      return String(firstNamed?.sellerName || firstNamed?.manufacturer || firstNamed?.brand || firstNamed?.vendorName || firstNamed?.storeName || list[0]?.sellerId || 'Ariana Moveis').trim();
+    }
+
+    function isLargeSupplierCart(items) {
+      const manufacturer = inferManufacturerFromCart(items);
+      const normalized = normalizeGatewayText(manufacturer);
+      return LARGE_SUPPLIER_KEYWORDS.some((keyword) => normalized.includes(normalizeGatewayText(keyword)));
+    }
+
+
+    async function finalizarPedido() {
+      const btn = document.getElementById("btn-pay");
+      if (!selectedAddrObj) {
+        alert("Selecione um endereço.");
+        goToStep(1);
+        return;
+      }
+      if (!Array.isArray(cart) || cart.length === 0) {
+        alert("Carrinho vazio.");
+        return;
+      }
+
+      const authUser = user;
+      if (!authUser) {
+        alert("Faça login novamente.");
+        window.location.href = "login_cadastro.html";
+        return;
+      }
+
+      let cpfToUse = "";
+      if (customerProfile && customerProfile.cpf) {
+        cpfToUse = String(customerProfile.cpf).replace(/\D/g, "");
+      }
+      if (!cpfToUse && authUser?.cpf) {
+        cpfToUse = String(authUser.cpf).replace(/\D/g, "");
+      }
+      if (!cpfToUse) {
+        try {
+          const legacy = JSON.parse(localStorage.getItem("clienteLogado") || "{}");
+          if (legacy && legacy.cpf) cpfToUse = String(legacy.cpf).replace(/\D/g, "");
+        } catch (_) {}
+      }
+
+      if (!cpfToUse) {
+        alert("CPF é obrigatório. Complete seu cadastro para continuar.");
+        window.location.href = "minha_conta.html?tab=profile";
+        return;
+      }
+
+      setLoadingButton(btn, true);
+
+      try {
+        const paySelected = document.querySelector('input[name="pay"]:checked')?.value || selectedPayCode || 'card';
+        selectedPayCode = paySelected;
+        selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : (paySelected === 'crediario_ariana' ? 'Crediário Ariana' : 'Cartão de Crédito'));
+        updatePayMethodClasses();
+        const totalsComputed = updateTotalsUI();
+
+        const desc = totalsComputed.discountPercent || getDiscountPercentFor(paySelected);
+        let valorFinal = totalsComputed.grandTotal;
+        let crediarioSimulation = null;
+        if (selectedPayCode === 'crediario_ariana') {
+          const installmentCount = Number(document.getElementById('crediario-parcelas')?.value || 1);
+          const creditBase = Number(totalsComputed.grandTotalOriginal || totalsComputed.grandTotal || 0);
+          crediarioSimulation = window.ArianaCrediarioEngine.simulate(creditBase, installmentCount);
+          valorFinal = crediarioSimulation.financedAmount;
+        }
+
+        const addrN = normalizeAddress(selectedAddrObj);
+        if (!addrN.number) addrN.number = "S/N";
+
+        cpfToUse = onlyDigits(cpfToUse);
+        if (cpfToUse.length !== 11) {
+          alert("CPF inválido. Corrija no seu cadastro para continuar.");
+          window.location.href = "minha_conta.html?tab=profile";
+          return;
+        }
+
+        const { payer: mpPayer, receiver_address: mpReceiverAddress, fullName } =
+          buildMpPayerAndShipments({ authUser, customerProfile, cpfDigits: cpfToUse, normalizedAddr: addrN });
+
+        const mpProblems = validateMpBasics({ cpfDigits: cpfToUse, addr: addrN });
+        if (mpProblems.length) {
+          alert("Complete seu endereço/cadastro:\n- " + mpProblems.join("\n- "));
+          window.location.href = "minha_conta.html?tab=address&from=checkout";
+          return;
+        }
+
+        const shippingToSave = shippingQuote ? {
+          provider: String(shippingQuote.provider || "correios"),
+          responsibility: String((shippingQuote.provider || '').toLowerCase()).includes('correios') ? "ariana" : "seller",
+          usesArianaLogistics: String(shippingQuote.provider || '').toLowerCase().includes('correios'),
+          cepOrigem: String(settingsShipping?.originCep || ""),
+          cepDestino: shippingQuote.cepDestino,
+          service: shippingQuote.service,
+          name: shippingQuote.name || null,
+          price: totalsComputed.shipping,
+          pkg: shippingQuote.pkg || null,
+          quote: shippingQuote.full || null,
+        } : {
+          responsibility: "seller",
+          usesArianaLogistics: false,
+          price: 0
+        };
+
+        const orderItems = (Array.isArray(cart) ? cart : []).map((it) => {
+          const qty = safeNumber(it.quantity ?? it.qty ?? 1) || 1;
+          const sellerBaseUnitPrice = arianaSellerBasePrice(it);
+          const unitPrice = arianaUnitPriceForPayment(it, selectedPayCode);
+          return {
+            ...it,
+            qty,
+            quantity: qty,
+            sellerBasePrice: sellerBaseUnitPrice,
+            sellerBaseUnitPrice,
+            sellerBaseTotal: +(sellerBaseUnitPrice * qty).toFixed(2),
+            marketplacePrice: arianaMarketplacePrice(it),
+            unitPrice,
+            price: unitPrice,
+            totalPrice: +(unitPrice * qty).toFixed(2),
+            cardMarkupUnit: selectedPayCode === 'card' ? +(unitPrice - sellerBaseUnitPrice).toFixed(2) : 0,
+            cardMarkupTotal: selectedPayCode === 'card' ? +((unitPrice - sellerBaseUnitPrice) * qty).toFixed(2) : 0
+          };
+        });
+
+        const orderPayload = {
+          userId: authUser.uid || authUser.id || "",
+          cpf: cpfToUse || "",
+          phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || "",
+          customer: {
+            uid: authUser.uid || authUser.id || "",
+            name: fullName,
+            email: authUser.email || "",
+            cpf: cpfToUse || "",
+            phone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || ""
+          },
+          address: addrN,
+          shippingAddress: addrN,
+          customerName: fullName,
+          customerEmail: authUser.email || "",
+          customerPhone: normalizePhone(pick(customerProfile?.phone, customerProfile?.telefone, authUser?.phone || "")) || "",
+          manufacturer: inferManufacturerFromCart(cart),
+          payment: {
+            method: selectedPayCode,
+            gateway: selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago',
+            routing: {
+              largeSupplier: isLargeSupplierCart(cart),
+              cardGateway: 'mercadopago',
+              pixBoletoGateway: 'mercadopago',
+              defaultGateway: selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'
+            }
+          },
+          total: valorFinal,
+          shippingCost: totalsComputed.shipping,
+          totals: {
+            products: totalsComputed.products,
+            shipping: totalsComputed.shipping,
+            grandTotalOriginal: totalsComputed.grandTotalOriginal || totalsComputed.grandTotal,
+            grandTotal: valorFinal,
+            creditBaseAmount: crediarioSimulation?.baseAmount || undefined,
+            creditBaseAmountCents: crediarioSimulation?.baseAmountCents || undefined,
+            financedAmount: crediarioSimulation?.financedAmount || undefined,
+            financedAmountCents: crediarioSimulation?.financedAmountCents || undefined,
+            discountValue: totalsComputed.discountValue || 0,
+            paymentDiscountValue: totalsComputed.paymentDiscountValue || 0,
+            couponCode: totalsComputed.couponCode || '',
+            couponDiscount: totalsComputed.couponDiscount || 0,
+            discountApplied: (totalsComputed.discountValue > 0) ? `${desc}%` : '0%',
+            paymentMethod: selectedPayCode
+          },
+          shipping: shippingToSave,
+          items: orderItems,
+          mp: {
+            payer: mpPayer,
+            additional_info: {
+              shipments: {
+                receiver_address: mpReceiverAddress
+              }
+            }
+          },
+          status: "pending_payment",
+          paymentStatus: selectedPayCode === 'crediario_ariana' ? 'AWAITING_PAYMENT' : 'pending',
+          crediario: selectedPayCode === 'crediario_ariana' ? {
+            provider: 'cora',
+            installments: Number(document.getElementById('crediario-parcelas')?.value || 1),
+            installmentCount: crediarioSimulation?.installmentCount,
+            installmentDivisor: crediarioSimulation?.divisor,
+            baseAmount: crediarioSimulation?.baseAmount,
+            baseAmountCents: crediarioSimulation?.baseAmountCents,
+            financedAmount: crediarioSimulation?.financedAmount,
+            financedAmountCents: crediarioSimulation?.financedAmountCents,
+            installmentPlan: crediarioSimulation?.installments?.map((amountCents,index)=>({number:index+1,originalAmountCents:amountCents,status:'OPEN'})),
+            firstDueDate: document.getElementById('crediario-primeiro-vencimento')?.value || '',
+            status: 'PENDING_ISSUANCE'
+          } : undefined,
+          createdAt: new Date().toISOString()
+        };
+
+        const response = await apiPost("/orders", orderPayload);
+        const orderId = extractOrderIdFromResponse(response);
+
+        if (!orderId) {
+          console.error("[checkout] resposta sem orderId:", response);
+          throw new Error("Pedido criado sem ID retornado pela API.");
+        }
+
+        // Não apagamos o carrinho aqui.
+        // Antes, o carrinho era removido assim que o pedido era criado; se o cliente voltasse
+        // para a loja/início antes de pagar, parecia que o produto tinha sumido sozinho.
+        // Agora só guardamos uma cópia de segurança e a limpeza fica para pagamento aprovado/confirmado.
+        try {
+          localStorage.setItem("arianaCheckoutPendingCart", JSON.stringify(cart || []));
+          localStorage.setItem("arianaMoveisCart", JSON.stringify(cart || []));
+          localStorage.setItem("ariana_moveis_cart", JSON.stringify(cart || []));
+        } catch (_) {}
+
+        try { localStorage.setItem("arianaLastOrderGateway", selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'); } catch (_) {}
+        persistLastOrder(orderId, selectedPayCode || "", response);
+
+        window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
+      } catch (e) {
+        console.error(e);
+        alert(e?.message || "Erro ao finalizar pedido.");
+      } finally {
+        setLoadingButton(btn, false);
+      }
+    }
+
+    function bindEvents() {
+      document.addEventListener('click', async (ev) => {
+        const card = ev.target?.closest?.('.addr-card');
+        if (!card) return;
+        const id = card.getAttribute('data-addr-id');
+        if (!id) return;
+        await setAddr(card, id);
+      });
+
+      document.getElementById('btn-next-1')?.addEventListener('click', () => goToStep(2));
+      document.getElementById('btn-back-2')?.addEventListener('click', () => goToStep(1));
+      document.getElementById('btn-next-2')?.addEventListener('click', () => goToStep(3));
+      document.getElementById('btn-back-3')?.addEventListener('click', () => goToStep(2));
+      document.getElementById('btn-pay')?.addEventListener('click', finalizarPedido);
+      document.getElementById('btn-aplicar-cupom')?.addEventListener('click', async () => {
+        const input = document.getElementById('coupon-code');
+        const code = normalizeCouponCode(input?.value || '');
+        if (code) localStorage.setItem('ariana_applied_coupon', code);
+        else localStorage.removeItem('ariana_applied_coupon');
+        const msg = document.getElementById('coupon-message');
+        if (msg) { msg.textContent = code ? 'Validando cupom...' : 'Cupom removido.'; msg.className = 'text-xs mt-2 text-gray-500'; }
+        const preview = updateTotalsUI();
+        await validateCouponRemote(code, preview?.grandTotalOriginal || computeCartTotal());
+        updateTotalsUI();
+      });
+
+      document.querySelectorAll('.pay-method').forEach((label) => {
+        label.addEventListener('click', () => {
+          const radio = label.querySelector('input[name="pay"]');
+          if (!radio) return;
+          radio.checked = true;
+          selectedPayCode = radio.value;
+          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : (selectedPayCode === "crediario_ariana" ? "Crediário Ariana" : "Cartão de Crédito"));
+          updatePayMethodClasses();
+          updateTotalsUI();
+        });
+      });
+
+      document.querySelectorAll('input[name="pay"]').forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+          selectedPayCode = e.target.value;
+          selectedPay = selectedPayCode === "pix" ? "Pix" : (selectedPayCode === "boleto" ? "Boleto" : (selectedPayCode === "crediario_ariana" ? "Crediário Ariana" : "Cartão de Crédito"));
+          updatePayMethodClasses();
+          updateTotalsUI();
+        });
+      });
+    }
+
+    (async function init() {
+      bindEvents();
+
+      const next2 = document.getElementById('btn-next-2');
+      if (next2) next2.innerHTML = 'Escolher forma de pagamento <i class="fas fa-arrow-right ml-2"></i>' ;
+
+      const ok = await bootAuthAndProfile();
+      if (!ok) return;
+
+      await loadSettings();
+      await loadAddresses();
+      renderCart();
+      await applyPaymentSettingsUI();
+
+      console.log("Tela carregada com API ativa.");
+    })();
+  </script>
+  <script src="js/layout-fit.js" defer></script>
+
+<script>
+/* ============================================================
+   FIX FINAL - BOLETO COM MESMO DESCONTO DO PIX
+   - Pix e boleto: preço com desconto
+   - Cartão: preço cheio
+   ============================================================ */
+(function(){
+  const DISCOUNT = 0.17;
+
+  function brl(v){
+    return Number(v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
+
+  function n(v){
+    if (v === undefined || v === null) return 0;
+    if (typeof v === 'string') {
+      let s = v.trim().replace(/[^\d,.-]/g, '');
+      const c = s.lastIndexOf(',');
+      const d = s.lastIndexOf('.');
+      if (c !== -1 && d !== -1) {
+        if (c > d) s = s.replace(/\./g, '').replace(',', '.');
+        else s = s.replace(/,/g, '');
+      } else if (c !== -1) {
+        s = s.replace(',', '.');
+      }
+      const x = Number(s);
+      return Number.isFinite(x) ? x : 0;
+    }
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
+
+  function getCart(){
+    try {
+      const raw =
+        localStorage.getItem('arianaMoveisCart') ||
+        localStorage.getItem('ariana_moveis_cart') ||
+        '[]';
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch(_) {
+      return [];
+    }
+  }
+
+  function qty(item){
+    return n(item.quantity ?? item.qty ?? item.qtd ?? 1) || 1;
+  }
+
+  function fullUnit(item){
+    const explicit = n(item.marketplacePrice ?? item.cardPrice ?? item.fullPrice ?? item.precoPrazo ?? item.oldPrice ?? 0);
+    if (explicit > 0) return explicit;
+
+    const price = n(item.price ?? item.preco ?? item.valor ?? 0);
+    if (price > 0) return price;
+
+    const base = n(item.pixPrice ?? item.sellerBasePrice ?? item.basePrice ?? 0);
+    return base > 0 ? +(base / (1 - DISCOUNT)).toFixed(2) : 0;
+  }
+
+  function discountUnit(item){
+    const explicit = n(item.pixPrice ?? item.sellerBasePrice ?? item.basePrice ?? 0);
+    if (explicit > 0) return explicit;
+
+    const full = fullUnit(item);
+    return full > 0 ? +(full * (1 - DISCOUNT)).toFixed(2) : 0;
+  }
+
+  function totals(){
+    const cart = getCart();
+    let full = 0, discount = 0;
+    cart.forEach(item => {
+      const q = qty(item);
+      full += fullUnit(item) * q;
+      discount += discountUnit(item) * q;
+    });
+    return { cart, full, discount };
+  }
+
+  function selectedMethod(){
+    const checked = document.querySelector('input[name="pay"]:checked');
+    return String(checked?.value || 'pix').toLowerCase();
+  }
+
+  function setMethodBox(labelId, title, desc, value, suffix){
+    const label = document.getElementById(labelId);
+    const body = label?.querySelector('.pay-method-body');
+    if (!body) return;
+    body.innerHTML = `
+      <div class="flex justify-between items-center w-full">
+        <div>
+          <div class="pay-title">${title}</div>
+          <div class="pay-desc">${desc}</div>
+        </div>
+        <div style="color:#00a650;font-weight:900;text-align:right;white-space:nowrap;">
+          ${brl(value)}${suffix ? `<br><small style="font-size:11px">${suffix}</small>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function currentFrete(){
+    const el = document.getElementById('shipping-price-side') || document.getElementById('shipping-price-main');
+    if (!el) return 0;
+    const txt = String(el.textContent || '');
+    if (/gr[aá]tis|calcular/i.test(txt)) return 0;
+    return n(txt);
+  }
+
+  function applyFix(){
+    const { cart, full, discount } = totals();
+    if (!cart.length) return;
+
+    setMethodBox('label-pix', 'Pix', 'Aprovação rápida', discount, '(17% OFF)');
+    setMethodBox('label-boleto', 'Boleto', 'Compensação bancária', discount, '(17% OFF)');
+    setMethodBox('label-card', 'Cartão', 'Parcelamento no pagamento', full, '');
+
+    const method = selectedMethod();
+    const productTotal = (method === 'card') ? full : discount;
+    const storedCoupon = (() => { try { return JSON.parse(localStorage.getItem('ariana_coupon_result') || 'null') || {}; } catch(_) { return {}; } })();
+    const activeCouponCode = String(localStorage.getItem('ariana_applied_coupon') || '').trim().toUpperCase();
+    const couponDiscount = activeCouponCode && String(storedCoupon.code || '').toUpperCase() === activeCouponCode ? Number(storedCoupon.discountValue ?? storedCoupon.value ?? 0) || 0 : 0;
+    const finalTotal = Math.max(0, productTotal + currentFrete() - couponDiscount);
+
+    ['products-total-main','products-total-side'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = brl(productTotal);
+    });
+
+    ['total-geral-main','total-geral-side','resumo-total'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = brl(finalTotal);
+    });
+
+    // Atualiza os valores dos itens visíveis no resumo para bater com a forma escolhida.
+    document.querySelectorAll('#lista-resumo-main .resumo-item, #lista-resumo-side .resumo-item').forEach((row, idx) => {
+      const valueEl = row.querySelector('strong, .font-bold, span:last-child');
+      const item = cart[idx];
+      if (valueEl && item) {
+        const unit = (method === 'card') ? fullUnit(item) : discountUnit(item);
+        valueEl.textContent = brl(unit * qty(item));
+        if (method !== 'card') {
+          valueEl.style.color = '#00a650';
+          valueEl.insertAdjacentHTML('beforeend', '<br><small style="font-size:11px">PIX/Boleto</small>');
+        }
+      }
+    });
+  }
+
+  document.addEventListener('change', function(e){
+    if (e.target && e.target.name === 'pay') {
+      setTimeout(applyFix, 10);
+      setTimeout(applyFix, 120);
+      setTimeout(applyFix, 500);
+    }
+  });
+
+  document.addEventListener('click', function(e){
+    const label = e.target.closest && e.target.closest('.pay-method');
+    if (label) {
+      setTimeout(applyFix, 10);
+      setTimeout(applyFix, 120);
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(applyFix, 300);
+    setTimeout(applyFix, 1000);
+    setTimeout(applyFix, 2000);
+  });
+
+  let count = 0;
+  const timer = setInterval(function(){
+    applyFix();
+    count++;
+    if (count > 30) clearInterval(timer);
+  }, 500);
+})();
+</script>
+
+
+<script>
+window.ArianaCrediarioEngine=(function(){
+  const divisors={1:.75,2:.74,3:.73,4:.72,5:.71,6:.70,7:.6833,8:.6667,9:.65,10:.6333,11:.6167,12:.60,13:.5833,14:.5667,15:.55};
+  function simulate(baseAmount,count){
+    const n=Math.max(1,Math.min(15,Number(count||1)));
+    const baseCents=Math.round(Number(baseAmount||0)*100);
+    const divisor=divisors[n];
+    const financedCents=Math.round(baseCents/divisor);
+    const regular=Math.floor(financedCents/n);
+    const installments=Array.from({length:n},(_,i)=>i===n-1?financedCents-regular*(n-1):regular);
+    return {baseAmountCents:baseCents,financedAmountCents:financedCents,baseAmount:baseCents/100,financedAmount:financedCents/100,installmentCount:n,divisor,installments};
+  }
+  return {divisors,simulate};
+})();
+</script>
+
+<script>
+(function fase6Checkout(){
+  function moneyBR(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));}
+  function initCrediario(){
+    const select=document.getElementById('crediario-parcelas');
+    const due=document.getElementById('crediario-primeiro-vencimento');
+    if(select&&!select.options.length){for(let i=1;i<=15;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'x';select.appendChild(o);}select.value='15';}
+    if(due&&!due.value){const d=new Date();d.setDate(d.getDate()+30);due.value=d.toISOString().slice(0,10);}
+    const refresh=()=>{
+      const checked=document.querySelector('input[name="pay"]:checked')?.value;
+      const box=document.getElementById('crediario-config');
+      if(box)box.classList.toggle('hidden',checked!=='crediario_ariana');
+      if(checked==='crediario_ariana'){
+        window.selectedPayCode='crediario_ariana';window.selectedPay='Crediário Ariana';
+        const totals=typeof updateTotalsUI==='function'?updateTotalsUI():{};
+        const base=Number(totals?.grandTotalOriginal||totals?.grandTotal||0);
+        const n=Number(select?.value||1);const pv=document.getElementById('crediario-preview');
+        const sim=window.ArianaCrediarioEngine.simulate(base,n);
+        window.arianaCrediarioSimulation=sim;
+        if(pv)pv.innerHTML='<div><b>Preço à vista no Crediário: '+moneyBR(sim.baseAmount)+'</b></div><div>Total financiado: <b>'+moneyBR(sim.financedAmount)+'</b></div><div>'+n+'x: '+sim.installments.map((v,i)=>(i===n-1?'última ': '')+moneyBR(v/100)).slice(-2).join(' • ')+'</div><div>Divisor: '+sim.divisor.toFixed(4)+'</div><div>Primeiro vencimento: '+(due?.value?new Date(due.value+'T00:00:00').toLocaleDateString('pt-BR'):'não informado')+'</div>';
+      }
+    };
+    document.querySelectorAll('input[name="pay"]').forEach(r=>r.addEventListener('change',refresh));
+    select?.addEventListener('change',refresh);due?.addEventListener('change',refresh);refresh();
+  }
+  document.addEventListener('DOMContentLoaded',initCrediario);
+})();
+</script>
+
+
+<script>
+(function(){
+  function saveDraft(){
+    try{
+      const totals=window.__lastCheckoutTotals||(typeof updateTotalsUI==='function'?updateTotalsUI():{})||{};
+      const draft={
+        createdAt:Date.now(),
+        cart:typeof cart!=='undefined'?cart:[],
+        address:typeof selectedAddrObj!=='undefined'?selectedAddrObj:null,
+        addressText:typeof selectedAddrText!=='undefined'?selectedAddrText:'',
+        shippingQuote:typeof shippingQuote!=='undefined'?shippingQuote:null,
+        totals
+      };
+      localStorage.setItem('ariana_crediario_checkout_draft',JSON.stringify(draft));
+    }catch(_ ){}
+  }
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('#label-crediario'))return;
+    e.preventDefault();e.stopImmediatePropagation();saveDraft();location.href='crediario_ariana.html';
+  },true);
+  const source=document.getElementById('shipping-price-main');
+  const copy=document.getElementById('shipping-price-main-copy');
+  if(source&&copy){
+    new MutationObserver(()=>copy.textContent=source.textContent).observe(source,{childList:true,subtree:true,characterData:true});
+    copy.textContent=source.textContent;
+  }
+})();
+</script>
+</body></html>

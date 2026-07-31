@@ -225,6 +225,9 @@
     @media(max-width:1050px){.system-health{grid-template-columns:1fr 1fr}}
     @media(max-width:620px){.system-health{grid-template-columns:1fr}}
 
+
+    .origin-badge{display:inline-flex;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:950}.origin-badge.SITE{background:#dbeafe;color:#1e40af}.origin-badge.LOJA_FISICA{background:#fef3c7;color:#92400e}.origin-badge.WHATSAPP{background:#dcfce7;color:#166534}
+    .doc-summary{font-size:12px;font-weight:850}.doc-summary.ok{color:#166534}.doc-summary.pending{color:#b45309}.cred-analysis-overlay{position:fixed;inset:0;background:#0f172a99;z-index:290;display:flex;align-items:center;justify-content:center;padding:20px}.cred-analysis-modal{width:100%;max-width:760px;background:white;border-radius:26px;padding:24px;max-height:94vh;overflow:auto;box-shadow:0 28px 80px #0005}.cred-analysis-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.cred-analysis-head h2{margin:0}.analysis-doc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.analysis-doc{border:1px solid #e2e8f0;border-radius:15px;padding:12px;background:#f8fafc}.analysis-doc b{display:block;margin-bottom:5px}.analysis-doc button{margin-top:8px;width:100%}@media(max-width:700px){.analysis-doc-grid{grid-template-columns:1fr}}
 </style>
 
   <link rel="manifest" href="./manifest.webmanifest">
@@ -1059,11 +1062,16 @@
       <section id="tab-analises" class="hidden">
         <div class="card">
           <div class="history-header">
-            <div><h2>Análises de crédito</h2><p class="help">Pedidos feitos pelo site no Crediário Ariana aguardam aprovação antes da assinatura e da emissão do carnê.</p></div>
-            <div class="history-search"><select id="analiseFiltro" onchange="loadAnalisesCredito()"><option value="">Todos os status</option><option>PENDENTE_ANALISE</option><option>EM_ANALISE</option><option>AGUARDANDO_DOCUMENTOS</option><option>APROVADO</option><option>REPROVADO</option><option>AGUARDANDO_ASSINATURA</option><option>ASSINADO</option></select><input id="analiseBusca" placeholder="Cliente, CPF ou pedido"><button class="light" onclick="loadAnalisesCredito()">Buscar</button></div>
+            <div><h2>Análises de crédito</h2><p class="help">Solicitações recebidas pelo site, loja física ou WhatsApp ficam reunidas na mesma fila, com dados, compra e documentos vinculados.</p></div>
+            <button class="green" onclick="abrirNovaAnaliseLoja()">➕ Nova solicitação da loja</button>
+          </div>
+          <div class="history-search" style="max-width:none;margin-bottom:14px">
+            <select id="analiseOrigem" onchange="loadAnalisesCredito()"><option value="">Todas as origens</option><option value="SITE">Site</option><option value="LOJA_FISICA">Loja física</option><option value="WHATSAPP">WhatsApp</option></select>
+            <select id="analiseFiltro" onchange="loadAnalisesCredito()"><option value="">Todos os status</option><option>PENDENTE_ANALISE</option><option>EM_ANALISE</option><option>AGUARDANDO_DOCUMENTOS</option><option>APROVADO</option><option>REPROVADO</option><option>AGUARDANDO_ASSINATURA</option><option>ASSINADO</option></select>
+            <input id="analiseBusca" placeholder="Cliente, CPF, telefone ou pedido"><button class="light" onclick="loadAnalisesCredito()">Buscar</button>
           </div>
           <div class="stats" style="margin-top:14px"><div class="stat"><small>Pendentes</small><br><b id="anPendentes">0</b></div><div class="stat"><small>Aprovadas</small><br><b id="anAprovadas">0</b></div><div class="stat"><small>Reprovadas</small><br><b id="anReprovadas">0</b></div><div class="stat"><small>Carteira analisada</small><br><b id="anTotalValor">R$ 0,00</b></div></div>
-          <div class="table-wrap"><table class="clean-table"><thead><tr><th>Cliente</th><th>Pedido</th><th>Plano</th><th>Status</th><th>Solicitação</th><th>Ações</th></tr></thead><tbody id="analisesCreditoBody"><tr><td colspan="6">Carregando...</td></tr></tbody></table></div>
+          <div class="table-wrap"><table class="clean-table"><thead><tr><th>Origem</th><th>Cliente</th><th>Pedido / compra</th><th>Documentos</th><th>Status</th><th>Solicitação</th><th>Ações</th></tr></thead><tbody id="analisesCreditoBody"><tr><td colspan="7">Carregando...</td></tr></tbody></table></div>
         </div>
         <div id="analiseDetalhe" class="card hidden" style="margin-top:20px"></div>
       </section>
@@ -1435,6 +1443,14 @@
   </div>
 </section>
     </main>
+<div id="novaAnaliseLojaOverlay" class="cred-analysis-overlay hidden">
+  <div class="cred-analysis-modal">
+    <div class="cred-analysis-head"><div><h2>Nova solicitação da loja</h2><p class="help">O cliente receberá a mensagem inicial no WhatsApp do Crediário Ariana.</p></div><button class="light" onclick="fecharNovaAnaliseLoja()">✕</button></div>
+    <div class="formgrid"><div><label>Nome completo</label><input id="lojaCredNome"></div><div><label>WhatsApp</label><input id="lojaCredTelefone" placeholder="33999999999"></div><div><label>CPF</label><input id="lojaCredCpf"></div><div><label>Valor da compra</label><input id="lojaCredValor" placeholder="1.500,00"></div><div class="full"><label>Produto / compra</label><input id="lojaCredProduto" placeholder="Ex.: guarda-roupa, colchão, pedido interno..."></div><div><label>Vendedor</label><input id="lojaCredVendedor"></div><div><label>Referência da loja</label><input id="lojaCredReferencia"></div><div class="full"><label>Observação</label><textarea id="lojaCredObs" rows="3"></textarea></div></div>
+    <div class="actions"><button class="green" onclick="criarAnaliseLoja()">📲 Criar e enviar WhatsApp</button><button class="light" onclick="fecharNovaAnaliseLoja()">Cancelar</button></div>
+  </div>
+</div>
+
   </section>
 
 
@@ -1674,7 +1690,26 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 </script>
 <script>
-let API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || 'https://ariana-backend.onrender.com/api';
+const IS_LOCAL_ENV =
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === 'localhost';
+
+const LOCAL_API_BASE = 'http://localhost:3000/api';
+const PRODUCTION_API_BASE = 'https://ariana-backend.onrender.com/api';
+
+let API_BASE = IS_LOCAL_ENV
+  ? LOCAL_API_BASE
+  : (
+      window.API_BASE ||
+      localStorage.getItem('API_BASE') ||
+      PRODUCTION_API_BASE
+    );
+
+if (IS_LOCAL_ENV) {
+  localStorage.removeItem('API_BASE');
+}
+
+console.info('[Financeiro Ariana] API ativa:', API_BASE);
 const FINANCEIRO_STATUS_ROUTE='/admin/financeiro/status';
 const FINANCEIRO_CLIENTES_ROUTE='/admin/financeiro/clientes';
 const FINANCEIRO_CARNE_ROUTE='/admin/financeiro/carne';
@@ -4938,6 +4973,68 @@ async function reenviarMonitorWhatsapp(id){
 </script>
 
 <script>
+
+function analiseOrigemLabel(v){return ({SITE:'Site',LOJA_FISICA:'Loja física',WHATSAPP:'WhatsApp'})[String(v||'').toUpperCase()]||'Site'}
+function analiseStatusLabel(v){return String(v||'PENDENTE_ANALISE').replaceAll('_',' ')}
+function abrirNovaAnaliseLoja(){document.getElementById('novaAnaliseLojaOverlay')?.classList.remove('hidden')}
+function fecharNovaAnaliseLoja(){document.getElementById('novaAnaliseLojaOverlay')?.classList.add('hidden')}
+async function criarAnaliseLoja(){
+  try{
+    const body={customerName:document.getElementById('lojaCredNome').value,phone:document.getElementById('lojaCredTelefone').value,document:document.getElementById('lojaCredCpf').value,baseAmountCents:centsFromBR(document.getElementById('lojaCredValor').value),purchaseDescription:document.getElementById('lojaCredProduto').value,seller:document.getElementById('lojaCredVendedor').value,storeReference:document.getElementById('lojaCredReferencia').value,note:document.getElementById('lojaCredObs').value};
+    const j=await apiJson('/admin/crediario/analises/loja',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    toast(j.whatsapp?.status==='SENT'?'Solicitação criada e WhatsApp enviado':'Solicitação criada; confira o envio do WhatsApp');fecharNovaAnaliseLoja();await loadAnalisesCredito();
+  }catch(e){toast(e.message||'Erro ao criar solicitação da loja')}
+}
+async function loadAnalisesCredito(){
+  const body=document.getElementById('analisesCreditoBody');if(!body)return;body.innerHTML='<tr><td colspan="7">Carregando...</td></tr>';
+  try{
+    const params=new URLSearchParams();const status=document.getElementById('analiseFiltro')?.value||'';const origin=document.getElementById('analiseOrigem')?.value||'';const q=document.getElementById('analiseBusca')?.value?.trim()||'';if(status)params.set('status',status);if(origin)params.set('origin',origin);if(q)params.set('q',q);params.set('limit','200');
+    const j=await apiJson('/admin/crediario/analises?'+params.toString());const rows=j.analyses||[];
+    document.getElementById('anPendentes').textContent=rows.filter(x=>['PENDENTE_ANALISE','EM_ANALISE','AGUARDANDO_DOCUMENTOS'].includes(x.status)).length;document.getElementById('anAprovadas').textContent=rows.filter(x=>['APROVADO','AGUARDANDO_ASSINATURA','ASSINADO'].includes(x.status)).length;document.getElementById('anReprovadas').textContent=rows.filter(x=>x.status==='REPROVADO').length;document.getElementById('anTotalValor').textContent=money(rows.reduce((a,x)=>a+Number(x.financedAmountCents||x.baseAmountCents||0),0)/100);
+    body.innerHTML=rows.map(a=>{const received=a.documentCollectionStatus==='DOCUMENTOS_RECEBIDOS';const purchase=a.orderId?`Pedido ${esc(a.orderId)}`:esc(a.purchase?.description||'Abertura de crediário');return `<tr><td><span class="origin-badge ${esc(a.origin||'SITE')}">${esc(analiseOrigemLabel(a.origin))}</span></td><td><span class="client-name">${esc(a.customer?.name||'Cliente')}</span><span class="client-phone">${esc(a.customer?.document||'CPF não informado')} • ${esc(a.customer?.phone||'sem telefone')}</span></td><td>${purchase}<span class="product-parcel">${money(Number(a.baseAmountCents||0)/100)}</span></td><td><span class="doc-summary ${received?'ok':'pending'}">${received?'✅ Recebidos':esc(String(a.documentCollectionStatus||'Não iniciada').replaceAll('_',' '))}</span></td><td><span class="pill ${['APROVADO','ASSINADO'].includes(a.status)?'ok':'pending'}">${esc(analiseStatusLabel(a.status))}</span></td><td>${a.createdAt?new Date(a.createdAt).toLocaleString('pt-BR'):'—'}</td><td><button class="blue small" onclick="abrirAnaliseCreditoIntegrada('${esc(a.analysisId||a._id)}')">Abrir análise</button></td></tr>`}).join('')||'<tr><td colspan="7">Nenhuma solicitação encontrada.</td></tr>';
+  }catch(e){body.innerHTML='<tr><td colspan="7">'+esc(e.message||e)+'</td></tr>'}
+}
+async function abrirAnaliseCreditoIntegrada(id){
+  const box=document.getElementById('analiseDetalhe');box.classList.remove('hidden');box.innerHTML='Carregando análise...';box.scrollIntoView({behavior:'smooth'});
+  try{
+    const j=await apiJson('/admin/crediario/analises/'+encodeURIComponent(id));const a=j.analysis||{};let docsHtml='<div class="notice">A coleta de documentos ainda não foi vinculada.</div>';
+    if(a.conversationId){try{const dj=await apiJson('/admin/crediario/conversas/'+encodeURIComponent(a.conversationId)+'/documentos');docsHtml=`<div class="analysis-doc-grid">${(dj.documents||[]).map(d=>`<div class="analysis-doc"><b>${esc(d.label||d.key)}</b><span class="${d.received?'audit-ok':'audit-error'}">${d.received?'Recebido':'Pendente'}</span>${d.received?`<button class="light small" onclick="abrirDocumentoAnalise('${esc(a.conversationId)}','${esc(d.key)}')">Visualizar documento</button>`:''}</div>`).join('')}</div>`}catch(e){docsHtml='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}}
+    box.innerHTML=`<div class="history-header"><div><h2>${esc(a.customer?.name||'Análise de crédito')}</h2><p class="help"><span class="origin-badge ${esc(a.origin||'SITE')}">${esc(analiseOrigemLabel(a.origin))}</span> ${a.orderId?'• Pedido '+esc(a.orderId):''} ${a.conversationId?'• Conversa '+esc(a.conversationId):''}</p></div><span class="pill pending">${esc(analiseStatusLabel(a.status))}</span></div><div class="stats"><div class="stat"><small>Valor-base</small><br><b>${money(Number(a.baseAmountCents||0)/100)}</b></div><div class="stat"><small>CPF</small><br><b style="font-size:16px">${esc(a.customer?.document||'—')}</b></div><div class="stat"><small>WhatsApp</small><br><b style="font-size:16px">${esc(a.customer?.phone||'—')}</b></div><div class="stat"><small>Documentos</small><br><b style="font-size:16px">${esc(String(a.documentCollectionStatus||'—').replaceAll('_',' '))}</b></div></div><h3>Documentos enviados</h3>${docsHtml}<div class="formgrid" style="margin-top:18px"><div><label>Status</label><select id="anStatusEdit"><option>PENDENTE_ANALISE</option><option>EM_ANALISE</option><option>AGUARDANDO_DOCUMENTOS</option><option>APROVADO</option><option>REPROVADO</option></select></div><div><label>Limite aprovado</label><input id="anLimiteEdit" placeholder="0,00"></div><div class="full"><label>Decisão / observação</label><textarea id="anDecisaoEdit" rows="3">${esc(a.decisionNote||a.internalNote||'')}</textarea></div></div><div class="actions"><button class="green" onclick="salvarDecisaoAnalise('${esc(a.analysisId||a._id)}','APROVADO')">✅ Aprovar</button><button class="red" onclick="salvarDecisaoAnalise('${esc(a.analysisId||a._id)}','REPROVADO')">❌ Reprovar</button><button class="yellow" onclick="salvarDecisaoAnalise('${esc(a.analysisId||a._id)}','AGUARDANDO_DOCUMENTOS')">📎 Pedir documentos</button></div>`;document.getElementById('anStatusEdit').value=a.status||'PENDENTE_ANALISE';
+  }catch(e){box.innerHTML='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}
+}
+async function abrirDocumentoAnalise(conversationId,key){
+  let objectUrl='';
+  try{
+    const endpoint='/admin/crediario/conversas/'+encodeURIComponent(conversationId)+'/documentos/'+encodeURIComponent(key)+'/conteudo';
+    const finalUrl=String(endpoint).startsWith('http')?endpoint:API_BASE+endpoint;
+    const response=await fetch(finalUrl,{
+      method:'POST',
+      headers:{Authorization:'Bearer '+token()}
+    });
+
+    if(!response.ok){
+      const raw=await response.text();
+      let data={};
+      try{data=raw?JSON.parse(raw):{}}catch(_e){data={error:raw}}
+      if(response.status===401||data.code==='admin_session_invalid'||data.code==='admin_token_missing'){
+        handleExpiredSession(data.error||'Sua sessão expirou. Faça login novamente.');
+      }
+      throw new Error(data.error||data.message||('Erro HTTP '+response.status));
+    }
+
+    const blob=await response.blob();
+    if(!blob.size)throw new Error('O documento retornado está vazio.');
+    objectUrl=URL.createObjectURL(blob);
+    const opened=window.open(objectUrl,'_blank','noopener');
+    if(!opened)throw new Error('O navegador bloqueou a nova aba. Libere pop-ups para visualizar o documento.');
+    setTimeout(()=>URL.revokeObjectURL(objectUrl),120000);
+  }catch(e){
+    if(objectUrl)URL.revokeObjectURL(objectUrl);
+    toast(e.message||'Erro ao abrir documento');
+  }
+}
+async function salvarDecisaoAnalise(id,status){try{const body={status,approvedLimitCents:centsFromBR(document.getElementById('anLimiteEdit')?.value||'0'),decisionNote:document.getElementById('anDecisaoEdit')?.value||'',checklist:{cpfChecked:true,identityDocument:true,residenceProof:true,incomeChecked:true,contactConfirmed:true,referenceConfirmed:true}};await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Análise atualizada');await loadAnalisesCredito();await abrirAnaliseCreditoIntegrada(id)}catch(e){toast(e.message||'Erro ao atualizar análise')}}
+
 (() => {
   let deferredInstallPrompt = null;
   const installButton = document.getElementById('installAppBtn');
