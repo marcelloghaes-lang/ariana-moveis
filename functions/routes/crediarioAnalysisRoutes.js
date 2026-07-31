@@ -423,6 +423,56 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     });
   }
 
+  function buildAnalysisStatusWhatsAppMessage(analysis, nextStatus) {
+    const firstName = text(analysis?.customer?.name, 160).split(' ')[0];
+    const greeting = `Olá${firstName ? `, ${firstName}` : ''}!`;
+    const orderReference = analysis?.orderId ? ` referente ao pedido *${analysis.orderId}*` : '';
+
+    if (nextStatus === 'APROVADO') {
+      const limitText = Number(analysis?.approvedLimitCents || 0) > 0
+        ? `\n\n*Limite aprovado:* ${moneyBR(analysis.approvedLimitCents)}.`
+        : '';
+
+      return (
+        `${greeting} ✅ Sua análise de crédito na *Ariana Móveis*${orderReference} foi *APROVADA*.` +
+        limitText +
+        '\n\nNossa equipe continuará o atendimento para concluir sua compra e orientar os próximos passos.'
+      );
+    }
+
+    if (nextStatus === 'REPROVADO') {
+      return (
+        `${greeting} Sua análise de crédito na *Ariana Móveis*${orderReference} foi concluída, ` +
+        'mas não pôde ser aprovada neste momento.\n\nPara mais informações, fale com nossa equipe de atendimento.'
+      );
+    }
+
+    if (nextStatus === 'AGUARDANDO_DOCUMENTOS') {
+      const documents = Array.isArray(analysis?.requestedDocuments)
+        ? analysis.requestedDocuments.map((item) => text(item, 120)).filter(Boolean)
+        : [];
+
+      const documentsText = documents.length
+        ? `\n\n*Documentos solicitados:*\n${documents.map((item) => `• ${item}`).join('\n')}`
+        : '\n\nEnvie nesta conversa os documentos solicitados pela equipe.';
+
+      return (
+        `${greeting} 📎 Para continuar sua análise do *Crediário Ariana Móveis*${orderReference}, ` +
+        'precisamos receber seus documentos.' +
+        documentsText
+      );
+    }
+
+    return '';
+  }
+
+  function whatsappStatusEvent(nextStatus, success) {
+    if (nextStatus === 'AGUARDANDO_DOCUMENTOS') {
+      return success ? 'WHATSAPP_DOCUMENT_REQUEST_SENT' : 'WHATSAPP_DOCUMENT_REQUEST_FAILED';
+    }
+    return success ? 'WHATSAPP_DECISION_SENT' : 'WHATSAPP_DECISION_FAILED';
+  }
+
   async function executeCollections({ q = '', limit = 200, dryRun = true, referenceDate = new Date() } = {}) {
     const candidates = await buildCollectionCandidates({ q, limit, referenceDate });
     const results = [];
@@ -900,7 +950,125 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       analysis.suggestion = { decision: suggestion.suggestion, reasons: suggestion.reasons, calculatedAt: new Date() };
       await analysis.save();
     }
-    return res.json({ ok: true, analysis });
+
+    let whatsapp = null;
+    const notificationStatuses = ['APROVADO', 'REPROVADO', 'AGUARDANDO_DOCUMENTOS'];
+
+    if (notificationStatuses.includes(nextStatus)) {
+      const phone = digits(req.body?.phone || req.body?.telefone || analysis.customer?.phone);
+      const message = buildAnalysisStatusWhatsAppMessage(analysis, nextStatus);
+      const actorId = String(req.admin?.id || req.auth?.id || '');
+      const actorName = text(req.admin?.name || req.user?.name || 'Administrador', 120);
+
+      if (!phone) {
+        const warning = 'Status atualizado, mas o cliente não possui WhatsApp cadastrado.';
+        whatsapp = {
+          ok: false,
+          skipped: true,
+          code: 'CREDIARIO_CUSTOMER_PHONE_MISSING',
+          error: warning
+        };
+
+        analysis.history.push({
+          action: 'WHATSAPP_NOTIFICATION_SKIPPED',
+          fromStatus: previous,
+          toStatus: nextStatus,
+          actorId,
+          actorName,
+          note: warning,
+          metadata: { reason: 'PHONE_MISSING', eventType: nextStatus }
+        });
+        await analysis.save();
+      } else {
+        try {
+          const sent = await sendCrediarioWhatsApp({
+            phone,
+            message,
+            metadata: {
+              eventType: nextStatus === 'AGUARDANDO_DOCUMENTOS'
+                ? 'CREDIT_ANALYSIS_DOCUMENT_REQUEST'
+                : `CREDIT_ANALYSIS_${nextStatus}`,
+              origin: analysis.origin,
+              orderId: analysis.orderId,
+              analysisId: analysis.analysisId,
+              actorId
+            }
+          });
+
+          if (sent.normalizedPhone) analysis.customer.phone = sent.normalizedPhone;
+
+          analysis.history.push({
+            action: whatsappStatusEvent(nextStatus, true),
+            fromStatus: previous,
+            toStatus: nextStatus,
+            actorId,
+            actorName,
+            metadata: {
+              decision: nextStatus,
+              provider: sent.provider,
+              status: sent.status,
+              messageId: sent.messageId,
+              normalizedPhone: sent.normalizedPhone || phone,
+              attempts: sent.attempts || []
+            }
+          });
+          await analysis.save();
+
+          whatsapp = {
+            ok: true,
+            status: sent.status,
+            provider: sent.provider,
+            messageId: sent.messageId,
+            normalizedPhone: sent.normalizedPhone || phone,
+            attempts: sent.attempts || []
+          };
+        } catch (sendError) {
+          const errorMessage = text(sendError.message || 'Falha ao enviar WhatsApp.', 1000);
+
+          analysis.history.push({
+            action: whatsappStatusEvent(nextStatus, false),
+            fromStatus: previous,
+            toStatus: nextStatus,
+            actorId,
+            actorName,
+            note: errorMessage,
+            metadata: {
+              decision: nextStatus,
+              code: text(sendError.code, 120),
+              phone,
+              attempts: Array.isArray(sendError.attempts) ? sendError.attempts : []
+            }
+          });
+          await analysis.save();
+
+          whatsapp = {
+            ok: false,
+            code: sendError.code || 'CREDIARIO_STATUS_WHATSAPP_FAILED',
+            error: errorMessage,
+            attempts: sendError.attempts || []
+          };
+
+          console.error('[crediario status WhatsApp]', {
+            analysisId: analysis.analysisId,
+            orderId: analysis.orderId,
+            status: nextStatus,
+            phone,
+            code: sendError.code || '',
+            error: errorMessage,
+            attempts: sendError.attempts || []
+          });
+        }
+      }
+    }
+
+    return res.json({
+      ok: true,
+      analysis,
+      whatsapp,
+      warning: whatsapp && whatsapp.ok === false
+        ? whatsapp.error || 'Status atualizado, mas a mensagem de WhatsApp não foi enviada.'
+        : ''
+    });
   });
 
 

@@ -5045,7 +5045,39 @@ async function abrirDocumentoAnalise(conversationId,key){
     toast(e.message||'Erro ao abrir documento');
   }
 }
-async function salvarDecisaoAnalise(id,status){try{const body={status,approvedLimitCents:centsFromBR(document.getElementById('anLimiteEdit')?.value||'0'),decisionNote:document.getElementById('anDecisaoEdit')?.value||'',checklist:{cpfChecked:true,identityDocument:true,residenceProof:true,incomeChecked:true,contactConfirmed:true,referenceConfirmed:true}};await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Análise atualizada');await loadAnalisesCredito();await abrirAnaliseCreditoIntegrada(id)}catch(e){toast(e.message||'Erro ao atualizar análise')}}
+async function salvarDecisaoAnalise(id,status){
+  try{
+    const body={
+      status,
+      approvedLimitCents:centsFromBR(document.getElementById('anLimiteEdit')?.value||'0'),
+      decisionNote:document.getElementById('anDecisaoEdit')?.value||'',
+      checklist:{cpfChecked:true,identityDocument:true,residenceProof:true,incomeChecked:true,contactConfirmed:true,referenceConfirmed:true}
+    };
+    const result=await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/status',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+
+    if(result?.whatsapp?.ok){
+      const labels={
+        APROVADO:'Análise aprovada e cliente avisado pelo WhatsApp',
+        REPROVADO:'Análise reprovada e cliente avisado pelo WhatsApp',
+        AGUARDANDO_DOCUMENTOS:'Pedido de documentos enviado pelo WhatsApp'
+      };
+      toast(labels[status]||'Análise atualizada e mensagem enviada');
+    }else if(result?.warning||result?.whatsapp?.error){
+      toast(result.warning||result.whatsapp.error);
+    }else{
+      toast('Análise atualizada');
+    }
+
+    await loadAnalisesCredito();
+    await abrirAnaliseCreditoIntegrada(id);
+  }catch(e){
+    toast(e.message||'Erro ao atualizar análise');
+  }
+}
 async function reenviarConviteAnalise(id){
   if(!id)return;
   if(!confirm('Reenviar agora o convite do WhatsApp para este cliente?'))return;
