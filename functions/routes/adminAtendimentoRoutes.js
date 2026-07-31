@@ -9,6 +9,7 @@ export default function registerAdminAtendimentoRoutes(app, context = {}) {
     Ticket,
     Notification,
     OperationalAlert,
+    Order,
     adminRequired,
     mongoose,
     fs,
@@ -230,11 +231,28 @@ export default function registerAdminAtendimentoRoutes(app, context = {}) {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const [openTickets, todaysTickets, criticalAlerts, notifications] = await Promise.all([
+      const orderRatingsPromise = Order?.find
+        ? Order.find({
+            'whatsappNotification.deliveryRatingAnsweredAt': { $gte: startOfDay },
+            'whatsappNotification.deliveryRatingScore': { $gte: 1, $lte: 5 }
+          })
+            .select({
+              _id: 1,
+              customerName: 1,
+              whatsappNotification: 1
+            })
+            .sort({ 'whatsappNotification.deliveryRatingAnsweredAt': -1 })
+            .limit(1000)
+            .lean()
+            .catch(() => [])
+        : Promise.resolve([]);
+
+      const [openTickets, todaysTickets, criticalAlerts, notifications, orderRatings] = await Promise.all([
         Ticket.find({ status: { $nin: ['Resolvido', 'Fechado', 'Finalizado'] } }).sort({ createdAt: -1 }).limit(1000),
         Ticket.find({ createdAt: { $gte: startOfDay } }).sort({ createdAt: -1 }).limit(1000),
         OperationalAlert.countDocuments({ createdAt: { $gte: startOfDay }, severity: { $in: ['high', 'critical'] } }).catch(() => 0),
-        Notification.find({ createdAt: { $gte: startOfDay } }).sort({ createdAt: -1 }).limit(200).catch(() => [])
+        Notification.find({ createdAt: { $gte: startOfDay } }).sort({ createdAt: -1 }).limit(200).catch(() => []),
+        orderRatingsPromise
       ]);
 
       const humanMode = readLocalJsonSafe('/root/human-mode.json', {});
@@ -248,9 +266,20 @@ export default function registerAdminAtendimentoRoutes(app, context = {}) {
       const sacLocal = openNormalized.filter((x) => String(x.tipo || '').toLowerCase().includes('sac')).length;
       const finLocal = openNormalized.filter((x) => String(x.tipo || '').toLowerCase().includes('fin')).length;
 
-      const ratingsToday = Array.isArray(avaliacoes)
+      const ratingsFromFile = Array.isArray(avaliacoes)
         ? avaliacoes.filter((a) => String(a?.data || '').slice(0, 10) === new Date().toISOString().slice(0, 10))
         : [];
+
+      const ratingsFromOrders = Array.isArray(orderRatings)
+        ? orderRatings.map((order) => ({
+            nota: Number(order?.whatsappNotification?.deliveryRatingScore || 0),
+            data: order?.whatsappNotification?.deliveryRatingAnsweredAt || null,
+            orderId: String(order?._id || ''),
+            source: 'whatsapp_delivery_rating'
+          })).filter((item) => item.nota >= 1 && item.nota <= 5)
+        : [];
+
+      const ratingsToday = [...ratingsFromFile, ...ratingsFromOrders];
 
       const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
       for (const item of ratingsToday) {

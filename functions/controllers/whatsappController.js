@@ -12,6 +12,8 @@ export default function createWhatsappController(context = {}) {
     Order,
     Ticket,
     User,
+    Notification,
+    OperationalAlert,
     WhatsAppWebhook,
     axios,
     cleanPhone,
@@ -331,8 +333,443 @@ async function waNotifyAdminOrderStatusChange(orderId, before = {}, after = {}, 
 }
 async function waSendMediaMessage({ number, mediaUrl, caption = '', mediaType = 'image', fileName = '', settings = null, delay = 0 }) { const cfg = settings || await getWhatsappSettings(); if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.'); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.'); const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55'); if (!normalizedNumber) throw new Error('Número de telefone inválido.'); if (!String(mediaUrl || '').trim()) throw new Error('URL da mídia não informada.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendMedia/${encodeURIComponent(cfg.instanceName)}`; const payload = { number: normalizedNumber, mediatype: String(mediaType || 'image').trim().toLowerCase(), media: String(mediaUrl || '').trim(), caption: String(caption || '').trim(), fileName: String(fileName || '').trim() || undefined, delay: Number(delay || 0) || 0 }; const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); return { ok: true, url, number: normalizedNumber, instanceName: cfg.instanceName, data: response.data, status: response.status, payload: redact(payload) }; }
 async function waSyncWebhook(settings = null) { const cfg = settings || await getWhatsappSettings(); if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName || !cfg.webhookUrl) throw new Error('Configuração incompleta do WhatsApp.'); const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/webhook/set/${encodeURIComponent(cfg.instanceName)}`; const body = { enabled: cfg.enabled === true, url: cfg.webhookUrl, webhookByEvents: cfg.webhookByEvents === true, webhookBase64: cfg.webhookBase64 === true, events: Array.isArray(cfg.webhookEvents) && cfg.webhookEvents.length ? cfg.webhookEvents : DEFAULT_WHATSAPP_SETTINGS.webhookEvents }; const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json', apikey: cfg.apiKey }, timeout: 30000 }); await saveWhatsappSettings({ lastWebhookSyncAt: now(), lastWebhookSyncResponse: redact(response.data || null) }, 'system'); return { ok: true, url, body, data: response.data, status: response.status }; }
-function waParseIncomingWebhook(body = {}) { const payload = body?.data || body?.message || body || {}; const key = payload?.key || body?.key || {}; const message = payload?.message || body?.message || {}; const text = message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || body?.text || ''; const remoteJid = key?.remoteJid || payload?.key?.remoteJid || body?.remoteJid || ''; const number = cleanPhone(String(remoteJid).split('@')[0] || body?.from || ''); const pushName = payload?.pushName || body?.pushName || body?.sender?.pushName || null; const fromMe = key?.fromMe === true || body?.fromMe === true; const event = String(body?.event || body?.type || '').trim() || null; return { event, remoteJid, number, pushName, fromMe, text: String(text || '').trim(), raw: body }; }
-async function waPersistWebhook(body = {}) { const parsed = waParseIncomingWebhook(body); await WhatsAppWebhook.create({ event: parsed.event || null, remoteJid: parsed.remoteJid || null, number: parsed.number || null, pushName: parsed.pushName || null, fromMe: parsed.fromMe === true, text: parsed.text || null, payload: redact(body || null) }); if ((parsed.event === 'MESSAGES_UPSERT' || !parsed.event) && !parsed.fromMe && parsed.text) await Ticket.create({ protocolo: `WA-${Date.now()}`, nome: parsed.pushName || parsed.number || 'WhatsApp', email: null, tipo: 'WhatsApp', status: 'Novo', telefone: parsed.number || null, mensagem: parsed.text, origem: 'evolution_webhook', metadata: { remoteJid: parsed.remoteJid || null } }); return parsed; }
+
+function normalizeEvolutionEvent(value = '') {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[.\-\s]+/g, '_');
+}
+
+function waParseIncomingWebhook(body = {}) {
+  const data = body?.data || {};
+  const payload = data?.message ? data : (body?.message || data || body || {});
+  const key = payload?.key || data?.key || body?.key || {};
+  const rawMessage = payload?.message || data?.message || body?.message || {};
+  const message =
+    rawMessage?.ephemeralMessage?.message ||
+    rawMessage?.viewOnceMessage?.message ||
+    rawMessage?.viewOnceMessageV2?.message ||
+    rawMessage;
+
+  const text =
+    message?.conversation ||
+    message?.extendedTextMessage?.text ||
+    message?.imageMessage?.caption ||
+    message?.videoMessage?.caption ||
+    message?.documentMessage?.caption ||
+    data?.messageText ||
+    data?.text ||
+    body?.text ||
+    '';
+
+  const remoteJid =
+    key?.remoteJid ||
+    payload?.key?.remoteJid ||
+    data?.remoteJid ||
+    body?.remoteJid ||
+    data?.sender ||
+    body?.sender ||
+    '';
+
+  const phoneSource = /@lid$/i.test(String(remoteJid || ''))
+    ? (
+        data?.senderPn ||
+        body?.senderPn ||
+        data?.sender ||
+        body?.sender ||
+        data?.from ||
+        body?.from ||
+        remoteJid
+      )
+    : (
+        remoteJid ||
+        data?.senderPn ||
+        body?.senderPn ||
+        data?.from ||
+        body?.from ||
+        data?.sender ||
+        body?.sender ||
+        ''
+      );
+
+  const number = cleanPhone(
+    String(phoneSource || '').split('@')[0]
+  );
+
+  const pushName =
+    payload?.pushName ||
+    data?.pushName ||
+    body?.pushName ||
+    body?.sender?.pushName ||
+    null;
+
+  const fromMe =
+    key?.fromMe === true ||
+    data?.fromMe === true ||
+    body?.fromMe === true;
+
+  const event = normalizeEvolutionEvent(
+    body?.event ||
+    body?.type ||
+    data?.event ||
+    data?.type ||
+    ''
+  ) || null;
+
+  const messageId = String(
+    key?.id ||
+    payload?.messageId ||
+    data?.messageId ||
+    data?.id ||
+    body?.messageId ||
+    body?.id ||
+    ''
+  ).trim();
+
+  return {
+    event,
+    remoteJid,
+    number,
+    pushName,
+    fromMe,
+    text: String(text || '').trim(),
+    messageId,
+    raw: body
+  };
+}
+
+function extractDeliveryRating(text = '') {
+  const normalized = String(text || '')
+    .trim()
+    .replace(/\uFE0F/g, '')
+    .replace(/\s+/g, ' ');
+
+  if (/^[1-5]$/.test(normalized)) return Number(normalized);
+
+  const withoutStars = normalized.replace(/[⭐★☆]/g, '').trim();
+  if (/^[1-5](?:\s*(?:estrela|estrelas))?$/i.test(withoutStars)) {
+    return Number(withoutStars.match(/[1-5]/)?.[0] || 0);
+  }
+
+  return 0;
+}
+
+function normalizeComparablePhone(value = '') {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+}
+
+function phonesMatch(left = '', right = '') {
+  const a = normalizeComparablePhone(left);
+  const b = normalizeComparablePhone(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const minLength = Math.min(a.length, b.length);
+  const suffixLength = minLength >= 11 ? 11 : Math.min(10, minLength);
+  return suffixLength >= 8 && a.slice(-suffixLength) === b.slice(-suffixLength);
+}
+
+function deliveryRatingReplyMessage(order = {}, score = 0) {
+  const firstName =
+    titleCaseCustomerName(extractOrderCustomerName(order)).split(' ')[0] ||
+    'Cliente';
+
+  if (score <= 3) {
+    return [
+      `Obrigado por nos contar, ${firstName}.`,
+      '',
+      `Registramos sua avaliação de ${score} ${score === 1 ? 'estrela' : 'estrelas'}.`,
+      'Sentimos que sua experiência não tenha sido como esperávamos.',
+      '',
+      'Nossa equipe vai analisar o atendimento. Pode nos contar, em uma mensagem, o que aconteceu?'
+    ].join('\n');
+  }
+
+  return [
+    `Muito obrigado, ${firstName}! 💙`,
+    '',
+    `Ficamos muito felizes com sua avaliação de ${score} estrelas.`,
+    'Sua opinião foi registrada com sucesso e ajuda a Ariana Móveis a melhorar cada vez mais.'
+  ].join('\n');
+}
+
+async function findPendingDeliveryRatingOrder(phone = '') {
+  const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+  const rows = await Order.find({
+    'whatsappNotification.deliveryRatingSentAt': { $gte: cutoff }
+  })
+    .sort({ 'whatsappNotification.deliveryRatingSentAt': -1 })
+    .limit(150);
+
+  let latestMatched = null;
+
+  for (const row of rows) {
+    const order = toJSON(row) || row || {};
+    const ratingPhone =
+      order?.whatsappNotification?.deliveryRatingPhone ||
+      extractOrderPhone(order, '55');
+
+    if (!phonesMatch(phone, ratingPhone)) continue;
+    if (!latestMatched) latestMatched = row;
+
+    if (!order?.whatsappNotification?.deliveryRatingAnsweredAt) {
+      return row;
+    }
+  }
+
+  return latestMatched;
+}
+
+async function registerDeliveryRating(parsed = {}, score = 0) {
+  const orderDoc = await findPendingDeliveryRatingOrder(parsed.number);
+  if (!orderDoc) {
+    return { handled: false, reason: 'rating_order_not_found' };
+  }
+
+  const order = toJSON(orderDoc) || {};
+  const orderId = String(order._id || order.id || '').trim();
+  const previousAnswerAt = order?.whatsappNotification?.deliveryRatingAnsweredAt;
+
+  if (previousAnswerAt) {
+    return {
+      handled: true,
+      duplicate: true,
+      orderId,
+      score: Number(order?.whatsappNotification?.deliveryRatingScore || score)
+    };
+  }
+
+  const answeredAt = typeof now === 'function' ? now() : new Date();
+  const locked = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      $or: [
+        { 'whatsappNotification.deliveryRatingAnsweredAt': { $exists: false } },
+        { 'whatsappNotification.deliveryRatingAnsweredAt': null }
+      ]
+    },
+    {
+      $set: {
+        'whatsappNotification.deliveryRatingStatus': 'answered',
+        'whatsappNotification.deliveryRatingScore': score,
+        'whatsappNotification.deliveryRatingAnswerText': parsed.text,
+        'whatsappNotification.deliveryRatingAnsweredAt': answeredAt,
+        'whatsappNotification.deliveryRatingAnsweredPhone': parsed.number,
+        'whatsappNotification.deliveryRatingPushName': parsed.pushName || '',
+        'whatsappNotification.deliveryRatingMessageId': parsed.messageId || '',
+        'whatsappNotification.deliveryRatingReplyStatus': 'pending'
+      }
+    },
+    { new: true }
+  ).catch(() => null);
+
+  if (!locked) {
+    return { handled: true, duplicate: true, orderId, score };
+  }
+
+  const lockedOrder = toJSON(locked) || order;
+  const orderShort = orderId.slice(-8).toUpperCase() || '---';
+  const customerName = extractOrderCustomerName(lockedOrder);
+  const notificationMessage =
+    `Cliente ${customerName} avaliou o pedido #${orderShort} com ${score} ` +
+    `${score === 1 ? 'estrela' : 'estrelas'}.`;
+
+  if (Notification?.create) {
+    await Notification.create({
+      type: 'pedido_avaliacao',
+      title: score <= 3
+        ? '⚠️ Avaliação baixa de pedido'
+        : '⭐ Avaliação de pedido recebida',
+      message: notificationMessage,
+      status: 'unread',
+      relatedId: orderId,
+      severity: score <= 3 ? 'high' : 'info',
+      audience: 'admin',
+      metadata: {
+        orderId,
+        telefone: parsed.number,
+        nota: score,
+        messageId: parsed.messageId || '',
+        source: 'whatsapp_delivery_rating'
+      }
+    }).catch((error) => {
+      console.error('[WHATSAPP AVALIACAO] Falha ao criar notificação:', error.message || error);
+    });
+  }
+
+  if (score <= 3 && Ticket?.create) {
+    await Ticket.create({
+      protocolo: `AV-${orderShort}-${Date.now()}`,
+      nome: customerName || parsed.pushName || parsed.number || 'Cliente',
+      email: null,
+      tipo: 'Pós-venda',
+      status: 'Novo',
+      telefone: parsed.number || null,
+      mensagem: `${notificationMessage} Aguardando relato do cliente.`,
+      origem: 'whatsapp_delivery_rating',
+      metadata: {
+        orderId,
+        nota: score,
+        remoteJid: parsed.remoteJid || '',
+        messageId: parsed.messageId || '',
+        source: 'whatsapp_delivery_rating'
+      }
+    }).catch((error) => {
+      console.error('[WHATSAPP AVALIACAO] Falha ao abrir atendimento:', error.message || error);
+    });
+  }
+
+  if (score <= 3 && OperationalAlert?.create) {
+    await OperationalAlert.create({
+      alertId: `delivery_rating_low_${orderId}_${Date.now()}`,
+      type: 'delivery_rating_low',
+      severity: 'high',
+      status: 'open',
+      title: '⚠️ Avaliação baixa no pós-venda',
+      message: notificationMessage,
+      entityKey: orderId,
+      orderId,
+      metadata: {
+        orderId,
+        telefone: parsed.number,
+        nota: score,
+        source: 'whatsapp_delivery_rating'
+      },
+      firstSeenAt: answeredAt,
+      lastSeenAt: answeredAt,
+      buildId: 'whatsapp-delivery-rating-2026-07-31'
+    }).catch((error) => {
+      console.error('[WHATSAPP AVALIACAO] Falha ao criar alerta:', error.message || error);
+    });
+  }
+
+  const replyText = deliveryRatingReplyMessage(lockedOrder, score);
+
+  try {
+    const sent = await waSendTextMessage({
+      number: parsed.number,
+      text: replyText
+    });
+
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        'whatsappNotification.deliveryRatingReplyStatus': 'sent',
+        'whatsappNotification.deliveryRatingReplySentAt':
+          typeof now === 'function' ? now() : new Date(),
+        'whatsappNotification.deliveryRatingReplyText': replyText,
+        'whatsappNotification.deliveryRatingReplyResponse':
+          typeof redact === 'function' ? redact(sent.data || null) : (sent.data || null),
+        'whatsappNotification.deliveryRatingReplyError': null
+      }
+    }).catch(() => null);
+
+    if (typeof writeAuditLog === 'function') {
+      await writeAuditLog({
+        scope: 'whatsapp_evolution',
+        eventType: 'delivery_rating_received',
+        orderId,
+        status: 'success',
+        request: {
+          number: parsed.number,
+          score,
+          messageId: parsed.messageId || ''
+        },
+        response: sent.data || null,
+        metadata: { source: 'whatsapp_delivery_rating' }
+      }).catch(() => null);
+    }
+
+    return {
+      handled: true,
+      duplicate: false,
+      orderId,
+      score,
+      replySent: true
+    };
+  } catch (error) {
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        'whatsappNotification.deliveryRatingReplyStatus': 'error',
+        'whatsappNotification.deliveryRatingReplyText': replyText,
+        'whatsappNotification.deliveryRatingReplyError':
+          error.message || String(error)
+      }
+    }).catch(() => null);
+
+    console.error('[WHATSAPP AVALIACAO] Avaliação registrada, mas resposta falhou:', {
+      orderId,
+      score,
+      error: error.message || String(error)
+    });
+
+    return {
+      handled: true,
+      duplicate: false,
+      orderId,
+      score,
+      replySent: false,
+      replyError: error.message || String(error)
+    };
+  }
+}
+
+async function waPersistWebhook(body = {}) {
+  const parsed = waParseIncomingWebhook(body);
+  const payloadForLog =
+    typeof redact === 'function' ? redact(body || null) : (body || null);
+
+  if (WhatsAppWebhook?.create) {
+    await WhatsAppWebhook.create({
+      event: parsed.event || null,
+      remoteJid: parsed.remoteJid || null,
+      number: parsed.number || null,
+      pushName: parsed.pushName || null,
+      fromMe: parsed.fromMe === true,
+      text: parsed.text || null,
+      payload: payloadForLog
+    }).catch((error) => {
+      console.error('[WHATSAPP WEBHOOK] Falha ao persistir evento:', error.message || error);
+    });
+  }
+
+  const isIncomingMessage =
+    (!parsed.event || parsed.event === 'MESSAGES_UPSERT') &&
+    !parsed.fromMe &&
+    Boolean(parsed.text);
+
+  if (!isIncomingMessage) return parsed;
+
+  const score = extractDeliveryRating(parsed.text);
+  if (score) {
+    const deliveryRating = await registerDeliveryRating(parsed, score);
+    if (deliveryRating.handled) {
+      return { ...parsed, deliveryRating };
+    }
+  }
+
+  if (Ticket?.create) {
+    await Ticket.create({
+      protocolo: `WA-${Date.now()}`,
+      nome: parsed.pushName || parsed.number || 'WhatsApp',
+      email: null,
+      tipo: 'WhatsApp',
+      status: 'Novo',
+      telefone: parsed.number || null,
+      mensagem: parsed.text,
+      origem: 'evolution_webhook',
+      metadata: {
+        remoteJid: parsed.remoteJid || null,
+        messageId: parsed.messageId || null
+      }
+    });
+  }
+
+  return parsed;
+}
+
 function buildDeliveryRatingMessage(order = {}) {
   const customerName = titleCaseCustomerName(extractOrderCustomerName(order)).split(" ")[0] || "Cliente";
 

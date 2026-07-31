@@ -27,6 +27,7 @@ import { generateProductPosterBuffer } from './poster-generator.js';
 import manufacturerIntegrationRoutes from './routes/manufacturerIntegrationRoutes.js';
 import createSigeRoutes from './routes/sige/index.js';
 import registerLegacyRoutes from './routes/legacyRoutes.js';
+import createWhatsappController from './controllers/whatsappController.js';
 import registerCoraRoutes from './routes/coraRoutes.js';
 import registerCrediarioAnalysisRoutes from './routes/crediarioAnalysisRoutes.js';
 import registerCrediarioConversationRoutes from './routes/crediarioConversationRoutes.js';
@@ -2607,6 +2608,197 @@ app.use((req, res, next) => {
   return next();
 });
 
+
+// ============================================================
+// AVALIAÇÃO PÓS-ENTREGA PELO WHATSAPP ARIANA_NOTIFICACOES
+// O mesmo webhook continua processando os status financeiros.
+// Somente MESSAGES_UPSERT é interceptado aqui para registrar
+// a nota de 1 a 5 e responder automaticamente ao cliente.
+// ============================================================
+const deliveryRatingWhatsappController = createWhatsappController({
+  DEFAULT_CURRENCY,
+  DEFAULT_WHATSAPP_SETTINGS,
+  Order,
+  Ticket,
+  User,
+  Notification,
+  OperationalAlert,
+  WhatsAppWebhook,
+  axios,
+  cleanPhone,
+  ensureArray,
+  getWhatsappSettings,
+  normalizePhone,
+  now,
+  redact,
+  saveWhatsappSettings,
+  toJSON,
+  writeAuditLog: async () => null
+});
+
+function normalizeIncomingEvolutionEvent(body = {}) {
+  return String(
+    body?.event ||
+    body?.type ||
+    body?.data?.event ||
+    body?.data?.type ||
+    ''
+  )
+    .trim()
+    .toUpperCase()
+    .replace(/[.\-\s]+/g, '_');
+}
+
+function financeiroWhatsappWebhookAuthorized(req = {}) {
+  const configured = String(
+    process.env.FINANCEIRO_WHATSAPP_WEBHOOK_TOKEN || ''
+  ).trim();
+
+  if (!configured) return true;
+
+  const informed = String(
+    req.headers?.['x-financeiro-webhook-token'] ||
+    req.headers?.['x-webhook-token'] ||
+    req.query?.token ||
+    ''
+  ).trim();
+
+  return Boolean(informed && informed === configured);
+}
+
+app.post(
+  '/api/webhooks/financeiro/whatsapp/status',
+  async (req, res, next) => {
+    const event = normalizeIncomingEvolutionEvent(req.body || {});
+
+    // MESSAGES_UPDATE e SEND_MESSAGE continuam na rota financeira original.
+    if (event !== 'MESSAGES_UPSERT') return next();
+
+    if (!financeiroWhatsappWebhookAuthorized(req)) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Token do webhook financeiro inválido.'
+      });
+    }
+
+    try {
+      const parsed = await deliveryRatingWhatsappController.waPersistWebhook(
+        req.body || {}
+      );
+
+      return res.json({
+        ok: true,
+        received: true,
+        event: parsed.event || event,
+        rating: parsed.deliveryRating || null
+      });
+    } catch (error) {
+      console.error(
+        '[WHATSAPP AVALIACAO] Erro no webhook:',
+        error.message || error
+      );
+
+      return res.status(500).json({
+        ok: false,
+        error: error.message || 'Erro ao processar avaliação do cliente.'
+      });
+    }
+  }
+);
+
+async function ensureArianaNotificacoesWebhookEvents() {
+  const autoSyncEnabled = String(
+    process.env.EVOLUTION_NOTIFY_WEBHOOK_AUTO_SYNC ?? 'true'
+  ).trim().toLowerCase() !== 'false';
+
+  if (!autoSyncEnabled) return { skipped: true, reason: 'auto_sync_disabled' };
+
+  const apiUrl = String(process.env.EVOLUTION_API_URL || '').trim().replace(/\/+$/, '');
+  const apiKey = String(process.env.EVOLUTION_API_KEY || '').trim();
+  const instanceName = String(
+    process.env.EVOLUTION_NOTIFY_INSTANCE ||
+    process.env.EVOLUTION_INSTANCE_NOTIFICACOES ||
+    'Ariana_Notificacoes'
+  ).trim();
+
+  const webhookUrl = String(
+    process.env.FINANCEIRO_WHATSAPP_WEBHOOK_PUBLIC_URL ||
+    (
+      APP_BASE_URL
+        ? `${APP_BASE_URL}/api/webhooks/financeiro/whatsapp/status`
+        : ''
+    )
+  ).trim();
+
+  if (!apiUrl || !apiKey || !instanceName || !webhookUrl) {
+    return {
+      skipped: true,
+      reason: 'missing_configuration',
+      configured: {
+        apiUrl: Boolean(apiUrl),
+        apiKey: Boolean(apiKey),
+        instanceName: Boolean(instanceName),
+        webhookUrl: Boolean(webhookUrl)
+      }
+    };
+  }
+
+  const webhookToken = String(
+    process.env.FINANCEIRO_WHATSAPP_WEBHOOK_TOKEN || ''
+  ).trim();
+
+  const events = [
+    'MESSAGES_UPSERT',
+    'MESSAGES_UPDATE',
+    'SEND_MESSAGE'
+  ];
+
+  const response = await axios.post(
+    `${apiUrl}/webhook/set/${encodeURIComponent(instanceName)}`,
+    {
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: false,
+        webhookBase64: false,
+        base64: false,
+        events,
+        headers: webhookToken
+          ? { 'x-financeiro-webhook-token': webhookToken }
+          : {}
+      }
+    },
+    {
+      headers: {
+        apikey: apiKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000,
+      validateStatus: () => true
+    }
+  );
+
+  if (response.status < 200 || response.status >= 300) {
+    const error = new Error(
+      response.data?.message ||
+      response.data?.error?.message ||
+      response.data?.error ||
+      `Evolution API HTTP ${response.status}`
+    );
+    error.statusCode = response.status;
+    error.responseData = response.data;
+    throw error;
+  }
+
+  return {
+    ok: true,
+    instanceName,
+    webhookUrl,
+    events,
+    status: response.status
+  };
+}
+
 registerLegacyRoutes(app, {
   ADMIN_EMAIL,
   ADMIN_NAME,
@@ -2796,6 +2988,28 @@ registerLegacyRoutes(app, {
 
 app.listen(PORT, () => {
   console.log(`🚀 Ariana Enterprise Mongo rodando na porta ${PORT}`);
+
+  setTimeout(() => {
+    ensureArianaNotificacoesWebhookEvents()
+      .then((result) => {
+        if (result?.ok) {
+          console.log(
+            `📲 Webhook Ariana_Notificacoes sincronizado: ${result.events.join(', ')}`
+          );
+        } else {
+          console.log(
+            'ℹ️ Webhook Ariana_Notificacoes não sincronizado:',
+            result?.reason || 'configuração incompleta'
+          );
+        }
+      })
+      .catch((error) => {
+        console.error(
+          '⚠️ Falha ao sincronizar webhook Ariana_Notificacoes:',
+          error.message || error
+        );
+      });
+  }, 5000);
   if (typeof startSigeAutoCobrancaScheduler === 'function') {
     startSigeAutoCobrancaScheduler();
   }
