@@ -1562,6 +1562,33 @@ async function quoteShippingForSelectedAddress(addrObj) {
         try { localStorage.setItem("arianaLastOrderGateway", selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'); } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
+        if (selectedPayCode === 'crediario_ariana') {
+          try {
+            const previousDraft = JSON.parse(localStorage.getItem('ariana_crediario_checkout_draft') || '{}') || {};
+            const crediarioDraft = {
+              ...previousDraft,
+              orderId,
+              pedidoId: orderId,
+              order: response?.order || response?.item || response?.data || response || null,
+              orderResponse: response || null,
+              cart: Array.isArray(cart) ? cart : [],
+              address: selectedAddrObj || null,
+              addressText: selectedAddrText || '',
+              shippingQuote: shippingQuote || null,
+              totals: totalsComputed || {},
+              createdAt: Date.now()
+            };
+            localStorage.setItem('ariana_crediario_checkout_draft', JSON.stringify(crediarioDraft));
+            localStorage.setItem('arianaLastOrderId', String(orderId));
+            localStorage.setItem('arianaLastOrderResponse', JSON.stringify(response || {}));
+          } catch (storageError) {
+            console.warn('[checkout] não foi possível persistir o rascunho do crediário:', storageError);
+          }
+
+          window.location.href = `crediario_ariana.html?orderId=${encodeURIComponent(orderId)}`;
+          return;
+        }
+
         window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
       } catch (e) {
         console.error(e);
@@ -1881,9 +1908,10 @@ window.ArianaCrediarioEngine=(function(){
       localStorage.setItem('ariana_crediario_checkout_draft',JSON.stringify(draft));
     }catch(_ ){}
   }
-  document.addEventListener('click',function(e){
-    if(!e.target.closest('#label-crediario'))return;
-    e.preventDefault();e.stopImmediatePropagation();saveDraft();location.href='crediario_ariana.html';
+  document.addEventListener('change',function(e){
+    const radio=e.target?.closest?.('input[name="pay"]');
+    if(!radio || radio.value!=='crediario_ariana' || !radio.checked)return;
+    saveDraft();
   },true);
   const source=document.getElementById('shipping-price-main');
   const copy=document.getElementById('shipping-price-main-copy');

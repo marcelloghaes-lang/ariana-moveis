@@ -142,7 +142,7 @@
    ['orderId','pedidoId','id'].forEach(k=>addCandidate(ids,params.get(k)));
    [draft.orderId,draft.pedidoId,draft.id,draft._id,draft.order?._id,draft.order?.id,draft.order?.orderId].forEach(v=>addCandidate(ids,v));
    ['arianaLastOrderId','lastOrderId','currentOrderId','orderId','pedidoId','ariana_order_id','arianaCurrentOrderId'].forEach(k=>addCandidate(ids,localStorage.getItem(k)));
-   ['arianaLastOrder','lastOrder','currentOrder','ariana_order','arianaCurrentOrder','pedidoAtual'].forEach(k=>{
+   ['arianaLastOrder','arianaLastOrderResponse','lastOrder','currentOrder','ariana_order','arianaCurrentOrder','pedidoAtual'].forEach(k=>{
      const obj=safeJson(localStorage.getItem(k));if(!obj)return;
      [obj._id,obj.id,obj.orderId,obj.pedidoId,obj.order?._id,obj.order?.id].forEach(v=>addCandidate(ids,v));
    });
@@ -166,7 +166,7 @@
  async function discoverLatestOrderId(){
    try{
      const orders=normalizeOrdersResponse(await api('/orders/me')).slice().sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
-     const order=orders.find(orderMatchesDraft)||orders[0];
+     const order=orders.find(orderMatchesDraft);
      return String(order?._id||order?.id||order?.orderId||'').trim();
    }catch(_){return ''}
  }
@@ -184,7 +184,7 @@
    }
    const discovered=await discoverLatestOrderId();
    if(discovered){try{const d=await send(discovered);if(d){localStorage.setItem('arianaLastOrderId',discovered);return d}}catch(e){lastError=e}}
-   throw lastError||new Error('Não foi possível identificar o pedido desta compra. Volte ao checkout e selecione o Crediário Ariana novamente.');
+   throw lastError||new Error('Não foi possível localizar o pedido criado pelo checkout. Volte ao checkout, confirme o Crediário Ariana e clique em Continuar para finalizar o pedido.');
  }
  document.getElementById('btn-crediario-request').onclick=async()=>{
    const btn=document.getElementById('btn-crediario-request'),msg=document.getElementById('crediario-request-message');
