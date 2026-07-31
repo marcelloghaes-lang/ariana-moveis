@@ -473,7 +473,7 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
         orderId,
         origin: 'SITE',
         conversationId: '',
-        documentCollectionStatus: customerPhone ? 'ENVIO_CONVITE_PENDENTE' : 'AGUARDANDO_TELEFONE',
+        documentCollectionStatus: customerPhone ? 'CONVITE_ENVIADO' : 'AGUARDANDO_TELEFONE',
         customerId: String(req.user?._id || req.auth?.id || ''),
         customer: {
           name: text(customer.name || customer.nome || order.customerName || order.customer?.name, 160),
@@ -534,41 +534,18 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
               analysisId: analysis.analysisId
             }
           });
-          analysis.documentCollectionStatus = 'CONVITE_ENVIADO';
           analysis.history.push({
             action: 'WHATSAPP_INVITE_SENT',
             fromStatus: analysis.status,
             toStatus: analysis.status,
             actorName: 'Sistema',
-            metadata: {
-              provider: whatsapp.provider,
-              messageId: whatsapp.messageId,
-              normalizedPhone: whatsapp.normalizedPhone || customerPhone,
-              attempts: whatsapp.attempts || []
-            }
+            metadata: { provider: whatsapp.provider, messageId: whatsapp.messageId }
           });
           await analysis.save();
         } catch (sendError) {
           analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
-          analysis.history.push({
-            action: 'WHATSAPP_INVITE_FAILED',
-            actorName: 'Sistema',
-            note: text(sendError.message, 1000),
-            metadata: {
-              code: text(sendError.code, 120),
-              phone: customerPhone,
-              attempts: Array.isArray(sendError.attempts) ? sendError.attempts : []
-            }
-          });
+          analysis.history.push({ action: 'WHATSAPP_INVITE_FAILED', actorName: 'Sistema', note: text(sendError.message, 1000) });
           await analysis.save();
-          console.error('[crediario invite SITE]', {
-            analysisId: analysis.analysisId,
-            orderId,
-            phone: customerPhone,
-            code: sendError.code || '',
-            error: sendError.message,
-            attempts: sendError.attempts || []
-          });
         }
       }
 
@@ -607,7 +584,7 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
         orderId: text(body.orderId || body.pedidoId, 120),
         origin: 'LOJA_FISICA',
         conversationId: '',
-        documentCollectionStatus: 'ENVIO_CONVITE_PENDENTE',
+        documentCollectionStatus: 'CONVITE_ENVIADO',
         customerId: text(body.customerId, 120),
         customer: {
           name: customerName,
@@ -649,38 +626,12 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
             analysisId: analysis.analysisId
           }
         });
-        analysis.documentCollectionStatus = 'CONVITE_ENVIADO';
-        analysis.history.push({
-          action: 'WHATSAPP_INVITE_SENT',
-          actorName: 'Sistema',
-          metadata: {
-            provider: whatsapp.provider,
-            messageId: whatsapp.messageId,
-            normalizedPhone: whatsapp.normalizedPhone || phone,
-            attempts: whatsapp.attempts || []
-          }
-        });
+        analysis.history.push({ action: 'WHATSAPP_INVITE_SENT', actorName: 'Sistema', metadata: { provider: whatsapp.provider, messageId: whatsapp.messageId } });
         await analysis.save();
       } catch (sendError) {
         analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
-        analysis.history.push({
-          action: 'WHATSAPP_INVITE_FAILED',
-          actorName: 'Sistema',
-          note: text(sendError.message, 1000),
-          metadata: {
-            code: text(sendError.code, 120),
-            phone,
-            attempts: Array.isArray(sendError.attempts) ? sendError.attempts : []
-          }
-        });
+        analysis.history.push({ action: 'WHATSAPP_INVITE_FAILED', actorName: 'Sistema', note: text(sendError.message, 1000) });
         await analysis.save();
-        console.error('[crediario invite LOJA]', {
-          analysisId: analysis.analysisId,
-          phone,
-          code: sendError.code || '',
-          error: sendError.message,
-          attempts: sendError.attempts || []
-        });
       }
 
       return res.status(201).json({ ok: true, analysis, whatsapp });
@@ -688,116 +639,6 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       return res.status(500).json({ ok: false, error: error.message || 'Falha ao abrir solicitação da loja.' });
     }
   });
-
-  app.post(
-    '/api/admin/crediario/analises/:id/reenviar-convite',
-    adminRequired,
-    async (req, res) => {
-      const analysis = await Analysis.findOne({
-        $or: [
-          {
-            _id: mongoose.Types.ObjectId.isValid(req.params.id)
-              ? new mongoose.Types.ObjectId(req.params.id)
-              : null
-          },
-          { analysisId: req.params.id },
-          { orderId: req.params.id }
-        ]
-      });
-
-      if (!analysis) {
-        return res.status(404).json({ ok: false, error: 'Análise não encontrada.' });
-      }
-
-      const phone = digits(
-        req.body?.phone ||
-        req.body?.telefone ||
-        analysis.customer?.phone
-      );
-
-      if (!phone) {
-        return res.status(400).json({
-          ok: false,
-          error: 'A análise não possui WhatsApp para o convite.'
-        });
-      }
-
-      const firstName = text(analysis.customer?.name, 160).split(' ')[0];
-      const message =
-        `Olá${firstName ? `, ${firstName}` : ''}! 👋 ` +
-        `Recebemos sua solicitação do *Crediário Ariana Móveis*` +
-        `${analysis.orderId ? ` referente ao pedido *${analysis.orderId}*` : ''}. ` +
-        'Para iniciar o envio seguro dos seus dados e documentos, responda *ACEITO* nesta conversa.';
-
-      try {
-        const whatsapp = await sendCrediarioWhatsApp({
-          phone,
-          message,
-          metadata: {
-            eventType: 'CREDIT_ANALYSIS_INVITE_RETRY',
-            origin: analysis.origin,
-            orderId: analysis.orderId,
-            analysisId: analysis.analysisId,
-            actorId: String(req.admin?.id || req.auth?.id || '')
-          }
-        });
-
-        analysis.customer.phone = whatsapp.normalizedPhone || phone;
-        analysis.documentCollectionStatus = 'CONVITE_ENVIADO';
-
-        if (['PENDENTE_ANALISE', 'EM_ANALISE'].includes(analysis.status)) {
-          analysis.status = 'AGUARDANDO_DOCUMENTOS';
-        }
-
-        analysis.history.push({
-          action: 'WHATSAPP_INVITE_RESENT',
-          actorId: String(req.admin?.id || req.auth?.id || ''),
-          actorName: text(req.admin?.name || req.user?.name || 'Administrador', 120),
-          metadata: {
-            provider: whatsapp.provider,
-            messageId: whatsapp.messageId,
-            normalizedPhone: whatsapp.normalizedPhone || phone,
-            attempts: whatsapp.attempts || []
-          }
-        });
-
-        await analysis.save();
-
-        return res.json({
-          ok: true,
-          analysis,
-          whatsapp: {
-            status: whatsapp.status,
-            provider: whatsapp.provider,
-            messageId: whatsapp.messageId,
-            normalizedPhone: whatsapp.normalizedPhone,
-            attempts: whatsapp.attempts
-          }
-        });
-      } catch (error) {
-        analysis.documentCollectionStatus = 'FALHA_NO_CONVITE';
-        analysis.history.push({
-          action: 'WHATSAPP_INVITE_RETRY_FAILED',
-          actorId: String(req.admin?.id || req.auth?.id || ''),
-          actorName: text(req.admin?.name || req.user?.name || 'Administrador', 120),
-          note: text(error.message, 1000),
-          metadata: {
-            code: text(error.code, 120),
-            phone,
-            attempts: Array.isArray(error.attempts) ? error.attempts : []
-          }
-        });
-        await analysis.save();
-
-        return res.status(Number(error.status) || 502).json({
-          ok: false,
-          code: error.code || 'CREDIARIO_INVITE_RETRY_FAILED',
-          error: error.message,
-          attempts: error.attempts || []
-        });
-      }
-    }
-  );
 
   app.get('/api/admin/crediario/analises/dashboard', adminRequired, async (_req, res) => {
     const [byStatus, totals] = await Promise.all([

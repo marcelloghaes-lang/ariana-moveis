@@ -29,6 +29,7 @@ import createSigeRoutes from './routes/sige/index.js';
 import registerLegacyRoutes from './routes/legacyRoutes.js';
 import registerCoraRoutes from './routes/coraRoutes.js';
 import registerCrediarioAnalysisRoutes from './routes/crediarioAnalysisRoutes.js';
+import registerCrediarioConversationRoutes from './routes/crediarioConversationRoutes.js';
 import registerAdminUserRoutes from './routes/adminUserRoutes.js';
 import createTelevendasRoutes from './routes/televendas/index.js';
 import initModels from './models/index.js';
@@ -1385,6 +1386,191 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
   return results;
 }
 
+
+
+// ============================================================
+// NOTIFICAÇÕES DE NOVA VENDA DO SITE
+// Garante que todo POST /api/orders concluído com sucesso:
+// 1) crie uma notificação não lida no painel administrativo;
+// 2) envie ao cliente a confirmação inicial pela instância Ariana_Notificacoes.
+// O processamento ocorre após a resposta do pedido e nunca bloqueia a compra.
+// ============================================================
+function pickFirstNonEmpty(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return '';
+}
+
+function extractCreatedOrderCandidate(responsePayload = {}, requestBody = {}) {
+  const payload = responsePayload && typeof responsePayload === 'object' ? responsePayload : {};
+  const candidate =
+    payload.order || payload.pedido || payload.item || payload.data?.order || payload.data?.pedido ||
+    payload.data || payload.result?.order || payload.result || payload;
+
+  return candidate && typeof candidate === 'object'
+    ? { ...(requestBody || {}), ...candidate }
+    : { ...(requestBody || {}) };
+}
+
+function extractOrderPhone(order = {}, fallback = {}) {
+  return pickFirstNonEmpty(
+    order.customerPhone,
+    order.phone,
+    order.telefone,
+    order.whatsapp,
+    order.customer?.phone,
+    order.customer?.telefone,
+    order.customer?.whatsapp,
+    order.client?.phone,
+    order.client?.telefone,
+    order.cliente?.telefone,
+    order.shippingAddress?.phone,
+    order.shippingAddress?.telefone,
+    order.deliveryAddress?.phone,
+    order.deliveryAddress?.telefone,
+    order.address?.phone,
+    order.address?.telefone,
+    fallback.customerPhone,
+    fallback.phone,
+    fallback.telefone,
+    fallback.whatsapp,
+    fallback.customer?.phone,
+    fallback.customer?.telefone,
+    fallback.shippingAddress?.phone,
+    fallback.shippingAddress?.telefone
+  );
+}
+
+function extractOrderCustomerName(order = {}, fallback = {}) {
+  return String(pickFirstNonEmpty(
+    order.customerName,
+    order.clientName,
+    order.nomeCliente,
+    order.customer?.name,
+    order.customer?.nome,
+    order.client?.name,
+    order.client?.nome,
+    order.cliente?.nome,
+    order.shippingAddress?.name,
+    order.shippingAddress?.nome,
+    fallback.customerName,
+    fallback.clientName,
+    fallback.nomeCliente,
+    fallback.customer?.name,
+    fallback.customer?.nome
+  ) || 'Cliente').trim();
+}
+
+function extractOrderTotal(order = {}, fallback = {}) {
+  const value = pickFirstNonEmpty(
+    order.total,
+    order.totalAmount,
+    order.amount,
+    order.valorTotal,
+    order.totals?.total,
+    order.totals?.grandTotal,
+    order.payment?.amount,
+    fallback.total,
+    fallback.totalAmount,
+    fallback.amount,
+    fallback.valorTotal,
+    fallback.totals?.total
+  );
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function buildNewOrderCustomerMessage(order = {}, requestBody = {}) {
+  const orderId = String(order._id || order.id || order.orderId || order.pedidoId || '').trim();
+  const shortId = orderId ? orderId.slice(-8).toUpperCase() : 'GERADO';
+  const customerName = extractOrderCustomerName(order, requestBody);
+  const total = extractOrderTotal(order, requestBody);
+  const paymentMethod = String(pickFirstNonEmpty(
+    order.paymentMethod,
+    order.payment?.method,
+    order.payment?.type,
+    order.formaPagamento,
+    requestBody.paymentMethod,
+    requestBody.payment?.method,
+    requestBody.formaPagamento
+  ) || '').trim();
+
+  const lines = [
+    `✅ Pedido recebido pela Ariana Móveis`,
+    '',
+    `Olá, ${customerName}! 👋`,
+    '',
+    `Recebemos seu pedido #${shortId} com sucesso.`,
+    total > 0 ? `💰 Valor do pedido: ${formatMoneyBRL(total)}` : '',
+    paymentMethod ? `💳 Forma de pagamento: ${paymentMethod}` : '',
+    '',
+    'Você receberá novas mensagens por este WhatsApp sempre que houver atualização importante na compra, no pagamento ou na entrega.',
+    '',
+    '💙 Obrigado por comprar na Ariana Móveis.'
+  ];
+
+  return lines.filter(Boolean).join('\n');
+}
+
+async function notifyNewMarketplaceOrder(responsePayload = {}, requestBody = {}) {
+  try {
+    const candidate = extractCreatedOrderCandidate(responsePayload, requestBody);
+    const orderId = String(candidate._id || candidate.id || candidate.orderId || candidate.pedidoId || '').trim();
+    let order = candidate;
+
+    if (orderId && mongoose.isValidObjectId(orderId)) {
+      const dbOrder = await Order.findById(orderId).lean().catch(() => null);
+      if (dbOrder) order = { ...(requestBody || {}), ...dbOrder };
+    }
+
+    const resolvedId = String(order._id || order.id || orderId || '').trim();
+    const shortId = resolvedId ? resolvedId.slice(-8).toUpperCase() : 'NOVO';
+    const customerName = extractOrderCustomerName(order, requestBody);
+    const total = extractOrderTotal(order, requestBody);
+
+    // Evita duplicação caso a mesma resposta seja processada novamente.
+    const alreadyNotified = resolvedId
+      ? await Notification.exists({ type: 'new_order', relatedId: resolvedId }).catch(() => false)
+      : false;
+
+    if (!alreadyNotified) {
+      await createAdminNotification({
+        type: 'new_order',
+        title: '🛒 Nova venda no site',
+        message: `Pedido #${shortId} de ${customerName}${total > 0 ? ` no valor de ${formatMoneyBRL(total)}` : ''}.`,
+        status: 'unread',
+        relatedId: resolvedId,
+        severity: 'success',
+        audience: 'admin',
+        metadata: {
+          orderId: resolvedId,
+          customerName,
+          total,
+          source: 'marketplace_checkout',
+          event: 'order_created'
+        }
+      });
+    }
+
+    const phone = extractOrderPhone(order, requestBody);
+    if (!phone) {
+      console.warn('[nova-venda] Pedido criado sem telefone para WhatsApp:', resolvedId || shortId);
+      return { ok: true, adminNotified: !alreadyNotified, whatsapp: false, reason: 'phone_missing' };
+    }
+
+    const text = buildNewOrderCustomerMessage(order, requestBody);
+    await waSendTextMessage({ number: phone, text });
+
+    console.log('[nova-venda] Painel e cliente notificados:', resolvedId || shortId);
+    return { ok: true, adminNotified: !alreadyNotified, whatsapp: true };
+  } catch (error) {
+    console.error('[nova-venda] Falha ao processar notificações:', error?.responseData || error?.message || error);
+    return { ok: false, error: error?.message || 'notification_failed' };
+  }
+}
+
+
 // Models de pagamentos, Enterprise, logística e crediário foram extraídos para models/index.js na Etapa 26.
 
 
@@ -2346,6 +2532,7 @@ app.post('/api/coupons/validate', async (req, res, next) => {
 
 registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order });
 registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order });
+registerCrediarioConversationRoutes(app, { mongoose, adminRequired });
 registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEvent, adminRequired, bcrypt, mongoose, isSuperAdminEmail });
 
 // ============================================================
@@ -2383,6 +2570,42 @@ app.use('/api', createTelevendasRoutes({
     };
   }
 }));
+
+
+
+// Captura a criação de pedidos do checkout sem alterar o endpoint legado.
+// A resposta ao cliente é enviada normalmente; as notificações são processadas em segundo plano.
+app.use((req, res, next) => {
+  const pathOnly = String(req.path || req.originalUrl || '').split('?')[0].replace(/\/+$/, '');
+  const isMarketplaceOrderCreation = req.method === 'POST' && pathOnly === '/api/orders';
+
+  if (!isMarketplaceOrderCreation) return next();
+
+  const originalJson = res.json.bind(res);
+  let scheduled = false;
+
+  res.json = function patchedOrderJson(payload) {
+    if (!scheduled && res.statusCode >= 200 && res.statusCode < 300) {
+      scheduled = true;
+      const requestSnapshot = req.body && typeof req.body === 'object'
+        ? JSON.parse(JSON.stringify(req.body))
+        : {};
+      const responseSnapshot = payload && typeof payload === 'object'
+        ? JSON.parse(JSON.stringify(payload))
+        : payload;
+
+      setImmediate(() => {
+        notifyNewMarketplaceOrder(responseSnapshot, requestSnapshot).catch((error) => {
+          console.error('[nova-venda] Erro assíncrono:', error?.message || error);
+        });
+      });
+    }
+
+    return originalJson(payload);
+  };
+
+  return next();
+});
 
 registerLegacyRoutes(app, {
   ADMIN_EMAIL,
