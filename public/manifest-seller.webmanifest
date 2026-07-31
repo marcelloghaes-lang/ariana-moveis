@@ -1,20 +1,37 @@
 {
-  "name": "Ariana Móveis - Seller",
+  "id": "/pwa-id/seller-ariana-moveis",
+  "name": "Seller Ariana Móveis",
   "short_name": "Seller Ariana",
-  "start_url": "/seller_configuracoes.html?mode=pwa",
+  "description": "Painel do vendedor parceiro da Ariana Móveis.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/seller_dashboard.html?source=pwa-seller",
+  "scope": "/seller_dashboard.html",
   "display": "standalone",
-  "background_color": "#0b1220",
-  "theme_color": "#0b1220",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#F5F7FA",
+  "theme_color": "#2E6DA4",
   "icons": [
     {
-      "src": "icon-seller-192.png",
+      "src": "/pwa-icons/seller-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "icon-seller-512.png",
+      "src": "/pwa-icons/seller-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icons/seller-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

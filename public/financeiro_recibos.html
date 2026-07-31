@@ -229,15 +229,13 @@
     .origin-badge{display:inline-flex;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:950}.origin-badge.SITE{background:#dbeafe;color:#1e40af}.origin-badge.LOJA_FISICA{background:#fef3c7;color:#92400e}.origin-badge.WHATSAPP{background:#dcfce7;color:#166534}
     .doc-summary{font-size:12px;font-weight:850}.doc-summary.ok{color:#166534}.doc-summary.pending{color:#b45309}.cred-analysis-overlay{position:fixed;inset:0;background:#0f172a99;z-index:290;display:flex;align-items:center;justify-content:center;padding:20px}.cred-analysis-modal{width:100%;max-width:760px;background:white;border-radius:26px;padding:24px;max-height:94vh;overflow:auto;box-shadow:0 28px 80px #0005}.cred-analysis-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.cred-analysis-head h2{margin:0}.analysis-doc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.analysis-doc{border:1px solid #e2e8f0;border-radius:15px;padding:12px;background:#f8fafc}.analysis-doc b{display:block;margin-bottom:5px}.analysis-doc button{margin-top:8px;width:100%}@media(max-width:700px){.analysis-doc-grid{grid-template-columns:1fr}}
 </style>
-
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="manifest" href="./manifest-financeiro.webmanifest">
   <meta name="theme-color" content="#0047AB">
   <meta name="application-name" content="Financeiro Ariana Móveis">
+  <meta name="apple-mobile-web-app-title" content="Financeiro Ariana">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Financeiro Ariana">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png">
-
+  <link rel="apple-touch-icon" href="./pwa-icons/financeiro-192.png">
 </head>
 <body>
   <div class="toast" id="toast"></div>
@@ -5129,16 +5127,9 @@ async function reenviarConviteAnalise(id){
     deferredInstallPrompt = null;
     if (installButton) installButton.style.display = 'none';
   });
-
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('./service-worker.js', { scope: './' })
-        .catch((error) => console.error('Falha ao registrar o aplicativo:', error));
-    });
-  }
 })();
 </script>
 
+  <script src="./pwa-register.js" data-sw="./sw-financeiro.js" data-scope="./financeiro_recibos.html"></script>
 </body>
 </html>

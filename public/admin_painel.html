@@ -10,7 +10,6 @@
 <link href="./favicon.png" rel="icon" type="image/png"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
 <link href="css/tailwind.min.css" rel="stylesheet"/>
-<link href="./manifest.webmanifest" rel="manifest"/>
 <style>
     .bg-success-green{background-color:#16a34a !important;}
     .text-success-green{color:#16a34a !important;}
@@ -102,6 +101,13 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
   #sidebar{width:260px!important}
 }
 </style>
+  <link rel="manifest" href="./manifest-admin.webmanifest">
+  <meta name="theme-color" content="#0047AB">
+  <meta name="application-name" content="Admin Ariana Móveis">
+  <meta name="apple-mobile-web-app-title" content="Admin Ariana">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="./pwa-icons/admin-192.png">
 </head>
 
 <body class="bg-gray-100 min-h-screen" style="font-family:Inter,Arial,sans-serif">
@@ -237,5 +243,6 @@ img[src^="$%7B"],img[src*="%7D"]{display:none!important}
 <script src="js/admin_painel.js?v=20260707-fix2"></script>
 <script src="js/admin_access_control.js?v=20260722-phase6"></script>
 <script src="js/admin_alertas_sono.js?v=20260707-fix2"></script>
+  <script src="./pwa-register.js" data-sw="./sw-admin.js" data-scope="./admin_painel.html"></script>
 </body>
 </html>

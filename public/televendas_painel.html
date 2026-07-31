@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Televendas | Ariana Móveis</title>
   <link rel="stylesheet" href="televendas.css">
+  <link rel="manifest" href="./manifest-televendas.webmanifest">
+  <meta name="theme-color" content="#0047AB">
+  <meta name="application-name" content="Televendas Ariana Móveis">
+  <meta name="apple-mobile-web-app-title" content="Televendas Ariana">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="./pwa-icons/televendas-192.png">
 </head>
 <body>
   <header class="topbar">
@@ -111,5 +118,6 @@
 
   <div class="toast hidden" id="toast"></div>
   <script src="televendas-painel.js"></script>
+  <script src="./pwa-register.js" data-sw="./sw-televendas.js" data-scope="./televendas_painel.html"></script>
 </body>
 </html>

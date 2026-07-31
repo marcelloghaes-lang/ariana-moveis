@@ -1,34 +1,34 @@
 {
-  "id": "/pwa-id/admin-ariana-moveis",
-  "name": "Admin Ariana Móveis",
-  "short_name": "Admin Ariana",
-  "description": "Painel administrativo da Ariana Móveis.",
+  "id": "/pwa-id/loja-ariana-moveis",
+  "name": "Loja Ariana Móveis",
+  "short_name": "Ariana Móveis",
+  "description": "Loja online Ariana Móveis.",
   "lang": "pt-BR",
   "dir": "ltr",
-  "start_url": "/admin_painel.html?source=pwa-admin",
-  "scope": "/admin_painel.html",
+  "start_url": "/index.html?source=pwa-loja",
+  "scope": "/index.html",
   "display": "standalone",
   "display_override": [
     "standalone",
     "minimal-ui"
   ],
-  "background_color": "#f3f6fb",
+  "background_color": "#ffffff",
   "theme_color": "#0047AB",
   "icons": [
     {
-      "src": "/pwa-icons/admin-192.png",
+      "src": "/pwa-icons/loja-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-icons/admin-512.png",
+      "src": "/pwa-icons/loja-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-icons/admin-512.png",
+      "src": "/pwa-icons/loja-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

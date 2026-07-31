@@ -4,10 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Painel Admin • Banners (Ariana Móveis)</title>
-
-  <link rel="manifest" href="./manifest-banners.webmanifest">
-  <meta name="theme-color" content="#0b1220">
-  <link rel="icon" href="./favicon.ico">
+<link rel="icon" href="./favicon.ico">
   <!-- ícone opcional removido para evitar 404 local -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
@@ -35,6 +32,13 @@
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
 <script src="js/api-config.js"></script>
+  <link rel="manifest" href="./manifest-banners.webmanifest">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="application-name" content="Banners Ariana Móveis">
+  <meta name="apple-mobile-web-app-title" content="Banners Ariana">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
 </head>
 
 <body class="bg-slate-50 min-h-screen">
@@ -1240,15 +1244,6 @@ const msg = document.getElementById('msg');
       reloadBtn.onclick = handleBannerReloadClick;
     }
   </script>
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log("🚀 PWA Banner Admin: Ativo"))
-          .catch(err => console.log("❌ Erro no SW:", err));
-      });
-    }
-  </script>
+  <script src="./pwa-register.js" data-sw="./sw-banners.js" data-scope="./banner_admin.html"></script>
 </body>
 </html>

@@ -102,6 +102,13 @@
     }
 
   </style>
+  <link rel="manifest" href="./manifest-enterprise.webmanifest">
+  <meta name="theme-color" content="#063b86">
+  <meta name="application-name" content="Enterprise Ariana Móveis">
+  <meta name="apple-mobile-web-app-title" content="Enterprise Ariana">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="./pwa-icons/enterprise-192.png">
 </head>
 <body>
 <div class="app">
@@ -378,5 +385,6 @@ async function rotateKey(id,env){if(!confirm('Renovar chave '+env+'?'))return;co
 async function revokeKey(id,env){if(!confirm('Revogar chave '+env+'?'))return;await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/api-keys/'+env+'/revoke',{method:'POST',body:'{}'});toastMsg('Chave revogada.');await openPartner(id);await loadPartners();}
 loadOverview().catch(e=>alert(e.message));
 </script>
+  <script src="./pwa-register.js" data-sw="./sw-enterprise.js" data-scope="./admin_enterprise.html"></script>
 </body>
 </html>

@@ -227,6 +227,13 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 @media(max-width:560px){.stats{grid-template-columns:1fr!important;} aside#sidebar nav,.nav{grid-template-columns:1fr!important;}}
 </style>
 
+  <link rel="manifest" href="./manifest-seller.webmanifest">
+  <meta name="theme-color" content="#2E6DA4">
+  <meta name="application-name" content="Seller Ariana Móveis">
+  <meta name="apple-mobile-web-app-title" content="Seller Ariana">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="./pwa-icons/seller-192.png">
 </head>
 <body class="bg-fundo-claro min-h-screen flex">
   <div id="toast-container" class="space-y-3"></div>
@@ -922,5 +929,6 @@ async function saveSellerProfile(event) {
 })();
 </script>
 
+  <script src="./pwa-register.js" data-sw="./sw-seller.js" data-scope="./seller_dashboard.html"></script>
 </body>
 </html>

@@ -1,12 +1,12 @@
 {
-  "id": "/pwa-id/admin-ariana-moveis",
-  "name": "Admin Ariana Móveis",
-  "short_name": "Admin Ariana",
-  "description": "Painel administrativo da Ariana Móveis.",
+  "id": "/pwa-id/financeiro-ariana-moveis",
+  "name": "Financeiro Ariana Móveis",
+  "short_name": "Financeiro Ariana",
+  "description": "Painel financeiro e de crediário da Ariana Móveis.",
   "lang": "pt-BR",
   "dir": "ltr",
-  "start_url": "/admin_painel.html?source=pwa-admin",
-  "scope": "/admin_painel.html",
+  "start_url": "/financeiro_recibos.html?source=pwa-financeiro",
+  "scope": "/financeiro_recibos.html",
   "display": "standalone",
   "display_override": [
     "standalone",
@@ -16,19 +16,19 @@
   "theme_color": "#0047AB",
   "icons": [
     {
-      "src": "/pwa-icons/admin-192.png",
+      "src": "/pwa-icons/financeiro-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-icons/admin-512.png",
+      "src": "/pwa-icons/financeiro-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-icons/admin-512.png",
+      "src": "/pwa-icons/financeiro-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
