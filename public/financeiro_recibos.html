@@ -4999,7 +4999,19 @@ async function abrirAnaliseCreditoIntegrada(id){
   try{
     const j=await apiJson('/admin/crediario/analises/'+encodeURIComponent(id));const a=j.analysis||{};let docsHtml='<div class="notice">A coleta de documentos ainda não foi vinculada.</div>';
     if(a.conversationId){try{const dj=await apiJson('/admin/crediario/conversas/'+encodeURIComponent(a.conversationId)+'/documentos');docsHtml=`<div class="analysis-doc-grid">${(dj.documents||[]).map(d=>`<div class="analysis-doc"><b>${esc(d.label||d.key)}</b><span class="${d.received?'audit-ok':'audit-error'}">${d.received?'Recebido':'Pendente'}</span>${d.received?`<button class="light small" onclick="abrirDocumentoAnalise('${esc(a.conversationId)}','${esc(d.key)}')">Visualizar documento</button>`:''}</div>`).join('')}</div>`}catch(e){docsHtml='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}}
-    box.innerHTML=`<div class="history-header"><div><h2>${esc(a.customer?.name||'Análise de crédito')}</h2><p class="help"><span class="origin-badge ${esc(a.origin||'SITE')}">${esc(analiseOrigemLabel(a.origin))}</span> ${a.orderId?'• Pedido '+esc(a.orderId):''} ${a.conversationId?'• Conversa '+esc(a.conversationId):''}</p></div><span class="pill pending">${esc(analiseStatusLabel(a.status))}</span></div><div class="stats"><div class="stat"><small>Valor-base</small><br><b>${money(Number(a.baseAmountCents||0)/100)}</b></div><div class="stat"><small>CPF</small><br><b style="font-size:16px">${esc(a.customer?.document||'—')}</b></div><div class="stat"><small>WhatsApp</small><br><b style="font-size:16px">${esc(a.customer?.phone||'—')}</b></div><div class="stat"><small>Documentos</small><br><b style="font-size:16px">${esc(String(a.documentCollectionStatus||'—').replaceAll('_',' '))}</b></div></div><h3>Documentos enviados</h3>${docsHtml}<div class="formgrid" style="margin-top:18px"><div><label>Status</label><select id="anStatusEdit"><option>PENDENTE_ANALISE</option><option>EM_ANALISE</option><option>AGUARDANDO_DOCUMENTOS</option><option>APROVADO</option><option>REPROVADO</option></select></div><div><label>Limite aprovado</label><input id="anLimiteEdit" placeholder="0,00"></div><div class="full"><label>Decisão / observação</label><textarea id="anDecisaoEdit" rows="3">${esc(a.decisionNote||a.internalNote||'')}</textarea></div></div><div class="actions"><button class="green" onclick="salvarDecisaoAnalise('${esc(a.analysisId||a._id)}','APROVADO')">✅ Aprovar</button><button class="red" onclick="salvarDecisaoAnalise('${esc(a.analysisId||a._id)}','REPROVADO')">❌ Reprovar</button><button class="yellow" onclick="salvarDecisaoAnalise('${esc(a.analysisId||a._id)}','AGUARDANDO_DOCUMENTOS')">📎 Pedir documentos</button></div>`;document.getElementById('anStatusEdit').value=a.status||'PENDENTE_ANALISE';
+    const analysisKey=a.analysisId||a._id;
+    const phoneDigits=String(a.customer?.phone||'').replace(/\D/g,'');
+    const inviteHistory=(Array.isArray(a.history)?a.history:[]).filter(h=>String(h?.action||'').startsWith('WHATSAPP_INVITE_'));
+    const lastInvite=inviteHistory.length?inviteHistory[inviteHistory.length-1]:null;
+    const inviteOk=['WHATSAPP_INVITE_SENT','WHATSAPP_INVITE_RESENT'].includes(String(lastInvite?.action||''));
+    const inviteWhen=lastInvite?.at?new Date(lastInvite.at).toLocaleString('pt-BR'):'Nenhuma tentativa registrada';
+    const inviteMessageId=lastInvite?.metadata?.messageId||'';
+    const inviteError=lastInvite?.note||lastInvite?.metadata?.attempts?.find(x=>x?.ok===false)?.error||'';
+    const inviteInfo=`<div class="notice" style="margin:14px 0"><b>${inviteOk?'✅ Último convite enviado':'⚠️ Situação do convite'}</b><br><span>${esc(inviteWhen)}${inviteMessageId?' • ID: '+esc(inviteMessageId):''}</span>${inviteError?`<br><small style="color:#b91c1c">${esc(inviteError)}</small>`:''}</div>`;
+    const resendButton=phoneDigits.length>=10
+      ? `<button id="btnReenviarConviteAnalise" class="blue" onclick="reenviarConviteAnalise('${esc(analysisKey)}')">📲 Reenviar convite WhatsApp</button>`
+      : '<button class="light" disabled title="Cliente sem WhatsApp cadastrado">📲 Cliente sem WhatsApp</button>';
+    box.innerHTML=`<div class="history-header"><div><h2>${esc(a.customer?.name||'Análise de crédito')}</h2><p class="help"><span class="origin-badge ${esc(a.origin||'SITE')}">${esc(analiseOrigemLabel(a.origin))}</span> ${a.orderId?'• Pedido '+esc(a.orderId):''} ${a.conversationId?'• Conversa '+esc(a.conversationId):''}</p></div><span class="pill pending">${esc(analiseStatusLabel(a.status))}</span></div><div class="stats"><div class="stat"><small>Valor-base</small><br><b>${money(Number(a.baseAmountCents||0)/100)}</b></div><div class="stat"><small>CPF</small><br><b style="font-size:16px">${esc(a.customer?.document||'—')}</b></div><div class="stat"><small>WhatsApp</small><br><b style="font-size:16px">${esc(a.customer?.phone||'—')}</b></div><div class="stat"><small>Documentos</small><br><b style="font-size:16px">${esc(String(a.documentCollectionStatus||'—').replaceAll('_',' '))}</b></div></div>${inviteInfo}<h3>Documentos enviados</h3>${docsHtml}<div class="formgrid" style="margin-top:18px"><div><label>Status</label><select id="anStatusEdit"><option>PENDENTE_ANALISE</option><option>EM_ANALISE</option><option>AGUARDANDO_DOCUMENTOS</option><option>APROVADO</option><option>REPROVADO</option></select></div><div><label>Limite aprovado</label><input id="anLimiteEdit" placeholder="0,00"></div><div class="full"><label>Decisão / observação</label><textarea id="anDecisaoEdit" rows="3">${esc(a.decisionNote||a.internalNote||'')}</textarea></div></div><div class="actions"><button class="green" onclick="salvarDecisaoAnalise('${esc(analysisKey)}','APROVADO')">✅ Aprovar</button><button class="red" onclick="salvarDecisaoAnalise('${esc(analysisKey)}','REPROVADO')">❌ Reprovar</button><button class="yellow" onclick="salvarDecisaoAnalise('${esc(analysisKey)}','AGUARDANDO_DOCUMENTOS')">📎 Pedir documentos</button>${resendButton}</div>`;document.getElementById('anStatusEdit').value=a.status||'PENDENTE_ANALISE';
   }catch(e){box.innerHTML='<div class="cred-dash-error">'+esc(e.message||e)+'</div>'}
 }
 async function abrirDocumentoAnalise(conversationId,key){
@@ -5034,6 +5046,29 @@ async function abrirDocumentoAnalise(conversationId,key){
   }
 }
 async function salvarDecisaoAnalise(id,status){try{const body={status,approvedLimitCents:centsFromBR(document.getElementById('anLimiteEdit')?.value||'0'),decisionNote:document.getElementById('anDecisaoEdit')?.value||'',checklist:{cpfChecked:true,identityDocument:true,residenceProof:true,incomeChecked:true,contactConfirmed:true,referenceConfirmed:true}};await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast('Análise atualizada');await loadAnalisesCredito();await abrirAnaliseCreditoIntegrada(id)}catch(e){toast(e.message||'Erro ao atualizar análise')}}
+async function reenviarConviteAnalise(id){
+  if(!id)return;
+  if(!confirm('Reenviar agora o convite do WhatsApp para este cliente?'))return;
+  const button=document.getElementById('btnReenviarConviteAnalise');
+  const originalText=button?.innerHTML||'📲 Reenviar convite WhatsApp';
+  try{
+    if(button){button.disabled=true;button.innerHTML='⏳ Enviando convite...'}
+    const j=await apiJson('/admin/crediario/analises/'+encodeURIComponent(id)+'/reenviar-convite',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:'{}'
+    });
+    const status=String(j.analysis?.documentCollectionStatus||j.documentCollectionStatus||'CONVITE_ENVIADO').replaceAll('_',' ');
+    toast('Convite reenviado pelo WhatsApp • '+status);
+    await loadAnalisesCredito();
+    await abrirAnaliseCreditoIntegrada(id);
+  }catch(e){
+    console.error('Erro ao reenviar convite do crediário:',e?.data||e);
+    toast(e.message||'Erro ao reenviar convite do WhatsApp');
+  }finally{
+    if(button){button.disabled=false;button.innerHTML=originalText}
+  }
+}
 
 (() => {
   let deferredInstallPrompt = null;
