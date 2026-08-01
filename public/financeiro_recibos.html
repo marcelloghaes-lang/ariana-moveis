@@ -1727,15 +1727,51 @@ async function buscarClientesFinanceiro(q='', limit=100){
 let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null; let clienteSugestoesCache=[]; let cobrancaAlvo=null; let sigeCarneAtual=null; let sigeInadimplentesCache=[];
 function token(){return localStorage.getItem('admin_token')||''}
 function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
+function apiErrorMessage(data={}, status=0){
+  const candidates = [
+    data?.error?.message,
+    data?.message?.message,
+    data?.details?.message,
+    data?.error,
+    data?.message,
+    data?.details,
+    data?.providerMessage,
+    data?.provider_error,
+    data?.providerResponse?.message,
+    data?.providerResponse?.error?.message
+  ];
+
+  for(const value of candidates){
+    if(typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  const errors = data?.errors || data?.error?.details || data?.details?.errors;
+  if(Array.isArray(errors) && errors.length){
+    const joined = errors.map(item =>
+      typeof item === 'string'
+        ? item
+        : (item?.message || item?.detail || item?.description || JSON.stringify(item))
+    ).filter(Boolean).join(' | ');
+    if(joined) return joined;
+  }
+
+  return status ? ('Erro HTTP ' + status) : 'Não foi possível concluir a operação.';
+}
+
 async function apiJson(url, options = {}) {
   const finalUrl = String(url || '').startsWith('http') ? url : API_BASE + url;
   const opts = { ...options };
   opts.headers = { ...(opts.headers || {}) };
-  if (!opts.headers.Authorization) opts.headers.Authorization = 'Bearer ' + token();
+
+  const authToken = token();
+  if (authToken && !opts.headers.Authorization) {
+    opts.headers.Authorization = 'Bearer ' + authToken;
+  }
 
   const response = await fetch(finalUrl, opts);
   const text = await response.text();
   let data = {};
+
   try {
     data = text ? JSON.parse(text) : {};
   } catch (_e) {
@@ -1743,10 +1779,17 @@ async function apiJson(url, options = {}) {
   }
 
   if (!response.ok || data.ok === false) {
-    const message = data.error || data.message || ('Erro HTTP ' + response.status);
-    if(response.status===401 || data.code==='admin_session_invalid' || data.code==='admin_token_missing'){
+    const message = apiErrorMessage(data, response.status);
+
+    if(
+      response.status === 401 ||
+      data.code === 'admin_session_invalid' ||
+      data.code === 'admin_token_missing' ||
+      data.code === 'admin_token_expired'
+    ){
       handleExpiredSession(message);
     }
+
     const err = new Error(message);
     err.status = response.status;
     err.data = data;
@@ -2589,7 +2632,13 @@ async function enviarCarneInadimplente(i){
     await apiJson('/admin/sige/carne/enviar-whatsapp',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({cliente:r.nome||r.cliente,telefone:tel,limit:5000,maxRecords:20000})
+      body:JSON.stringify({
+        cliente:r.nome||r.cliente,
+        telefone:tel,
+        documento:r.documento||r.NumeroDocumento||r.codigo||'',
+        limit:5000,
+        maxRecords:20000
+      })
     });
     toast('Carnê enviado pelo WhatsApp.');
   }catch(e){
@@ -2834,37 +2883,196 @@ function selecionarCompraCora(){
 }
 function buildCoraPayload(){
   if(!coraClienteAtual)throw new Error('Selecione o cliente.');
+
   const totalAmount=centsFromBR(document.getElementById('coraValorTotal').value);
   const installments=Number(document.getElementById('coraParcelas').value||0);
   const customerDocument=onlyDigits(document.getElementById('coraDocumento').value);
   const firstDueDate=document.getElementById('coraPrimeiroVencimento').value;
   const description=document.getElementById('coraDescricao').value.trim();
+
   if(!description)throw new Error('Informe a descrição da compra.');
   if(totalAmount<500)throw new Error('Informe um valor total válido.');
   if(!installments||installments<1||installments>15)throw new Error('Escolha entre 1 e 15 parcelas.');
   if(Math.floor(totalAmount/installments)<500)throw new Error('Cada parcela precisa ser de pelo menos R$ 5,00.');
   if(!firstDueDate)throw new Error('Informe o primeiro vencimento.');
   if(customerDocument.length!==11&&customerDocument.length!==14)throw new Error('Informe um CPF ou CNPJ válido.');
-  const email=document.getElementById('coraEmail').value.trim();if(!email)throw new Error('Informe o e-mail do cliente.');
-  const address={street:document.getElementById('coraRua').value.trim(),number:document.getElementById('coraNumero').value.trim(),district:document.getElementById('coraBairro').value.trim(),city:document.getElementById('coraCidade').value.trim(),state:document.getElementById('coraUf').value.trim().toUpperCase(),zip_code:onlyDigits(document.getElementById('coraCep').value),complement:document.getElementById('coraComplemento').value.trim()};
-  if(!address.street||!address.number||!address.district||!address.city||address.state.length!==2||address.zip_code.length!==8)throw new Error('Preencha o endereço completo do cliente.');
-  return {customerName:coraClienteAtual.nome,customerEmail:email,customerDocument,customerAddress:address,totalAmount,installments,firstDueDate,serviceName:description.slice(0,80),description:'Carnê crediário Ariana Móveis'};
+
+  const email=document.getElementById('coraEmail').value.trim().toLowerCase();
+  if(!email)throw new Error('Informe o e-mail do cliente.');
+
+  const zipCode=onlyDigits(document.getElementById('coraCep').value);
+  const address={
+    street:document.getElementById('coraRua').value.trim(),
+    number:document.getElementById('coraNumero').value.trim() || 'S/N',
+    district:document.getElementById('coraBairro').value.trim(),
+    city:document.getElementById('coraCidade').value.trim(),
+    state:document.getElementById('coraUf').value.trim().toUpperCase(),
+    zip_code:zipCode,
+    zipCode:zipCode,
+    complement:document.getElementById('coraComplemento').value.trim()
+  };
+
+  if(!address.street||!address.number||!address.district||!address.city||address.state.length!==2||zipCode.length!==8){
+    throw new Error('Preencha o endereço completo do cliente.');
+  }
+
+  const customerName=String(coraClienteAtual.nome||coraClienteAtual.name||'').trim();
+  if(!customerName)throw new Error('O cliente selecionado está sem nome.');
+
+  const purchaseId=String(
+    coraCompraAtual?._id ||
+    coraCompraAtual?.id ||
+    coraCompraAtual?.codigo ||
+    coraCompraAtual?.pedidoId ||
+    ''
+  ).trim();
+
+  const clientId=String(
+    coraClienteAtual?._id ||
+    coraClienteAtual?.id ||
+    customerDocument
+  ).trim();
+
+  const referenceBase=[
+    'AR',
+    clientId.replace(/[^a-zA-Z0-9]/g,'').slice(-18),
+    purchaseId.replace(/[^a-zA-Z0-9]/g,'').slice(-18),
+    firstDueDate.replace(/\D/g,''),
+    installments,
+    totalAmount
+  ].filter(Boolean).join('-').slice(0,120);
+
+  return {
+    code:referenceBase,
+    internalReference:referenceBase,
+    reference:referenceBase,
+    customerName,
+    customerEmail:email,
+    customerDocument,
+    customerAddress:address,
+    customer:{
+      name:customerName,
+      email,
+      document:customerDocument,
+      address
+    },
+    totalAmount,
+    installments,
+    firstDueDate,
+    serviceName:description.slice(0,80),
+    description:'Carnê crediário Ariana Móveis',
+    notification:{enabled:true}
+  };
 }
 async function preverCarneCora(){
   try{const payload=buildCoraPayload();const j=await apiJson('/admin/cora/carnes/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});document.getElementById('coraResultado').innerHTML=`<div class="receipt"><b>✅ Prévia validada</b><div class="row"><strong>Cliente</strong><span>${esc(payload.customerName)}</span></div><div class="row"><strong>Compra</strong><span>${esc(payload.serviceName)}</span></div><div class="row"><strong>Total</strong><span>${brFromCents(payload.totalAmount)}</span></div><div class="row"><strong>Parcelamento</strong><span>${payload.installments}x de aproximadamente ${brFromCents(Math.floor(payload.totalAmount/payload.installments))}</span></div><div class="row"><strong>Primeiro vencimento</strong><span>${coraDateBR(payload.firstDueDate)}</span></div><div class="cora-stage-note">Prévia aprovada. Clique em “Gerar boletos Cora” para emitir.</div></div>`;toast('Prévia do carnê validada.') }catch(e){toast(e.message||String(e))}
 }
+function coraIdempotencyKey(payload){
+  const raw=[
+    payload.internalReference,
+    payload.customerDocument,
+    payload.totalAmount,
+    payload.installments,
+    payload.firstDueDate
+  ].join('|');
+
+  let hash=2166136261;
+  for(let i=0;i<raw.length;i++){
+    hash^=raw.charCodeAt(i);
+    hash=Math.imul(hash,16777619);
+  }
+  return 'ariana-cora-'+(hash>>>0).toString(16)+'-'+String(payload.firstDueDate||'').replace(/\D/g,'');
+}
+
 async function emitirCarneCora(){
-  let payload;try{payload=buildCoraPayload()}catch(e){toast(e.message);return}
-  if(!confirm(`Confirmar emissão de ${payload.installments} boleto(s) para ${payload.customerName}, no total de ${brFromCents(payload.totalAmount)}?`))return;
-  const btn=document.getElementById('coraEmitirBtn');btn.disabled=true;btn.textContent='⏳ Gerando boletos...';document.getElementById('coraResultado').innerHTML='<div class="receipt">A Cora está gerando os boletos. Carnês com muitas parcelas podem levar alguns segundos...</div>';
+  let payload;
   try{
-    const j=await apiJson('/admin/cora/carnes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const charge=j.charge||j.carnet||j.data||j;
-    renderCoraCharge(charge);toast('Carnê Cora emitido com sucesso.');await loadCoraCarnes();
+    payload=buildCoraPayload();
+  }catch(e){
+    toast(e.message);
+    return;
+  }
+
+  if(!confirm(`Confirmar emissão de ${payload.installments} boleto(s) para ${payload.customerName}, no total de ${brFromCents(payload.totalAmount)}?`))return;
+
+  const btn=document.getElementById('coraEmitirBtn');
+  const resultBox=document.getElementById('coraResultado');
+  const idempotencyKey=coraIdempotencyKey(payload);
+
+  btn.disabled=true;
+  btn.textContent='⏳ Gerando boletos...';
+  resultBox.innerHTML='<div class="receipt">A Cora está gerando os boletos. Não feche esta tela e não clique novamente.</div>';
+
+  try{
+    // A prévia é validada novamente antes da emissão real.
+    await apiJson('/admin/cora/carnes/preview',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+
+    const j=await apiJson('/admin/cora/carnes',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Idempotency-Key':idempotencyKey
+      },
+      body:JSON.stringify({...payload,idempotencyKey})
+    });
+
+    const charge=j.charge||j.carne||j.carnet||j.data||j;
+
+    if(!charge || charge.ok===false){
+      throw new Error(apiErrorMessage(j,500));
+    }
+
+    renderCoraCharge(charge);
+    toast('Carnê Cora emitido com sucesso.');
+    await loadCoraCarnes();
   }catch(e){
     const data=e.data||{};
-    if(e.status===202||data.pending){document.getElementById('coraResultado').innerHTML='<div class="receipt"><b>⏳ Emissão em processamento</b><p>A Cora ainda está processando os boletos. Não gere outro carnê. Use Atualizar para consultar novamente.</p></div>';toast('Emissão aguardando confirmação da Cora.')}else{document.getElementById('coraResultado').innerHTML=`<div class="receipt"><b>❌ Não foi possível emitir</b><p>${esc(e.message||e)}</p></div>`;toast('Erro ao gerar boletos: '+(e.message||e))}
-  }finally{btn.disabled=false;btn.textContent='🏦 Gerar boletos Cora'}
+    const pending=(
+      e.status===202 ||
+      data.pending===true ||
+      data.pendingConfirmation===true ||
+      data.error?.code==='CORA_NETWORK_ERROR'
+    );
+
+    if(pending){
+      const charge=data.charge||data.carne||null;
+      resultBox.innerHTML=`<div class="receipt">
+        <b>⏳ Emissão aguardando confirmação</b>
+        <p>A Cora recebeu ou pode ter recebido a solicitação, mas ainda não confirmou a resposta.</p>
+        <p><b>Não gere outro carnê.</b> Use o botão Atualizar para consultar o mesmo registro.</p>
+        ${charge?`<p class="muted">Registro interno: ${esc(charge._id||charge.id||charge.code||'criado')}</p>`:''}
+      </div>`;
+      toast('Emissão aguardando confirmação da Cora.');
+    }else if(e.status===409 && (data.charge||data.carne)){
+      const charge=data.charge||data.carne;
+      resultBox.innerHTML='<div class="receipt"><b>⚠️ Esta emissão já existe.</b><p>O sistema abriu o registro existente para impedir boletos duplicados.</p></div>';
+      renderCoraCharge(charge);
+      toast('Emissão existente localizada. Nenhum boleto duplicado foi criado.');
+    }else{
+      const message=apiErrorMessage(data,e.status)||e.message||String(e);
+      const providerCode=data?.error?.code||data?.code||'';
+      const providerStatus=data?.error?.providerStatus||data?.providerStatus||e.status||'';
+      const details=data?.error?.details||data?.details||null;
+
+      resultBox.innerHTML=`<div class="receipt">
+        <b>❌ Não foi possível emitir</b>
+        <p>${esc(message)}</p>
+        ${providerCode?`<div class="row"><strong>Código</strong><span>${esc(providerCode)}</span></div>`:''}
+        ${providerStatus?`<div class="row"><strong>Status</strong><span>${esc(providerStatus)}</span></div>`:''}
+        ${details?`<details style="margin-top:12px"><summary>Detalhes técnicos</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(details,null,2))}</pre></details>`:''}
+      </div>`;
+
+      console.error('[CORA][EMISSÃO]',{message,status:e.status,data,payload:{...payload,customerDocument:'***'}});
+      toast('Erro ao gerar boletos: '+message);
+    }
+  }finally{
+    btn.disabled=false;
+    btn.textContent='🏦 Gerar boletos Cora';
+  }
 }
 function renderCoraCharge(charge={}){
   const invoices=(charge.invoices||charge.providerResponse?.result||[]).slice().sort((a,b)=>String(a.payment_terms?.due_date||'').localeCompare(String(b.payment_terms?.due_date||'')));
@@ -3428,7 +3636,7 @@ async function pesquisarGestaoCarnes(page=1){
           <div class="row-actions">
             <button class="light small" onclick="abrirCarneGestao('${esc(c.id)}')">Abrir</button>
             <button class="blue small" onclick="atualizarCarneGestao('${esc(c.id)}')">Atualizar</button>
-            <button class="green small" onclick="enviarCarneGestaoWhatsapp('${esc(c.id)}')">WhatsApp</button>
+            <button class="green small" onclick="abrirCarneGestao('${esc(c.id)}')">Escolher compra</button>
             <button class="yellow small" onclick="abrirRenegociacao('${esc(c.id)}')">Renegociar</button>
           </div>
         </td>
@@ -3527,12 +3735,13 @@ async function abrirCarneGestao(id){
     const data=await apiJson('/admin/financeiro/carnes/'+encodeURIComponent(id));
     const c=data.carne||{},r=c.resumo||{},s=situacaoCarne(c);
     const grupos=Array.isArray(c.grupos)?c.grupos:[];
+    window.gestaoCarneAtual=c;
     box.innerHTML=`<div class="history-header">
       <div><h2>${esc(c.codigo||'Carnê digital')}</h2><p class="help">${esc(c.cliente?.nome||'Cliente')} • ${esc(c.cliente?.cpf||c.cliente?.telefone||'')}</p></div>
       <div class="actions" style="margin-top:0">
         <button class="blue" onclick="atualizarCarneGestao('${esc(c.id)}')">🔄 Atualizar no SIGE</button>
         <button class="yellow" onclick="recalcularCarneBackend('${esc(c.id)}')">🧮 Recalcular valores</button>
-        <button class="green" onclick="enviarCarneGestaoWhatsapp('${esc(c.id)}')">📲 WhatsApp</button>
+        <button class="green" onclick="toast('Escolha uma compra abaixo e clique em Enviar esta compra.')">Enviar carnê</button>
         <button class="light" onclick="abrirSegundaViaCarne('${esc(c.id)}')">🧾 Segunda via</button>
         <button class="yellow" onclick="abrirRenegociacao('${esc(c.id)}')">🤝 Renegociar</button>
         <button class="red" onclick="arquivarCarne('${esc(c.id)}')">📦 Arquivar</button>
@@ -3553,8 +3762,19 @@ async function abrirCarneGestao(id){
     ${grupos.length?grupos.map(g=>{
       const parcelas=Array.isArray(g.parcelas)?g.parcelas:[];
       return `<div class="receipt" style="margin-top:10px">
-        <b>${esc(g.documento||'Compra')}</b>
-        <div class="muted">${esc(g.descricao||'')}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <b>${esc(g.documento||'Compra')}</b>
+            <div class="muted">${esc(g.descricao||'')}</div>
+          </div>
+          <button
+            type="button"
+            class="green small"
+            onclick='enviarCarneGestaoWhatsapp(${JSON.stringify(c.id)},${JSON.stringify(g.documento||"")},this)'
+          >
+            Enviar esta compra
+          </button>
+        </div>
         <div class="row"><span>Total</span><span>${money(g.total||0)}</span></div>
         <div class="row"><span>Pago</span><span>${money(g.pago||0)}</span></div>
         <div class="row"><span>Saldo original</span><span>${money(g.saldo||0)}</span></div>
@@ -3801,18 +4021,67 @@ function abrirSigeParaPagamento(){
   if(btn)showTab('sige',btn);
 }
 
-async function enviarCarneGestaoWhatsapp(id){
+async function enviarCarneGestaoWhatsapp(id,documento,button=null){
+  const carne=window.gestaoCarneAtual||null;
+
+  if(!documento){
+    toast('Escolha uma compra para enviar.');
+    return;
+  }
+
+  let telefone=shortPhone(
+    carne?.cliente?.telefone||
+    carne?.telefone||
+    ''
+  );
+
+  if(!telefone){
+    telefone=prompt(
+      'Este cliente não tem WhatsApp salvo. Digite o celular:',
+      ''
+    );
+    if(!telefone){
+      toast('Envio cancelado.');
+      return;
+    }
+  }
+
+  const originalText=button?.textContent||'Enviar esta compra';
+
   try{
-    const data=await apiJson('/admin/financeiro/carnes/'+encodeURIComponent(id)+'/enviar-whatsapp',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({})
-    });
-    toast(data.message||'Carnê enviado pelo WhatsApp.');
+    if(button){
+      button.disabled=true;
+      button.textContent='Enviando...';
+    }
+
+    const data=await apiJson(
+      '/admin/financeiro/carnes/'+encodeURIComponent(id)+'/enviar-whatsapp',
+      {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          telefone,
+          documento
+        })
+      }
+    );
+
+    toast(data.message||'Carnê da compra selecionada enviado pelo WhatsApp.');
+    await carregarHistoricoWhatsappCarne(carne||{id});
   }catch(e){
+    console.error(
+      'Erro ao enviar a compra selecionada:',
+      e.data||e
+    );
     toast('Erro: '+(e.message||e));
+  }finally{
+    if(button){
+      button.disabled=false;
+      button.textContent=originalText;
+    }
   }
 }
+
 
 function urlPublicaSegura(value){
   try{

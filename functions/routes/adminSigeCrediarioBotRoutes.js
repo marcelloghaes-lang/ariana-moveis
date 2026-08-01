@@ -758,40 +758,170 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     });
   }
 
-  function buildSavedCarneWhatsappMessage(row = {}) {
+  function normalizeWhatsappText(value = '') {
+    return String(value || '')
+      .replace(/CarnÃª/gi, 'Carnê')
+      .replace(/MÃ³veis/gi, 'Móveis')
+      .replace(/OlÃ¡/gi, 'Olá')
+      .replace(/CÃ³digo/gi, 'Código')
+      .replace(/dÃºvidas/gi, 'dúvidas')
+      .replace(/regularizaÃ§Ã£o/gi, 'regularização')
+      .replace(/lanÃ§ado/gi, 'lançado')
+      .replace(/Parcelas/gi, 'Parcelas')
+      .replace(/â€¢/g, '-')
+      .replace(/â€”|â€“/g, '-')
+      .replace(/ðŸ[^ \n]*/g, '')
+      .replace(/âœ…|âš ï¸|â³/g, '')
+      .replace(/\uFFFD/g, '')
+      .trim();
+  }
+
+  function normalizeDocumentoComparacao(value = '') {
+    return normalizeWhatsappText(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function findCarneGroupByDocumento(grupos = [], documento = '') {
+    const wanted = normalizeDocumentoComparacao(documento);
+    if (!wanted) return null;
+
+    return (Array.isArray(grupos) ? grupos : []).find((grupo) => {
+      const candidates = [
+        grupo?.documento,
+        grupo?.descricao,
+        grupo?.codigo,
+        grupo?.numeroDocumento,
+        grupo?.pedido
+      ];
+
+      return candidates.some((candidate) => {
+        const normalized = normalizeDocumentoComparacao(candidate);
+        return normalized && (
+          normalized === wanted ||
+          normalized.includes(wanted) ||
+          wanted.includes(normalized)
+        );
+      });
+    }) || null;
+  }
+
+  function buildSavedCarneWhatsappMessage(row = {}, options = {}) {
     const carne = normalizeCarneDigital(row);
-    const resumo = carne.resumo || {};
     const grupos = Array.isArray(carne.grupos) ? carne.grupos : [];
+    const documentoSelecionado = String(options.documento || '').trim();
+    const grupoSelecionado = documentoSelecionado
+      ? findCarneGroupByDocumento(grupos, documentoSelecionado)
+      : null;
+
+    if (documentoSelecionado && !grupoSelecionado) {
+      const error = new Error('A compra selecionada não foi encontrada neste carnê.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const gruposParaMensagem = grupoSelecionado ? [grupoSelecionado] : grupos;
+    const nomeCompleto = normalizeWhatsappText(carne.cliente?.nome || 'Cliente');
+    const primeiroNome = nomeCompleto.split(/\s+/)[0] || 'Cliente';
+
     const lines = [
-      'ðŸ“‹ CarnÃª Digital Ariana MÃ³veis',
+      '*ARIANA MÓVEIS - RESUMO DO CARNÊ*',
       '',
-      `OlÃ¡, ${carne.cliente?.nome || 'cliente'}.`,
-      '',
-      `ðŸ§¾ CÃ³digo: ${carne.codigo || ''}`,
-      `ðŸ’° Saldo original: ${formatMoneyBRL(resumo.saldo || 0)}`,
-      `âš ï¸ Multa: ${formatMoneyBRL(resumo.multa || 0)}`,
-      `ðŸ“ˆ Juros: ${formatMoneyBRL(resumo.juros || 0)}`,
-      `âœ… Valor atualizado: ${formatMoneyBRL(resumo.valorAtualizado || resumo.saldo || 0)}`,
-      `ðŸ“Œ Parcelas: ${resumo.parcelas || 0} total â€¢ ${resumo.pagas || 0} pagas â€¢ ${resumo.abertas || 0} abertas â€¢ ${resumo.atrasadas || 0} atrasadas`,
+      `Olá, ${primeiroNome}.`,
       ''
     ];
 
-    for (const grupo of grupos.slice(0, 6)) {
-      lines.push(`ðŸ“„ ${grupo.documento || 'Compra'}`);
-      if (grupo.descricao) lines.push(String(grupo.descricao).slice(0, 120));
+    for (const grupo of gruposParaMensagem) {
       const parcelas = Array.isArray(grupo.parcelas) ? grupo.parcelas : [];
-      for (const p of parcelas.slice(0, 12)) {
-        const status = p.status === 'paga' ? 'âœ… Paga' : (p.status === 'atrasada' ? 'âš ï¸ Atrasada' : 'â³ Em aberto');
-        const venc = p.dataVencimento ? formatDateBR(p.dataVencimento) : 'sem vencimento';
-        const atualizado = p.atualizacaoFinanceira?.valorAtualizado ?? p.saldoParcela ?? p.valorParcela ?? 0;
-        lines.push(`${p.parcelaLabel || ''} ${venc} - ${formatMoneyBRL(atualizado)} - ${status}`.trim());
+
+      const processadas = parcelas.map((parcela) => {
+        const calc = parcela.atualizacaoFinanceira ||
+          calcularParcelaAtualizadaBackend(parcela);
+
+        const statusOriginal = String(parcela.status || '').toLowerCase();
+        const paga =
+          parcela.quitado === true ||
+          ['paga', 'pago', 'quitada', 'quitado', 'paid'].includes(statusOriginal);
+
+        const diasAtraso = Number(calc?.diasAtraso || 0);
+        const atrasada = !paga && diasAtraso > 0;
+        const valorAtualizado = Number(
+          calc?.valorAtualizado ??
+          parcela.saldoParcela ??
+          parcela.valorParcela ??
+          parcela.valor ??
+          0
+        );
+
+        return {
+          parcela,
+          paga,
+          atrasada,
+          diasAtraso,
+          valorAtualizado
+        };
+      });
+
+      const pagas = processadas.filter((item) => item.paga);
+      const atrasadas = processadas.filter((item) => item.atrasada);
+      const abertas = processadas.filter((item) => !item.paga && !item.atrasada);
+
+      lines.push(`Compra: ${normalizeWhatsappText(grupo.descricao || grupo.documento || 'Compra')}`);
+      if (grupo.documento) {
+        lines.push(`Pedido: ${normalizeWhatsappText(grupo.documento)}`);
       }
       lines.push('');
+      lines.push(`Valor da compra: ${formatMoneyBRL(grupo.total || 0)}`);
+      lines.push(`Valor já pago: ${formatMoneyBRL(grupo.pago || 0)}`);
+      lines.push(`Saldo atual: *${formatMoneyBRL(grupo.saldo || 0)}*`);
+      lines.push(`Parcelas pagas: ${pagas.length} de ${processadas.length}`);
+      lines.push('');
+
+      if (atrasadas.length) {
+        lines.push('*PARCELAS ATRASADAS*');
+        for (const item of atrasadas) {
+          const parcela = item.parcela;
+          const vencimento = parcela.dataVencimento
+            ? formatDateBR(parcela.dataVencimento)
+            : 'sem vencimento';
+          lines.push(
+            `${normalizeWhatsappText(parcela.parcelaLabel || 'Parcela')} | venceu em ${vencimento} | ${formatMoneyBRL(item.valorAtualizado)}`
+          );
+        }
+        lines.push('');
+      }
+
+      if (abertas.length) {
+        lines.push('*PRÓXIMAS PARCELAS*');
+        for (const item of abertas) {
+          const parcela = item.parcela;
+          const vencimento = parcela.dataVencimento
+            ? formatDateBR(parcela.dataVencimento)
+            : 'sem vencimento';
+          lines.push(
+            `${normalizeWhatsappText(parcela.parcelaLabel || 'Parcela')} | vence em ${vencimento} | ${formatMoneyBRL(item.valorAtualizado)}`
+          );
+        }
+        lines.push('');
+      }
+
+      if (!atrasadas.length && !abertas.length) {
+        lines.push('*Todas as parcelas desta compra estão pagas.*');
+        lines.push('');
+      }
     }
 
-    lines.push('Financeiro Ariana MÃ³veis');
-    lines.push('ðŸ“² (31) 98514-7119');
-    return lines.join('\n').trim();
+    lines.push('Em caso de dúvida, responda esta mensagem.');
+    lines.push('Financeiro Ariana Móveis');
+
+    return lines
+      .filter((line) => line !== null && line !== undefined && String(line).trim() !== '')
+      .join('\n')
+      .trim();
   }
 
 
@@ -1780,50 +1910,109 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   }
 
 
-  function buildSigeCarneWhatsappMessage(carne = {}) {
-    const resumo = carne.resumo || {};
+  function buildSigeCarneWhatsappMessage(carne = {}, options = {}) {
     const grupos = Array.isArray(carne.grupos) ? carne.grupos : [];
-    const linhas = [];
-    linhas.push('ðŸ“‹ CarnÃª Digital Ariana MÃ³veis');
-    linhas.push('');
-    linhas.push(`OlÃ¡, ${carne.cliente || 'cliente'}.`);
-    linhas.push('Segue o resumo atualizado do seu carnÃª:');
-    linhas.push('');
-    linhas.push(`ðŸ’° Total lanÃ§ado: ${formatMoneyBRL(resumo.total || 0)}`);
-    linhas.push(`âœ… Total pago: ${formatMoneyBRL(resumo.pago || 0)}`);
-    linhas.push(`ðŸ“Œ Saldo restante: ${formatMoneyBRL(resumo.saldo || 0)}`);
-    linhas.push(`ðŸ§¾ Parcelas: ${resumo.parcelas || 0} total â€¢ ${resumo.pagas || 0} pagas â€¢ ${resumo.abertas || 0} abertas â€¢ ${resumo.atrasadas || 0} atrasadas`);
-    linhas.push('');
+    const documentoSelecionado = String(options.documento || '').trim();
+    const grupoSelecionado = documentoSelecionado
+      ? findCarneGroupByDocumento(grupos, documentoSelecionado)
+      : null;
 
-    let totalListadas = 0;
-    for (const grupo of grupos.slice(0, 8)) {
-      linhas.push(`ðŸ“„ ${grupo.documento || 'Compra'}`);
-      if (grupo.descricao) linhas.push(String(grupo.descricao).slice(0, 120));
+    if (documentoSelecionado && !grupoSelecionado) {
+      const error = new Error('A compra selecionada não foi encontrada neste carnê.');
+      error.statusCode = 404;
+      throw error;
+    }
 
+    const gruposParaMensagem = grupoSelecionado ? [grupoSelecionado] : grupos;
+    const nomeCompleto = normalizeWhatsappText(carne.cliente || 'Cliente');
+    const primeiroNome = nomeCompleto.split(/\s+/)[0] || 'Cliente';
+    const linhas = [
+      '*ARIANA MÓVEIS - RESUMO DO CARNÊ*',
+      '',
+      `Olá, ${primeiroNome}.`,
+      ''
+    ];
+
+    for (const grupo of gruposParaMensagem) {
       const parcelas = Array.isArray(grupo.parcelas) ? grupo.parcelas : [];
-      for (const p of parcelas.slice(0, 18)) {
-        totalListadas += 1;
-        const status = p.status === 'paga' ? 'âœ… Paga' : (p.status === 'atrasada' ? 'âš ï¸ Atrasada' : 'â³ Em aberto');
-        const venc = p.dataVencimento ? formatDateBR(p.dataVencimento) : 'sem vencimento';
-        const valor = formatMoneyBRL(p.saldoParcela || p.valorParcela || p.valor || 0);
-        linhas.push(`${p.parcelaLabel || ''} ${venc} - ${valor} - ${status}`.trim());
+      const processadas = parcelas.map((parcela) => {
+        const calc = parcela.atualizacaoFinanceira ||
+          calcularParcelaAtualizadaBackend(parcela);
+
+        const statusOriginal = String(parcela.status || '').toLowerCase();
+        const paga =
+          parcela.quitado === true ||
+          ['paga', 'pago', 'quitada', 'quitado', 'paid'].includes(statusOriginal);
+
+        const diasAtraso = Number(calc?.diasAtraso || 0);
+        const atrasada = !paga && diasAtraso > 0;
+        const valorAtualizado = Number(
+          calc?.valorAtualizado ??
+          parcela.saldoParcela ??
+          parcela.valorParcela ??
+          parcela.valor ??
+          0
+        );
+
+        return { parcela, paga, atrasada, valorAtualizado };
+      });
+
+      const pagas = processadas.filter((item) => item.paga);
+      const atrasadas = processadas.filter((item) => item.atrasada);
+      const abertas = processadas.filter((item) => !item.paga && !item.atrasada);
+
+      linhas.push(`Compra: ${normalizeWhatsappText(grupo.descricao || grupo.documento || 'Compra')}`);
+      if (grupo.documento) linhas.push(`Pedido: ${normalizeWhatsappText(grupo.documento)}`);
+      linhas.push('');
+      linhas.push(`Valor da compra: ${formatMoneyBRL(grupo.total || 0)}`);
+      linhas.push(`Valor já pago: ${formatMoneyBRL(grupo.pago || 0)}`);
+      linhas.push(`Saldo atual: *${formatMoneyBRL(grupo.saldo || 0)}*`);
+      linhas.push(`Parcelas pagas: ${pagas.length} de ${processadas.length}`);
+      linhas.push('');
+
+      if (atrasadas.length) {
+        linhas.push('*PARCELAS ATRASADAS*');
+        for (const item of atrasadas) {
+          const parcela = item.parcela;
+          const vencimento = parcela.dataVencimento
+            ? formatDateBR(parcela.dataVencimento)
+            : 'sem vencimento';
+          linhas.push(
+            `${normalizeWhatsappText(parcela.parcelaLabel || 'Parcela')} | venceu em ${vencimento} | ${formatMoneyBRL(item.valorAtualizado)}`
+          );
+        }
+        linhas.push('');
       }
-      linhas.push('');
+
+      if (abertas.length) {
+        linhas.push('*PRÓXIMAS PARCELAS*');
+        for (const item of abertas) {
+          const parcela = item.parcela;
+          const vencimento = parcela.dataVencimento
+            ? formatDateBR(parcela.dataVencimento)
+            : 'sem vencimento';
+          linhas.push(
+            `${normalizeWhatsappText(parcela.parcelaLabel || 'Parcela')} | vence em ${vencimento} | ${formatMoneyBRL(item.valorAtualizado)}`
+          );
+        }
+        linhas.push('');
+      }
+
+      if (!atrasadas.length && !abertas.length) {
+        linhas.push('*Todas as parcelas desta compra estão pagas.*');
+        linhas.push('');
+      }
     }
 
-    const totalParcelas = Number(resumo.parcelas || 0);
-    if (totalParcelas > totalListadas) {
-      linhas.push(`... e mais ${totalParcelas - totalListadas} parcela(s).`);
-      linhas.push('');
-    }
+    linhas.push('Em caso de dúvida, responda esta mensagem.');
+    linhas.push('Financeiro Ariana Móveis');
 
-    linhas.push('Para dÃºvidas ou regularizaÃ§Ã£o, entre em contato com nosso financeiro:');
-    linhas.push('ðŸ“² (31) 98514-7119');
-    linhas.push('');
-    linhas.push('Ariana MÃ³veis');
-
-    return linhas.filter((linha) => linha !== null && linha !== undefined).join('\n').trim();
+    return linhas
+      .filter((linha) => linha !== null && linha !== undefined && String(linha).trim() !== '')
+      .join('\n')
+      .trim();
   }
+
 
   async function getSigeCarneData(q = '', options = {}) {
     const termo = String(q || '').trim();
@@ -6140,7 +6329,21 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado.' });
         }
 
-        const text = buildSavedCarneWhatsappMessage(row);
+        const documento = String(
+          req.body?.documento ||
+          req.body?.numeroDocumento ||
+          req.body?.compra ||
+          ''
+        ).trim();
+
+        if (!documento) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Escolha a compra que deseja enviar.'
+          });
+        }
+
+        const text = buildSavedCarneWhatsappMessage(row, { documento });
         const whatsapp = await waSendTextMessage({ number: telefone, text });
 
         await registrarAuditoriaFinanceira({
@@ -6149,14 +6352,19 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           entidade: 'FinanceiroCarneDigital',
           entidadeId: String(row._id),
           codigo: row.codigo,
-          depois: { telefone, enviado: true },
-          metadata: { whatsapp: redact(whatsapp || null) }
+          depois: { telefone, documento, enviado: true },
+          metadata: {
+            documento,
+            envioIndividual: true,
+            whatsapp: redact(whatsapp || null)
+          }
         });
 
         return res.json({
           ok: true,
-          message: 'CarnÃª enviado pelo WhatsApp.',
+          message: 'Carnê da compra selecionada enviado pelo WhatsApp.',
           telefone,
+          documento,
           whatsapp
         });
       } catch (error) {
@@ -9102,6 +9310,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     try {
       const q = String(req.body?.cliente || req.body?.q || '').trim();
       const telefoneManual = String(req.body?.telefone || '').trim();
+      const documento = String(
+        req.body?.documento ||
+        req.body?.numeroDocumento ||
+        req.body?.compra ||
+        ''
+      ).trim();
+
       const carne = await getSigeCarneData(q, {
         limit: req.body?.limit || 5000,
         maxRecords: req.body?.maxRecords || 20000
@@ -9116,9 +9331,23 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         return res.status(404).json({ ok: false, error: 'Nenhuma parcela encontrada para enviar no carnÃª.' });
       }
 
-      const text = buildSigeCarneWhatsappMessage(carne);
+      if (!documento) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Escolha a compra que deseja enviar.'
+        });
+      }
+
+      const text = buildSigeCarneWhatsappMessage(carne, { documento });
       const sent = await waSendTextMessage({ number: telefone, text });
-      return res.json({ ok: true, message: 'CarnÃª enviado pelo WhatsApp.', telefone, text, whatsapp: sent, carne });
+      return res.json({
+        ok: true,
+        message: 'Carnê da compra selecionada enviado pelo WhatsApp.',
+        telefone,
+        documento,
+        text,
+        whatsapp: sent
+      });
     } catch (error) {
       console.error('Erro ao enviar carnÃª SIGE por WhatsApp:', error.message || error);
       return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao enviar carnÃª por WhatsApp' });
