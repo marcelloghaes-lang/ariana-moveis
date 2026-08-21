@@ -1180,55 +1180,48 @@ function carregarHeader() {
         filter: drop-shadow(0 10px 18px rgba(0,0,0,.22));
       }
 
-      /* Layout do topo sem depender das classes arbitrárias do Tailwind compilado. */
+      /* HEADER PADRÃO ARIANA: evita que a busca invada a marca e mantém o mesmo layout em todas as páginas. */
       .ariana-header-main-row{
-        display:flex;
-        align-items:center;
-        gap:12px;
+        width:100%;max-width:1440px;margin:0 auto;padding-left:24px;padding-right:24px;
+        display:flex;align-items:center;gap:16px;box-sizing:border-box;
       }
       .ariana-header-brand{
-        display:flex;
-        align-items:center;
-        flex:1 1 auto;
-        min-width:0;
+        display:flex;align-items:center;flex:0 0 auto;min-width:0;position:relative;z-index:3;white-space:nowrap;
       }
-      .ariana-header-search-desktop{display:none;}
-      .ariana-header-actions{
-        display:flex;
-        align-items:center;
-        flex:0 0 auto;
-        gap:4px;
+      .ariana-brand-avatar{
+        width:96px !important;height:96px !important;object-fit:contain;flex:0 0 96px;
+        margin-top:-10px !important;margin-bottom:-10px !important;position:relative;z-index:4;
       }
-      @media (min-width:1024px){
-        .ariana-header-main-row{
-          display:grid !important;
-          grid-template-columns:320px minmax(420px, 1fr) 270px;
-          align-items:center;
-          column-gap:24px;
-        }
-        .ariana-header-brand{
-          width:320px;
-          min-width:320px;
-          justify-self:start;
-        }
-        .ariana-header-search-desktop{
-          display:flex !important;
-          width:100%;
-          max-width:920px;
-          min-width:0;
-          margin:0 auto;
-          justify-self:center;
-        }
-        .ariana-header-actions{
-          width:270px;
-          justify-content:flex-end;
-          justify-self:end;
-          gap:24px;
-        }
+      .ariana-brand-name{display:flex;align-items:baseline;gap:7px;min-width:0;line-height:1;white-space:nowrap;}
+      .ariana-brand-title{font-size:34px;line-height:1;font-weight:900;letter-spacing:-1.5px;font-style:italic;}
+      .ariana-brand-subtitle{font-size:15px;line-height:1;font-weight:900;letter-spacing:.04em;white-space:nowrap;}
+      .ariana-header-search-desktop{display:none;min-width:0;position:relative;z-index:1;}
+      .ariana-header-search-desktop > div{width:100%;}
+      .ariana-header-search-desktop input{width:100%;min-width:0;box-sizing:border-box;}
+      .ariana-header-actions{display:flex;align-items:center;flex:0 0 auto;gap:8px;position:relative;z-index:3;}
+      @media (min-width:1280px){
+        .ariana-header-main-row{display:grid !important;grid-template-columns:370px minmax(360px,1fr) 250px;column-gap:22px;}
+        .ariana-header-brand{width:370px;min-width:370px;justify-self:start;}
+        .ariana-header-search-desktop{display:flex !important;width:100%;max-width:760px;justify-self:center;margin:0;}
+        .ariana-header-actions{width:250px;justify-content:flex-end;justify-self:end;gap:18px;}
+      }
+      @media (min-width:1024px) and (max-width:1279px){
+        .ariana-header-main-row{display:grid !important;grid-template-columns:300px minmax(280px,1fr) 205px;column-gap:14px;padding-left:16px;padding-right:16px;}
+        .ariana-header-brand{width:300px;min-width:300px;}
+        .ariana-brand-avatar{width:78px !important;height:78px !important;flex-basis:78px;}
+        .ariana-brand-title{font-size:27px;}.ariana-brand-subtitle{font-size:12px;}
+        .ariana-header-search-desktop{display:flex !important;width:100%;max-width:none;justify-self:stretch;}
+        .ariana-header-actions{width:205px;justify-content:flex-end;gap:8px;}
       }
       @media (max-width:1023px){
-        .ariana-header-main-row{justify-content:space-between;}
-        .ariana-header-brand{max-width:calc(100% - 150px);}
+        .ariana-header-main-row{justify-content:space-between;padding-left:12px;padding-right:12px;}
+        .ariana-header-brand{max-width:calc(100% - 145px);}
+        .ariana-brand-avatar{width:64px !important;height:64px !important;flex-basis:64px;margin-top:-6px !important;margin-bottom:-6px !important;}
+        .ariana-brand-title{font-size:22px;}.ariana-brand-subtitle{font-size:10px;}
+      }
+      @media (max-width:520px){
+        .ariana-brand-avatar{width:54px !important;height:54px !important;flex-basis:54px;}
+        .ariana-brand-title{font-size:19px;}.ariana-brand-subtitle{font-size:9px;}.ariana-header-brand{gap:2px !important;}
       }
     </style>
 
@@ -1253,7 +1246,7 @@ function carregarHeader() {
       </div>
     </div>
 
-    <div class="bg-primary-blue text-white py-4 md:py-6">
+    <div class="bg-primary-blue text-white py-4 md:py-6" style="background:#2E6DA4;color:#fff;">
       <div class="ariana-header-main-row max-w-[1440px] mx-auto px-3 sm:px-6">
 
         <div class="ariana-header-brand pr-1 md:pr-2 gap-1 sm:gap-2 md:gap-3 overflow-visible">
@@ -1261,16 +1254,16 @@ function carregarHeader() {
             <img
               src="assets/imagens/avatar-ariana.png"
               alt="Ariana Móveis"
-              class="w-16 h-16 sm:w-20 sm:h-20 md:w-32 md:h-32 object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.10]"
+              class="ariana-brand-avatar object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.06]"
               style="margin-top:-14px;margin-bottom:-14px;position:relative;z-index:5;"
             >
           </a>
 
           <a href="/"
             class="flex items-center hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
-            <div class="flex items-baseline gap-1 sm:gap-2 text-xl sm:text-2xl md:text-4xl font-black tracking-tighter italic min-w-0">
-              <span class="ariana-logo-gradient">ARIANA</span>
-              <span class="text-secondary-light-blue text-[11px] sm:text-sm md:text-lg font-black tracking-wide leading-none">MÓVEIS</span>
+            <div class="ariana-brand-name">
+              <span class="ariana-logo-gradient ariana-brand-title">ARIANA</span>
+              <span class="ariana-brand-subtitle text-secondary-light-blue">MÓVEIS</span>
             </div>
           </a>
         </div>

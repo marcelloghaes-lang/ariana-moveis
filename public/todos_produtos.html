@@ -499,12 +499,9 @@
 <script>
 (function () {
   const tryInit = () => {
+    if (document.querySelector('header[data-ariana="1"]')) return;
     if (typeof window.carregarHeader !== 'function') return setTimeout(tryInit, 60);
-    if (!document.querySelector('header[data-ariana="1"]')) {
-      try { window.carregarHeader(); } catch(e){ console.error('[todos_produtos] header erro:', e); }
-      const h = document.querySelector('header');
-      if (h) h.setAttribute('data-ariana','1');
-    }
+    try { window.carregarHeader(); } catch(e){ console.error('[todos_produtos] header erro:', e); }
   };
   tryInit();
 })();
