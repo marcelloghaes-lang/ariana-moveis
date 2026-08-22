@@ -1186,15 +1186,25 @@ function carregarHeader() {
         display:flex;align-items:center;gap:16px;box-sizing:border-box;
       }
       .ariana-header-brand{
-        display:flex;align-items:center;flex:0 0 auto;min-width:0;position:relative;z-index:3;white-space:nowrap;
+        display:flex;align-items:center;gap:7px !important;flex:0 0 auto;min-width:0;position:relative;z-index:3;white-space:nowrap;
       }
+      .ariana-brand-avatar-wrap{
+        position:relative;display:flex;align-items:flex-end;justify-content:center;flex:0 0 88px;
+        width:88px;height:92px;padding:0;overflow:visible;background:transparent;border:0;box-shadow:none;
+      }
+      .ariana-brand-avatar-wrap::before{display:none !important;}
       .ariana-brand-avatar{
-        width:96px !important;height:96px !important;object-fit:contain;flex:0 0 96px;
-        margin-top:-10px !important;margin-bottom:-10px !important;position:relative;z-index:4;
+        width:92px !important;height:92px !important;object-fit:contain;flex:0 0 92px;
+        margin:0 !important;position:relative;z-index:1;display:block;
+        filter:drop-shadow(0 5px 8px rgba(0,0,0,.12));
+        transform:translateY(7px);
+        transform-origin:center bottom;
       }
+      .ariana-brand-copy{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:0;padding-bottom:0;}
       .ariana-brand-name{display:flex;align-items:baseline;gap:7px;min-width:0;line-height:1;white-space:nowrap;}
       .ariana-brand-title{font-size:34px;line-height:1;font-weight:900;letter-spacing:-1.5px;font-style:italic;}
       .ariana-brand-subtitle{font-size:15px;line-height:1;font-weight:900;letter-spacing:.04em;white-space:nowrap;}
+      .ariana-brand-slogan{margin-top:6px;font-size:11px;line-height:1.15;font-weight:600;letter-spacing:.055em;color:rgba(255,255,255,.86);white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.16);}
       .ariana-header-search-desktop{display:none;min-width:0;position:relative;z-index:1;}
       .ariana-header-search-desktop > div{width:100%;}
       .ariana-header-search-desktop input{width:100%;min-width:0;box-sizing:border-box;}
@@ -1208,20 +1218,28 @@ function carregarHeader() {
       @media (min-width:1024px) and (max-width:1279px){
         .ariana-header-main-row{display:grid !important;grid-template-columns:300px minmax(280px,1fr) 205px;column-gap:14px;padding-left:16px;padding-right:16px;}
         .ariana-header-brand{width:300px;min-width:300px;}
-        .ariana-brand-avatar{width:78px !important;height:78px !important;flex-basis:78px;}
-        .ariana-brand-title{font-size:27px;}.ariana-brand-subtitle{font-size:12px;}
+        .ariana-header-brand{gap:6px !important;}
+        .ariana-brand-avatar-wrap{width:72px;height:80px;flex-basis:72px;padding:0;border:0;box-shadow:none;}
+        .ariana-brand-avatar-wrap::before{display:none !important;}
+        .ariana-brand-avatar{width:78px !important;height:78px !important;flex-basis:78px;transform:translateY(6px);}
+        .ariana-brand-title{font-size:27px;}.ariana-brand-subtitle{font-size:12px;}.ariana-brand-slogan{font-size:9.5px;margin-top:5px;letter-spacing:.035em;}
         .ariana-header-search-desktop{display:flex !important;width:100%;max-width:none;justify-self:stretch;}
         .ariana-header-actions{width:205px;justify-content:flex-end;gap:8px;}
       }
       @media (max-width:1023px){
         .ariana-header-main-row{justify-content:space-between;padding-left:12px;padding-right:12px;}
         .ariana-header-brand{max-width:calc(100% - 145px);}
-        .ariana-brand-avatar{width:64px !important;height:64px !important;flex-basis:64px;margin-top:-6px !important;margin-bottom:-6px !important;}
-        .ariana-brand-title{font-size:22px;}.ariana-brand-subtitle{font-size:10px;}
+        .ariana-header-brand{gap:5px !important;}
+        .ariana-brand-avatar-wrap{width:60px;height:66px;flex-basis:60px;padding:0;border:0;box-shadow:none;}
+        .ariana-brand-avatar-wrap::before{display:none !important;}
+        .ariana-brand-avatar{width:64px !important;height:64px !important;flex-basis:64px;margin:0 !important;transform:translateY(5px);}
+        .ariana-brand-title{font-size:22px;}.ariana-brand-subtitle{font-size:10px;}.ariana-brand-slogan{font-size:8.5px;margin-top:4px;letter-spacing:.02em;}
       }
       @media (max-width:520px){
-        .ariana-brand-avatar{width:54px !important;height:54px !important;flex-basis:54px;}
-        .ariana-brand-title{font-size:19px;}.ariana-brand-subtitle{font-size:9px;}.ariana-header-brand{gap:2px !important;}
+        .ariana-brand-avatar-wrap{width:52px;height:58px;flex-basis:52px;padding:0;border:0;box-shadow:none;}
+        .ariana-brand-avatar-wrap::before{display:none !important;}
+        .ariana-brand-avatar{width:56px !important;height:56px !important;flex-basis:56px;transform:translateY(4px);}
+        .ariana-brand-title{font-size:19px;}.ariana-brand-subtitle{font-size:9px;}.ariana-brand-slogan{font-size:7.5px;margin-top:3px;letter-spacing:0;}.ariana-header-brand{gap:4px !important;}
       }
     </style>
 
@@ -1249,21 +1267,24 @@ function carregarHeader() {
     <div class="bg-primary-blue text-white py-4 md:py-6" style="background:#2E6DA4;color:#fff;">
       <div class="ariana-header-main-row max-w-[1440px] mx-auto px-3 sm:px-6">
 
-        <div class="ariana-header-brand pr-1 md:pr-2 gap-1 sm:gap-2 md:gap-3 overflow-visible">
-          <a href="/" class="relative group flex items-center flex-shrink-0" aria-label="Ariana Móveis">
+        <div class="ariana-header-brand pr-1 md:pr-2 gap-0.5 sm:gap-1 md:gap-2 overflow-visible">
+          <a href="/" class="ariana-brand-avatar-wrap relative group flex items-end flex-shrink-0" aria-label="Ariana Móveis">
             <img
               src="assets/imagens/avatar-ariana.png"
               alt="Ariana Móveis"
               class="ariana-brand-avatar object-contain bg-transparent transition-transform duration-300 group-hover:scale-[1.06]"
-              style="margin-top:-14px;margin-bottom:-14px;position:relative;z-index:5;"
+              style="position:relative;z-index:5;"
             >
           </a>
 
           <a href="/"
             class="flex items-center hover:text-secondary-light-blue transition-all select-none whitespace-nowrap leading-none min-w-0">
-            <div class="ariana-brand-name">
-              <span class="ariana-logo-gradient ariana-brand-title">ARIANA</span>
-              <span class="ariana-brand-subtitle text-secondary-light-blue">MÓVEIS</span>
+            <div class="ariana-brand-copy">
+              <div class="ariana-brand-name">
+                <span class="ariana-logo-gradient ariana-brand-title">ARIANA</span>
+                <span class="ariana-brand-subtitle text-secondary-light-blue">MÓVEIS</span>
+              </div>
+              <span class="ariana-brand-slogan">Sua casa merece o melhor.</span>
             </div>
           </a>
         </div>
