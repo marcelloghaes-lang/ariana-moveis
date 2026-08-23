@@ -1775,6 +1775,91 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   });
 
+  function normalizeSigeProdutoForDocuments(item = {}) {
+    const firstNumber = (...values) => {
+      for (const value of values) {
+        if (value === undefined || value === null || String(value).trim() === '') continue;
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return null;
+    };
+    const firstText = (...values) => {
+      for (const value of values) {
+        if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+      }
+      return '';
+    };
+
+    return {
+      id: firstText(item.ID, item.Id, item.id, item._id),
+      codigo: firstText(item.Codigo, item.codigo, item.SKU, item.sku),
+      ean: firstText(item.Ean, item.EAN, item.ean, item.CodigoBarras, item.codigoBarras),
+      nome: firstText(item.Nome, item.nome, item.Descricao, item.descricao),
+      marca: firstText(item.Marca, item.marca, item.Fabricante, item.fabricante),
+      modelo: firstText(item.Modelo, item.modelo),
+      especificacao: firstText(item.Especificacao, item.especificacao, item.Descricao, item.descricao),
+      unidade: firstText(item.UnidadeComercial, item.unidadeComercial, item.EstoqueUnidade, item.estoqueUnidade, item.Unidade, item.unidade, 'UN'),
+      numeroSerie: firstText(item.NumeroSerie, item.numeroSerie),
+      precoVenda: firstNumber(item.PrecoVenda, item.precoVenda, item.ValorVenda, item.valorVenda) ?? 0,
+      precoMinimoVenda: firstNumber(item.PrecoMinimoVenda, item.precoMinimoVenda),
+      estoqueSaldo: firstNumber(item.EstoqueSaldo, item.estoqueSaldo, item.EstoqueAtual, item.estoqueAtual),
+      categoria: firstText(item.Categoria, item.categoria)
+    };
+  }
+
+  function normalizeSigeProdutoRows(raw) {
+    if (Array.isArray(raw)) return raw;
+    const candidates = [raw?.items, raw?.Itens, raw?.data, raw?.Data, raw?.dados, raw?.Dados, raw?.produtos, raw?.Produtos, raw?.resultado, raw?.Resultado];
+    return candidates.find(Array.isArray) || [];
+  }
+
+  app.get('/api/admin/sige/produtos', adminRequired, async (req, res) => {
+    try {
+      const q = String(req.query.q || req.query.nome || req.query.codigo || '').trim();
+      const limit = Math.max(1, Math.min(Number(req.query.limit || 30), 100));
+      if (q.length < 2) {
+        return res.status(400).json({ ok: false, error: 'Informe ao menos 2 caracteres para pesquisar o produto.' });
+      }
+
+      const attempts = [{ nome: q, pageSize: limit, skip: 0 }];
+      if (/^[a-zA-Z0-9._\/-]+$/.test(q)) attempts.push({ codigo: q, pageSize: limit, skip: 0 });
+      if (/^\d{6,14}$/.test(q.replace(/\D/g, ''))) attempts.push({ ean: q.replace(/\D/g, ''), pageSize: limit, skip: 0 });
+
+      const merged = [];
+      for (const params of attempts) {
+        try {
+          const raw = await sigeGet('Produtos/Pesquisar', params);
+          merged.push(...normalizeSigeProdutoRows(raw));
+        } catch (error) {
+          // 400/404 podem significar apenas que esse filtro não encontrou resultado.
+          const status = Number(error?.statusCode || error?.status || 0);
+          if (![400, 404].includes(status)) throw error;
+        }
+      }
+
+      const seen = new Set();
+      const produtos = merged
+        .map(normalizeSigeProdutoForDocuments)
+        .filter((item) => item.nome || item.codigo || item.ean)
+        .filter((item) => {
+          const key = item.id || item.codigo || item.ean || `${item.nome}|${item.marca}|${item.modelo}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, limit);
+
+      return res.json({ ok: true, produtos, total: produtos.length });
+    } catch (error) {
+      console.error('Erro SIGE produtos:', error.message || error);
+      return res.status(error.statusCode || error.status || 500).json({
+        ok: false,
+        error: error.message || 'Erro ao consultar produtos no SIGE'
+      });
+    }
+  });
+
   app.get('/api/admin/sige/lancamentos', adminRequired, async (req, res) => {
     try {
       const lancamentos = await getSigeLancamentosFiltered({
