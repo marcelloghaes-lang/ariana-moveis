@@ -1860,6 +1860,177 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
   });
 
+
+  // ============================================================
+  // ARIANA SIGN - PONTE PRIVADA DE ARMAZENAMENTO CLOUDINARY
+  // A VPS de documentos envia os arquivos pelo backend autenticado.
+  // As credenciais Cloudinary permanecem somente no backend principal.
+  // ============================================================
+  const ARIANA_SIGN_ALLOWED_EVIDENCE_KINDS = new Set([
+    'selfie',
+    'documentFront',
+    'documentBack',
+    'documentOriginal',
+    'certificate',
+    'dossier',
+    'signedPackage'
+  ]);
+
+  function arianaSignSafeSegment(value = '') {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 120) || 'arquivo';
+  }
+
+  function arianaSignUploadRawAuthenticated(buffer, { folder, publicId, context = {} } = {}) {
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          public_id: publicId,
+          resource_type: 'raw',
+          type: 'authenticated',
+          overwrite: true,
+          unique_filename: false,
+          use_filename: false,
+          invalidate: false,
+          tags: ['ariana-sign', 'evidencia-assinatura'],
+          context
+        },
+        (error, result) => error ? reject(error) : resolve(result)
+      );
+      stream.end(buffer);
+    });
+  }
+
+  app.get('/api/admin/ariana-sign/storage/status', adminRequired, async (_req, res) => {
+    const configured = Boolean(isCloudinaryConfigured());
+    return res.json({
+      ok: true,
+      provider: 'cloudinary',
+      configured,
+      storageMode: 'raw/authenticated',
+      credentialLocation: 'backend-principal'
+    });
+  });
+
+  app.post('/api/admin/ariana-sign/storage/test', adminRequired, async (_req, res) => {
+    try {
+      if (!isCloudinaryConfigured()) {
+        return res.status(503).json({ ok: false, code: 'CLOUDINARY_NOT_CONFIGURED', error: 'Cloudinary não configurado no backend principal.' });
+      }
+      const result = await cloudinary.api.ping();
+      const ok = String(result?.status || '').toLowerCase() === 'ok';
+      return res.status(ok ? 200 : 502).json({ ok, provider: 'cloudinary', status: result?.status || 'unknown' });
+    } catch (error) {
+      console.error('[ARIANA SIGN CLOUDINARY TEST]', error.message || error);
+      return res.status(502).json({ ok: false, error: error.message || 'Falha ao validar Cloudinary no backend.' });
+    }
+  });
+
+  app.post('/api/admin/ariana-sign/evidencias', adminRequired, async (req, res) => {
+    try {
+      if (!isCloudinaryConfigured()) {
+        return res.status(503).json({ ok: false, code: 'CLOUDINARY_NOT_CONFIGURED', error: 'Cloudinary não configurado no backend principal.' });
+      }
+
+      const signatureCode = arianaSignSafeSegment(req.body?.signatureCode || '');
+      const documentNumber = String(req.body?.documentNumber || '').trim().slice(0, 120);
+      const kind = String(req.body?.kind || '').trim();
+      const filename = arianaSignSafeSegment(req.body?.filename || kind || 'arquivo');
+      const expectedSha256 = String(req.body?.sha256 || '').trim().toLowerCase();
+      const base64 = String(req.body?.base64 || '').replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+
+      if (!signatureCode || signatureCode === 'arquivo') {
+        return res.status(400).json({ ok: false, error: 'Código da assinatura inválido.' });
+      }
+      if (!ARIANA_SIGN_ALLOWED_EVIDENCE_KINDS.has(kind)) {
+        return res.status(400).json({ ok: false, error: 'Tipo de evidência inválido.' });
+      }
+      if (!base64) {
+        return res.status(400).json({ ok: false, error: 'Arquivo não informado.' });
+      }
+
+      let buffer;
+      try {
+        buffer = Buffer.from(base64, 'base64');
+      } catch (_error) {
+        return res.status(400).json({ ok: false, error: 'Arquivo em base64 inválido.' });
+      }
+
+      const maxBytes = 25 * 1024 * 1024;
+      if (!buffer.length || buffer.length > maxBytes) {
+        return res.status(413).json({ ok: false, error: 'Arquivo vazio ou acima do limite de 25 MB.' });
+      }
+
+      const calculatedSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+      if (expectedSha256 && expectedSha256 !== calculatedSha256) {
+        return res.status(409).json({ ok: false, code: 'SHA256_MISMATCH', error: 'O hash SHA-256 recebido não confere com o arquivo enviado.' });
+      }
+
+      const folder = `ariana_moveis/ariana-sign/evidencias/${signatureCode}`;
+      const uploaded = await arianaSignUploadRawAuthenticated(buffer, {
+        folder,
+        publicId: filename,
+        context: {
+          signature_code: signatureCode,
+          document_number: documentNumber,
+          evidence_kind: kind,
+          sha256: calculatedSha256
+        }
+      });
+
+      if (Number(uploaded?.bytes || 0) !== buffer.length) {
+        return res.status(502).json({ ok: false, error: 'Cloudinary retornou tamanho divergente. O arquivo de origem deve ser preservado.' });
+      }
+
+      return res.status(201).json({
+        ok: true,
+        asset: {
+          assetId: uploaded?.asset_id || '',
+          publicId: uploaded?.public_id || `${folder}/${filename}`,
+          resourceType: uploaded?.resource_type || 'raw',
+          deliveryType: uploaded?.type || 'authenticated',
+          format: uploaded?.format || '',
+          bytes: Number(uploaded?.bytes || buffer.length),
+          version: uploaded?.version || null,
+          createdAt: uploaded?.created_at || new Date().toISOString(),
+          sha256: calculatedSha256,
+          originalFilename: filename
+        }
+      });
+    } catch (error) {
+      console.error('[ARIANA SIGN CLOUDINARY UPLOAD]', error.message || error);
+      return res.status(502).json({ ok: false, error: error.message || 'Falha ao arquivar evidência no Cloudinary.' });
+    }
+  });
+
+  app.post('/api/admin/ariana-sign/evidencias/url', adminRequired, async (req, res) => {
+    try {
+      if (!isCloudinaryConfigured()) {
+        return res.status(503).json({ ok: false, error: 'Cloudinary não configurado no backend principal.' });
+      }
+      const publicId = String(req.body?.publicId || '').trim();
+      if (!publicId) return res.status(400).json({ ok: false, error: 'publicId não informado.' });
+      const ttl = Math.max(60, Math.min(Number(req.body?.ttlSeconds || 900), 3600));
+      const expiresAt = Math.floor(Date.now() / 1000) + ttl;
+      const url = cloudinary.url(publicId, {
+        resource_type: String(req.body?.resourceType || 'raw'),
+        type: String(req.body?.deliveryType || 'authenticated'),
+        sign_url: true,
+        secure: true,
+        expires_at: expiresAt
+      });
+      return res.json({ ok: true, url, expiresAt: new Date(expiresAt * 1000).toISOString(), expiresInSeconds: ttl });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error.message || 'Não foi possível gerar URL temporária.' });
+    }
+  });
+
   app.get('/api/admin/sige/lancamentos', adminRequired, async (req, res) => {
     try {
       const lancamentos = await getSigeLancamentosFiltered({
