@@ -1794,7 +1794,11 @@ function formatMoneyBRL(value = 0) {
 }
 
 function formatDateBR(value = new Date()) {
-  const d = value instanceof Date ? value : new Date(value);
+  const raw = value instanceof Date ? '' : String(value || '').trim();
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const d = isoDate
+    ? new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]), 12, 0, 0, 0)
+    : (value instanceof Date ? value : new Date(value));
   if (Number.isNaN(d.getTime())) return new Date().toLocaleDateString('pt-BR');
   return d.toLocaleDateString('pt-BR');
 }
@@ -1868,6 +1872,11 @@ function parseSigeDate(value) {
   if (br) {
     const year = Number(br[3].length === 2 ? `20${br[3]}` : br[3]);
     const d = new Date(year, Number(br[2]) - 1, Number(br[1]), Number(br[4] || 0), Number(br[5] || 0));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDate) {
+    const d = new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]), 12, 0, 0, 0);
     if (!Number.isNaN(d.getTime())) return d;
   }
   const iso = new Date(raw);
@@ -1960,6 +1969,8 @@ function buildCrediarioCobrancaMessage(data = {}) {
     : Math.max(0, valorOriginal + multa + juros);
   const possuiAtualizacao = multa > 0 || juros > 0 || valorAtualizado > valorOriginal + 0.009;
   const documento = String(data.documento || data.recibo || data.contrato || '').trim();
+  const vencimento = data.dataVencimento ? formatDateBR(data.dataVencimento) : '';
+  const diasAtraso = Math.max(0, Number(data.diasAtraso || 0));
   const urgente = tipo.includes('urg');
   const amigavel = tipo.includes('amig');
 
@@ -1995,6 +2006,8 @@ function buildCrediarioCobrancaMessage(data = {}) {
     '',
     produto ? `📦 Referência: ${produto}` : '',
     parcela ? `📌 Parcela: ${parcela}` : '',
+    vencimento ? `📅 Vencimento: ${vencimento}` : '',
+    diasAtraso > 0 ? `⏱️ Dias em atraso: ${diasAtraso}` : '',
     ...linhasValor,
     documento ? `🧾 Documento: ${documento}` : '',
     '',
@@ -2025,6 +2038,8 @@ async function sendCrediarioCobrancaWhatsapp({
   multa = 0,
   juros = 0,
   valorAtualizado = 0,
+  dataVencimento = '',
+  diasAtraso = 0,
   documento = '',
   recibo = '',
   contrato = '',
@@ -2041,6 +2056,8 @@ async function sendCrediarioCobrancaWhatsapp({
     multa,
     juros,
     valorAtualizado,
+    dataVencimento,
+    diasAtraso,
     documento,
     recibo,
     contrato,
