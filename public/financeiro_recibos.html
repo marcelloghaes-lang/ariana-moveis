@@ -128,6 +128,12 @@
     .fila-item-cell{min-width:0}.fila-item-cell small{display:block;color:#64748b;line-height:1.4;margin-top:4px}.fila-item-label{display:block;color:#64748b;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
     .fila-actions{display:flex;gap:8px;flex-wrap:wrap;min-width:0;padding:13px 18px;background:#f8fafc;border-top:1px solid #e8eef5}
     .fila-actions button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:8px 11px;font-size:11px;border-radius:11px;white-space:nowrap}
+    .fila-installments{border-top:1px solid #e8eef5;background:#fff}
+    .fila-installments summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;color:#1d4ed8;font-size:12px;font-weight:900;cursor:pointer;list-style:none}
+    .fila-installments summary::-webkit-details-marker{display:none}.fila-installments summary::after{content:'＋';font-size:17px}.fila-installments[open] summary::after{content:'−'}
+    .fila-installments-list{display:grid;gap:8px;padding:0 18px 16px}
+    .fila-installment-row{display:grid;grid-template-columns:minmax(130px,1.25fr) minmax(110px,.8fr) minmax(95px,.65fr) minmax(105px,.7fr) minmax(110px,.75fr);gap:12px;align-items:center;padding:11px 12px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc;font-size:12px}
+    .fila-installment-row b,.fila-installment-row small{display:block}.fila-installment-row small{margin-top:3px;color:#64748b}.fila-installment-money{text-align:right}.fila-installment-status{text-align:right}
     .fila-empty{padding:28px;text-align:center;border:1px dashed #cbd5e1;border-radius:18px;background:#f8fafc;color:#64748b}
     .sige-debt-search{margin:18px 0;padding:18px;border:1px solid #bfdbfe;border-radius:20px;background:linear-gradient(135deg,#eff6ff,#f8fbff)}
     .sige-debt-search-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.sige-debt-search-head h3{margin:0 0 5px}.sige-debt-controls{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:end;margin-top:13px}.sige-debt-controls label{margin-top:0}
@@ -140,8 +146,8 @@
     .status-fila.ADIADO{color:#6d28d9}.status-fila.EM_ATENDIMENTO{color:#0369a1}
     @media(max-width:1280px){.fila-item-main{grid-template-columns:110px minmax(170px,1fr) minmax(160px,1fr) minmax(140px,.8fr)}.fila-item-status{grid-column:2/-1}.sige-debt-client{grid-template-columns:34px minmax(170px,1fr) minmax(130px,.8fr) minmax(130px,.8fr)}.sige-debt-contact{grid-column:2/-1}}
     @media(max-width:1200px){.fila-filters{grid-template-columns:1fr 1fr}.fila-kpis{grid-template-columns:repeat(3,1fr)}.faixa-grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-item-main{grid-template-columns:1fr 1fr}.fila-item-priority,.fila-item-status{grid-column:auto}.fila-actions button{flex:1 1 calc(50% - 8px)}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
-    @media(max-width:480px){.fila-item-main{grid-template-columns:1fr}.fila-item-status{grid-column:auto}.fila-actions button{flex-basis:100%}}
+    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-item-main{grid-template-columns:1fr 1fr}.fila-item-priority,.fila-item-status{grid-column:auto}.fila-actions button{flex:1 1 calc(50% - 8px)}.fila-installment-row{grid-template-columns:1fr 1fr}.fila-installment-money,.fila-installment-status{text-align:left}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
+    @media(max-width:480px){.fila-item-main,.fila-installment-row{grid-template-columns:1fr}.fila-item-status{grid-column:auto}.fila-actions button{flex-basis:100%}}
 
 
     /* ===== FASE 7 - PROMESSAS DE PAGAMENTO ===== */
@@ -798,7 +804,7 @@
           </div>
 
           <div class="fila-kpis">
-            <div class="fila-kpi"><small>Tarefas</small><b id="filaKpiTotal">0</b></div>
+            <div class="fila-kpi"><small>Clientes na fila</small><b id="filaKpiTotal">0</b></div>
             <div class="fila-kpi"><small>Valor atualizado</small><b id="filaKpiValor">R$ 0,00</b></div>
             <div class="fila-kpi"><small>Pendentes</small><b id="filaKpiPendentes">0</b></div>
             <div class="fila-kpi"><small>Críticas</small><b id="filaKpiCriticas">0</b></div>
@@ -1492,6 +1498,7 @@
       </div>
 
       <input id="treatFilaItemId" type="hidden">
+      <input id="treatFilaItemIds" type="hidden">
       <input id="treatCarneId" type="hidden">
       <input id="treatDocumento" type="hidden">
       <input id="treatParcelaLabel" type="hidden">
@@ -1585,6 +1592,7 @@
       </div>
 
       <input id="promiseFilaItemId" type="hidden">
+      <input id="promiseFilaItemIds" type="hidden">
       <input id="promiseCarneId" type="hidden">
       <input id="promiseDocumento" type="hidden">
       <input id="promiseParcelaLabel" type="hidden">
@@ -4362,6 +4370,7 @@ async function salvarRenegociacao(){
 let filaPagina=1;
 let filaPaginas=1;
 let filaSigeClientesCache=[];
+let filaCobrancasCache=[];
 
 function hojeLocalISO(){
   const d=new Date();
@@ -4480,7 +4489,7 @@ async function adicionarClientesSigeNaFila(){
         dataReferencia:document.getElementById('filaData')?.value||hojeLocalISO(),clientes
       })
     });
-    toast(`${Number(data.clientesAdicionados||0)} cliente(s) incluído(s) • ${Number(data.tarefasCriadas||0)} nova(s) tarefa(s).`);
+    toast(`${Number(data.clientesAdicionados||0)} cliente(s) incluído(s) • ${Number(data.tarefasCriadas||0)} nova(s) parcela(s).`);
     document.querySelectorAll('#filaSigeResultados input[type="checkbox"]').forEach(input=>{input.checked=false;});
     await carregarFilaCobranca(1);
   }catch(e){
@@ -4494,7 +4503,7 @@ async function adicionarClientesSigeNaFila(){
 async function gerarFilaCobranca(){
   inicializarFilaCobranca();
   const tbody=document.getElementById('filaBody');
-  if(tbody)tbody.innerHTML='<div class="fila-empty">Analisando carnês e gerando tarefas...</div>';
+  if(tbody)tbody.innerHTML='<div class="fila-empty">Analisando carnês e organizando cobranças por cliente...</div>';
   try{
     const data=await apiJson('/admin/financeiro/fila-cobranca/gerar',{
       method:'POST',
@@ -4504,7 +4513,7 @@ async function gerarFilaCobranca(){
         limiteCarnes:2000
       })
     });
-    toast(`Fila atualizada: ${Number(data.criados||0)} nova(s), ${Number(data.atualizados||0)} atualizada(s).`);
+    toast(`Fila atualizada: ${Number(data.criados||0)} parcela(s) nova(s), ${Number(data.atualizados||0)} atualizada(s).`);
     await carregarFilaCobranca(1);
   }catch(e){
     if(tbody)tbody.innerHTML='<div class="fila-empty">Erro: '+esc(e.message||e)+'</div>';
@@ -4524,6 +4533,7 @@ async function carregarFilaCobranca(page=1){
     faixa:String(document.getElementById('filaFaixa')?.value||''),
     prioridade:String(document.getElementById('filaPrioridade')?.value||''),
     status:String(document.getElementById('filaStatus')?.value||''),
+    agruparPorCliente:'true',
     page:String(filaPagina),
     limit:'50'
   });
@@ -4532,6 +4542,7 @@ async function carregarFilaCobranca(page=1){
   try{
     const data=await apiJson('/admin/financeiro/fila-cobranca?'+params.toString());
     const rows=Array.isArray(data.fila)?data.fila:[];
+    filaCobrancasCache=rows;
     filaPaginas=Math.max(1,Number(data.pages||1));
     filaPagina=Math.min(filaPagina,filaPaginas);
     const r=data.resumo||{};
@@ -4543,7 +4554,7 @@ async function carregarFilaCobranca(page=1){
     document.getElementById('filaKpiAltas').textContent=Number(r.altas||0);
     document.getElementById('filaKpiSemContato').textContent=Number(r.semContato||0);
 
-    document.getElementById('filaPaginaInfo').textContent=`Página ${filaPagina} de ${filaPaginas} • ${Number(data.total||0)} tarefa(s)`;
+    document.getElementById('filaPaginaInfo').textContent=`Página ${filaPagina} de ${filaPaginas} • ${Number(data.total||0)} cliente(s) • ${Number(data.totalParcelas||r.parcelas||0)} parcela(s)`;
     document.getElementById('filaAnterior').disabled=filaPagina<=1;
     document.getElementById('filaProxima').disabled=filaPagina>=filaPaginas;
 
@@ -4551,32 +4562,44 @@ async function carregarFilaCobranca(page=1){
     const fx=Array.isArray(data.faixas)?data.faixas:[];
     faixas.innerHTML=fx.length?fx.map(f=>`<div class="faixa-card">
       <b>${esc(labelFaixaFila(f.faixa))}</b>
-      <small>${Number(f.quantidade||0)} parcela(s)</small>
+      <small>${Number(f.quantidade||0)} cliente(s) • ${Number(f.parcelas||0)} parcela(s)</small>
       <div style="margin-top:6px;font-weight:900">${money(f.valorAtualizado||0)}</div>
     </div>`).join(''):'<div class="faixa-card">Nenhuma faixa encontrada.</div>';
 
     if(!rows.length){
-      tbody.innerHTML='<div class="fila-empty">Nenhuma tarefa encontrada para estes filtros.</div>';
+      tbody.innerHTML='<div class="fila-empty">Nenhum cliente encontrado para estes filtros.</div>';
       return;
     }
 
-    tbody.innerHTML=rows.map(item=>`<article class="fila-item">
+    tbody.innerHTML=rows.map((item,index)=>`<article class="fila-item">
       <div class="fila-item-main">
         <div class="fila-item-cell fila-item-priority"><span class="fila-item-label">Prioridade</span><span class="priority-badge ${esc(item.prioridade)}">${esc(item.prioridade)}</span><small>Score ${Number(item.prioridadeScore||0)}</small></div>
         <div class="fila-item-cell"><span class="fila-item-label">Cliente</span><span class="client-name">${esc(item.clienteNome||'Cliente')}</span><span class="client-phone">${item.telefone?esc(shortPhone(item.telefone)):'<span class="inad-no-phone">Sem contato</span>'}</span><small>${esc(item.carneCodigo||'')}</small></div>
-        <div class="fila-item-cell"><span class="fila-item-label">Parcela e vencimento</span><b>${esc(item.parcelaLabel||item.documento||'Parcela')}</b><small>${esc(item.documento||'')}</small><small>${item.vencimento?new Date(item.vencimento).toLocaleDateString('pt-BR'):'—'} • ${esc(labelFaixaFila(item.faixa))}</small>${item.primeiraParcelaAtrasada?'<span class="pill pending" style="margin-top:6px">1ª parcela atrasada</span>':''}</div>
-        <div class="fila-item-cell"><span class="fila-item-label">Dívida atualizada</span><span class="inad-days">${Number(item.diasAtraso||0)} dia(s)</span><small>${Number(item.totalParcelasAtrasadasCliente||0)} parcela(s) atrasada(s)</small><b class="money-cell" style="display:block;margin-top:5px">${money(item.valorAtualizado||0)}</b><small>Multa ${money(item.multa||0)} • Juros ${money(item.juros||0)}</small></div>
+        <div class="fila-item-cell"><span class="fila-item-label">Parcelas da cobrança</span><b>${Number(item.quantidadeParcelas||0)} parcela(s)</b><small>Mais antiga: ${item.vencimentoMaisAntigo?new Date(item.vencimentoMaisAntigo).toLocaleDateString('pt-BR'):'—'}</small><small>${esc(labelFaixaFila(item.faixa))}</small>${item.primeiraParcelaAtrasada?'<span class="pill pending" style="margin-top:6px">1ª parcela atrasada</span>':''}</div>
+        <div class="fila-item-cell"><span class="fila-item-label">Dívida consolidada</span><span class="inad-days">${Number(item.maiorDiasAtraso||item.diasAtraso||0)} dia(s)</span><small>Maior atraso • ${Number(item.totalParcelasAtrasadasCliente||0)} vencida(s)</small><b class="money-cell" style="display:block;margin-top:5px">${money(item.valorAtualizado||0)}</b><small>Multa ${money(item.multa||0)} • Juros ${money(item.juros||0)}</small></div>
         <div class="fila-item-cell fila-item-status"><span class="fila-item-label">Situação</span><span class="status-fila ${esc(item.status)}">${esc(String(item.status||'').replaceAll('_',' '))}</span><small>${esc(item.responsavel||'Sem responsável')}</small></div>
       </div>
+      <details class="fila-installments">
+        <summary><span>Ver ${Number(item.quantidadeParcelas||0)} parcela(s) desta cobrança</span><span>${money(item.valorAtualizado||0)}</span></summary>
+        <div class="fila-installments-list">
+          ${(Array.isArray(item.parcelas)?item.parcelas:[]).map(parcela=>`<div class="fila-installment-row">
+            <div><b>${esc(parcela.parcelaLabel||parcela.documento||'Parcela')}</b><small>${esc(parcela.documento||item.carneCodigo||'')}</small></div>
+            <div><b>${parcela.vencimento?new Date(parcela.vencimento).toLocaleDateString('pt-BR'):'—'}</b><small>${esc(labelFaixaFila(parcela.faixa))}</small></div>
+            <div><b>${Number(parcela.diasAtraso||0)} dia(s)</b><small>de atraso</small></div>
+            <div class="fila-installment-money"><b>${money(parcela.valorOriginal||0)}</b><small>Multa ${money(parcela.multa||0)} • Juros ${money(parcela.juros||0)}</small></div>
+            <div class="fila-installment-status"><b>${money(parcela.valorAtualizado||0)}</b><small><span class="status-fila ${esc(parcela.status)}">${esc(String(parcela.status||'').replaceAll('_',' '))}</span></small></div>
+          </div>`).join('')}
+        </div>
+      </details>
       <div class="fila-actions">
         <button class="light" onclick="abrirCarneGestao('${esc(item.carneId)}')">📂 Abrir carnê</button>
         ${item.telefone?`<button class="green" onclick="enviarCarneGestaoWhatsapp('${esc(item.carneId)}')">📲 WhatsApp</button>`:''}
-        <button class="blue" onclick="abrirTratativa('${esc(item.id)}','${esc(item.carneId)}','${esc(item.clienteNome||'')}','${esc(item.parcelaLabel||'')}','${esc(item.documento||'')}')">📝 Tratativa</button>
-        <button class="blue" onclick="atualizarItemFila('${esc(item.id)}','CONTATADO')">✓ Contatado</button>
-        <button class="yellow" onclick="abrirPromessaPagamento('${esc(item.id)}','${esc(item.carneId)}','${esc(item.clienteNome||'')}','${esc(item.parcelaLabel||'')}','${esc(item.documento||'')}',${Number(item.valorAtualizado||0)})">🤝 Promessa</button>
-        <button class="yellow" onclick="adiarItemFila('${esc(item.id)}')">🕒 Adiar</button>
-        <button class="red" onclick="atualizarItemFila('${esc(item.id)}','SEM_CONTATO')">☎ Sem contato</button>
-        <button class="green" onclick="atualizarItemFila('${esc(item.id)}','CONCLUIDO')">✅ Concluir</button>
+        <button class="blue" onclick="abrirTratativaCobrancaFila(${index})">📝 Tratativa</button>
+        <button class="blue" onclick="atualizarCobrancaFila(${index},'CONTATADO')">✓ Contatado</button>
+        <button class="yellow" onclick="abrirPromessaCobrancaFila(${index})">🤝 Promessa</button>
+        <button class="yellow" onclick="adiarCobrancaFila(${index})">🕒 Adiar</button>
+        <button class="red" onclick="atualizarCobrancaFila(${index},'SEM_CONTATO')">☎ Sem contato</button>
+        <button class="green" onclick="atualizarCobrancaFila(${index},'CONCLUIDO')">✅ Concluir</button>
       </div>
     </article>`).join('');
   }catch(e){
@@ -4596,6 +4619,74 @@ function limparFiltrosFila(){
   });
   const sem=document.getElementById('filaSomenteSemContato');if(sem)sem.checked=false;
   carregarFilaCobranca(1);
+}
+
+function obterCobrancaFila(index){
+  const item=filaCobrancasCache[Number(index)];
+  if(!item){toast('A cobrança não está mais disponível. Atualize a fila.');return null;}
+  return item;
+}
+
+function idsDaCobrancaFila(item){
+  return Array.from(new Set((Array.isArray(item?.filaItemIds)?item.filaItemIds:[]).map(String).filter(Boolean)));
+}
+
+async function atualizarCobrancaFila(index,status,extra={}){
+  const item=obterCobrancaFila(index);if(!item)return;
+  const ids=idsDaCobrancaFila(item);
+  if(!ids.length){toast('Nenhuma parcela foi localizada nesta cobrança.');return;}
+  if(status==='CONCLUIDO'&&!confirm(`Concluir a cobrança de ${item.clienteNome||'este cliente'} e suas ${ids.length} parcela(s)?`))return;
+  try{
+    const data=await apiJson('/admin/financeiro/fila-cobranca/lote',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ids,status,...extra})
+    });
+    toast(data.message||'Cobrança do cliente atualizada.');
+    await carregarFilaCobranca(filaPagina);
+  }catch(e){
+    toast('Erro: '+(e.message||e));
+  }
+}
+
+async function adiarCobrancaFila(index){
+  const item=obterCobrancaFila(index);if(!item)return;
+  const data=prompt('Informe a próxima data e hora no formato AAAA-MM-DD HH:MM');
+  if(!data)return;
+  const normalized=data.includes('T')?data:data.replace(' ','T');
+  const d=new Date(normalized);
+  if(Number.isNaN(d.getTime())){toast('Data inválida.');return;}
+  const obs=prompt('Observação do adiamento:')||'';
+  await atualizarCobrancaFila(index,'ADIADO',{proximaAcaoEm:d.toISOString(),observacao:obs,ultimaAcao:'COBRANCA_ADIADA'});
+}
+
+function abrirPromessaCobrancaFila(index){
+  const item=obterCobrancaFila(index);if(!item)return;
+  const ids=idsDaCobrancaFila(item);
+  abrirPromessaPagamento(
+    ids[0]||'',
+    item.carneId||'',
+    item.clienteNome||'',
+    `${Number(item.quantidadeParcelas||ids.length)} parcelas da cobrança`,
+    (Array.isArray(item.carneCodigos)?item.carneCodigos:[]).join(', ')||item.carneCodigo||'',
+    Number(item.valorAtualizado||0)
+  );
+  const hidden=document.getElementById('promiseFilaItemIds');
+  if(hidden)hidden.value=JSON.stringify(ids);
+}
+
+function abrirTratativaCobrancaFila(index){
+  const item=obterCobrancaFila(index);if(!item)return;
+  const ids=idsDaCobrancaFila(item);
+  abrirTratativa(
+    ids[0]||'',
+    item.carneId||'',
+    item.clienteNome||'',
+    `${Number(item.quantidadeParcelas||ids.length)} parcelas da cobrança`,
+    (Array.isArray(item.carneCodigos)?item.carneCodigos:[]).join(', ')||item.carneCodigo||''
+  );
+  const hidden=document.getElementById('treatFilaItemIds');
+  if(hidden)hidden.value=JSON.stringify(ids);
 }
 
 async function atualizarItemFila(id,status,extra={}){
@@ -4678,6 +4769,7 @@ function abrirPromessasDeHoje(){
 
 function abrirPromessaPagamento(filaItemId,carneId,cliente,parcela,documento,valor){
   document.getElementById('promiseFilaItemId').value=filaItemId||'';
+  document.getElementById('promiseFilaItemIds').value=JSON.stringify(filaItemId?[filaItemId]:[]);
   document.getElementById('promiseCarneId').value=carneId||'';
   document.getElementById('promiseDocumento').value=documento||'';
   document.getElementById('promiseParcelaLabel').value=parcela||'';
@@ -4702,6 +4794,7 @@ async function salvarPromessaPagamento(){
   try{
     const payload={
       filaItemId:document.getElementById('promiseFilaItemId').value,
+      filaItemIds:(()=>{try{return JSON.parse(document.getElementById('promiseFilaItemIds').value||'[]')}catch{return []}})(),
       carneId:document.getElementById('promiseCarneId').value,
       documento:document.getElementById('promiseDocumento').value,
       parcelaLabel:document.getElementById('promiseParcelaLabel').value,
@@ -4986,6 +5079,7 @@ function labelProximaAcao(v=''){
 
 function abrirTratativa(filaItemId,carneId,cliente,parcela,documento){
   document.getElementById('treatFilaItemId').value=filaItemId||'';
+  document.getElementById('treatFilaItemIds').value=JSON.stringify(filaItemId?[filaItemId]:[]);
   document.getElementById('treatCarneId').value=carneId||'';
   document.getElementById('treatDocumento').value=documento||'';
   document.getElementById('treatParcelaLabel').value=parcela||'';
@@ -5012,6 +5106,7 @@ async function salvarTratativa(){
     const dt=document.getElementById('treatProximaAcaoEm').value;
     const payload={
       filaItemId:document.getElementById('treatFilaItemId').value,
+      filaItemIds:(()=>{try{return JSON.parse(document.getElementById('treatFilaItemIds').value||'[]')}catch{return []}})(),
       carneId:document.getElementById('treatCarneId').value,
       documento:document.getElementById('treatDocumento').value,
       parcelaLabel:document.getElementById('treatParcelaLabel').value,

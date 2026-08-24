@@ -1090,6 +1090,159 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     };
   }
 
+  function getFilaClienteKey(row = {}) {
+    const cpf = cleanPhone(row.clienteCpf || row.snapshot?.cliente?.cpf || '');
+    if (cpf.length >= 8 && !/^(\d)\1+$/.test(cpf)) return `cpf:${cpf}`;
+
+    const carneId = String(row.carneId || '').trim();
+    if (carneId) return `carne:${carneId}`;
+
+    const telefone = cleanPhone(row.telefone || row.snapshot?.cliente?.telefone || '');
+    const nome = String(row.clienteNome || row.snapshot?.cliente?.nome || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+    return `cliente:${nome}|${telefone}`;
+  }
+
+  function consolidateFilaStatus(statuses = []) {
+    const values = new Set(statuses.map((value) => String(value || 'PENDENTE').toUpperCase()));
+    if (values.size === 1) return Array.from(values)[0] || 'PENDENTE';
+    if (values.has('PENDENTE')) return 'PENDENTE';
+    if (values.has('EM_ATENDIMENTO')) return 'EM_ATENDIMENTO';
+    if (values.has('CONTATADO')) return 'CONTATADO';
+    if (values.has('SEM_CONTATO')) return 'SEM_CONTATO';
+    if (values.has('ADIADO')) return 'ADIADO';
+    if (values.has('CONCLUIDO')) return 'CONCLUIDO';
+    return 'PENDENTE';
+  }
+
+  function groupFilaCobrancaByCliente(rows = []) {
+    const faixaRank = {
+      SEM_FAIXA: 0,
+      VENCE_AMANHA: 1,
+      VENCE_HOJE: 2,
+      '1_3': 3,
+      '4_7': 4,
+      '8_15': 5,
+      '16_30': 6,
+      '31_60': 7,
+      MAIS_60: 8
+    };
+    const groups = new Map();
+
+    for (const source of rows) {
+      const item = normalizeFilaCobranca(source);
+      const key = getFilaClienteKey(source);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          id: key,
+          clienteKey: key,
+          carneId: item.carneId,
+          carneIds: [],
+          carneCodigo: item.carneCodigo,
+          carneCodigos: [],
+          clienteNome: item.clienteNome,
+          clienteCpf: item.clienteCpf,
+          telefone: item.telefone,
+          filaItemIds: [],
+          parcelas: [],
+          quantidadeParcelas: 0,
+          valorOriginal: 0,
+          multa: 0,
+          juros: 0,
+          valorAtualizado: 0,
+          diasAtraso: 0,
+          maiorDiasAtraso: 0,
+          vencimentoMaisAntigo: null,
+          faixa: 'SEM_FAIXA',
+          prioridade: 'BAIXA',
+          prioridadeScore: 0,
+          primeiraParcelaAtrasada: false,
+          semContato: true,
+          status: 'PENDENTE',
+          responsavel: '',
+          ultimaAcao: '',
+          ultimaAcaoEm: null,
+          proximaAcaoEm: null,
+          observacao: '',
+          dataReferencia: item.dataReferencia,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt
+        });
+      }
+
+      const group = groups.get(key);
+      group.filaItemIds.push(item.id);
+      group.parcelas.push(item);
+      group.quantidadeParcelas += 1;
+      group.valorOriginal += Number(item.valorOriginal || 0);
+      group.multa += Number(item.multa || 0);
+      group.juros += Number(item.juros || 0);
+      group.valorAtualizado += Number(item.valorAtualizado || 0);
+      group.maiorDiasAtraso = Math.max(group.maiorDiasAtraso, Number(item.diasAtraso || 0));
+      group.diasAtraso = group.maiorDiasAtraso;
+      group.primeiraParcelaAtrasada = group.primeiraParcelaAtrasada || item.primeiraParcelaAtrasada === true;
+      group.semContato = group.semContato && item.semContato === true;
+
+      if (item.carneId && !group.carneIds.includes(item.carneId)) group.carneIds.push(item.carneId);
+      if (item.carneCodigo && !group.carneCodigos.includes(item.carneCodigo)) group.carneCodigos.push(item.carneCodigo);
+      if (!group.telefone && item.telefone) group.telefone = item.telefone;
+
+      const vencimento = item.vencimento ? new Date(item.vencimento) : null;
+      const vencimentoAtual = group.vencimentoMaisAntigo ? new Date(group.vencimentoMaisAntigo) : null;
+      if (vencimento && !Number.isNaN(vencimento.getTime()) && (!vencimentoAtual || vencimento < vencimentoAtual)) {
+        group.vencimentoMaisAntigo = item.vencimento;
+      }
+
+      if ((faixaRank[item.faixa] || 0) > (faixaRank[group.faixa] || 0)) group.faixa = item.faixa;
+      if (Number(item.prioridadeScore || 0) > group.prioridadeScore) {
+        group.prioridadeScore = Number(item.prioridadeScore || 0);
+        group.prioridade = item.prioridade || 'BAIXA';
+      }
+
+      const ultimaAcaoAtual = group.ultimaAcaoEm ? new Date(group.ultimaAcaoEm) : null;
+      const ultimaAcaoItem = item.ultimaAcaoEm ? new Date(item.ultimaAcaoEm) : null;
+      if (ultimaAcaoItem && !Number.isNaN(ultimaAcaoItem.getTime()) && (!ultimaAcaoAtual || ultimaAcaoItem > ultimaAcaoAtual)) {
+        group.ultimaAcao = item.ultimaAcao || '';
+        group.ultimaAcaoEm = item.ultimaAcaoEm;
+        group.responsavel = item.responsavel || group.responsavel;
+        group.observacao = item.observacao || group.observacao;
+      } else if (!group.responsavel && item.responsavel) {
+        group.responsavel = item.responsavel;
+      }
+
+      const proximaAtual = group.proximaAcaoEm ? new Date(group.proximaAcaoEm) : null;
+      const proximaItem = item.proximaAcaoEm ? new Date(item.proximaAcaoEm) : null;
+      if (proximaItem && !Number.isNaN(proximaItem.getTime()) && (!proximaAtual || proximaItem < proximaAtual)) {
+        group.proximaAcaoEm = item.proximaAcaoEm;
+      }
+    }
+
+    return Array.from(groups.values()).map((group) => {
+      group.parcelas.sort((a, b) => {
+        const av = a.vencimento ? new Date(a.vencimento).getTime() : Number.MAX_SAFE_INTEGER;
+        const bv = b.vencimento ? new Date(b.vencimento).getTime() : Number.MAX_SAFE_INTEGER;
+        return av - bv || Number(b.diasAtraso || 0) - Number(a.diasAtraso || 0);
+      });
+      group.status = consolidateFilaStatus(group.parcelas.map((item) => item.status));
+      group.valorOriginal = Number(group.valorOriginal.toFixed(2));
+      group.multa = Number(group.multa.toFixed(2));
+      group.juros = Number(group.juros.toFixed(2));
+      group.valorAtualizado = Number(group.valorAtualizado.toFixed(2));
+      group.totalParcelasAtrasadasCliente = group.parcelas.filter((item) => Number(item.diasAtraso || 0) > 0).length;
+      group.documento = group.parcelas.map((item) => item.documento).filter(Boolean).join(', ');
+      group.parcelaLabel = `${group.quantidadeParcelas} parcela(s)`;
+      return group;
+    }).sort((a, b) =>
+      Number(b.prioridadeScore || 0) - Number(a.prioridadeScore || 0) ||
+      Number(b.maiorDiasAtraso || 0) - Number(a.maiorDiasAtraso || 0) ||
+      Number(b.valorAtualizado || 0) - Number(a.valorAtualizado || 0) ||
+      String(a.clienteNome || '').localeCompare(String(b.clienteNome || ''), 'pt-BR')
+    );
+  }
+
   function buildFilaItemFromParcela(carne = {}, parcela = {}, referencia = new Date(), atrasadasCliente = 0) {
     const ref = dayOnly(referencia);
     const vencimento = dayOnly(parcela.dataVencimento);
@@ -7477,13 +7630,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const prioridade = String(req.query.prioridade || '').trim().toUpperCase();
         const status = String(req.query.status || '').trim().toUpperCase();
         const semContato = String(req.query.semContato || '').trim();
+        const agruparPorCliente = String(req.query.agruparPorCliente || '').trim().toLowerCase() === 'true';
         const page = Math.max(1, Number(req.query.page || 1));
         const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 200));
 
         const filter = { dataReferencia };
-        if (faixa) filter.faixa = faixa;
-        if (prioridade) filter.prioridade = prioridade;
-        if (status) filter.status = status;
+        if (!agruparPorCliente && faixa) filter.faixa = faixa;
+        if (!agruparPorCliente && prioridade) filter.prioridade = prioridade;
+        if (!agruparPorCliente && status) filter.status = status;
         if (semContato === 'true') filter.semContato = true;
         if (semContato === 'false') filter.semContato = false;
 
@@ -7499,6 +7653,72 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             filter.$or.push({ clienteCpf: new RegExp(escapeRegex(digits), 'i') });
             filter.$or.push({ telefone: new RegExp(escapeRegex(digits), 'i') });
           }
+        }
+
+        if (agruparPorCliente) {
+          const rawRows = await FinanceiroFilaCobranca.find(filter)
+            .sort({ prioridadeScore: -1, diasAtraso: -1, valorAtualizado: -1, vencimento: 1 })
+            .lean();
+
+          let cobrancas = groupFilaCobrancaByCliente(rawRows);
+          if (faixa) cobrancas = cobrancas.filter((row) => row.faixa === faixa);
+          if (prioridade) cobrancas = cobrancas.filter((row) => row.prioridade === prioridade);
+          if (status) cobrancas = cobrancas.filter((row) => row.status === status);
+
+          const total = cobrancas.length;
+          const pages = Math.max(1, Math.ceil(total / limit));
+          const paginaAtual = Math.min(page, pages);
+          const inicio = (paginaAtual - 1) * limit;
+          const pagina = cobrancas.slice(inicio, inicio + limit);
+          const resumo = cobrancas.reduce((acc, row) => {
+            acc.total += 1;
+            acc.parcelas += Number(row.quantidadeParcelas || 0);
+            acc.valorAtualizado += Number(row.valorAtualizado || 0);
+            if (row.status === 'PENDENTE') acc.pendentes += 1;
+            if (row.status === 'CONCLUIDO') acc.concluidos += 1;
+            if (row.semContato) acc.semContato += 1;
+            if (row.prioridade === 'CRITICA') acc.criticos += 1;
+            if (row.prioridade === 'ALTA') acc.altas += 1;
+            return acc;
+          }, {
+            total: 0,
+            parcelas: 0,
+            valorAtualizado: 0,
+            pendentes: 0,
+            concluidos: 0,
+            semContato: 0,
+            criticos: 0,
+            altas: 0
+          });
+
+          const faixasMap = new Map();
+          for (const row of cobrancas) {
+            const key = row.faixa || 'SEM_FAIXA';
+            const current = faixasMap.get(key) || { faixa: key, quantidade: 0, parcelas: 0, valorAtualizado: 0 };
+            current.quantidade += 1;
+            current.parcelas += Number(row.quantidadeParcelas || 0);
+            current.valorAtualizado += Number(row.valorAtualizado || 0);
+            faixasMap.set(key, current);
+          }
+
+          return res.json({
+            ok: true,
+            agrupadoPorCliente: true,
+            fila: pagina,
+            total,
+            totalParcelas: resumo.parcelas,
+            page: paginaAtual,
+            limit,
+            pages,
+            resumo: {
+              ...resumo,
+              valorAtualizado: Number(resumo.valorAtualizado.toFixed(2))
+            },
+            faixas: Array.from(faixasMap.values())
+              .map((row) => ({ ...row, valorAtualizado: Number(row.valorAtualizado.toFixed(2)) }))
+              .sort((a, b) => b.quantidade - a.quantidade),
+            filtros: { dataReferencia, q, faixa, prioridade, status, semContato }
+          });
         }
 
         const summaryPipeline = [
@@ -7567,6 +7787,90 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         return res.status(500).json({
           ok: false,
           error: error.message || 'Erro ao carregar a fila diária de cobrança.'
+        });
+      }
+    }
+  );
+
+  app.patch(
+    '/api/admin/financeiro/fila-cobranca/lote',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.cobranca'),
+    async (req, res) => {
+      try {
+        const ids = Array.from(new Set(
+          (Array.isArray(req.body?.ids) ? req.body.ids : [])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+        ));
+
+        if (!ids.length || ids.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+          return res.status(400).json({ ok: false, error: 'Informe os itens válidos da cobrança do cliente.' });
+        }
+        if (ids.length > 500) {
+          return res.status(400).json({ ok: false, error: 'A cobrança ultrapassa o limite seguro de 500 parcelas por operação.' });
+        }
+
+        const rows = await FinanceiroFilaCobranca.find({ _id: { $in: ids } });
+        if (rows.length !== ids.length) {
+          return res.status(404).json({ ok: false, error: 'Uma ou mais parcelas da cobrança não foram encontradas.' });
+        }
+
+        const clientes = new Set(rows.map((row) => getFilaClienteKey(row)));
+        if (clientes.size !== 1) {
+          return res.status(400).json({ ok: false, error: 'A atualização em lote deve conter parcelas de um único cliente.' });
+        }
+
+        const allowedStatus = new Set(['PENDENTE', 'EM_ATENDIMENTO', 'CONTATADO', 'CONCLUIDO', 'ADIADO', 'SEM_CONTATO']);
+        const novoStatus = String(req.body?.status || '').trim().toUpperCase();
+        if (!allowedStatus.has(novoStatus)) {
+          return res.status(400).json({ ok: false, error: 'Status da fila inválido.' });
+        }
+
+        let proximaAcaoEm;
+        if (req.body?.proximaAcaoEm) {
+          proximaAcaoEm = new Date(req.body.proximaAcaoEm);
+          if (Number.isNaN(proximaAcaoEm.getTime())) {
+            return res.status(400).json({ ok: false, error: 'Data da próxima ação inválida.' });
+          }
+        }
+
+        const antes = rows.map(normalizeFilaCobranca);
+        const responsavel = String(req.body?.responsavel || getFinanceiroActor(req));
+        const ultimaAcao = String(req.body?.ultimaAcao || req.body?.acao || novoStatus);
+        const observacaoInformada = req.body?.observacao !== undefined;
+
+        for (const row of rows) {
+          row.status = novoStatus;
+          row.responsavel = responsavel || row.responsavel || getFinanceiroActor(req);
+          row.ultimaAcao = ultimaAcao;
+          row.ultimaAcaoEm = new Date();
+          if (proximaAcaoEm) row.proximaAcaoEm = proximaAcaoEm;
+          if (observacaoInformada) row.observacao = String(req.body.observacao || '').slice(0, 2000);
+        }
+        await Promise.all(rows.map((row) => row.save()));
+
+        await registrarAuditoriaFinanceira({
+          req,
+          acao: 'FILA_COBRANCA_CLIENTE_ATUALIZADA',
+          entidade: 'FinanceiroFilaCobranca',
+          entidadeId: ids[0],
+          codigo: rows[0]?.carneCodigo || '',
+          antes,
+          depois: rows.map(normalizeFilaCobranca),
+          metadata: { quantidadeParcelas: rows.length, status: novoStatus }
+        });
+
+        return res.json({
+          ok: true,
+          message: `Cobrança do cliente atualizada em ${rows.length} parcela(s).`,
+          quantidade: rows.length,
+          itens: rows.map(normalizeFilaCobranca)
+        });
+      } catch (error) {
+        return res.status(500).json({
+          ok: false,
+          error: error.message || 'Erro ao atualizar a cobrança do cliente.'
         });
       }
     }
@@ -7686,6 +7990,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const body = req.body || {};
         const filaItemId = String(body.filaItemId || '').trim();
+        const filaItemIds = Array.from(new Set([
+          filaItemId,
+          ...(Array.isArray(body.filaItemIds) ? body.filaItemIds : [])
+        ].map((value) => String(value || '').trim()).filter(Boolean)));
         const carneId = String(body.carneId || '').trim();
         const valorPrometido = Number(body.valorPrometido || 0);
         const dataPrometida = parseFinanceiroDate(body.dataPrometida);
@@ -7703,10 +8011,29 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const carne = await FinanceiroCarneDigital.findById(carneId);
         if (!carne) return res.status(404).json({ ok: false, error: 'Carnê não encontrado.' });
 
-        let filaItem = null;
-        if (filaItemId && mongoose.Types.ObjectId.isValid(filaItemId)) {
-          filaItem = await FinanceiroFilaCobranca.findById(filaItemId);
+        if (filaItemIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+          return res.status(400).json({ ok: false, error: 'Uma ou mais parcelas da cobrança são inválidas.' });
         }
+        if (filaItemIds.length > 500) {
+          return res.status(400).json({ ok: false, error: 'A promessa ultrapassa o limite seguro de 500 parcelas.' });
+        }
+
+        const filaItensEncontrados = filaItemIds.length
+          ? await FinanceiroFilaCobranca.find({ _id: { $in: filaItemIds } })
+          : [];
+        if (filaItemIds.length && filaItensEncontrados.length !== filaItemIds.length) {
+          return res.status(404).json({ ok: false, error: 'Uma ou mais parcelas da cobrança não foram encontradas.' });
+        }
+        if (new Set(filaItensEncontrados.map((row) => getFilaClienteKey(row))).size > 1) {
+          return res.status(400).json({ ok: false, error: 'A promessa deve conter parcelas de um único cliente.' });
+        }
+        if (filaItensEncontrados.length && !filaItensEncontrados.some((row) => String(row.carneId) === String(carne._id))) {
+          return res.status(400).json({ ok: false, error: 'As parcelas informadas não pertencem ao carnê selecionado.' });
+        }
+
+        const filaItensMap = new Map(filaItensEncontrados.map((row) => [String(row._id), row]));
+        const filaItens = filaItemIds.map((id) => filaItensMap.get(id)).filter(Boolean);
+        const filaItem = filaItens[0] || null;
 
         const inicioPromessa = dayOnly(dataPrometida);
         const fimPromessa = new Date(inicioPromessa.getTime());
@@ -7717,8 +8044,6 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           valorPrometido: Number(valorPrometido.toFixed(2)),
           dataPrometida: { $gte: inicioPromessa, $lte: fimPromessa }
         };
-        if (filaItem?._id) duplicatePromiseFilter.filaItemId = filaItem._id;
-
         const promessaExistente = await FinanceiroPromessaPagamento.findOne(duplicatePromiseFilter);
         if (promessaExistente) {
           return res.json({
@@ -7747,20 +8072,22 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           origem: filaItem ? 'fila_cobranca' : 'manual',
           responsavel: getFinanceiroActor(req),
           observacao: String(body.observacao || '').slice(0, 2000),
-          metadata: { body }
+          metadata: { body, filaItemIds }
         });
 
-        if (filaItem) {
-          filaItem.status = 'ADIADO';
-          filaItem.responsavel = getFinanceiroActor(req);
-          filaItem.ultimaAcao = 'PROMESSA_REGISTRADA';
-          filaItem.ultimaAcaoEm = new Date();
-          filaItem.proximaAcaoEm = dataPrometida;
-          filaItem.observacao = [
-            filaItem.observacao || '',
-            `Promessa de ${formatMoneyBRL(valorPrometido)} para ${formatDateBR(dataPrometida)}.`
-          ].filter(Boolean).join(' ').slice(0, 2000);
-          await filaItem.save();
+        if (filaItens.length) {
+          for (const item of filaItens) {
+            item.status = 'ADIADO';
+            item.responsavel = getFinanceiroActor(req);
+            item.ultimaAcao = 'PROMESSA_REGISTRADA';
+            item.ultimaAcaoEm = new Date();
+            item.proximaAcaoEm = dataPrometida;
+            item.observacao = [
+              item.observacao || '',
+              `Promessa de ${formatMoneyBRL(valorPrometido)} para ${formatDateBR(dataPrometida)}.`
+            ].filter(Boolean).join(' ').slice(0, 2000);
+          }
+          await Promise.all(filaItens.map((item) => item.save()));
         }
 
         let whatsapp = { skipped: true };
@@ -7782,7 +8109,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           entidadeId: String(promessa._id),
           codigo: promessa.carneCodigo,
           depois: normalizePromessaPagamento(promessa),
-          metadata: { whatsapp: redact(whatsapp || null) }
+          metadata: { whatsapp: redact(whatsapp || null), quantidadeParcelas: filaItens.length }
         });
 
         return res.status(201).json({
@@ -8639,11 +8966,34 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const carne = await FinanceiroCarneDigital.findById(carneId);
         if (!carne) return res.status(404).json({ ok: false, error: 'Carnê não encontrado.' });
 
-        let filaItem = null;
         const filaItemId = String(body.filaItemId || '').trim();
-        if (filaItemId && mongoose.Types.ObjectId.isValid(filaItemId)) {
-          filaItem = await FinanceiroFilaCobranca.findById(filaItemId);
+        const filaItemIds = Array.from(new Set([
+          filaItemId,
+          ...(Array.isArray(body.filaItemIds) ? body.filaItemIds : [])
+        ].map((value) => String(value || '').trim()).filter(Boolean)));
+        if (filaItemIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+          return res.status(400).json({ ok: false, error: 'Uma ou mais parcelas da cobrança são inválidas.' });
         }
+        if (filaItemIds.length > 500) {
+          return res.status(400).json({ ok: false, error: 'A tratativa ultrapassa o limite seguro de 500 parcelas.' });
+        }
+
+        const filaItensEncontrados = filaItemIds.length
+          ? await FinanceiroFilaCobranca.find({ _id: { $in: filaItemIds } })
+          : [];
+        if (filaItemIds.length && filaItensEncontrados.length !== filaItemIds.length) {
+          return res.status(404).json({ ok: false, error: 'Uma ou mais parcelas da cobrança não foram encontradas.' });
+        }
+        if (new Set(filaItensEncontrados.map((row) => getFilaClienteKey(row))).size > 1) {
+          return res.status(400).json({ ok: false, error: 'A tratativa deve conter parcelas de um único cliente.' });
+        }
+        if (filaItensEncontrados.length && !filaItensEncontrados.some((row) => String(row.carneId) === String(carne._id))) {
+          return res.status(400).json({ ok: false, error: 'As parcelas informadas não pertencem ao carnê selecionado.' });
+        }
+
+        const filaItensMap = new Map(filaItensEncontrados.map((row) => [String(row._id), row]));
+        const filaItens = filaItemIds.map((id) => filaItensMap.get(id)).filter(Boolean);
+        const filaItem = filaItens[0] || null;
 
         let promessa = null;
         const promessaId = String(body.promessaId || '').trim();
@@ -8700,27 +9050,29 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           observacao: String(body.observacao || '').slice(0, 2000),
           concluida,
           concluidaEm: concluida ? new Date() : null,
-          metadata: { body }
+          metadata: { body, filaItemIds }
         });
 
-        if (filaItem) {
+        if (filaItens.length) {
           const filaStatus = concluida
             ? 'CONCLUIDO'
             : (resultado === 'CONTATO_INVALIDO'
               ? 'SEM_CONTATO'
               : (proximaAcaoEm ? 'ADIADO' : 'CONTATADO'));
 
-          filaItem.status = filaStatus;
-          filaItem.responsavel = getFinanceiroActor(req);
-          filaItem.ultimaAcao = `TRATATIVA_${resultado}`;
-          filaItem.ultimaAcaoEm = new Date();
-          filaItem.proximaAcaoEm = proximaAcaoEm;
-          filaItem.observacao = [
-            filaItem.observacao || '',
-            `Motivo: ${motivo}. Resultado: ${resultado}. Próxima ação: ${proximaAcao}.`,
-            String(body.observacao || '')
-          ].filter(Boolean).join(' ').slice(0, 2000);
-          await filaItem.save();
+          for (const item of filaItens) {
+            item.status = filaStatus;
+            item.responsavel = getFinanceiroActor(req);
+            item.ultimaAcao = `TRATATIVA_${resultado}`;
+            item.ultimaAcaoEm = new Date();
+            item.proximaAcaoEm = proximaAcaoEm;
+            item.observacao = [
+              item.observacao || '',
+              `Motivo: ${motivo}. Resultado: ${resultado}. Próxima ação: ${proximaAcao}.`,
+              String(body.observacao || '')
+            ].filter(Boolean).join(' ').slice(0, 2000);
+          }
+          await Promise.all(filaItens.map((item) => item.save()));
         }
 
         if (motivo === 'SOLICITOU_RENEGOCIACAO') {
