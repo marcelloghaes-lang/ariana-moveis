@@ -1961,14 +1961,21 @@ function buildCrediarioCobrancaMessage(data = {}) {
   const possuiAtualizacao = multa > 0 || juros > 0 || valorAtualizado > valorOriginal + 0.009;
   const documento = String(data.documento || data.recibo || data.contrato || '').trim();
   const urgente = tipo.includes('urg');
+  const amigavel = tipo.includes('amig');
 
-  const cabecalho = urgente ? '🚨 Aviso urgente de pendência financeira' : '🔔 Aviso de pendência financeira';
+  const cabecalho = urgente
+    ? '🚨 Aviso urgente de pendência financeira'
+    : (amigavel ? '💙 Lembrete de pagamento' : '🔔 Aviso de pendência financeira');
   const mensagemPrincipal = urgente
     ? 'Constam nota(s)/parcela(s) em atraso em nosso sistema. Solicitamos contato com urgência para regularização ou esclarecimentos.'
-    : 'Informamos que existe nota/parcela em atraso em nosso sistema.';
+    : (amigavel
+      ? 'Gostaríamos de lembrar que existe uma parcela pendente em nosso sistema.'
+      : 'Informamos que existe nota/parcela em atraso em nosso sistema.');
   const fechamento = urgente
     ? 'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.'
-    : 'Por favor, entre em contato com a loja para mais informações ou regularização.';
+    : (amigavel
+      ? 'Se o pagamento já foi realizado, envie o comprovante para conferência. Caso precise de ajuda, fale com nossa equipe financeira.'
+      : 'Por favor, entre em contato com a loja para mais informações ou regularização.');
 
   const linhasValor = possuiAtualizacao
     ? [
@@ -1999,7 +2006,13 @@ function buildCrediarioCobrancaMessage(data = {}) {
     'Ariana Móveis'
   ];
 
-  return linhas.filter((linha) => linha !== '').join('\n');
+  const mensagem = [];
+  for (const linha of linhas) {
+    if (linha === '' && (!mensagem.length || mensagem[mensagem.length - 1] === '')) continue;
+    mensagem.push(linha);
+  }
+  while (mensagem[mensagem.length - 1] === '') mensagem.pop();
+  return mensagem.join('\n');
 }
 
 async function sendCrediarioCobrancaWhatsapp({

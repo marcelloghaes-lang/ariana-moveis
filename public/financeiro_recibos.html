@@ -23,6 +23,21 @@
     @media(max-width:1100px){.row-actions{min-width:170px;flex-wrap:wrap}.btn-text{padding:0 10px}.history-header{display:block}.history-search{max-width:none;margin-top:14px}.actions input{min-width:100%}}
     @media(max-width:900px){.side{position:static;width:100%;max-height:none;overflow:visible}.main{width:100%;margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}.history-search{display:block}.history-search button{width:100%;margin-top:8px}.row-actions{min-width:160px}.icon-btn,.btn-text{width:100%}}
 
+    /* ===== CENTRAL DE COBRANÇAS MANUAL ===== */
+    .charge-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px;padding:18px 20px;border:1px solid #bfdbfe;border-left:6px solid #2563eb;border-radius:20px;background:linear-gradient(135deg,#eff6ff,#fff)}
+    .charge-intro h2{margin:0 0 6px;font-size:21px}.charge-intro p{margin:0;color:#475569;font-size:13px;line-height:1.5;max-width:760px}.charge-intro-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .charge-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}.charge-step{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #dbe4f0;border-radius:16px;background:#fff;color:#475569;font-size:12px;font-weight:850}.charge-step span{width:28px;height:28px;flex:0 0 28px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-weight:950}.charge-step.active{border-color:#93c5fd;background:#eff6ff;color:#1e3a8a}
+    .charge-workspace{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(400px,.88fr);gap:20px;align-items:start}.charge-card{min-width:0}.charge-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}.charge-card-head h2{margin:0}.charge-card-head .help{margin:5px 0 0}
+    .charge-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}.charge-search input,.charge-search button{min-height:48px}.charge-search button{min-width:108px}.charge-source-filter{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.charge-source-filter button{padding:8px 12px;border-radius:999px;background:#eef2f7;color:#475569;font-size:11px}.charge-source-filter button.active{background:#1d4ed8;color:#fff}
+    .charge-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:13px 0}.charge-metric{padding:11px 12px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.charge-metric small{display:block;color:#64748b;font-size:9px;font-weight:900;text-transform:uppercase}.charge-metric b{display:block;margin-top:4px;font-size:17px}
+    .charge-results{display:grid;gap:9px;max-height:660px;overflow:auto;padding:2px 4px 4px 0}.charge-result{display:grid;grid-template-columns:42px minmax(150px,1.25fr) minmax(125px,.85fr) minmax(90px,.65fr) auto;gap:11px;align-items:center;padding:12px 13px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;transition:.15s ease}.charge-result:hover{border-color:#93c5fd;box-shadow:0 8px 22px #1d4ed810}.charge-result.selected{border:2px solid #2563eb;background:#eff6ff}.charge-result-icon{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#eef2ff;font-size:17px}.charge-result b{display:block}.charge-result small{display:block;color:#64748b;margin-top:3px;line-height:1.35}.charge-result-value{font-weight:950;white-space:nowrap}.charge-result button{padding:9px 11px;font-size:11px;border-radius:11px}.charge-empty{padding:26px 18px;text-align:center;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;color:#64748b;font-size:13px}
+    .charge-compose{position:sticky;top:20px;min-width:0}.charge-selected{padding:15px 16px;border:1px solid #bfdbfe;border-radius:17px;background:#eff6ff}.charge-selected.empty{border-style:dashed;background:#f8fafc;color:#64748b}.charge-selected-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.charge-selected-name{font-size:16px;font-weight:950}.charge-selected-meta{margin-top:5px;color:#475569;font-size:12px;line-height:1.45}.charge-selected button{padding:7px 9px;font-size:10px}
+    .charge-section{margin-top:16px;padding-top:15px;border-top:1px solid #e5e7eb}.charge-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.charge-section-title b{font-size:13px}.charge-type-help{margin-top:8px;padding:9px 11px;border-radius:12px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.45}.charge-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.charge-form-grid label{margin-top:0}.charge-finance-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.charge-finance-field{padding:10px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.charge-finance-field label{margin:0 0 5px;font-size:9px}.charge-finance-field input{padding:9px 10px;border-radius:10px;background:#fff}.charge-finance-field.total{border-color:#86efac;background:#f0fdf4}.charge-finance-field.total label,.charge-finance-field.total input{color:#166534;font-weight:900}
+    .charge-preview{border:1px solid #dbeafe;border-radius:17px;background:#fff;overflow:hidden}.charge-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;background:#eff6ff;color:#1e3a8a;font-size:11px;font-weight:900}.charge-preview-head button{padding:6px 9px;font-size:10px}.charge-preview-body{max-height:330px;overflow:auto;padding:14px}.charge-preview-body pre{white-space:pre-wrap;margin:0;font:12px/1.55 Inter,Arial,sans-serif;color:#1f2937}.charge-sendbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;flex-wrap:wrap}.charge-sendbar button{min-height:43px}.charge-sendbar button:disabled{opacity:.55;cursor:not-allowed}.charge-send-status{padding:11px 12px;border-radius:13px;background:#ecfdf5;border:1px solid #bbf7d0;color:#166534;font-size:12px;font-weight:800;margin-top:12px}.charge-loading{display:inline-flex;align-items:center;gap:8px;color:#475569;font-size:12px}
+    @media(max-width:1180px){.charge-workspace{grid-template-columns:1fr}.charge-compose{position:static}.charge-results{max-height:520px}}
+    @media(max-width:760px){.charge-intro,.charge-card-head{display:block}.charge-intro-actions{justify-content:flex-start;margin-top:12px}.charge-steps,.charge-metrics{grid-template-columns:1fr 1fr}.charge-result{grid-template-columns:40px 1fr auto}.charge-result>div:nth-child(3),.charge-result>div:nth-child(4){grid-column:2/-1}.charge-form-grid,.charge-finance-grid{grid-template-columns:1fr}.charge-sendbar button{width:100%}}
+    @media(max-width:480px){.charge-steps,.charge-metrics{grid-template-columns:1fr}.charge-search{grid-template-columns:1fr}.charge-search button{width:100%}.charge-result{grid-template-columns:1fr}.charge-result>*{grid-column:auto!important}.charge-result-icon{display:none}.charge-result button{width:100%}}
+
     /* ===== FASE C.2 - BAIXA DE PAGAMENTO DIRETO NO SIGE ===== */
     .sige-pay-overlay{position:fixed;inset:0;background:#0f172a99;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
     .sige-pay-modal{width:100%;max-width:620px;background:#fff;border-radius:26px;padding:24px;box-shadow:0 28px 80px #0005;max-height:94vh;overflow:auto}
@@ -904,41 +919,103 @@
       </section>
 
       <section id="tab-cobrancas" class="hidden">
-        <div class="grid">
-          <div class="card">
-            <h2>Central de Cobranças</h2>
-            <p class="help">Busque um cliente ou recibo, selecione e envie cobrança normal ou urgente pelo Ariana Notificações.</p>
-            <div class="actions">
-              <input id="buscaCobranca" placeholder="Buscar cliente, CPF, telefone, recibo ou produto" oninput="loadCobrancas()">
-              <button class="light" onclick="loadCobrancas()">Buscar</button>
-            </div>
-            <table>
-              <thead><tr><th>Cliente / Telefone</th><th>Referência</th><th>Valor</th><th>Ação</th></tr></thead>
-              <tbody id="cobrancasBody"></tbody>
-            </table>
+        <div class="charge-intro">
+          <div>
+            <h2>🔔 Central de Cobranças Manuais</h2>
+            <p>Localize um cliente ou recibo, confira telefone, referência e valores, escolha o tom da mensagem e envie pelo Ariana Notificações. Para trabalhar toda a carteira vencida do SIGE, utilize a Fila do Dia.</p>
           </div>
-          <div class="card">
-            <h2>Enviar cobrança</h2>
-            <p class="help">Escolha o tipo de aviso antes de enviar.</p>
-            <div id="cobrancaSelecionada" class="receipt">Nenhum cliente ou recibo selecionado.</div>
+          <div class="charge-intro-actions">
+            <button class="light small" onclick="abrirFilaDoDiaDaCobranca()">📋 Abrir Fila do Dia</button>
+            <button class="light small" onclick="loadCobrancas(true)">↻ Atualizar resultados</button>
+          </div>
+        </div>
+
+        <div class="charge-steps">
+          <div id="cobrancaStep1" class="charge-step active"><span>1</span>Localize e selecione</div>
+          <div id="cobrancaStep2" class="charge-step"><span>2</span>Confira os dados</div>
+          <div id="cobrancaStep3" class="charge-step"><span>3</span>Revise e envie</div>
+        </div>
+
+        <div class="charge-workspace">
+          <div class="card charge-card">
+            <div class="charge-card-head">
+              <div><h2>Encontrar cobrança</h2><p class="help">Pesquise por cliente, CPF, telefone, número do recibo, contrato ou produto.</p></div>
+              <span id="cobrancaBuscaStatus" class="charge-loading">Pronto para buscar</span>
+            </div>
+            <div class="charge-search">
+              <input id="buscaCobranca" placeholder="Ex.: Marcelo, CPF, telefone, REC-2026..." autocomplete="off">
+              <button class="blue" onclick="loadCobrancas(true)">🔎 Buscar</button>
+            </div>
+            <div class="charge-source-filter">
+              <button id="cobrancaFiltroTodos" class="active" onclick="filtrarOrigemCobranca('todos',this)">Todos</button>
+              <button onclick="filtrarOrigemCobranca('cliente',this)">👤 Clientes</button>
+              <button onclick="filtrarOrigemCobranca('recibo',this)">🧾 Recibos</button>
+              <button onclick="filtrarOrigemCobranca('sem_telefone',this)">⚠️ Sem telefone</button>
+            </div>
+            <div class="charge-metrics">
+              <div class="charge-metric"><small>Resultados</small><b id="cobrancaKpiTotal">0</b></div>
+              <div class="charge-metric"><small>Clientes</small><b id="cobrancaKpiClientes">0</b></div>
+              <div class="charge-metric"><small>Recibos</small><b id="cobrancaKpiRecibos">0</b></div>
+              <div class="charge-metric"><small>Sem telefone</small><b id="cobrancaKpiSemTelefone">0</b></div>
+            </div>
+            <div id="cobrancasBody" class="charge-results"><div class="charge-empty">Carregando clientes e recibos...</div></div>
+          </div>
+
+          <div class="card charge-compose">
+            <div class="charge-card-head">
+              <div><h2>Preparar envio</h2><p class="help">A mensagem só será enviada depois da confirmação final.</p></div>
+              <span id="cobrancaEnvioBadge" class="pill pending">Aguardando seleção</span>
+            </div>
+
+            <div id="cobrancaSelecionada" class="charge-selected empty">Nenhum cliente ou recibo selecionado.</div>
             <div id="cobrancaSemTelefoneBox" class="phone-fix hidden">
               <b>⚠️ Cliente sem WhatsApp cadastrado</b>
-              <div class="muted">Informe o celular abaixo para salvar no cadastro e enviar a cobrança.</div>
-              <input id="cobrancaNovoTelefone" placeholder="Ex: 31985147119" oninput="atualizarTelefoneCobrancaTemp()">
-              <div class="actions"><button class="blue small" onclick="salvarTelefoneCobranca()">💾 Salvar celular</button></div>
+              <div class="muted">Informe o número com DDD, salve no cadastro e confira novamente antes de enviar.</div>
+              <input id="cobrancaNovoTelefone" placeholder="Ex.: 31985147119" inputmode="tel" oninput="atualizarTelefoneCobrancaTemp()">
+              <div class="actions"><button class="blue small" onclick="salvarTelefoneCobranca()">💾 Salvar WhatsApp</button></div>
             </div>
-            <label>Mensagem</label>
-            <select id="tipoCobranca" onchange="previewCobranca()">
-              <option value="normal">Cobrança normal</option>
-              <option value="urgente">Cobrança urgente</option>
-            </select>
-            <label>Produto / Referência</label><input id="cobrancaProduto" placeholder="Ex: celular, geladeira, pedido..." oninput="previewCobranca()">
-            <label>Parcela</label><input id="cobrancaParcela" placeholder="Ex: 02/12" oninput="previewCobranca()">
-            <label>Valor</label><input id="cobrancaValor" placeholder="Ex: 150,00" oninput="previewCobranca()">
-            <div class="receipt" id="cobrancaPreview" style="margin-top:14px"></div>
-            <div class="actions">
-              <button class="yellow" onclick="enviarCobrancaSelecionada()">🔔 Enviar cobrança</button>
-              <button class="red" onclick="limparCobranca()">Limpar</button>
+
+            <div class="charge-section">
+              <div class="charge-section-title"><b>1. Tipo de mensagem</b><span class="muted">Escolha conforme o estágio da cobrança</span></div>
+              <select id="tipoCobranca" onchange="atualizarTipoCobranca()">
+                <option value="amigavel">Lembrete amigável</option>
+                <option value="normal" selected>Cobrança normal</option>
+                <option value="urgente">Cobrança urgente</option>
+              </select>
+              <div id="cobrancaTipoAjuda" class="charge-type-help"></div>
+            </div>
+
+            <div class="charge-section">
+              <div class="charge-section-title"><b>2. Referência da dívida</b><span class="muted">Confirme antes do envio</span></div>
+              <div class="charge-form-grid">
+                <div><label>Produto / referência</label><input id="cobrancaProduto" placeholder="Produto, pedido ou contrato" oninput="previewCobranca()"></div>
+                <div><label>Parcela</label><input id="cobrancaParcela" placeholder="Ex.: 02/12" oninput="previewCobranca()"></div>
+              </div>
+            </div>
+
+            <div class="charge-section">
+              <div class="charge-section-title"><b>3. Conferência financeira</b><span class="muted">Valores em reais</span></div>
+              <div class="charge-finance-grid">
+                <div class="charge-finance-field"><label>Valor original</label><input id="cobrancaValorOriginal" placeholder="0,00" inputmode="decimal" oninput="recalcularCobrancaManual()"></div>
+                <div class="charge-finance-field"><label>Multa</label><input id="cobrancaMulta" placeholder="0,00" inputmode="decimal" oninput="recalcularCobrancaManual()"></div>
+                <div class="charge-finance-field"><label>Juros</label><input id="cobrancaJuros" placeholder="0,00" inputmode="decimal" oninput="recalcularCobrancaManual()"></div>
+                <div class="charge-finance-field total"><label>Valor atualizado</label><input id="cobrancaValor" placeholder="0,00" inputmode="decimal" oninput="previewCobranca()"></div>
+              </div>
+              <div class="notice" style="margin-top:10px">Use os valores oficiais do SIGE ou do carnê. Esta tela não calcula automaticamente a situação financeira do cliente.</div>
+            </div>
+
+            <div class="charge-section">
+              <div class="charge-section-title"><b>4. Prévia da mensagem</b><button class="light small" onclick="copiarPreviewCobranca()">📋 Copiar texto</button></div>
+              <div class="charge-preview">
+                <div class="charge-preview-head"><span>Mensagem que será enviada</span><span id="cobrancaPreviewContagem">0 caracteres</span></div>
+                <div id="cobrancaPreview" class="charge-preview-body">Selecione um cliente ou recibo para visualizar a mensagem.</div>
+              </div>
+            </div>
+
+            <div id="cobrancaResultadoEnvio" class="charge-send-status hidden"></div>
+            <div class="charge-sendbar">
+              <button id="cobrancaEnviarBtn" class="yellow" onclick="enviarCobrancaSelecionada()" disabled>🔔 Confirmar e enviar</button>
+              <button class="red" onclick="limparCobranca()">Limpar seleção</button>
             </div>
           </div>
         </div>
@@ -1759,6 +1836,7 @@ async function buscarClientesFinanceiro(q='', limit=100){
   }
 }
 let recibos=[]; let clientes=[]; let lastRecibo=null; let selectedCliente=null; let autocompleteTimer=null; let clienteSugestoesCache=[]; let cobrancaAlvo=null; let sigeCarneAtual=null; let sigeInadimplentesCache=[];
+let cobrancasCache=[];let cobrancaFiltroOrigem='todos';let cobrancaBuscaTimer=null;let cobrancaRequestSeq=0;let cobrancaEnviando=false;
 function token(){return localStorage.getItem('admin_token')||''}
 function headers(extra={}){return {...extra, Authorization:'Bearer '+token()}}
 function apiErrorMessage(data={}, status=0){
@@ -1932,167 +2010,311 @@ function numeroCobranca(v){
 function formatarValorCobranca(v){
   return numeroCobranca(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
-function dadosFinanceirosCobranca(d={}){
+function valoresBaseCobranca(d={}){
   const financeiro=d.atualizacaoFinanceira||{};
-  const valorDigitado=numeroCobranca(cobrancaValor?.value);
-  const valorOriginal=numeroCobranca(
-    d.valorOriginal ?? financeiro.saldoOriginal ?? d.saldoParcela ?? d.saldo ?? d.valorPago ?? d.valor ?? valorDigitado
-  );
+  const valorOriginal=numeroCobranca(d.valorOriginal ?? financeiro.saldoOriginal ?? d.saldoParcela ?? d.saldo ?? d.valorPago ?? d.valor ?? 0);
   const multa=Math.max(0,numeroCobranca(d.multa ?? financeiro.multa ?? 0));
   const juros=Math.max(0,numeroCobranca(d.juros ?? financeiro.juros ?? 0));
-  const calculado=valorOriginal+multa+juros;
-  const valorAtualizadoBase=numeroCobranca(
-    d.valorAtualizado ?? financeiro.valorAtualizado ?? valorDigitado ?? calculado
-  );
-  const valorAtualizado=valorDigitado>0?valorDigitado:(valorAtualizadoBase>0?valorAtualizadoBase:calculado);
+  const informado=numeroCobranca(d.valorAtualizado ?? financeiro.valorAtualizado ?? 0);
+  const valorAtualizado=informado>0?informado:Math.max(0,valorOriginal+multa+juros);
   return {valorOriginal,multa,juros,valorAtualizado};
+}
+function valorCampoCobranca(id,fallback=0){
+  const el=document.getElementById(id);
+  return el&&String(el.value||'').trim()!==''?numeroCobranca(el.value):numeroCobranca(fallback);
+}
+function dadosFinanceirosCobranca(d={}){
+  const base=valoresBaseCobranca(d);
+  const valorOriginal=valorCampoCobranca('cobrancaValorOriginal',base.valorOriginal);
+  const multa=Math.max(0,valorCampoCobranca('cobrancaMulta',base.multa));
+  const juros=Math.max(0,valorCampoCobranca('cobrancaJuros',base.juros));
+  const calculado=Math.max(0,valorOriginal+multa+juros);
+  const valorAtualizado=valorCampoCobranca('cobrancaValor',base.valorAtualizado||calculado);
+  return {valorOriginal,multa,juros,valorAtualizado:valorAtualizado>0?valorAtualizado:calculado};
+}
+function cobrancaTipoConfig(tipo='normal'){
+  return ({
+    amigavel:{label:'lembrete amigável',help:'Use no primeiro contato ou em atraso recente. O texto é cordial e permite que o cliente informe se já pagou.'},
+    normal:{label:'cobrança normal',help:'Use quando a pendência já foi confirmada e é necessário solicitar regularização ou retorno do cliente.'},
+    urgente:{label:'cobrança urgente',help:'Use somente em atraso relevante ou após tentativas anteriores. O texto solicita contato imediato.'}
+  })[tipo]||{label:'cobrança normal',help:''};
 }
 function cobrancaTextoPreview(d){
   const nome=d.nome||d.clienteNome||'cliente';
-  const tipo=tipoCobranca?.value||'normal';
-  const urgente=tipo==='urgente';
-  const produto=(cobrancaProduto?.value||d.produto||'').trim();
-  const parc=formatParcelaCliente((cobrancaParcela?.value||d.parcela||'').trim());
+  const tipo=document.getElementById('tipoCobranca')?.value||'normal';
+  const produto=(document.getElementById('cobrancaProduto')?.value||d.produto||'').trim();
+  const parc=formatParcelaCliente((document.getElementById('cobrancaParcela')?.value||d.parcela||'').trim());
   const valores=dadosFinanceirosCobranca(d);
   const possuiAtualizacao=valores.multa>0||valores.juros>0||valores.valorAtualizado>valores.valorOriginal+0.009;
   const linhasValor=possuiAtualizacao
     ? `${valores.valorOriginal>0?'💰 Valor original: R$ '+formatarValorCobranca(valores.valorOriginal)+'\n':''}${valores.multa>0?'⚠️ Multa: R$ '+formatarValorCobranca(valores.multa)+'\n':''}${valores.juros>0?'📈 Juros: R$ '+formatarValorCobranca(valores.juros)+'\n':''}${valores.valorAtualizado>0?'✅ Valor atualizado: R$ '+formatarValorCobranca(valores.valorAtualizado)+'\n':''}`
     : (valores.valorAtualizado>0?'💰 Valor: R$ '+formatarValorCobranca(valores.valorAtualizado)+'\n':'');
-  return `${urgente?'🚨 Aviso urgente de pendência financeira':'🔔 Aviso de pendência financeira'}
+  const textos={
+    amigavel:{titulo:'💙 Lembrete de pagamento',principal:'Gostaríamos de lembrar que existe uma parcela pendente em nosso sistema.',fechamento:'Se o pagamento já foi realizado, envie o comprovante para conferência. Caso precise de ajuda, fale com nossa equipe financeira.'},
+    normal:{titulo:'🔔 Aviso de pendência financeira',principal:'Informamos que existe nota/parcela em atraso em nosso sistema.',fechamento:'Por favor, entre em contato com a loja para mais informações ou regularização.'},
+    urgente:{titulo:'🚨 Aviso urgente de pendência financeira',principal:'Constam nota(s)/parcela(s) em atraso em nosso sistema. Solicitamos contato com urgência para regularização ou esclarecimentos.',fechamento:'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.'}
+  };
+  const texto=textos[tipo]||textos.normal;
+  return `${texto.titulo}
 
 Olá, ${nome}.
 
-${urgente?'Constam nota(s)/parcela(s) em atraso em nosso sistema. Solicitamos contato com urgência para regularização ou esclarecimentos.':'Informamos que existe nota/parcela em atraso em nosso sistema.'}
+${texto.principal}
 
 ${produto?'📦 Referência: '+produto+'\n':''}${parc?'📌 Parcela: '+parc+'\n':''}${linhasValor}${d.documento||d.recibo?'🧾 Documento: '+(d.documento||d.recibo)+'\n':''}
-${urgente?'Para evitar bloqueio interno de crédito e novos transtornos, pedimos que entre em contato com a loja o quanto antes.':'Por favor, entre em contato com a loja para mais informações ou regularização.'}
+${texto.fechamento}
 
 📲 WhatsApp financeiro:
 (31) 98514-7119
 
 Ariana Móveis`;
 }
-function atualizarBoxTelefoneCobranca(){
-  const tel=shortPhone(cobrancaAlvo?.telefone||'');
-  if(!cobrancaAlvo){cobrancaSemTelefoneBox.classList.add('hidden');return}
-  if(!tel){
-    cobrancaSemTelefoneBox.classList.remove('hidden');
-    cobrancaNovoTelefone.value='';
-  }else{
-    cobrancaSemTelefoneBox.classList.add('hidden');
-    cobrancaNovoTelefone.value=tel;
+function atualizarTipoCobranca(){
+  const tipo=document.getElementById('tipoCobranca')?.value||'normal';
+  const ajuda=document.getElementById('cobrancaTipoAjuda');
+  if(ajuda)ajuda.textContent=cobrancaTipoConfig(tipo).help;
+  previewCobranca();
+}
+function atualizarEtapasCobranca(){
+  const temAlvo=!!cobrancaAlvo;
+  const temTelefone=!!shortPhone(cobrancaAlvo?.telefone||'');
+  document.getElementById('cobrancaStep1')?.classList.toggle('active',!temAlvo);
+  document.getElementById('cobrancaStep2')?.classList.toggle('active',temAlvo&&!temTelefone);
+  document.getElementById('cobrancaStep3')?.classList.toggle('active',temAlvo&&temTelefone);
+  const btn=document.getElementById('cobrancaEnviarBtn');
+  if(btn)btn.disabled=!temAlvo||!temTelefone||cobrancaEnviando;
+  const badge=document.getElementById('cobrancaEnvioBadge');
+  if(badge){
+    badge.className='pill '+(temAlvo&&temTelefone?'ok':'pending');
+    badge.textContent=!temAlvo?'Aguardando seleção':(temTelefone?'Pronto para revisar':'Telefone necessário');
   }
+}
+function atualizarBoxTelefoneCobranca(){
+  const box=document.getElementById('cobrancaSemTelefoneBox');
+  const input=document.getElementById('cobrancaNovoTelefone');
+  const tel=shortPhone(cobrancaAlvo?.telefone||'');
+  if(!cobrancaAlvo){box?.classList.add('hidden');atualizarEtapasCobranca();return}
+  if(!tel){
+    box?.classList.remove('hidden');
+    if(input&&!String(input.value||'').trim())input.value='';
+  }else{
+    box?.classList.add('hidden');
+    if(input)input.value=tel;
+  }
+  atualizarEtapasCobranca();
 }
 function atualizarTelefoneCobrancaTemp(){
   if(!cobrancaAlvo)return;
-  cobrancaAlvo.telefone=cobrancaNovoTelefone.value;
-  preencherResumoCobranca();
+  atualizarEtapasCobranca();
 }
 function preencherResumoCobranca(){
-  if(!cobrancaAlvo){cobrancaSelecionada.innerHTML='Nenhum cliente ou recibo selecionado.';return}
+  const box=document.getElementById('cobrancaSelecionada');
+  if(!box)return;
+  if(!cobrancaAlvo){box.className='charge-selected empty';box.textContent='Nenhum cliente ou recibo selecionado.';return}
   const d=cobrancaAlvo;
-  const tipoLabel=d.kind==='recibo'?'Recibo':'Cliente';
-  cobrancaSelecionada.innerHTML=`<b>${esc(d.nome||d.clienteNome)}</b> <span class="type-badge">${tipoLabel}</span><br><small>WhatsApp: ${esc(shortPhone(d.telefone))||'sem telefone'}${d.recibo?' • Recibo: '+esc(d.recibo):''}${d.contrato?' • Contrato: '+esc(d.contrato):''}</small>`;
+  const tipoLabel=d.kind==='recibo'?'Recibo':(d.kind==='sige'?'SIGE':'Cliente');
+  const telefone=shortPhone(d.telefone)||'sem telefone';
+  box.className='charge-selected';
+  box.innerHTML=`<div class="charge-selected-head"><div><div class="charge-selected-name">${esc(d.nome||d.clienteNome||'Cliente')}</div><div class="charge-selected-meta"><span class="type-badge">${tipoLabel}</span> WhatsApp: ${esc(telefone)}${d.recibo?' • Recibo: '+esc(d.recibo):''}${d.contrato?' • Contrato: '+esc(d.contrato):''}</div></div><button class="light" onclick="limparCobranca()">Trocar</button></div>`;
 }
 function preencherCobranca(d){
-  cobrancaAlvo=d||{};
-  cobrancaProduto.value=d.produto||'';
-  cobrancaParcela.value=formatParcelaCliente(d.parcela||'');
-  const valores=dadosFinanceirosCobranca(d);
+  if(!d)return;
+  const valores=valoresBaseCobranca(d);
   cobrancaAlvo={...d,...valores};
-  cobrancaValor.value=valores.valorAtualizado>0?formatarValorCobranca(valores.valorAtualizado):'';
+  document.getElementById('cobrancaProduto').value=d.produto||'';
+  document.getElementById('cobrancaParcela').value=formatParcelaCliente(d.parcela||'');
+  document.getElementById('cobrancaValorOriginal').value=valores.valorOriginal>0?formatarValorCobranca(valores.valorOriginal):'';
+  document.getElementById('cobrancaMulta').value=valores.multa>0?formatarValorCobranca(valores.multa):'';
+  document.getElementById('cobrancaJuros').value=valores.juros>0?formatarValorCobranca(valores.juros):'';
+  document.getElementById('cobrancaValor').value=valores.valorAtualizado>0?formatarValorCobranca(valores.valorAtualizado):'';
+  document.getElementById('cobrancaResultadoEnvio')?.classList.add('hidden');
   preencherResumoCobranca();
   atualizarBoxTelefoneCobranca();
+  renderCobrancas();
+  previewCobranca();
+  document.querySelector('.charge-compose')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function recalcularCobrancaManual(){
+  const total=valorCampoCobranca('cobrancaValorOriginal',0)+valorCampoCobranca('cobrancaMulta',0)+valorCampoCobranca('cobrancaJuros',0);
+  const campo=document.getElementById('cobrancaValor');
+  if(campo)campo.value=total>0?formatarValorCobranca(total):'';
   previewCobranca();
 }
 function previewCobranca(){
-  if(!cobrancaAlvo){cobrancaPreview.innerHTML='Selecione um cliente ou recibo para visualizar a mensagem.';return}
-  cobrancaPreview.innerHTML='<pre style="white-space:pre-wrap;margin:0;font-family:Inter,Arial,sans-serif">'+esc(cobrancaTextoPreview(cobrancaAlvo))+'</pre>';
+  const box=document.getElementById('cobrancaPreview');
+  const count=document.getElementById('cobrancaPreviewContagem');
+  if(!box)return;
+  if(!cobrancaAlvo){box.textContent='Selecione um cliente ou recibo para visualizar a mensagem.';if(count)count.textContent='0 caracteres';atualizarEtapasCobranca();return}
+  const texto=cobrancaTextoPreview(cobrancaAlvo);
+  box.innerHTML='<pre>'+esc(texto)+'</pre>';
+  if(count)count.textContent=`${texto.length} caracteres`;
+  atualizarEtapasCobranca();
 }
-function limparCobranca(){cobrancaAlvo=null;cobrancaProduto.value='';cobrancaParcela.value='';cobrancaValor.value='';cobrancaNovoTelefone.value='';cobrancaSemTelefoneBox.classList.add('hidden');cobrancaSelecionada.innerHTML='Nenhum cliente ou recibo selecionado.';previewCobranca()}
+async function copiarPreviewCobranca(){
+  if(!cobrancaAlvo){toast('Selecione uma cobrança primeiro.');return}
+  try{await navigator.clipboard.writeText(cobrancaTextoPreview(cobrancaAlvo));toast('Texto da cobrança copiado.')}catch(_e){toast('Não foi possível copiar automaticamente.')}
+}
+function limparCobranca(){
+  cobrancaAlvo=null;
+  ['cobrancaProduto','cobrancaParcela','cobrancaValorOriginal','cobrancaMulta','cobrancaJuros','cobrancaValor','cobrancaNovoTelefone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  document.getElementById('cobrancaSemTelefoneBox')?.classList.add('hidden');
+  document.getElementById('cobrancaResultadoEnvio')?.classList.add('hidden');
+  preencherResumoCobranca();previewCobranca();renderCobrancas();atualizarEtapasCobranca();
+}
 async function salvarTelefoneCobranca(){
   if(!cobrancaAlvo){toast('Selecione um cliente primeiro.');return}
-  const telefoneNovo=shortPhone(cobrancaNovoTelefone.value||'');
-  if(!telefoneNovo){toast('Informe o celular/WhatsApp.');return}
+  const telefoneNovo=shortPhone(document.getElementById('cobrancaNovoTelefone')?.value||'');
+  if(!telefoneNovo||telefoneNovo.length<10){toast('Informe um celular com DDD válido.');return}
   try{
     let clienteId=cobrancaAlvo.kind==='cliente'?cobrancaAlvo.id:(cobrancaAlvo.clienteId||'');
     const payload={nome:cobrancaAlvo.nome||cobrancaAlvo.clienteNome||'',telefone:telefoneNovo,cpf:cobrancaAlvo.cpf||cobrancaAlvo.clienteCpf||'',contrato:cobrancaAlvo.contrato||''};
     if(!payload.nome){toast('Nome do cliente não localizado.');return}
-    const r=await fetch(API_BASE+'/admin/crediario/clientes',{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
-    const j=await r.json();
-    if(!j.ok){toast(j.error||'Erro ao salvar celular');return}
+    const j=await apiJson('/admin/crediario/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     cobrancaAlvo.telefone=j.cliente?.telefone||telefoneNovo;
     cobrancaAlvo.id=cobrancaAlvo.kind==='cliente'?(j.cliente?.id||cobrancaAlvo.id):cobrancaAlvo.id;
     cobrancaAlvo.clienteId=j.cliente?.id||clienteId;
-    preencherResumoCobranca();
-    atualizarBoxTelefoneCobranca();
-    toast('Celular salvo no cadastro do cliente.');
-    await loadClientes();
-  }catch(e){toast('Erro ao salvar celular: '+(e.message||e))}
+    cobrancasCache.forEach(row=>{
+      if(row.cacheKey===cobrancaAlvo.cacheKey||String(row.clienteId||'')===String(cobrancaAlvo.clienteId||''))row.telefone=cobrancaAlvo.telefone;
+    });
+    preencherResumoCobranca();atualizarBoxTelefoneCobranca();previewCobranca();
+    renderCobrancas();
+    toast('WhatsApp salvo no cadastro do cliente.');
+  }catch(e){toast('Erro ao salvar WhatsApp: '+(e.message||e))}
 }
-function selecionarCobrancaCliente(i){const c=clientes[i];if(!c)return;document.querySelector(".nav button[onclick*=\"cobrancas\"]").click();setTimeout(()=>preencherCobranca({...c,kind:'cliente',tipo:'cliente',nome:c.nome,produto:'Pendência financeira'}),120)}
-function selecionarCobrancaRecibo(id){const r=recibos.find(x=>String(x.id)===String(id));if(!r)return;document.querySelector(".nav button[onclick*=\"cobrancas\"]").click();setTimeout(()=>preencherCobranca({...r,kind:'recibo',tipo:'recibo',nome:r.clienteNome}),120)}
+function selecionarCobrancaCliente(i){const c=clientes[i];if(!c)return;document.querySelector(".nav button[onclick*=\"cobrancas\"]").click();setTimeout(()=>preencherCobranca({...c,kind:'cliente',tipo:'cliente',nome:c.nome,produto:'Pendência financeira',cacheKey:'cliente:'+c.id}),120)}
+function selecionarCobrancaRecibo(id){const r=recibos.find(x=>String(x.id)===String(id));if(!r)return;document.querySelector(".nav button[onclick*=\"cobrancas\"]").click();setTimeout(()=>preencherCobranca({...r,kind:'recibo',tipo:'recibo',nome:r.clienteNome,cacheKey:'recibo:'+r.id}),120)}
+function selecionarCobrancaCache(index){const row=cobrancasCache[Number(index)];if(row)preencherCobranca(row)}
+function filtrarOrigemCobranca(origem,btn){
+  cobrancaFiltroOrigem=origem||'todos';
+  document.querySelectorAll('.charge-source-filter button').forEach(button=>button.classList.remove('active'));
+  btn?.classList.add('active');
+  renderCobrancas();
+}
+function cobrancasFiltradas(){
+  if(cobrancaFiltroOrigem==='sem_telefone')return cobrancasCache.filter(row=>!shortPhone(row.telefone||''));
+  if(cobrancaFiltroOrigem==='cliente'||cobrancaFiltroOrigem==='recibo')return cobrancasCache.filter(row=>row.kind===cobrancaFiltroOrigem);
+  return cobrancasCache;
+}
+function renderCobrancas(){
+  const box=document.getElementById('cobrancasBody');if(!box)return;
+  const rows=cobrancasFiltradas();
+  document.getElementById('cobrancaKpiTotal').textContent=rows.length;
+  document.getElementById('cobrancaKpiClientes').textContent=rows.filter(row=>row.kind==='cliente').length;
+  document.getElementById('cobrancaKpiRecibos').textContent=rows.filter(row=>row.kind==='recibo').length;
+  document.getElementById('cobrancaKpiSemTelefone').textContent=rows.filter(row=>!shortPhone(row.telefone||'')).length;
+  if(!rows.length){box.innerHTML='<div class="charge-empty">Nenhum resultado encontrado neste filtro.</div>';return}
+  box.innerHTML=rows.map(row=>{
+    const index=cobrancasCache.indexOf(row);
+    const selecionado=!!cobrancaAlvo&&String(cobrancaAlvo.cacheKey||'')===String(row.cacheKey||'');
+    const tel=shortPhone(row.telefone||'');
+    const referencia=row.kind==='cliente'?(row.contrato||'Cadastro do cliente'):(row.recibo||row.documento||'Recibo');
+    const detalhe=row.kind==='cliente'?(row.cpf?'CPF '+row.cpf:'Pendência financeira'):[row.produto,formatParcelaCliente(row.parcela)].filter(Boolean).join(' • ');
+    return `<div class="charge-result ${selecionado?'selected':''}">
+      <div class="charge-result-icon">${row.kind==='cliente'?'👤':'🧾'}</div>
+      <div><b>${esc(row.nome||'Cliente')}</b><small>${tel?'WhatsApp '+esc(tel):'<span class="inad-no-phone">⚠️ Sem telefone cadastrado</span>'}</small></div>
+      <div><b>${esc(referencia)}</b><small>${esc(detalhe||'Sem referência adicional')}</small></div>
+      <div class="charge-result-value">${Number(row.valorPago||row.valorAtualizado||0)>0?money(row.valorPago||row.valorAtualizado):'Valor a conferir'}</div>
+      <button class="${selecionado?'blue':'yellow'}" onclick="selecionarCobrancaCache(${index})">${selecionado?'✓ Selecionado':'Selecionar'}</button>
+    </div>`;
+  }).join('');
+}
+function agendarBuscaCobranca(){
+  clearTimeout(cobrancaBuscaTimer);
+  cobrancaBuscaTimer=setTimeout(()=>loadCobrancas(),450);
+}
 async function loadCobrancas(){
-  const qRaw=buscaCobranca?.value||'';
+  const requestId=++cobrancaRequestSeq;
+  const qRaw=String(document.getElementById('buscaCobranca')?.value||'').trim();
+  const status=document.getElementById('cobrancaBuscaStatus');
+  const box=document.getElementById('cobrancasBody');
+  if(status)status.textContent='Consultando cadastros...';
+  if(box)box.innerHTML='<div class="charge-empty">Buscando clientes e recibos...</div>';
   const q=encodeURIComponent(qRaw);
-  const [rc, rr]=await Promise.all([
-    fetch(API_BASE+'/admin/crediario/clientes?q='+q+'&limit=20',{headers:headers()}).then(r=>r.json()).catch(()=>({clientes:[]})),
-    fetch(API_BASE+'/admin/crediario/recibos?q='+q+'&limit=20',{headers:headers()}).then(r=>r.json()).catch(()=>({recibos:[]}))
-  ]);
-  const rows=[];
-  const seenClient=new Set();
-  (rc.clientes||[]).forEach(c=>{
-    const key=String(c.id||c.nome||'');
-    seenClient.add(key);
-    rows.push({kind:'cliente',id:c.id,nome:c.nome,telefone:c.telefone,cpf:c.cpf,produto:'Pendência financeira',parcela:'',valorPago:0,contrato:c.contrato,documento:c.contrato||''});
-  });
-  (rr.recibos||[]).forEach(r=>rows.push({kind:'recibo',id:r.id,clienteId:r.clienteId,nome:r.clienteNome,clienteNome:r.clienteNome,telefone:r.telefone,produto:r.produto,parcela:r.parcela,valorPago:r.valorPago,recibo:r.recibo,contrato:r.contrato,documento:r.documento||r.recibo}));
-  cobrancasBody.innerHTML=rows.map((r,i)=>{
-    const badge=r.kind==='cliente'?'<span class="type-badge">Cliente</span>':'<span class="type-badge">Recibo</span>';
-    const tel=shortPhone(r.telefone);
-    const telHtml=tel?esc(tel):'<span class="muted">Sem telefone</span>';
-    const ref=r.kind==='cliente'?(r.contrato||'Pendência financeira'):(r.recibo||r.produto||'Recibo');
-    return `<tr><td><b>${esc(r.nome)}</b> ${badge}<br><small>${telHtml}</small></td><td>${esc(ref)}<br><small>${esc(formatParcelaCliente(r.parcela))}</small></td><td><b>${r.valorPago?money(r.valorPago):'—'}</b></td><td><button class="yellow small" onclick='preencherCobranca(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Selecionar</button></td></tr>`
-  }).join('')||'<tr><td colspan="4">Nenhum cliente ou recibo encontrado.</td></tr>';
+  try{
+    const [clientesResult,recibosResult]=await Promise.allSettled([
+      apiJson('/admin/crediario/clientes?q='+q+'&limit=30'),
+      apiJson('/admin/crediario/recibos?q='+q+'&limit=30')
+    ]);
+    if(requestId!==cobrancaRequestSeq)return;
+    if(clientesResult.status==='rejected'&&recibosResult.status==='rejected')throw clientesResult.reason;
+    const clientesRows=clientesResult.status==='fulfilled'?(clientesResult.value.clientes||[]):[];
+    const recibosRows=recibosResult.status==='fulfilled'?(recibosResult.value.recibos||[]):[];
+    cobrancasCache=[];
+    clientesRows.forEach(c=>cobrancasCache.push({kind:'cliente',cacheKey:'cliente:'+c.id,id:c.id,nome:c.nome,telefone:c.telefone,cpf:c.cpf,produto:'Pendência financeira',parcela:'',valorPago:0,contrato:c.contrato,documento:c.contrato||''}));
+    recibosRows.forEach(r=>cobrancasCache.push({kind:'recibo',cacheKey:'recibo:'+r.id,id:r.id,clienteId:r.clienteId,nome:r.clienteNome,clienteNome:r.clienteNome,telefone:r.telefone,produto:r.produto,parcela:r.parcela,valorPago:r.valorPago,recibo:r.recibo,contrato:r.contrato,documento:r.documento||r.recibo}));
+    if(cobrancaAlvo?.cacheKey){const atualizado=cobrancasCache.find(row=>row.cacheKey===cobrancaAlvo.cacheKey);if(atualizado)cobrancaAlvo={...atualizado,...cobrancaAlvo,telefone:cobrancaAlvo.telefone||atualizado.telefone}}
+    renderCobrancas();preencherResumoCobranca();atualizarBoxTelefoneCobranca();previewCobranca();
+    if(status)status.textContent=`${cobrancasCache.length} resultado(s)`;
+  }catch(e){
+    if(requestId!==cobrancaRequestSeq)return;
+    cobrancasCache=[];renderCobrancas();
+    if(status)status.textContent='Falha na consulta';
+    if(box)box.innerHTML='<div class="charge-empty">Erro ao buscar cobranças: '+esc(e.message||e)+'</div>';
+  }
 }
+function abrirFilaDoDiaDaCobranca(){const btn=document.querySelector('.nav button[onclick*="filaCobranca"]');if(btn)btn.click()}
 async function enviarCobrancaSelecionada(){
+  if(cobrancaEnviando)return;
   if(!cobrancaAlvo){toast('Selecione um cliente ou recibo para cobrar.');return}
-  let telefoneAtual=shortPhone(cobrancaAlvo.telefone||'');
-  if(!telefoneAtual){
-    cobrancaSemTelefoneBox.classList.remove('hidden');
-    cobrancaNovoTelefone.focus();
-    toast('Informe e salve o celular do cliente antes de enviar.');
+  const telefoneAtual=shortPhone(cobrancaAlvo.telefone||'');
+  if(!telefoneAtual||telefoneAtual.length<10){
+    document.getElementById('cobrancaSemTelefoneBox')?.classList.remove('hidden');
+    document.getElementById('cobrancaNovoTelefone')?.focus();
+    toast('Informe e salve o WhatsApp do cliente antes de enviar.');
     return;
   }
   const valores=dadosFinanceirosCobranca(cobrancaAlvo);
+  const tipo=document.getElementById('tipoCobranca')?.value||'normal';
   const payload={
-    tipo:tipoCobranca.value,
-    produto:cobrancaProduto.value,
-    parcela:cobrancaParcela.value,
+    tipo,
+    produto:document.getElementById('cobrancaProduto')?.value||'',
+    parcela:document.getElementById('cobrancaParcela')?.value||'',
     valor:valores.valorAtualizado,
     valorOriginal:valores.valorOriginal,
     multa:valores.multa,
     juros:valores.juros,
     valorAtualizado:valores.valorAtualizado,
-    telefone:telefoneAtual
+    telefone:telefoneAtual,
+    documento:cobrancaAlvo.documento||cobrancaAlvo.recibo||cobrancaAlvo.contrato||''
   };
   const endpoint=cobrancaAlvo.kind==='sige'
     ? '/admin/sige/cobranca'
     : (cobrancaAlvo.kind==='cliente'
       ? '/admin/crediario/clientes/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca'
       : '/admin/crediario/recibos/'+encodeURIComponent(cobrancaAlvo.id)+'/cobranca');
-  if(cobrancaAlvo.kind==='sige'){payload.clienteNome=cobrancaAlvo.nome||cobrancaAlvo.clienteNome||'';payload.documento=cobrancaAlvo.documento||cobrancaAlvo.codigo||'';payload.codigo=cobrancaAlvo.codigo||'';}
-  if(!confirm(`Enviar ${tipoCobranca.value==='urgente'?'cobrança urgente':'cobrança normal'} para ${cobrancaAlvo.nome||cobrancaAlvo.clienteNome}?`))return;
+  if(cobrancaAlvo.kind==='sige'){payload.clienteNome=cobrancaAlvo.nome||cobrancaAlvo.clienteNome||'';payload.codigo=cobrancaAlvo.codigo||'';}
+  const nome=cobrancaAlvo.nome||cobrancaAlvo.clienteNome||'cliente';
+  const valorTexto=valores.valorAtualizado>0?`\nValor atualizado: ${money(valores.valorAtualizado)}`:'';
+  if(!confirm(`Confirme o envio\n\nCliente: ${nome}\nWhatsApp: ${telefoneAtual}\nMensagem: ${cobrancaTipoConfig(tipo).label}${valorTexto}`))return;
+  const btn=document.getElementById('cobrancaEnviarBtn');
+  const resultado=document.getElementById('cobrancaResultadoEnvio');
+  cobrancaEnviando=true;if(btn){btn.disabled=true;btn.textContent='⏳ Enviando cobrança...'}
   try{
-    const j=await apiJson(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    toast('Cobrança enviada pelo WhatsApp');
-    await loadClientes();
-    await loadRecibos();
+    await apiJson(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const horario=new Date().toLocaleString('pt-BR');
+    if(resultado){resultado.removeAttribute('style');resultado.classList.remove('hidden');resultado.innerHTML=`✅ Cobrança enviada para <b>${esc(nome)}</b> em ${esc(horario)}.`}
+    toast('Cobrança enviada pelo WhatsApp.');
+    await loadCobrancas(true);
   }catch(e){
-    console.error('Erro ao enviar cobrança:', e.data || e);
+    console.error('Erro ao enviar cobrança:',e.data||e);
+    if(resultado){resultado.classList.remove('hidden');resultado.style.background='#fef2f2';resultado.style.borderColor='#fecaca';resultado.style.color='#991b1b';resultado.textContent='Erro no envio: '+(e.message||e)}
     toast('Erro ao enviar cobrança: '+(e.message||e));
+  }finally{
+    cobrancaEnviando=false;
+    if(btn)btn.textContent='🔔 Confirmar e enviar';
+    atualizarEtapasCobranca();
   }
 }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const busca=document.getElementById('buscaCobranca');
+  if(busca){
+    busca.addEventListener('input',agendarBuscaCobranca);
+    busca.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();clearTimeout(cobrancaBuscaTimer);loadCobrancas(true)}});
+  }
+  atualizarTipoCobranca();
+  atualizarEtapasCobranca();
+});
 
 
 
