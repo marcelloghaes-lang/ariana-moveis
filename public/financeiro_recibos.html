@@ -17,11 +17,11 @@
     /* ===== POLIMENTO VISUAL - PADRÃO MARKETPLACE ===== */
     body{background:linear-gradient(180deg,#f7f9fe 0%,#eef3fb 100%)}
     .side{background:linear-gradient(180deg,#0b2242 0%,#07192f 100%);box-shadow:12px 0 35px #0f172a14;padding:22px 18px}.side h1{display:flex;align-items:center;gap:10px;font-size:23px;letter-spacing:-.02em}.nav button{display:flex;align-items:center;gap:10px;min-height:46px;margin-bottom:8px;padding:12px 14px;font-size:14px;font-weight:850;color:#eaf2ff;transition:.18s ease}.nav button.active,.nav button:hover{background:#ffffff1f;box-shadow:inset 4px 0 0 #facc15;transform:translateX(2px)}
-    .main{max-width:1240px}.top{background:white;border:1px solid #e8eef8;border-radius:26px;padding:22px 24px;box-shadow:0 12px 34px #0f172a0b}.top h1{margin:0;font-size:28px;letter-spacing:-.04em}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.stat{border:1px solid #e8eef8;border-radius:24px;padding:18px 20px;box-shadow:0 12px 30px #0f172a0a}.stat small{font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b}.card{border:1px solid #e8eef8;border-radius:26px;box-shadow:0 14px 36px #0f172a0b}.card h2{letter-spacing:-.03em}.actions{align-items:center}.actions input{flex:1;min-width:260px}
+    .main{width:calc(100% - 260px);max-width:none;min-width:0}.top{background:white;border:1px solid #e8eef8;border-radius:26px;padding:22px 24px;box-shadow:0 12px 34px #0f172a0b}.top h1{margin:0;font-size:28px;letter-spacing:-.04em}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.stat{border:1px solid #e8eef8;border-radius:24px;padding:18px 20px;box-shadow:0 12px 30px #0f172a0a}.stat small{font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b}.card{border:1px solid #e8eef8;border-radius:26px;box-shadow:0 14px 36px #0f172a0b}.card h2{letter-spacing:-.03em}.actions{align-items:center}.actions input{flex:1;min-width:260px}
     table{border-collapse:separate;border-spacing:0 10px}thead th{border:0;background:#f8fafc;padding:13px 14px;color:#475569;font-size:11px;letter-spacing:.04em}tbody tr{background:white;box-shadow:0 8px 22px #0f172a0a}td{border-top:1px solid #eef2f7;border-bottom:1px solid #eef2f7;padding:16px 14px;vertical-align:middle}tbody td:first-child{border-left:1px solid #eef2f7;border-radius:18px 0 0 18px}tbody td:last-child{border-right:1px solid #eef2f7;border-radius:0 18px 18px 0}tr:hover{background:white;transform:translateY(-1px)}
     .pill{padding:7px 12px;border-radius:999px;font-size:12px}.pill.ok{background:#dcfce7;color:#166534}.pill.pending{background:#fff7ed;color:#c2410c}.receipt-code{font-size:13px;font-weight:950;color:#0f172a;line-height:1.15}.receipt-date{display:block;margin-top:5px;color:#64748b;font-size:12px}.client-name{font-weight:900;color:#0f172a}.client-phone,.product-parcel{display:block;margin-top:5px;color:#64748b;font-size:12px}.money-cell{font-weight:950;color:#0f172a;white-space:nowrap}.row-actions{display:flex;align-items:center;gap:8px;justify-content:flex-start;flex-wrap:nowrap;min-width:240px}.icon-btn{width:38px;height:38px;border-radius:13px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:15px;box-shadow:none}.icon-btn.print{background:#eef4ff;color:#1d4ed8}.icon-btn.send{background:#dcfce7;color:#15803d}.icon-btn.charge{background:#fef3c7;color:#a16207}.icon-btn:hover{filter:brightness(.97);transform:translateY(-1px)}.btn-text{height:38px;border-radius:13px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;font-size:12px}.table-wrap{width:100%;overflow-x:auto}.history-card{padding-top:18px}.history-header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:14px}.history-header h2{margin:0}.history-search{display:flex;gap:10px;align-items:center;flex:1;max-width:760px}.history-search input{height:46px;border-radius:16px}.history-search button{height:46px;border-radius:16px;min-width:110px}.compact-actions{white-space:nowrap}
     @media(max-width:1100px){.row-actions{min-width:170px;flex-wrap:wrap}.btn-text{padding:0 10px}.history-header{display:block}.history-search{max-width:none;margin-top:14px}.actions input{min-width:100%}}
-    @media(max-width:900px){.side{position:static;width:100%;max-height:none;overflow:visible}.main{margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}.history-search{display:block}.history-search button{width:100%;margin-top:8px}.row-actions{min-width:160px}.icon-btn,.btn-text{width:100%}}
+    @media(max-width:900px){.side{position:static;width:100%;max-height:none;overflow:visible}.main{width:100%;margin:0;padding:16px}.grid,.formgrid,.stats{grid-template-columns:1fr}.top{display:block}.actions button{width:100%}.history-search{display:block}.history-search button{width:100%;margin-top:8px}.row-actions{min-width:160px}.icon-btn,.btn-text{width:100%}}
 
     /* ===== FASE C.2 - BAIXA DE PAGAMENTO DIRETO NO SIGE ===== */
     .sige-pay-overlay{position:fixed;inset:0;background:#0f172a99;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -122,14 +122,26 @@
     .faixa-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
     .faixa-card{border:1px solid #e2e8f0;border-radius:16px;padding:13px;background:#f8fafc}
     .faixa-card b{display:block;font-size:16px}.faixa-card small{color:#64748b}
-    .fila-actions{display:flex;gap:7px;flex-wrap:wrap;min-width:260px}
-    .fila-actions button{padding:7px 9px;font-size:11px;border-radius:10px}
+    .fila-list{display:grid;gap:14px;margin-top:18px}
+    .fila-item{border:1px solid #dfe7f2;border-radius:20px;background:#fff;box-shadow:0 8px 24px #0f172a0a;overflow:hidden}
+    .fila-item-main{display:grid;grid-template-columns:125px minmax(180px,1.25fr) minmax(175px,1fr) minmax(155px,.8fr) minmax(125px,.65fr);gap:14px;align-items:center;padding:17px 18px}
+    .fila-item-cell{min-width:0}.fila-item-cell small{display:block;color:#64748b;line-height:1.4;margin-top:4px}.fila-item-label{display:block;color:#64748b;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+    .fila-actions{display:flex;gap:8px;flex-wrap:wrap;min-width:0;padding:13px 18px;background:#f8fafc;border-top:1px solid #e8eef5}
+    .fila-actions button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:8px 11px;font-size:11px;border-radius:11px;white-space:nowrap}
+    .fila-empty{padding:28px;text-align:center;border:1px dashed #cbd5e1;border-radius:18px;background:#f8fafc;color:#64748b}
+    .sige-debt-search{margin:18px 0;padding:18px;border:1px solid #bfdbfe;border-radius:20px;background:linear-gradient(135deg,#eff6ff,#f8fbff)}
+    .sige-debt-search-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.sige-debt-search-head h3{margin:0 0 5px}.sige-debt-controls{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:end;margin-top:13px}.sige-debt-controls label{margin-top:0}
+    .sige-debt-results{margin-top:14px;display:grid;gap:9px;max-height:430px;overflow:auto;padding-right:4px}
+    .sige-debt-client{display:grid;grid-template-columns:34px minmax(190px,1.4fr) minmax(140px,.8fr) minmax(130px,.7fr) minmax(140px,.8fr);gap:12px;align-items:center;background:#fff;border:1px solid #dbe7f5;border-radius:15px;padding:12px 13px}.sige-debt-client input{width:auto}.sige-debt-client b{display:block}.sige-debt-client small{display:block;color:#64748b;margin-top:3px}.sige-debt-summary{margin-top:12px;color:#1e3a8a;font-size:13px;font-weight:800}
+    .promise-due-alert{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin:0 0 20px;padding:17px 19px;border:1px solid #f59e0b;border-left:6px solid #d97706;border-radius:18px;background:linear-gradient(135deg,#fff7ed,#fffbeb);color:#78350f;box-shadow:0 10px 28px #d9770617}.promise-due-alert strong{display:block;font-size:16px;margin-bottom:5px}.promise-due-alert p{margin:0;font-size:13px;line-height:1.45}.promise-due-alert-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.promise-due-alert-actions button{white-space:nowrap}
     .status-fila{font-weight:900;font-size:11px}
     .status-fila.PENDENTE{color:#b45309}.status-fila.CONCLUIDO{color:#166534}
     .status-fila.CONTATADO{color:#1d4ed8}.status-fila.SEM_CONTATO{color:#991b1b}
     .status-fila.ADIADO{color:#6d28d9}.status-fila.EM_ATENDIMENTO{color:#0369a1}
+    @media(max-width:1280px){.fila-item-main{grid-template-columns:110px minmax(170px,1fr) minmax(160px,1fr) minmax(140px,.8fr)}.fila-item-status{grid-column:2/-1}.sige-debt-client{grid-template-columns:34px minmax(170px,1fr) minmax(130px,.8fr) minmax(130px,.8fr)}.sige-debt-contact{grid-column:2/-1}}
     @media(max-width:1200px){.fila-filters{grid-template-columns:1fr 1fr}.fila-kpis{grid-template-columns:repeat(3,1fr)}.faixa-grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:700px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}}
+    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-item-main{grid-template-columns:1fr 1fr}.fila-item-priority,.fila-item-status{grid-column:auto}.fila-actions button{flex:1 1 calc(50% - 8px)}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
+    @media(max-width:480px){.fila-item-main{grid-template-columns:1fr}.fila-item-status{grid-column:auto}.fila-actions button{flex-basis:100%}}
 
 
     /* ===== FASE 7 - PROMESSAS DE PAGAMENTO ===== */
@@ -282,6 +294,16 @@
     </aside>
     <main class="main">
       <div class="top"><div><h1>Financeiro de Parcelas</h1><p class="help">Consulte parcelas e saldos oficiais do SIGE, registre comprovantes e envie pelo Ariana Notificações.</p></div><button class="light" onclick="loadAll()">🔄 Atualizar</button><button id="installAppBtn" class="primary" style="display:none;margin-left:10px" type="button">⬇️ Instalar aplicativo</button></div>
+      <div id="promiseDueAlert" class="promise-due-alert hidden" role="alert" aria-live="polite">
+        <div>
+          <strong id="promiseDueAlertTitle">🔔 Promessas de pagamento para hoje</strong>
+          <p id="promiseDueAlertText">Verificando compromissos do dia...</p>
+        </div>
+        <div class="promise-due-alert-actions">
+          <button class="yellow small" onclick="abrirPromessasDeHoje()">Ver promessas</button>
+          <button class="light small" onclick="carregarAlertaPromessasHoje(true)">Atualizar alerta</button>
+        </div>
+      </div>
       <div id="systemHealth" class="system-health">
         <div class="health-item" id="healthBackend"><span class="health-dot"></span><div>Backend<small>Verificando...</small></div></div>
         <div class="health-item" id="healthMongo"><span class="health-dot"></span><div>MongoDB<small>Verificando...</small></div></div>
@@ -700,6 +722,26 @@
             <button class="blue" onclick="gerarFilaCobranca()">⚙️ Gerar/atualizar fila</button>
           </div>
 
+          <div class="sige-debt-search">
+            <div class="sige-debt-search-head">
+              <div>
+                <h3>🔎 Buscar dívidas vencidas diretamente no SIGE</h3>
+                <p class="help" style="margin:0">Consulte todas as parcelas vencidas, selecione os clientes e inclua-os na Fila do Dia sem criar tarefas duplicadas.</p>
+              </div>
+              <button id="filaSigeAdicionarBtn" class="green" onclick="adicionarClientesSigeNaFila()" disabled>＋ Adicionar selecionados</button>
+            </div>
+            <div class="sige-debt-controls">
+              <div>
+                <label>Cliente, CPF ou documento (opcional)</label>
+                <input id="filaSigeBusca" placeholder="Deixe vazio para buscar todos os clientes com parcelas vencidas">
+              </div>
+              <button class="blue" onclick="buscarVencidosSigeFila()">Buscar no SIGE</button>
+              <button class="light" onclick="limparBuscaVencidosSigeFila()">Limpar</button>
+            </div>
+            <div id="filaSigeResumo" class="sige-debt-summary">Clique em “Buscar no SIGE” para consultar todas as parcelas vencidas.</div>
+            <div id="filaSigeResultados" class="sige-debt-results hidden"></div>
+          </div>
+
           <div class="fila-filters">
             <div>
               <label>Buscar</label>
@@ -769,23 +811,7 @@
             <div class="faixa-card">Nenhuma faixa carregada.</div>
           </div>
 
-          <div class="table-wrap" style="margin-top:18px">
-            <table>
-              <thead>
-                <tr>
-                  <th>Prioridade</th>
-                  <th>Cliente</th>
-                  <th>Parcela</th>
-                  <th>Vencimento</th>
-                  <th>Atraso</th>
-                  <th>Atualizado</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody id="filaBody"><tr><td colspan="8">Gere a fila para começar.</td></tr></tbody>
-            </table>
-          </div>
+          <div id="filaBody" class="fila-list"><div class="fila-empty">Gere a fila para começar.</div></div>
 
           <div class="carne-pagination">
             <div id="filaPaginaInfo" class="muted">Página 1 de 1</div>
@@ -2750,7 +2776,8 @@ async function loadSystemHealth(){
   }
 }
 async function loadAll(){
-  await Promise.allSettled([loadClientes(),loadRecibos(),loadSystemHealth()]);
+  const alerta=typeof carregarAlertaPromessasHoje==='function'?carregarAlertaPromessasHoje(true):Promise.resolve();
+  await Promise.allSettled([loadClientes(),loadRecibos(),loadSystemHealth(),alerta]);
 }
 
 function calcStats(){const today=localDateInputValue();stHoje.textContent=recibos.filter(r=>String(r.dataPagamento||r.createdAt).slice(0,10)===today).length;stTotal.textContent=recibos.length;stWa.textContent=recibos.filter(r=>r.enviadoWhatsapp).length}
@@ -4092,7 +4119,7 @@ function urlPublicaSegura(value){
 
 function statusCoraLabel(status){
   const value=String(status||'UNKNOWN').toUpperCase();
-  const labels={OPEN:'Em aberto',PAID:'Pago',PARTIALLY_PAID:'Pago parcialmente',CANCELLED:'Cancelado',CANCELED:'Cancelado',PROCESSING:'Processando',PENDING_CONFIRMATION:'Aguardando confirmaÃ§Ã£o',OVERDUE:'Vencido',FAILED:'Falhou',UNKNOWN:'Desconhecido'};
+  const labels={OPEN:'Em aberto',PAID:'Pago',PARTIALLY_PAID:'Pago parcialmente',CANCELLED:'Cancelado',CANCELED:'Cancelado',PROCESSING:'Processando',PENDING_CONFIRMATION:'Aguardando confirmação',OVERDUE:'Vencido',FAILED:'Falhou',UNKNOWN:'Desconhecido'};
   return labels[value]||value;
 }
 
@@ -4105,14 +4132,14 @@ function statusCoraClass(status){
 
 async function copiarLinhaDigitavelCora(value){
   const texto=String(value||'').replace(/\D/g,'');
-  if(!texto){toast('Linha digitÃ¡vel indisponÃ­vel.');return}
+  if(!texto){toast('Linha digitável indisponível.');return}
   try{
     await navigator.clipboard.writeText(texto);
-    toast('Linha digitÃ¡vel copiada.');
+    toast('Linha digitável copiada.');
   }catch{
     const area=document.createElement('textarea');
     area.value=texto;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
-    toast('Linha digitÃ¡vel copiada.');
+    toast('Linha digitável copiada.');
   }
 }
 
@@ -4334,6 +4361,7 @@ async function salvarRenegociacao(){
 
 let filaPagina=1;
 let filaPaginas=1;
+let filaSigeClientesCache=[];
 
 function hojeLocalISO(){
   const d=new Date();
@@ -4360,10 +4388,113 @@ function inicializarFilaCobranca(){
   if(data&&!data.value)data.value=hojeLocalISO();
 }
 
+function agruparVencidosSigeFila(rows=[]){
+  const grupos=new Map();
+  for(const item of rows){
+    const nome=String(item.nome||item.cliente||'Cliente').trim()||'Cliente';
+    const cpf=onlyDigits(item.cpf||'');
+    const key=cpf||normalizarBuscaCliente(nome)||String(item.pessoaId||item.codigo||nome);
+    if(!grupos.has(key))grupos.set(key,{
+      key,nome,cpf,telefone:item.telefone||'',cidade:item.cidade||'',uf:item.uf||'',
+      parcelas:0,valorTotal:0,maxDiasAtraso:0,parcelaMaisAntiga:null
+    });
+    const grupo=grupos.get(key);
+    const valor=Number(item.saldo&&item.saldo>0?item.saldo:item.valor||0);
+    const dias=Number(item.diasAtraso||0);
+    grupo.parcelas+=1;
+    grupo.valorTotal+=valor;
+    grupo.maxDiasAtraso=Math.max(grupo.maxDiasAtraso,dias);
+    if(!grupo.telefone&&item.telefone)grupo.telefone=item.telefone;
+    const vencimento=item.dataVencimento?new Date(item.dataVencimento):null;
+    if(vencimento&&!Number.isNaN(vencimento.getTime())&&(!grupo.parcelaMaisAntiga||vencimento<grupo.parcelaMaisAntiga))grupo.parcelaMaisAntiga=vencimento;
+  }
+  return Array.from(grupos.values()).sort((a,b)=>b.maxDiasAtraso-a.maxDiasAtraso||b.valorTotal-a.valorTotal);
+}
+
+function atualizarSelecaoVencidosSigeFila(){
+  const selecionados=document.querySelectorAll('#filaSigeResultados input[data-fila-sige-index]:checked').length;
+  const btn=document.getElementById('filaSigeAdicionarBtn');
+  if(btn){btn.disabled=selecionados===0;btn.textContent=selecionados?`＋ Adicionar ${selecionados} selecionado(s)`:'＋ Adicionar selecionados';}
+}
+
+function alternarTodosVencidosSigeFila(checked){
+  const clientes=Array.from(document.querySelectorAll('#filaSigeResultados input[data-fila-sige-index]'));
+  clientes.forEach((input,index)=>{input.checked=checked&&index<50;});
+  if(checked&&clientes.length>50)toast('Os primeiros 50 clientes foram selecionados. Depois da inclusão, selecione o próximo grupo.');
+  atualizarSelecaoVencidosSigeFila();
+}
+
+async function buscarVencidosSigeFila(){
+  const box=document.getElementById('filaSigeResultados');
+  const resumo=document.getElementById('filaSigeResumo');
+  const q=String(document.getElementById('filaSigeBusca')?.value||'').trim();
+  box.classList.remove('hidden');
+  box.innerHTML='<div class="fila-empty">Consultando parcelas vencidas no SIGE...</div>';
+  resumo.textContent='Aguarde enquanto o SIGE é consultado.';
+  try{
+    const data=await apiJson('/admin/sige/inadimplentes?q='+encodeURIComponent(q)+'&limit=2000&maxRecords=20000');
+    filaSigeClientesCache=agruparVencidosSigeFila(Array.isArray(data.inadimplentes)?data.inadimplentes:[]);
+    const totalValor=filaSigeClientesCache.reduce((sum,row)=>sum+Number(row.valorTotal||0),0);
+    resumo.textContent=`${filaSigeClientesCache.length} cliente(s) • ${Number(data.total||0)} parcela(s) vencida(s) • ${money(totalValor)}`;
+    box.innerHTML=filaSigeClientesCache.length?`
+      <label class="sige-debt-client" style="background:#eef6ff">
+        <input type="checkbox" onchange="alternarTodosVencidosSigeFila(this.checked)">
+        <div><b>Selecionar todos os clientes exibidos</b><small>Por segurança, cada inclusão processa no máximo 50 clientes.</small></div>
+      </label>
+      ${filaSigeClientesCache.map((cliente,index)=>`<label class="sige-debt-client">
+        <input type="checkbox" data-fila-sige-index="${index}" onchange="atualizarSelecaoVencidosSigeFila()">
+        <div><b>${esc(cliente.nome)}</b><small>${cliente.cpf?'CPF '+esc(cliente.cpf):'CPF não localizado'}</small></div>
+        <div><b>${cliente.parcelas} parcela(s)</b><small>Mais antiga: ${cliente.parcelaMaisAntiga?cliente.parcelaMaisAntiga.toLocaleDateString('pt-BR'):'—'}</small></div>
+        <div><b>${cliente.maxDiasAtraso} dia(s)</b><small>Maior atraso</small></div>
+        <div class="sige-debt-contact"><b>${money(cliente.valorTotal)}</b><small>${cliente.telefone?'WhatsApp '+esc(shortPhone(cliente.telefone)):'Sem telefone cadastrado'}</small></div>
+      </label>`).join('')}`:'<div class="fila-empty">Nenhuma parcela vencida foi encontrada no SIGE.</div>';
+    atualizarSelecaoVencidosSigeFila();
+  }catch(e){
+    filaSigeClientesCache=[];
+    resumo.textContent='Não foi possível concluir a consulta no SIGE.';
+    box.innerHTML='<div class="fila-empty">Erro: '+esc(e.message||e)+'</div>';
+    atualizarSelecaoVencidosSigeFila();
+  }
+}
+
+function limparBuscaVencidosSigeFila(){
+  const busca=document.getElementById('filaSigeBusca');if(busca)busca.value='';
+  filaSigeClientesCache=[];
+  const box=document.getElementById('filaSigeResultados');box.innerHTML='';box.classList.add('hidden');
+  document.getElementById('filaSigeResumo').textContent='Clique em “Buscar no SIGE” para consultar todas as parcelas vencidas.';
+  atualizarSelecaoVencidosSigeFila();
+}
+
+async function adicionarClientesSigeNaFila(){
+  const indices=Array.from(document.querySelectorAll('#filaSigeResultados input[data-fila-sige-index]:checked')).map(input=>Number(input.dataset.filaSigeIndex));
+  if(!indices.length){toast('Selecione ao menos um cliente do SIGE.');return;}
+  if(indices.length>50){toast('Selecione no máximo 50 clientes por inclusão.');return;}
+  const clientes=indices.map(index=>filaSigeClientesCache[index]).filter(Boolean).map(cliente=>({
+    nome:cliente.nome,cpf:cliente.cpf,telefone:cliente.telefone
+  }));
+  const btn=document.getElementById('filaSigeAdicionarBtn');
+  const texto=btn.textContent;btn.disabled=true;btn.textContent='⏳ Incluindo na fila...';
+  try{
+    const data=await apiJson('/admin/financeiro/fila-cobranca/adicionar-sige',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        dataReferencia:document.getElementById('filaData')?.value||hojeLocalISO(),clientes
+      })
+    });
+    toast(`${Number(data.clientesAdicionados||0)} cliente(s) incluído(s) • ${Number(data.tarefasCriadas||0)} nova(s) tarefa(s).`);
+    document.querySelectorAll('#filaSigeResultados input[type="checkbox"]').forEach(input=>{input.checked=false;});
+    await carregarFilaCobranca(1);
+  }catch(e){
+    toast('Erro ao incluir clientes do SIGE: '+(e.message||e));
+  }finally{
+    btn.textContent=texto;
+    atualizarSelecaoVencidosSigeFila();
+  }
+}
+
 async function gerarFilaCobranca(){
   inicializarFilaCobranca();
   const tbody=document.getElementById('filaBody');
-  if(tbody)tbody.innerHTML='<tr><td colspan="8">Analisando carnês e gerando tarefas...</td></tr>';
+  if(tbody)tbody.innerHTML='<div class="fila-empty">Analisando carnês e gerando tarefas...</div>';
   try{
     const data=await apiJson('/admin/financeiro/fila-cobranca/gerar',{
       method:'POST',
@@ -4376,7 +4507,7 @@ async function gerarFilaCobranca(){
     toast(`Fila atualizada: ${Number(data.criados||0)} nova(s), ${Number(data.atualizados||0)} atualizada(s).`);
     await carregarFilaCobranca(1);
   }catch(e){
-    if(tbody)tbody.innerHTML='<tr><td colspan="8">Erro: '+esc(e.message||e)+'</td></tr>';
+    if(tbody)tbody.innerHTML='<div class="fila-empty">Erro: '+esc(e.message||e)+'</div>';
   }
 }
 
@@ -4385,7 +4516,7 @@ async function carregarFilaCobranca(page=1){
   filaPagina=Math.max(1,Number(page||1));
   const tbody=document.getElementById('filaBody');
   if(!tbody)return;
-  tbody.innerHTML='<tr><td colspan="8">Carregando fila...</td></tr>';
+  tbody.innerHTML='<div class="fila-empty">Carregando fila...</div>';
 
   const params=new URLSearchParams({
     dataReferencia:document.getElementById('filaData')?.value||hojeLocalISO(),
@@ -4425,34 +4556,31 @@ async function carregarFilaCobranca(page=1){
     </div>`).join(''):'<div class="faixa-card">Nenhuma faixa encontrada.</div>';
 
     if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="8">Nenhuma tarefa encontrada para estes filtros.</td></tr>';
+      tbody.innerHTML='<div class="fila-empty">Nenhuma tarefa encontrada para estes filtros.</div>';
       return;
     }
 
-    tbody.innerHTML=rows.map(item=>`<tr>
-      <td><span class="priority-badge ${esc(item.prioridade)}">${esc(item.prioridade)}</span><br><small>Score ${Number(item.prioridadeScore||0)}</small></td>
-      <td><span class="client-name">${esc(item.clienteNome||'Cliente')}</span>
-        <span class="client-phone">${item.telefone?esc(item.telefone):'<span class="inad-no-phone">Sem contato</span>'}</span>
-        <small>${esc(item.carneCodigo||'')}</small></td>
-      <td><b>${esc(item.parcelaLabel||item.documento||'Parcela')}</b><br><small>${esc(item.documento||'')}</small>
-        ${item.primeiraParcelaAtrasada?'<br><span class="pill pending">1ª parcela atrasada</span>':''}</td>
-      <td>${item.vencimento?new Date(item.vencimento).toLocaleDateString('pt-BR'):'—'}<br><small>${esc(labelFaixaFila(item.faixa))}</small></td>
-      <td><span class="inad-days">${Number(item.diasAtraso||0)} dia(s)</span><br><small>${Number(item.totalParcelasAtrasadasCliente||0)} atrasada(s) no cliente</small></td>
-      <td class="money-cell">${money(item.valorAtualizado||0)}<br><small>Multa ${money(item.multa||0)} • Juros ${money(item.juros||0)}</small></td>
-      <td><span class="status-fila ${esc(item.status)}">${esc(item.status)}</span><br><small>${esc(item.responsavel||'')}</small></td>
-      <td><div class="fila-actions">
-        <button class="light" onclick="abrirCarneGestao('${esc(item.carneId)}')">Abrir</button>
-        ${item.telefone?`<button class="green" onclick="enviarCarneGestaoWhatsapp('${esc(item.carneId)}')">WhatsApp</button>`:''}
-        <button class="blue" onclick="abrirTratativa('${esc(item.id)}','${esc(item.carneId)}','${esc(item.clienteNome||'')}','${esc(item.parcelaLabel||'')}','${esc(item.documento||'')}')">Tratativa</button>
-        <button class="blue" onclick="atualizarItemFila('${esc(item.id)}','CONTATADO')">Contatado</button>
-        <button class="yellow" onclick="abrirPromessaPagamento('${esc(item.id)}','${esc(item.carneId)}','${esc(item.clienteNome||'')}','${esc(item.parcelaLabel||'')}','${esc(item.documento||'')}',${Number(item.valorAtualizado||0)})">Promessa</button>
-        <button class="yellow" onclick="adiarItemFila('${esc(item.id)}')">Adiar</button>
-        <button class="red" onclick="atualizarItemFila('${esc(item.id)}','SEM_CONTATO')">Sem contato</button>
-        <button class="green" onclick="atualizarItemFila('${esc(item.id)}','CONCLUIDO')">Concluir</button>
-      </div></td>
-    </tr>`).join('');
+    tbody.innerHTML=rows.map(item=>`<article class="fila-item">
+      <div class="fila-item-main">
+        <div class="fila-item-cell fila-item-priority"><span class="fila-item-label">Prioridade</span><span class="priority-badge ${esc(item.prioridade)}">${esc(item.prioridade)}</span><small>Score ${Number(item.prioridadeScore||0)}</small></div>
+        <div class="fila-item-cell"><span class="fila-item-label">Cliente</span><span class="client-name">${esc(item.clienteNome||'Cliente')}</span><span class="client-phone">${item.telefone?esc(shortPhone(item.telefone)):'<span class="inad-no-phone">Sem contato</span>'}</span><small>${esc(item.carneCodigo||'')}</small></div>
+        <div class="fila-item-cell"><span class="fila-item-label">Parcela e vencimento</span><b>${esc(item.parcelaLabel||item.documento||'Parcela')}</b><small>${esc(item.documento||'')}</small><small>${item.vencimento?new Date(item.vencimento).toLocaleDateString('pt-BR'):'—'} • ${esc(labelFaixaFila(item.faixa))}</small>${item.primeiraParcelaAtrasada?'<span class="pill pending" style="margin-top:6px">1ª parcela atrasada</span>':''}</div>
+        <div class="fila-item-cell"><span class="fila-item-label">Dívida atualizada</span><span class="inad-days">${Number(item.diasAtraso||0)} dia(s)</span><small>${Number(item.totalParcelasAtrasadasCliente||0)} parcela(s) atrasada(s)</small><b class="money-cell" style="display:block;margin-top:5px">${money(item.valorAtualizado||0)}</b><small>Multa ${money(item.multa||0)} • Juros ${money(item.juros||0)}</small></div>
+        <div class="fila-item-cell fila-item-status"><span class="fila-item-label">Situação</span><span class="status-fila ${esc(item.status)}">${esc(String(item.status||'').replaceAll('_',' '))}</span><small>${esc(item.responsavel||'Sem responsável')}</small></div>
+      </div>
+      <div class="fila-actions">
+        <button class="light" onclick="abrirCarneGestao('${esc(item.carneId)}')">📂 Abrir carnê</button>
+        ${item.telefone?`<button class="green" onclick="enviarCarneGestaoWhatsapp('${esc(item.carneId)}')">📲 WhatsApp</button>`:''}
+        <button class="blue" onclick="abrirTratativa('${esc(item.id)}','${esc(item.carneId)}','${esc(item.clienteNome||'')}','${esc(item.parcelaLabel||'')}','${esc(item.documento||'')}')">📝 Tratativa</button>
+        <button class="blue" onclick="atualizarItemFila('${esc(item.id)}','CONTATADO')">✓ Contatado</button>
+        <button class="yellow" onclick="abrirPromessaPagamento('${esc(item.id)}','${esc(item.carneId)}','${esc(item.clienteNome||'')}','${esc(item.parcelaLabel||'')}','${esc(item.documento||'')}',${Number(item.valorAtualizado||0)})">🤝 Promessa</button>
+        <button class="yellow" onclick="adiarItemFila('${esc(item.id)}')">🕒 Adiar</button>
+        <button class="red" onclick="atualizarItemFila('${esc(item.id)}','SEM_CONTATO')">☎ Sem contato</button>
+        <button class="green" onclick="atualizarItemFila('${esc(item.id)}','CONCLUIDO')">✅ Concluir</button>
+      </div>
+    </article>`).join('');
   }catch(e){
-    tbody.innerHTML='<tr><td colspan="8">Erro: '+esc(e.message||e)+'</td></tr>';
+    tbody.innerHTML='<div class="fila-empty">Erro: '+esc(e.message||e)+'</div>';
   }
 }
 
@@ -4497,6 +4625,8 @@ async function adiarItemFila(id){
 document.addEventListener('DOMContentLoaded',()=>{
   const busca=document.getElementById('filaBusca');
   if(busca)busca.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();carregarFilaCobranca(1);}});
+  const buscaSige=document.getElementById('filaSigeBusca');
+  if(buscaSige)buscaSige.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();buscarVencidosSigeFila();}});
 });
 
 </script>
@@ -4505,6 +4635,46 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 let promessaPagina=1;
 let promessaPaginas=1;
+
+async function carregarAlertaPromessasHoje(enviarInterno=false){
+  const alertBox=document.getElementById('promiseDueAlert');
+  const alertText=document.getElementById('promiseDueAlertText');
+  if(!alertBox||!alertText||!token())return;
+  try{
+    const data=await apiJson('/admin/financeiro/promessas/alertas-hoje?dataReferencia='+encodeURIComponent(hojeLocalISO()));
+    const rows=Array.isArray(data.promessas)?data.promessas:[];
+    if(!rows.length){alertBox.classList.add('hidden');return;}
+
+    const semTelefone=rows.filter(row=>!row.telefone).length;
+    const notificacao=data.notificacaoInternaConfigurada
+      ? (Number(data.pendentesNotificacao||0)>0?'O aviso interno será enviado pelo Ariana Notificações.':'O WhatsApp interno já foi avisado hoje.')
+      : 'O alerta visual está ativo; falta configurar o número administrativo do WhatsApp.';
+    alertText.textContent=`${Number(data.total||0)} promessa(s), total de ${money(data.valorTotal||0)}.${semTelefone?` ${semTelefone} cliente(s) sem telefone cadastrado.`:''} ${notificacao}`;
+    alertBox.classList.remove('hidden');
+
+    if(enviarInterno&&data.notificacaoInternaConfigurada&&Number(data.pendentesNotificacao||0)>0){
+      try{
+        const envio=await apiJson('/admin/financeiro/promessas/alertas-hoje/notificar',{
+          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataReferencia:data.dataReferencia})
+        });
+        if(envio.enviado)alertText.textContent+=` Aviso enviado para ${Number(envio.sucessos||0)} destino(s) interno(s).`;
+      }catch(e){
+        alertText.textContent+=` Falha ao enviar o WhatsApp interno: ${e.message||e}`;
+      }
+    }
+  }catch(e){
+    console.error('Erro ao carregar alertas de promessas:',e);
+  }
+}
+
+function abrirPromessasDeHoje(){
+  const hoje=hojeLocalISO();
+  const inicio=document.getElementById('promessaDataInicio');if(inicio)inicio.value=hoje;
+  const fim=document.getElementById('promessaDataFim');if(fim)fim.value=hoje;
+  const status=document.getElementById('promessaStatus');if(status)status.value='PENDENTE';
+  const btn=document.querySelector('.nav button[onclick*="promessasPagamento"]');
+  if(btn)btn.click();
+}
 
 function abrirPromessaPagamento(filaItemId,carneId,cliente,parcela,documento,valor){
   document.getElementById('promiseFilaItemId').value=filaItemId||'';
@@ -4549,6 +4719,7 @@ async function salvarPromessaPagamento(){
     box.innerHTML='<span class="audit-ok">'+esc(data.message||'Promessa registrada.')+'</span>';
     toast(data.message||'Promessa registrada.');
     await carregarFilaCobranca(filaPagina);
+    await carregarAlertaPromessasHoje(true);
     setTimeout(fecharPromessaPagamento,900);
   }catch(e){
     box.innerHTML='Erro: '+esc(e.message||e);
@@ -4626,6 +4797,7 @@ async function atualizarStatusPromessa(id,status){
     });
     toast(data.message||'Promessa atualizada.');
     await carregarPromessasPagamento(promessaPagina);
+    await carregarAlertaPromessasHoje(false);
   }catch(e){
     toast('Erro: '+(e.message||e));
   }
@@ -4644,6 +4816,10 @@ async function processarPromessasVencidas(){
     toast('Erro: '+(e.message||e));
   }
 }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(token())carregarAlertaPromessasHoje(true);
+});
 
 </script>
 

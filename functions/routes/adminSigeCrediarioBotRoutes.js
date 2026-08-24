@@ -1,6 +1,6 @@
 // ============================================================
-// ROTAS ADMIN SIGE / CREDIÃRIO / BOTS - ARIANA MÃ“VEIS
-// ExtraÃ­do de legacyRoutes.js sem alterar endpoints, regras ou respostas.
+// ROTAS ADMIN SIGE / CREDIÁRIO / BOTS - ARIANA MÓVEIS
+// Extraído de legacyRoutes.js sem alterar endpoints, regras ou respostas.
 // ============================================================
 
 export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
@@ -193,8 +193,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
 
   // ============================================================
-  // FASE 1 - GESTÃƒO ÃšNICA DO CARNÃŠ DIGITAL SIGE
-  // Um Ãºnico registro permanente por cliente. O SIGE continua
+  // FASE 1 - GESTÃO ÚNICA DO CARNÊ DIGITAL SIGE
+  // Um único registro permanente por cliente. O SIGE continua
   // sendo a fonte oficial; o MongoDB guarda o snapshot e auditoria.
   // ============================================================
   const financeiroCarneDigitalSchema = new mongoose.Schema({
@@ -460,6 +460,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     observacao: { type: String, default: '' },
     lembreteEnviado: { type: Boolean, default: false },
     lembreteEnviadoEm: { type: Date, default: null },
+    alertaInternoEnviado: { type: Boolean, default: false, index: true },
+    alertaInternoEnviadoEm: { type: Date, default: null },
+    alertaInternoTentadoEm: { type: Date, default: null },
+    alertaInternoErro: { type: String, default: '' },
     cumpridaEm: { type: Date, default: null },
     quebradaEm: { type: Date, default: null },
     canceladaEm: { type: Date, default: null },
@@ -588,7 +592,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   }
 
   // Compatibilidade interna: algumas rotinas financeiras usam normalizeSearch.
-  // MantÃ©m a mesma normalizaÃ§Ã£o adotada para clientes e carnÃªs.
+  // Mantém a mesma normalização adotada para clientes e carnês.
   function normalizeSearch(value = '') {
     return normalizeCarneIdentity(value);
   }
@@ -674,18 +678,18 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ? auth.permissions
           : (Array.isArray(auth.permissoes) ? auth.permissoes : null);
 
-        // Tokens administrativos antigos continuam compatÃ­veis.
+        // Tokens administrativos antigos continuam compatíveis.
         if (!explicitPermissions || !explicitPermissions.length) return next();
         if (['admin', 'superadmin', 'owner'].includes(role)) return next();
         if (explicitPermissions.includes('*') || explicitPermissions.includes(permission)) return next();
 
         return res.status(403).json({
           ok: false,
-          error: 'UsuÃ¡rio sem permissÃ£o para esta operaÃ§Ã£o financeira.',
+          error: 'Usuário sem permissão para esta operação financeira.',
           permission
         });
       } catch (error) {
-        return res.status(403).json({ ok: false, error: 'NÃ£o foi possÃ­vel validar a permissÃ£o financeira.' });
+        return res.status(403).json({ ok: false, error: 'Não foi possível validar a permissão financeira.' });
       }
     };
   }
@@ -698,7 +702,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       interestMonthlyPercent: Number.isFinite(interestMonthlyPercent) && interestMonthlyPercent >= 0
         ? interestMonthlyPercent
         : 1,
-      formula: 'juros simples proporcionais aos dias: saldo Ã— taxa mensal Ã— dias Ã· 30',
+      formula: 'juros simples proporcionais aos dias: saldo × taxa mensal × dias ÷ 30',
       fonteSaldoOriginal: 'SIGE',
       calculadoNoBackend: true
     };
@@ -767,6 +771,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       .replace(/dÃºvidas/gi, 'dúvidas')
       .replace(/regularizaÃ§Ã£o/gi, 'regularização')
       .replace(/lanÃ§ado/gi, 'lançado')
+      .replace(/ConfirmaÃ§Ã£o/gi, 'Confirmação')
+      .replace(/ReferÃªncia/gi, 'Referência')
+      .replace(/nÃ£o/gi, 'não')
+      .replace(/jÃ¡/gi, 'já')
       .replace(/Parcelas/gi, 'Parcelas')
       .replace(/â€¢/g, '-')
       .replace(/â€”|â€“/g, '-')
@@ -1147,10 +1155,76 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     };
   }
 
+  async function upsertCarneNaFilaCobranca(carne, referencia = new Date(), { somenteVencidas = false } = {}) {
+    const ref = dayOnly(referencia);
+    if (!ref || !carne?._id) {
+      const error = new Error('Carnê ou data de referência inválidos.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const parcelas = Array.isArray(carne.parcelas) ? carne.parcelas : [];
+    const atrasadasCliente = parcelas.filter((parcela) => {
+      const vencimento = dayOnly(parcela.dataVencimento);
+      return parcela.status !== 'paga' && parcela.quitado !== true && vencimento && vencimento < ref;
+    }).length;
+
+    let criados = 0;
+    let atualizados = 0;
+    let preservados = 0;
+    let totalItens = 0;
+
+    for (const parcela of parcelas) {
+      const item = buildFilaItemFromParcela(carne, parcela, ref, atrasadasCliente);
+      if (!item) continue;
+      if (somenteVencidas && Number(item.diasAtraso || 0) <= 0) continue;
+      totalItens += 1;
+
+      const keyBase = [
+        item.dataReferencia,
+        String(item.carneId),
+        item.parcelaCodigo,
+        item.vencimento ? new Date(item.vencimento).toISOString().slice(0, 10) : ''
+      ].join('|');
+      const uniqueKey = crypto.createHash('sha1').update(keyBase).digest('hex');
+      const existing = await FinanceiroFilaCobranca.findOne({ uniqueKey });
+
+      if (!existing) {
+        await FinanceiroFilaCobranca.create({
+          ...item,
+          uniqueKey,
+          status: 'PENDENTE',
+          responsavel: '',
+          ultimaAcao: '',
+          observacao: ''
+        });
+        criados += 1;
+        continue;
+      }
+
+      const statusPreservado = ['CONCLUIDO', 'CONTATADO', 'ADIADO', 'SEM_CONTATO'].includes(existing.status);
+      existing.set({
+        ...item,
+        uniqueKey,
+        status: statusPreservado ? existing.status : 'PENDENTE',
+        responsavel: existing.responsavel || '',
+        ultimaAcao: existing.ultimaAcao || '',
+        ultimaAcaoEm: existing.ultimaAcaoEm || null,
+        proximaAcaoEm: existing.proximaAcaoEm || null,
+        observacao: existing.observacao || ''
+      });
+      await existing.save();
+      if (statusPreservado) preservados += 1;
+      else atualizados += 1;
+    }
+
+    return { totalItens, criados, atualizados, preservados };
+  }
+
   async function gerarFilaCobrancaDia({ req = {}, dataReferencia = new Date(), limiteCarnes = 1000 } = {}) {
     const ref = dayOnly(dataReferencia);
     if (!ref) {
-      const error = new Error('Data de referÃªncia invÃ¡lida.');
+      const error = new Error('Data de referência inválida.');
       error.statusCode = 400;
       throw error;
     }
@@ -1165,54 +1239,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     let totalItens = 0;
 
     for (const carne of carnes) {
-      const parcelas = Array.isArray(carne.parcelas) ? carne.parcelas : [];
-      const atrasadasCliente = parcelas.filter((p) => {
-        const venc = dayOnly(p.dataVencimento);
-        return p.status !== 'paga' && venc && venc < ref;
-      }).length;
-
-      for (const parcela of parcelas) {
-        const item = buildFilaItemFromParcela(carne, parcela, ref, atrasadasCliente);
-        if (!item) continue;
-        totalItens += 1;
-
-        const keyBase = [
-          item.dataReferencia,
-          String(item.carneId),
-          item.parcelaCodigo,
-          item.vencimento ? new Date(item.vencimento).toISOString().slice(0, 10) : ''
-        ].join('|');
-        const uniqueKey = crypto.createHash('sha1').update(keyBase).digest('hex');
-        const existing = await FinanceiroFilaCobranca.findOne({ uniqueKey });
-
-        if (!existing) {
-          await FinanceiroFilaCobranca.create({
-            ...item,
-            uniqueKey,
-            status: 'PENDENTE',
-            responsavel: '',
-            ultimaAcao: '',
-            observacao: ''
-          });
-          criados += 1;
-          continue;
-        }
-
-        const statusPreservado = ['CONCLUIDO', 'CONTATADO', 'ADIADO', 'SEM_CONTATO'].includes(existing.status);
-        existing.set({
-          ...item,
-          uniqueKey,
-          status: statusPreservado ? existing.status : 'PENDENTE',
-          responsavel: existing.responsavel || '',
-          ultimaAcao: existing.ultimaAcao || '',
-          ultimaAcaoEm: existing.ultimaAcaoEm || null,
-          proximaAcaoEm: existing.proximaAcaoEm || null,
-          observacao: existing.observacao || ''
-        });
-        await existing.save();
-        if (statusPreservado) preservados += 1;
-        else atualizados += 1;
-      }
+      const resultado = await upsertCarneNaFilaCobranca(carne, ref);
+      totalItens += resultado.totalItens;
+      criados += resultado.criados;
+      atualizados += resultado.atualizados;
+      preservados += resultado.preservados;
     }
 
     await registrarAuditoriaFinanceira({
@@ -1258,6 +1289,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       observacao: row.observacao || '',
       lembreteEnviado: row.lembreteEnviado === true,
       lembreteEnviadoEm: row.lembreteEnviadoEm || null,
+      alertaInternoEnviado: row.alertaInternoEnviado === true,
+      alertaInternoEnviadoEm: row.alertaInternoEnviadoEm || null,
+      alertaInternoTentadoEm: row.alertaInternoTentadoEm || null,
+      alertaInternoErro: row.alertaInternoErro || '',
       cumpridaEm: row.cumpridaEm || null,
       quebradaEm: row.quebradaEm || null,
       canceladaEm: row.canceladaEm || null,
@@ -1270,19 +1305,160 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   function buildPromessaWhatsappMessage(promessa = {}) {
     const data = promessa.dataPrometida ? formatDateBR(promessa.dataPrometida) : 'data combinada';
     return [
-      'ðŸ¤ ConfirmaÃ§Ã£o de promessa de pagamento',
+      '🤝 Confirmação de promessa de pagamento',
       '',
-      `OlÃ¡, ${promessa.clienteNome || 'cliente'}.`,
+      `Olá, ${promessa.clienteNome || 'cliente'}.`,
       '',
       `Registramos sua promessa de pagamento para ${data}.`,
-      `ðŸ’° Valor combinado: ${formatMoneyBRL(promessa.valorPrometido || 0)}`,
-      `ðŸ’³ Forma de pagamento: ${promessa.formaPagamento || 'nÃ£o informada'}`,
-      promessa.parcelaLabel ? `ðŸ§¾ Parcela: ${promessa.parcelaLabel}` : '',
-      promessa.documento ? `ðŸ“„ ReferÃªncia: ${promessa.documento}` : '',
+      `💰 Valor combinado: ${formatMoneyBRL(promessa.valorPrometido || 0)}`,
+      `💳 Forma de pagamento: ${promessa.formaPagamento || 'não informada'}`,
+      promessa.parcelaLabel ? `🧾 Parcela: ${promessa.parcelaLabel}` : '',
+      promessa.documento ? `📄 Referência: ${promessa.documento}` : '',
       '',
-      'Caso jÃ¡ tenha realizado o pagamento, envie o comprovante para nosso financeiro.',
-      'Ariana MÃ³veis'
+      'Caso já tenha realizado o pagamento, envie o comprovante para nosso financeiro.',
+      'Ariana Móveis'
     ].filter(Boolean).join('\n');
+  }
+
+  function getPromessaAlertDateRange(dataReferencia = new Date()) {
+    const config = getFinanceiroReguaWhatsappConfig();
+    const referencia = parseFinanceiroDate(dataReferencia) || new Date();
+    const clock = getFinanceiroAutomationClock(referencia, config.timezone);
+    const inicio = dayOnly(clock.dateKey);
+    const fim = new Date(inicio.getTime());
+    fim.setHours(23, 59, 59, 999);
+    return { inicio, fim, clock };
+  }
+
+  function getAdminWhatsappNumbers(settings = {}) {
+    const raw = String(
+      process.env.FINANCEIRO_PROMESSA_ALERTA_NUMBERS ||
+      process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS ||
+      process.env.EVOLUTION_ADMIN_NUMBER ||
+      settings.adminNotifyNumbers ||
+      ''
+    );
+    return Array.from(new Set(
+      raw.split(/[\s,;|]+/)
+        .map((number) => normalizePhone(number, settings.defaultCountryCode || '55'))
+        .filter(Boolean)
+    ));
+  }
+
+  async function getPromessasHoje(dataReferencia = new Date()) {
+    const { inicio, fim, clock } = getPromessaAlertDateRange(dataReferencia);
+    const rows = await FinanceiroPromessaPagamento.find({
+      status: 'PENDENTE',
+      dataPrometida: { $gte: inicio, $lte: fim }
+    }).sort({ valorPrometido: -1, clienteNome: 1 });
+    return { rows, inicio, fim, clock };
+  }
+
+  function buildPromessasHojeInternalMessage(rows = [], clock = {}) {
+    const total = rows.reduce((sum, row) => sum + Number(row.valorPrometido || 0), 0);
+    const lines = [
+      '🔔 Promessas de pagamento para hoje',
+      '',
+      `Data: ${formatDateBR(clock.dateKey || new Date())}`,
+      `Clientes: ${rows.length}`,
+      `Valor combinado: ${formatMoneyBRL(total)}`,
+      ''
+    ];
+
+    rows.slice(0, 30).forEach((row, index) => {
+      const referencia = row.parcelaLabel || row.documento || row.carneCodigo || 'sem referência';
+      const telefone = normalizePhone(row.telefone || '', '55');
+      lines.push(
+        `${index + 1}. ${row.clienteNome || 'Cliente'} — ${formatMoneyBRL(row.valorPrometido || 0)}`,
+        `   ${referencia}${telefone ? ` • WhatsApp ${telefone}` : ' • sem telefone cadastrado'}`
+      );
+    });
+
+    if (rows.length > 30) lines.push('', `Mais ${rows.length - 30} promessa(s) no painel.`);
+    lines.push('', 'Abra Financeiro > Fila do Dia para realizar as cobranças.', 'Ariana Móveis');
+    return lines.join('\n');
+  }
+
+  async function notificarPromessasHojeInternamente({ req = {}, dataReferencia = new Date(), force = false } = {}) {
+    const { rows, clock } = await getPromessasHoje(dataReferencia);
+    const pendentesEnvio = force ? rows : rows.filter((row) => row.alertaInternoEnviado !== true);
+    const settings = await getWhatsappSettings();
+    const destinatarios = getAdminWhatsappNumbers(settings);
+
+    if (!rows.length || !pendentesEnvio.length) {
+      return {
+        ok: true,
+        enviado: false,
+        motivo: rows.length ? 'ja_notificado' : 'sem_promessas_hoje',
+        totalPromessas: rows.length,
+        totalPendentesNotificacao: pendentesEnvio.length,
+        destinatariosConfigurados: destinatarios.length
+      };
+    }
+
+    if (!destinatarios.length) {
+      return {
+        ok: true,
+        enviado: false,
+        motivo: 'sem_destinatario_interno',
+        totalPromessas: rows.length,
+        totalPendentesNotificacao: pendentesEnvio.length,
+        destinatariosConfigurados: 0
+      };
+    }
+
+    const mensagem = buildPromessasHojeInternalMessage(pendentesEnvio, clock);
+    const resultados = [];
+    for (const number of destinatarios) {
+      try {
+        const whatsapp = await waSendTextMessage({ number, text: mensagem, settings });
+        resultados.push({ ok: true, number: number.slice(-4), whatsapp: redact(whatsapp || null) });
+      } catch (error) {
+        resultados.push({ ok: false, number: number.slice(-4), error: error.message || String(error) });
+      }
+    }
+
+    const sucessos = resultados.filter((item) => item.ok).length;
+    const erro = resultados.filter((item) => !item.ok).map((item) => item.error).join(' | ').slice(0, 1000);
+    const ids = pendentesEnvio.map((row) => row._id);
+    await FinanceiroPromessaPagamento.updateMany(
+      { _id: { $in: ids } },
+      {
+        $set: {
+          alertaInternoTentadoEm: new Date(),
+          alertaInternoEnviado: sucessos > 0,
+          alertaInternoEnviadoEm: sucessos > 0 ? new Date() : null,
+          alertaInternoErro: erro
+        }
+      }
+    );
+
+    await registrarAuditoriaFinanceira({
+      req,
+      acao: 'PROMESSAS_HOJE_ALERTA_INTERNO',
+      entidade: 'FinanceiroPromessaPagamento',
+      codigo: clock.dateKey,
+      depois: {
+        totalPromessas: rows.length,
+        totalPendentesNotificacao: pendentesEnvio.length,
+        destinatariosConfigurados: destinatarios.length,
+        sucessos,
+        falhas: resultados.length - sucessos
+      },
+      sucesso: sucessos > 0,
+      erro
+    });
+
+    return {
+      ok: sucessos > 0,
+      enviado: sucessos > 0,
+      totalPromessas: rows.length,
+      totalPendentesNotificacao: pendentesEnvio.length,
+      destinatariosConfigurados: destinatarios.length,
+      sucessos,
+      falhas: resultados.length - sucessos,
+      error: sucessos > 0 ? '' : (erro || 'Não foi possível enviar o alerta interno.')
+    };
   }
 
   async function atualizarPromessasVencidas(req = {}) {
@@ -1474,18 +1650,18 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     if (Number(maxDiasAtraso || 0) >= 31) add(18, 'ATRASO_31', 'Atraso superior a 30 dias', maxDiasAtraso);
     if (Number(maxDiasAtraso || 0) >= 61) add(20, 'ATRASO_61', 'Atraso superior a 60 dias', maxDiasAtraso);
     if (Number(parcelasAtrasadas || 0) >= 2) add(12, 'MULTIPLAS_ATRASADAS', 'Duas ou mais parcelas atrasadas', parcelasAtrasadas);
-    if (Number(parcelasAtrasadas || 0) >= 3) add(10, 'TRES_ATRASADAS', 'TrÃªs ou mais parcelas atrasadas', parcelasAtrasadas);
+    if (Number(parcelasAtrasadas || 0) >= 3) add(10, 'TRES_ATRASADAS', 'Três ou mais parcelas atrasadas', parcelasAtrasadas);
     if (primeiraParcelaAtrasada) add(25, 'PRIMEIRA_ATRASADA', 'Primeira parcela em atraso', true);
     if (Number(promessasQuebradas || 0) >= 1) add(20, 'PROMESSA_QUEBRADA', 'Possui promessa de pagamento quebrada', promessasQuebradas);
-    if (Number(promessasQuebradas || 0) >= 2) add(15, 'REINCIDENCIA_PROMESSA', 'ReincidÃªncia em promessa quebrada', promessasQuebradas);
-    if (Number(tratativasSemRetorno || 0) >= 2) add(10, 'SEM_RETORNO', 'MÃºltiplas tratativas sem retorno', tratativasSemRetorno);
-    if (Number(renegociacoesSolicitadas || 0) >= 1) add(6, 'RENEGOCIACAO', 'Solicitou renegociaÃ§Ã£o', renegociacoesSolicitadas);
-    if (Number(exposicaoAtual || 0) >= 3000) add(8, 'EXPOSICAO_3000', 'ExposiÃ§Ã£o atual acima de R$ 3.000,00', exposicaoAtual);
-    if (Number(exposicaoAtual || 0) >= 7000) add(12, 'EXPOSICAO_7000', 'ExposiÃ§Ã£o atual acima de R$ 7.000,00', exposicaoAtual);
+    if (Number(promessasQuebradas || 0) >= 2) add(15, 'REINCIDENCIA_PROMESSA', 'Reincidência em promessa quebrada', promessasQuebradas);
+    if (Number(tratativasSemRetorno || 0) >= 2) add(10, 'SEM_RETORNO', 'Múltiplas tratativas sem retorno', tratativasSemRetorno);
+    if (Number(renegociacoesSolicitadas || 0) >= 1) add(6, 'RENEGOCIACAO', 'Solicitou renegociação', renegociacoesSolicitadas);
+    if (Number(exposicaoAtual || 0) >= 3000) add(8, 'EXPOSICAO_3000', 'Exposição atual acima de R$ 3.000,00', exposicaoAtual);
+    if (Number(exposicaoAtual || 0) >= 7000) add(12, 'EXPOSICAO_7000', 'Exposição atual acima de R$ 7.000,00', exposicaoAtual);
 
     if (Number(promessasCumpridas || 0) >= 2) {
       score -= 8;
-      fatores.push({ code: 'PROMESSAS_CUMPRIDAS', label: 'HistÃ³rico positivo de promessas cumpridas', points: -8, value: promessasCumpridas });
+      fatores.push({ code: 'PROMESSAS_CUMPRIDAS', label: 'Histórico positivo de promessas cumpridas', points: -8, value: promessasCumpridas });
     }
     if (Number(contratosQuitados || 0) >= 1) {
       score -= 10;
@@ -1493,7 +1669,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
     if (Number(contratosQuitados || 0) >= 3) {
       score -= 8;
-      fatores.push({ code: 'BOM_HISTORICO', label: 'Bom histÃ³rico de contratos quitados', points: -8, value: contratosQuitados });
+      fatores.push({ code: 'BOM_HISTORICO', label: 'Bom histórico de contratos quitados', points: -8, value: contratosQuitados });
     }
 
     score = Math.max(0, Math.min(100, Math.round(score)));
@@ -1696,12 +1872,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
   async function waSendTextMessage({ number, text, settings = null, delay = 0 }) {
     const cfg = settings || await getWhatsappSettings();
-    if (!cfg.enabled) throw new Error('IntegraÃ§Ã£o WhatsApp desativada.');
-    if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('ConfiguraÃ§Ã£o incompleta do WhatsApp.');
+    if (!cfg.enabled) throw new Error('Integração WhatsApp desativada.');
+    if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) throw new Error('Configuração incompleta do WhatsApp.');
     const normalizedNumber = normalizePhone(number, cfg.defaultCountryCode || '55');
-    if (!normalizedNumber) throw new Error('NÃºmero de telefone invÃ¡lido.');
+    if (!normalizedNumber) throw new Error('Número de telefone inválido.');
 
-    const message = String(text || '').trim();
+    // Corrige templates/rascunhos antigos que possam ter sido salvos com
+    // UTF-8 interpretado como Windows-1252 antes de enviá-los à Evolution.
+    const message = normalizeWhatsappText(String(text || ''));
     if (!message) throw new Error('Mensagem de WhatsApp vazia.');
 
     const url = `${String(cfg.apiUrl).replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(cfg.instanceName)}`;
@@ -1740,7 +1918,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     if (hasProviderError) {
       const errorMessage = typeof data === 'string'
         ? data
-        : (data.message || data.error || data.reason || 'Evolution API nÃ£o confirmou o envio da mensagem.');
+        : (data.message || data.error || data.reason || 'Evolution API não confirmou o envio da mensagem.');
       const err = new Error(String(errorMessage));
       err.statusCode = response.status;
       err.responseData = data;
@@ -2041,8 +2219,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
       return res.json({ ok: true, lancamentos, total: lancamentos.length });
     } catch (error) {
-      console.error('Erro SIGE lanÃ§amentos:', error.message || error);
-      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar lanÃ§amentos no SIGE' });
+      console.error('Erro SIGE lançamentos:', error.message || error);
+      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao consultar lançamentos no SIGE' });
     }
   });
 
@@ -2273,7 +2451,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   async function getSigeCarneData(q = '', options = {}) {
     const termo = String(q || '').trim();
     if (termo.length < 2) {
-      const err = new Error('Informe pelo menos 2 letras do cliente para gerar o carnÃª.');
+      const err = new Error('Informe pelo menos 2 letras do cliente para gerar o carnê.');
       err.statusCode = 400;
       throw err;
     }
@@ -2291,7 +2469,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const pessoas = await getSigePessoasByQuery(termo, 10);
       pessoa = pessoas.find((p) => String(p.nome || '').toLowerCase() === termo.toLowerCase()) || pessoas[0] || null;
     } catch (innerError) {
-      console.warn('NÃ£o foi possÃ­vel enriquecer carnÃª com pessoa SIGE:', innerError.message || innerError);
+      console.warn('Não foi possível enriquecer carnê com pessoa SIGE:', innerError.message || innerError);
     }
 
     if ((!lancamentos || !lancamentos.length) && pessoa?.nome && pessoa.nome.toLowerCase() !== termo.toLowerCase()) {
@@ -2411,7 +2589,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         valorRegistrado: Number(totalRecibos.toFixed(2)),
         ultimo: recibos[0] ? normalizeCrediarioRecibo(recibos[0]) : null
       },
-      observacao: 'Os recibos locais sÃ£o histÃ³ricos e nÃ£o alteram saldo, vencimento ou status das parcelas no SIGE.'
+      observacao: 'Os recibos locais são históricos e não alteram saldo, vencimento ou status das parcelas no SIGE.'
     };
   }
 
@@ -2421,7 +2599,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     try {
       auditoriaMongo = await getCrediarioAuditForSigeCarne(carne);
     } catch (auditError) {
-      console.warn('NÃ£o foi possÃ­vel enriquecer financeiro com auditoria local:', auditError.message || auditError);
+      console.warn('Não foi possível enriquecer financeiro com auditoria local:', auditError.message || auditError);
       auditoriaMongo = {
         clienteLocal: null,
         recibos: { quantidade: 0, valorRegistrado: 0, ultimo: null },
@@ -2495,7 +2673,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ...(existente.snapshot || {}),
           ultimaTentativaSincronizacaoEm: new Date(),
           ultimaTentativaSincronizacaoOk: false,
-          ultimaTentativaSincronizacaoErro: 'SIGE nÃ£o retornou parcelas; dados existentes foram preservados.',
+          ultimaTentativaSincronizacaoErro: 'SIGE não retornou parcelas; dados existentes foram preservados.',
           diagnosticoConsulta: data.diagnosticoConsulta || null
         };
         existente.historico = Array.isArray(existente.historico) ? existente.historico : [];
@@ -2503,7 +2681,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           tipo: 'SINCRONIZACAO_PRESERVADA',
           em: new Date(),
           por: getFinanceiroActor(req),
-          motivo: 'SIGE nÃ£o retornou parcelas; snapshot anterior preservado.',
+          motivo: 'SIGE não retornou parcelas; snapshot anterior preservado.',
           diagnosticoConsulta: data.diagnosticoConsulta || null
         });
         if (existente.historico.length > 100) existente.historico = existente.historico.slice(-100);
@@ -2527,7 +2705,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ok: true,
           preservado: true,
           atualizado: false,
-          warning: 'O SIGE nÃ£o retornou parcelas nesta tentativa. As parcelas jÃ¡ salvas foram preservadas.',
+          warning: 'O SIGE não retornou parcelas nesta tentativa. As parcelas já salvas foram preservadas.',
           diagnosticoConsulta: data.diagnosticoConsulta || null,
           carne: normalizeCarneDigital(existente)
         };
@@ -2547,7 +2725,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
     const uniqueKey = buildCarneUniqueKey(data);
     if (!uniqueKey || uniqueKey.endsWith(':')) {
-      const error = new Error('NÃ£o foi possÃ­vel identificar o cliente para salvar o carnÃª.');
+      const error = new Error('Não foi possível identificar o cliente para salvar o carnê.');
       error.statusCode = 422;
       throw error;
     }
@@ -2677,8 +2855,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       criadoAgora,
       atualizado: !criadoAgora,
       message: criadoAgora
-        ? 'CarnÃª digital criado e salvo com sucesso.'
-        : 'O mesmo carnÃª foi atualizado com os valores atuais do SIGE.',
+        ? 'Carnê digital criado e salvo com sucesso.'
+        : 'O mesmo carnê foi atualizado com os valores atuais do SIGE.',
       carne: normalizeCarneDigital(existente)
     };
   }
@@ -2692,14 +2870,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
       return res.json(carne);
     } catch (error) {
-      console.error('Erro SIGE carnÃª:', error.message || error);
-      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao gerar carnÃª digital no SIGE' });
+      console.error('Erro SIGE carnê:', error.message || error);
+      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao gerar carnê digital no SIGE' });
     }
   });
 
-  // FASE A - Endpoint financeiro canÃ´nico.
-  // O SIGE Ã© a Ãºnica fonte de parcelas, saldo, vencimentos e situaÃ§Ã£o de pagamento.
-  // O MongoDB Ã© consultado somente para enriquecer a resposta com histÃ³rico/auditoria.
+  // FASE A - Endpoint financeiro canônico.
+  // O SIGE é a única fonte de parcelas, saldo, vencimentos e situação de pagamento.
+  // O MongoDB é consultado somente para enriquecer a resposta com histórico/auditoria.
   app.get('/api/admin/financeiro/carne', adminRequired, async (req, res) => {
     try {
       const q = String(req.query.cliente || req.query.q || '').trim();
@@ -2720,7 +2898,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
 
 
-  // Cria o carnÃª na primeira vez e atualiza o mesmo registro nas prÃ³ximas.
+  // Cria o carnê na primeira vez e atualiza o mesmo registro nas próximas.
   app.post('/api/admin/financeiro/carnes/sincronizar', adminRequired, async (req, res) => {
     try {
       const q = String(req.body?.cliente || req.body?.q || '').trim();
@@ -2730,10 +2908,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
       return res.status(result.criadoAgora ? 201 : 200).json(result);
     } catch (error) {
-      console.error('[financeiro carnÃª digital sincronizar]', error.message || error);
+      console.error('[financeiro carnê digital sincronizar]', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        error: error.message || 'Erro ao criar ou atualizar o carnÃª digital.'
+        error: error.message || 'Erro ao criar ou atualizar o carnê digital.'
       });
     }
   });
@@ -2858,8 +3036,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         filtros: { q, status, situacao, dataInicio, dataFim, sort: sortField, direction: direction === 1 ? 'asc' : 'desc' }
       });
     } catch (error) {
-      console.error('[financeiro carnÃªs pesquisar]', error.message || error);
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao pesquisar carnÃªs digitais.' });
+      console.error('[financeiro carnês pesquisar]', error.message || error);
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao pesquisar carnês digitais.' });
     }
   });
 
@@ -2868,10 +3046,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     try {
       const codigo = String(req.params.codigo || '').trim();
       const row = await FinanceiroCarneDigital.findOne({ codigo: new RegExp(`^${escapeRegex(codigo)}$`, 'i') });
-      if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado por este cÃ³digo.' });
+      if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado por este código.' });
       return res.json({ ok: true, carne: normalizeCarneDigital(row) });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao localizar o carnÃª pelo cÃ³digo.' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao localizar o carnê pelo código.' });
     }
   });
 
@@ -2882,10 +3060,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         ? { _id: new mongoose.Types.ObjectId(id) }
         : { codigo: id };
       const row = await FinanceiroCarneDigital.findOne(filter);
-      if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+      if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
       return res.json({ ok: true, carne: normalizeCarneDigital(row) });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao abrir o carnÃª digital.' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao abrir o carnê digital.' });
     }
   });
 
@@ -2896,7 +3074,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         ? { _id: new mongoose.Types.ObjectId(id) }
         : { codigo: id };
       const existente = await FinanceiroCarneDigital.findOne(filter);
-      if (!existente) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+      if (!existente) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
 
       const termo = String(
         req.body?.cliente ||
@@ -2918,10 +3096,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
       return res.json(result);
     } catch (error) {
-      console.error('[financeiro carnÃª digital atualizar]', error.message || error);
+      console.error('[financeiro carnê digital atualizar]', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        error: error.message || 'Erro ao atualizar o carnÃª digital.'
+        error: error.message || 'Erro ao atualizar o carnê digital.'
       });
     }
   });
@@ -3013,7 +3191,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             codigo: row.codigo,
             ok: false,
             ignorado: true,
-            motivo: 'CarnÃª sem CPF, nome ou telefone para consultar o SIGE.'
+            motivo: 'Carnê sem CPF, nome ou telefone para consultar o SIGE.'
           });
           continue;
         }
@@ -3453,14 +3631,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       titulo: 'MongoDB conectado',
       ok: mongoose.connection.readyState === 1,
       detalhe: `readyState=${mongoose.connection.readyState}`,
-      acao: 'Inicie o backend e confirme a conexÃ£o com o MongoDB.'
+      acao: 'Inicie o backend e confirme a conexão com o MongoDB.'
     }));
 
     items.push(releaseCheckItem({
       id: 'webhook_url',
-      titulo: 'URL pÃºblica do webhook configurada',
+      titulo: 'URL pública do webhook configurada',
       ok: Boolean(webhookUrl),
-      detalhe: webhookUrl || 'VariÃ¡vel ausente.',
+      detalhe: webhookUrl || 'Variável ausente.',
       acao: 'Configure FINANCEIRO_WHATSAPP_WEBHOOK_PUBLIC_URL.'
     }));
 
@@ -3469,8 +3647,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       id: 'webhook_https',
       titulo: 'Webhook usa HTTPS',
       ok: httpsOk,
-      detalhe: webhookUrl || 'URL nÃ£o configurada.',
-      acao: 'Use uma URL pÃºblica HTTPS.'
+      detalhe: webhookUrl || 'URL não configurada.',
+      acao: 'Use uma URL pública HTTPS.'
     }));
 
     items.push(releaseCheckItem({
@@ -3487,8 +3665,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const cfg = await getWhatsappSettings();
       whatsappOk = Boolean(cfg.apiUrl && cfg.apiKey && cfg.instanceName);
       whatsappDetalhe = whatsappOk
-        ? `InstÃ¢ncia ${cfg.instanceName} configurada.`
-        : 'ConfiguraÃ§Ã£o da Evolution API incompleta.';
+        ? `Instância ${cfg.instanceName} configurada.`
+        : 'Configuração da Evolution API incompleta.';
     } catch (error) {
       whatsappDetalhe = error.message || String(error);
     }
@@ -3498,28 +3676,28 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       titulo: 'Evolution API configurada',
       ok: whatsappOk,
       detalhe: whatsappDetalhe,
-      acao: 'Confira URL, API key e nome da instÃ¢ncia.'
+      acao: 'Confira URL, API key e nome da instância.'
     }));
 
     let webhookProviderOk = false;
-    let webhookProviderDetalhe = 'Consulta nÃ£o executada.';
+    let webhookProviderDetalhe = 'Consulta não executada.';
     try {
       const provider = await consultarWebhookEvolutionFinanceiro();
       webhookProviderOk = Boolean(provider?.ok);
       webhookProviderDetalhe = webhookProviderOk
         ? `Evolution respondeu HTTP ${provider.status}.`
-        : 'Evolution nÃ£o respondeu corretamente.';
+        : 'Evolution não respondeu corretamente.';
     } catch (error) {
       webhookProviderDetalhe = error.message || String(error);
     }
 
     items.push(releaseCheckItem({
       id: 'evolution_online',
-      titulo: 'Evolution API acessÃ­vel',
+      titulo: 'Evolution API acessível',
       ok: webhookProviderOk,
       bloqueante: false,
       detalhe: webhookProviderDetalhe,
-      acao: 'Confirme se a VPS e a instÃ¢ncia Ariana_Notificacoes estÃ£o online.'
+      acao: 'Confirme se a VPS e a instância Ariana_Notificacoes estão online.'
     }));
 
     const [carnes, logs, semTelefone] = await Promise.all([
@@ -3537,10 +3715,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
     items.push(releaseCheckItem({
       id: 'carnes',
-      titulo: 'Carteira financeira acessÃ­vel',
+      titulo: 'Carteira financeira acessível',
       ok: carnes >= 0,
-      detalhe: `${carnes} carnÃª(s) ativo(s).`,
-      acao: 'Confira a coleÃ§Ã£o financeiro_carnes_digitais.'
+      detalhe: `${carnes} carnê(s) ativo(s).`,
+      acao: 'Confira a coleção financeiro_carnes_digitais.'
     }));
 
     items.push(releaseCheckItem({
@@ -3548,24 +3726,24 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       titulo: 'Cobertura de telefones',
       ok: semTelefone === 0,
       bloqueante: false,
-      detalhe: `${semTelefone} carnÃª(s) ativo(s) sem telefone.`,
-      acao: 'Execute a recuperaÃ§Ã£o de telefones antes de ativar a rÃ©gua.'
+      detalhe: `${semTelefone} carnê(s) ativo(s) sem telefone.`,
+      acao: 'Execute a recuperação de telefones antes de ativar a régua.'
     }));
 
     items.push(releaseCheckItem({
       id: 'historico_whatsapp',
-      titulo: 'HistÃ³rico do WhatsApp acessÃ­vel',
+      titulo: 'Histórico do WhatsApp acessível',
       ok: logs >= 0,
       detalhe: `${logs} registro(s) localizado(s).`,
-      acao: 'Confira a coleÃ§Ã£o financeiro_regua_whatsapp_logs.'
+      acao: 'Confira a coleção financeiro_regua_whatsapp_logs.'
     }));
 
     items.push(releaseCheckItem({
       id: 'release_flag',
-      titulo: 'LiberaÃ§Ã£o explÃ­cita para produÃ§Ã£o',
+      titulo: 'Liberação explícita para produção',
       ok: release.deployLiberado,
       detalhe: `FINANCEIRO_RELEASE_ENABLED=${release.deployLiberado}`,
-      acao: 'Mantenha false durante a homologaÃ§Ã£o. Altere para true somente no deploy aprovado.'
+      acao: 'Mantenha false durante a homologação. Altere para true somente no deploy aprovado.'
     }));
 
     const bloqueios = items.filter((item) => item.bloqueante && !item.ok);
@@ -3612,7 +3790,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   async function consultarWebhookEvolutionFinanceiro() {
     const cfg = await getWhatsappSettings();
     if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) {
-      const error = new Error('ConfiguraÃ§Ã£o da Evolution API incompleta.');
+      const error = new Error('Configuração da Evolution API incompleta.');
       error.statusCode = 409;
       throw error;
     }
@@ -3751,7 +3929,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     }
     const cfg = await getWhatsappSettings();
     if (!cfg.apiUrl || !cfg.apiKey || !cfg.instanceName) {
-      const error = new Error('ConfiguraÃ§Ã£o da Evolution API incompleta.');
+      const error = new Error('Configuração da Evolution API incompleta.');
       error.statusCode = 409;
       throw error;
     }
@@ -3759,14 +3937,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const finalUrl = String(webhookUrl || getFinanceiroWhatsappWebhookPublicUrl()).trim();
     if (!finalUrl) {
       const error = new Error(
-        'Configure FINANCEIRO_WHATSAPP_WEBHOOK_PUBLIC_URL com a URL pÃºblica do backend.'
+        'Configure FINANCEIRO_WHATSAPP_WEBHOOK_PUBLIC_URL com a URL pública do backend.'
       );
       error.statusCode = 409;
       throw error;
     }
 
     if (!/^https?:\/\//i.test(finalUrl)) {
-      const error = new Error('A URL pÃºblica do webhook deve comeÃ§ar com http:// ou https://.');
+      const error = new Error('A URL pública do webhook deve começar com http:// ou https://.');
       error.statusCode = 400;
       throw error;
     }
@@ -3871,7 +4049,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         }).sort({ createdAt: -1 });
 
     if (!log) {
-      const error = new Error('Nenhum registro de WhatsApp disponÃ­vel para o teste.');
+      const error = new Error('Nenhum registro de WhatsApp disponível para o teste.');
       error.statusCode = 404;
       throw error;
     }
@@ -4359,13 +4537,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     ignorarHorario = false
   } = {}) {
     if (!log) {
-      const error = new Error('Registro de WhatsApp nÃ£o encontrado.');
+      const error = new Error('Registro de WhatsApp não encontrado.');
       error.statusCode = 404;
       throw error;
     }
 
     if (['DELIVERED', 'READ'].includes(log.deliveryStatus)) {
-      const error = new Error('Mensagem jÃ¡ entregue ou lida. Reenvio bloqueado.');
+      const error = new Error('Mensagem já entregue ou lida. Reenvio bloqueado.');
       error.statusCode = 409;
       throw error;
     }
@@ -4483,43 +4661,43 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
     const rodape = [
       '',
-      'Em caso de pagamento jÃ¡ realizado, desconsidere esta mensagem.',
-      'ðŸ“² Financeiro Ariana MÃ³veis: (31) 98514-7119'
+      'Em caso de pagamento já realizado, desconsidere esta mensagem.',
+      '📲 Financeiro Ariana Móveis: (31) 98514-7119'
     ];
 
     if (tipo === 'VENCE_AMANHA') {
       return [
-        `OlÃ¡, ${nome}! Tudo bem?`,
+        `Olá, ${nome}! Tudo bem?`,
         '',
-        `Passando para lembrar que sua parcela${parcela ? ` ${parcela}` : ''} vence amanhÃ£${vencimento ? `, ${vencimento}` : ''}.`,
-        `ðŸ’° Valor: ${valor}`,
-        documento ? `ðŸ§¾ ReferÃªncia: ${documento}` : '',
+        `Passando para lembrar que sua parcela${parcela ? ` ${parcela}` : ''} vence amanhã${vencimento ? `, ${vencimento}` : ''}.`,
+        `💰 Valor: ${valor}`,
+        documento ? `🧾 Referência: ${documento}` : '',
         '',
-        'Agradecemos por manter seu crediÃ¡rio em dia. ðŸ’™',
+        'Agradecemos por manter seu crediário em dia. 💙',
         ...rodape
       ].filter(Boolean).join('\n');
     }
 
     if (tipo === 'VENCE_HOJE') {
       return [
-        `OlÃ¡, ${nome}!`,
+        `Olá, ${nome}!`,
         '',
         `Sua parcela${parcela ? ` ${parcela}` : ''} vence hoje${vencimento ? ` (${vencimento})` : ''}.`,
-        `ðŸ’° Valor: ${valor}`,
-        documento ? `ðŸ§¾ ReferÃªncia: ${documento}` : '',
+        `💰 Valor: ${valor}`,
+        documento ? `🧾 Referência: ${documento}` : '',
         '',
-        'Conte com a Ariana MÃ³veis para qualquer esclarecimento.',
+        'Conte com a Ariana Móveis para qualquer esclarecimento.',
         ...rodape
       ].filter(Boolean).join('\n');
     }
 
     if (tipo === 'PROMESSA_AMANHA') {
       return [
-        `OlÃ¡, ${nome}!`,
+        `Olá, ${nome}!`,
         '',
-        `Este Ã© um lembrete da sua promessa de pagamento para amanhÃ£${vencimento ? `, ${vencimento}` : ''}.`,
-        `ðŸ’° Valor combinado: ${valor}`,
-        documento ? `ðŸ§¾ ReferÃªncia: ${documento}` : '',
+        `Este é um lembrete da sua promessa de pagamento para amanhã${vencimento ? `, ${vencimento}` : ''}.`,
+        `💰 Valor combinado: ${valor}`,
+        documento ? `🧾 Referência: ${documento}` : '',
         '',
         'Agradecemos pelo compromisso assumido.',
         ...rodape
@@ -4528,26 +4706,26 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
     if (tipo === 'PROMESSA_HOJE') {
       return [
-        `OlÃ¡, ${nome}!`,
+        `Olá, ${nome}!`,
         '',
-        `Sua promessa de pagamento estÃ¡ prevista para hoje${vencimento ? ` (${vencimento})` : ''}.`,
-        `ðŸ’° Valor combinado: ${valor}`,
-        documento ? `ðŸ§¾ ReferÃªncia: ${documento}` : '',
+        `Sua promessa de pagamento está prevista para hoje${vencimento ? ` (${vencimento})` : ''}.`,
+        `💰 Valor combinado: ${valor}`,
+        documento ? `🧾 Referência: ${documento}` : '',
         '',
-        'Caso precise falar conosco, estamos Ã  disposiÃ§Ã£o.',
+        'Caso precise falar conosco, estamos à disposição.',
         ...rodape
       ].filter(Boolean).join('\n');
     }
 
     if (tipo === 'PROMESSA_QUEBRADA') {
       return [
-        `OlÃ¡, ${nome}.`,
+        `Olá, ${nome}.`,
         '',
-        'NÃ£o identificamos o pagamento na data combinada.',
-        `ðŸ’° Valor prometido: ${valor}`,
-        documento ? `ðŸ§¾ ReferÃªncia: ${documento}` : '',
+        'Não identificamos o pagamento na data combinada.',
+        `💰 Valor prometido: ${valor}`,
+        documento ? `🧾 Referência: ${documento}` : '',
         '',
-        'Pedimos que entre em contato para regularizaÃ§Ã£o ou novo acordo.',
+        'Pedimos que entre em contato para regularização ou novo acordo.',
         ...rodape
       ].filter(Boolean).join('\n');
     }
@@ -4555,16 +4733,16 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const dias = Number(candidato.diasAtraso || 0);
     const urgente = dias >= 15;
     return [
-      urgente ? `OlÃ¡, ${nome}. Precisamos falar sobre seu crediÃ¡rio.` : `OlÃ¡, ${nome}.`,
+      urgente ? `Olá, ${nome}. Precisamos falar sobre seu crediário.` : `Olá, ${nome}.`,
       '',
       `Identificamos uma parcela${parcela ? ` ${parcela}` : ''} com ${dias} dia(s) de atraso.`,
-      `ðŸ’° Valor atualizado: ${valor}`,
-      vencimento ? `ðŸ“… Vencimento: ${vencimento}` : '',
-      documento ? `ðŸ§¾ ReferÃªncia: ${documento}` : '',
+      `💰 Valor atualizado: ${valor}`,
+      vencimento ? `📅 Vencimento: ${vencimento}` : '',
+      documento ? `🧾 Referência: ${documento}` : '',
       '',
       urgente
-        ? 'Entre em contato o quanto antes para evitar bloqueio interno de crÃ©dito e novos encargos.'
-        : 'Pedimos a gentileza de regularizar ou falar conosco para receber orientaÃ§Ã£o.',
+        ? 'Entre em contato o quanto antes para evitar bloqueio interno de crédito e novos encargos.'
+        : 'Pedimos a gentileza de regularizar ou falar conosco para receber orientação.',
       ...rodape
     ].filter(Boolean).join('\n');
   }
@@ -4592,7 +4770,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     limite = 500
   } = {}) {
     const ref = dayOnly(dataReferencia);
-    if (!ref) throw new Error('Data de referÃªncia invÃ¡lida.');
+    if (!ref) throw new Error('Data de referência inválida.');
 
     const dataRefKey = dateKey(ref);
     const amanha = new Date(ref.getTime());
@@ -4670,8 +4848,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
     }
 
-    // Evita vÃ¡rias mensagens para o mesmo cliente no mesmo dia.
-    // MantÃ©m apenas o evento mais prioritÃ¡rio por telefone.
+    // Evita várias mensagens para o mesmo cliente no mesmo dia.
+    // Mantém apenas o evento mais prioritário por telefone.
     const porTelefone = new Map();
     for (const candidato of candidatos.sort((a, b) => b.prioridadeScore - a.prioridadeScore)) {
       const key = candidato.telefone || `sem_telefone:${candidato.clienteNome}:${candidato.carneCodigo}`;
@@ -4690,7 +4868,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   } = {}) {
     const config = getFinanceiroReguaWhatsappConfig();
     const ref = dayOnly(dataReferencia);
-    if (!ref) throw new Error('Data de referÃªncia invÃ¡lida.');
+    if (!ref) throw new Error('Data de referência inválida.');
 
     const dataRefKey = dateKey(ref);
     const clock = getFinanceiroAutomationClock(new Date(), config.timezone);
@@ -4727,7 +4905,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             if (recuperado.telefone) candidato.telefone = recuperado.telefone;
           }
         } catch (error) {
-          console.warn('[financeiro rÃ©gua recuperar telefone]', error.message || error);
+          console.warn('[financeiro régua recuperar telefone]', error.message || error);
         }
       }
 
@@ -4929,7 +5107,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const globalKey = '__ARIANA_FINANCEIRO_REGUA_WHATSAPP__';
 
     if (!config.enabled) {
-      console.log('[financeiro rÃ©gua WhatsApp] Desativada. Use FINANCEIRO_REGUA_WHATSAPP_ENABLED=true apÃ³s homologaÃ§Ã£o.');
+      console.log('[financeiro régua WhatsApp] Desativada. Use FINANCEIRO_REGUA_WHATSAPP_ENABLED=true após homologação.');
       return null;
     }
 
@@ -4958,31 +5136,31 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ignorarHorario: false
         });
         console.log(
-          `[financeiro rÃ©gua WhatsApp] ${clock.dateKey}: ${result.resumo.enviados} enviado(s), ${result.resumo.ignorados} ignorado(s), ${result.resumo.erros} erro(s).`
+          `[financeiro régua WhatsApp] ${clock.dateKey}: ${result.resumo.enviados} enviado(s), ${result.resumo.ignorados} ignorado(s), ${result.resumo.erros} erro(s).`
         );
       } catch (error) {
-        console.error('[financeiro rÃ©gua WhatsApp]', error.message || error);
+        console.error('[financeiro régua WhatsApp]', error.message || error);
       } finally {
         state.running = false;
       }
     };
 
     state.timer = setInterval(
-      () => tick().catch((error) => console.error('[financeiro rÃ©gua WhatsApp tick]', error.message || error)),
+      () => tick().catch((error) => console.error('[financeiro régua WhatsApp tick]', error.message || error)),
       config.checkSeconds * 1000
     );
     if (typeof state.timer.unref === 'function') state.timer.unref();
 
     globalThis[globalKey] = state;
     console.log(
-      `[financeiro rÃ©gua WhatsApp] Ativa: diariamente Ã s ${config.horario} (${config.timezone}), janela ${config.inicioPermitido}-${config.fimPermitido}.`
+      `[financeiro régua WhatsApp] Ativa: diariamente às ${config.horario} (${config.timezone}), janela ${config.inicioPermitido}-${config.fimPermitido}.`
     );
     return state;
   }
 
   function getFinanceiroAutomationConfig() {
     const enabledRaw = String(process.env.FINANCEIRO_AUTOMACAO_ENABLED ?? 'true').trim().toLowerCase();
-    const enabled = !['false', '0', 'off', 'no', 'nao', 'nÃ£o'].includes(enabledRaw);
+    const enabled = !['false', '0', 'off', 'no', 'nao', 'não'].includes(enabledRaw);
     const horarioRaw = String(process.env.FINANCEIRO_AUTOMACAO_HORA || '05:30').trim();
     const horario = /^\d{2}:\d{2}$/.test(horarioRaw) ? horarioRaw : '05:30';
 
@@ -5292,7 +5470,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const referencia = dayOnly(dataReferencia);
 
     if (!referencia) {
-      const error = new Error('Data de referÃªncia invÃ¡lida para a automaÃ§Ã£o.');
+      const error = new Error('Data de referência inválida para a automação.');
       error.statusCode = 400;
       throw error;
     }
@@ -5385,6 +5563,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         atualizarPromessasVencidas(req)
       );
 
+      const alertasPromessas = await executarEtapa('NOTIFICAR_PROMESSAS_HOJE', () =>
+        notificarPromessasHojeInternamente({
+          req,
+          dataReferencia: referencia,
+          force: false
+        })
+      );
+
       const riscos = await executarEtapa('RECALCULAR_RISCOS', () =>
         recalcularTodosRiscosFinanceiros({
           req,
@@ -5427,6 +5613,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             }
           : null,
         promessas: promessas || null,
+        alertasPromessas: alertasPromessas || null,
         riscos: riscos
           ? {
               clientesAnalisados: riscos.clientesAnalisados,
@@ -5489,7 +5676,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const globalKey = '__ARIANA_FINANCEIRO_AUTOMACAO_DIARIA__';
 
     if (!config.enabled) {
-      console.log('[financeiro automaÃ§Ã£o] Desativada por FINANCEIRO_AUTOMACAO_ENABLED=false.');
+      console.log('[financeiro automação] Desativada por FINANCEIRO_AUTOMACAO_ENABLED=false.');
       return null;
     }
 
@@ -5526,19 +5713,19 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         });
 
         if (result.skipped) {
-          console.log(`[financeiro automaÃ§Ã£o] ${clock.dateKey} jÃ¡ executada ou em andamento.`);
+          console.log(`[financeiro automação] ${clock.dateKey} já executada ou em andamento.`);
         } else {
-          console.log(`[financeiro automaÃ§Ã£o] ${clock.dateKey}: ${result.status}.`);
+          console.log(`[financeiro automação] ${clock.dateKey}: ${result.status}.`);
         }
       } catch (error) {
-        console.error('[financeiro automaÃ§Ã£o]', error.message || error);
+        console.error('[financeiro automação]', error.message || error);
       } finally {
         state.running = false;
       }
     };
 
     state.timer = setInterval(
-      () => tick().catch((error) => console.error('[financeiro automaÃ§Ã£o tick]', error.message || error)),
+      () => tick().catch((error) => console.error('[financeiro automação tick]', error.message || error)),
       config.checkSeconds * 1000
     );
 
@@ -5547,11 +5734,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     globalThis[globalKey] = state;
 
     console.log(
-      `[financeiro automaÃ§Ã£o] Ativa: diariamente Ã s ${config.horario} (${config.timezone}).`
+      `[financeiro automação] Ativa: diariamente às ${config.horario} (${config.timezone}).`
     );
 
     setTimeout(
-      () => tick({ startup: true }).catch((error) => console.error('[financeiro automaÃ§Ã£o startup]', error.message || error)),
+      () => tick({ startup: true }).catch((error) => console.error('[financeiro automação startup]', error.message || error)),
       5000
     );
 
@@ -5623,11 +5810,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     async (req, res) => {
       try {
         const carne = await FinanceiroCarneDigital.findById(req.params.id);
-        if (!carne) return res.status(404).json({ ok: false, error: 'CarnÃª nÃ£o encontrado.' });
+        if (!carne) return res.status(404).json({ ok: false, error: 'Carnê não encontrado.' });
 
         const telefone = normalizePhone(req.body?.telefone || '', '55');
         if (!telefone || telefone.length < 12 || telefone.length > 13) {
-          return res.status(400).json({ ok: false, error: 'Informe um telefone vÃ¡lido com DDD.' });
+          return res.status(400).json({ ok: false, error: 'Informe um telefone válido com DDD.' });
         }
 
         const result = await propagarTelefoneFinanceiro({
@@ -5639,14 +5826,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
         return res.json({
           ok: true,
-          message: 'Telefone atualizado em todo o mÃ³dulo financeiro.',
+          message: 'Telefone atualizado em todo o módulo financeiro.',
           carneId: String(carne._id),
           carneCodigo: carne.codigo,
           clienteNome: carne.cliente?.nome || '',
           ...result
         });
       } catch (error) {
-        return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar o telefone do carnÃª.' });
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar o telefone do carnê.' });
       }
     }
   );
@@ -5665,7 +5852,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao executar o checklist de homologaÃ§Ã£o.'
+          error: error.message || 'Erro ao executar o checklist de homologação.'
         });
       }
     }
@@ -5696,7 +5883,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao validar a homologaÃ§Ã£o.'
+          error: error.message || 'Erro ao validar a homologação.'
         });
       }
     }
@@ -5802,7 +5989,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     async (req, res) => {
       try {
         if (!validarWebhookFinanceiroWhatsapp(req)) {
-          return res.status(401).json({ ok: false, error: 'Webhook nÃ£o autorizado.' });
+          return res.status(401).json({ ok: false, error: 'Webhook não autorizado.' });
         }
 
         const statusData = extractWhatsappStatusPayload(req.body || {});
@@ -5879,7 +6066,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao consultar a migraÃ§Ã£o dos logs.'
+          error: error.message || 'Erro ao consultar a migração dos logs.'
         });
       }
     }
@@ -6121,20 +6308,20 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           regras: [
             { evento: 'VENCE_AMANHA', descricao: 'Lembrete um dia antes do vencimento' },
             { evento: 'VENCE_HOJE', descricao: 'Aviso no dia do vencimento' },
-            { evento: 'ATRASO_1', descricao: 'CobranÃ§a com 1 dia de atraso' },
-            { evento: 'ATRASO_3', descricao: 'CobranÃ§a com 3 dias de atraso' },
-            { evento: 'ATRASO_7', descricao: 'CobranÃ§a com 7 dias de atraso' },
-            { evento: 'ATRASO_15', descricao: 'CobranÃ§a com 15 dias de atraso' },
-            { evento: 'ATRASO_30', descricao: 'CobranÃ§a com 30 dias de atraso' },
-            { evento: 'PROMESSA_AMANHA', descricao: 'Lembrete de promessa para amanhÃ£' },
+            { evento: 'ATRASO_1', descricao: 'Cobrança com 1 dia de atraso' },
+            { evento: 'ATRASO_3', descricao: 'Cobrança com 3 dias de atraso' },
+            { evento: 'ATRASO_7', descricao: 'Cobrança com 7 dias de atraso' },
+            { evento: 'ATRASO_15', descricao: 'Cobrança com 15 dias de atraso' },
+            { evento: 'ATRASO_30', descricao: 'Cobrança com 30 dias de atraso' },
+            { evento: 'PROMESSA_AMANHA', descricao: 'Lembrete de promessa para amanhã' },
             { evento: 'PROMESSA_HOJE', descricao: 'Lembrete de promessa para hoje' },
-            { evento: 'PROMESSA_QUEBRADA', descricao: 'Aviso de promessa nÃ£o cumprida' }
+            { evento: 'PROMESSA_QUEBRADA', descricao: 'Aviso de promessa não cumprida' }
           ]
         });
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao consultar a rÃ©gua de WhatsApp.'
+          error: error.message || 'Erro ao consultar a régua de WhatsApp.'
         });
       }
     }
@@ -6157,7 +6344,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao simular a rÃ©gua de WhatsApp.'
+          error: error.message || 'Erro ao simular a régua de WhatsApp.'
         });
       }
     }
@@ -6180,7 +6367,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao executar a rÃ©gua de WhatsApp.'
+          error: error.message || 'Erro ao executar a régua de WhatsApp.'
         });
       }
     }
@@ -6212,7 +6399,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao consultar o histÃ³rico da rÃ©gua.'
+          error: error.message || 'Erro ao consultar o histórico da régua.'
         });
       }
     }
@@ -6246,7 +6433,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao consultar a automaÃ§Ã£o financeira.'
+          error: error.message || 'Erro ao consultar a automação financeira.'
         });
       }
     }
@@ -6269,7 +6456,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao executar a automaÃ§Ã£o financeira.'
+          error: error.message || 'Erro ao executar a automação financeira.'
         });
       }
     }
@@ -6295,7 +6482,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao consultar o histÃ³rico da automaÃ§Ã£o.'
+          error: error.message || 'Erro ao consultar o histórico da automação.'
         });
       }
     }
@@ -6327,7 +6514,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         limitePorExecucao: Number(process.env.FINANCEIRO_SYNC_BATCH_LIMIT || 100)
       });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar o status da sincronizaÃ§Ã£o.' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar o status da sincronização.' });
     }
   });
 
@@ -6343,10 +6530,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       });
       return res.json(result);
     } catch (error) {
-      console.error('[financeiro sincronizaÃ§Ã£o SIGE]', error.message || error);
+      console.error('[financeiro sincronização SIGE]', error.message || error);
       return res.status(error.statusCode || 500).json({
         ok: false,
-        error: error.message || 'Erro ao executar a sincronizaÃ§Ã£o financeira.'
+        error: error.message || 'Erro ao executar a sincronização financeira.'
       });
     }
   });
@@ -6360,7 +6547,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         .lean();
       return res.json({ ok: true, sincronizacoes: rows, total: rows.length });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar o histÃ³rico de sincronizaÃ§Ãµes.' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar o histórico de sincronizações.' });
     }
   });
 
@@ -6385,14 +6572,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ? parseFinanceiroDate(req.body.dataReferencia)
           : new Date();
         if (!dataReferencia || Number.isNaN(dataReferencia.getTime())) {
-          return res.status(400).json({ ok: false, error: 'Data de referÃªncia invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Data de referência inválida.' });
         }
 
         const filter = mongoose.Types.ObjectId.isValid(id)
           ? { _id: new mongoose.Types.ObjectId(id) }
           : { codigo: id };
         const row = await FinanceiroCarneDigital.findOne(filter);
-        if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
 
         const antes = row.resumo || {};
         const parcelas = normalizarIdentificacaoParcelas(
@@ -6494,7 +6681,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
         return res.json({
           ok: true,
-          message: 'Valores atualizados no backend sem criar outro carnÃª.',
+          message: 'Valores atualizados no backend sem criar outro carnê.',
           carne: normalizeCarneDigital(row)
         });
       } catch (error) {
@@ -6508,7 +6695,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         });
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao recalcular o carnÃª.'
+          error: error.message || 'Erro ao recalcular o carnê.'
         });
       }
     }
@@ -6575,7 +6762,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ? { _id: new mongoose.Types.ObjectId(id) }
           : { codigo: id };
         const row = await FinanceiroCarneDigital.findOne(filter);
-        if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
 
         const telefone = normalizePhone(
           req.body?.telefone || row.cliente?.telefone || '',
@@ -6634,7 +6821,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         });
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao enviar o carnÃª pelo WhatsApp.'
+          error: error.message || 'Erro ao enviar o carnê pelo WhatsApp.'
         });
       }
     }
@@ -6650,14 +6837,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const status = String(req.body?.status || '').trim().toUpperCase();
         const allowed = new Set(['ATIVO', 'ARQUIVADO', 'BLOQUEADO']);
         if (!allowed.has(status)) {
-          return res.status(400).json({ ok: false, error: 'Status invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Status inválido.' });
         }
 
         const filter = mongoose.Types.ObjectId.isValid(id)
           ? { _id: new mongoose.Types.ObjectId(id) }
           : { codigo: id };
         const row = await FinanceiroCarneDigital.findOne(filter);
-        if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
 
         const anterior = row.status;
         row.status = status;
@@ -6686,11 +6873,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
         return res.json({
           ok: true,
-          message: `CarnÃª alterado para ${status}.`,
+          message: `Carnê alterado para ${status}.`,
           carne: normalizeCarneDigital(row)
         });
       } catch (error) {
-        return res.status(500).json({ ok: false, error: error.message || 'Erro ao alterar o status do carnÃª.' });
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao alterar o status do carnê.' });
       }
     }
   );
@@ -7011,7 +7198,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ? { _id: new mongoose.Types.ObjectId(id) }
           : { codigo: id };
         const row = await FinanceiroCarneDigital.findOne(filter);
-        if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
 
         const resumo = row.resumo || {};
         const valorBase = Number(
@@ -7028,10 +7215,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const vencimentos = buildMonthlyDueDates(primeiroVencimento, quantidadeParcelas);
 
         if (!Number.isFinite(valorBase) || valorBase <= 0) {
-          return res.status(400).json({ ok: false, error: 'Valor base invÃ¡lido para renegociaÃ§Ã£o.' });
+          return res.status(400).json({ ok: false, error: 'Valor base inválido para renegociação.' });
         }
         if (!vencimentos.length) {
-          return res.status(400).json({ ok: false, error: 'Primeiro vencimento invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Primeiro vencimento inválido.' });
         }
 
         return res.json({
@@ -7052,10 +7239,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             primeiroVencimento,
             vencimentos
           },
-          note: 'Esta Ã© uma proposta. O carnÃª original permanece preservado e nÃ£o Ã© substituÃ­do.'
+          note: 'Esta é uma proposta. O carnê original permanece preservado e não é substituído.'
         });
       } catch (error) {
-        return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar a renegociaÃ§Ã£o.' });
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar a renegociação.' });
       }
     }
   );
@@ -7071,7 +7258,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           ? { _id: new mongoose.Types.ObjectId(id) }
           : { codigo: id };
         const row = await FinanceiroCarneDigital.findOne(filter);
-        if (!row) return res.status(404).json({ ok: false, error: 'CarnÃª digital nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Carnê digital não encontrado.' });
 
         const resumo = row.resumo || {};
         const valorBase = Number(req.body?.valorBase ?? resumo.valorAtualizado ?? resumo.saldo ?? 0);
@@ -7083,10 +7270,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const vencimentos = buildMonthlyDueDates(primeiroVencimento, quantidadeParcelas);
 
         if (!Number.isFinite(valorBase) || valorBase <= 0) {
-          return res.status(400).json({ ok: false, error: 'Valor base invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Valor base inválido.' });
         }
         if (!vencimentos.length) {
-          return res.status(400).json({ ok: false, error: 'Primeiro vencimento invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Primeiro vencimento inválido.' });
         }
 
         const proposta = await FinanceiroRenegociacao.create({
@@ -7135,11 +7322,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
         return res.status(201).json({
           ok: true,
-          message: 'Proposta de renegociaÃ§Ã£o salva sem alterar o carnÃª original.',
+          message: 'Proposta de renegociação salva sem alterar o carnê original.',
           renegociacao: proposta
         });
       } catch (error) {
-        return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar a proposta de renegociaÃ§Ã£o.' });
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar a proposta de renegociação.' });
       }
     }
   );
@@ -7157,7 +7344,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const rows = await FinanceiroRenegociacao.find(filter).sort({ createdAt: -1 }).lean();
         return res.json({ ok: true, renegociacoes: rows, total: rows.length });
       } catch (error) {
-        return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar renegociaÃ§Ãµes.' });
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar renegociações.' });
       }
     }
   );
@@ -7179,7 +7366,100 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(error.statusCode || 500).json({
           ok: false,
-          error: error.message || 'Erro ao gerar a fila diÃ¡ria de cobranÃ§a.'
+          error: error.message || 'Erro ao gerar a fila diária de cobrança.'
+        });
+      }
+    }
+  );
+
+  app.post(
+    '/api/admin/financeiro/fila-cobranca/adicionar-sige',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.cobranca'),
+    async (req, res) => {
+      try {
+        const clientes = Array.isArray(req.body?.clientes) ? req.body.clientes.slice(0, 50) : [];
+        const dataReferencia = req.body?.dataReferencia || new Date();
+        if (!clientes.length) {
+          return res.status(400).json({ ok: false, error: 'Selecione ao menos um cliente do SIGE.' });
+        }
+
+        const resultados = [];
+        let clientesAdicionados = 0;
+        let tarefasCriadas = 0;
+        let tarefasAtualizadas = 0;
+        let tarefasPreservadas = 0;
+        let erros = 0;
+
+        for (const cliente of clientes) {
+          const termo = String(cliente?.cpf || cliente?.nome || cliente?.q || '').trim();
+          if (termo.length < 2) {
+            erros += 1;
+            resultados.push({ ok: false, nome: String(cliente?.nome || ''), error: 'Cliente sem identificação para consulta.' });
+            continue;
+          }
+
+          try {
+            const sincronizacao = await sincronizarCarneDigitalSige(termo, req, {
+              limit: 5000,
+              maxRecords: 20000,
+              termos: [cliente?.nome, cliente?.cpf, cliente?.telefone]
+            });
+            const carneId = sincronizacao?.carne?.id;
+            const carne = carneId ? await FinanceiroCarneDigital.findById(carneId) : null;
+            if (!carne) throw new Error('Carnê sincronizado não foi localizado.');
+
+            const fila = await upsertCarneNaFilaCobranca(carne, dataReferencia, { somenteVencidas: true });
+            clientesAdicionados += 1;
+            tarefasCriadas += fila.criados;
+            tarefasAtualizadas += fila.atualizados;
+            tarefasPreservadas += fila.preservados;
+            resultados.push({
+              ok: true,
+              nome: carne.cliente?.nome || cliente?.nome || '',
+              carneId: String(carne._id),
+              carneCodigo: carne.codigo,
+              criadoAgora: sincronizacao.criadoAgora === true,
+              fila
+            });
+          } catch (error) {
+            erros += 1;
+            resultados.push({ ok: false, nome: String(cliente?.nome || termo), error: error.message || String(error) });
+          }
+        }
+
+        await registrarAuditoriaFinanceira({
+          req,
+          acao: 'FILA_COBRANCA_IMPORTADA_SIGE',
+          entidade: 'FinanceiroFilaCobranca',
+          codigo: dateKey(dataReferencia),
+          depois: {
+            selecionados: clientes.length,
+            clientesAdicionados,
+            tarefasCriadas,
+            tarefasAtualizadas,
+            tarefasPreservadas,
+            erros
+          }
+        });
+
+        return res.status(clientesAdicionados > 0 ? 200 : 422).json({
+          ok: clientesAdicionados > 0,
+          message: clientesAdicionados > 0
+            ? `${clientesAdicionados} cliente(s) do SIGE incluído(s) na Fila do Dia.`
+            : 'Nenhum cliente pôde ser incluído na Fila do Dia.',
+          selecionados: clientes.length,
+          clientesAdicionados,
+          tarefasCriadas,
+          tarefasAtualizadas,
+          tarefasPreservadas,
+          erros,
+          resultados
+        });
+      } catch (error) {
+        return res.status(error.statusCode || 500).json({
+          ok: false,
+          error: error.message || 'Erro ao adicionar clientes do SIGE à Fila do Dia.'
         });
       }
     }
@@ -7286,7 +7566,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao carregar a fila diÃ¡ria de cobranÃ§a.'
+          error: error.message || 'Erro ao carregar a fila diária de cobrança.'
         });
       }
     }
@@ -7300,16 +7580,16 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const id = String(req.params.id || '').trim();
         if (!mongoose.Types.ObjectId.isValid(id)) {
-          return res.status(400).json({ ok: false, error: 'Item da fila invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Item da fila inválido.' });
         }
 
         const row = await FinanceiroFilaCobranca.findById(id);
-        if (!row) return res.status(404).json({ ok: false, error: 'Item da fila nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Item da fila não encontrado.' });
 
         const allowedStatus = new Set(['PENDENTE', 'EM_ATENDIMENTO', 'CONTATADO', 'CONCLUIDO', 'ADIADO', 'SEM_CONTATO']);
         const novoStatus = String(req.body?.status || row.status || '').trim().toUpperCase();
         if (!allowedStatus.has(novoStatus)) {
-          return res.status(400).json({ ok: false, error: 'Status da fila invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Status da fila inválido.' });
         }
 
         const antes = normalizeFilaCobranca(row);
@@ -7320,7 +7600,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         if (req.body?.proximaAcaoEm) {
           const next = new Date(req.body.proximaAcaoEm);
           if (Number.isNaN(next.getTime())) {
-            return res.status(400).json({ ok: false, error: 'Data da prÃ³xima aÃ§Ã£o invÃ¡lida.' });
+            return res.status(400).json({ ok: false, error: 'Data da próxima ação inválida.' });
           }
           row.proximaAcaoEm = next;
         }
@@ -7411,17 +7691,17 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const dataPrometida = parseFinanceiroDate(body.dataPrometida);
 
         if (!mongoose.Types.ObjectId.isValid(carneId)) {
-          return res.status(400).json({ ok: false, error: 'CarnÃª invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Carnê inválido.' });
         }
         if (!Number.isFinite(valorPrometido) || valorPrometido <= 0) {
-          return res.status(400).json({ ok: false, error: 'Informe um valor prometido vÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Informe um valor prometido válido.' });
         }
         if (!dataPrometida || Number.isNaN(dataPrometida.getTime())) {
-          return res.status(400).json({ ok: false, error: 'Data prometida invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Data prometida inválida.' });
         }
 
         const carne = await FinanceiroCarneDigital.findById(carneId);
-        if (!carne) return res.status(404).json({ ok: false, error: 'CarnÃª nÃ£o encontrado.' });
+        if (!carne) return res.status(404).json({ ok: false, error: 'Carnê não encontrado.' });
 
         let filaItem = null;
         if (filaItemId && mongoose.Types.ObjectId.isValid(filaItemId)) {
@@ -7444,7 +7724,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           return res.json({
             ok: true,
             duplicate: true,
-            message: 'Esta promessa jÃ¡ estava registrada e nÃ£o foi duplicada.',
+            message: 'Esta promessa já estava registrada e não foi duplicada.',
             promessa: normalizePromessaPagamento(promessaExistente),
             whatsapp: { skipped: true, reason: 'duplicate' }
           });
@@ -7513,6 +7793,55 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         });
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message || 'Erro ao registrar promessa de pagamento.' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/admin/financeiro/promessas/alertas-hoje',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.visualizar'),
+    async (req, res) => {
+      try {
+        const { rows, clock } = await getPromessasHoje(req.query?.dataReferencia || new Date());
+        const settings = await getWhatsappSettings();
+        const destinatarios = getAdminWhatsappNumbers(settings);
+        const valorTotal = rows.reduce((sum, row) => sum + Number(row.valorPrometido || 0), 0);
+        const pendentesNotificacao = rows.filter((row) => row.alertaInternoEnviado !== true).length;
+
+        return res.json({
+          ok: true,
+          dataReferencia: clock.dateKey,
+          total: rows.length,
+          valorTotal: Number(valorTotal.toFixed(2)),
+          pendentesNotificacao,
+          notificacaoInternaConfigurada: destinatarios.length > 0,
+          destinatariosConfigurados: destinatarios.length,
+          promessas: rows.map(normalizePromessaPagamento)
+        });
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar os alertas de promessas de hoje.' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/admin/financeiro/promessas/alertas-hoje/notificar',
+    adminRequired,
+    financeiroPermissionRequired('financeiro.cobranca'),
+    async (req, res) => {
+      try {
+        const result = await notificarPromessasHojeInternamente({
+          req,
+          dataReferencia: req.body?.dataReferencia || new Date(),
+          force: req.body?.force === true
+        });
+        return res.status(result.ok === false ? 502 : 200).json(result);
+      } catch (error) {
+        return res.status(error.statusCode || 500).json({
+          ok: false,
+          error: error.message || 'Erro ao enviar o alerta interno de promessas.'
+        });
       }
     }
   );
@@ -7608,17 +7937,17 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const id = String(req.params.id || '').trim();
         if (!mongoose.Types.ObjectId.isValid(id)) {
-          return res.status(400).json({ ok: false, error: 'Promessa invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Promessa inválida.' });
         }
 
         const status = String(req.body?.status || '').trim().toUpperCase();
         const allowed = new Set(['PENDENTE', 'CUMPRIDA', 'QUEBRADA', 'CANCELADA']);
         if (!allowed.has(status)) {
-          return res.status(400).json({ ok: false, error: 'Status da promessa invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Status da promessa inválido.' });
         }
 
         const row = await FinanceiroPromessaPagamento.findById(id);
-        if (!row) return res.status(404).json({ ok: false, error: 'Promessa nÃ£o encontrada.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Promessa não encontrada.' });
 
         const antes = normalizePromessaPagamento(row);
         row.status = status;
@@ -7687,7 +8016,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const referencia = dayOnly(req.query.dataReferencia || req.query.date || new Date());
         if (!referencia) {
-          return res.status(400).json({ ok: false, error: 'Data de referÃªncia invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Data de referência inválida.' });
         }
 
         const amanha = new Date(referencia.getTime());
@@ -7907,7 +8236,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
               metadata.documento
               || metadata.orderId
               || row.codigo
-              || 'â€”',
+              || '—',
             eventType: row.acao || 'FINANCEIRO',
             status: row.sucesso === false ? 'FAILED' : 'SENT'
           };
@@ -8002,7 +8331,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao identificar o perÃ­odo disponÃ­vel.'
+          error: error.message || 'Erro ao identificar o período disponível.'
         });
       }
     }
@@ -8026,7 +8355,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           : new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999);
 
         if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime()) || inicio > fim) {
-          return res.status(400).json({ ok: false, error: 'PerÃ­odo invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Período inválido.' });
         }
 
         const promessaFilter = { createdAt: { $gte: inicio, $lte: fim } };
@@ -8271,10 +8600,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           serieDiaria
         });
       } catch (error) {
-        console.error('[financeiro recuperaÃ§Ã£o dashboard]', error.message || error);
+        console.error('[financeiro recuperação dashboard]', error.message || error);
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao calcular os indicadores de recuperaÃ§Ã£o.'
+          error: error.message || 'Erro ao calcular os indicadores de recuperação.'
         });
       }
     }
@@ -8290,7 +8619,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const body = req.body || {};
         const carneId = String(body.carneId || '').trim();
         if (!mongoose.Types.ObjectId.isValid(carneId)) {
-          return res.status(400).json({ ok: false, error: 'CarnÃª invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Carnê inválido.' });
         }
 
         const motivo = String(body.motivo || '').trim().toUpperCase();
@@ -8298,17 +8627,17 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const proximaAcao = String(body.proximaAcao || 'ACOMPANHAR').trim().toUpperCase();
 
         if (!getTratativaMotivosPermitidos().has(motivo)) {
-          return res.status(400).json({ ok: false, error: 'Motivo da inadimplÃªncia invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Motivo da inadimplência inválido.' });
         }
         if (!getTratativaResultadosPermitidos().has(resultado)) {
-          return res.status(400).json({ ok: false, error: 'Resultado da tratativa invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Resultado da tratativa inválido.' });
         }
         if (!getTratativaProximasAcoesPermitidas().has(proximaAcao)) {
-          return res.status(400).json({ ok: false, error: 'PrÃ³xima aÃ§Ã£o invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Próxima ação inválida.' });
         }
 
         const carne = await FinanceiroCarneDigital.findById(carneId);
-        if (!carne) return res.status(404).json({ ok: false, error: 'CarnÃª nÃ£o encontrado.' });
+        if (!carne) return res.status(404).json({ ok: false, error: 'Carnê não encontrado.' });
 
         let filaItem = null;
         const filaItemId = String(body.filaItemId || '').trim();
@@ -8326,7 +8655,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         if (body.proximaAcaoEm) {
           proximaAcaoEm = new Date(body.proximaAcaoEm);
           if (Number.isNaN(proximaAcaoEm.getTime())) {
-            return res.status(400).json({ ok: false, error: 'Data da prÃ³xima aÃ§Ã£o invÃ¡lida.' });
+            return res.status(400).json({ ok: false, error: 'Data da próxima ação inválida.' });
           }
         }
 
@@ -8346,7 +8675,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           return res.json({
             ok: true,
             duplicate: true,
-            message: 'Esta tratativa jÃ¡ estava registrada e nÃ£o foi duplicada.',
+            message: 'Esta tratativa já estava registrada e não foi duplicada.',
             tratativa: normalizeTratativaFinanceira(tratativaExistente)
           });
         }
@@ -8388,7 +8717,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           filaItem.proximaAcaoEm = proximaAcaoEm;
           filaItem.observacao = [
             filaItem.observacao || '',
-            `Motivo: ${motivo}. Resultado: ${resultado}. PrÃ³xima aÃ§Ã£o: ${proximaAcao}.`,
+            `Motivo: ${motivo}. Resultado: ${resultado}. Próxima ação: ${proximaAcao}.`,
             String(body.observacao || '')
           ].filter(Boolean).join(' ').slice(0, 2000);
           await filaItem.save();
@@ -8547,18 +8876,18 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const id = String(req.params.id || '').trim();
         if (!mongoose.Types.ObjectId.isValid(id)) {
-          return res.status(400).json({ ok: false, error: 'Tratativa invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Tratativa inválida.' });
         }
 
         const row = await FinanceiroTratativa.findById(id);
-        if (!row) return res.status(404).json({ ok: false, error: 'Tratativa nÃ£o encontrada.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Tratativa não encontrada.' });
 
         const antes = normalizeTratativaFinanceira(row);
 
         if (req.body?.resultado) {
           const resultado = String(req.body.resultado).trim().toUpperCase();
           if (!getTratativaResultadosPermitidos().has(resultado)) {
-            return res.status(400).json({ ok: false, error: 'Resultado invÃ¡lido.' });
+            return res.status(400).json({ ok: false, error: 'Resultado inválido.' });
           }
           row.resultado = resultado;
         }
@@ -8566,7 +8895,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         if (req.body?.proximaAcao) {
           const proximaAcao = String(req.body.proximaAcao).trim().toUpperCase();
           if (!getTratativaProximasAcoesPermitidas().has(proximaAcao)) {
-            return res.status(400).json({ ok: false, error: 'PrÃ³xima aÃ§Ã£o invÃ¡lida.' });
+            return res.status(400).json({ ok: false, error: 'Próxima ação inválida.' });
           }
           row.proximaAcao = proximaAcao;
         }
@@ -8574,7 +8903,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         if (req.body?.proximaAcaoEm) {
           const next = new Date(req.body.proximaAcaoEm);
           if (Number.isNaN(next.getTime())) {
-            return res.status(400).json({ ok: false, error: 'Data da prÃ³xima aÃ§Ã£o invÃ¡lida.' });
+            return res.status(400).json({ ok: false, error: 'Data da próxima ação inválida.' });
           }
           row.proximaAcaoEm = next;
         }
@@ -8647,7 +8976,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao consolidar motivos de inadimplÃªncia.'
+          error: error.message || 'Erro ao consolidar motivos de inadimplência.'
         });
       }
     }
@@ -8819,7 +9148,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao listar riscos de crÃ©dito.'
+          error: error.message || 'Erro ao listar riscos de crédito.'
         });
       }
     }
@@ -8833,17 +9162,17 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       try {
         const id = String(req.params.id || '').trim();
         if (!mongoose.Types.ObjectId.isValid(id)) {
-          return res.status(400).json({ ok: false, error: 'Registro de risco invÃ¡lido.' });
+          return res.status(400).json({ ok: false, error: 'Registro de risco inválido.' });
         }
 
         const statusManual = String(req.body?.statusManual || '').trim().toUpperCase();
         const allowed = new Set(['AUTOMATICO', 'ATIVO', 'EM_REVISAO', 'BLOQUEADO']);
         if (!allowed.has(statusManual)) {
-          return res.status(400).json({ ok: false, error: 'DecisÃ£o manual invÃ¡lida.' });
+          return res.status(400).json({ ok: false, error: 'Decisão manual inválida.' });
         }
 
         const row = await FinanceiroRiscoCliente.findById(id);
-        if (!row) return res.status(404).json({ ok: false, error: 'Registro de risco nÃ£o encontrado.' });
+        if (!row) return res.status(404).json({ ok: false, error: 'Registro de risco não encontrado.' });
 
         const antes = normalizeRiscoCliente(row);
         row.statusManual = statusManual;
@@ -8864,7 +9193,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
         return res.json({
           ok: true,
-          message: `SituaÃ§Ã£o manual alterada para ${statusManual}.`,
+          message: `Situação manual alterada para ${statusManual}.`,
           risco: {
             ...normalizeRiscoCliente(row),
             decisaoEfetiva: effectiveRiskDecision(row)
@@ -8873,7 +9202,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao alterar a decisÃ£o de risco.'
+          error: error.message || 'Erro ao alterar a decisão de risco.'
         });
       }
     }
@@ -8946,9 +9275,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           motivos,
           message: enforcementEnabled
             ? (bloquearFluxo
-              ? 'Venda bloqueada pela polÃ­tica de risco.'
-              : 'Venda avaliada conforme a polÃ­tica de risco.')
-            : 'AvaliaÃ§Ã£o consultiva: o bloqueio automÃ¡tico estÃ¡ desativado.'
+              ? 'Venda bloqueada pela política de risco.'
+              : 'Venda avaliada conforme a política de risco.')
+            : 'Avaliação consultiva: o bloqueio automático está desativado.'
         });
       } catch (error) {
         return res.status(error.statusCode || 500).json({
@@ -9028,7 +9357,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       } catch (error) {
         return res.status(500).json({
           ok: false,
-          error: error.message || 'Erro ao executar o diagnÃ³stico financeiro.'
+          error: error.message || 'Erro ao executar o diagnóstico financeiro.'
         });
       }
     }
@@ -9095,8 +9424,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   // ============================================================
   // FASE C.3 - BAIXA NO SIGE + RECIBO + WHATSAPP
   // O SIGE permanece como fonte financeira oficial.
-  // Somente apÃ³s a confirmaÃ§Ã£o da baixa, o MongoDB recebe o recibo/auditoria
-  // e o WhatsApp Ã© enviado ao cliente.
+  // Somente após a confirmação da baixa, o MongoDB recebe o recibo/auditoria
+  // e o WhatsApp é enviado ao cliente.
   // ============================================================
   function getSigeRequestHeaders() {
     const headers = typeof sigeAuthHeaders === 'function'
@@ -9205,7 +9534,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
     const observacaoBase = String(body.observacao || '').trim();
     const observacao = [
-      `Pagamento confirmado no SIGE. LanÃ§amento ${codigo}.`,
+      `Pagamento confirmado no SIGE. Lançamento ${codigo}.`,
       `Documento do pagamento: ${numeroDocumento}.`,
       observacaoBase
     ].filter(Boolean).join(' ');
@@ -9313,7 +9642,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
     await createAdminNotification({
       type: 'crediario_recibo_sige',
-      title: 'ðŸ§¾ Pagamento SIGE e recibo registrados',
+      title: '🧾 Pagamento SIGE e recibo registrados',
       message: `${recibo.recibo} - ${recibo.clienteNome} - ${formatMoneyBRL(recibo.valorPago)}`,
       relatedId: String(recibo._id),
       severity: whatsapp?.ok === false ? 'warning' : 'info',
@@ -9335,7 +9664,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       if (!isSigeConfigured()) {
         return res.status(503).json({
           ok: false,
-          error: 'IntegraÃ§Ã£o com o SIGE nÃ£o estÃ¡ configurada.'
+          error: 'Integração com o SIGE não está configurada.'
         });
       }
 
@@ -9354,27 +9683,27 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       ).trim();
 
       if (!Number.isInteger(codigo) || codigo <= 0) {
-        return res.status(400).json({ ok: false, error: 'CÃ³digo do lanÃ§amento SIGE invÃ¡lido.' });
+        return res.status(400).json({ ok: false, error: 'Código do lançamento SIGE inválido.' });
       }
       if (!Number.isFinite(valor) || valor <= 0) {
-        return res.status(400).json({ ok: false, error: 'Informe um valor de pagamento vÃ¡lido.' });
+        return res.status(400).json({ ok: false, error: 'Informe um valor de pagamento válido.' });
       }
       if (!formaPagamento) {
         return res.status(400).json({ ok: false, error: 'Informe a forma de pagamento.' });
       }
       if (!contaBancaria) {
-        return res.status(400).json({ ok: false, error: 'Informe a conta bancÃ¡ria.' });
+        return res.status(400).json({ ok: false, error: 'Informe a conta bancária.' });
       }
       if (!numeroDocumento) {
-        return res.status(400).json({ ok: false, error: 'Informe o nÃºmero do documento do pagamento.' });
+        return res.status(400).json({ ok: false, error: 'Informe o número do documento do pagamento.' });
       }
       if (Number.isNaN(dataPagamento.getTime())) {
-        return res.status(400).json({ ok: false, error: 'Data do pagamento invÃ¡lida.' });
+        return res.status(400).json({ ok: false, error: 'Data do pagamento inválida.' });
       }
 
       const lancamentoAntes = await getSigeLancamentoByCodigo(codigo);
       if (!lancamentoAntes || !Number(lancamentoAntes.Codigo ?? lancamentoAntes.codigo)) {
-        return res.status(404).json({ ok: false, error: 'LanÃ§amento nÃ£o encontrado no SIGE.' });
+        return res.status(404).json({ ok: false, error: 'Lançamento não encontrado no SIGE.' });
       }
 
       const quitadoAntes = lancamentoAntes.Quitado === true || lancamentoAntes.quitado === true;
@@ -9383,7 +9712,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       if (hasSigePagamentoDocumento(lancamentoAntes, numeroDocumento)) {
         return res.status(409).json({
           ok: false,
-          error: 'Este pagamento jÃ¡ foi registrado no SIGE.',
+          error: 'Este pagamento já foi registrado no SIGE.',
           codigo,
           numeroDocumento
         });
@@ -9392,7 +9721,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       if (quitadoAntes || saldoAntes <= 0) {
         return res.status(409).json({
           ok: false,
-          error: 'Esta parcela jÃ¡ estÃ¡ quitada no SIGE.',
+          error: 'Esta parcela já está quitada no SIGE.',
           codigo,
           saldo: saldoAntes
         });
@@ -9401,7 +9730,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       if (valor > saldoAntes + 0.009) {
         return res.status(422).json({
           ok: false,
-          error: `O pagamento nÃ£o pode ultrapassar o saldo de ${formatMoneyBRL(saldoAntes)}.`,
+          error: `O pagamento não pode ultrapassar o saldo de ${formatMoneyBRL(saldoAntes)}.`,
           codigo,
           valor,
           saldo: saldoAntes
@@ -9444,7 +9773,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       const lancamentoDepois = await getSigeLancamentoByCodigo(codigo);
       if (!lancamentoDepois) {
-        const error = new Error('O SIGE recebeu a solicitaÃ§Ã£o, mas nÃ£o foi possÃ­vel confirmar o lanÃ§amento atualizado.');
+        const error = new Error('O SIGE recebeu a solicitação, mas não foi possível confirmar o lançamento atualizado.');
         error.statusCode = 502;
         throw error;
       }
@@ -9456,7 +9785,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const aumentoRecebido = Number((totalDepois - totalAntes).toFixed(2));
 
       if (!pagamentoConfirmado || aumentoRecebido + 0.009 < valor) {
-        const error = new Error('O SIGE nÃ£o confirmou completamente o pagamento apÃ³s a gravaÃ§Ã£o.');
+        const error = new Error('O SIGE não confirmou completamente o pagamento após a gravação.');
         error.statusCode = 502;
         error.responseData = {
           pagamentoConfirmado,
@@ -9481,7 +9810,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           body
         });
       } catch (receiptError) {
-        console.error('[financeiro SIGE C.3 pÃ³s-pagamento]', receiptError.message || receiptError);
+        console.error('[financeiro SIGE C.3 pós-pagamento]', receiptError.message || receiptError);
         return res.json({
           ok: true,
           fase: 'C.3',
@@ -9503,7 +9832,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           lancamento: lancamentoDepois,
           reciboCriado: false,
           whatsappEnviado: false,
-          erroPosPagamento: receiptError.message || 'Falha ao criar recibo apÃ³s confirmaÃ§Ã£o no SIGE.'
+          erroPosPagamento: receiptError.message || 'Falha ao criar recibo após confirmação no SIGE.'
         });
       }
 
@@ -9529,7 +9858,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         fase: 'C.3',
         message: whatsappEnviado
           ? 'Pagamento confirmado no SIGE, recibo criado e enviado pelo WhatsApp.'
-          : 'Pagamento confirmado no SIGE e recibo criado. O WhatsApp nÃ£o foi enviado.',
+          : 'Pagamento confirmado no SIGE e recibo criado. O WhatsApp não foi enviado.',
         warning: !whatsappEnviado,
         fonteFinanceira: 'sige',
         codigo,
@@ -9580,11 +9909,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       const telefone = normalizePhone(telefoneManual || carne.telefone || '', '55');
       if (!telefone) {
-        return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado. Informe o celular para enviar o carnÃª.' });
+        return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado. Informe o celular para enviar o carnê.' });
       }
 
       if (!Array.isArray(carne.grupos) || !carne.grupos.length) {
-        return res.status(404).json({ ok: false, error: 'Nenhuma parcela encontrada para enviar no carnÃª.' });
+        return res.status(404).json({ ok: false, error: 'Nenhuma parcela encontrada para enviar no carnê.' });
       }
 
       if (!documento) {
@@ -9605,8 +9934,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         whatsapp: sent
       });
     } catch (error) {
-      console.error('Erro ao enviar carnÃª SIGE por WhatsApp:', error.message || error);
-      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao enviar carnÃª por WhatsApp' });
+      console.error('Erro ao enviar carnê SIGE por WhatsApp:', error.message || error);
+      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao enviar carnê por WhatsApp' });
     }
   });
 
@@ -9633,35 +9962,35 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     const documento = String(item.documento || item.codigo || '').trim();
     const descricao = String(item.descricao || 'Parcela em aberto').trim();
     const valor = Number((item.saldo && item.saldo > 0) ? item.saldo : (item.valor || 0));
-    const vencimento = item.dataVencimento ? formatDateBR(item.dataVencimento) : 'nÃ£o informado';
+    const vencimento = item.dataVencimento ? formatDateBR(item.dataVencimento) : 'não informado';
     const dias = Number(item.diasAtraso || 0);
     const tipoNorm = String(tipo || 'amigavel').toLowerCase();
 
     const cabecalho = tipoNorm === 'urgente'
-      ? 'ðŸš¨ Aviso urgente de pendÃªncia financeira'
-      : (tipoNorm === 'normal' ? 'ðŸ”” Aviso de pendÃªncia financeira' : 'ðŸ“Œ Lembrete de parcela em atraso');
+      ? '🚨 Aviso urgente de pendência financeira'
+      : (tipoNorm === 'normal' ? '🔔 Aviso de pendência financeira' : '📌 Lembrete de parcela em atraso');
 
     const texto = tipoNorm === 'urgente'
-      ? 'Consta parcela vencida hÃ¡ vÃ¡rios dias em nosso sistema. Pedimos contato com urgÃªncia para regularizaÃ§Ã£o ou esclarecimentos.'
+      ? 'Consta parcela vencida há vários dias em nosso sistema. Pedimos contato com urgência para regularização ou esclarecimentos.'
       : (tipoNorm === 'normal'
         ? 'Identificamos parcela em atraso em nosso sistema. Pedimos a gentileza de entrar em contato com nosso financeiro.'
-        : 'Identificamos uma parcela vencida recentemente em nosso sistema. Caso jÃ¡ tenha realizado o pagamento, por favor desconsidere esta mensagem.');return [
+        : 'Identificamos uma parcela vencida recentemente em nosso sistema. Caso já tenha realizado o pagamento, por favor desconsidere esta mensagem.');return [
       cabecalho,
       '',
-      `OlÃ¡, ${nome}.`,
+      `Olá, ${nome}.`,
       '',
       texto,
       '',
-      documento ? `ðŸ§¾ Documento: ${documento}` : '',
-      descricao ? `ðŸ“¦ ReferÃªncia: ${descricao.slice(0, 160)}` : '',
-      valor > 0 ? `ðŸ’° Valor: ${formatMoneyBRL(valor)}` : '',
-      `ðŸ“… Vencimento: ${vencimento}`,
-      dias > 0 ? `â±ï¸ Dias em atraso: ${dias}` : '',
+      documento ? `🧾 Documento: ${documento}` : '',
+      descricao ? `📦 Referência: ${descricao.slice(0, 160)}` : '',
+      valor > 0 ? `💰 Valor: ${formatMoneyBRL(valor)}` : '',
+      `📅 Vencimento: ${vencimento}`,
+      dias > 0 ? `⏱️ Dias em atraso: ${dias}` : '',
       '',
-      'Para mais informaÃ§Ãµes ou regularizaÃ§Ã£o, fale com a loja:',
-      'ðŸ“² WhatsApp financeiro: (31) 98514-7119',
+      'Para mais informações ou regularização, fale com a loja:',
+      '📲 WhatsApp financeiro: (31) 98514-7119',
       '',
-      'Ariana MÃ³veis'
+      'Ariana Móveis'
     ].filter(Boolean).join('\n').trim();
   }
 
@@ -9676,7 +10005,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         return { ...item, telefone: exact.telefone, cpf: item.cpf || exact.cpf || '', cidade: item.cidade || exact.cidade || '', uf: item.uf || exact.uf || '' };
       }
     } catch (error) {
-      console.warn('NÃ£o foi possÃ­vel buscar telefone do inadimplente:', error.message || error);
+      console.warn('Não foi possível buscar telefone do inadimplente:', error.message || error);
     }
     return item;
   }
@@ -9699,7 +10028,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         pessoas = rows.map(normalizeSigePessoa).filter((p) => p.nome);
       }
     } catch (innerError) {
-      console.warn('SIGE ConsultaInadimplencias indisponÃ­vel; usando lanÃ§amentos vencidos:', innerError.message || innerError);
+      console.warn('SIGE ConsultaInadimplencias indisponível; usando lançamentos vencidos:', innerError.message || innerError);
       pessoas = [];
     }
 
@@ -9775,13 +10104,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     try {
       const telefone = String(req.body.telefone || '').trim();
       const clienteNome = String(req.body.clienteNome || req.body.nome || '').trim();
-      if (!clienteNome) return res.status(400).json({ ok: false, error: 'Cliente nÃ£o informado' });
-      if (!telefone) return res.status(400).json({ ok: false, error: 'Telefone nÃ£o informado' });
+      if (!clienteNome) return res.status(400).json({ ok: false, error: 'Cliente não informado' });
+      if (!telefone) return res.status(400).json({ ok: false, error: 'Telefone não informado' });
 
       const whatsapp = await sendCrediarioCobrancaWhatsapp({
         telefone,
         clienteNome,
-        produto: req.body.produto || req.body.descricao || 'PendÃªncia financeira SIGE',
+        produto: req.body.produto || req.body.descricao || 'Pendência financeira SIGE',
         parcela: req.body.parcela || '',
         valor: parseSigeMoney(req.body.valor || req.body.valorAtualizado || req.body.saldo || 0),
         valorOriginal: parseSigeMoney(req.body.valorOriginal || req.body.saldoOriginal || req.body.valor || 0),
@@ -9795,7 +10124,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       return res.json({ ok: true, whatsapp });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobranÃ§a SIGE' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança SIGE' });
     }
   });
 
@@ -9806,11 +10135,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       enabled: String(process.env.SIGE_AUTO_COBRANCA_ENABLED || 'false').toLowerCase() === 'true',
       hour: Number(process.env.SIGE_AUTO_COBRANCA_HOUR || 9),
       rules: [
-        { minDias: 1, tipo: 'amigavel', label: '1 dia ou mais: lembrete amigÃ¡vel' },
-        { minDias: 7, tipo: 'normal', label: '7 dias ou mais: cobranÃ§a normal' },
-        { minDias: 15, tipo: 'urgente', label: '15 dias ou mais: cobranÃ§a urgente' }
+        { minDias: 1, tipo: 'amigavel', label: '1 dia ou mais: lembrete amigável' },
+        { minDias: 7, tipo: 'normal', label: '7 dias ou mais: cobrança normal' },
+        { minDias: 15, tipo: 'urgente', label: '15 dias ou mais: cobrança urgente' }
       ],
-      antiRepeticao: 'NÃ£o envia a mesma cobranÃ§a para a mesma parcela mais de uma vez no mesmo dia.'
+      antiRepeticao: 'Não envia a mesma cobrança para a mesma parcela mais de uma vez no mesmo dia.'
     });
   });
 
@@ -9833,7 +10162,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           uniqueKey,
           jaEnviadoHoje: !!existente,
           podeEnviar: !!enriched.telefone && !existente,
-          motivoBloqueio: !enriched.telefone ? 'sem telefone' : (existente ? 'jÃ¡ enviado hoje' : '')
+          motivoBloqueio: !enriched.telefone ? 'sem telefone' : (existente ? 'já enviado hoje' : '')
         });
       }
 
@@ -9848,8 +10177,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         }
       });
     } catch (error) {
-      console.error('Erro ao simular cobranÃ§a automÃ¡tica SIGE:', error.message || error);
-      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao simular cobranÃ§a automÃ¡tica' });
+      console.error('Erro ao simular cobrança automática SIGE:', error.message || error);
+      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao simular cobrança automática' });
     }
   });
 
@@ -9871,7 +10200,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const existente = await CrediarioCobrancaLog.findOne({ uniqueKey }).lean();
 
         if (existente) {
-          resultados.push({ ok: false, skipped: true, motivo: 'jÃ¡ enviado hoje', cliente: enriched.nome || enriched.cliente, tipo, documento: enriched.documento, codigo: enriched.codigo });
+          resultados.push({ ok: false, skipped: true, motivo: 'já enviado hoje', cliente: enriched.nome || enriched.cliente, tipo, documento: enriched.documento, codigo: enriched.codigo });
           continue;
         }
         if (!telefone) {
@@ -9939,8 +10268,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         }
       });
     } catch (error) {
-      console.error('Erro ao executar cobranÃ§a automÃ¡tica SIGE:', error.message || error);
-      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao executar cobranÃ§a automÃ¡tica' });
+      console.error('Erro ao executar cobrança automática SIGE:', error.message || error);
+      return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao executar cobrança automática' });
     }
   });
 
@@ -9963,7 +10292,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const rows = await CrediarioCliente.find(filter).sort({ updatedAt: -1 }).limit(limit);
       return res.json({ ok: true, clientes: rows.map(normalizeCrediarioCliente) });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar clientes do crediÃ¡rio' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar clientes do crediário' });
     }
   });
 
@@ -9995,7 +10324,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       );
       return res.json({ ok: true, cliente: normalizeCrediarioCliente(doc) });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar cliente do crediÃ¡rio' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar cliente do crediário' });
     }
   });
 
@@ -10011,17 +10340,17 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       for (const row of rows.slice(0, limit)) {
         const nome = normalizeSigeName(
-          getSigeValue(row, ['NomeFantasia', 'Nome Fantasia', 'RazaoSocial', 'RazÃ£o Social', 'Nome', 'Cliente'])
+          getSigeValue(row, ['NomeFantasia', 'Nome Fantasia', 'RazaoSocial', 'Razão Social', 'Nome', 'Cliente'])
         );
         const cpf = cleanPhone(getSigeValue(row, ['CNPJ_CPF', 'CNPJ/CPF', 'CPF', 'CNPJ']));
         const telefone = normalizePhone(
           getSigeValue(row, ['Celular', 'Telefone', 'Fone', 'WhatsApp', 'Whatsapp']),
           '55'
         );
-        const cidade = String(getSigeValue(row, ['Cidade', 'MunicÃ­pio', 'Municipio']) || '').trim();
+        const cidade = String(getSigeValue(row, ['Cidade', 'Município', 'Municipio']) || '').trim();
         const uf = String(getSigeValue(row, ['UF', 'Estado']) || '').trim();
         const bairro = String(getSigeValue(row, ['Bairro']) || '').trim();
-        const logradouro = String(getSigeValue(row, ['Logradouro', 'EndereÃ§o', 'Endereco']) || '').trim();
+        const logradouro = String(getSigeValue(row, ['Logradouro', 'Endereço', 'Endereco']) || '').trim();
         const cep = String(getSigeValue(row, ['CEP']) || '').trim();
 
         if (!nome) {
@@ -10070,9 +10399,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const tipo = String(getSigeValue(row, ['Tipo']) || '').trim();
         const clienteNome = normalizeSigeName(getSigeValue(row, ['Cliente', 'Pessoa', 'Nome']));
         const valorPago = parseSigeMoney(getSigeValue(row, ['Valor', 'Valor Pago', 'Valor Recebido']));
-        const codigo = String(getSigeValue(row, ['CÃ³digo', 'Codigo', 'Cod.']) || '').trim();
-        const documento = String(getSigeValue(row, ['Documento', 'Pedido', 'NÃºmero Documento', 'Numero Documento']) || '').trim();
-        const descricao = String(getSigeValue(row, ['DescriÃ§Ã£o', 'Descricao', 'HistÃ³rico', 'Historico']) || '').trim();
+        const codigo = String(getSigeValue(row, ['Código', 'Codigo', 'Cod.']) || '').trim();
+        const documento = String(getSigeValue(row, ['Documento', 'Pedido', 'Número Documento', 'Numero Documento']) || '').trim();
+        const descricao = String(getSigeValue(row, ['Descrição', 'Descricao', 'Histórico', 'Historico']) || '').trim();
         const formaPagamento = String(getSigeValue(row, ['Forma de Pgto.', 'Forma de Pgto', 'Forma de Pagamento', 'Pagamento']) || 'SIGE').trim();
         const dataPagamento = parseSigeDate(getSigeValue(row, ['Data Pgto.', 'Data Pgto', 'Data Pagamento', 'Data de Pagamento'])) || now();
         const dataVencimento = parseSigeDate(getSigeValue(row, ['Data Venc.', 'Data Venc', 'Data Vencimento', 'Vencimento']));
@@ -10083,7 +10412,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           continue;
         }
 
-        // Evita importar despesas como recibo de cliente quando o relatÃ³rio vier misturado.
+        // Evita importar despesas como recibo de cliente quando o relatório vier misturado.
         if (tipo && !/receita|entrada|receb/i.test(tipo)) {
           ignorados++;
           continue;
@@ -10095,7 +10424,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             nome: clienteNome,
             telefone: '',
             cpf: '',
-            observacao: 'Criado automaticamente pela importaÃ§Ã£o de pagamentos do SIGE',
+            observacao: 'Criado automaticamente pela importação de pagamentos do SIGE',
             origem: 'sige_pagamentos',
             ativo: true
           });
@@ -10120,7 +10449,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           existing.sigeDescricao = descricao;
           existing.sigeDataVencimento = dataVencimento;
           existing.origem = 'sige_pagamentos';
-          existing.observacao = 'Importado/atualizado pelo relatÃ³rio de pagamentos do SIGE';
+          existing.observacao = 'Importado/atualizado pelo relatório de pagamentos do SIGE';
           await existing.save();
           atualizados++;
           continue;
@@ -10141,7 +10470,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           valorPago,
           formaPagamento,
           dataPagamento,
-          observacao: 'Importado pelo relatÃ³rio de pagamentos do SIGE',
+          observacao: 'Importado pelo relatório de pagamentos do SIGE',
           criadoPor: req.admin?.email || req.auth?.email || 'admin',
           status: 'importado',
           origem: 'sige_pagamentos',
@@ -10206,13 +10535,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       if (!nome) return res.status(400).json({ ok: false, error: 'Informe o cliente' });
       if (!telefone) return res.status(400).json({ ok: false, error: 'Informe o WhatsApp do cliente' });
-      if (!Number.isFinite(valorPago) || valorPago <= 0) return res.status(400).json({ ok: false, error: 'Informe um valor pago vÃ¡lido' });
+      if (!Number.isFinite(valorPago) || valorPago <= 0) return res.status(400).json({ ok: false, error: 'Informe um valor pago válido' });
 
       let cliente = null;
       if (clienteId && mongoose.Types.ObjectId.isValid(clienteId)) cliente = await CrediarioCliente.findById(clienteId);
 
-      // Sempre mantÃ©m o cadastro permanente do cliente atualizado com os dados digitados no recibo.
-      // Assim, ao gerar outro recibo para o mesmo cliente, celular/CPF/contrato jÃ¡ voltam preenchidos.
+      // Sempre mantém o cadastro permanente do cliente atualizado com os dados digitados no recibo.
+      // Assim, ao gerar outro recibo para o mesmo cliente, celular/CPF/contrato já voltam preenchidos.
       if (cliente) {
         cliente.nome = nome || cliente.nome || '';
         if (telefone) cliente.telefone = telefone;
@@ -10265,7 +10594,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       await createAdminNotification({
         type: 'crediario_recibo',
-        title: 'ðŸ§¾ Recibo de parcela registrado',
+        title: '🧾 Recibo de parcela registrado',
         message: `${recibo.recibo} - ${recibo.clienteNome} - ${formatMoneyBRL(recibo.valorPago)}`,
         relatedId: String(recibo._id),
         severity: whatsapp?.ok === false ? 'warning' : 'info',
@@ -10283,7 +10612,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   app.post('/api/admin/crediario/clientes/:id/cobranca', adminRequired, async (req, res) => {
     try {
       const cliente = await CrediarioCliente.findById(req.params.id);
-      if (!cliente) return res.status(404).json({ ok: false, error: 'Cliente nÃ£o encontrado' });
+      if (!cliente) return res.status(404).json({ ok: false, error: 'Cliente não encontrado' });
 
       const body = req.body || {};
       const telefone = normalizePhone(body.telefone || cliente.telefone || '', '55');
@@ -10292,7 +10621,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const whatsapp = await sendCrediarioCobrancaWhatsapp({
         telefone,
         clienteNome: cliente.nome,
-        produto: body.produto || 'PendÃªncia financeira',
+        produto: body.produto || 'Pendência financeira',
         parcela: body.parcela || '',
         valor: body.valor || body.valorAtualizado || 0,
         valorOriginal: body.valorOriginal || body.valor || 0,
@@ -10311,8 +10640,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       await createAdminNotification({
         type: 'crediario_cobranca',
-        title: 'ðŸ”” CobranÃ§a enviada',
-        message: `${cliente.nome} - aviso de pendÃªncia financeira enviado`,
+        title: '🔔 Cobrança enviada',
+        message: `${cliente.nome} - aviso de pendência financeira enviado`,
         relatedId: String(cliente._id),
         severity: 'warning',
         metadata: { clienteId: String(cliente._id), telefone, whatsapp }
@@ -10320,14 +10649,14 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       return res.json({ ok: true, cliente: normalizeCrediarioCliente(cliente), whatsapp });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobranÃ§a' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança' });
     }
   });
 
   app.post('/api/admin/crediario/recibos/:id/cobranca', adminRequired, async (req, res) => {
     try {
       const recibo = await CrediarioRecibo.findById(req.params.id);
-      if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo nÃ£o encontrado' });
+      if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo não encontrado' });
 
       const r = normalizeCrediarioRecibo(recibo);
       const telefoneEnvio = normalizePhone(req.body?.telefone || r.telefone || '', '55');
@@ -10364,7 +10693,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       await createAdminNotification({
         type: 'crediario_cobranca',
-        title: 'ðŸ”” CobranÃ§a enviada',
+        title: '🔔 Cobrança enviada',
         message: `${r.clienteNome} - ${r.recibo}`,
         relatedId: String(recibo._id),
         severity: 'warning',
@@ -10373,7 +10702,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       return res.json({ ok: true, recibo: r, whatsapp });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobranÃ§a' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao enviar cobrança' });
     }
   });
 
@@ -10381,7 +10710,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     let recibo = null;
     try {
       recibo = await CrediarioRecibo.findById(req.params.id);
-      if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo nÃ£o encontrado' });
+      if (!recibo) return res.status(404).json({ ok: false, error: 'Recibo não encontrado' });
 
       const telefoneEnvio = normalizePhone(req.body?.telefone || recibo.telefone || '', '55');
       if (!telefoneEnvio) return res.status(400).json({ ok: false, error: 'Cliente sem WhatsApp cadastrado' });
@@ -10389,7 +10718,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       const whatsapp = await sendCrediarioReceiptWhatsapp(recibo);
       if (!whatsapp || whatsapp.ok === false) {
-        throw new Error(whatsapp?.error || whatsapp?.message || 'Evolution API nÃ£o confirmou o envio do recibo.');
+        throw new Error(whatsapp?.error || whatsapp?.message || 'Evolution API não confirmou o envio do recibo.');
       }
 
       recibo.enviadoWhatsapp = true;
@@ -10399,7 +10728,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       await createAdminNotification({
         type: 'crediario_recibo_whatsapp',
-        title: 'ðŸ“² Recibo enviado pelo WhatsApp',
+        title: '📲 Recibo enviado pelo WhatsApp',
         message: `${recibo.recibo} - ${recibo.clienteNome}`,
         relatedId: String(recibo._id),
         severity: 'info',
@@ -10424,9 +10753,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   app.get('/api/admin/crediario/recibos/:id/html', adminRequired, async (req, res) => {
     try {
       const recibo = await CrediarioRecibo.findById(req.params.id);
-      if (!recibo) return res.status(404).send('Recibo nÃ£o encontrado');
+      if (!recibo) return res.status(404).send('Recibo não encontrado');
       const r = normalizeCrediarioRecibo(recibo);
-      const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>${r.recibo}</title><style>body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;padding:30px;color:#111827}.receipt{max-width:720px;margin:auto;background:#fff;border-radius:18px;padding:32px;border:1px solid #e5e7eb}.brand{font-size:26px;font-weight:900;color:#0047AB}.muted{color:#6b7280}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:12px 0}.total{font-size:24px;font-weight:900;color:#16a34a}.footer{margin-top:28px;color:#6b7280;font-size:13px}@media print{body{background:#fff}.receipt{border:none}}</style></head><body><div class="receipt"><div class="brand">Ariana MÃ³veis</div><p class="muted">Comprovante de pagamento de parcela</p><h2>${r.recibo}</h2><div class="row"><strong>Cliente</strong><span>${r.clienteNome}</span></div><div class="row"><strong>CPF</strong><span>${r.clienteCpf || 'â€”'}</span></div><div class="row"><strong>Telefone</strong><span>${r.telefone}</span></div><div class="row"><strong>Contrato</strong><span>${r.contrato || 'â€”'}</span></div><div class="row"><strong>Produto</strong><span>${r.produto}</span></div><div class="row"><strong>Parcela</strong><span>${formatCrediarioParcela(r.parcela) || 'â€”'}</span></div><div class="row"><strong>Forma</strong><span>${r.formaPagamento}</span></div><div class="row"><strong>Data</strong><span>${formatDateBR(r.dataPagamento)}</span></div><div class="row"><strong>Valor pago</strong><span class="total">${formatMoneyBRL(r.valorPago)}</span></div>${r.observacao ? `<p><strong>ObservaÃ§Ã£o:</strong><br>${String(r.observacao).replace(/[<>&]/g, '')}</p>` : ''}<div class="footer">Pagamento registrado no sistema da Ariana MÃ³veis. Este comprovante confirma o recebimento da parcela informada.</div></div><script>window.print()</script></body></html>`;
+      const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>${r.recibo}</title><style>body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;padding:30px;color:#111827}.receipt{max-width:720px;margin:auto;background:#fff;border-radius:18px;padding:32px;border:1px solid #e5e7eb}.brand{font-size:26px;font-weight:900;color:#0047AB}.muted{color:#6b7280}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:12px 0}.total{font-size:24px;font-weight:900;color:#16a34a}.footer{margin-top:28px;color:#6b7280;font-size:13px}@media print{body{background:#fff}.receipt{border:none}}</style></head><body><div class="receipt"><div class="brand">Ariana Móveis</div><p class="muted">Comprovante de pagamento de parcela</p><h2>${r.recibo}</h2><div class="row"><strong>Cliente</strong><span>${r.clienteNome}</span></div><div class="row"><strong>CPF</strong><span>${r.clienteCpf || '—'}</span></div><div class="row"><strong>Telefone</strong><span>${r.telefone}</span></div><div class="row"><strong>Contrato</strong><span>${r.contrato || '—'}</span></div><div class="row"><strong>Produto</strong><span>${r.produto}</span></div><div class="row"><strong>Parcela</strong><span>${formatCrediarioParcela(r.parcela) || '—'}</span></div><div class="row"><strong>Forma</strong><span>${r.formaPagamento}</span></div><div class="row"><strong>Data</strong><span>${formatDateBR(r.dataPagamento)}</span></div><div class="row"><strong>Valor pago</strong><span class="total">${formatMoneyBRL(r.valorPago)}</span></div>${r.observacao ? `<p><strong>Observação:</strong><br>${String(r.observacao).replace(/[<>&]/g, '')}</p>` : ''}<div class="footer">Pagamento registrado no sistema da Ariana Móveis. Este comprovante confirma o recebimento da parcela informada.</div></div><script>window.print()</script></body></html>`;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.send(html);
     } catch (error) {
@@ -10451,15 +10780,15 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         }
       });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar configuraÃ§Ãµes de pagamento' });
+      return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar configurações de pagamento' });
     }
   });
 
 
   // ============================================================
   // ROTAS PARA BOTS DO WHATSAPP - FINANCEIRO E SAC
-  // Usadas pelas automaÃ§Ãµes Ariana_Financeiro e Ariana_SAC.
-  // SeguranÃ§a: se BOT_API_TOKEN estiver configurado no Render,
+  // Usadas pelas automações Ariana_Financeiro e Ariana_SAC.
+  // Segurança: se BOT_API_TOKEN estiver configurado no Render,
   // o bot deve enviar o mesmo valor no header x-bot-token.
   // ============================================================
   const BOT_API_TOKEN = String(
@@ -10478,7 +10807,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     ).trim();
 
     if (BOT_API_TOKEN && incomingToken !== BOT_API_TOKEN) {
-      return res.status(401).json({ ok: false, error: 'Token do bot invÃ¡lido' });
+      return res.status(401).json({ ok: false, error: 'Token do bot inválido' });
     }
 
     return next();
@@ -10488,8 +10817,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return String(value || '').replace(/\D/g, '');
   }
 
-  // Normaliza CEP para chamadas de logÃ­stica/Correios.
-  // MantÃ©m somente nÃºmeros e limita em 8 dÃ­gitos para evitar erro no teste de etiquetas.
+  // Normaliza CEP para chamadas de logística/Correios.
+  // Mantém somente números e limita em 8 dígitos para evitar erro no teste de etiquetas.
   function cleanCep(value = '') {
     return String(value || '').replace(/\D/g, '').slice(0, 8);
   }
@@ -10588,7 +10917,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         if (clean) candidates.add(clean);
       });
 
-      // TambÃ©m tenta versÃµes finais do nÃºmero, pois alguns pedidos sÃ£o salvos sem DDI ou com mÃ¡scara.
+      // Também tenta versões finais do número, pois alguns pedidos são salvos sem DDI ou com máscara.
       [8, 9, 10, 11].forEach((size) => {
         if (full.length >= size) candidates.add(full.slice(-size));
         if (local.length >= size) candidates.add(local.slice(-size));
@@ -10655,7 +10984,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         }
       }
 
-      // Se o telefone estiver no cadastro do usuÃ¡rio ou endereÃ§o salvo, localiza os pedidos por userId.
+      // Se o telefone estiver no cadastro do usuário ou endereço salvo, localiza os pedidos por userId.
       const userPhoneOr = [];
       for (const candidate of phoneSearch.candidates) userPhoneOr.push({ phone: candidate });
       for (const regex of phoneSearch.regexes) userPhoneOr.push({ phone: regex });
@@ -10698,7 +11027,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const limit = Number(req.query.limit || req.body?.limit || 5);
 
       if (!identifier && !cpf && !phone && !orderId) {
-        return res.status(400).json({ ok: false, error: 'Informe CPF, telefone, nÃºmero do pedido ou identifier' });
+        return res.status(400).json({ ok: false, error: 'Informe CPF, telefone, número do pedido ou identifier' });
       }
 
       const orders = await findOrdersForBot({ identifier, cpf, phone, orderId, limit });
@@ -10726,10 +11055,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   app.post('/api/bot/sac/consulta', botAccessRequired, (req, res) => botConsultaHandler(req, res, 'sac'));
 
 
-  // Inicia uma Ãºnica instÃ¢ncia do agendador financeiro por processo Node.
+  // Inicia uma única instância do agendador financeiro por processo Node.
   iniciarAutomacaoFinanceiraDiaria();
   iniciarReguaWhatsappFinanceira();
 
 
 }
-

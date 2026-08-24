@@ -221,7 +221,7 @@ function buildAdminNewOrderMessage(orderDoc = {}) {
   const prazo = order.shipping?.prazo || order.shipping?.deliveryTime || order.shipping?.prazoEntrega || (order.shipping?.deadlineDays ? `${order.shipping.deadlineDays} dia(s) úteis` : 'Não informado');
 
   return [
-    'ðŸ›’ *NOVA VENDA REALIZADA*',
+    '🛒 *NOVA VENDA REALIZADA*',
     '',
     `Pedido: #${orderId}`,
     `Cliente: ${customerName}`,
