@@ -137,19 +137,25 @@
     .faixa-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
     .faixa-card{border:1px solid #e2e8f0;border-radius:16px;padding:13px;background:#f8fafc}
     .faixa-card b{display:block;font-size:16px}.faixa-card small{color:#64748b}
-    .fila-list{display:grid;gap:14px;margin-top:18px}
-    .fila-item{border:1px solid #dfe7f2;border-radius:20px;background:#fff;box-shadow:0 8px 24px #0f172a0a;overflow:hidden}
-    .fila-item-main{display:grid;grid-template-columns:125px minmax(180px,1.25fr) minmax(175px,1fr) minmax(155px,.8fr) minmax(125px,.65fr);gap:14px;align-items:center;padding:17px 18px}
-    .fila-item-cell{min-width:0}.fila-item-cell small{display:block;color:#64748b;line-height:1.4;margin-top:4px}.fila-item-label{display:block;color:#64748b;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+    .fila-list{display:grid;gap:12px;margin-top:18px}
+    .fila-item{border:1px solid #dbe4ef;border-radius:18px;background:#fff;box-shadow:0 4px 16px #0f172a0a;overflow:visible;transition:border-color .16s ease,box-shadow .16s ease}
+    .fila-item:hover{border-color:#c2d2e7;box-shadow:0 8px 24px #0f172a10}
+    .fila-item-main{padding:17px 18px 15px}
+    .fila-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+    .fila-client-identity{display:flex;align-items:center;gap:12px;min-width:0}.fila-client-avatar{width:42px;height:42px;flex:0 0 42px;display:flex;align-items:center;justify-content:center;border-radius:13px;background:#eff6ff;color:#1d4ed8;font-size:18px;border:1px solid #dbeafe}.fila-client-copy{min-width:0}.fila-client-copy .client-name{display:block;font-size:16px;line-height:1.2}.fila-client-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:6px;color:#64748b;font-size:11px}.fila-client-meta span{display:inline-flex;align-items:center;gap:4px}.fila-client-meta .carne-code-small{padding:3px 7px;border-radius:7px;background:#f1f5f9;color:#475569;font-weight:800}
+    .fila-card-badges{display:flex;align-items:flex-end;gap:7px;flex-wrap:wrap;justify-content:flex-end;max-width:330px}.fila-card-badges .priority-badge{padding:5px 9px;font-size:10px}.fila-badge-note{flex-basis:100%;color:#64748b;font-size:10px;text-align:right}.fila-status-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#fff7ed;color:#b45309;font-size:10px;font-weight:900}.fila-status-pill.CONCLUIDO{background:#ecfdf5;color:#166534}.fila-status-pill.CONTATADO{background:#eff6ff;color:#1d4ed8}.fila-status-pill.ADIADO{background:#f5f3ff;color:#6d28d9}.fila-status-pill.SEM_CONTATO{background:#fef2f2;color:#991b1b}
+    .fila-metric-grid{display:grid;grid-template-columns:minmax(160px,1.2fr) repeat(3,minmax(120px,1fr));gap:9px;margin-top:14px}.fila-metric{min-width:0;padding:10px 11px;border-radius:12px;background:#f8fafc;border:1px solid #edf1f6}.fila-metric.primary{background:#f4f8ff;border-color:#dbeafe}.fila-metric-label{display:block;color:#64748b;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.fila-metric-value{display:block;margin-top:4px;color:#0f172a;font-size:15px;font-weight:950;line-height:1.15}.fila-metric-value.danger{color:#b91c1c}.fila-metric small{display:block;margin-top:4px;color:#64748b;font-size:10px;line-height:1.3}.fila-first-overdue{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:#fff7ed;color:#c2410c;font-size:9px;font-weight:900}
     .fila-actions{display:flex;gap:8px;flex-wrap:wrap;min-width:0;padding:13px 18px;background:#f8fafc;border-top:1px solid #e8eef5}
     .fila-actions button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:8px 11px;font-size:11px;border-radius:11px;white-space:nowrap}
+    .fila-item>.fila-actions{position:relative;align-items:center;padding:11px 18px;border-radius:0 0 18px 18px;background:#fbfcfe}.fila-item>.fila-actions button{min-height:34px;background:#fff;color:#334155;border:1px solid #dbe4ef;box-shadow:none}.fila-item>.fila-actions button:hover{border-color:#93c5fd;color:#1d4ed8;background:#f8fbff}.fila-item>.fila-actions .fila-action-primary{background:#2563eb;color:#fff;border-color:#2563eb}.fila-item>.fila-actions .fila-action-primary:hover{background:#1d4ed8;color:#fff}.fila-item>.fila-actions .fila-action-whatsapp{color:#15803d;border-color:#bbf7d0}.fila-item>.fila-actions .fila-action-whatsapp:hover{background:#f0fdf4;color:#166534;border-color:#86efac}
+    .fila-more-actions{position:relative;margin-left:auto}.fila-more-actions>summary{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 11px;border:1px solid #dbe4ef;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:900;cursor:pointer;list-style:none}.fila-more-actions>summary::-webkit-details-marker{display:none}.fila-more-actions>summary::after{content:'▾';margin-left:7px;color:#94a3b8}.fila-more-actions[open]>summary{border-color:#93c5fd;color:#1d4ed8;background:#eff6ff}.fila-more-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:80;width:230px;padding:8px;border:1px solid #dbe4ef;border-radius:14px;background:#fff;box-shadow:0 18px 45px #0f172a24}.fila-more-title{display:block;padding:6px 8px 8px;color:#64748b;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.fila-more-menu button{width:100%;justify-content:flex-start!important;min-height:34px!important;margin:2px 0;border:0!important;background:#fff!important;color:#334155!important}.fila-more-menu button:hover{background:#f8fafc!important}.fila-more-menu button.danger{color:#b91c1c!important}.fila-more-menu button.success{color:#15803d!important}
     .fila-installments{border-top:1px solid #e8eef5;background:#fff}
-    .fila-installments summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;color:#1d4ed8;font-size:12px;font-weight:900;cursor:pointer;list-style:none}
+    .fila-installments summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 18px;color:#1d4ed8;font-size:12px;font-weight:900;cursor:pointer;list-style:none;background:#fbfdff}.fila-installments summary>span:first-child{display:flex;flex-direction:column;gap:2px}.fila-installments summary small{color:#64748b;font-size:10px;font-weight:650}
     .fila-installments summary::-webkit-details-marker{display:none}.fila-installments summary::after{content:'＋';font-size:17px}.fila-installments[open] summary::after{content:'−'}
-    .fila-installments-list{display:grid;gap:8px;padding:0 18px 16px}
-    .fila-installment-row{display:grid;grid-template-columns:minmax(130px,1.25fr) minmax(110px,.8fr) minmax(95px,.65fr) minmax(105px,.7fr) minmax(110px,.75fr);gap:12px;align-items:center;padding:11px 12px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc;font-size:12px}
+    .fila-installments-list{display:grid;gap:8px;padding:12px 18px 16px}
+    .fila-installment-row{display:grid;grid-template-columns:minmax(130px,1.25fr) minmax(110px,.8fr) minmax(95px,.65fr) minmax(105px,.7fr) minmax(110px,.75fr);gap:12px;align-items:center;padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc;font-size:12px}.fila-mini-label{display:block;margin-bottom:4px;color:#94a3b8;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
     .fila-installment-row b,.fila-installment-row small{display:block}.fila-installment-row small{margin-top:3px;color:#64748b}.fila-installment-money{text-align:right}.fila-installment-status{text-align:right}
-    .fila-installment-actions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap;padding-top:10px;margin-top:2px;border-top:1px solid #dbe4ef}.fila-installment-actions button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:32px;padding:7px 9px;border-radius:9px;font-size:10px;white-space:nowrap}.fila-installment-actions .installment-action-label{display:flex;align-items:center;margin-right:auto;color:#475569;font-weight:900;font-size:10px;text-transform:uppercase}
+    .fila-installment-actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;margin-top:2px;border-top:1px solid #dbe4ef}.fila-installment-actions button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:31px;padding:6px 9px;border:1px solid #dbe4ef;border-radius:9px;background:#fff!important;color:#334155!important;font-size:10px;white-space:nowrap}.fila-installment-actions button.blue{color:#1d4ed8!important;border-color:#bfdbfe}.fila-installment-actions button.yellow{color:#92400e!important;border-color:#fde68a}.fila-installment-actions button.red{color:#b91c1c!important;border-color:#fecaca}.fila-installment-actions button.green{color:#15803d!important;border-color:#bbf7d0}.fila-installment-actions .installment-action-label{display:flex;align-items:center;margin-right:auto;color:#475569;font-weight:900;font-size:9px;text-transform:uppercase}
     .fila-empty{padding:28px;text-align:center;border:1px dashed #cbd5e1;border-radius:18px;background:#f8fafc;color:#64748b}
     .sige-debt-search{margin:18px 0;padding:18px;border:1px solid #bfdbfe;border-radius:20px;background:linear-gradient(135deg,#eff6ff,#f8fbff)}
     .sige-debt-search-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.sige-debt-search-head h3{margin:0 0 5px}.sige-debt-controls{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:10px;align-items:end;margin-top:13px}.sige-debt-controls label{margin-top:0}
@@ -160,10 +166,10 @@
     .status-fila.PENDENTE{color:#b45309}.status-fila.CONCLUIDO{color:#166534}
     .status-fila.CONTATADO{color:#1d4ed8}.status-fila.SEM_CONTATO{color:#991b1b}
     .status-fila.ADIADO{color:#6d28d9}.status-fila.EM_ATENDIMENTO{color:#0369a1}
-    @media(max-width:1280px){.fila-item-main{grid-template-columns:110px minmax(170px,1fr) minmax(160px,1fr) minmax(140px,.8fr)}.fila-item-status{grid-column:2/-1}.sige-debt-client{grid-template-columns:34px minmax(170px,1fr) minmax(130px,.8fr) minmax(130px,.8fr)}.sige-debt-contact{grid-column:2/-1}}
+    @media(max-width:1280px){.fila-metric-grid{grid-template-columns:1fr 1fr}.sige-debt-client{grid-template-columns:34px minmax(170px,1fr) minmax(130px,.8fr) minmax(130px,.8fr)}.sige-debt-contact{grid-column:2/-1}}
     @media(max-width:1200px){.fila-filters{grid-template-columns:1fr 1fr}.fila-kpis{grid-template-columns:repeat(3,1fr)}.faixa-grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-item-main{grid-template-columns:1fr 1fr}.fila-item-priority,.fila-item-status{grid-column:auto}.fila-actions button{flex:1 1 calc(50% - 8px)}.fila-installment-row{grid-template-columns:1fr 1fr}.fila-installment-money,.fila-installment-status{text-align:left}.fila-installment-actions button{flex:1 1 calc(50% - 7px)}.fila-installment-actions .installment-action-label{flex-basis:100%}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
-    @media(max-width:480px){.fila-item-main,.fila-installment-row{grid-template-columns:1fr}.fila-item-status{grid-column:auto}.fila-actions button,.fila-installment-actions button{flex-basis:100%}}
+    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-card-header{display:block}.fila-card-badges{justify-content:flex-start;margin-top:10px;max-width:none}.fila-badge-note{text-align:left}.fila-metric-grid{grid-template-columns:1fr 1fr}.fila-item>.fila-actions button{flex:1 1 calc(50% - 8px)}.fila-more-actions{margin-left:0;flex:1 1 100%}.fila-more-actions>summary{width:100%}.fila-more-menu{position:static;width:auto;margin-top:7px;box-shadow:none}.fila-installment-row{grid-template-columns:1fr 1fr}.fila-installment-money,.fila-installment-status{text-align:left}.fila-installment-actions button{flex:1 1 calc(50% - 7px)}.fila-installment-actions .installment-action-label{flex-basis:100%}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
+    @media(max-width:480px){.fila-metric-grid,.fila-installment-row{grid-template-columns:1fr}.fila-item>.fila-actions button,.fila-installment-actions button{flex-basis:100%}.fila-client-avatar{display:none}}
 
 
     /* ===== FASE 7 - PROMESSAS DE PAGAMENTO ===== */
@@ -4861,21 +4867,56 @@ async function carregarFilaCobranca(page=1){
 
     tbody.innerHTML=rows.map((item,index)=>`<article class="fila-item">
       <div class="fila-item-main">
-        <div class="fila-item-cell fila-item-priority"><span class="fila-item-label">Prioridade</span><span class="priority-badge ${esc(item.prioridade)}">${esc(item.prioridade)}</span><small>Score ${Number(item.prioridadeScore||0)}</small></div>
-        <div class="fila-item-cell"><span class="fila-item-label">Cliente</span><span class="client-name">${esc(item.clienteNome||'Cliente')}</span><span class="client-phone">${item.telefone?esc(shortPhone(item.telefone)):'<span class="inad-no-phone">Sem contato</span>'}</span><small>${esc(item.carneCodigo||'')}</small></div>
-        <div class="fila-item-cell"><span class="fila-item-label">Parcelas da cobrança</span><b>${Number(item.quantidadeParcelas||0)} parcela(s)</b><small>Mais antiga: ${item.vencimentoMaisAntigo?formatDateBR(item.vencimentoMaisAntigo):'—'}</small><small>${esc(labelFaixaFila(item.faixa))}</small>${item.primeiraParcelaAtrasada?'<span class="pill pending" style="margin-top:6px">1ª parcela atrasada</span>':''}</div>
-        <div class="fila-item-cell"><span class="fila-item-label">Dívida consolidada</span><span class="inad-days">${Number(item.maiorDiasAtraso||item.diasAtraso||0)} dia(s)</span><small>Maior atraso • ${Number(item.totalParcelasAtrasadasCliente||0)} vencida(s)</small><b class="money-cell" style="display:block;margin-top:5px">${money(item.valorAtualizado||0)}</b><small>Multa ${money(item.multa||0)} • Juros ${money(item.juros||0)}</small></div>
-        <div class="fila-item-cell fila-item-status"><span class="fila-item-label">Situação</span><span class="status-fila ${esc(item.status)}">${esc(String(item.status||'').replaceAll('_',' '))}</span><small>${esc(item.responsavel||'Sem responsável')}</small></div>
+        <div class="fila-card-header">
+          <div class="fila-client-identity">
+            <div class="fila-client-avatar" aria-hidden="true">👤</div>
+            <div class="fila-client-copy">
+              <span class="client-name">${esc(item.clienteNome||'Cliente')}</span>
+              <div class="fila-client-meta">
+                <span>${item.telefone?'📱 '+esc(shortPhone(item.telefone)):'<span class="inad-no-phone">Sem telefone cadastrado</span>'}</span>
+                ${item.carneCodigo?`<span class="carne-code-small">${esc(item.carneCodigo)}</span>`:''}
+              </div>
+            </div>
+          </div>
+          <div class="fila-card-badges">
+            <span class="priority-badge ${esc(item.prioridade||'MEDIA')}">${esc(item.prioridade||'MÉDIA')}</span>
+            <span class="fila-status-pill ${esc(item.status||'PENDENTE')}">${esc(String(item.status||'PENDENTE').replaceAll('_',' '))}</span>
+            <small class="fila-badge-note">Score ${Number(item.prioridadeScore||0)} • ${esc(item.responsavel||'Sem responsável')}</small>
+          </div>
+        </div>
+        <div class="fila-metric-grid">
+          <div class="fila-metric primary">
+            <span class="fila-metric-label">Saldo atualizado</span>
+            <span class="fila-metric-value">${money(item.valorAtualizado||0)}</span>
+            <small>Multa ${money(item.multa||0)} • Juros ${money(item.juros||0)}</small>
+          </div>
+          <div class="fila-metric">
+            <span class="fila-metric-label">Maior atraso</span>
+            <span class="fila-metric-value danger">${Number(item.maiorDiasAtraso||item.diasAtraso||0)} dias</span>
+            <small>${Number(item.totalParcelasAtrasadasCliente||item.quantidadeParcelas||0)} parcela(s) vencida(s)</small>
+          </div>
+          <div class="fila-metric">
+            <span class="fila-metric-label">Parcelas na cobrança</span>
+            <span class="fila-metric-value">${Number(item.quantidadeParcelas||0)} parcela(s)</span>
+            <small>${esc(labelFaixaFila(item.faixa))}</small>
+            ${item.primeiraParcelaAtrasada?'<span class="fila-first-overdue">1ª parcela atrasada</span>':''}
+          </div>
+          <div class="fila-metric">
+            <span class="fila-metric-label">Vencimento mais antigo</span>
+            <span class="fila-metric-value">${item.vencimentoMaisAntigo?formatDateBR(item.vencimentoMaisAntigo):'—'}</span>
+            <small>Base da priorização desta cobrança</small>
+          </div>
+        </div>
       </div>
       <details id="filaParcelas-${index}" class="fila-installments">
-        <summary><span>Ver ${Number(item.quantidadeParcelas||0)} parcela(s) desta cobrança</span><span>${money(item.valorAtualizado||0)}</span></summary>
+        <summary><span><b>Ver ${Number(item.quantidadeParcelas||0)} parcela(s)</b><small>Valores e ações individuais</small></span><span>Detalhar</span></summary>
         <div class="fila-installments-list">
           ${(Array.isArray(item.parcelas)?item.parcelas:[]).map(parcela=>`<div class="fila-installment-row">
-            <div><b>${esc(parcela.parcelaLabel||parcela.documento||'Parcela')}</b><small>${esc(parcela.documento||item.carneCodigo||'')}</small></div>
-            <div><b>${parcela.vencimento?formatDateBR(parcela.vencimento):'—'}</b><small>${esc(labelFaixaFila(parcela.faixa))}</small></div>
-            <div><b>${Number(parcela.diasAtraso||0)} dia(s)</b><small>de atraso</small></div>
-            <div class="fila-installment-money"><b>${money(parcela.valorOriginal||0)}</b><small>Multa ${money(parcela.multa||0)} • Juros ${money(parcela.juros||0)}</small></div>
-            <div class="fila-installment-status"><b>${money(parcela.valorAtualizado||0)}</b><small><span class="status-fila ${esc(parcela.status)}">${esc(String(parcela.status||'').replaceAll('_',' '))}</span></small></div>
+            <div><span class="fila-mini-label">Parcela</span><b>${esc(parcela.parcelaLabel||parcela.documento||'Parcela')}</b><small>${esc(parcela.documento||item.carneCodigo||'')}</small></div>
+            <div><span class="fila-mini-label">Vencimento</span><b>${parcela.vencimento?formatDateBR(parcela.vencimento):'—'}</b><small>${esc(labelFaixaFila(parcela.faixa))}</small></div>
+            <div><span class="fila-mini-label">Atraso</span><b>${Number(parcela.diasAtraso||0)} dia(s)</b><small>desde o vencimento</small></div>
+            <div class="fila-installment-money"><span class="fila-mini-label">Valor original</span><b>${money(parcela.valorOriginal||0)}</b><small>Multa ${money(parcela.multa||0)} • Juros ${money(parcela.juros||0)}</small></div>
+            <div class="fila-installment-status"><span class="fila-mini-label">Valor atualizado</span><b>${money(parcela.valorAtualizado||0)}</b><small><span class="status-fila ${esc(parcela.status||'PENDENTE')}">${esc(String(parcela.status||'PENDENTE').replaceAll('_',' '))}</span></small></div>
             <div class="fila-installment-actions">
               <span class="installment-action-label">Ações desta parcela</span>
               <button class="light" onclick="abrirCarneGestao('${esc(parcela.carneId||item.carneId||'')}')">📂 Abrir carnê</button>
@@ -4892,14 +4933,20 @@ async function carregarFilaCobranca(page=1){
         </div>
       </details>
       <div class="fila-actions">
-        <button class="light" onclick="abrirCarneCobrancaFila(${index})">📂 ${Array.isArray(item.carneIds)&&item.carneIds.length>1?'Escolher carnê':'Abrir carnê'}</button>
-        ${item.telefone?`<button class="green" onclick="enviarCarneGestaoWhatsapp('${esc(item.carneId)}')">📲 WhatsApp</button>`:''}
-        <button class="blue" onclick="abrirTratativaCobrancaFila(${index})">📝 Tratativa</button>
-        <button class="blue" onclick="atualizarCobrancaFila(${index},'CONTATADO')">✓ Contatado</button>
-        <button class="yellow" onclick="abrirPromessaCobrancaFila(${index})">${Number(item.quantidadeParcelas||0)>1?'🤝 Escolher parcela':'🤝 Promessa'}</button>
-        <button class="yellow" onclick="adiarCobrancaFila(${index})">🕒 Adiar</button>
-        <button class="red" onclick="atualizarCobrancaFila(${index},'SEM_CONTATO')">☎ Sem contato</button>
-        <button class="green" onclick="atualizarCobrancaFila(${index},'CONCLUIDO')">✅ Concluir</button>
+        <button onclick="abrirCarneCobrancaFila(${index})">📂 ${Array.isArray(item.carneIds)&&item.carneIds.length>1?'Escolher carnê':'Abrir carnê'}</button>
+        ${item.telefone?`<button class="fila-action-whatsapp" onclick="enviarCarneGestaoWhatsapp('${esc(item.carneId)}')">📲 WhatsApp</button>`:''}
+        <button class="fila-action-primary" onclick="abrirParcelasCobrancaFila(${index})">☷ ${Number(item.quantidadeParcelas||0)>1?'Ver parcelas':'Ver parcela'}</button>
+        <details class="fila-more-actions">
+          <summary>••• Mais ações</summary>
+          <div class="fila-more-menu">
+            <span class="fila-more-title">Ações em toda a cobrança</span>
+            <button onclick="abrirTratativaCobrancaFila(${index})">📝 Registrar tratativa</button>
+            <button onclick="atualizarCobrancaFila(${index},'CONTATADO')">✓ Marcar como contatado</button>
+            <button onclick="adiarCobrancaFila(${index})">🕒 Adiar cobrança</button>
+            <button class="danger" onclick="atualizarCobrancaFila(${index},'SEM_CONTATO')">☎ Marcar sem contato</button>
+            <button class="success" onclick="atualizarCobrancaFila(${index},'CONCLUIDO')">✅ Concluir cobrança</button>
+          </div>
+        </details>
       </div>
     </article>`).join('');
   }catch(e){
@@ -4937,6 +4984,14 @@ function idsCarnesDaCobrancaFila(item){
     ...(Array.isArray(item?.carneIds)?item.carneIds:[]),
     ...(Array.isArray(item?.parcelas)?item.parcelas.map(row=>row?.carneId):[])
   ].map(value=>String(value||'').trim()).filter(Boolean)));
+}
+
+function abrirParcelasCobrancaFila(index){
+  const item=obterCobrancaFila(index);if(!item)return;
+  const detalhes=document.getElementById(`filaParcelas-${index}`);
+  if(!detalhes){toast('Os detalhes das parcelas não estão disponíveis.');return;}
+  detalhes.open=true;
+  detalhes.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 function abrirCarneCobrancaFila(index){
