@@ -394,6 +394,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
   const financeiroFilaCobrancaSchema = new mongoose.Schema({
     uniqueKey: { type: String, required: true, unique: true, index: true },
     dataReferencia: { type: String, required: true, index: true },
+    origemFila: { type: String, default: 'LEGADO', index: true },
     carneId: { type: mongoose.Schema.Types.ObjectId, ref: 'FinanceiroCarneDigital', required: true, index: true },
     carneCodigo: { type: String, required: true, index: true },
     clienteNome: { type: String, default: '', index: true },
@@ -1065,6 +1066,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       id: String(row._id || row.id || ''),
       uniqueKey: row.uniqueKey || '',
       dataReferencia: row.dataReferencia || '',
+      origemFila: row.origemFila || 'LEGADO',
       carneId: String(row.carneId || ''),
       carneCodigo: row.carneCodigo || '',
       clienteNome: row.clienteNome || '',
@@ -1152,6 +1154,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
           clienteNome: item.clienteNome,
           clienteCpf: item.clienteCpf,
           telefone: item.telefone,
+          origensFila: [],
           filaItemIds: [],
           parcelas: [],
           quantidadeParcelas: 0,
@@ -1194,6 +1197,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
 
       if (item.carneId && !group.carneIds.includes(item.carneId)) group.carneIds.push(item.carneId);
       if (item.carneCodigo && !group.carneCodigos.includes(item.carneCodigo)) group.carneCodigos.push(item.carneCodigo);
+      if (item.origemFila && !group.origensFila.includes(item.origemFila)) group.origensFila.push(item.origemFila);
       if (!group.telefone && item.telefone) group.telefone = item.telefone;
 
       const vencimento = item.vencimento ? new Date(item.vencimento) : null;
@@ -1314,7 +1318,11 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     };
   }
 
-  async function upsertCarneNaFilaCobranca(carne, referencia = new Date(), { somenteVencidas = false } = {}) {
+  async function upsertCarneNaFilaCobranca(carne, referencia = new Date(), {
+    somenteVencidas = false,
+    somenteVencimentoDoDia = false,
+    origemFila = 'AUTOMATICA'
+  } = {}) {
     const ref = dayOnly(referencia);
     if (!ref || !carne?._id) {
       const error = new Error('Carnê ou data de referência inválidos.');
@@ -1337,6 +1345,8 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       const item = buildFilaItemFromParcela(carne, parcela, ref, atrasadasCliente);
       if (!item) continue;
       if (somenteVencidas && Number(item.diasAtraso || 0) <= 0) continue;
+      if (somenteVencimentoDoDia && dateKey(item.vencimento) !== dateKey(ref)) continue;
+      item.origemFila = String(origemFila || 'AUTOMATICA').trim().toUpperCase();
       totalItens += 1;
 
       const keyBase = [
@@ -1362,9 +1372,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       }
 
       const statusPreservado = ['CONCLUIDO', 'CONTATADO', 'ADIADO', 'SEM_CONTATO'].includes(existing.status);
+      const origemPreservada = existing.origemFila === 'BUSCA_SIGE'
+        ? existing.origemFila
+        : item.origemFila;
       existing.set({
         ...item,
         uniqueKey,
+        origemFila: origemPreservada,
         status: statusPreservado ? existing.status : 'PENDENTE',
         responsavel: existing.responsavel || '',
         ultimaAcao: existing.ultimaAcao || '',
@@ -1380,7 +1394,13 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     return { totalItens, criados, atualizados, preservados };
   }
 
-  async function gerarFilaCobrancaDia({ req = {}, dataReferencia = new Date(), limiteCarnes = 1000 } = {}) {
+  async function gerarFilaCobrancaDia({
+    req = {},
+    dataReferencia = new Date(),
+    limiteCarnes = 1000,
+    somenteVencimentoDoDia = false,
+    origemFila = 'REGUA_AUTOMATICA'
+  } = {}) {
     const ref = dayOnly(dataReferencia);
     if (!ref) {
       const error = new Error('Data de referência inválida.');
@@ -1398,7 +1418,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
     let totalItens = 0;
 
     for (const carne of carnes) {
-      const resultado = await upsertCarneNaFilaCobranca(carne, ref);
+      const resultado = await upsertCarneNaFilaCobranca(carne, ref, {
+        somenteVencimentoDoDia,
+        origemFila
+      });
       totalItens += resultado.totalItens;
       criados += resultado.criados;
       atualizados += resultado.atualizados;
@@ -1411,7 +1434,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       entidade: 'FinanceiroFilaCobranca',
       codigo: dateKey(ref),
       depois: { totalItens, criados, atualizados, preservados },
-      metadata: { dataReferencia: dateKey(ref), limiteCarnes }
+      metadata: { dataReferencia: dateKey(ref), limiteCarnes, somenteVencimentoDoDia, origemFila }
     });
 
     return {
@@ -1421,7 +1444,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
       totalItens,
       criados,
       atualizados,
-      preservados
+      preservados,
+      somenteVencimentoDoDia,
+      origemFila
     };
   }
 
@@ -7519,7 +7544,9 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const result = await gerarFilaCobrancaDia({
           req,
           dataReferencia,
-          limiteCarnes: req.body?.limiteCarnes || 1000
+          limiteCarnes: req.body?.limiteCarnes || 1000,
+          somenteVencimentoDoDia: true,
+          origemFila: 'VENCIMENTO_DIA'
         });
         return res.json(result);
       } catch (error) {
@@ -7568,7 +7595,10 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             const carne = carneId ? await FinanceiroCarneDigital.findById(carneId) : null;
             if (!carne) throw new Error('Carnê sincronizado não foi localizado.');
 
-            const fila = await upsertCarneNaFilaCobranca(carne, dataReferencia, { somenteVencidas: true });
+            const fila = await upsertCarneNaFilaCobranca(carne, dataReferencia, {
+              somenteVencidas: true,
+              origemFila: 'BUSCA_SIGE'
+            });
             clientesAdicionados += 1;
             tarefasCriadas += fila.criados;
             tarefasAtualizadas += fila.atualizados;
@@ -7637,29 +7667,64 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
         const status = String(req.query.status || '').trim().toUpperCase();
         const semContato = String(req.query.semContato || '').trim();
         const agruparPorCliente = String(req.query.agruparPorCliente || '').trim().toLowerCase() === 'true';
+        const modoOperacional = String(req.query.modoOperacional || '').trim().toLowerCase() === 'true';
         const page = Math.max(1, Number(req.query.page || 1));
         const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 200));
 
-        const filter = { dataReferencia };
-        if (!agruparPorCliente && faixa) filter.faixa = faixa;
-        if (!agruparPorCliente && prioridade) filter.prioridade = prioridade;
-        if (!agruparPorCliente && status) filter.status = status;
-        if (semContato === 'true') filter.semContato = true;
-        if (semContato === 'false') filter.semContato = false;
+        const conditions = [];
+        if (modoOperacional) {
+          const inicioReferencia = dayOnly(dataReferencia);
+          if (!inicioReferencia) {
+            return res.status(400).json({ ok: false, error: 'Data da agenda de cobrança inválida.' });
+          }
+          const fimReferencia = new Date(inicioReferencia.getTime());
+          fimReferencia.setHours(23, 59, 59, 999);
+          // A agenda visível não é a carteira vencida completa. Ela reúne somente
+          // vencimentos e inclusões da data, além de retornos/promessas já agendados.
+          conditions.push({
+            $or: [
+              {
+                dataReferencia,
+                $or: [
+                  { origemFila: { $in: ['VENCIMENTO_DIA', 'BUSCA_SIGE', 'MANUAL'] } },
+                  { vencimento: { $gte: inicioReferencia, $lte: fimReferencia } },
+                  { ultimaAcao: { $exists: true, $ne: '' } }
+                ]
+              },
+              {
+                status: 'ADIADO',
+                proximaAcaoEm: { $ne: null, $lte: fimReferencia }
+              }
+            ]
+          });
+        } else {
+          conditions.push({ dataReferencia });
+        }
+
+        const directFilters = {};
+        if (!agruparPorCliente && faixa) directFilters.faixa = faixa;
+        if (!agruparPorCliente && prioridade) directFilters.prioridade = prioridade;
+        if (!agruparPorCliente && status) directFilters.status = status;
+        if (semContato === 'true') directFilters.semContato = true;
+        if (semContato === 'false') directFilters.semContato = false;
+        if (Object.keys(directFilters).length) conditions.push(directFilters);
 
         if (q) {
           const regex = new RegExp(escapeRegex(q), 'i');
           const digits = cleanPhone(q);
-          filter.$or = [
+          const searchConditions = [
             { clienteNome: regex },
             { carneCodigo: regex },
             { documento: regex }
           ];
           if (digits) {
-            filter.$or.push({ clienteCpf: new RegExp(escapeRegex(digits), 'i') });
-            filter.$or.push({ telefone: new RegExp(escapeRegex(digits), 'i') });
+            searchConditions.push({ clienteCpf: new RegExp(escapeRegex(digits), 'i') });
+            searchConditions.push({ telefone: new RegExp(escapeRegex(digits), 'i') });
           }
+          conditions.push({ $or: searchConditions });
         }
+
+        const filter = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
         if (agruparPorCliente) {
           const rawRows = await FinanceiroFilaCobranca.find(filter)
@@ -7723,7 +7788,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             faixas: Array.from(faixasMap.values())
               .map((row) => ({ ...row, valorAtualizado: Number(row.valorAtualizado.toFixed(2)) }))
               .sort((a, b) => b.quantidade - a.quantidade),
-            filtros: { dataReferencia, q, faixa, prioridade, status, semContato }
+            filtros: { dataReferencia, q, faixa, prioridade, status, semContato, modoOperacional }
           });
         }
 
@@ -7787,7 +7852,7 @@ export default function registerAdminSigeCrediarioBotRoutes(app, context = {}) {
             quantidade: Number(row.quantidade || 0),
             valorAtualizado: Number(Number(row.valorAtualizado || 0).toFixed(2))
           })),
-          filtros: { dataReferencia, q, faixa, prioridade, status, semContato }
+          filtros: { dataReferencia, q, faixa, prioridade, status, semContato, modoOperacional }
         });
       } catch (error) {
         return res.status(500).json({

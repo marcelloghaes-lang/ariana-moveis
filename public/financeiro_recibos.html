@@ -137,9 +137,10 @@
     .faixa-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
     .faixa-card{border:1px solid #e2e8f0;border-radius:16px;padding:13px;background:#f8fafc}
     .faixa-card b{display:block;font-size:16px}.faixa-card small{color:#64748b}
-    .fila-list{display:grid;gap:12px;margin-top:18px}
-    .fila-item{border:1px solid #dbe4ef;border-radius:18px;background:#fff;box-shadow:0 4px 16px #0f172a0a;overflow:visible;transition:border-color .16s ease,box-shadow .16s ease}
-    .fila-item:hover{border-color:#c2d2e7;box-shadow:0 8px 24px #0f172a10}
+    .fila-list{display:grid;gap:8px;margin-top:18px}
+    .fila-item{border:1px solid #dbe4ef;border-radius:14px;background:#fff;box-shadow:0 3px 12px #0f172a08;overflow:visible;transition:border-color .16s ease,box-shadow .16s ease}
+    .fila-item:hover{border-color:#b9cbe1;box-shadow:0 6px 18px #0f172a0e}
+    .fila-client-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;padding:12px 16px;cursor:pointer;list-style:none;border-radius:14px;color:#0f172a;background:#fff}.fila-client-disclosure>summary::-webkit-details-marker{display:none}.fila-client-disclosure[open]>summary{border-radius:14px 14px 0 0;border-bottom:1px solid #e5edf6;background:#f8fbff}.fila-name-primary{display:flex;align-items:center;gap:11px;min-width:0}.fila-name-primary strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.fila-priority-dot{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:#94a3b8;box-shadow:0 0 0 4px #f1f5f9}.fila-priority-dot.CRITICA{background:#b91c1c;box-shadow:0 0 0 4px #fee2e2}.fila-priority-dot.ALTA{background:#ea580c;box-shadow:0 0 0 4px #ffedd5}.fila-priority-dot.MEDIA{background:#ca8a04;box-shadow:0 0 0 4px #fef9c3}.fila-priority-dot.BAIXA{background:#16a34a;box-shadow:0 0 0 4px #dcfce7}.fila-name-chevron{color:#64748b;font-size:18px;transition:transform .16s ease}.fila-client-disclosure[open]>summary .fila-name-chevron{transform:rotate(180deg)}.fila-client-panel{border-radius:0 0 14px 14px;background:#fff}
     .fila-item-main{padding:17px 18px 15px}
     .fila-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
     .fila-client-identity{display:flex;align-items:center;gap:12px;min-width:0}.fila-client-avatar{width:42px;height:42px;flex:0 0 42px;display:flex;align-items:center;justify-content:center;border-radius:13px;background:#eff6ff;color:#1d4ed8;font-size:18px;border:1px solid #dbeafe}.fila-client-copy{min-width:0}.fila-client-copy .client-name{display:block;font-size:16px;line-height:1.2}.fila-client-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:6px;color:#64748b;font-size:11px}.fila-client-meta span{display:inline-flex;align-items:center;gap:4px}.fila-client-meta .carne-code-small{padding:3px 7px;border-radius:7px;background:#f1f5f9;color:#475569;font-weight:800}
@@ -147,12 +148,12 @@
     .fila-metric-grid{display:grid;grid-template-columns:minmax(160px,1.2fr) repeat(3,minmax(120px,1fr));gap:9px;margin-top:14px}.fila-metric{min-width:0;padding:10px 11px;border-radius:12px;background:#f8fafc;border:1px solid #edf1f6}.fila-metric.primary{background:#f4f8ff;border-color:#dbeafe}.fila-metric-label{display:block;color:#64748b;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.fila-metric-value{display:block;margin-top:4px;color:#0f172a;font-size:15px;font-weight:950;line-height:1.15}.fila-metric-value.danger{color:#b91c1c}.fila-metric small{display:block;margin-top:4px;color:#64748b;font-size:10px;line-height:1.3}.fila-first-overdue{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:#fff7ed;color:#c2410c;font-size:9px;font-weight:900}
     .fila-actions{display:flex;gap:8px;flex-wrap:wrap;min-width:0;padding:13px 18px;background:#f8fafc;border-top:1px solid #e8eef5}
     .fila-actions button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:8px 11px;font-size:11px;border-radius:11px;white-space:nowrap}
-    .fila-item>.fila-actions{position:relative;align-items:center;padding:11px 18px;border-radius:0 0 18px 18px;background:#fbfcfe}.fila-item>.fila-actions button{min-height:34px;background:#fff;color:#334155;border:1px solid #dbe4ef;box-shadow:none}.fila-item>.fila-actions button:hover{border-color:#93c5fd;color:#1d4ed8;background:#f8fbff}.fila-item>.fila-actions .fila-action-primary{background:#2563eb;color:#fff;border-color:#2563eb}.fila-item>.fila-actions .fila-action-primary:hover{background:#1d4ed8;color:#fff}.fila-item>.fila-actions .fila-action-whatsapp{color:#15803d;border-color:#bbf7d0}.fila-item>.fila-actions .fila-action-whatsapp:hover{background:#f0fdf4;color:#166534;border-color:#86efac}
+    .fila-client-panel>.fila-actions{position:relative;align-items:center;padding:11px 18px;border-radius:0 0 14px 14px;background:#fbfcfe}.fila-client-panel>.fila-actions button{min-height:34px;background:#fff;color:#334155;border:1px solid #dbe4ef;box-shadow:none}.fila-client-panel>.fila-actions button:hover{border-color:#93c5fd;color:#1d4ed8;background:#f8fbff}.fila-client-panel>.fila-actions .fila-action-whatsapp{color:#15803d;border-color:#bbf7d0}.fila-client-panel>.fila-actions .fila-action-whatsapp:hover{background:#f0fdf4;color:#166534;border-color:#86efac}
     .fila-more-actions{position:relative;margin-left:auto}.fila-more-actions>summary{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 11px;border:1px solid #dbe4ef;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:900;cursor:pointer;list-style:none}.fila-more-actions>summary::-webkit-details-marker{display:none}.fila-more-actions>summary::after{content:'▾';margin-left:7px;color:#94a3b8}.fila-more-actions[open]>summary{border-color:#93c5fd;color:#1d4ed8;background:#eff6ff}.fila-more-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:80;width:230px;padding:8px;border:1px solid #dbe4ef;border-radius:14px;background:#fff;box-shadow:0 18px 45px #0f172a24}.fila-more-title{display:block;padding:6px 8px 8px;color:#64748b;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.fila-more-menu button{width:100%;justify-content:flex-start!important;min-height:34px!important;margin:2px 0;border:0!important;background:#fff!important;color:#334155!important}.fila-more-menu button:hover{background:#f8fafc!important}.fila-more-menu button.danger{color:#b91c1c!important}.fila-more-menu button.success{color:#15803d!important}
     .fila-installments{border-top:1px solid #e8eef5;background:#fff}
     .fila-installments summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 18px;color:#1d4ed8;font-size:12px;font-weight:900;cursor:pointer;list-style:none;background:#fbfdff}.fila-installments summary>span:first-child{display:flex;flex-direction:column;gap:2px}.fila-installments summary small{color:#64748b;font-size:10px;font-weight:650}
     .fila-installments summary::-webkit-details-marker{display:none}.fila-installments summary::after{content:'＋';font-size:17px}.fila-installments[open] summary::after{content:'−'}
-    .fila-installments-list{display:grid;gap:8px;padding:12px 18px 16px}
+    .fila-installments-list{display:grid;gap:8px;max-height:560px;overflow:auto;padding:12px 18px 16px}
     .fila-installment-row{display:grid;grid-template-columns:minmax(130px,1.25fr) minmax(110px,.8fr) minmax(95px,.65fr) minmax(105px,.7fr) minmax(110px,.75fr);gap:12px;align-items:center;padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc;font-size:12px}.fila-mini-label{display:block;margin-bottom:4px;color:#94a3b8;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
     .fila-installment-row b,.fila-installment-row small{display:block}.fila-installment-row small{margin-top:3px;color:#64748b}.fila-installment-money{text-align:right}.fila-installment-status{text-align:right}
     .fila-installment-actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;margin-top:2px;border-top:1px solid #dbe4ef}.fila-installment-actions button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:31px;padding:6px 9px;border:1px solid #dbe4ef;border-radius:9px;background:#fff!important;color:#334155!important;font-size:10px;white-space:nowrap}.fila-installment-actions button.blue{color:#1d4ed8!important;border-color:#bfdbfe}.fila-installment-actions button.yellow{color:#92400e!important;border-color:#fde68a}.fila-installment-actions button.red{color:#b91c1c!important;border-color:#fecaca}.fila-installment-actions button.green{color:#15803d!important;border-color:#bbf7d0}.fila-installment-actions .installment-action-label{display:flex;align-items:center;margin-right:auto;color:#475569;font-weight:900;font-size:9px;text-transform:uppercase}
@@ -168,8 +169,8 @@
     .status-fila.ADIADO{color:#6d28d9}.status-fila.EM_ATENDIMENTO{color:#0369a1}
     @media(max-width:1280px){.fila-metric-grid{grid-template-columns:1fr 1fr}.sige-debt-client{grid-template-columns:34px minmax(170px,1fr) minmax(130px,.8fr) minmax(130px,.8fr)}.sige-debt-contact{grid-column:2/-1}}
     @media(max-width:1200px){.fila-filters{grid-template-columns:1fr 1fr}.fila-kpis{grid-template-columns:repeat(3,1fr)}.faixa-grid{grid-template-columns:1fr 1fr}}
-    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-card-header{display:block}.fila-card-badges{justify-content:flex-start;margin-top:10px;max-width:none}.fila-badge-note{text-align:left}.fila-metric-grid{grid-template-columns:1fr 1fr}.fila-item>.fila-actions button{flex:1 1 calc(50% - 8px)}.fila-more-actions{margin-left:0;flex:1 1 100%}.fila-more-actions>summary{width:100%}.fila-more-menu{position:static;width:auto;margin-top:7px;box-shadow:none}.fila-installment-row{grid-template-columns:1fr 1fr}.fila-installment-money,.fila-installment-status{text-align:left}.fila-installment-actions button{flex:1 1 calc(50% - 7px)}.fila-installment-actions .installment-action-label{flex-basis:100%}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
-    @media(max-width:480px){.fila-metric-grid,.fila-installment-row{grid-template-columns:1fr}.fila-item>.fila-actions button,.fila-installment-actions button{flex-basis:100%}.fila-client-avatar{display:none}}
+    @media(max-width:760px){.fila-filters,.fila-kpis,.faixa-grid{grid-template-columns:1fr}.fila-card-header{display:block}.fila-card-badges{justify-content:flex-start;margin-top:10px;max-width:none}.fila-badge-note{text-align:left}.fila-metric-grid{grid-template-columns:1fr 1fr}.fila-client-panel>.fila-actions button{flex:1 1 calc(50% - 8px)}.fila-more-actions{margin-left:0;flex:1 1 100%}.fila-more-actions>summary{width:100%}.fila-more-menu{position:static;width:auto;margin-top:7px;box-shadow:none}.fila-installment-row{grid-template-columns:1fr 1fr}.fila-installment-money,.fila-installment-status{text-align:left}.fila-installment-actions button{flex:1 1 calc(50% - 7px)}.fila-installment-actions .installment-action-label{flex-basis:100%}.sige-debt-search-head,.promise-due-alert{display:block}.sige-debt-controls{grid-template-columns:1fr}.sige-debt-client{grid-template-columns:32px 1fr}.sige-debt-client>div:not(:nth-child(2)){grid-column:2}.promise-due-alert-actions{justify-content:flex-start;margin-top:12px}}
+    @media(max-width:480px){.fila-metric-grid,.fila-installment-row{grid-template-columns:1fr}.fila-client-panel>.fila-actions button,.fila-installment-actions button{flex-basis:100%}.fila-client-avatar{display:none}}
 
 
     /* ===== FASE 7 - PROMESSAS DE PAGAMENTO ===== */
@@ -745,17 +746,17 @@
         <div class="card">
           <div class="history-header">
             <div>
-              <h2>📋 Fila de Cobrança do Dia</h2>
-              <p class="help">Tarefas priorizadas automaticamente por atraso, valor, primeira parcela vencida, reincidência e ausência de contato.</p>
+              <h2>📋 Agenda de Cobrança do Dia</h2>
+              <p class="help">Mostra somente os clientes que exigem ação na data escolhida: vencimentos do dia, retornos e promessas agendadas ou dívidas antigas adicionadas pela busca.</p>
             </div>
-            <button class="blue" onclick="gerarFilaCobranca()">⚙️ Gerar/atualizar fila</button>
+            <button class="blue" onclick="gerarFilaCobranca()">⚙️ Preparar fila do dia</button>
           </div>
 
           <div class="sige-debt-search">
             <div class="sige-debt-search-head">
               <div>
                 <h3>🔎 Buscar dívidas vencidas diretamente no SIGE</h3>
-                <p class="help" style="margin:0">Consulte todas as parcelas vencidas, selecione os clientes e inclua-os na Fila do Dia sem criar tarefas duplicadas.</p>
+                <p class="help" style="margin:0">A carteira antiga fica separada da agenda. Pesquise, selecione somente quem será cobrado e inclua na data escolhida sem duplicar tarefas.</p>
               </div>
               <button id="filaSigeAdicionarBtn" class="green" onclick="adicionarClientesSigeNaFila()" disabled>＋ Adicionar selecionados</button>
             </div>
@@ -777,7 +778,7 @@
               <input id="filaBusca" placeholder="Cliente, CPF, telefone, carnê ou documento">
             </div>
             <div>
-              <label>Data da fila</label>
+              <label>Agenda do dia</label>
               <input id="filaData" type="date">
             </div>
             <div>
@@ -835,12 +836,12 @@
             <div class="fila-kpi"><small>Sem contato</small><b id="filaKpiSemContato">0</b></div>
           </div>
 
-          <h3>Faixas da carteira</h3>
+          <h3>Resumo das cobranças agendadas</h3>
           <div id="filaFaixas" class="faixa-grid">
             <div class="faixa-card">Nenhuma faixa carregada.</div>
           </div>
 
-          <div id="filaBody" class="fila-list"><div class="fila-empty">Gere a fila para começar.</div></div>
+          <div id="filaBody" class="fila-list"><div class="fila-empty">Prepare a fila do dia para começar.</div></div>
 
           <div class="carne-pagination">
             <div id="filaPaginaInfo" class="muted">Página 1 de 1</div>
@@ -4797,7 +4798,7 @@ async function adicionarClientesSigeNaFila(){
 async function gerarFilaCobranca(){
   inicializarFilaCobranca();
   const tbody=document.getElementById('filaBody');
-  if(tbody)tbody.innerHTML='<div class="fila-empty">Analisando carnês e organizando cobranças por cliente...</div>';
+  if(tbody)tbody.innerHTML='<div class="fila-empty">Preparando vencimentos e compromissos da agenda escolhida...</div>';
   try{
     const data=await apiJson('/admin/financeiro/fila-cobranca/gerar',{
       method:'POST',
@@ -4807,7 +4808,7 @@ async function gerarFilaCobranca(){
         limiteCarnes:2000
       })
     });
-    toast(`Fila atualizada: ${Number(data.criados||0)} parcela(s) nova(s), ${Number(data.atualizados||0)} atualizada(s).`);
+    toast(`Agenda preparada: ${Number(data.criados||0)} vencimento(s) novo(s), ${Number(data.atualizados||0)} atualizado(s).`);
     await carregarFilaCobranca(1);
   }catch(e){
     if(tbody)tbody.innerHTML='<div class="fila-empty">Erro: '+esc(e.message||e)+'</div>';
@@ -4828,6 +4829,7 @@ async function carregarFilaCobranca(page=1){
     prioridade:String(document.getElementById('filaPrioridade')?.value||''),
     status:String(document.getElementById('filaStatus')?.value||''),
     agruparPorCliente:'true',
+    modoOperacional:'true',
     page:String(filaPagina),
     limit:'50'
   });
@@ -4866,6 +4868,12 @@ async function carregarFilaCobranca(page=1){
     }
 
     tbody.innerHTML=rows.map((item,index)=>`<article class="fila-item">
+      <details id="filaCliente-${index}" class="fila-client-disclosure">
+        <summary>
+          <span class="fila-name-primary"><span class="fila-priority-dot ${esc(item.prioridade||'MEDIA')}" aria-hidden="true"></span><strong>${esc(item.clienteNome||'Cliente')}</strong></span>
+          <span class="fila-name-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="fila-client-panel">
       <div class="fila-item-main">
         <div class="fila-card-header">
           <div class="fila-client-identity">
@@ -4908,7 +4916,7 @@ async function carregarFilaCobranca(page=1){
           </div>
         </div>
       </div>
-      <details id="filaParcelas-${index}" class="fila-installments">
+      <details open id="filaParcelas-${index}" class="fila-installments">
         <summary><span><b>Ver ${Number(item.quantidadeParcelas||0)} parcela(s)</b><small>Valores e ações individuais</small></span><span>Detalhar</span></summary>
         <div class="fila-installments-list">
           ${(Array.isArray(item.parcelas)?item.parcelas:[]).map(parcela=>`<div class="fila-installment-row">
@@ -4935,7 +4943,6 @@ async function carregarFilaCobranca(page=1){
       <div class="fila-actions">
         <button onclick="abrirCarneCobrancaFila(${index})">📂 ${Array.isArray(item.carneIds)&&item.carneIds.length>1?'Escolher carnê':'Abrir carnê'}</button>
         ${item.telefone?`<button class="fila-action-whatsapp" onclick="enviarCarneGestaoWhatsapp('${esc(item.carneId)}')">📲 WhatsApp</button>`:''}
-        <button class="fila-action-primary" onclick="abrirParcelasCobrancaFila(${index})">☷ ${Number(item.quantidadeParcelas||0)>1?'Ver parcelas':'Ver parcela'}</button>
         <details class="fila-more-actions">
           <summary>••• Mais ações</summary>
           <div class="fila-more-menu">
@@ -4948,6 +4955,8 @@ async function carregarFilaCobranca(page=1){
           </div>
         </details>
       </div>
+        </div>
+      </details>
     </article>`).join('');
   }catch(e){
     tbody.innerHTML='<div class="fila-empty">Erro: '+esc(e.message||e)+'</div>';
