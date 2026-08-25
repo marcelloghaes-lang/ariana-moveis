@@ -11,8 +11,6 @@
     hostname === "0.0.0.0" ||
     hostname.endsWith(".local");
 
-  // Permite uma substituição manual temporária no console, sem editar o arquivo:
-  // localStorage.setItem("ARIANA_API_BACKEND_OVERRIDE", "http://192.168.0.10:3000")
   let manualOverride = "";
   try {
     manualOverride = String(
@@ -29,8 +27,6 @@
   window.API_ORIGIN = API_BACKEND;
   window.API_BASE = API_BACKEND + "/api";
 
-  // Sobrescreve valores antigos salvos pelo painel para impedir mistura
-  // entre o backend local e o backend do Render.
   try {
     localStorage.setItem("API_ORIGIN", window.API_ORIGIN);
     localStorage.setItem("API_BASE", window.API_BASE);
@@ -60,8 +56,6 @@
       .replace("http://localhost:3000/api", window.API_BASE)
       .replace("http://127.0.0.1:3000/api", window.API_BASE);
 
-    // Corrige chamadas relativas feitas por páginas servidas no Live Server
-    // (porta 5500), enviando /api para o backend Node na porta 3000.
     if (/^\/api(?:\/|$)/i.test(normalized)) {
       normalized = window.API_ORIGIN + normalized;
     } else if (/^api(?:\/|$)/i.test(normalized)) {
@@ -71,6 +65,21 @@
     return normalized;
   }
 
+  function isAdminContextPage() {
+    const pathname = String(window.location.pathname || "")
+      .split("?")[0]
+      .split("#")[0]
+      .toLowerCase();
+
+    const file = pathname.split("/").pop() || "";
+
+    if (file === "admin_login.html" || file === "login_admin.html") return true;
+    if (/^admin[_-].+\.html?$/.test(file)) return true;
+    if (file === "admin_painel.html" || file === "admin.html") return true;
+    if (/\/admin(?:\/|$)/.test(pathname)) return true;
+
+    return false;
+  }
 
   function clearAdminAuthentication() {
     const tokenKeys = [
@@ -99,6 +108,14 @@
   }
 
   function handleAdminSessionEnded(message, code) {
+    if (!isAdminContextPage()) {
+      console.warn(
+        "[Ariana API] Resposta de autenticação administrativa ignorada fora do contexto Admin:",
+        code || "admin_session_error"
+      );
+      return;
+    }
+
     if (window.__ARIANA_ADMIN_SESSION_ENDING__) return;
     window.__ARIANA_ADMIN_SESSION_ENDING__ = true;
 
@@ -162,7 +179,6 @@
     end: handleAdminSessionEnded
   };
 
-
   const ADMIN_REFRESH_ENDPOINT = window.API_BASE + "/admin/token/refresh";
   const ADMIN_REFRESH_THRESHOLD_MS = 24 * 60 * 60 * 1000;
   const ADMIN_ACTIVITY_WINDOW_MS = 30 * 60 * 1000;
@@ -205,7 +221,6 @@
       } catch (_) {}
     }
 
-    // Garante compatibilidade com as duas chaves mais usadas no painel.
     if (!updatedExistingKey) {
       try {
         window.localStorage.setItem("adminToken", value);
@@ -251,6 +266,7 @@
   async function renewAdminToken(options) {
     const settings = options || {};
     if (adminRefreshPromise) return adminRefreshPromise;
+    if (!isAdminContextPage()) return null;
 
     const token = readAdminToken();
     if (!token || isAdminLoginPage()) return null;
@@ -356,7 +372,7 @@
   }
 
   function startAdminAutomaticRefresh() {
-    if (isAdminLoginPage() || !readAdminToken()) return;
+    if (!isAdminContextPage() || isAdminLoginPage() || !readAdminToken()) return;
 
     ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(
       function (eventName) {
@@ -372,7 +388,6 @@
       renewAdminToken({ reason: "automatic_activity" }).catch(function () {});
     }, ADMIN_REFRESH_CHECK_MS);
 
-    // Faz a verificação inicial poucos segundos após abrir a tela.
     window.setTimeout(function () {
       renewAdminToken({ reason: "page_open" }).catch(function () {});
     }, 3000);
@@ -392,7 +407,6 @@
     },
     decode: decodeJwtPayload
   };
-
 
   (function patchFetch() {
     const originalFetch = window.fetch ? window.fetch.bind(window) : null;
@@ -428,7 +442,12 @@
             /\/api\/admin\/login(?:\?|$)/i.test(finalUrl) ||
             /\/api\/admin\/auth\/login(?:\?|$)/i.test(finalUrl);
 
-          if (response.status === 401 && isAdminApi && !isLoginRequest) {
+          if (
+            response.status === 401 &&
+            isAdminApi &&
+            !isLoginRequest &&
+            isAdminContextPage()
+          ) {
             let payload = {};
             try {
               payload = await response.clone().json();
