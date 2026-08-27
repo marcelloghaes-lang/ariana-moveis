@@ -3017,11 +3017,7 @@ app.use((req, res, next) => {
           : payload;
 
       if (isMarketplaceOrderCreation) {
-        setImmediate(() => {
-          notifyNewMarketplaceOrder(responseSnapshot, requestSnapshot).catch((error) => {
-            console.error('[novo-pedido] Erro assíncrono:', error?.message || error);
-          });
-        });
+        console.log('[novo-pedido] Pedido criado; WhatsApp aguardara confirmacao do pagamento.');
       }
 
       if (isCieloCredit || isCieloCapture) {
