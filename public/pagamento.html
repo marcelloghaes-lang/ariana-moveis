@@ -1013,12 +1013,15 @@
     }
 
     async function generatePix() {
+      const pixButton = document.getElementById("btn-generate-pix");
       try {
-        setAlert("loading", "Gerando seu QR Code Pix...");
-        const pixLoading = document.getElementById("pix-loading");
-        if (pixLoading) {
-          pixLoading.innerHTML = '<div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto"></div><p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>';
+        if (pixButton) {
+          pixButton.disabled = true;
+          pixButton.textContent = "Gerando Pix...";
         }
+
+        setAlert("loading", "Gerando seu QR Code Pix pelo Mercado Pago...");
+
         const data = await apiFetch("/payments/mp/pix", {
           method: "POST",
           body: JSON.stringify({
@@ -1044,24 +1047,44 @@
               totals: { ...(orderData?.totals || {}), paymentMethod: "pix" }
             };
             localStorage.setItem("arianaLastOrderId", String(orderId || ""));
+            localStorage.setItem("arianaLastOrderPayment", "pix");
+            localStorage.setItem("arianaCheckoutSelectedPay", "pix");
             localStorage.setItem("arianaLastOrderResponse", JSON.stringify(merged));
           } catch (_) {}
-          document.getElementById("pix-loading").classList.add("hidden");
-          document.getElementById("pix-content").classList.remove("hidden");
+
+          document.getElementById("pix-loading")?.classList.add("hidden");
+          document.getElementById("pix-content")?.classList.remove("hidden");
+
           if (data?.qrCodeBase64) {
             document.getElementById("pix-qr-img").src = `data:image/png;base64,${data.qrCodeBase64}`;
           } else if (data?.qrCodeImage) {
             document.getElementById("pix-qr-img").src = data.qrCodeImage;
           }
+
           document.getElementById("pix-code-input").value = data.qrCode || data.qr_code || "";
+
           // Pix gerado ainda não significa pagamento aprovado. Mantém o carrinho se o cliente voltar.
           setAlert("success", "Pix gerado com sucesso.");
-        } else {
-          throw new Error(data?.error || "Falha ao gerar QR Code.");
+          return;
         }
+
+        throw new Error(
+          data?.details?.cause?.[0]?.description ||
+          data?.error ||
+          data?.message ||
+          "Falha ao gerar QR Code."
+        );
       } catch (e) {
-        setAlert("error", "Não foi possível gerar o PIX. " + (e.message || ""));
-        showChoice();
+        console.error("[PIX MERCADO PAGO]", e);
+        setAlert("error", "Não foi possível gerar o PIX. " + (e?.message || "Falha ao gerar QR Code."));
+        // Mantém o usuário na tela do Pix para exibir o erro real.
+        // Antes, showChoice() devolvia silenciosamente ao checkout e escondia a causa.
+        showPanel("panel-pix");
+      } finally {
+        if (pixButton) {
+          pixButton.disabled = false;
+          pixButton.textContent = "Gerar Pix Agora";
+        }
       }
     }
 

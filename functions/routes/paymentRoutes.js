@@ -27,7 +27,6 @@ export default function registerPaymentRoutes(app, context = {}) {
     parsePaymentAmount,
     getMercadoPagoPaymentById,
     resolveOrderIdFromMpPayment,
-    updateOrderFromMercadoPagoPayment,
     createPagarmeOrder,
     buildPagarmePixPayload,
     buildPagarmeBoletoPayload,
@@ -241,7 +240,11 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
     let adminWhatsapp = null;
 
     if (response.status >= 200 && response.status < 300) {
-      orderUpdate = await updateOrderFromMercadoPagoPayment(mpData, orderId, 'mercadopago_boleto_created');
+      const normalized = normalizeMercadoPagoPaymentResponse(mpData || {});
+      orderUpdate = await updateOrderPaymentFromMercadoPago(orderId, 'boleto', mpData, {
+        ticketUrl: normalized?.ticketUrl || normalized?.ticket_url || '',
+        paymentMethodId: mpData?.payment_method_id || 'bolbradesco'
+      });
 
       // Boleto criado ainda não é venda concluída. Só notifica quando o webhook confirmar pagamento aprovado.
       adminWhatsapp = { skipped: true, reason: 'waiting_boleto_payment_approval' };
@@ -293,7 +296,17 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
     let orderUpdate = null;
     if (mpData) {
-      orderUpdate = await updateOrderFromMercadoPagoPayment(mpData, orderId, 'mercadopago_webhook');
+      const paymentMethodId = String(mpData?.payment_method_id || '').toLowerCase();
+      const method = paymentMethodId === 'pix'
+        ? 'pix'
+        : (paymentMethodId === 'bolbradesco' || paymentMethodId.includes('boleto') ? 'boleto' : 'card');
+      const normalized = normalizeMercadoPagoPaymentResponse(mpData || {});
+
+      orderUpdate = await updateOrderPaymentFromMercadoPago(orderId, method, mpData, {
+        ticketUrl: normalized?.ticketUrl || normalized?.ticket_url || '',
+        qrCode: normalized?.qrCode || normalized?.qr_code || '',
+        paymentMethodId: mpData?.payment_method_id || ''
+      });
     }
 
     await writeAuditLog({
