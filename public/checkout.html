@@ -1192,8 +1192,9 @@ async function quoteShippingForSelectedAddress(addrObj) {
       try { await loadSettings(); } catch (_) {}
 
       const mp = (settingsPayments && (settingsPayments.mercadopago || settingsPayments.mercadoPago || settingsPayments.mp)) || {};
+      const cielo = (settingsPayments && settingsPayments.cielo) || {};
       const enPix = mp.enablePix !== false;
-      const enCard = mp.enableCard !== false;
+      const enCard = cielo.enabled !== false && cielo.creditCardEnabled !== false;
       const enBoleto = mp.enableBoleto !== false;
 
       const labelPix = document.getElementById("label-pix");
@@ -1487,12 +1488,22 @@ async function quoteShippingForSelectedAddress(addrObj) {
           manufacturer: inferManufacturerFromCart(cart),
           payment: {
             method: selectedPayCode,
-            gateway: selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago',
+            gateway:
+              selectedPayCode === 'crediario_ariana'
+                ? 'cora'
+                : selectedPayCode === 'card'
+                  ? 'cielo'
+                  : 'mercadopago',
             routing: {
               largeSupplier: isLargeSupplierCart(cart),
-              cardGateway: 'mercadopago',
+              cardGateway: 'cielo',
               pixBoletoGateway: 'mercadopago',
-              defaultGateway: selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'
+              defaultGateway:
+                selectedPayCode === 'crediario_ariana'
+                  ? 'cora'
+                  : selectedPayCode === 'card'
+                    ? 'cielo'
+                    : 'mercadopago'
             }
           },
           total: valorFinal,
@@ -1559,7 +1570,16 @@ async function quoteShippingForSelectedAddress(addrObj) {
           localStorage.setItem("ariana_moveis_cart", JSON.stringify(cart || []));
         } catch (_) {}
 
-        try { localStorage.setItem("arianaLastOrderGateway", selectedPayCode === 'crediario_ariana' ? 'cora' : 'mercadopago'); } catch (_) {}
+        try {
+          localStorage.setItem(
+            "arianaLastOrderGateway",
+            selectedPayCode === 'crediario_ariana'
+              ? 'cora'
+              : selectedPayCode === 'card'
+                ? 'cielo'
+                : 'mercadopago'
+          );
+        } catch (_) {}
         persistLastOrder(orderId, selectedPayCode || "", response);
 
         if (selectedPayCode === 'crediario_ariana') {

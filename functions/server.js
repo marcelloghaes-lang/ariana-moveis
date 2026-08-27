@@ -33,6 +33,7 @@ import registerCrediarioAnalysisRoutes from './routes/crediarioAnalysisRoutes.js
 import registerCrediarioConversationRoutes from './routes/crediarioConversationRoutes.js';
 import registerAdminUserRoutes from './routes/adminUserRoutes.js';
 import createTelevendasRoutes from './routes/televendas/index.js';
+import registerCieloRoutes from './routes/cieloRoutes.js';
 import initModels from './models/index.js';
 
 
@@ -1390,11 +1391,11 @@ async function createSellerOrderNotifications(orderDoc = {}, data = {}) {
 
 
 // ============================================================
-// NOTIFICAÇÕES DE NOVA VENDA DO SITE
-// Garante que todo POST /api/orders concluído com sucesso:
-// 1) crie uma notificação não lida no painel administrativo;
-// 2) envie ao cliente a confirmação inicial pela instância Ariana_Notificacoes.
-// O processamento ocorre após a resposta do pedido e nunca bloqueia a compra.
+// NOTIFICAÇÕES DE PEDIDO CRIADO / AGUARDANDO PAGAMENTO
+// Pedido criado no checkout ainda NÃO é venda concluída.
+// O painel pode registrar o pedido como aguardando pagamento e o cliente
+// recebe apenas a confirmação de recebimento do pedido.
+// A notificação "Nova venda recebida" fica reservada para pagamento aprovado.
 // ============================================================
 function pickFirstNonEmpty(...values) {
   for (const value of values) {
@@ -1517,7 +1518,14 @@ function buildNewOrderCustomerMessage(order = {}, requestBody = {}) {
 async function notifyNewMarketplaceOrder(responsePayload = {}, requestBody = {}) {
   try {
     const candidate = extractCreatedOrderCandidate(responsePayload, requestBody);
-    const orderId = String(candidate._id || candidate.id || candidate.orderId || candidate.pedidoId || '').trim();
+    const orderId = String(
+      candidate._id ||
+      candidate.id ||
+      candidate.orderId ||
+      candidate.pedidoId ||
+      ''
+    ).trim();
+
     let order = candidate;
 
     if (orderId && mongoose.isValidObjectId(orderId)) {
@@ -1527,47 +1535,345 @@ async function notifyNewMarketplaceOrder(responsePayload = {}, requestBody = {})
 
     const resolvedId = String(order._id || order.id || orderId || '').trim();
     const shortId = resolvedId ? resolvedId.slice(-8).toUpperCase() : 'NOVO';
-    const customerName = extractOrderCustomerName(order, requestBody);
-    const total = extractOrderTotal(order, requestBody);
 
-    // Evita duplicação caso a mesma resposta seja processada novamente.
-    const alreadyNotified = resolvedId
-      ? await Notification.exists({ type: 'new_order', relatedId: resolvedId }).catch(() => false)
-      : false;
-
-    if (!alreadyNotified) {
-      await createAdminNotification({
-        type: 'new_order',
-        title: '🛒 Nova venda no site',
-        message: `Pedido #${shortId} de ${customerName}${total > 0 ? ` no valor de ${formatMoneyBRL(total)}` : ''}.`,
-        status: 'unread',
-        relatedId: resolvedId,
-        severity: 'success',
-        audience: 'admin',
-        metadata: {
-          orderId: resolvedId,
-          customerName,
-          total,
-          source: 'marketplace_checkout',
-          event: 'order_created'
-        }
-      });
-    }
-
+    // IMPORTANTE:
+    // Pedido criado no checkout ainda NÃO é venda.
+    // Não cria alerta administrativo neste estágio.
+    // Apenas confirma ao cliente que o pedido foi recebido.
     const phone = extractOrderPhone(order, requestBody);
+
     if (!phone) {
-      console.warn('[nova-venda] Pedido criado sem telefone para WhatsApp:', resolvedId || shortId);
-      return { ok: true, adminNotified: !alreadyNotified, whatsapp: false, reason: 'phone_missing' };
+      console.warn(
+        '[novo-pedido] Pedido criado sem telefone para confirmação:',
+        resolvedId || shortId
+      );
+
+      return {
+        ok: true,
+        adminNotified: false,
+        whatsapp: false,
+        reason: 'phone_missing'
+      };
     }
 
-    const text = buildNewOrderCustomerMessage(order, requestBody);
-    await waSendTextMessage({ number: phone, text });
+    const customerMessage = buildNewOrderCustomerMessage(order, requestBody);
 
-    console.log('[nova-venda] Painel e cliente notificados:', resolvedId || shortId);
-    return { ok: true, adminNotified: !alreadyNotified, whatsapp: true };
+    await waSendTextMessage({
+      number: phone,
+      text: customerMessage
+    });
+
+    console.log(
+      '[novo-pedido] Cliente informado; venda ainda aguardando pagamento:',
+      resolvedId || shortId
+    );
+
+    return {
+      ok: true,
+      adminNotified: false,
+      whatsapp: true
+    };
   } catch (error) {
-    console.error('[nova-venda] Falha ao processar notificações:', error?.responseData || error?.message || error);
-    return { ok: false, error: error?.message || 'notification_failed' };
+    console.error(
+      '[novo-pedido] Falha ao enviar confirmação inicial:',
+      error?.responseData || error?.message || error
+    );
+
+    return {
+      ok: false,
+      error: error?.message || 'order_received_notification_failed'
+    };
+  }
+}
+
+
+function parseAdminSaleNotifyNumbers(settings = {}) {
+  const raw = String(
+    settings.adminNotifyNumbers ||
+    process.env.EVOLUTION_ADMIN_NOTIFY_NUMBERS ||
+    process.env.EVOLUTION_ADMIN_NUMBER ||
+    ''
+  ).trim();
+
+  if (!raw) return [];
+
+  const numbers = raw
+    .split(/[,\n;|]+/)
+    .map((value) =>
+      normalizePhone(
+        String(value || '').trim(),
+        settings.defaultCountryCode || '55'
+      )
+    )
+    .filter(Boolean);
+
+  return [...new Set(numbers)];
+}
+
+
+function buildAdminPaidSaleMessage(order = {}) {
+  const relatedId = String(order._id || order.id || '').trim();
+  const shortId = relatedId
+    ? relatedId.slice(-8).toUpperCase()
+    : 'NOVO';
+
+  const customerName = extractOrderCustomerName(order, {});
+  const total = extractOrderTotal(order, {});
+
+  const provider = String(
+    order.payment?.provider || ''
+  ).trim().toLowerCase();
+
+  const method = String(
+    order.payment?.method || order.paymentMethod || ''
+  ).trim().toLowerCase();
+
+  const paymentLabel =
+    provider === 'cielo'
+      ? 'Cartão - Cielo'
+      : provider === 'mercadopago' && method === 'pix'
+        ? 'PIX - Mercado Pago'
+        : provider === 'mercadopago' && method === 'boleto'
+          ? 'Boleto - Mercado Pago'
+          : (method || provider || 'Pagamento confirmado');
+
+  return [
+    '🛒 *NOVA COMPRA CONFIRMADA - ARIANA MÓVEIS*',
+    '',
+    `Pedido: #${shortId}`,
+    `Cliente: ${customerName}`,
+    total > 0 ? `Valor: ${formatMoneyBRL(total)}` : '',
+    `Pagamento: ${paymentLabel}`,
+    'Status: PAGAMENTO APROVADO ✅'
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+
+async function notifyAdminWhatsappPaidSale(order = {}) {
+  try {
+    const settings = await getWhatsappSettings();
+
+    if (settings.enabled === false) {
+      return {
+        skipped: true,
+        reason: 'whatsapp_disabled'
+      };
+    }
+
+    const targets = parseAdminSaleNotifyNumbers(settings);
+
+    if (!targets.length) {
+      return {
+        skipped: true,
+        reason: 'missing_admin_notify_numbers'
+      };
+    }
+
+    const message = buildAdminPaidSaleMessage(order);
+    const results = [];
+
+    for (const number of targets) {
+      try {
+        const sent = await waSendTextMessage({
+          number,
+          text: message
+        });
+
+        results.push({
+          number,
+          ok: true,
+          status: sent?.status || null
+        });
+      } catch (error) {
+        results.push({
+          number,
+          ok: false,
+          error: error?.message || String(error)
+        });
+      }
+    }
+
+    return {
+      ok: results.some((item) => item.ok),
+      results
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || String(error)
+    };
+  }
+}
+
+
+async function notifyMarketplaceSaleAfterPaymentApproved(
+  orderId,
+  origin = 'payment_approved'
+) {
+  try {
+    const id = String(orderId || '').trim();
+
+    if (!id || !mongoose.isValidObjectId(id)) {
+      return {
+        skipped: true,
+        reason: 'invalid_order_id'
+      };
+    }
+
+    const fresh = await Order.findById(id);
+
+    if (!fresh) {
+      return {
+        skipped: true,
+        reason: 'order_not_found'
+      };
+    }
+
+    const orderStatus = String(
+      fresh.status || ''
+    ).trim().toLowerCase();
+
+    const paymentStatus = String(
+      fresh.payment?.status || ''
+    ).trim().toLowerCase();
+
+    const paid =
+      [
+        'pago',
+        'paid',
+        'approved',
+        'payment_confirmed',
+        'pagamento_aprovado'
+      ].includes(orderStatus) ||
+      [
+        'paid',
+        'approved',
+        'captured',
+        'paymentconfirmed',
+        'payment_confirmed'
+      ].includes(paymentStatus);
+
+    if (!paid) {
+      return {
+        skipped: true,
+        reason: 'payment_not_confirmed',
+        orderStatus,
+        paymentStatus
+      };
+    }
+
+    const relatedId = String(fresh._id);
+
+    // Deduplicação baseada na notificação REAL de pagamento aprovado.
+    // Uma notificação antiga de pedido pendente não bloqueia a venda.
+    const existingSaleNotification = await Notification.exists({
+      relatedId,
+      'metadata.event': 'payment_approved'
+    }).catch(() => false);
+
+    if (existingSaleNotification) {
+      return {
+        skipped: true,
+        reason: 'already_notified'
+      };
+    }
+
+    const shortId = relatedId.slice(-8).toUpperCase();
+    const customerName = extractOrderCustomerName(fresh, {});
+    const total = extractOrderTotal(fresh, {});
+
+    // Usa new_order para manter compatibilidade com o sistema atual
+    // de alertas sonoros/desktop/painel, mas somente DEPOIS do pagamento.
+    const adminNotification = await createAdminNotification({
+      type: 'new_order',
+      title: '🛒 Nova compra confirmada',
+      message:
+        `Pedido #${shortId} de ${customerName}` +
+        `${total > 0 ? ` no valor de ${formatMoneyBRL(total)}` : ''}. ` +
+        'Pagamento aprovado.',
+      status: 'unread',
+      relatedId,
+      severity: 'success',
+      audience: 'admin',
+      metadata: {
+        orderId: relatedId,
+        customerName,
+        total,
+        provider: String(fresh.payment?.provider || ''),
+        paymentMethod: String(fresh.payment?.method || ''),
+        paymentStatus: String(fresh.payment?.status || ''),
+        source: 'marketplace_payment',
+        event: 'payment_approved',
+        origin: String(origin || 'payment_approved')
+      }
+    });
+
+    const sellerNotifications = await createSellerOrderNotifications(
+      fresh,
+      {
+        type: 'seller_order_paid',
+        title: '🛒 Nova compra confirmada',
+        message:
+          `Pedido #${shortId} de ${customerName}` +
+          `${total > 0 ? ` no valor de ${formatMoneyBRL(total)}` : ''}. ` +
+          'Pagamento aprovado.',
+        severity: 'success',
+        origin: String(origin || 'payment_approved')
+      }
+    ).catch(() => []);
+
+    const adminWhatsapp = await notifyAdminWhatsappPaidSale(fresh);
+
+    // Só marca como processada depois de tentar os canais.
+    await Order.findByIdAndUpdate(
+      fresh._id,
+      {
+        $set: {
+          'payment.adminSaleNotifiedAt': now(),
+          'payment.adminSaleNotificationOrigin':
+            String(origin || 'payment_approved'),
+          'payment.adminSaleNotificationPanel':
+            Boolean(adminNotification),
+          'payment.adminSaleNotificationWhatsapp':
+            adminWhatsapp?.ok === true
+        }
+      }
+    ).catch(() => null);
+
+    console.log(
+      '[nova-venda] Pagamento confirmado; alerta de nova compra processado:',
+      relatedId,
+      {
+        panel: Boolean(adminNotification),
+        seller: Array.isArray(sellerNotifications)
+          ? sellerNotifications.length
+          : 0,
+        whatsapp: adminWhatsapp?.ok === true
+      }
+    );
+
+    return {
+      ok: true,
+      orderId: relatedId,
+      panel: Boolean(adminNotification),
+      sellerNotifications:
+        Array.isArray(sellerNotifications)
+          ? sellerNotifications.length
+          : 0,
+      adminWhatsapp
+    };
+  } catch (error) {
+    console.error(
+      '[nova-venda] Falha ao notificar venda após pagamento:',
+      error?.message || error
+    );
+
+    return {
+      ok: false,
+      error: error?.message || String(error)
+    };
   }
 }
 
@@ -1641,6 +1947,7 @@ const DEFAULT_PAYMENTS_SETTINGS = {
   },
   pagarme: {
     enabled: true,
+    creditCardEnabled: false,
     apiKey: process.env.PAGARME_API_KEY || '',
     publicKey: process.env.PAGARME_PUBLIC_KEY || '',
     endpoint: process.env.PAGARME_API_URL || 'https://api.pagar.me/core/v5',
@@ -1649,12 +1956,16 @@ const DEFAULT_PAYMENTS_SETTINGS = {
     marketplaceFeePercent: Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12)
   },
   cielo: {
-    enabled: false,
+    enabled: true,
+    creditCardEnabled: true,
     merchantId: process.env.CIELO_MERCHANT_ID || '',
     merchantKey: process.env.CIELO_MERCHANT_KEY || '',
-    apiUrl: process.env.CIELO_API_URL || 'https://api.cieloecommerce.cielo.com.br',
+    env: process.env.CIELO_ENV || 'production',
+    apiUrl: process.env.CIELO_API_URL || '',
+    captureAuto: String(process.env.CIELO_CAPTURE_AUTO || 'false').toLowerCase() === 'true',
+    softDescriptor: process.env.CIELO_SOFT_DESCRIPTOR || 'ARIANAMOVEIS',
     marketplaceMerchantId: process.env.CIELO_MARKETPLACE_MERCHANT_ID || process.env.CIELO_SUBORDINATE_MARKETPLACE_ID || '',
-    splitEnabled: true,
+    splitEnabled: false,
     marketplaceFeePercent: Number(process.env.MARKETPLACE_COMMISSION_PERCENT || 12)
   }
 };
@@ -2567,6 +2878,62 @@ registerCrediarioConversationRoutes(app, { mongoose, adminRequired });
 registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEvent, adminRequired, bcrypt, mongoose, isSuperAdminEmail });
 
 // ============================================================
+// ADAPTADOR SIGE PARA O TELEVENDAS
+// O server atual possui sigeGet(), mas não possui sigeRequest()
+// neste escopo. Este adaptador reutiliza a configuração SIGE já
+// existente, sem duplicar URL, usuário, token ou App.
+// ============================================================
+async function televendasSigeRequest(
+  method = 'GET',
+  endpoint = '',
+  { params = {}, data = null } = {}
+) {
+  const normalizedMethod = String(method || 'GET').trim().toUpperCase();
+
+  if (normalizedMethod === 'GET') {
+    return sigeGet(endpoint, params);
+  }
+
+  if (!isSigeConfigured()) {
+    const error = new Error(
+      'SIGE não configurado. Configure SIGE_API_URL, SIGE_USER, SIGE_APP e SIGE_TOKEN.'
+    );
+    error.statusCode = 503;
+    error.code = 'SIGE_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const cleanEndpoint = String(endpoint || '').replace(/^\/+/, '');
+  const url = `${SIGE_API_URL}/request/${cleanEndpoint}`;
+
+  const response = await axios({
+    method: normalizedMethod,
+    url,
+    headers: {
+      ...sigeAuthHeaders(),
+      'Content-Type': 'application/json'
+    },
+    params,
+    data,
+    timeout: SIGE_TIMEOUT_MS,
+    validateStatus: () => true
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    const error = new Error(
+      typeof response.data === 'string'
+        ? response.data
+        : `Erro SIGE HTTP ${response.status}`
+    );
+    error.statusCode = response.status;
+    error.responseData = response.data;
+    throw error;
+  }
+
+  return response.data;
+}
+
+// ============================================================
 // TELEVENDAS
 // Registra os endpoints /api/televendas antes do bloco legado.
 // Não substitui nem remove SIGE, Enterprise, Manufacturer ou demais rotas.
@@ -2574,6 +2941,7 @@ registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEven
 app.use('/api', createTelevendasRoutes({
   Order,
   Product,
+  sigeRequest: televendasSigeRequest,
   User,
   PaymentEvent,
   IntegrationAuditLog,
@@ -2604,32 +2972,89 @@ app.use('/api', createTelevendasRoutes({
 
 
 
-// Captura a criação de pedidos do checkout sem alterar o endpoint legado.
-// A resposta ao cliente é enviada normalmente; as notificações são processadas em segundo plano.
+// ============================================================
+// CHECKOUT / VENDA:
+// - POST /api/orders = pedido criado, ainda aguardando pagamento;
+// - Cielo credit/capture = só anuncia venda se o pedido estiver PAGO no banco.
+// O middleware apenas observa a resposta e não altera endpoint/JSON.
+// ============================================================
 app.use((req, res, next) => {
-  const pathOnly = String(req.path || req.originalUrl || '').split('?')[0].replace(/\/+$/, '');
-  const isMarketplaceOrderCreation = req.method === 'POST' && pathOnly === '/api/orders';
+  const pathOnly = String(req.path || req.originalUrl || '')
+    .split('?')[0]
+    .replace(/\/+$/, '');
 
-  if (!isMarketplaceOrderCreation) return next();
+  const isMarketplaceOrderCreation =
+    req.method === 'POST' &&
+    pathOnly === '/api/orders';
+
+  const isCieloCredit =
+    req.method === 'POST' &&
+    pathOnly === '/api/payments/cielo/credit';
+
+  const isCieloCapture =
+    req.method === 'POST' &&
+    pathOnly === '/api/payments/cielo/capture';
+
+  if (!isMarketplaceOrderCreation && !isCieloCredit && !isCieloCapture) {
+    return next();
+  }
 
   const originalJson = res.json.bind(res);
   let scheduled = false;
 
-  res.json = function patchedOrderJson(payload) {
+  res.json = function patchedMarketplaceJson(payload) {
     if (!scheduled && res.statusCode >= 200 && res.statusCode < 300) {
       scheduled = true;
-      const requestSnapshot = req.body && typeof req.body === 'object'
-        ? JSON.parse(JSON.stringify(req.body))
-        : {};
-      const responseSnapshot = payload && typeof payload === 'object'
-        ? JSON.parse(JSON.stringify(payload))
-        : payload;
 
-      setImmediate(() => {
-        notifyNewMarketplaceOrder(responseSnapshot, requestSnapshot).catch((error) => {
-          console.error('[nova-venda] Erro assíncrono:', error?.message || error);
+      const requestSnapshot =
+        req.body && typeof req.body === 'object'
+          ? JSON.parse(JSON.stringify(req.body))
+          : {};
+
+      const responseSnapshot =
+        payload && typeof payload === 'object'
+          ? JSON.parse(JSON.stringify(payload))
+          : payload;
+
+      if (isMarketplaceOrderCreation) {
+        setImmediate(() => {
+          notifyNewMarketplaceOrder(responseSnapshot, requestSnapshot).catch((error) => {
+            console.error('[novo-pedido] Erro assíncrono:', error?.message || error);
+          });
         });
-      });
+      }
+
+      if (isCieloCredit || isCieloCapture) {
+        const responseOrder =
+          responseSnapshot?.order ||
+          responseSnapshot?.data?.order ||
+          null;
+
+        const responseOrderId =
+          responseOrder?._id ||
+          responseOrder?.id ||
+          responseSnapshot?.orderId ||
+          '';
+
+        const orderId = String(
+          requestSnapshot?.orderId ||
+          requestSnapshot?.order_id ||
+          responseOrderId ||
+          ''
+        ).trim();
+
+        const origin = isCieloCapture
+          ? 'cielo_card_captured'
+          : 'cielo_card_payment_response';
+
+        if (orderId) {
+          setImmediate(() => {
+            notifyMarketplaceSaleAfterPaymentApproved(orderId, origin).catch((error) => {
+              console.error('[nova-venda] Erro assíncrono pós-Cielo:', error?.message || error);
+            });
+          });
+        }
+      }
     }
 
     return originalJson(payload);
@@ -2828,6 +3253,86 @@ async function ensureArianaNotificacoesWebhookEvents() {
     status: response.status
   };
 }
+
+
+// ============================================================
+// CONFIGURAÇÃO PÚBLICA SEGURA DE FRETE PARA O CHECKOUT
+// Expõe somente valores necessários ao frontend.
+// Nunca retorna tokens, senhas, contratos ou credenciais de transportadoras.
+// ============================================================
+app.get('/api/settings/shipping', async (_req, res) => {
+  try {
+    const settings = await getShippingSettings();
+    const correios = settings?.correios || {};
+
+    const services = Array.isArray(correios.servicos)
+      ? correios.servicos.map((value) => String(value || '').trim()).filter(Boolean)
+      : String(process.env.CORREIOS_SERVICOS || '03298,03328')
+          .split(',')
+          .map((value) => String(value || '').trim())
+          .filter(Boolean);
+
+    const shipping = {
+      originCep: String(
+        correios.origemCep ||
+        process.env.LOJA_ORIGEM_CEP ||
+        settings?.businessRules?.arianaMoveis?.localOriginCep ||
+        '39740-000'
+      ).trim(),
+
+      services,
+
+      defaultWeightKg:
+        Number(correios.pesoKgPadrao ?? 1) || 1,
+
+      defaultHeightCm:
+        Number(correios.alturaCmPadrao ?? 10) || 10,
+
+      defaultWidthCm:
+        Number(correios.larguraCmPadrao ?? 15) || 15,
+
+      defaultLengthCm:
+        Number(correios.comprimentoCmPadrao ?? 20) || 20,
+
+      defaultDeclaredValue:
+        Number(correios.valorDeclaradoPadrao ?? 0) || 0,
+
+      freeShippingAbove:
+        Number(
+          settings?.freeShippingAbove ??
+          settings?.freteGratisAcima ??
+          0
+        ) || 0
+    };
+
+    res.setHeader('Cache-Control', 'no-store');
+
+    return res.json({
+      ok: true,
+      shipping
+    });
+  } catch (error) {
+    console.error(
+      '[shipping-settings-public] Falha ao carregar configuração pública:',
+      error?.message || error
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error: 'Não foi possível carregar a configuração de frete.'
+    });
+  }
+});
+
+registerCieloRoutes(app, {
+  Order,
+  axios,
+  adminRequired,
+  writeAuditLog: async () => null,
+  redact,
+  toJSON,
+  now
+});
 
 registerLegacyRoutes(app, {
   ADMIN_EMAIL,

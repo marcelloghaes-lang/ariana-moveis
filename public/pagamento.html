@@ -8,6 +8,7 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="js/api-config.js"></script>
+  <script defer src="https://www.pagador.com.br/post/scripts/silentorderpost-1.0.min.js"></script>
 
   <style>
     .mp-input{
@@ -102,7 +103,7 @@
         </div>
         <div class="flex-1">
           <div class="font-bold">Cartão de Crédito</div>
-          <div class="text-xs text-slate-500">Processado pelo Pagar.me</div>
+          <div class="text-xs text-slate-500">Processado com segurança pela Cielo • cartão tokenizado diretamente</div>
         </div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
@@ -142,21 +143,21 @@
           <div class="grid grid-cols-1 gap-4">
             <div>
               <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Número do Cartão</label>
-              <input type="text" id="form-checkout__cardNumber" class="mp-input h-12" placeholder="0000 0000 0000 0000" autocomplete="cc-number" inputmode="numeric" maxlength="23" />
+              <input type="text" id="form-checkout__cardNumber" class="mp-input h-12 bp-sop-cardnumber" placeholder="0000 0000 0000 0000" autocomplete="cc-number" inputmode="numeric" maxlength="23" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Vencimento</label>
-                <input type="text" id="form-checkout__expirationDate" class="mp-input h-12" placeholder="MM/AA" autocomplete="cc-exp" inputmode="numeric" maxlength="5" />
+                <input type="text" id="form-checkout__expirationDate" class="mp-input h-12 bp-sop-cardexpirationdate" placeholder="MM/AAAA" autocomplete="cc-exp" inputmode="numeric" maxlength="7" />
               </div>
               <div>
                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">CVV</label>
-                <input type="text" id="form-checkout__securityCode" class="mp-input h-12" placeholder="123" autocomplete="cc-csc" inputmode="numeric" maxlength="4" />
+                <input type="text" id="form-checkout__securityCode" class="mp-input h-12 bp-sop-cardcvvc bp-sop-cardcvv" placeholder="123" autocomplete="cc-csc" inputmode="numeric" maxlength="4" />
               </div>
             </div>
             <div>
               <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Nome do Titular</label>
-              <input type="text" id="form-checkout__cardholderName" class="mp-input h-12" autocomplete="cc-name" />
+              <input type="text" id="form-checkout__cardholderName" class="mp-input h-12 bp-sop-cardholdername" autocomplete="cc-name" />
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -181,14 +182,22 @@
               </div>
             </div>
 
-            <div>
-              <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
-              <select id="form-checkout__installments" class="mp-input h-12"></select>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Bandeira</label>
+                <div class="mp-input h-12 flex items-center text-slate-500 text-sm">Identificada automaticamente pela Cielo</div>
+                <input type="hidden" class="bp-sop-cardtype" value="creditCard" />
+              </div>
+              <div>
+                <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Parcelas</label>
+                <select id="form-checkout__installments" class="mp-input h-12"></select>
+              </div>
             </div>
             <select id="form-checkout__identificationType" class="hidden"></select>
             <input type="text" id="form-checkout__identificationNumber" class="hidden" />
             <input type="email" id="form-checkout__cardholderEmail" class="hidden" />
           </div>
+          <p class="text-xs text-slate-500 leading-relaxed">🔒 Número, validade e CVV são enviados diretamente à Cielo pelo Silent Order Post. A Ariana Móveis recebe apenas um token temporário.</p>
           <button type="submit" id="form-checkout__submit" class="btn-primary mt-6">Confirmar Pagamento</button>
         </form>
       </div>
@@ -303,6 +312,36 @@
     function getInputValue(id) {
       const el = document.getElementById(id);
       return el ? String(el.value || "").trim() : "";
+    }
+
+    function maskCardNumberValue(value) {
+      const digits = digitsOnly(value).slice(0, 19);
+      return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+    }
+
+    function maskCardExpValue(value) {
+      const digits = digitsOnly(value).slice(0, 6);
+      if (digits.length <= 2) return digits;
+      return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+
+    function parseCardExpiration(value) {
+      const raw = String(value || "").trim();
+      const match = raw.match(/^(0[1-9]|1[0-2])\/(\d{2}|\d{4})$/);
+      if (!match) throw new Error("Validade inválida. Use MM/AA.");
+
+      const exp_month = Number(match[1]);
+      const exp_year = Number(match[2].length === 2 ? `20${match[2]}` : match[2]);
+      const today = new Date();
+
+      if (
+        exp_year < today.getFullYear() ||
+        (exp_year === today.getFullYear() && exp_month < today.getMonth() + 1)
+      ) {
+        throw new Error("O cartão está vencido.");
+      }
+
+      return { exp_month, exp_year };
     }
 
     function maskCpfValue(value) {
@@ -459,7 +498,7 @@
         result?.payment?.last_transaction?.gateway_response?.errors?.[0]?.message,
         result?.payment?.last_transaction?.acquirer_message
       ].filter(Boolean);
-      return candidates[0] || "Transação não aprovada pelo Pagar.me.";
+      return candidates[0] || "Transação não aprovada pelo processador de pagamento.";
     }
 
     function mergeAndCachePayment(method, result, statusOverride) {
@@ -472,7 +511,7 @@
         status: mpStatus === "approved" ? "approved" : (orderData?.status || "pending_payment"),
         payment: {
           ...(orderData?.payment || {}),
-          provider: result?.provider || (method === "card" ? "pagarme" : "mercadopago"),
+          provider: result?.provider || (method === "card" ? "cielo" : "mercadopago"),
           method,
           type: method === "card" ? "credit_card" : method,
           paymentId: result?.id || result?.paymentId || result?.data?.id || result?.raw?.id || "",
@@ -594,7 +633,12 @@
           ...(totals || {}),
           products: Number(totals.products ?? data.subtotal ?? 0) || 0,
           shipping: Number(totals.shipping ?? data.shippingCost ?? 0) || 0,
-          grandTotalOriginal: Number(totals.grandTotalOriginal ?? totals.totalOriginal ?? data.totalOriginal ?? 0) || 0,
+          grandTotalOriginal: Number(
+            totals.grandTotalOriginal ??
+            totals.totalOriginal ??
+            data.totalOriginal ??
+            0
+          ) || 0,
           discountValue: Number(totals.discountValue ?? data.discountValue ?? 0) || 0,
           discountApplied: totals.discountApplied ?? data.discountApplied ?? '',
           grandTotal: Number(
@@ -727,71 +771,6 @@
       }
       return publicKey;
     }
-    async function getPagarmePublicKey() {
-      const data = await apiFetch("/payments/pagarme/public-key");
-      const publicKey = data?.publicKey || data?.public_key || data?.key || "";
-      const endpoint = data?.endpoint || "https://api.pagar.me/core/v5";
-      if (!publicKey) throw new Error("Pagar.me Public Key não configurada no servidor.");
-      return { publicKey, endpoint };
-    }
-
-    function maskCardNumberValue(value) {
-      return digitsOnly(value).slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
-    }
-
-    function maskCardExpValue(value) {
-      const d = digitsOnly(value).slice(0, 4);
-      return d.replace(/^(\d{2})(\d)/, "$1/$2");
-    }
-
-    function parseCardExpiration(value) {
-      const d = digitsOnly(value);
-      if (d.length < 4) throw new Error("Informe a validade do cartão no formato MM/AA.");
-      const month = Number(d.slice(0, 2));
-      let year = Number(d.slice(2, 4));
-      if (!month || month < 1 || month > 12) throw new Error("Mês de validade do cartão inválido.");
-      year = 2000 + year;
-      const now = new Date();
-      const expDate = new Date(year, month, 0, 23, 59, 59);
-      if (expDate < now) throw new Error("Cartão vencido. Confira a validade.");
-      return { exp_month: month, exp_year: year };
-    }
-
-    function getPagarmeCardData() {
-      const expiration = parseCardExpiration(getInputValue("form-checkout__expirationDate"));
-      const number = digitsOnly(getInputValue("form-checkout__cardNumber"));
-      const cvv = digitsOnly(getInputValue("form-checkout__securityCode"));
-      const holderName = String(getInputValue("form-checkout__cardholderName") || getOrderFullName()).trim();
-      if (number.length < 13) throw new Error("Informe um número de cartão válido.");
-      if (!holderName || holderName.split(/\s+/).length < 2) throw new Error("Informe o nome completo impresso no cartão.");
-      if (cvv.length < 3) throw new Error("Informe o CVV do cartão.");
-      return {
-        number,
-        holder_name: holderName,
-        exp_month: expiration.exp_month,
-        exp_year: expiration.exp_year,
-        cvv
-      };
-    }
-
-    async function createPagarmeCardToken() {
-      const { publicKey, endpoint } = await getPagarmePublicKey();
-      const card = getPagarmeCardData();
-      const res = await fetch(`${String(endpoint).replace(/\/+$/, "")}/tokens?appId=${encodeURIComponent(publicKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "card", card })
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message = data?.message || data?.errors?.[0]?.message || data?.error || `Erro ao tokenizar cartão (${res.status})`;
-        throw new Error(message);
-      }
-      const token = data?.id || data?.token || data?.card_token || "";
-      if (!token) throw new Error("Pagar.me não retornou token do cartão.");
-      return token;
-    }
-
 
     function unmountCardForm() {
       cardForm = null;
@@ -817,7 +796,7 @@
           }
         }
       } catch (err) {
-        console.error("Falha ao iniciar formulário Pagar.me:", err);
+        console.error("Falha ao iniciar formulário Cielo:", err);
         setAlert("error", err.message || "Falha ao iniciar o cartão.");
       }
     }
@@ -866,88 +845,165 @@
       );
     }
 
+    function cieloSopInvalidMessage(validationResults) {
+      const items = Array.isArray(validationResults) ? validationResults : [];
+      const messages = items
+        .map((item) => String(item?.Message || item?.message || "").trim())
+        .filter(Boolean);
+
+      return messages.length
+        ? messages.join(" ")
+        : "Confira os dados do cartão e tente novamente.";
+    }
+
+    async function getCieloSopPaymentToken() {
+      const tokenInfo = await apiFetch("/payments/cielo/sop/access-token", {
+        method: "POST",
+        body: JSON.stringify({ orderId })
+      });
+
+      if (!tokenInfo?.ok || !tokenInfo?.accessToken) {
+        throw new Error(tokenInfo?.error || "Não foi possível iniciar a tokenização segura da Cielo.");
+      }
+
+      const sopFn =
+        window.bpSop_silentOrderPost ||
+        (typeof bpSop_silentOrderPost === "function" ? bpSop_silentOrderPost : null);
+
+      if (typeof sopFn !== "function") {
+        throw new Error("O módulo de segurança da Cielo não foi carregado. Atualize a página e tente novamente.");
+      }
+
+      return await new Promise((resolve, reject) => {
+        const options = {
+          accessToken: tokenInfo.accessToken,
+          environment: tokenInfo.environment || "production",
+          language: "PT",
+          enableBinQuery: false,
+          enableVerifyCard: false,
+          enableTokenize: false,
+          cvvRequired: true,
+
+          onSuccess: function (response) {
+            const paymentToken =
+              response?.PaymentToken ||
+              response?.paymentToken ||
+              "";
+
+            if (!paymentToken) {
+              reject(new Error("A Cielo não retornou o token do cartão."));
+              return;
+            }
+
+            resolve({
+              paymentToken,
+              brand: response?.Brand || response?.brand || "",
+              last4: response?.CardLast4Digits || response?.cardLast4Digits || ""
+            });
+          },
+
+          onError: function (response) {
+            const code = response?.Code || response?.code || "";
+            const message =
+              response?.Message ||
+              response?.message ||
+              response?.Description ||
+              response?.description ||
+              "Falha na tokenização do cartão pela Cielo.";
+
+            reject(new Error(code ? `${message} (Cielo ${code})` : message));
+          },
+
+          onInvalid: function (validationResults) {
+            reject(new Error(cieloSopInvalidMessage(validationResults)));
+          }
+        };
+
+        try {
+          sopFn(options);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
     async function doPayCard(_formData) {
       try {
-        console.log("[PAGARME] Entrou no doPayCard");
         const customer = validateCardCustomerData();
-        setAlert("loading", "Validando cartão com segurança pelo Pagar.me...");
+        setAlert("loading", "Protegendo os dados do cartão diretamente na Cielo...");
         disablePayments(true);
 
         const installments = Number(getInputValue("form-checkout__installments") || 1) || 1;
         const amount = Number(getTotalForSelectedMethod("card") || 0) || 0;
 
-        console.log("[PAGARME CARD FORM DATA]", {
-          installments,
-          amount,
-          emailOk: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email || ""),
-          cpfOk: String(customer.cpf || "").replace(/\D/g, "").length === 11,
-          birthDateOk: !!customer.birthDate,
-          phoneOk: String(customer.phone || "").replace(/\D/g, "").length >= 10
-        });
-
         if (!amount || amount <= 0) {
           throw new Error("Total do pedido inválido para pagamento no cartão.");
         }
 
-        console.log("[PAGARME] Iniciando tokenização...");
-        const cardToken = await createPagarmeCardToken();
-        console.log("[PAGARME] Token criado:", !!cardToken, String(cardToken || "").slice(0, 10) + "...");
+        const sop = await getCieloSopPaymentToken();
 
-        console.log("[PAGARME] Enviando para:", `${API_BASE}/payments/pagarme/credit`);
-        const result = await apiFetch("/payments/pagarme/credit", {
+        setAlert("loading", "Cartão protegido. Solicitando autorização à Cielo...");
+
+        const result = await apiFetch("/payments/cielo/credit", {
           method: "POST",
           body: JSON.stringify({
-            card_token: cardToken,
-            amount,
-            installments,
             orderId,
-            email: customer.email,
-            cpf: customer.cpf,
-            birthDate: customer.birthDate,
-            phone: customer.phone,
-            customer,
-            address: toMpAddress(getBestAddress()),
-            receiver_address: getMpReceiverAddressFromOrder(),
-            paymentMethod: "card"
+            installments,
+            paymentToken: sop.paymentToken,
+            customer: {
+              name: customer.name || getOrderFullName(),
+              email: customer.email,
+              cpf: customer.cpf,
+              phone: customer.phone
+            }
           })
         });
 
-        window.__PAGARME_LAST_RESPONSE = result;
-        console.log("[PAGARME CREDIT FULL RESPONSE]", result);
-        console.log("[PAGARME CREDIT FULL RESPONSE JSON]", safeJsonStringify(result));
-        if (isMpApproved(result)) {
-          mergeAndCachePayment("card", result, "approved");
+        if (result?.approved === true || result?.ok === true) {
+          mergeAndCachePayment("card", result, result?.status || "approved");
           clearCheckoutCartOnlyAfterSuccess();
-          setAlert("success", "Pagamento aprovado! Preparando seu pedido...");
+
+          const numberInput = document.getElementById("form-checkout__cardNumber");
+          const cvvInput = document.getElementById("form-checkout__securityCode");
+          const expirationInput = document.getElementById("form-checkout__expirationDate");
+          const holderInput = document.getElementById("form-checkout__cardholderName");
+          if (numberInput) numberInput.value = "";
+          if (cvvInput) cvvInput.value = "";
+          if (expirationInput) expirationInput.value = "";
+          if (holderInput) holderInput.value = "";
+
+          setAlert(
+            "success",
+            result?.captured
+              ? "Pagamento aprovado pela Cielo! Preparando seu pedido..."
+              : "Cartão autorizado pela Cielo! Preparando seu pedido..."
+          );
+
           setTimeout(() => {
-            window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
+            window.location.href =
+              "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
           }, 1200);
           return;
         }
 
-        const status = getMpStatus(result) || "pending";
+        const status = result?.status || "denied";
         mergeAndCachePayment("card", result, status);
-        console.error("[PAGARME REJECTED DETAILS]", result);
-        console.error("[PAGARME REJECTED DETAILS JSON]", safeJsonStringify(result));
-        const reason = extractPagarmeReason(result);
-        throw new Error(`${reason} Status: ${status}`);
+
+        throw new Error(
+          result?.returnMessage ||
+          result?.statusDetail ||
+          result?.error ||
+          "Pagamento recusado pela Cielo."
+        );
       } catch (e) {
-        console.error("ERRO CARTAO PAGARME:", e);
-        if (e?.response) {
-          console.error("[PAGARME ERROR RESPONSE]", e.response);
-          console.error("[PAGARME ERROR RESPONSE JSON]", safeJsonStringify(e.response));
-        }
+        console.error("ERRO CARTAO CIELO SOP:", e);
 
         const msg =
           e?.response?.message ||
           e?.response?.error ||
-          e?.response?.status_detail ||
-          e?.response?.details?.message ||
-          e?.response?.last_transaction?.gateway_response?.errors?.[0]?.message ||
-          e?.response?.last_transaction?.acquirer_message ||
-          e?.details?.errors?.[0]?.message ||
-          e?.details?.message ||
-          e?.statusDetail ||
+          e?.response?.statusDetail ||
+          e?.details?.[0]?.Message ||
+          e?.details?.Message ||
           e?.message ||
           "Falha no pagamento.";
 
@@ -963,7 +1019,7 @@
         if (pixLoading) {
           pixLoading.innerHTML = '<div class="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto"></div><p class="mt-4 text-slate-500 animate-pulse">Gerando seu QR Code Pix...</p>';
         }
-        const data = await apiFetch("/payments/pagarme/pix", {
+        const data = await apiFetch("/payments/mp/pix", {
           method: "POST",
           body: JSON.stringify({
             orderId: orderId,
@@ -982,7 +1038,7 @@
               ...(orderData || {}),
               paymentMethod: "pix",
               payment_method: "pix",
-              payment: { ...(orderData?.payment || {}), provider: "pagarme", method: "pix", type: "pix", ...(data?.payment || data || {}) },
+              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "pix", type: "pix", ...(data?.payment || data || {}) },
               paymentStatus: "pending",
               status: "pending",
               totals: { ...(orderData?.totals || {}), paymentMethod: "pix" }
@@ -1017,7 +1073,7 @@
         const parts = splitFullName(getOrderFullName());
         const payer = getMpPayerStrict();
 
-        const data = await apiFetch("/payments/pagarme/boleto", {
+        const data = await apiFetch("/payments/mp/boleto", {
           method: "POST",
           body: JSON.stringify({
             orderId: orderId,
@@ -1038,7 +1094,7 @@
               ...(orderData || {}),
               paymentMethod: "boleto",
               payment_method: "boleto",
-              payment: { ...(orderData?.payment || {}), provider: "pagarme", method: "boleto", type: "boleto", ...(data?.payment || data || {}) },
+              payment: { ...(orderData?.payment || {}), provider: "mercadopago", method: "boleto", type: "boleto", ...(data?.payment || data || {}) },
               paymentStatus: "pending",
               status: "pending",
               totals: { ...(orderData?.totals || {}), paymentMethod: "boleto" }
@@ -1144,8 +1200,25 @@
       const oldInfo = document.getElementById("summary-discount-info");
       if (oldInfo) oldInfo.remove();
 
-      const original = Number(orderData?.totals?.grandTotalOriginal || 0);
-      const discount = Number(orderData?.totals?.discountValue || 0);
+      const grand = Number(orderData?.totals?.grandTotal || 0) || 0;
+      const discount = Number(orderData?.totals?.discountValue || 0) || 0;
+      const storedOriginal = Number(
+        orderData?.totals?.grandTotalOriginal ||
+        orderData?.totals?.totalOriginal ||
+        orderData?.totalOriginal ||
+        0
+      ) || 0;
+
+      // Alguns pedidos legados não persistem grandTotalOriginal.
+      // Nesse caso, nunca mostramos R$ 0,00: usamos total + desconto
+      // quando houver desconto conhecido; caso contrário, o próprio total.
+      const original = storedOriginal > 0
+        ? storedOriginal
+        : (grand > 0 ? grand + Math.max(0, discount) : total);
+
+      const originalEl = document.getElementById("summary-original");
+      if (originalEl) originalEl.innerText = fmt.format(original);
+
       const applied = String(orderData?.totals?.discountApplied || "");
       const box = document.getElementById("order-summary");
       if (box && normalized !== "card" && discount > 0 && original > 0) {
@@ -1358,12 +1431,16 @@
         document.getElementById("customerBirthDate")?.addEventListener("input", (e) => { e.target.value = maskBirthDateValue(e.target.value); });
         document.getElementById("customerBirthDate")?.addEventListener("blur", (e) => { e.target.value = formatBirthDateForInput(e.target.value); });
         document.getElementById("customerEmail")?.addEventListener("blur", (e) => { e.target.value = String(e.target.value || "").trim().toLowerCase(); });
-        document.getElementById("form-checkout__cardNumber")?.addEventListener("input", (e) => { e.target.value = maskCardNumberValue(e.target.value); });
-        document.getElementById("form-checkout__expirationDate")?.addEventListener("input", (e) => { e.target.value = maskCardExpValue(e.target.value); });
-        document.getElementById("form-checkout__securityCode")?.addEventListener("input", (e) => { e.target.value = digitsOnly(e.target.value).slice(0, 4); });
-        document.getElementById("form-checkout")?.addEventListener("submit", (event) => {
+        document.getElementById("form-checkout")?.addEventListener("submit", async (event) => {
           event.preventDefault();
-          doPayCard(null);
+          const submitButton = document.getElementById("form-checkout__submit");
+          if (submitButton?.dataset.processing === "1") return;
+          if (submitButton) submitButton.dataset.processing = "1";
+          try {
+            await doPayCard(null);
+          } finally {
+            if (submitButton) submitButton.dataset.processing = "0";
+          }
         });
         document.getElementById("btn-generate-boleto")?.addEventListener("click", generateBoleto);
         document.getElementById("btn-generate-pix")?.addEventListener("click", generatePix);
@@ -1401,6 +1478,30 @@
       unmountCardForm();
     });
   </script>
+
+<script>
+window.ArianaCrediarioEngine=(function(){
+  const divisors={1:.75,2:.74,3:.73,4:.72,5:.71,6:.70,7:.6833,8:.6667,9:.65,10:.6333,11:.6167,12:.60,13:.5833,14:.5667,15:.55};
+  function simulate(baseAmount,count){
+    const n=Math.max(1,Math.min(15,Number(count||1)));
+    const baseCents=Math.round(Number(baseAmount||0)*100);
+    const divisor=divisors[n];
+    const financedCents=Math.round(baseCents/divisor);
+    const regular=Math.floor(financedCents/n);
+    const installments=Array.from({length:n},(_,i)=>i===n-1?financedCents-regular*(n-1):regular);
+    return {
+      baseAmountCents:baseCents,
+      financedAmountCents:financedCents,
+      baseAmount:baseCents/100,
+      financedAmount:financedCents/100,
+      installmentCount:n,
+      divisor,
+      installments
+    };
+  }
+  return {divisors,simulate};
+})();
+</script>
 
 <script>
 (function fase6Cora(){
