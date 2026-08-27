@@ -252,12 +252,20 @@
     <div id="panel-crediario" class="hidden space-y-6">
       <button onclick="showChoice()" class="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-4" type="button">← Voltar</button>
       <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 space-y-5">
-        <div class="text-center"><div class="text-5xl mb-3">🏦</div><h3 class="text-lg font-bold">Crediário Ariana</h3><p class="text-slate-500 text-sm">A Cora gerará o carnê e os boletos automaticamente.</p></div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label class="text-[11px] font-bold text-slate-400 uppercase">Parcelas</label><select id="cora-installments" class="mp-input h-12"></select></div>
-          <div><label class="text-[11px] font-bold text-slate-400 uppercase">Primeiro vencimento</label><input id="cora-first-due-date" type="date" class="mp-input h-12"/></div>
+        <div class="text-center">
+          <div class="text-5xl mb-3">🏦</div>
+          <h3 class="text-lg font-bold">Crediário Ariana</h3>
+          <p class="text-slate-500 text-sm max-w-lg mx-auto">Solicite uma análise de crédito para verificar as condições disponíveis para sua compra.</p>
         </div>
-        <div id="cora-preview" class="rounded-xl bg-indigo-50 border border-indigo-100 p-4 text-sm"></div>
+
+        <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-5">
+          <div class="flex items-center justify-between gap-4">
+            <span class="text-sm font-semibold text-slate-600">Valor da compra</span>
+            <strong id="cora-base-value" class="text-xl text-slate-900">R$ 0,00</strong>
+          </div>
+          <p class="mt-3 text-xs text-slate-500 leading-relaxed">As condições de pagamento serão definidas pela Ariana Móveis após a análise de crédito e apresentadas a você antes de qualquer aceite ou contratação.</p>
+        </div>
+
         <button id="btn-generate-cora" class="btn-primary" type="button">Solicitar análise de crédito</button>
         <div id="cora-result" class="hidden rounded-xl border border-green-200 bg-green-50 p-4"></div>
       </div>
@@ -266,7 +274,7 @@
     <div id="order-summary" class="mt-8 pt-8 border-t border-slate-200 hidden">
       <div class="space-y-2 text-sm">
         <div class="flex items-center justify-between text-slate-500">
-          <span>Valor original</span>
+          <span id="summary-original-label">Valor original</span>
           <span id="summary-original">R$ 0,00</span>
         </div>
         <div class="flex items-center justify-between text-green-600 font-bold hidden" id="summary-discount-row">
@@ -274,7 +282,7 @@
           <span id="summary-discount">- R$ 0,00</span>
         </div>
         <div class="flex items-center justify-between text-slate-900 pt-2 border-t border-slate-200">
-          <span class="text-sm font-bold">Total a pagar</span>
+          <span id="summary-total-label" class="text-sm font-bold">Total a pagar</span>
           <span id="summary-total" class="text-xl font-black text-slate-900">R$ 0,00</span>
         </div>
       </div>
@@ -448,13 +456,49 @@
     }
 
     function getAuthToken() {
-      return (
-        localStorage.getItem("userToken") ||
-        localStorage.getItem("authToken") ||
-        localStorage.getItem("token") ||
-        localStorage.getItem("customerToken") ||
-        ""
-      );
+      const clean = (value) => String(value || "").trim().replace(/^Bearer\s+/i, "");
+      const valid = (value) => {
+        const token = clean(value);
+        return token && token !== "null" && token !== "undefined" && token !== "false" ? token : "";
+      };
+
+      // O checkout usa `token` como chave principal. Mantemos a mesma prioridade aqui
+      // para não enviar por engano um userToken/authToken antigo e receber 401.
+      const directKeys = [
+        "token", "authToken", "userToken", "customerToken", "clientToken", "clienteToken",
+        "accessToken", "access_token", "ariana_token", "arianaToken", "jwt", "jwtToken"
+      ];
+      for (const storage of [localStorage, sessionStorage]) {
+        for (const key of directKeys) {
+          const found = valid(storage.getItem(key));
+          if (found) return found;
+        }
+      }
+
+      const objectKeys = [
+        "currentUser", "clienteLogado", "usuarioLogado", "user", "authUser",
+        "clientArianaMoveis", "customerSession", "userData", "userProfile"
+      ];
+      for (const storage of [localStorage, sessionStorage]) {
+        for (const key of objectKeys) {
+          try {
+            const raw = storage.getItem(key);
+            if (!raw) continue;
+            const obj = JSON.parse(raw);
+            const candidates = [
+              obj?.token, obj?.authToken, obj?.userToken, obj?.customerToken,
+              obj?.accessToken, obj?.access_token, obj?.jwt, obj?.jwtToken,
+              obj?.auth?.token, obj?.auth?.accessToken, obj?.session?.token,
+              obj?.data?.token, obj?.user?.token, obj?.cliente?.token
+            ];
+            for (const candidate of candidates) {
+              const found = valid(candidate);
+              if (found) return found;
+            }
+          } catch (_) {}
+        }
+      }
+      return "";
     }
 
     function getHeaders(extra = {}) {
@@ -1163,48 +1207,102 @@
 
       document.getElementById("order-id-display").innerText = `PEDIDO: ${orderId}`;
 
-      const attempts = [
-        `/orders/${encodeURIComponent(orderId)}`,
-        `/pedidos/${encodeURIComponent(orderId)}`
-      ];
-
-      let lastError = null;
-
-      for (const path of attempts) {
-        try {
-          const data = await apiFetch(path);
-          orderData = normalizeOrder(data);
-          try {
-            localStorage.setItem("arianaLastOrderId", String(orderId || orderData?._id || orderData?.id || ""));
-            localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderData));
-          } catch (_) {}
-          renderResumo();
-
-          if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
-            window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
-            return;
-          }
-
-          return;
-        } catch (e) {
-          lastError = e;
+      const primaryPath = `/orders/${encodeURIComponent(orderId)}`;
+      try {
+        const data = await apiFetch(primaryPath);
+        orderData = normalizeOrder(data);
+      } catch (e) {
+        // Não esconda erro de sessão com um 404 da rota legada.
+        if (Number(e?.status || 0) === 401) {
+          throw new Error("Sua sessão expirou ou o token do cliente não foi reconhecido. Entre novamente e retorne ao checkout.");
         }
+        if (Number(e?.status || 0) !== 404) throw e;
+
+        const legacyPath = `/pedidos/${encodeURIComponent(orderId)}`;
+        const data = await apiFetch(legacyPath);
+        orderData = normalizeOrder(data);
       }
 
-      throw lastError || new Error("Pedido não encontrado.");
+      try {
+        localStorage.setItem("arianaLastOrderId", String(orderId || orderData?._id || orderData?.id || ""));
+        localStorage.setItem("arianaLastOrderResponse", JSON.stringify(orderData));
+      } catch (_) {}
+      renderResumo();
+
+      if (["paid", "approved"].includes(String(orderData.status || "").toLowerCase())) {
+        window.location.href = "pedido_confirmado.html?orderId=" + encodeURIComponent(orderId);
+        return;
+      }
     }
 
 
+    function getCrediarioPurchaseAmount() {
+      const positive = (...values) => {
+        for (const value of values) {
+          const n = Number(value || 0);
+          if (Number.isFinite(n) && n > 0) return n;
+        }
+        return 0;
+      };
+
+      // 1) Campos explícitos de preço-base do crediário.
+      const direct = positive(
+        orderData?.crediario?.baseAmount,
+        Number(orderData?.crediario?.baseAmountCents || 0) / 100,
+        orderData?.totals?.creditBaseAmount,
+        Number(orderData?.totals?.creditBaseAmountCents || 0) / 100
+      );
+      if (direct > 0) return +direct.toFixed(2);
+
+      // 2) Compatibilidade com pedidos antigos que já gravaram total financiado + divisor.
+      const financed = positive(
+        orderData?.crediario?.financedAmount,
+        Number(orderData?.crediario?.financedAmountCents || 0) / 100,
+        orderData?.totals?.financedAmount,
+        Number(orderData?.totals?.financedAmountCents || 0) / 100
+      );
+      const divisor = positive(orderData?.crediario?.installmentDivisor, orderData?.crediario?.divisor);
+      if (financed > 0 && divisor > 0 && divisor <= 1) {
+        return +(financed * divisor).toFixed(2);
+      }
+
+      // 3) Recupera o preço cheio diretamente dos itens do pedido.
+      const items = Array.isArray(orderData?.items) ? orderData.items : [];
+      if (items.length) {
+        const fullItems = items.reduce((sum, item) => {
+          const qty = Number(item?.quantity ?? item?.qty ?? 1) || 1;
+          let unit = positive(item?.marketplacePrice, item?.cardPrice, item?.fullPrice, item?.precoPrazo);
+          if (!unit) {
+            const base = positive(item?.sellerBasePrice, item?.sellerBaseUnitPrice, item?.pixPrice, item?.basePrice);
+            if (base > 0) unit = +(base / 0.83).toFixed(2);
+          }
+          if (!unit) unit = positive(item?.unitPrice, item?.price, item?.valor);
+          return sum + unit * qty;
+        }, 0);
+        const shipping = positive(orderData?.totals?.shipping, orderData?.shippingCost);
+        if (fullItems > 0) return +(fullItems + shipping).toFixed(2);
+      }
+
+      // 4) Últimos fallbacks para pedidos sem estrutura completa.
+      return +positive(
+        orderData?.totals?.grandTotalOriginal,
+        orderData?.totals?.totalOriginal,
+        orderData?.totalOriginal,
+        (Number(orderData?.totals?.products || 0) || 0) + (Number(orderData?.totals?.shipping || 0) || 0),
+        orderData?.totals?.grandTotal,
+        orderData?.total
+      ).toFixed(2);
+    }
+
     function getTotalForSelectedMethod(method) {
-      const normalized = method === "card" ? "card" : (method === "boleto" ? "boleto" : "pix");
+      const normalized = method === "card" ? "card" : (method === "boleto" ? "boleto" : (method === "crediario_ariana" ? "crediario_ariana" : "pix"));
+      if (normalized === "crediario_ariana") return getCrediarioPurchaseAmount();
+
       const totals = orderData?.totals || {};
       const grand = Number(totals.grandTotal || 0) || 0;
       const original = Number(totals.grandTotalOriginal || totals.totalOriginal || 0) || 0;
       const discount = Number(totals.discountValue || 0) || 0;
-      const applied = String(totals.discountApplied || totals.paymentMethod || orderData?.paymentMethod || "").toLowerCase();
 
-      // Cartão não pode herdar desconto de Pix/Boleto. Se o pedido veio salvo com desconto,
-      // usa o total original/cheio para cartão.
       if (normalized === "card") {
         if (original > 0 && (discount > 0 || original > grand)) return original;
         return grand;
@@ -1215,13 +1313,30 @@
     function updateResumoForSelectedMethod(method) {
       if (!orderData) return;
       const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-      const normalized = method === "card" ? "card" : (method === "boleto" ? "boleto" : "pix");
-      const total = getTotalForSelectedMethod(normalized);
+      const normalized = method === "card" ? "card" : (method === "boleto" ? "boleto" : (method === "crediario_ariana" ? "crediario_ariana" : "pix"));
+      const originalLabel = document.getElementById("summary-original-label");
+      const originalEl = document.getElementById("summary-original");
+      const totalLabel = document.getElementById("summary-total-label");
       const totalEl = document.getElementById("summary-total");
-      if (totalEl) totalEl.innerText = fmt.format(total);
-
       const oldInfo = document.getElementById("summary-discount-info");
+      const discountRow = document.getElementById("summary-discount-row");
       if (oldInfo) oldInfo.remove();
+
+      if (normalized === "crediario_ariana") {
+        const base = getCrediarioPurchaseAmount();
+        if (originalLabel) originalLabel.textContent = "Valor da compra";
+        if (totalLabel) totalLabel.textContent = "Valor da compra";
+        if (originalEl) originalEl.innerText = fmt.format(base);
+        if (totalEl) totalEl.innerText = fmt.format(base);
+        if (discountRow) discountRow.classList.add("hidden");
+        return;
+      }
+
+      if (originalLabel) originalLabel.textContent = "Valor original";
+      if (totalLabel) totalLabel.textContent = "Total a pagar";
+
+      const total = getTotalForSelectedMethod(normalized);
+      if (totalEl) totalEl.innerText = fmt.format(total);
 
       const grand = Number(orderData?.totals?.grandTotal || 0) || 0;
       const discount = Number(orderData?.totals?.discountValue || 0) || 0;
@@ -1231,15 +1346,9 @@
         orderData?.totalOriginal ||
         0
       ) || 0;
-
-      // Alguns pedidos legados não persistem grandTotalOriginal.
-      // Nesse caso, nunca mostramos R$ 0,00: usamos total + desconto
-      // quando houver desconto conhecido; caso contrário, o próprio total.
       const original = storedOriginal > 0
         ? storedOriginal
         : (grand > 0 ? grand + Math.max(0, discount) : total);
-
-      const originalEl = document.getElementById("summary-original");
       if (originalEl) originalEl.innerText = fmt.format(original);
 
       const applied = String(orderData?.totals?.discountApplied || "");
@@ -1528,16 +1637,182 @@ window.ArianaCrediarioEngine=(function(){
 
 <script>
 (function fase6Cora(){
-  const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
-  const pick=(...v)=>v.find(x=>x!==undefined&&x!==null&&x!=='');
-  function initFields(){const sel=document.getElementById('cora-installments');if(sel&&!sel.options.length){for(let i=1;i<=15;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'x';sel.appendChild(o);}sel.value=String(orderData?.crediario?.installments||15);}const due=document.getElementById('cora-first-due-date');if(due&&!due.value){const d=new Date();d.setDate(d.getDate()+30);due.value=orderData?.crediario?.firstDueDate||d.toISOString().slice(0,10);}refresh();sel?.addEventListener('change',refresh);due?.addEventListener('change',refresh);document.getElementById('btn-generate-cora')?.addEventListener('click',generate);}
-  function total(){return Number(orderData?.totals?.grandTotal||orderData?.total||0);}
-  function refresh(){const n=Number(document.getElementById('cora-installments')?.value||1);const due=document.getElementById('cora-first-due-date')?.value;const box=document.getElementById('cora-preview');const base=Number(orderData?.crediario?.baseAmount??orderData?.totals?.creditBaseAmount??orderData?.totals?.grandTotalOriginal??total()??0);const sim=window.ArianaCrediarioEngine.simulate(base,n);window.coraCrediarioSimulation=sim;if(box)box.innerHTML='<div><b>Preço à vista no Crediário: '+money(sim.baseAmount)+'</b></div><div>Total financiado: <b>'+money(sim.financedAmount)+'</b></div><div>'+n+' parcelas • divisor '+sim.divisor.toFixed(4)+'</div><div>Primeira: '+money(sim.installments[0]/100)+' • última: '+money(sim.installments[sim.installments.length-1]/100)+'</div><div>Primeiro vencimento: '+(due?new Date(due+'T00:00:00').toLocaleDateString('pt-BR'):'—')+'</div>';}
-  function customer(){const c=orderData?.customer||{};const a=orderData?.shippingAddress||orderData?.address||{};return {name:pick(c.name,orderData?.customerName),email:pick(c.email,orderData?.customerEmail),document:pick(c.cpf,orderData?.cpf),phone:pick(c.phone,orderData?.customerPhone),address:{street:pick(a.street,a.logradouro),number:pick(a.number,a.numero,'S/N'),district:pick(a.district,a.bairro),city:pick(a.city,a.cidade),state:pick(a.state,a.uf),zipCode:pick(a.zipCode,a.cep)}};}
-  async function generate(){const btn=document.getElementById('btn-generate-cora');const n=Number(document.getElementById('cora-installments')?.value||1);const firstDueDate=document.getElementById('cora-first-due-date')?.value;if(!firstDueDate){setAlert('error','Informe o primeiro vencimento.');return;}btn.disabled=true;btn.textContent='Enviando para análise...';setAlert('loading','Enviando o pedido para análise de crédito da Ariana Móveis...');try{const sim=window.coraCrediarioSimulation||window.ArianaCrediarioEngine.simulate(Number(orderData?.crediario?.baseAmount??orderData?.totals?.creditBaseAmount??orderData?.totals?.grandTotalOriginal??total()??0),n);const payload={orderId,customer:customer(),baseAmountCents:sim.baseAmountCents,financedAmountCents:sim.financedAmountCents,installments:n,firstDueDate,plan:{baseAmountCents:sim.baseAmountCents,financedAmountCents:sim.financedAmountCents,installmentCount:n,divisor:sim.divisor,firstDueDate,installments:sim.installments}};const data=await apiFetch('/payments/crediario/analises',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const analysis=data?.analysis||{};const normalized={...orderData,paymentMethod:'crediario_ariana',payment_method:'crediario_ariana',paymentStatus:'PENDING_CREDIT_ANALYSIS',status:'pending_credit_analysis',statusLabel:'Aguardando análise de crédito',crediario:{...(orderData?.crediario||{}),analysisId:analysis.analysisId||analysis._id,analysisStatus:analysis.status||'PENDENTE_ANALISE',baseAmountCents:sim.baseAmountCents,financedAmountCents:sim.financedAmountCents,installmentCount:n,installmentDivisor:sim.divisor,firstDueDate,installmentPlan:sim.installments}};localStorage.setItem('arianaLastOrder',JSON.stringify(normalized));const result=document.getElementById('cora-result');if(result){result.classList.remove('hidden');result.innerHTML='<b>✅ Solicitação enviada para análise.</b><br><span>O carnê será emitido somente após aprovação e assinatura dos documentos.</span>';}setAlert('success','Pedido enviado para análise de crédito.');setTimeout(()=>location.href='pedido_confirmado.html?orderId='+encodeURIComponent(orderId),1200);}catch(e){console.error(e);setAlert('error','Não foi possível solicitar a análise: '+(e.message||e));}finally{btn.disabled=false;btn.textContent='Solicitar análise de crédito';}}
-  const originalOpen=window.openSelectedMethod;window.openSelectedMethod=function(method){if(method==='crediario_ariana'){selectedMethod=method;document.getElementById('section-choice')?.classList.add('hidden');['panel-card','panel-pix','panel-boleto'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));document.getElementById('panel-crediario')?.classList.remove('hidden');updateResumoForSelectedMethod('card');initFields();return;}return originalOpen(method);};
-  const originalShow=window.showChoice;window.showChoice=function(){document.getElementById('panel-crediario')?.classList.add('hidden');return originalShow();};
-  document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{initFields();document.querySelectorAll('.btn-choice').forEach(b=>{if(b.dataset.method==='crediario_ariana')b.addEventListener('dblclick',()=>window.openSelectedMethod('crediario_ariana'));});const c=document.getElementById('btn-continue');c?.addEventListener('click',()=>{if(c.dataset.method==='crediario_ariana')window.openSelectedMethod('crediario_ariana');});const m=new URLSearchParams(location.search).get('method');if(m==='crediario_ariana')setTimeout(()=>window.openSelectedMethod(m),400);},0);});
+  const money = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
+  const pick = (...v) => v.find(x => x !== undefined && x !== null && x !== '');
+  const positive = (...values) => {
+    for (const value of values) {
+      const n = Number(value || 0);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 0;
+  };
+
+  // Nesta etapa existe apenas o valor da compra. Parcelas, divisor, total financiado
+  // e vencimentos só serão definidos pela Ariana Móveis depois da aprovação.
+  function crediarioBaseAmount(){
+    return getCrediarioPurchaseAmount();
+  }
+
+  function renderPreAnalysis(){
+    const base = crediarioBaseAmount();
+    const baseEl = document.getElementById('cora-base-value');
+    if (baseEl) baseEl.textContent = money(base);
+
+    const originalLabel = document.getElementById('summary-original-label');
+    const originalEl = document.getElementById('summary-original');
+    const totalLabel = document.getElementById('summary-total-label');
+    const totalEl = document.getElementById('summary-total');
+    const discountInfo = document.getElementById('summary-discount-info');
+    const discountRow = document.getElementById('summary-discount-row');
+
+    if (originalLabel) originalLabel.textContent = 'Valor da compra';
+    if (originalEl) originalEl.textContent = money(base);
+    if (totalLabel) totalLabel.textContent = 'Valor da compra';
+    if (totalEl) totalEl.textContent = money(base);
+    if (discountInfo) discountInfo.remove();
+    if (discountRow) discountRow.classList.add('hidden');
+  }
+
+  function customer(){
+    const c = orderData?.customer || {};
+    const a = orderData?.shippingAddress || orderData?.address || {};
+    return {
+      name: pick(c.name, orderData?.customerName),
+      email: pick(c.email, orderData?.customerEmail),
+      document: pick(c.cpf, orderData?.cpf),
+      phone: pick(c.phone, orderData?.customerPhone),
+      address: {
+        street: pick(a.street, a.logradouro),
+        number: pick(a.number, a.numero, 'S/N'),
+        district: pick(a.district, a.bairro),
+        city: pick(a.city, a.cidade),
+        state: pick(a.state, a.uf),
+        zipCode: pick(a.zipCode, a.cep)
+      }
+    };
+  }
+
+  async function generate(){
+    const btn = document.getElementById('btn-generate-cora');
+    const base = crediarioBaseAmount();
+    const baseAmountCents = Math.round(base * 100);
+
+    if (!baseAmountCents || baseAmountCents <= 0) {
+      setAlert('error','Valor da compra inválido. Volte ao checkout e refaça o pedido.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando para análise...';
+    setAlert('loading','Enviando sua solicitação para análise de crédito da Ariana Móveis...');
+
+    try {
+      // O backend aceita a análise sem plano fechado: installmentCount/divisor = 0.
+      // O plano será escolhido somente depois da aprovação.
+      const payload = {
+        orderId,
+        customer: customer(),
+        baseAmountCents,
+        financedAmountCents: baseAmountCents,
+        installments: 0,
+        plan: {
+          baseAmountCents,
+          financedAmountCents: baseAmountCents,
+          installmentCount: 0,
+          divisor: 0,
+          installments: []
+        }
+      };
+
+      const data = await apiFetch('/payments/crediario/analises',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+
+      const analysis = data?.analysis || {};
+      const normalized = {
+        ...orderData,
+        paymentMethod:'crediario_ariana',
+        payment_method:'crediario_ariana',
+        paymentStatus:'PENDING_CREDIT_ANALYSIS',
+        status:'pending_credit_analysis',
+        statusLabel:'Aguardando análise de crédito',
+        totals:{
+          ...(orderData?.totals || {}),
+          grandTotalOriginal: base,
+          grandTotal: base,
+          creditBaseAmount: base,
+          creditBaseAmountCents: baseAmountCents,
+          financedAmount: base,
+          financedAmountCents: baseAmountCents
+        },
+        crediario:{
+          ...(orderData?.crediario || {}),
+          analysisProvider:'ariana_moveis',
+          analysisId:analysis.analysisId || analysis._id,
+          analysisStatus:analysis.status || 'PENDENTE_ANALISE',
+          baseAmount:base,
+          baseAmountCents,
+          financedAmount:base,
+          financedAmountCents:baseAmountCents,
+          installmentCount:0,
+          installmentDivisor:0,
+          firstDueDate:'',
+          installmentPlan:[]
+        }
+      };
+
+      try {
+        localStorage.setItem('arianaLastOrder',JSON.stringify(normalized));
+        localStorage.setItem('arianaLastOrderResponse',JSON.stringify(normalized));
+      } catch (_) {}
+
+      const result = document.getElementById('cora-result');
+      if (result) {
+        result.classList.remove('hidden');
+        result.innerHTML = '<b>✅ Solicitação enviada para análise.</b><br><span>A Ariana Móveis analisará sua solicitação. As condições de pagamento serão apresentadas somente após a aprovação.</span>';
+      }
+      setAlert('success','Solicitação enviada para análise de crédito da Ariana Móveis.');
+      setTimeout(()=>location.href='pedido_confirmado.html?orderId='+encodeURIComponent(orderId),1200);
+    } catch(e) {
+      console.error(e);
+      setAlert('error','Não foi possível solicitar a análise: '+(e.message||e));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Solicitar análise de crédito';
+    }
+  }
+
+  const originalOpen = window.openSelectedMethod;
+  window.openSelectedMethod = function(method){
+    if(method === 'crediario_ariana'){
+      selectedMethod = method;
+      document.getElementById('section-choice')?.classList.add('hidden');
+      ['panel-card','panel-pix','panel-boleto'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));
+      document.getElementById('panel-crediario')?.classList.remove('hidden');
+      renderPreAnalysis();
+      return;
+    }
+    return originalOpen(method);
+  };
+
+  const originalShow = window.showChoice;
+  window.showChoice = function(){
+    document.getElementById('panel-crediario')?.classList.add('hidden');
+    return originalShow();
+  };
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.getElementById('btn-generate-cora')?.addEventListener('click',generate);
+    setTimeout(()=>{
+      const m = new URLSearchParams(location.search).get('method');
+      if(m === 'crediario_ariana') {
+        renderPreAnalysis();
+        setTimeout(()=>window.openSelectedMethod(m),100);
+      }
+    },0);
+  });
 })();
 </script>
 </body>

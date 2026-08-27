@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Início | ARIANA MÓVEIS</title>
+  <title>Detalhes do Pedido | ARIANA MÓVEIS</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   
@@ -309,6 +309,88 @@ function moneyBR(v) {
   });
 }
 
+function isCrediarioOrder(order) {
+  const method = String(pick(order, ["paymentMethod","payment.method","payment.type","pagamento.metodo","payment_method_id","payment.method_id"], "") || "").toLowerCase();
+  return method === 'crediario_ariana' || method.includes('crediario') || !!order?.crediario;
+}
+
+function crediarioStatusInfo(order) {
+  if (!isCrediarioOrder(order)) return { pending: false, label: '', description: '' };
+  const raw = String(pick(order, ["statusLabel","status","paymentStatus","crediario.analysisStatus","payment.status"], "") || "").toLowerCase();
+  if (raw.includes('document')) return { pending: true, label: 'AGUARDANDO DOCUMENTOS', description: 'Aguardando o envio dos dados e documentos solicitados.' };
+  if (raw.includes('assin')) return { pending: false, label: 'AGUARDANDO ASSINATURA', description: 'A condição foi aprovada e aguarda aceite/assinatura.' };
+  if (/(approved|aprovado)/.test(raw)) return { pending: false, label: 'CRÉDITO APROVADO', description: 'A análise de crédito foi aprovada.' };
+  if (/pending_credit_analysis|pendente_analise|aguardando análise|aguardando analise|pending/.test(raw)) return { pending: true, label: 'AGUARDANDO ANÁLISE', description: 'Aguardando análise da Ariana Móveis.' };
+  return { pending: false, label: 'EM ANÁLISE', description: 'Solicitação de crediário em andamento.' };
+}
+
+function isCrediarioPending(order) {
+  return crediarioStatusInfo(order).pending;
+}
+
+function resolveOrderImageUrl(it) {
+  let raw = pick(it, ["mainImageUrl","imageUrl","image","mainImage","thumbnailUrl","thumb","photoUrl","foto","fotoPrincipal","imagem","imagemPrincipal","product.mainImageUrl","product.imageUrl","product.image"], "");
+  if (!raw && Array.isArray(it?.images) && it.images.length) raw = it.images[0];
+  if (!raw && it?.images && typeof it.images === 'object') raw = Object.values(it.images)[0];
+  if (raw && typeof raw === 'object') raw = raw.url || raw.src || raw.imageUrl || raw.path || '';
+  let url = String(raw || '').trim();
+  if (!url) return '';
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (/^\/?uploads\//i.test(url)) return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
+  return url;
+}
+
+function orderImageProductIdCandidates(item) {
+  const values = [
+    item?.productId, item?._id, item?.id, item?.produtoId, item?.docId,
+    item?.productDocId, item?.pid, item?.sku, item?.codigo, item?.code
+  ];
+  return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
+}
+
+async function fetchOrderProductImage(item) {
+  const current = resolveOrderImageUrl(item);
+  if (current) return current;
+  const api = String(API_BASE || '').replace(/\/+$/, '');
+  for (const id of orderImageProductIdCandidates(item)) {
+    try {
+      const res = await fetch(`${api}/products/${encodeURIComponent(id)}`, { headers: getHeaders({ Accept: 'application/json' }) });
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => null);
+      const product = data?.product || data?.item || data?.data || data;
+      const url = resolveOrderImageUrl(product);
+      if (url) return url;
+    } catch (_) {}
+  }
+  return '';
+}
+
+async function hydrateOrderProductImages(order, items) {
+  const raw = pick(order, [
+    'items','cartItems','products','itens','order.items','pedido.items',
+    'cart','carrinho','order.cart','pedido.cart'
+  ], []);
+  let source = raw;
+  if (typeof source === 'string') { try { source = JSON.parse(source); } catch (_) { source = []; } }
+  if (source && !Array.isArray(source) && typeof source === 'object') source = Object.values(source);
+  if (!Array.isArray(source)) source = [];
+
+  const hydrated = await Promise.all(items.map(async (item, idx) => {
+    if (item.image) return item;
+    const original = source[idx] || item;
+    const url = await fetchOrderProductImage(original);
+    return url ? { ...item, image: url } : item;
+  }));
+  return hydrated;
+}
+
+
+function crediarioPurchaseValue(order) {
+  const cents = Number(pick(order, ["crediario.baseAmountCents","totals.creditBaseAmountCents"], 0)) || 0;
+  if (cents > 0) return cents / 100;
+  return parseMoneyBR(pick(order, ["crediario.baseAmount","totals.creditBaseAmount","totals.grandTotalOriginal","orderTotals.grandTotalOriginal","total","totalAmount","valorTotal"], 0));
+}
+
 function normalizeItems(order) {
   let raw = pick(order, [
     "items","cartItems","products","itens","order.items","pedido.items",
@@ -328,7 +410,7 @@ function normalizeItems(order) {
   return raw.map((it) => ({
     id: it?.id || it?.productId || it?.sku || it?._id || "",
     name: it?.name || it?.title || it?.productName || it?.nome || "Produto",
-    image: it?.imageUrl || it?.image || it?.thumb || it?.foto || "",
+    image: resolveOrderImageUrl(it),
     quantity: Number(it?.quantity ?? it?.qty ?? it?.qtd ?? 1) || 1,
     price: parseMoneyBR(it?.price ?? it?.unitPrice ?? it?.valor ?? it?.preco ?? it?.amount ?? 0)
   }));
@@ -363,10 +445,18 @@ function calcTotals(order, items) {
 
   const itemsSubtotal = items.reduce((acc, it) => acc + (parseMoneyBR(it.price) * (Number(it.quantity) || 1)), 0);
 
-  const subtotal = subtotalRaw !== null ? parseMoneyBR(subtotalRaw) : itemsSubtotal;
+  let subtotal = subtotalRaw !== null ? parseMoneyBR(subtotalRaw) : itemsSubtotal;
   const shipping = shippingRaw !== null ? parseMoneyBR(shippingRaw) : 0;
   const discount = parseMoneyBR(discountRaw);
   let total = totalRaw !== null ? parseMoneyBR(totalRaw) : (subtotal + shipping - discount);
+
+  if (isCrediarioOrder(order)) {
+    const purchaseValue = crediarioPurchaseValue(order);
+    if (purchaseValue > 0) {
+      total = purchaseValue;
+      subtotal = Math.max(0, purchaseValue - shipping);
+    }
+  }
 
   if ((!total || total <= 0) && subtotal > 0) total = subtotal + shipping - discount;
 
@@ -393,6 +483,7 @@ function paymentLabel(order) {
     "payment_method_id","payment.method_id"
   ], "") || "").toLowerCase();
 
+  if (method === 'crediario_ariana' || method.includes('crediario')) return 'Crediário Ariana';
   if (method.includes("pix")) return "Pix";
   if (method.includes("bol")) return "Boleto";
   if (method.includes("card") || method.includes("credit")) return "Cartão de Crédito";
@@ -416,14 +507,17 @@ function statusToStep(order) {
 function applySteps(order) {
   const step = statusToStep(order);
   const badge = $("badge-status");
+  const crediario = isCrediarioOrder(order);
+  const credInfo = crediarioStatusInfo(order);
+  const crediarioPending = credInfo.pending;
 
   if (badge) {
-    const label =
+    const label = crediario && step < 2 ? credInfo.label :
       step >= 4 ? "ENTREGUE" :
       step === 3 ? "EM TRANSPORTE" :
       step === 2 ? "EM PREPARAÇÃO" :
-      step === 1 ? "PAGAMENTO CONFIRMADO" :
-      "PENDENTE";
+      step === 1 ? (crediario ? "CRÉDITO APROVADO" : "PAGAMENTO CONFIRMADO") :
+      (crediario ? "EM ANÁLISE" : "PENDENTE");
 
     badge.textContent = label;
     badge.className = "text-[11px] uppercase font-black px-3 py-1 rounded " + (
@@ -439,6 +533,12 @@ function applySteps(order) {
   if (!ol) return;
 
   const lis = Array.from(ol.querySelectorAll("li"));
+  if (crediario && lis[1]) {
+    const title = lis[1].querySelector("div.font-bold");
+    const desc = title?.nextElementSibling;
+    if (title) title.textContent = credInfo.label === 'AGUARDANDO DOCUMENTOS' ? 'Envio de Documentos' : (crediarioPending ? 'Análise de Crédito' : 'Crédito Aprovado');
+    if (desc) desc.textContent = credInfo.description || 'Solicitação de crediário em andamento.';
+  }
   lis.forEach((li, idx) => {
     const dot = li.querySelector("div.w-2.h-2.rounded-full");
     const title = li.querySelector("div.font-bold");
@@ -518,8 +618,15 @@ function render(orderDocId, order) {
     $("tracking-card")?.classList.add("hidden");
   }
 
-  const items = normalizeItems(order);
+  let items = normalizeItems(order);
   const totals = calcTotals(order, items);
+  if (isCrediarioOrder(order) && items.length) {
+    const currentSubtotal = items.reduce((sum, it) => sum + parseMoneyBR(it.price) * (Number(it.quantity) || 1), 0);
+    if (currentSubtotal > 0 && totals.subtotal > 0 && Math.abs(currentSubtotal - totals.subtotal) > 0.009) {
+      const factor = totals.subtotal / currentSubtotal;
+      items = items.map(it => ({ ...it, price: +(parseMoneyBR(it.price) * factor).toFixed(2) }));
+    }
+  }
   const addr = normalizeAddress(order);
 
   $("v-subtotal").textContent = moneyBR(totals.subtotal);
@@ -535,26 +642,31 @@ function render(orderDocId, order) {
   $("addr-cep").textContent = addr.cep || "—";
 
   const itemsEl = $("items");
-  if (itemsEl) {
-    if (!items.length) {
+  const paintItems = (list) => {
+    if (!itemsEl) return;
+    if (!list.length) {
       itemsEl.innerHTML = '<div class="text-sm text-gray-500 italic">Nenhum item encontrado.</div>';
-    } else {
-      itemsEl.innerHTML = items.map((it) => {
-        const lineTotal = parseMoneyBR(it.price) * (Number(it.quantity) || 1);
-        return `
-          <div class="flex items-center gap-4 border rounded-xl p-3 bg-white">
-            <div class="w-14 h-14 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
-              ${it.image ? `<img src="${it.image}" class="w-full h-full object-cover" alt="">` : '<span class="text-xs text-gray-400">IMG</span>'}
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="font-extrabold text-gray-800 truncate">${it.name}</div>
-              <div class="text-xs text-gray-500">Qtd: <b>${it.quantity}</b> • Unit: <b>R$ ${moneyBR(it.price)}</b></div>
-            </div>
-            <div class="text-right font-black text-gray-900">R$ ${moneyBR(lineTotal)}</div>
-          </div>
-        `;
-      }).join("");
+      return;
     }
+    itemsEl.innerHTML = list.map((it) => {
+      const lineTotal = parseMoneyBR(it.price) * (Number(it.quantity) || 1);
+      return `
+        <div class="flex items-center gap-4 border rounded-xl p-3 bg-white">
+          <div class="w-14 h-14 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
+            ${it.image ? `<img src="${it.image}" class="w-full h-full object-cover" alt="${String(it.name || 'Produto').replace(/"/g, '&quot;')}">` : '<span class="text-xs text-gray-400">AM</span>'}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="font-extrabold text-gray-800 truncate">${it.name}</div>
+            <div class="text-xs text-gray-500">Qtd: <b>${it.quantity}</b> • Unit: <b>R$ ${moneyBR(it.price)}</b></div>
+          </div>
+          <div class="text-right font-black text-gray-900">R$ ${moneyBR(lineTotal)}</div>
+        </div>
+      `;
+    }).join("");
+  };
+  paintItems(items);
+  if (items.some(it => !it.image)) {
+    hydrateOrderProductImages(order, items).then(hydrated => paintItems(hydrated)).catch(() => {});
   }
 
   applySteps(order);

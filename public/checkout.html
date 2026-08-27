@@ -469,6 +469,76 @@
       return ['card','crediario_ariana'].includes(String(method || '').toLowerCase()) ? arianaMarketplacePrice(item) : arianaSellerBasePrice(item);
     }
 
+    function resolveCheckoutImageUrl(item) {
+      if (!item) return '';
+      try {
+        if (typeof window.resolveMainImageUrl === 'function') {
+          const resolved = window.resolveMainImageUrl(item);
+          if (resolved) return String(resolved);
+        }
+      } catch (_) {}
+
+      let raw = item.mainImageUrl || item.imageUrl || item.image || item.mainImage || item.thumbnailUrl || item.thumb ||
+        item.photoUrl || item.foto || item.fotoPrincipal || item.imagem || item.imagemPrincipal ||
+        item.product?.mainImageUrl || item.product?.imageUrl || item.product?.image || '';
+      if (!raw && Array.isArray(item.images) && item.images.length) raw = item.images[0];
+      if (!raw && item.images && typeof item.images === 'object') raw = Object.values(item.images)[0];
+      if (raw && typeof raw === 'object') raw = raw.url || raw.src || raw.imageUrl || raw.path || '';
+
+      let url = String(raw || '').trim();
+      if (!url) return '';
+      if (/^(https?:|data:|blob:)/i.test(url)) return url;
+      const origin = window.API_ORIGIN || String(getApiBaseUrl()).replace(/\/api\/?$/i, '');
+      if (/^\/?uploads\//i.test(url)) return `${origin}/${url.replace(/^\/+/, '')}`;
+      return url;
+    }
+
+    function checkoutImageProductIdCandidates(item) {
+      const values = [
+        item?.productId, item?._id, item?.id, item?.produtoId, item?.docId,
+        item?.productDocId, item?.pid, item?.sku, item?.codigo, item?.code
+      ];
+      return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
+    }
+
+    async function fetchCheckoutProductImage(item) {
+      const current = resolveCheckoutImageUrl(item);
+      if (current) return current;
+      const api = String(API_BASE || '').replace(/\/+$/, '');
+      for (const id of checkoutImageProductIdCandidates(item)) {
+        try {
+          const res = await fetch(`${api}/products/${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } });
+          if (!res.ok) continue;
+          const data = await res.json().catch(() => null);
+          const product = data?.product || data?.item || data?.data || data;
+          const url = resolveCheckoutImageUrl(product);
+          if (url) return url;
+        } catch (_) {}
+      }
+      return '';
+    }
+
+    async function hydrateCheckoutProductImages() {
+      if (!Array.isArray(cart) || !cart.length) return false;
+      let changed = false;
+      await Promise.all(cart.map(async (item) => {
+        if (resolveCheckoutImageUrl(item)) return;
+        const url = await fetchCheckoutProductImage(item);
+        if (url) {
+          item.imageUrl = url;
+          changed = true;
+        }
+      }));
+      if (changed) {
+        try {
+          localStorage.setItem('arianaMoveisCart', JSON.stringify(cart));
+          localStorage.setItem('ariana_moveis_cart', JSON.stringify(cart));
+        } catch (_) {}
+      }
+      return changed;
+    }
+
+
 const computeCartTotal = () =>
       (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
         const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1);
@@ -992,16 +1062,36 @@ async function quoteShippingForSelectedAddress(addrObj) {
     }
 
     function updateTotalsUI() {
-      const products = computeCartTotal();
+      // Preços exatos por modalidade:
+      // - Pix/Boleto: preço-base (sellerBase/pixPrice)
+      // - Cartão/Crediário: preço cheio (marketplace/cardPrice)
+      // Evita recalcular 17% sobre valores já arredondados e elimina diferenças de 1 centavo.
+      const baseProducts = (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
+        return sum + (arianaSellerBasePrice(i) * qty);
+      }, 0);
+      const fullProducts = (Array.isArray(cart) ? cart : []).reduce((sum, i) => {
+        const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
+        return sum + (arianaMarketplacePrice(i) * qty);
+      }, 0);
+
       const ship = Number(shippingQuote?.effectivePrice ?? shippingQuote?.price ?? 0) || 0;
       const defs = settingsShipping || normalizeShippingDefaults({});
-      const shippingFinal = (defs.freeShippingAbove > 0 && products >= defs.freeShippingAbove) ? 0 : ship;
-      const grandOriginal = products + shippingFinal;
-      const discountInfo = getCurrentPaymentDiscount();
-      const paymentDiscountValue = discountInfo.percent > 0 ? grandOriginal * (discountInfo.percent / 100) : 0;
-      const coupon = getAppliedCoupon(Math.max(0, grandOriginal - paymentDiscountValue));
+      const shippingFinal = (defs.freeShippingAbove > 0 && baseProducts >= defs.freeShippingAbove) ? 0 : ship;
+
+      const checkedMethod = document.querySelector('input[name="pay"]:checked')?.value;
+      const method = String(selectedPayCode || checkedMethod || 'pix').toLowerCase();
+      const isDiscountMethod = method === 'pix' || method === 'boleto';
+      const products = isDiscountMethod ? baseProducts : fullProducts;
+      const grandTotalOriginal = fullProducts + shippingFinal;
+
+      // O desconto do meio de pagamento é a diferença exata entre o preço cheio e o preço-base.
+      const paymentDiscountValue = isDiscountMethod ? Math.max(0, fullProducts - baseProducts) : 0;
+      const subtotalBeforeCoupon = products + shippingFinal;
+      const coupon = getAppliedCoupon(subtotalBeforeCoupon);
+      const grand = Math.max(0, subtotalBeforeCoupon - coupon.value);
       const discountValue = paymentDiscountValue + coupon.value;
-      const grand = Math.max(0, grandOriginal - discountValue);
+      const discountPercent = isDiscountMethod ? getDiscountPercentFor(method) : 0;
 
       const productsEls = [
         document.getElementById('products-total-main'),
@@ -1019,9 +1109,9 @@ async function quoteShippingForSelectedAddress(addrObj) {
       });
 
       document.querySelectorAll('.totals-grid').forEach((grid) => {
-        if (grid.querySelector('.totals-row.total')) {
-          upsertDiscountLine(grid, discountValue, discountInfo.percent, discountInfo.method);
-        }
+        if (!grid.querySelector('.totals-row.total')) return;
+        if (isDiscountMethod) upsertDiscountLine(grid, paymentDiscountValue, discountPercent, method);
+        else upsertDiscountLine(grid, 0, 0, method);
       });
 
       const totalEls = [
@@ -1039,19 +1129,21 @@ async function quoteShippingForSelectedAddress(addrObj) {
         couponMsg.className = 'text-xs mt-2 ' + (coupon.valid ? 'text-green-600 font-semibold' : 'text-gray-500');
       }
 
-      try { atualizarVisualPagamentos(grandOriginal); } catch (_) {}
+      try { atualizarVisualPagamentos(fullProducts + shippingFinal); } catch (_) {}
 
       return {
         products,
+        productsBase: baseProducts,
+        productsFull: fullProducts,
         shipping: shippingFinal,
-        grandTotalOriginal: grandOriginal,
-        discountPercent: discountInfo.percent,
+        grandTotalOriginal,
+        discountPercent,
         discountValue,
         paymentDiscountValue,
         couponCode: coupon.code || '',
         couponDiscount: coupon.value || 0,
         grandTotal: grand,
-        paymentMethod: discountInfo.method
+        paymentMethod: method
       };
     }
 
@@ -1498,9 +1590,13 @@ async function quoteShippingForSelectedAddress(addrObj) {
         const qty = safeNumber(i.quantity ?? i.qty ?? i.qtd ?? 1) || 1;
         const name = i.name || i.title || "Produto";
         const price = safeNumber(i.price ?? i.valor ?? 0);
+        const imageUrl = resolveCheckoutImageUrl(i);
         return `
-          <div class="resumo-item">
-            <span>${qty}x ${name}</span>
+          <div class="resumo-item" style="align-items:center;gap:12px;">
+            <span style="display:flex;align-items:center;gap:10px;min-width:0;">
+              ${imageUrl ? `<img src="${imageUrl}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;flex:0 0 auto;" onerror="this.style.display='none'">` : ''}
+              <span>${qty}x ${name}</span>
+            </span>
             <span class="font-bold">${brl(price * qty)}</span>
           </div>
         `;
@@ -1636,10 +1732,21 @@ async function quoteShippingForSelectedAddress(addrObj) {
         let valorFinal = totalsComputed.grandTotal;
         let crediarioSimulation = null;
         if (selectedPayCode === 'crediario_ariana') {
-          const installmentCount = Number(document.getElementById('crediario-parcelas')?.value || 1);
+          // Antes da análise, o cliente vê somente o valor da compra.
+          // As condições (quantidade de parcelas, divisor, total financiado e vencimentos)
+          // são definidas pela Ariana Móveis somente depois da aprovação.
           const creditBase = Number(totalsComputed.grandTotalOriginal || totalsComputed.grandTotal || 0);
-          crediarioSimulation = window.ArianaCrediarioEngine.simulate(creditBase, installmentCount);
-          valorFinal = crediarioSimulation.financedAmount;
+          const creditBaseCents = Math.round(Math.max(0, creditBase) * 100);
+          crediarioSimulation = {
+            baseAmount: creditBaseCents / 100,
+            baseAmountCents: creditBaseCents,
+            financedAmount: creditBaseCents / 100,
+            financedAmountCents: creditBaseCents,
+            installmentCount: 0,
+            divisor: 0,
+            installments: []
+          };
+          valorFinal = crediarioSimulation.baseAmount;
         }
 
         const addrN = normalizeAddress(selectedAddrObj);
@@ -1685,6 +1792,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           const unitPrice = arianaUnitPriceForPayment(it, selectedPayCode);
           return {
             ...it,
+            imageUrl: resolveCheckoutImageUrl(it) || it.imageUrl || it.mainImageUrl || it.image || '',
             qty,
             quantity: qty,
             sellerBasePrice: sellerBaseUnitPrice,
@@ -1757,17 +1865,20 @@ async function quoteShippingForSelectedAddress(addrObj) {
           status: "pending_payment",
           paymentStatus: selectedPayCode === 'crediario_ariana' ? 'AWAITING_PAYMENT' : 'pending',
           crediario: selectedPayCode === 'crediario_ariana' ? {
+            // A análise é interna da Ariana Móveis. Nenhuma condição financeira é
+            // apresentada nem fechada antes da aprovação.
             provider: 'cora',
-            installments: Number(document.getElementById('crediario-parcelas')?.value || 1),
-            installmentCount: crediarioSimulation?.installmentCount,
-            installmentDivisor: crediarioSimulation?.divisor,
+            analysisProvider: 'ariana_moveis',
+            installments: 0,
+            installmentCount: 0,
+            installmentDivisor: 0,
             baseAmount: crediarioSimulation?.baseAmount,
             baseAmountCents: crediarioSimulation?.baseAmountCents,
-            financedAmount: crediarioSimulation?.financedAmount,
-            financedAmountCents: crediarioSimulation?.financedAmountCents,
-            installmentPlan: crediarioSimulation?.installments?.map((amountCents,index)=>({number:index+1,originalAmountCents:amountCents,status:'OPEN'})),
-            firstDueDate: document.getElementById('crediario-primeiro-vencimento')?.value || '',
-            status: 'PENDING_ISSUANCE'
+            financedAmount: crediarioSimulation?.baseAmount,
+            financedAmountCents: crediarioSimulation?.baseAmountCents,
+            installmentPlan: [],
+            firstDueDate: '',
+            status: 'PENDING_CREDIT_ANALYSIS_REQUEST'
           } : undefined,
           createdAt: new Date().toISOString()
         };
@@ -1861,6 +1972,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
       await loadSettings();
       await loadAddresses();
+      await hydrateCheckoutProductImages();
       renderCart();
       await applyPaymentSettingsUI();
 
@@ -1987,7 +2099,8 @@ async function quoteShippingForSelectedAddress(addrObj) {
     setMethodBox('label-card', 'Cartão', 'Parcelamento no pagamento', full, '');
 
     const method = selectedMethod();
-    const productTotal = (method === 'card') ? full : discount;
+    const useFullPrice = method === 'card' || method === 'crediario_ariana';
+    const productTotal = useFullPrice ? full : discount;
     const storedCoupon = (() => { try { return JSON.parse(localStorage.getItem('ariana_coupon_result') || 'null') || {}; } catch(_) { return {}; } })();
     const activeCouponCode = String(localStorage.getItem('ariana_applied_coupon') || '').trim().toUpperCase();
     const couponDiscount = activeCouponCode && String(storedCoupon.code || '').toUpperCase() === activeCouponCode ? Number(storedCoupon.discountValue ?? storedCoupon.value ?? 0) || 0 : 0;
@@ -2008,11 +2121,13 @@ async function quoteShippingForSelectedAddress(addrObj) {
       const valueEl = row.querySelector('strong, .font-bold, span:last-child');
       const item = cart[idx];
       if (valueEl && item) {
-        const unit = (method === 'card') ? fullUnit(item) : discountUnit(item);
+        const unit = useFullPrice ? fullUnit(item) : discountUnit(item);
         valueEl.textContent = brl(unit * qty(item));
-        if (method !== 'card') {
+        if (!useFullPrice) {
           valueEl.style.color = '#00a650';
           valueEl.insertAdjacentHTML('beforeend', '<br><small style="font-size:11px">PIX/Boleto</small>');
+        } else {
+          valueEl.style.color = '';
         }
       }
     });

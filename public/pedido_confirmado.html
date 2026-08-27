@@ -133,7 +133,7 @@
             <span id="resumo-pagamento" class="font-medium">Não informado</span>
           </div>
           <div class="flex justify-between pt-3">
-            <span class="text-2xl font-bold text-text-dark">Total Pago:</span>
+            <span id="resumo-total-label" class="text-2xl font-bold text-text-dark">Total Pago:</span>
             <span id="resumo-total" class="text-2xl font-bold text-primary-blue">R$ 0,00</span>
           </div>
         </div>
@@ -368,6 +368,78 @@
       return [line1, line2, line3].filter(Boolean).join(" | ");
     }
 
+    function isCrediarioOrder(order) {
+      const method = String(safePick(order?.paymentMethod, order?.payment_method, order?.payment?.method, order?.totals?.paymentMethod, '')).toLowerCase();
+      return method === 'crediario_ariana' || method.includes('crediario') || !!order?.crediario;
+    }
+
+    function resolveOrderImageUrl(it) {
+      let raw = safePick(
+        it?.mainImageUrl, it?.imageUrl, it?.image, it?.mainImage, it?.thumbnailUrl, it?.thumb,
+        it?.photoUrl, it?.foto, it?.fotoPrincipal, it?.imagem, it?.imagemPrincipal,
+        it?.product?.mainImageUrl, it?.product?.imageUrl, it?.product?.image, ''
+      );
+      if (!raw && Array.isArray(it?.images) && it.images.length) raw = it.images[0];
+      if (!raw && it?.images && typeof it.images === 'object') raw = Object.values(it.images)[0];
+      if (raw && typeof raw === 'object') raw = raw.url || raw.src || raw.imageUrl || raw.path || '';
+      let url = String(raw || '').trim();
+      if (!url) return '';
+      if (/^(https?:|data:|blob:)/i.test(url)) return url;
+      if (/^\/?uploads\//i.test(url)) return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
+      return url;
+    }
+
+    function confirmedImageProductIdCandidates(item) {
+      const values = [
+        item?.productId, item?._id, item?.id, item?.produtoId, item?.docId,
+        item?.productDocId, item?.pid, item?.sku, item?.codigo, item?.code
+      ];
+      return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
+    }
+
+    async function fetchConfirmedProductImage(item) {
+      const current = resolveOrderImageUrl(item);
+      if (current) return current;
+      const api = String(API_BASE || '').replace(/\/+$/, '');
+      for (const id of confirmedImageProductIdCandidates(item)) {
+        try {
+          const res = await fetch(`${api}/products/${encodeURIComponent(id)}`, { headers: getHeaders({ Accept: 'application/json' }) });
+          if (!res.ok) continue;
+          const data = await res.json().catch(() => null);
+          const product = data?.product || data?.item || data?.data || data;
+          const url = resolveOrderImageUrl(product);
+          if (url) return url;
+        } catch (_) {}
+      }
+      return '';
+    }
+
+    async function hydrateConfirmedProductImages(order, items) {
+      const rawItems = order?.items || order?.cartItems || order?.products || order?.itens || order?.produtos || [];
+      const source = Array.isArray(rawItems) ? rawItems : [];
+      return Promise.all(items.map(async (item, idx) => {
+        if (item.imageUrl) return item;
+        const original = source[idx] || item;
+        const url = await fetchConfirmedProductImage(original);
+        return url ? { ...item, imageUrl: url } : item;
+      }));
+    }
+
+
+    function crediarioPurchaseValue(order) {
+      const cents = Number(safePick(order?.crediario?.baseAmountCents, order?.totals?.creditBaseAmountCents, 0)) || 0;
+      if (cents > 0) return cents / 100;
+      return Number(safePick(
+        order?.crediario?.baseAmount,
+        order?.totals?.creditBaseAmount,
+        order?.totals?.grandTotalOriginal,
+        order?.orderTotals?.grandTotalOriginal,
+        order?.total,
+        order?.totalAmount,
+        0
+      )) || 0;
+    }
+
     function extractPayment(order) {
       const method = safePick(
         order.paymentMethod,
@@ -386,6 +458,8 @@
       );
 
       if (method) {
+        const m = String(method).toLowerCase();
+        if (m === 'crediario_ariana' || m.includes('crediario')) return 'Crediário Ariana';
         if (installments) return `${method} (${installments}x)`;
         return method;
       }
@@ -407,12 +481,16 @@
 
       if (!Array.isArray(items)) return [];
 
+      const crediario = isCrediarioOrder(order);
       return items.map((it) => {
         const name = safePick(it.name, it.title, it.nome, it.productName, it.product?.name, "Item");
         const qty = Number(safePick(it.quantity, it.qty, it.qtd, 1)) || 1;
-        const price = Number(safePick(it.price, it.unitPrice, it.valor, it.preco, it.product?.price, 0)) || 0;
-        const imageUrl = safePick(it.imageUrl, it.image, it.photoUrl, it.product?.imageUrl, "");
-        return { name, qty, price, imageUrl };
+        const normalPrice = Number(safePick(it.price, it.unitPrice, it.valor, it.preco, it.product?.price, 0)) || 0;
+        const explicitFull = Number(safePick(it.marketplacePrice, it.cardPrice, it.fullPrice, it.precoPrazo, 0)) || 0;
+        const sellerBase = Number(safePick(it.sellerBaseUnitPrice, it.sellerBasePrice, it.pixPrice, it.basePrice, 0)) || 0;
+        const price = crediario ? (explicitFull || (sellerBase > 0 ? +(sellerBase / 0.83).toFixed(2) : normalPrice)) : normalPrice;
+        const imageUrl = resolveOrderImageUrl(it);
+        return { id: it?.productId || it?._id || it?.id || it?.sku || "", name, qty, price, imageUrl };
       });
     }
 
@@ -451,8 +529,21 @@
           0
         )) || 0;
 
-      const items = extractItems(order);
-      const calcSubtotal = items.reduce((s, i) => s + (Number(i.price || 0) * Number(i.qty || 1)), 0);
+      let items = extractItems(order);
+      let calcSubtotal = items.reduce((s, i) => s + (Number(i.price || 0) * Number(i.qty || 1)), 0);
+
+      if (isCrediarioOrder(order)) {
+        const purchaseValue = crediarioPurchaseValue(order);
+        if (purchaseValue > 0) {
+          total = purchaseValue;
+          subtotal = Math.max(0, purchaseValue - shipping);
+          if (calcSubtotal > 0 && subtotal > 0 && Math.abs(calcSubtotal - subtotal) > 0.009) {
+            const factor = subtotal / calcSubtotal;
+            items = items.map(i => ({ ...i, price: +(Number(i.price || 0) * factor).toFixed(2) }));
+            calcSubtotal = items.reduce((sum, i) => sum + Number(i.price || 0) * Number(i.qty || 1), 0);
+          }
+        }
+      }
 
       if (!subtotal && calcSubtotal) subtotal = calcSubtotal;
       if (!total && (subtotal || shipping)) total = subtotal + shipping;
@@ -515,7 +606,14 @@
       $("resumo-pagamento").textContent = extractPayment(orderData);
       $("endereco-entrega").textContent = extractAddress(orderData) || "Endereço não informado";
 
+      const crediario = isCrediarioOrder(orderData);
+      const totalLabel = $("resumo-total-label");
+      if (totalLabel) totalLabel.textContent = crediario ? "Valor da compra:" : "Total Pago:";
+
       renderProducts(t.items);
+      if (t.items.some(it => !it.imageUrl)) {
+        hydrateConfirmedProductImages(orderData, t.items).then(hydrated => renderProducts(hydrated)).catch(() => {});
+      }
 
       const paid = isPaid(orderData);
       const title = $("status-title");
@@ -523,7 +621,14 @@
       const icon = $("status-icon");
       const deliveryNote = $("delivery-note");
 
-      if (paid) {
+      if (crediario && !paid) {
+        title.textContent = "Solicitação de crediário recebida!";
+        title.className = "text-3xl sm:text-4xl font-extrabold text-primary-blue mb-2";
+        subtitle.textContent = "A Ariana Móveis realizará a análise de crédito e entrará em contato para dar continuidade.";
+        if (icon) icon.className = "fas fa-clipboard-check text-primary-blue text-6xl sm:text-7xl mb-4";
+        if (deliveryNote) deliveryNote.textContent = "Após a aprovação e a definição das condições, você receberá as próximas orientações.";
+        displayMessage("Solicitação recebida ✅", "info");
+      } else if (paid) {
         title.textContent = "Pedido Concluído!";
         title.className = "text-3xl sm:text-4xl font-extrabold text-success-green mb-2";
         subtitle.textContent = "Pagamento confirmado. Seu pedido será preparado para envio.";
@@ -786,7 +891,22 @@
 (function fase6Confirmado(){
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
-  function render(order){const c=order?.crediario||((order?.payment?.provider==='cora')?order.payment:null);if(!c)return;const section=document.getElementById('cora-carne-section');section?.classList.remove('hidden');const url=c.documentUrl||c.document_url||c.providerResponse?.document_url;const a=document.getElementById('cora-carne-pdf');if(url&&a){a.href=url;a.classList.remove('hidden');}const inv=c.invoices||c.providerResponse?.invoices||c.installments||[];const paid=inv.filter(x=>String(x.status||'').toUpperCase()==='PAID').length;document.getElementById('cora-carne-summary').innerHTML='<div class="grid grid-cols-2 md:grid-cols-4 gap-3"><div><small>Status</small><br><b>'+esc(c.status||'OPEN')+'</b></div><div><small>Parcelas</small><br><b>'+inv.length+'</b></div><div><small>Pagas</small><br><b>'+paid+'</b></div><div><small>Em aberto</small><br><b>'+Math.max(0,inv.length-paid)+'</b></div></div>';document.getElementById('cora-installments-list').innerHTML=inv.map((x,i)=>{const bs=x.bank_slip||x.bankSlip||{};const st=String(x.status||'OPEN').toUpperCase();return '<div class="border rounded-xl p-4"><div class="flex justify-between gap-3"><b>Parcela '+(i+1)+'/'+inv.length+'</b><span class="font-bold '+(st==='PAID'?'text-green-600':'text-amber-600')+'">'+esc(st==='PAID'?'Paga':st)+'</span></div><div class="text-sm text-gray-600 mt-2">Vencimento: '+esc(x.due_date||x.dueDate||'—')+' • Valor: '+money(x.amount||x.total_amount||0)+'</div>'+(bs.digitable?'<div class="mt-2 text-xs break-all"><b>Linha digitável:</b> '+esc(bs.digitable)+'</div>':'')+(bs.barcode?'<div class="mt-1 text-xs break-all"><b>Código de barras:</b> '+esc(bs.barcode)+'</div>':'')+(bs.url?'<a target="_blank" class="inline-block mt-3 text-primary-blue font-bold underline" href="'+esc(bs.url)+'">Abrir boleto</a>':'')+'</div>';}).join('')||'<p class="text-gray-500">Carnê emitido. As parcelas serão carregadas assim que o backend retornar os boletos.</p>'; }
+  function render(order){
+    const c=order?.crediario||((order?.payment?.provider==='cora')?order.payment:null);
+    const section=document.getElementById('cora-carne-section');
+    if(!c){section?.classList.add('hidden');return;}
+    const url=c.documentUrl||c.document_url||c.providerResponse?.document_url||'';
+    const inv=c.invoices||c.providerResponse?.invoices||c.installments||[];
+    const st0=String(c.status||'').toUpperCase();
+    const issued=!!url||inv.length>0||['OPEN','PAID','PARTIALLY_PAID'].includes(st0);
+    if(!issued){section?.classList.add('hidden');return;}
+    section?.classList.remove('hidden');
+    const a=document.getElementById('cora-carne-pdf');
+    if(url&&a){a.href=url;a.classList.remove('hidden');}
+    const paid=inv.filter(x=>String(x.status||'').toUpperCase()==='PAID').length;
+    document.getElementById('cora-carne-summary').innerHTML='<div class="grid grid-cols-2 md:grid-cols-4 gap-3"><div><small>Status</small><br><b>'+esc(c.status||'Disponível')+'</b></div><div><small>Parcelas</small><br><b>'+inv.length+'</b></div><div><small>Pagas</small><br><b>'+paid+'</b></div><div><small>Em aberto</small><br><b>'+Math.max(0,inv.length-paid)+'</b></div></div>';
+    document.getElementById('cora-installments-list').innerHTML=inv.map((x,i)=>{const bs=x.bank_slip||x.bankSlip||{};const st=String(x.status||'OPEN').toUpperCase();return '<div class="border rounded-xl p-4"><div class="flex justify-between gap-3"><b>Parcela '+(i+1)+'/'+inv.length+'</b><span class="font-bold '+(st==='PAID'?'text-green-600':'text-amber-600')+'">'+esc(st==='PAID'?'Paga':st)+'</span></div><div class="text-sm text-gray-600 mt-2">Vencimento: '+esc(x.due_date||x.dueDate||'—')+' • Valor: '+money(x.amount||x.total_amount||0)+'</div>'+(bs.digitable?'<div class="mt-2 text-xs break-all"><b>Linha digitável:</b> '+esc(bs.digitable)+'</div>':'')+(bs.barcode?'<div class="mt-1 text-xs break-all"><b>Código de barras:</b> '+esc(bs.barcode)+'</div>':'')+(bs.url?'<a target="_blank" class="inline-block mt-3 text-primary-blue font-bold underline" href="'+esc(bs.url)+'">Abrir boleto</a>':'')+'</div>';}).join('')||(url?'<p class="text-gray-500">Seu carnê está disponível para consulta.</p>':'');
+  }
   document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{try{render(window.orderData||JSON.parse(localStorage.getItem('arianaLastOrder')||'null'));}catch(_e){}},1200);});
   const timer=setInterval(()=>{if(window.orderData){render(window.orderData);clearInterval(timer);}},500);setTimeout(()=>clearInterval(timer),10000);
 })();

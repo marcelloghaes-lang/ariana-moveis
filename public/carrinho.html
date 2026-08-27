@@ -114,6 +114,71 @@
       return it.id || it.productId || it.produtoId || it.docId || it.firestoreId || it.productDocId || it.pid || it.sku || it.codigo || it.code || null;
     }
 
+    function resolveCartImageUrl(item) {
+      if (!item) return '';
+      try {
+        if (typeof window.resolveMainImageUrl === 'function') {
+          const resolved = window.resolveMainImageUrl(item);
+          if (resolved) return String(resolved);
+        }
+      } catch (_) {}
+
+      let raw = item.mainImageUrl || item.imageUrl || item.image || item.mainImage || item.thumbnailUrl || item.thumb ||
+        item.photoUrl || item.foto || item.fotoPrincipal || item.imagem || item.imagemPrincipal ||
+        item.product?.mainImageUrl || item.product?.imageUrl || item.product?.image || '';
+
+      if (!raw && Array.isArray(item.images) && item.images.length) raw = item.images[0];
+      if (!raw && item.images && typeof item.images === 'object') raw = Object.values(item.images)[0];
+      if (raw && typeof raw === 'object') raw = raw.url || raw.src || raw.imageUrl || raw.path || '';
+
+      let url = String(raw || '').trim();
+      if (!url) return '';
+      if (/^(https?:|data:|blob:)/i.test(url)) return url;
+      if (/^\/?uploads\//i.test(url)) return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
+      return url;
+    }
+
+    function imageProductIdCandidates(item) {
+      const values = [
+        item?.productId, item?._id, item?.id, item?.produtoId, item?.docId,
+        item?.productDocId, item?.pid, item?.sku, item?.codigo, item?.code
+      ];
+      return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))];
+    }
+
+    async function fetchProductImageForCartItem(item) {
+      const current = resolveCartImageUrl(item);
+      if (current) return current;
+      const api = String(API_BASE || '').replace(/\/+$/, '');
+      for (const id of imageProductIdCandidates(item)) {
+        try {
+          const res = await fetch(`${api}/products/${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } });
+          if (!res.ok) continue;
+          const data = await res.json().catch(() => null);
+          const product = data?.product || data?.item || data?.data || data;
+          const url = resolveCartImageUrl(product);
+          if (url) return url;
+        } catch (_) {}
+      }
+      return '';
+    }
+
+    async function hydrateCartProductImages() {
+      if (!Array.isArray(cartItems) || !cartItems.length) return false;
+      let changed = false;
+      await Promise.all(cartItems.map(async (item) => {
+        if (resolveCartImageUrl(item)) return;
+        const url = await fetchProductImageForCartItem(item);
+        if (url) {
+          item.imageUrl = url;
+          changed = true;
+        }
+      }));
+      if (changed) saveCartItems(false);
+      return changed;
+    }
+
+
     function normalizeItemShippingFields(it) {
       const dims = (it && (it.dimensions || it.dimension || it.medidas || it.dimensoes)) || {};
       const pesoKg = it && (it.pesoKg ?? it.weightKg ?? it.peso ?? it.weight ?? it.shippingWeightKg);
@@ -757,20 +822,13 @@
 
           if (Array.isArray(parsedItems)) {
             cartItems = parsedItems.map((it) => {
-              const img =
-                it.imageUrl ||
-                it.image ||
-                it.mainImage ||
-                (Array.isArray(it.images) ? it.images[0] : null) ||
-                (it.images && typeof it.images === 'object' ? Object.values(it.images)[0] : null);
-
-              const imgUrl = (img && typeof img === 'object' && img.url) ? img.url : img;
+              const imgUrl = resolveCartImageUrl(it);
 
               return {
                 ...it,
                 id: resolveCartProductId(it) || it.id,
                 ...normalizeItemShippingFields(it),
-                imageUrl: imgUrl || it.imageUrl || it.image || '',
+                imageUrl: imgUrl || it.imageUrl || it.mainImageUrl || it.image || '',
                 sellerId: it.sellerId || 'admin',
                 sellerName: it.sellerName || 'Ariana Móveis',
                 quantity: parseInt(it.quantity || 1, 10) || 1,
@@ -779,20 +837,13 @@
             });
           } else if (parsedItems && typeof parsedItems === 'object') {
             cartItems = Object.entries(parsedItems).map(([id, it]) => {
-              const img =
-                it?.imageUrl ||
-                it?.image ||
-                it?.mainImage ||
-                (Array.isArray(it?.images) ? it.images[0] : null) ||
-                (it?.images && typeof it.images === 'object' ? Object.values(it.images)[0] : null);
-
-              const imgUrl = (img && typeof img === 'object' && img.url) ? img.url : img;
+              const imgUrl = resolveCartImageUrl(it);
 
               return {
                 ...it,
                 id: resolveCartProductId(it) || id,
                 ...normalizeItemShippingFields(it),
-                imageUrl: imgUrl || it?.imageUrl || it?.image || '',
+                imageUrl: imgUrl || it?.imageUrl || it?.mainImageUrl || it?.image || '',
                 sellerId: it?.sellerId || 'admin',
                 sellerName: it?.sellerName || 'Ariana Móveis',
                 quantity: parseInt(it?.quantity || 1, 10) || 1,
@@ -811,6 +862,9 @@
       } else {
         cartItems = [];
       }
+
+      // Se o item antigo não trouxe a foto no localStorage, recupera a imagem pelo cadastro do produto.
+      await hydrateCartProductImages();
 
       if (container) container.innerHTML = '';
       const couponInput = document.getElementById('coupon-code');
@@ -889,7 +943,7 @@
 
         const itemHTML = `
           <div class="cart-item flex flex-col sm:flex-row items-center bg-white p-4 rounded-xl shadow-md border border-gray-100 transition-all duration-300 ease-in-out" data-item-id="${item.id}">
-            <img src="${(item.imageUrl || item.image) || 'https://placehold.co/100x100/CCCCCC/333333?text=AM'}" alt="${String(item.name || 'Produto').replace(/"/g, '&quot;')}" class="w-24 h-24 object-cover rounded-lg mr-4 mb-4 sm:mb-0">
+            <img src="${resolveCartImageUrl(item) || 'https://placehold.co/100x100/CCCCCC/333333?text=AM'}" alt="${String(item.name || 'Produto').replace(/"/g, '&quot;')}" class="w-24 h-24 object-cover rounded-lg mr-4 mb-4 sm:mb-0">
             <div class="flex-grow">
               <h2 class="text-xl font-semibold text-text-dark">${item.name || 'Produto'}</h2>
               <p class="text-sm text-gray-500">Cor: ${item.color || 'Única'} | Entrega: ${item.delivery || 'A calcular'}</p>

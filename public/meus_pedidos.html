@@ -282,9 +282,28 @@
             });
         };
         
+        function isCrediarioOrder(order = {}) {
+            const method = String(order.paymentMethod || order.payment_method || order.payment?.method || order.totals?.paymentMethod || '').toLowerCase();
+            return method === 'crediario_ariana' || method.includes('crediario') || !!order.crediario;
+        }
+
+        function crediarioPurchaseValue(order = {}) {
+            const cents = Number(order.crediario?.baseAmountCents || order.totals?.creditBaseAmountCents || 0) || 0;
+            if (cents > 0) return cents / 100;
+            return Number(order.crediario?.baseAmount || order.totals?.creditBaseAmount || order.totals?.grandTotalOriginal || order.valorTotal || order.total || 0) || 0;
+        }
+
         function normalizeOrderStatus(order = {}) {
             const raw = String(order.statusLabel || order.status || 'Pendente').trim();
             const lower = raw.toLowerCase();
+            const analysis = String(order.crediario?.analysisStatus || order.paymentStatus || '').toLowerCase();
+            if (isCrediarioOrder(order)) {
+                const joined = `${lower} ${analysis}`;
+                if (joined.includes('document')) return 'Aguardando documentos';
+                if (joined.includes('assin')) return 'Aguardando assinatura';
+                if (joined.includes('aprov')) return 'Crédito aprovado';
+                if (joined.includes('anal') || joined.includes('pend')) return 'Aguardando análise de crédito';
+            }
             if (lower.includes('pagamento') && (lower.includes('confirm') || lower.includes('aprov'))) return 'Pagamento Confirmado';
             if (lower === 'pago' || lower === 'paid' || lower === 'approved') return 'Pagamento Confirmado';
             if (lower.includes('separa') || lower.includes('prepara') || lower.includes('process')) return 'Em Separação';
@@ -327,7 +346,7 @@
                             </div>
                             <div>
                                 <h3 class="font-semibold text-primary-blue mb-2">Pagamento</h3>
-                                <p class="text-sm font-bold">${formatCurrency(order.valorTotal || order.total || 0)}</p>
+                                <p class="text-sm font-bold">${formatCurrency(isCrediarioOrder(order) ? crediarioPurchaseValue(order) : (order.valorTotal || order.total || 0))}</p>
                             </div>
                             <div>
                                 <h3 class="font-semibold text-primary-blue mb-2">Itens (${itens.length})</h3>
