@@ -508,12 +508,17 @@ function adminPermissionAllowedForRoute(req, permissions = []) {
     return hasAny('uploads:create', 'products:create', 'products:update', 'banners:create', 'banners:update');
   }
 
-  if (pathOnly.startsWith('/api/admin/posters/product')) return method === 'POST' && has('posters:generate');
+  if (
+    pathOnly.startsWith('/api/admin/posters/product') ||
+    pathOnly.startsWith('/api/admin/posters/preview') ||
+    pathOnly.startsWith('/api/admin/posters/professional')
+  ) return method === 'POST' && has('posters:generate');
   if (pathOnly.startsWith('/api/admin/posters/bulk') || pathOnly.startsWith('/api/admin/posters/offers')) {
     return method === 'POST' && has('posters:generate:bulk');
   }
 
   if (pathOnly.startsWith('/api/admin/products')) {
+    if ((method === 'GET' || method === 'HEAD') && has('posters:generate')) return true;
     if (/import/i.test(pathOnly)) return hasAny('products:import', 'products:create');
     if (/export/i.test(pathOnly)) return hasAny('products:export', 'products:read');
     if (/bulk|lote/i.test(pathOnly)) return hasAny('products:bulk', 'products:update');
