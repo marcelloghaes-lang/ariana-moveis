@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Usuários e Permissões | Ariana Móveis</title>
+  <link rel="manifest" href="./manifest-admin-usuarios.webmanifest">
+  <meta name="theme-color" content="#0047AB">
+  <meta name="application-name" content="Usuários Ariana Móveis">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Usuários Ariana">
+  <link rel="apple-touch-icon" href="./pwa-icons/admin-192.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <script src="js/api-config.js"></script>
@@ -34,6 +41,7 @@
       </div>
       <div class="flex gap-2">
         <a href="admin_auditoria.html" class="btn bg-white/15 text-white border border-white/30"><i class="fas fa-clipboard-list mr-2"></i>Auditoria</a><a href="admin_sessoes.html" class="btn bg-white/15 text-white border border-white/30"><i class="fas fa-shield-halved mr-2"></i>Segurança</a><a href="admin_painel.html" class="btn bg-white text-blue-800"><i class="fas fa-arrow-left mr-2"></i>Voltar ao painel</a>
+        <button id="install-app-btn" class="btn bg-white/15 text-white border border-white/30" type="button"><i class="fas fa-download mr-2"></i>Instalar app</button>
         <button id="new-user-btn" class="btn bg-yellow-400 text-blue-950"><i class="fas fa-user-plus mr-2"></i>Novo usuário</button>
       </div>
     </div>
@@ -236,5 +244,40 @@
   window.closeUserModal=closeUserModal;window.editUser=editUser;window.toggleStatus=toggleStatus;window.unlockUser=unlockUser;window.resetPassword=resetPassword;window.deleteUser=deleteUser;
   renderPermissions();load();
   </script>
+  <script>
+  (() => {
+    let deferredInstallPrompt = null;
+    const installButton = document.getElementById('install-app-btn');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    if (isStandalone && installButton) installButton.classList.add('hidden');
+
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      if (installButton) installButton.classList.remove('hidden');
+    });
+
+    installButton?.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        return;
+      }
+
+      const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      alert(isiOS
+        ? 'No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.'
+        : 'Abra o menu do navegador e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.');
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      installButton?.classList.add('hidden');
+    });
+  })();
+  </script>
+  <script src="./pwa-register.js" data-sw="./sw-admin-usuarios.js" data-scope="./admin_usuarios.html"></script>
 </body>
 </html>
