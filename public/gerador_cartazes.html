@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Gerador Profissional de Cartazes | Ariana Móveis</title>
+  <meta name="theme-color" content="#0047AB">
+  <meta name="application-name" content="Cartazes Ariana Móveis">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cartazes Ariana">
+  <link rel="manifest" href="./manifest-gerador-cartazes.json">
+  <link rel="apple-touch-icon" href="./pwa-icons/banners-192.png">
+  <link rel="icon" href="./pwa-icons/banners-192.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/gerador_cartazes.css?v=20260901-1">
+  <script src="./js/api-config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <img src="./imagens/logo.png" alt="Ariana Móveis">
+      <div><strong>Gerador Profissional</strong><span>Cartazes para WhatsApp e redes sociais</span></div>
+    </div>
+    <div class="topbar-actions">
+      <button id="install-app" class="button button-ghost" type="button">Instalar aplicativo</button>
+      <a class="button button-light" href="admin_painel.html">Voltar ao painel</a>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="editor-panel" aria-label="Configuração do cartaz">
+      <div class="editor-intro">
+        <span class="eyebrow">PADRÃO OFICIAL ARIANA MÓVEIS</span>
+        <h1>Monte o cartaz e veja a prévia</h1>
+        <p>Produto, preço, marca e contatos permanecem protegidos no modelo profissional.</p>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title"><span>1</span><div><strong>Modelo da campanha</strong><small>Escolha o clima visual e edite a chamada.</small></div></div>
+        <div class="template-grid">
+          <label class="template-card selected"><input type="radio" name="template" value="oferta" checked><span class="template-swatch oferta"></span><b>Oferta</b><small>Azul celeste profissional</small></label>
+          <label class="template-card"><input type="radio" name="template" value="campanha"><span class="template-swatch campanha"></span><b>Campanha do mês</b><small>Azul institucional</small></label>
+          <label class="template-card"><input type="radio" name="template" value="queima"><span class="template-swatch queima"></span><b>Queima de estoque</b><small>Azul, vermelho e dourado</small></label>
+        </div>
+        <div class="field-grid">
+          <label class="field field-full"><span>Chamada principal</span><input id="headline" maxlength="54" value="OFERTA IMPERDÍVEL"></label>
+          <label class="field field-full"><span>Frase de apoio</span><input id="subtitle" maxlength="74" value="Economize de verdade na Ariana Móveis"></label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title"><span>2</span><div><strong>Produto real</strong><small>Busque no catálogo ou envie outra fotografia.</small></div></div>
+        <div class="catalog-search">
+          <label class="field"><span>Buscar produto cadastrado</span><input id="product-search" autocomplete="off" placeholder="Digite o nome, marca ou código"></label>
+          <div id="product-results" class="product-results hidden"></div>
+        </div>
+        <div id="selected-product" class="selected-product hidden"></div>
+        <div class="field-grid">
+          <label class="field field-full"><span>Nome que aparecerá no cartaz</span><input id="product-name" maxlength="70" placeholder="Ex.: Fogão Atlas 5 bocas"></label>
+          <label class="field field-full"><span>Endereço da imagem</span><input id="image-url" type="url" placeholder="https://..."></label>
+          <label class="upload-card field-full" for="image-file">
+            <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp">
+            <span class="upload-icon">↑</span>
+            <span><b>Enviar foto do produto</b><small>PNG transparente ou foto com fundo branco, até 20 MB.</small></span>
+          </label>
+          <div id="upload-status" class="status-line field-full"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title"><span>3</span><div><strong>Preço e pagamento</strong><small>O sistema calcula o total no cartão pela regra oficial.</small></div></div>
+        <div class="field-grid money-grid">
+          <label class="field"><span>Preço à vista</span><input id="cash-price" inputmode="decimal" placeholder="1.508,14"></label>
+          <label class="field"><span>Total no cartão</span><input id="full-price" inputmode="decimal" placeholder="1.823,19"></label>
+          <label class="field"><span>Quantidade de parcelas</span><select id="installments"><option>10</option><option selected>12</option><option>15</option><option>18</option></select></label>
+          <button id="calculate-card" class="button button-soft field-action" type="button">Calcular pela regra ÷ 0,8272</button>
+        </div>
+        <div id="pricing-summary" class="pricing-summary">Informe o preço à vista para calcular o parcelamento.</div>
+      </div>
+
+      <details class="form-section advanced">
+        <summary><span>Ajustes avançados da imagem</span><small>Use apenas se o produto precisar de reposicionamento.</small></summary>
+        <div class="advanced-body">
+          <label class="switch-row"><input id="remove-background" type="checkbox" checked><span><b>Remover fundo branco automaticamente</b><small>Preserva o produto e elimina somente o fundo claro conectado às bordas.</small></span></label>
+          <label class="switch-row"><input id="show-mascot" type="checkbox" checked><span><b>Exibir mascote oficial</b><small>A mascote é protegida e não será recriada pela inteligência artificial.</small></span></label>
+          <div class="field-grid">
+            <label class="field"><span>Mover para os lados</span><input id="offset-x" type="range" min="-120" max="120" step="5" value="0"><output id="offset-x-value">0 px</output></label>
+            <label class="field"><span>Mover para cima/baixo</span><input id="offset-y" type="range" min="-90" max="90" step="5" value="0"><output id="offset-y-value">0 px</output></label>
+          </div>
+        </div>
+      </details>
+
+      <div class="editor-actions">
+        <button id="preview-button" class="button button-primary button-large" type="button">Gerar prévia profissional</button>
+        <button id="save-button" class="button button-success button-large" type="button" disabled>Salvar em alta resolução</button>
+      </div>
+      <div id="global-status" class="global-status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="preview-panel" aria-label="Prévia do cartaz">
+      <div class="preview-toolbar">
+        <div><span class="eyebrow">PRÉVIA 4:5</span><h2>1080 × 1350 pixels</h2></div>
+        <div class="preview-actions">
+          <button id="download-button" class="button button-light" type="button" disabled>Baixar PNG</button>
+          <button id="share-button" class="button button-primary" type="button" disabled>Compartilhar</button>
+        </div>
+      </div>
+      <div class="poster-stage">
+        <div id="preview-empty" class="preview-empty"><div class="empty-art">A</div><strong>Sua arte aparecerá aqui</strong><span>Selecione um produto, confira os preços e gere a prévia.</span></div>
+        <div id="preview-loading" class="preview-loading hidden"><span></span><b>Produzindo cartaz em alta qualidade...</b></div>
+        <img id="poster-preview" class="hidden" alt="Prévia do cartaz Ariana Móveis">
+      </div>
+      <div class="quality-checks">
+        <span>✓ Produto real</span><span>✓ Logo protegida</span><span>✓ Preços conferidos</span><span>✓ Contatos legíveis</span>
+      </div>
+      <section class="history-section">
+        <div class="history-head"><div><span class="eyebrow">HISTÓRICO LOCAL</span><h2>Últimos cartazes salvos</h2></div><button id="clear-history" class="text-button" type="button">Limpar histórico</button></div>
+        <div id="history-list" class="history-list"><div class="history-empty">Nenhum cartaz salvo neste navegador.</div></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./js/gerador_cartazes.js?v=20260901-1"></script>
+  <script src="./pwa-register.js" data-sw="./sw-gerador-cartazes.js" data-scope="./gerador_cartazes.html"></script>
+</body>
+</html>
