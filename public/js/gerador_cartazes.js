@@ -5,6 +5,7 @@
   const HISTORY_KEY = 'ariana_professional_poster_history_v1';
   const els = {};
   let products = [];
+  let productsLoading = true;
   let selectedProduct = null;
   let previewBlob = null;
   let previewObjectUrl = '';
@@ -22,6 +23,15 @@
 
   function escapeHtml(value = '') {
     return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+
+  function normalizeSearch(value = '') {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   }
 
   function parseMoney(value) {
@@ -126,15 +136,21 @@
   }
 
   function renderProductResults(query = '') {
-    const normalized = String(query || '').trim().toLowerCase();
+    const normalized = normalizeSearch(query);
     if (normalized.length < 2) {
       els.productResults.classList.add('hidden');
       els.productResults.innerHTML = '';
       return;
     }
+    if (productsLoading) {
+      els.productResults.innerHTML = '<div class="history-empty">Carregando o catálogo da Ariana Móveis...</div>';
+      els.productResults.classList.remove('hidden');
+      return;
+    }
+    const terms = normalized.split(/\s+/).filter(Boolean);
     const rows = products.filter(product => {
-      const haystack = `${product.name || ''} ${product.brand || ''} ${product.sku || ''} ${product.categoryName || product.category || ''}`.toLowerCase();
-      return haystack.includes(normalized);
+      const haystack = normalizeSearch(`${product.name || ''} ${product.title || ''} ${product.brand || ''} ${product.sku || ''} ${product.code || ''} ${product.categoryName || product.category || ''} ${product.description || ''}`);
+      return terms.every(term => haystack.includes(term));
     }).slice(0, 10);
     els.productResults.innerHTML = rows.length ? rows.map(product => {
       const id = String(product.id || product._id || '');
@@ -171,11 +187,21 @@
   }
 
   async function loadProducts() {
+    productsLoading = true;
     try {
       const data = await api('/admin/products?sortBy=updatedAt&sortDir=desc&limit=1000');
-      products = Array.isArray(data) ? data : (data.items || data.docs || data.results || []);
+      products = Array.isArray(data) ? data : (data.products || data.items || data.docs || data.results || data.data || []);
+      if (!products.length) {
+        const fallback = await api('/products?limit=1000&sortBy=updatedAt&sortDir=desc');
+        products = Array.isArray(fallback) ? fallback : (fallback.products || fallback.items || fallback.docs || fallback.results || fallback.data || []);
+      }
+      productsLoading = false;
+      if (els.productSearch.value.trim().length >= 2) renderProductResults(els.productSearch.value);
+      status(`Catálogo carregado: ${products.length} produto(s) disponível(is).`, products.length ? 'ok' : 'error');
     } catch (error) {
       products = [];
+      productsLoading = false;
+      if (els.productSearch.value.trim().length >= 2) renderProductResults(els.productSearch.value);
       status(`O catálogo não pôde ser carregado: ${error.message}. Ainda é possível preencher o cartaz manualmente.`, 'error');
     }
   }
