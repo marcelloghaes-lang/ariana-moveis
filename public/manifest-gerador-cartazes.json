@@ -1,0 +1,19 @@
+{
+  "id": "/pwa-id/gerador-cartazes-ariana-moveis",
+  "name": "Gerador Profissional de Cartazes | Ariana Móveis",
+  "short_name": "Cartazes Ariana",
+  "description": "Gerador de cartazes profissionais da Ariana Móveis para WhatsApp e redes sociais.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/gerador_cartazes.html?source=pwa-gerador-cartazes",
+  "scope": "/gerador_cartazes.html",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#eef3f9",
+  "theme_color": "#0047AB",
+  "icons": [
+    { "src": "/pwa-icons/banners-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icons/banners-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icons/banners-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
