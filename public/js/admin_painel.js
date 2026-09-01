@@ -240,6 +240,7 @@ function canAccessView(view){
   const role = getAdminRole();
   if(role === 'admin') return true;
   if(view === 'products') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate');
+  if(view === 'marketing') return hasAnyAdminPerm('banners:read','posters:generate','posters:generate:bulk');
   if(view === 'coupons') return hasAnyAdminPerm('coupons:read','coupons:create','coupons:update','coupons:delete','products:read');
   if(view === 'dashboard') return hasAnyAdminPerm('products:read','products:create','products:update','posters:generate','coupons:read');
   return false;
@@ -1907,7 +1908,7 @@ async function renderMarketingView(){
       <div class="bg-white p-6 rounded-2xl shadow-md border border-gray-100">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div><h2 class="text-2xl font-black text-gray-900">Marketing automático Ariana Móveis</h2><p class="text-sm text-gray-500 mt-1">Gere posters, stories e todos os formatos de banners do painel. Ao aprovar, o banner ocupa o mesmo slot que o painel manual edita e o index lê.</p></div>
-          <button id="btn-generate-everything" onclick="window.generateEverythingDraftMode()" class="px-5 py-3 rounded-xl bg-primary-blue text-white font-black shadow hover:opacity-90">GERAR TUDO EM RASCUNHO</button>
+          <div class="flex flex-wrap gap-2"><a href="gerador_cartazes.html" class="px-5 py-3 rounded-xl bg-success-green text-white font-black shadow hover:opacity-90"><i class="fas fa-wand-magic-sparkles mr-2"></i>ABRIR GERADOR PROFISSIONAL</a><button id="btn-generate-everything" onclick="window.generateEverythingDraftMode()" class="px-5 py-3 rounded-xl bg-primary-blue text-white font-black shadow hover:opacity-90">GERAR TUDO EM RASCUNHO</button></div>
         </div>
         ${(() => { const cfg = getMarketingCreativeSettings(); return `
         <div class="mt-6 p-5 rounded-2xl border border-blue-100 bg-blue-50">
