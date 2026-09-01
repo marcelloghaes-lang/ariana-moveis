@@ -817,6 +817,75 @@ async function generateAndSaveProductCreative(doc, variant = 'square', pixPercen
   return poster;
 }
 
+function professionalCreativeInput(body = {}) {
+  const product = body && typeof body.product === 'object' && body.product ? body.product : {};
+  const nestedOptions = body && typeof body.options === 'object' && body.options ? body.options : {};
+  const options = {
+    ...body,
+    ...nestedOptions,
+    variant: 'whatsapp',
+    template: nestedOptions.template || body.template || 'oferta'
+  };
+  delete options.product;
+  delete options.options;
+  return { product, options };
+}
+
+app.post('/api/admin/posters/preview', adminRequired, async (req, res) => {
+  try {
+    const { product, options } = professionalCreativeInput(req.body || {});
+    const buffer = await generateProductPosterBuffer(product, options);
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': 'inline; filename="previa-cartaz-ariana.png"',
+      'Cache-Control': 'no-store, max-age=0',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.send(buffer);
+  } catch (error) {
+    console.error('[posters] erro ao gerar prévia profissional:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'professional_poster_preview_failed' });
+  }
+});
+
+app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
+  try {
+    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
+    const { product, options } = professionalCreativeInput(req.body || {});
+    const buffer = await generateProductPosterBuffer(product, options);
+    const productName = String(product.name || product.title || 'cartaz-ariana');
+    const publicId = `${sanitizeIdPart(productName)}-whatsapp-${Date.now()}`;
+    const result = await uploadBufferToCloudinary(buffer, {
+      folder: buildCloudinaryFolder('posters/profissionais/whatsapp'),
+      public_id: publicId
+    });
+    const poster = {
+      variant: 'whatsapp',
+      template: options.template,
+      url: result.secure_url,
+      public_id: result.public_id,
+      width: result.width,
+      height: result.height,
+      format: result.format,
+      createdAt: new Date().toISOString()
+    };
+
+    const productId = String(req.body?.productId || product.id || product._id || '').trim();
+    const oid = normalizeObjectId(productId);
+    if (oid) {
+      await Product.findByIdAndUpdate(oid, {
+        $push: { posters: { $each: [poster], $slice: -20 } },
+        $set: { updatedAt: new Date() }
+      }).catch(() => null);
+    }
+
+    return res.json({ ok: true, poster, url: poster.url });
+  } catch (error) {
+    console.error('[posters] erro ao publicar cartaz profissional:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'professional_poster_generate_failed' });
+  }
+});
+
 app.post('/api/admin/posters/product/:id', adminRequired, async (req, res) => {
   try {
     if (!isCloudinaryConfigured()) {
