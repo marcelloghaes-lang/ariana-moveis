@@ -118,6 +118,18 @@
 
   function updateSceneSelection() {
     document.querySelectorAll('.scene-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
+
+    // Os cenários fotográficos pertencem ao layout temático (preços lado a lado).
+    // Ao escolher um ambiente manualmente, ativa esse layout para que a escolha
+    // nunca seja ignorada pela rotação automática de cartazes.
+    const selectedScene = sceneThemeValue();
+    if (selectedScene) {
+      const thematicLayout = document.querySelector('input[name="layout-variant"][value="split"]');
+      if (thematicLayout && !thematicLayout.checked) {
+        thematicLayout.checked = true;
+        updateLayoutSelection();
+      }
+    }
   }
 
   function updateTemplateSelection(changeText = false) {
