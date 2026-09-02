@@ -846,7 +846,9 @@ app.post('/api/admin/posters/preview', adminRequired, async (req, res) => {
   try {
     const { product, options } = professionalCreativeInput(req.body || {});
     const rotation = await professionalPosterRotationState();
-    options.layoutVariant = options.layoutVariant || rotation.layoutVariant;
+    // Um ambiente escolhido manualmente sempre usa a composição temática.
+    // Isso evita que a rotação automática gere um layout sem o cenário solicitado.
+    options.layoutVariant = options.sceneTheme ? 'split' : (options.layoutVariant || rotation.layoutVariant);
     const buffer = await generateProductPosterBuffer(product, options);
     res.set({
       'Content-Type': 'image/png',
@@ -866,7 +868,7 @@ app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
     if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const { product, options } = professionalCreativeInput(req.body || {});
     const rotation = await professionalPosterRotationState();
-    options.layoutVariant = options.layoutVariant || rotation.layoutVariant;
+    options.layoutVariant = options.sceneTheme ? 'split' : (options.layoutVariant || rotation.layoutVariant);
     const buffer = await generateProductPosterBuffer(product, options);
     const productName = String(product.name || product.title || 'cartaz-ariana');
     const publicId = `${sanitizeIdPart(productName)}-whatsapp-${Date.now()}`;
