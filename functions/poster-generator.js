@@ -373,12 +373,12 @@ function professionalTextSize(text = '', large = 52, medium = 44, small = 36) {
 function professionalProductPreset(product = {}) {
   const type = detectProductType(product);
   const presets = {
-    tv: { w: 850, h: 440 },
-    wide: { w: 790, h: 465 },
-    large: { w: 760, h: 470 },
-    phone: { w: 480, h: 470 },
-    medium: { w: 650, h: 470 },
-    default: { w: 690, h: 465 }
+    tv: { w: 850, h: 380 },
+    wide: { w: 790, h: 390 },
+    large: { w: 760, h: 390 },
+    phone: { w: 480, h: 390 },
+    medium: { w: 650, h: 390 },
+    default: { w: 690, h: 390 }
   };
   return presets[type] || presets.default;
 }
@@ -463,13 +463,67 @@ async function removeEdgeConnectedLightBackground(rawImage, enabled = true) {
     .toBuffer();
 }
 
+async function removeEdgeConnectedDarkBackground(rawImage) {
+  const { default: sharp } = await import('sharp');
+  const decoded = await sharp(rawImage).rotate().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = decoded;
+  const width = Number(info.width || 0);
+  const height = Number(info.height || 0);
+  const channels = Number(info.channels || 4);
+  const total = width * height;
+  if (!width || !height || channels < 4 || total > 4_000_000) return rawImage;
+
+  const marked = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+  const isBackground = (pixelIndex) => {
+    const offset = pixelIndex * channels;
+    const r = data[offset];
+    const g = data[offset + 1];
+    const b = data[offset + 2];
+    const a = data[offset + 3];
+    return a < 18 || Math.max(r, g, b) <= 24;
+  };
+  const enqueue = (pixelIndex) => {
+    if (pixelIndex < 0 || pixelIndex >= total || marked[pixelIndex] || !isBackground(pixelIndex)) return;
+    marked[pixelIndex] = 1;
+    queue[tail++] = pixelIndex;
+  };
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+  while (head < tail) {
+    const pixelIndex = queue[head++];
+    const x = pixelIndex % width;
+    if (x > 0) enqueue(pixelIndex - 1);
+    if (x < width - 1) enqueue(pixelIndex + 1);
+    if (pixelIndex >= width) enqueue(pixelIndex - width);
+    if (pixelIndex < total - width) enqueue(pixelIndex + width);
+  }
+  if (tail / total < 0.12) return rawImage;
+  for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
+    if (marked[pixelIndex]) data[pixelIndex * channels + 3] = 0;
+  }
+  return sharp(data, { raw: info })
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+    .png()
+    .toBuffer();
+}
+
 async function loadProfessionalLogoBuffer(options = {}) {
   const logoUrl = String(options.logoUrl || '').trim();
   if (logoUrl) {
     const remote = await loadImageBuffer(logoUrl).catch(() => null);
     if (remote) return remote;
   }
-  return loadLocalImageBuffer(path.resolve(__dirname, '../public/imagens/logo.png'));
+  const officialLogo = await loadLocalImageBuffer(path.resolve(__dirname, '../public/imagens/logo-original-3d.png'));
+  return officialLogo || loadLocalImageBuffer(path.resolve(__dirname, '../public/imagens/logo.png'));
 }
 
 async function loadProfessionalMascotBuffer(options = {}) {
@@ -481,8 +535,14 @@ async function loadProfessionalMascotBuffer(options = {}) {
   return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/avatar-ariana2.png'));
 }
 
-function professionalBackgroundSvg({ template = 'oferta' }) {
+function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic' }) {
   const palette = professionalPalette(template);
+  const layout = String(layoutVariant || 'classic').toLowerCase();
+  const layoutDecoration = layout === 'showcase'
+    ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="${palette.accent}" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
+    : layout === 'premium'
+      ? `<path d="M-80 880 L1080 520 L1080 930 L-80 1150 Z" fill="#001B4D" opacity=".16"/><rect x="36" y="300" width="1008" height="500" rx="38" fill="none" stroke="#ffffff" stroke-width="2" opacity=".12"/>`
+      : '';
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -504,6 +564,7 @@ function professionalBackgroundSvg({ template = 'oferta' }) {
     <rect width="1080" height="1350" fill="url(#posterGlow)"/>
     <circle cx="930" cy="165" r="220" fill="#ffffff" opacity=".035"/>
     <circle cx="85" cy="560" r="210" fill="#ffffff" opacity=".025"/>
+    ${layoutDecoration}
     <path d="M0 745 C230 690 390 770 600 720 C790 675 915 605 1080 650 L1080 1080 C880 1040 720 1110 525 1080 C315 1045 180 980 0 1035 Z" fill="#ffffff" opacity=".055"/>
     <ellipse cx="555" cy="756" rx="315" ry="34" fill="#00163F" opacity=".32" filter="url(#softShadow)"/>
     <rect x="0" y="1190" width="1080" height="160" fill="${palette.footer}"/>
@@ -513,6 +574,7 @@ function professionalBackgroundSvg({ template = 'oferta' }) {
 
 function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const template = String(options.template || 'oferta').toLowerCase();
+  const layout = String(options.layoutVariant || 'classic').toLowerCase();
   const palette = professionalPalette(template);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
   const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
@@ -526,27 +588,35 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const whatsapp = String(options.whatsapp || '(31) 98514-7119').trim();
   const email = String(options.email || 'contato@arianamoveis.com.br').trim();
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
-  const showMascot = options.showMascot !== false && options.useMascot !== false && options.mascote !== false;
-  const priceX = showMascot ? 350 : 120;
-  const priceWidth = showMascot ? 675 : 840;
-  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${290 + index * 39}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="#062B63">${escapeXml(line)}</text>`).join('');
+  const showMascot = options.showMascot === true || options.useMascot === true || options.mascote === true;
+  const priceX = showMascot ? 300 : 120;
+  const priceWidth = showMascot ? 720 : 840;
+  const pricePanelX = showMascot ? 280 : 70;
+  const pricePanelWidth = showMascot ? 760 : 940;
+  const darkPanel = layout === 'premium';
+  const pricePanel = layout === 'classic' ? '' : `<rect x="${pricePanelX}" y="810" width="${pricePanelWidth}" height="318" rx="32" fill="${darkPanel ? '#003477' : '#ffffff'}" opacity="${darkPanel ? '.90' : '.82'}" stroke="${palette.accent}" stroke-width="2"/>`;
+  const mainPriceColor = darkPanel ? palette.accent : '#00398D';
+  const priceTextColor = darkPanel ? '#ffffff' : '#063B86';
+  const priceLineColor = darkPanel ? '#ffffff' : '#064B9A';
+  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${350 + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="#062B63">${escapeXml(line)}</text>`).join('');
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <text x="540" y="205" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.accent}" stroke="#745C00" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
-    <text x="540" y="247" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#ffffff">${escapeXml(subtitle)}</text>
+    <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.accent}" stroke="#745C00" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
+    <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#ffffff">${escapeXml(subtitle)}</text>
     ${productNameSvg}
 
     <g>
-      <text x="${priceX}" y="852" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="#063B86">POR R$</text>
-      <text x="${priceX + 112}" y="875" font-family="Arial, Helvetica, sans-serif" font-size="91" font-weight="950" letter-spacing="-4" fill="#00398D">${escapeXml(fullValue)}</text>
-      <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#063B86">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X SEM JUROS</tspan> NO CARTÃO</text>
-      <line x1="${priceX}" y1="960" x2="${priceX + Math.round(priceWidth * .38)}" y2="960" stroke="#064B9A" stroke-width="2"/>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="970" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="#063B86">OU</text>
-      <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="#064B9A" stroke-width="2"/>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="#00398D">R$ ${escapeXml(cashValue)}</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1082" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="#063B86">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="#063B86">NO PIX OU BOLETO • ${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+      ${pricePanel}
+      <text x="${priceX}" y="852" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="${priceTextColor}">POR R$</text>
+      <text x="${priceX + 112}" y="875" font-family="Arial, Helvetica, sans-serif" font-size="91" font-weight="950" letter-spacing="-4" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
+      <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="${priceTextColor}">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X SEM JUROS</tspan> NO CARTÃO</text>
+      <line x1="${priceX}" y1="960" x2="${priceX + Math.round(priceWidth * .38)}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="970" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="${priceTextColor}">OU</text>
+      <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1082" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • ${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
     </g>
 
     <g transform="translate(360 1132)">
@@ -579,20 +649,21 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const width = 1080;
   const height = 1350;
   const pricing = professionalPricing(product, options);
-  const background = Buffer.from(professionalBackgroundSvg({ template: options.template }));
+  const background = Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: options.layoutVariant }));
   const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
 
   const logoBuffer = await loadProfessionalLogoBuffer(options).catch(() => null);
   if (logoBuffer) {
-    const logoPng = await sharp(logoBuffer)
+    const transparentLogo = await removeEdgeConnectedDarkBackground(logoBuffer).catch(() => logoBuffer);
+    const logoPng = await sharp(transparentLogo)
       .rotate()
       .ensureAlpha()
       .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-      .resize(700, 150, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(800, 205, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    composites.push({ input: logoPng, top: 20, left: 190 });
+    composites.push({ input: logoPng, top: 5, left: 140 });
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
@@ -619,22 +690,22 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
     const left = Math.max(20, Math.round((width - productW) / 2 + Number(options.productOffsetX || 0)));
-    const desiredTop = Math.round(320 + (470 - productH) / 2 + Number(options.productOffsetY || 0));
-    const top = Math.max(310, Math.min(790 - productH, desiredTop));
+    const desiredTop = Math.round(405 + (390 - productH) / 2 + Number(options.productOffsetY || 0));
+    const top = Math.max(400, Math.min(805 - productH, desiredTop));
     composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
   }
 
-  if (options.showMascot !== false && options.useMascot !== false && options.mascote !== false) {
+  if (options.showMascot === true || options.useMascot === true || options.mascote === true) {
     const mascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
     if (mascotBuffer) {
       const mascotPng = await sharp(mascotBuffer)
         .rotate()
         .ensureAlpha()
         .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-        .resize(315, 430, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .resize(255, 330, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
         .png()
         .toBuffer();
-      composites.push({ input: mascotPng, top: 748, left: 5 });
+      composites.push({ input: mascotPng, top: 835, left: 20 });
     }
   }
 
