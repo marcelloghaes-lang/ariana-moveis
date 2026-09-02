@@ -60,6 +60,14 @@
           <label class="template-card layout-card"><input type="radio" name="layout-variant" value="premium"><span class="layout-swatch layout-premium"></span><b>Premium</b><small>Painel destacado</small></label>
           <label class="template-card layout-card"><input type="radio" name="layout-variant" value="split"><span class="layout-swatch layout-split"></span><b>Preços lado a lado</b><small>À vista e cartão</small></label>
         </div>
+        <div class="palette-heading"><b>Ambiente temático</b><small>Usado no layout Preços lado a lado. No automático, o produto define o ambiente.</small></div>
+        <div class="template-grid scene-grid">
+          <label class="template-card scene-card selected"><input type="radio" name="scene-theme" value="" checked><span class="scene-swatch scene-auto">AUTO</span><b>Automático</b><small>Pelo tipo do produto</small></label>
+          <label class="template-card scene-card"><input type="radio" name="scene-theme" value="cozinha"><span class="scene-swatch scene-cozinha">COZINHA</span><b>Cozinha</b><small>Eletrodomésticos</small></label>
+          <label class="template-card scene-card"><input type="radio" name="scene-theme" value="quarto"><span class="scene-swatch scene-quarto">QUARTO</span><b>Quarto</b><small>Camas e colchões</small></label>
+          <label class="template-card scene-card"><input type="radio" name="scene-theme" value="sala"><span class="scene-swatch scene-sala">SALA</span><b>Sala</b><small>Sofás, racks e TVs</small></label>
+          <label class="template-card scene-card"><input type="radio" name="scene-theme" value="lazer"><span class="scene-swatch scene-lazer">LAZER</span><b>Lazer</b><small>Área externa</small></label>
+        </div>
         <div class="field-grid">
           <label class="field field-full"><span>Chamada principal</span><input id="headline" maxlength="54" value="OFERTA IMPERDÍVEL"></label>
           <label class="field field-full"><span>Frase de apoio</span><input id="subtitle" maxlength="74" value="Economize de verdade na Ariana Móveis"></label>
@@ -138,7 +146,7 @@
     </section>
   </main>
 
-  <script src="./js/gerador_cartazes.js?v=20260902-2"></script>
+  <script src="./js/gerador_cartazes.js?v=20260902-3"></script>
   <script src="./pwa-register.js" data-sw="./sw-gerador-cartazes.js" data-scope="./gerador_cartazes.html"></script>
 </body>
 </html>
