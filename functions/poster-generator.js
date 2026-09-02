@@ -588,6 +588,22 @@ async function loadProfessionalMascotBuffer(options = {}) {
   return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/avatar-ariana2.png'));
 }
 
+async function loadHeaderMascotBuffer(options = {}) {
+  const headerMascotUrl = String(options.headerMascotUrl || '').trim();
+  if (headerMascotUrl) {
+    const remote = await loadImageBuffer(headerMascotUrl).catch(() => null);
+    if (remote) return remote;
+  }
+  const encodedPath = path.resolve(__dirname, './assets/mascote-oficial-cabecalho.base64.txt');
+  try {
+    if (fs.existsSync(encodedPath)) {
+      const encoded = fs.readFileSync(encodedPath, 'utf8').trim();
+      if (encoded) return Buffer.from(encoded, 'base64');
+    }
+  } catch (_error) {}
+  return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/mascote-oficial-cabecalho.jpeg'));
+}
+
 function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic', colorTheme = 'azul' }) {
   const palette = professionalPalette(template, colorTheme);
   const layout = String(layoutVariant || 'classic').toLowerCase();
@@ -617,7 +633,6 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     </defs>
     <rect width="1080" height="1350" fill="url(#posterBg)"/>
     <rect width="1080" height="1350" fill="url(#posterGlow)"/>
-    <rect x="120" y="12" width="840" height="210" rx="34" fill="#ffffff" opacity=".91" stroke="${palette.accent}" stroke-width="2"/>
     <circle cx="930" cy="165" r="220" fill="#ffffff" opacity=".035"/>
     <circle cx="85" cy="560" r="210" fill="#ffffff" opacity=".025"/>
     ${layoutDecoration}
@@ -660,9 +675,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <text x="455" y="98" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#073B7A">ARIANA</text>
-    <text x="458" y="158" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="900" letter-spacing="1" fill="${palette.middle}">móveis</text>
-    <path d="M455 176 H785" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
+    <text x="485" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="#062B63" stroke="#ffffff" stroke-width="2" paint-order="stroke fill">ARIANA</text>
+    <text x="488" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="#ffffff">móveis</text>
+    <path d="M488 169 H808" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
     <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.accent}" stroke="#745C00" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
     <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#ffffff">${escapeXml(subtitle)}</text>
     ${productNameSvg}
@@ -717,17 +732,19 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
 
   // A mascote é parte fixa da assinatura da marca no cabeçalho. Mostramos
   // somente o recorte superior para ela continuar legível sem competir com o produto.
-  const headerMascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
+  const headerMascotBuffer = await loadHeaderMascotBuffer(options).catch(() => null);
   if (headerMascotBuffer) {
-    const headerMascot = await sharp(headerMascotBuffer)
-      .rotate()
-      .ensureAlpha()
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-      .resize(230, 265, { fit: 'cover', position: 'top', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .extract({ left: 0, top: 0, width: 230, height: 200 })
+    const transparentMascot = await removeEdgeConnectedLightBackground(headerMascotBuffer, true).catch(() => headerMascotBuffer);
+    const mascotMeta = await sharp(transparentMascot).metadata();
+    const mascotWidth = Math.max(1, Number(mascotMeta.width || 1));
+    const mascotHeight = Math.max(1, Number(mascotMeta.height || 1));
+    const waistHeight = Math.max(1, Math.min(mascotHeight, Math.round(mascotHeight * 0.64)));
+    const headerMascot = await sharp(transparentMascot)
+      .extract({ left: 0, top: 0, width: mascotWidth, height: waistHeight })
+      .resize(300, 210, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    composites.push({ input: headerMascot, top: 20, left: 185 });
+    composites.push({ input: headerMascot, top: 8, left: 155 });
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
