@@ -806,6 +806,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const background = await professionalBackgroundBuffer(product, options);
   const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
+  let headerMascotComposite = null;
 
   // A mascote é parte fixa da assinatura da marca na lateral esquerda.
   // O arquivo já possui transparência limpa e enquadramento até o quadril.
@@ -817,7 +818,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       .resize(300, 410, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    composites.push({ input: headerMascot, top: 700, left: 5 });
+    headerMascotComposite = { input: headerMascot, top: 700, left: 5 };
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
@@ -825,17 +826,25 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   if (rawImage) {
     const cutout = await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
     const preset = professionalProductPreset(product);
+    // Quando a mascote está presente, a faixa esquerda entre x=0 e x=305 é
+    // reservada exclusivamente para ela. Produtos largos (sofás, racks, camas)
+    // passam a caber na área restante sem cobrir rosto, cabelo ou braços.
+    const mascotSafeLeft = headerMascotComposite ? 315 : 20;
+    const productMaxWidth = headerMascotComposite ? 745 : preset.w;
     const resizedProduct = await sharp(cutout)
       .rotate()
       .ensureAlpha()
-      .resize(preset.w, preset.h, {
+      .resize(Math.min(preset.w, productMaxWidth), preset.h, {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 },
         withoutEnlargement: false
       })
       .png()
       .toBuffer();
-    const roundedMask = Buffer.from(`<svg width="${preset.w}" height="${preset.h}" xmlns="http://www.w3.org/2000/svg"><rect width="${preset.w}" height="${preset.h}" rx="18" fill="#fff"/></svg>`);
+    const resizedMeta = await sharp(resizedProduct).metadata();
+    const resizedWidth = Number(resizedMeta.width || Math.min(preset.w, productMaxWidth));
+    const resizedHeight = Number(resizedMeta.height || preset.h);
+    const roundedMask = Buffer.from(`<svg width="${resizedWidth}" height="${resizedHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="${resizedWidth}" height="${resizedHeight}" rx="18" fill="#fff"/></svg>`);
     const productPng = await sharp(resizedProduct)
       .composite([{ input: roundedMask, blend: 'dest-in' }])
       .png()
@@ -846,14 +855,19 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const layout = String(options.layoutVariant || 'classic').toLowerCase();
     const automaticOffsetX = layout === 'showcase' ? -85 : layout === 'premium' ? 85 : layout === 'catalog' ? -25 : 0;
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
-    const left = Math.max(20, Math.round((width - productW) / 2 + automaticOffsetX + Number(options.productOffsetX || 0)));
+    const availableRight = width - 20;
+    const centeredInSafeArea = mascotSafeLeft + Math.round((availableRight - mascotSafeLeft - productW) / 2);
+    const left = Math.max(mascotSafeLeft, Math.round(centeredInSafeArea + automaticOffsetX + Number(options.productOffsetX || 0)));
     const splitLayout = layout === 'split';
     const imageAnchorTop = splitLayout ? 350 : 405;
     const minProductTop = splitLayout ? 338 : 400;
     const desiredTop = Math.round(imageAnchorTop + (390 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(minProductTop, Math.min(805 - productH, desiredTop));
-    composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
+    composites.push({ input: productPng, left: Math.max(mascotSafeLeft, Math.min(width - productW - 20, left)), top });
   }
+
+  // A mascote entra depois do produto e permanece totalmente visível.
+  if (headerMascotComposite) composites.push(headerMascotComposite);
 
   if (options.showMascot === true || options.useMascot === true || options.mascote === true) {
     const mascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
