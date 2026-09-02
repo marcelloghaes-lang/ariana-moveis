@@ -833,7 +833,7 @@ function professionalCreativeInput(body = {}) {
 
 const PROFESSIONAL_POSTER_ROTATION_KEY = 'professional_poster_layout_rotation';
 function professionalLayoutForSequence(sequence = 0) {
-  const layouts = ['classic', 'showcase', 'premium'];
+  const layouts = ['classic', 'showcase', 'premium', 'catalog'];
   return layouts[Math.floor(Math.max(0, Number(sequence) || 0) / 10) % layouts.length];
 }
 async function professionalPosterRotationState() {
