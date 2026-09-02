@@ -639,14 +639,22 @@ async function professionalBackgroundBuffer(product = {}, options = {}) {
   const tintMap = { azul: '#1687D2', dourado: '#B7791F', esmeralda: '#168A72', violeta: '#7650B9' };
   const tint = tintMap[String(options.colorTheme || 'azul').toLowerCase()] || tintMap.azul;
   const overlay = Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".08"/><stop offset=".58" stop-color="#ffffff" stop-opacity=".02"/><stop offset="1" stop-color="#001B3A" stop-opacity=".36"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#shade)"/><rect y="1190" width="1080" height="160" fill="#001B3A" opacity=".96"/></svg>`);
-  return sharp(scene.buffer)
-    .resize(1080, 1350, { fit: 'cover', position: 'centre' })
-    .grayscale()
-    .tint(tint)
-    .modulate({ brightness: 0.92, saturation: 0.86 })
-    .composite([{ input: overlay, top: 0, left: 0 }])
-    .png()
-    .toBuffer();
+  try {
+    // failOnError detecta arquivos incompletos antes da composição. Se algum
+    // ativo de cenário for danificado no deploy, o cartaz continua sendo gerado
+    // com o fundo vetorial seguro em vez de devolver erro 500 ao usuário.
+    return await sharp(scene.buffer, { failOnError: true })
+      .resize(1080, 1350, { fit: 'cover', position: 'centre' })
+      .grayscale()
+      .tint(tint)
+      .modulate({ brightness: 0.92, saturation: 0.86 })
+      .composite([{ input: overlay, top: 0, left: 0 }])
+      .png()
+      .toBuffer();
+  } catch (error) {
+    console.error(`[posters] cenário ${scene.theme} inválido; usando fundo de segurança:`, error.message);
+    return Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: layout, colorTheme: options.colorTheme }));
+  }
 }
 
 function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic', colorTheme = 'azul' }) {
