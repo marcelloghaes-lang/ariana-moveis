@@ -52,6 +52,14 @@
           <label class="template-card palette-card"><input type="radio" name="color-theme" value="esmeralda"><span class="template-swatch cor-esmeralda"></span><b>Esmeralda</b><small>Visual elegante</small></label>
           <label class="template-card palette-card"><input type="radio" name="color-theme" value="violeta"><span class="template-swatch cor-violeta"></span><b>Violeta</b><small>Datas comemorativas</small></label>
         </div>
+        <div class="palette-heading"><b>Composição do cartaz</b><small>Escolha manualmente ou deixe o sistema variar a cada 10 cartazes.</small></div>
+        <div class="template-grid layout-grid">
+          <label class="template-card layout-card selected"><input type="radio" name="layout-variant" value="" checked><span class="layout-swatch layout-auto"></span><b>Automático</b><small>Varia a composição</small></label>
+          <label class="template-card layout-card"><input type="radio" name="layout-variant" value="classic"><span class="layout-swatch layout-classic"></span><b>Clássico</b><small>Preço em sequência</small></label>
+          <label class="template-card layout-card"><input type="radio" name="layout-variant" value="showcase"><span class="layout-swatch layout-showcase"></span><b>Vitrine</b><small>Produto deslocado</small></label>
+          <label class="template-card layout-card"><input type="radio" name="layout-variant" value="premium"><span class="layout-swatch layout-premium"></span><b>Premium</b><small>Painel destacado</small></label>
+          <label class="template-card layout-card"><input type="radio" name="layout-variant" value="split"><span class="layout-swatch layout-split"></span><b>Preços lado a lado</b><small>À vista e cartão</small></label>
+        </div>
         <div class="field-grid">
           <label class="field field-full"><span>Chamada principal</span><input id="headline" maxlength="54" value="OFERTA IMPERDÍVEL"></label>
           <label class="field field-full"><span>Frase de apoio</span><input id="subtitle" maxlength="74" value="Economize de verdade na Ariana Móveis"></label>
@@ -130,7 +138,7 @@
     </section>
   </main>
 
-  <script src="./js/gerador_cartazes.js?v=20260902-1"></script>
+  <script src="./js/gerador_cartazes.js?v=20260902-2"></script>
   <script src="./pwa-register.js" data-sw="./sw-gerador-cartazes.js" data-scope="./gerador_cartazes.html"></script>
 </body>
 </html>
