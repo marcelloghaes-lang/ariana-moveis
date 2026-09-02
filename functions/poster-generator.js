@@ -613,7 +613,9 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
       ? `<path d="M-80 880 L1080 520 L1080 930 L-80 1150 Z" fill="#001B4D" opacity=".16"/><rect x="36" y="300" width="1008" height="500" rx="38" fill="none" stroke="#ffffff" stroke-width="2" opacity=".12"/>`
       : layout === 'catalog'
         ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".07" stroke="#ffffff" stroke-width="2"/>`
-      : '';
+        : layout === 'split'
+          ? `<path d="M0 420 C210 350 390 385 570 345 C760 302 920 310 1080 255 L1080 760 C850 720 650 790 465 760 C285 730 130 690 0 735 Z" fill="#ffffff" opacity=".07"/>`
+          : '';
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -671,16 +673,23 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const priceTextColor = darkPanel ? '#ffffff' : palette.priceText;
   const priceLineColor = darkPanel ? '#ffffff' : palette.line;
   const productNameSvg = productLines.map((line, index) => `<text x="540" y="${350 + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}">${escapeXml(line)}</text>`).join('');
-
-  return `
-  <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
-    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="${palette.brandSecondary}">móveis</text>
-    <path d="M73 169 H425" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
-    <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
-    <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
-    ${productNameSvg}
-
+  const pricingBlock = layout === 'split' ? `
+    <g>
+      <rect x="280" y="810" width="760" height="308" rx="32" fill="#002A5C" opacity=".82" stroke="${palette.accent}" stroke-width="2"/>
+      <line x1="660" y1="834" x2="660" y2="1094" stroke="#62B6FF" stroke-width="2" opacity=".65"/>
+      <text x="470" y="850" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${palette.accent}">SUPER DESCONTO À VISTA</text>
+      <text x="470" y="925" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="950" letter-spacing="-2" fill="#ffffff">R$ ${escapeXml(cashValue)}</text>
+      <rect x="322" y="946" width="296" height="34" rx="17" fill="#075AAE" opacity=".92"/>
+      <text x="470" y="969" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="900" fill="#ffffff">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
+      <text x="470" y="1006" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="800" fill="#E2E8F0">NO PIX OU DINHEIRO</text>
+      <text x="470" y="1042" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="900" fill="${palette.accent}">CONSULTE CONDIÇÕES NO</text>
+      <text x="470" y="1066" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="950" fill="${palette.accent}">CREDIÁRIO PRÓPRIO</text>
+      <text x="850" y="850" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" fill="#E2E8F0">POR R$</text>
+      <text x="850" y="925" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="59" font-weight="950" letter-spacing="-2" fill="#ffffff">${escapeXml(fullValue)}</text>
+      <text x="850" y="969" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#E2E8F0">EM ATÉ</text>
+      <text x="850" y="1008" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="950" fill="${palette.accent}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+      <text x="850" y="1042" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" fill="#ffffff">SEM JUROS NO CARTÃO</text>
+    </g>` : `
     <g transform="translate(0 ${layoutPriceY})">
       ${pricePanel}
       <text x="${priceX}" y="870" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" fill="${priceTextColor}">POR R$</text>
@@ -692,7 +701,18 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1074" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1110" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
-    </g>
+    </g>`;
+
+  return `
+  <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
+    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="${palette.brandSecondary}">móveis</text>
+    <path d="M73 169 H425" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
+    <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
+    <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
+    ${productNameSvg}
+
+    ${pricingBlock}
 
     <g transform="translate(185 1130)">
       <rect x="0" y="0" width="855" height="54" rx="25" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
