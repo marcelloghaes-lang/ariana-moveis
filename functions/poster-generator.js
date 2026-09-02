@@ -352,15 +352,15 @@ function professionalPricing(product = {}, options = {}) {
   };
 }
 
-function professionalPalette(template = 'oferta') {
-  const key = String(template || 'oferta').toLowerCase();
-  if (key === 'queima') {
-    return { start: '#061B46', middle: '#063E8C', end: '#C9182B', glow: '#FF4A4A', accent: '#FFD21A', footer: '#041B47' };
-  }
-  if (key === 'campanha') {
-    return { start: '#0047AB', middle: '#087ED1', end: '#00B6F0', glow: '#A9EDFF', accent: '#FFE600', footer: '#00398D' };
-  }
-  return { start: '#0047AB', middle: '#0797DE', end: '#07C3F4', glow: '#BCEEFF', accent: '#FFE600', footer: '#00398D' };
+function professionalPalette(_template = 'oferta', colorTheme = 'azul') {
+  const key = String(colorTheme || 'azul').toLowerCase();
+  const palettes = {
+    azul: { start: '#0047AB', middle: '#0797DE', end: '#07C3F4', glow: '#BCEEFF', accent: '#FFE600', footer: '#00398D' },
+    dourado: { start: '#6B3F12', middle: '#B7791F', end: '#E8B84E', glow: '#FFF0B3', accent: '#FFF06A', footer: '#3D240B' },
+    esmeralda: { start: '#064E3B', middle: '#0F766E', end: '#2DB89A', glow: '#CFFDEE', accent: '#FFD84D', footer: '#043B32' },
+    violeta: { start: '#35166D', middle: '#6D3DB5', end: '#A66DE8', glow: '#E9D8FF', accent: '#FFE066', footer: '#251044' }
+  };
+  return palettes[key] || palettes.azul;
 }
 
 function professionalTextSize(text = '', large = 52, medium = 44, small = 36) {
@@ -588,8 +588,8 @@ async function loadProfessionalMascotBuffer(options = {}) {
   return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/avatar-ariana2.png'));
 }
 
-function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic' }) {
-  const palette = professionalPalette(template);
+function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic', colorTheme = 'azul' }) {
+  const palette = professionalPalette(template, colorTheme);
   const layout = String(layoutVariant || 'classic').toLowerCase();
   const layoutDecoration = layout === 'showcase'
     ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="${palette.accent}" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
@@ -628,7 +628,7 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
 function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const template = String(options.template || 'oferta').toLowerCase();
   const layout = String(options.layoutVariant || 'classic').toLowerCase();
-  const palette = professionalPalette(template);
+  const palette = professionalPalette(template, options.colorTheme);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
   const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
   const productName = String(options.productName || product.name || product.title || 'PRODUTO ARIANA MÓVEIS').trim().toUpperCase();
@@ -642,7 +642,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const email = String(options.email || 'contato@arianamoveis.com.br').trim();
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
   const showMascot = options.showMascot === true || options.useMascot === true || options.mascote === true;
-  const priceX = showMascot ? 300 : 120;
+  const layoutPriceShift = layout === 'showcase' ? 45 : layout === 'premium' ? -25 : 0;
+  const layoutPriceY = layout === 'showcase' ? 8 : layout === 'premium' ? -6 : 0;
+  const priceX = (showMascot ? 300 : 120) + layoutPriceShift;
   const priceWidth = showMascot ? 720 : 840;
   const pricePanelX = showMascot ? 280 : 70;
   const pricePanelWidth = showMascot ? 760 : 940;
@@ -659,7 +661,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#ffffff">${escapeXml(subtitle)}</text>
     ${productNameSvg}
 
-    <g>
+    <g transform="translate(0 ${layoutPriceY})">
       ${pricePanel}
       <text x="${priceX}" y="870" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" fill="${priceTextColor}">POR R$</text>
       <text x="${priceX + 170}" y="884" font-family="Arial, Helvetica, sans-serif" font-size="84" font-weight="950" letter-spacing="-3" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
@@ -669,15 +671,15 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1082" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO BOLETO</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
     </g>
 
-    <g transform="translate(185 1128)">
-      <rect x="0" y="0" width="855" height="54" rx="27" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
-      <circle cx="35" cy="27" r="17" fill="none" stroke="${palette.accent}" stroke-width="3"/>
-      <path d="M18 27h34M35 10c-7 6-11 11-11 17s4 12 11 17M35 10c7 6 11 11 11 17s-4 12-11 17M35 10v34" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
-      <text x="65" y="35" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
-      <text x="468" y="35" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
+    <g transform="translate(185 1114)">
+      <rect x="0" y="0" width="855" height="70" rx="28" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
+      <circle cx="35" cy="35" r="18" fill="none" stroke="${palette.accent}" stroke-width="3"/>
+      <path d="M17 35h36M35 17c-7 6-11 12-11 18s4 12 11 18M35 17c7 6 11 12 11 18s-4 12-11 18M35 17v36" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
+      <text x="68" y="28" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
+      <text x="68" y="57" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
     </g>
 
     <g transform="translate(44 1215)">
@@ -702,7 +704,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const width = 1080;
   const height = 1350;
   const pricing = professionalPricing(product, options);
-  const background = Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: options.layoutVariant }));
+  const background = Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: options.layoutVariant, colorTheme: options.colorTheme }));
   const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
 
@@ -742,8 +744,11 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const meta = await sharp(productPng).metadata();
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
-    const left = Math.max(20, Math.round((width - productW) / 2 + Number(options.productOffsetX || 0)));
-    const desiredTop = Math.round(405 + (390 - productH) / 2 + Number(options.productOffsetY || 0));
+    const layout = String(options.layoutVariant || 'classic').toLowerCase();
+    const automaticOffsetX = layout === 'showcase' ? -85 : layout === 'premium' ? 85 : 0;
+    const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
+    const left = Math.max(20, Math.round((width - productW) / 2 + automaticOffsetX + Number(options.productOffsetX || 0)));
+    const desiredTop = Math.round(405 + (390 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(400, Math.min(805 - productH, desiredTop));
     composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
   }
