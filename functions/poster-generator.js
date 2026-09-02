@@ -595,6 +595,8 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="${palette.accent}" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
     : layout === 'premium'
       ? `<path d="M-80 880 L1080 520 L1080 930 L-80 1150 Z" fill="#001B4D" opacity=".16"/><rect x="36" y="300" width="1008" height="500" rx="38" fill="none" stroke="#ffffff" stroke-width="2" opacity=".12"/>`
+      : layout === 'catalog'
+        ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".07" stroke="#ffffff" stroke-width="2"/>`
       : '';
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
@@ -615,6 +617,7 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     </defs>
     <rect width="1080" height="1350" fill="url(#posterBg)"/>
     <rect width="1080" height="1350" fill="url(#posterGlow)"/>
+    <rect x="120" y="12" width="840" height="210" rx="34" fill="#ffffff" opacity=".91" stroke="${palette.accent}" stroke-width="2"/>
     <circle cx="930" cy="165" r="220" fill="#ffffff" opacity=".035"/>
     <circle cx="85" cy="560" r="210" fill="#ffffff" opacity=".025"/>
     ${layoutDecoration}
@@ -643,7 +646,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
   const showMascot = options.showMascot === true || options.useMascot === true || options.mascote === true;
   const layoutPriceShift = layout === 'showcase' ? 45 : layout === 'premium' ? -25 : 0;
-  const layoutPriceY = layout === 'showcase' ? 8 : layout === 'premium' ? -6 : 0;
+  const layoutPriceY = layout === 'showcase' ? 8 : layout === 'premium' ? -6 : layout === 'catalog' ? 3 : 0;
   const priceX = (showMascot ? 300 : 120) + layoutPriceShift;
   const priceWidth = showMascot ? 720 : 840;
   const pricePanelX = showMascot ? 280 : 70;
@@ -657,6 +660,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+    <text x="455" y="98" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#073B7A">ARIANA</text>
+    <text x="458" y="158" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="900" letter-spacing="1" fill="${palette.middle}">móveis</text>
+    <path d="M455 176 H785" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
     <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.accent}" stroke="#745C00" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
     <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#ffffff">${escapeXml(subtitle)}</text>
     ${productNameSvg}
@@ -671,20 +677,21 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1082" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1098" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
     </g>
 
-    <g transform="translate(185 1114)">
-      <rect x="0" y="0" width="855" height="70" rx="28" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
-      <circle cx="35" cy="35" r="18" fill="none" stroke="${palette.accent}" stroke-width="3"/>
-      <path d="M17 35h36M35 17c-7 6-11 12-11 18s4 12 11 18M35 17c7 6 11 12 11 18s-4 12-11 18M35 17v36" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
-      <text x="68" y="28" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
-      <text x="68" y="57" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
+    <g transform="translate(185 1122)">
+      <rect x="0" y="0" width="855" height="62" rx="27" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
+      <circle cx="35" cy="31" r="17" fill="none" stroke="${palette.accent}" stroke-width="3"/>
+      <path d="M18 31h34M35 14c-7 6-11 11-11 17s4 11 11 17M35 14c7 6 11 11 11 17s-4 11-11 17M35 14v34" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
+      <text x="68" y="25" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
+      <text x="68" y="51" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
     </g>
 
     <g transform="translate(44 1215)">
       <circle cx="43" cy="43" r="38" fill="#19B64B" stroke="#ffffff" stroke-width="5"/>
-      <text x="43" y="57" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="900" fill="#ffffff">☎</text>
+      <path d="M43 20C31 20 22 29 22 41c0 7 3 13 9 17l-3 10 11-5c1 0 3 1 4 1 12 0 22-9 22-22S55 20 43 20Z" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"/>
+      <path d="M34 30c-3 3-2 10 4 17 6 7 13 10 17 7l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-5-8-3 3Z" fill="#ffffff"/>
       <text x="98" y="33" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="500" fill="#ffffff">Atendimento pelo WhatsApp</text>
       <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="${palette.accent}">${escapeXml(whatsapp)}</text>
     </g>
@@ -708,17 +715,19 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
 
-  const logoBuffer = await loadProfessionalLogoBuffer(options).catch(() => null);
-  if (logoBuffer) {
-    const transparentLogo = await removeEdgeConnectedDarkBackground(logoBuffer).catch(() => logoBuffer);
-    const logoPng = await sharp(transparentLogo)
+  // A mascote é parte fixa da assinatura da marca no cabeçalho. Mostramos
+  // somente o recorte superior para ela continuar legível sem competir com o produto.
+  const headerMascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
+  if (headerMascotBuffer) {
+    const headerMascot = await sharp(headerMascotBuffer)
       .rotate()
       .ensureAlpha()
       .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-      .resize(700, 180, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(230, 265, { fit: 'cover', position: 'top', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .extract({ left: 0, top: 0, width: 230, height: 200 })
       .png()
       .toBuffer();
-    composites.push({ input: logoPng, top: 8, left: 190 });
+    composites.push({ input: headerMascot, top: 20, left: 185 });
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
@@ -745,7 +754,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
     const layout = String(options.layoutVariant || 'classic').toLowerCase();
-    const automaticOffsetX = layout === 'showcase' ? -85 : layout === 'premium' ? 85 : 0;
+    const automaticOffsetX = layout === 'showcase' ? -85 : layout === 'premium' ? 85 : layout === 'catalog' ? -25 : 0;
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
     const left = Math.max(20, Math.round((width - productW) / 2 + automaticOffsetX + Number(options.productOffsetX || 0)));
     const desiredTop = Math.round(405 + (390 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
