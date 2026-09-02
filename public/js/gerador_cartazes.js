@@ -96,6 +96,14 @@
     return document.querySelector('input[name="template"]:checked')?.value || 'oferta';
   }
 
+  function colorThemeValue() {
+    return document.querySelector('input[name="color-theme"]:checked')?.value || 'azul';
+  }
+
+  function updateColorSelection() {
+    document.querySelectorAll('.palette-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
+  }
+
   function updateTemplateSelection(changeText = false) {
     document.querySelectorAll('.template-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
     if (!changeText) return;
@@ -256,6 +264,7 @@
       },
       options: {
         template: templateValue(),
+        colorTheme: colorThemeValue(),
         headline: els.headline.value.trim(),
         subtitle: els.subtitle.value.trim(),
         productName: name,
@@ -386,6 +395,7 @@
     });
 
     document.querySelectorAll('input[name="template"]').forEach(input => input.addEventListener('change', () => updateTemplateSelection(true)));
+    document.querySelectorAll('input[name="color-theme"]').forEach(input => input.addEventListener('change', updateColorSelection));
     els.productSearch.addEventListener('input', () => renderProductResults(els.productSearch.value));
     els.productResults.addEventListener('click', event => {
       const button = event.target.closest('[data-product-id]');
@@ -424,6 +434,7 @@
   async function start() {
     bind();
     updateTemplateSelection(false);
+    updateColorSelection();
     updatePricingSummary();
     renderHistory();
     if (!token()) {
