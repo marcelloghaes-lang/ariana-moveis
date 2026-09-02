@@ -45,6 +45,13 @@
           <label class="template-card"><input type="radio" name="template" value="campanha"><span class="template-swatch campanha"></span><b>Campanha do mês</b><small>Azul institucional</small></label>
           <label class="template-card"><input type="radio" name="template" value="queima"><span class="template-swatch queima"></span><b>Queima de estoque</b><small>Azul, vermelho e dourado</small></label>
         </div>
+        <div class="palette-heading"><b>Cor do cartaz</b><small>O azul permanece como padrão. As outras cores só entram quando você escolher.</small></div>
+        <div class="template-grid palette-grid">
+          <label class="template-card palette-card selected"><input type="radio" name="color-theme" value="azul" checked><span class="template-swatch cor-azul"></span><b>Azul Ariana</b><small>Padrão oficial</small></label>
+          <label class="template-card palette-card"><input type="radio" name="color-theme" value="dourado"><span class="template-swatch cor-dourado"></span><b>Dourado</b><small>Campanhas especiais</small></label>
+          <label class="template-card palette-card"><input type="radio" name="color-theme" value="esmeralda"><span class="template-swatch cor-esmeralda"></span><b>Esmeralda</b><small>Visual elegante</small></label>
+          <label class="template-card palette-card"><input type="radio" name="color-theme" value="violeta"><span class="template-swatch cor-violeta"></span><b>Violeta</b><small>Datas comemorativas</small></label>
+        </div>
         <div class="field-grid">
           <label class="field field-full"><span>Chamada principal</span><input id="headline" maxlength="54" value="OFERTA IMPERDÍVEL"></label>
           <label class="field field-full"><span>Frase de apoio</span><input id="subtitle" maxlength="74" value="Economize de verdade na Ariana Móveis"></label>
@@ -123,7 +130,7 @@
     </section>
   </main>
 
-  <script src="./js/gerador_cartazes.js?v=20260901-2"></script>
+  <script src="./js/gerador_cartazes.js?v=20260902-1"></script>
   <script src="./pwa-register.js" data-sw="./sw-gerador-cartazes.js" data-scope="./gerador_cartazes.html"></script>
 </body>
 </html>
