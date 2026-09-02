@@ -355,10 +355,10 @@ function professionalPricing(product = {}, options = {}) {
 function professionalPalette(_template = 'oferta', colorTheme = 'azul') {
   const key = String(colorTheme || 'azul').toLowerCase();
   const palettes = {
-    azul: { start: '#0047AB', middle: '#0797DE', end: '#07C3F4', glow: '#BCEEFF', accent: '#FFE600', footer: '#00398D' },
-    dourado: { start: '#6B3F12', middle: '#B7791F', end: '#E8B84E', glow: '#FFF0B3', accent: '#FFF06A', footer: '#3D240B' },
-    esmeralda: { start: '#064E3B', middle: '#0F766E', end: '#2DB89A', glow: '#CFFDEE', accent: '#FFD84D', footer: '#043B32' },
-    violeta: { start: '#35166D', middle: '#6D3DB5', end: '#A66DE8', glow: '#E9D8FF', accent: '#FFE066', footer: '#251044' }
+    azul: { start: '#0047AB', middle: '#0797DE', end: '#07C3F4', glow: '#BCEEFF', accent: '#FFE600', footer: '#00398D', brandText: '#062B63', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#FFE600', subtitleText: '#FFFFFF', bodyText: '#062B63', price: '#00398D', priceText: '#063B86', line: '#064B9A' },
+    dourado: { start: '#6B3F12', middle: '#B7791F', end: '#E8B84E', glow: '#FFF0B3', accent: '#FFF06A', footer: '#3D240B', brandText: '#3D240B', brandStroke: '#FFF8DC', brandSecondary: '#FFF8DC', headlineText: '#3D240B', subtitleText: '#4A2B0A', bodyText: '#3D240B', price: '#3D240B', priceText: '#4A2B0A', line: '#6B3F12' },
+    esmeralda: { start: '#064E3B', middle: '#0F766E', end: '#2DB89A', glow: '#CFFDEE', accent: '#FFD84D', footer: '#043B32', brandText: '#043B32', brandStroke: '#EFFFF8', brandSecondary: '#FFFFFF', headlineText: '#FFD84D', subtitleText: '#FFFFFF', bodyText: '#043B32', price: '#043B32', priceText: '#064E3B', line: '#08705E' },
+    violeta: { start: '#35166D', middle: '#6D3DB5', end: '#A66DE8', glow: '#E9D8FF', accent: '#FFE066', footer: '#251044', brandText: '#251044', brandStroke: '#F7F0FF', brandSecondary: '#FFFFFF', headlineText: '#FFE066', subtitleText: '#FFFFFF', bodyText: '#251044', price: '#251044', priceText: '#35166D', line: '#4B2585' }
   };
   return palettes[key] || palettes.azul;
 }
@@ -667,18 +667,18 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const pricePanelWidth = 760;
   const darkPanel = layout === 'premium';
   const pricePanel = layout === 'classic' ? '' : `<rect x="${pricePanelX}" y="810" width="${pricePanelWidth}" height="318" rx="32" fill="${darkPanel ? '#003477' : '#ffffff'}" opacity="${darkPanel ? '.90' : '.82'}" stroke="${palette.accent}" stroke-width="2"/>`;
-  const mainPriceColor = darkPanel ? palette.accent : '#00398D';
-  const priceTextColor = darkPanel ? '#ffffff' : '#063B86';
-  const priceLineColor = darkPanel ? '#ffffff' : '#064B9A';
-  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${350 + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="#062B63">${escapeXml(line)}</text>`).join('');
+  const mainPriceColor = darkPanel ? palette.accent : palette.price;
+  const priceTextColor = darkPanel ? '#ffffff' : palette.priceText;
+  const priceLineColor = darkPanel ? '#ffffff' : palette.line;
+  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${350 + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}">${escapeXml(line)}</text>`).join('');
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="#062B63" stroke="#ffffff" stroke-width="2" paint-order="stroke fill">ARIANA</text>
-    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="#ffffff">móveis</text>
+    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
+    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="${palette.brandSecondary}">móveis</text>
     <path d="M73 169 H425" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
-    <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.accent}" stroke="#745C00" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
-    <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="#ffffff">${escapeXml(subtitle)}</text>
+    <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
+    <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
     ${productNameSvg}
 
     <g transform="translate(0 ${layoutPriceY})">
