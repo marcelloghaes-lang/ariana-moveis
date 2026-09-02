@@ -412,15 +412,50 @@ async function removeEdgeConnectedLightBackground(rawImage, enabled = true) {
   let head = 0;
   let tail = 0;
 
+  // Descobre a cor real do fundo pelas bordas. Isso funciona melhor que
+  // procurar apenas branco puro e evita apagar detalhes internos do produto.
+  const borderSamples = [];
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 180));
+  const samplePixel = (pixelIndex) => {
+    const offset = pixelIndex * channels;
+    if (data[offset + 3] < 18) return;
+    borderSamples.push([data[offset], data[offset + 1], data[offset + 2]]);
+  };
+  for (let x = 0; x < width; x += step) {
+    samplePixel(x);
+    samplePixel((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y += step) {
+    samplePixel(y * width);
+    samplePixel(y * width + width - 1);
+  }
+  const channelMedian = (channel) => {
+    const values = borderSamples.map(pixel => pixel[channel]).sort((a, b) => a - b);
+    return values.length ? values[Math.floor(values.length / 2)] : 255;
+  };
+  const background = [channelMedian(0), channelMedian(1), channelMedian(2)];
+  const borderDeviation = borderSamples.length
+    ? borderSamples.reduce((sum, pixel) => sum + Math.sqrt(
+      (pixel[0] - background[0]) ** 2 +
+      (pixel[1] - background[1]) ** 2 +
+      (pixel[2] - background[2]) ** 2
+    ), 0) / borderSamples.length
+    : 999;
+  const uniformBackground = borderDeviation <= 54;
+  const colorTolerance = Math.max(24, Math.min(48, 52 - borderDeviation * 0.45));
+
   const isBackground = (pixelIndex) => {
     const offset = pixelIndex * channels;
     const r = data[offset];
     const g = data[offset + 1];
     const b = data[offset + 2];
     const a = data[offset + 3];
-    const min = Math.min(r, g, b);
-    const max = Math.max(r, g, b);
-    return a < 18 || (min >= 242 && max - min <= 24);
+    const distance = Math.sqrt(
+      (r - background[0]) ** 2 +
+      (g - background[1]) ** 2 +
+      (b - background[2]) ** 2
+    );
+    return a < 18 || (uniformBackground && distance <= colorTolerance);
   };
 
   const enqueue = (pixelIndex) => {
@@ -447,14 +482,32 @@ async function removeEdgeConnectedLightBackground(rawImage, enabled = true) {
     if (pixelIndex < total - width) enqueue(pixelIndex + width);
   }
 
-  // Fotos ambientadas podem ter pequenos objetos brancos ligados às bordas
-  // (cortinas, janelas, tapetes). Nesses casos é mais profissional preservar
-  // a fotografia completa do que abrir buracos no cenário.
-  if (tail / total < 0.12) return pipeline.png().toBuffer();
+  // Fundo irregular indica foto ambientada: preserva a cena completa.
+  // Fundo uniforme é removido mesmo quando o produto ocupa quase toda a foto.
+  const removedRatio = tail / total;
+  if (!uniformBackground || removedRatio < 0.015 || removedRatio > 0.94) {
+    return pipeline.png().toBuffer();
+  }
 
   for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
     if (!marked[pixelIndex]) continue;
     data[pixelIndex * channels + 3] = 0;
+  }
+
+  // Suaviza a borda para eliminar serrilhado e halo claro de JPEG sem
+  // remover espaços internos ou partes claras do produto.
+  for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
+    if (marked[pixelIndex]) continue;
+    const x = pixelIndex % width;
+    let touching = 0;
+    if (x > 0 && marked[pixelIndex - 1]) touching += 1;
+    if (x < width - 1 && marked[pixelIndex + 1]) touching += 1;
+    if (pixelIndex >= width && marked[pixelIndex - width]) touching += 1;
+    if (pixelIndex < total - width && marked[pixelIndex + width]) touching += 1;
+    if (touching) {
+      const alphaOffset = pixelIndex * channels + 3;
+      data[alphaOffset] = Math.min(data[alphaOffset], touching >= 2 ? 150 : 205);
+    }
   }
 
   return sharp(data, { raw: info })
@@ -608,8 +661,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
     <g>
       ${pricePanel}
-      <text x="${priceX}" y="852" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="${priceTextColor}">POR R$</text>
-      <text x="${priceX + 112}" y="875" font-family="Arial, Helvetica, sans-serif" font-size="91" font-weight="950" letter-spacing="-4" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
+      <text x="${priceX}" y="870" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" fill="${priceTextColor}">POR R$</text>
+      <text x="${priceX + 170}" y="884" font-family="Arial, Helvetica, sans-serif" font-size="84" font-weight="950" letter-spacing="-3" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
       <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="500" fill="${priceTextColor}">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</tspan> SEM JUROS NO CARTÃO</text>
       <line x1="${priceX}" y1="960" x2="${priceX + Math.round(priceWidth * .38)}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="970" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="${priceTextColor}">OU</text>
@@ -619,12 +672,12 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO BOLETO</text>
     </g>
 
-    <g transform="translate(360 1132)">
-      <rect x="0" y="0" width="680" height="43" rx="22" fill="#0577C7" opacity=".34" stroke="#ffffff" stroke-width="1.5"/>
-      <circle cx="31" cy="21.5" r="14" fill="none" stroke="${palette.accent}" stroke-width="2.5"/>
-      <path d="M17 21.5h28M31 7.5c-6 5-9 9-9 14s3 10 9 14M31 7.5c6 5 9 9 9 14s-3 10-9 14M31 7.5v28" fill="none" stroke="${palette.accent}" stroke-width="1.5"/>
-      <text x="56" y="29" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700" fill="#ffffff">Compre também pelo site:</text>
-      <text x="327" y="29" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
+    <g transform="translate(185 1128)">
+      <rect x="0" y="0" width="855" height="54" rx="27" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
+      <circle cx="35" cy="27" r="17" fill="none" stroke="${palette.accent}" stroke-width="3"/>
+      <path d="M18 27h34M35 10c-7 6-11 11-11 17s4 12 11 17M35 10c7 6 11 11 11 17s-4 12-11 17M35 10v34" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
+      <text x="65" y="35" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
+      <text x="468" y="35" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
     </g>
 
     <g transform="translate(44 1215)">
