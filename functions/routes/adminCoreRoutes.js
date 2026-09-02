@@ -36,9 +36,9 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     redactWhatsappSettings,
     redact,
     cloudinary,
-    isCloudinaryConfigured,
     upload,
     uploadToCloudinary,
+    isCloudinaryConfigured,
     safeUploadFolder,
     path,
     fs,
@@ -831,9 +831,22 @@ function professionalCreativeInput(body = {}) {
   return { product, options };
 }
 
+const PROFESSIONAL_POSTER_ROTATION_KEY = 'professional_poster_layout_rotation';
+function professionalLayoutForSequence(sequence = 0) {
+  const layouts = ['classic', 'showcase', 'premium'];
+  return layouts[Math.floor(Math.max(0, Number(sequence) || 0) / 10) % layouts.length];
+}
+async function professionalPosterRotationState() {
+  const saved = await getSetting(PROFESSIONAL_POSTER_ROTATION_KEY, { count: 0 });
+  const count = Math.max(0, Number(saved?.count || 0));
+  return { count, layoutVariant: professionalLayoutForSequence(count) };
+}
+
 app.post('/api/admin/posters/preview', adminRequired, async (req, res) => {
   try {
     const { product, options } = professionalCreativeInput(req.body || {});
+    const rotation = await professionalPosterRotationState();
+    options.layoutVariant = options.layoutVariant || rotation.layoutVariant;
     const buffer = await generateProductPosterBuffer(product, options);
     res.set({
       'Content-Type': 'image/png',
@@ -852,6 +865,8 @@ app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
   try {
     if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const { product, options } = professionalCreativeInput(req.body || {});
+    const rotation = await professionalPosterRotationState();
+    options.layoutVariant = options.layoutVariant || rotation.layoutVariant;
     const buffer = await generateProductPosterBuffer(product, options);
     const productName = String(product.name || product.title || 'cartaz-ariana');
     const publicId = `${sanitizeIdPart(productName)}-whatsapp-${Date.now()}`;
@@ -862,6 +877,7 @@ app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
     const poster = {
       variant: 'whatsapp',
       template: options.template,
+      layoutVariant: options.layoutVariant,
       url: result.secure_url,
       public_id: result.public_id,
       width: result.width,
@@ -879,7 +895,13 @@ app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
       }).catch(() => null);
     }
 
-    return res.json({ ok: true, poster, url: poster.url });
+    await setSetting(
+      PROFESSIONAL_POSTER_ROTATION_KEY,
+      { count: rotation.count + 1, lastLayout: options.layoutVariant, updatedAt: new Date().toISOString() },
+      String(req.admin?.email || req.admin?.id || 'admin')
+    ).catch(() => null);
+
+    return res.json({ ok: true, poster, url: poster.url, sequence: rotation.count + 1, nextLayoutChangeAt: (Math.floor(rotation.count / 10) + 1) * 10 });
   } catch (error) {
     console.error('[posters] erro ao publicar cartaz profissional:', error);
     return res.status(500).json({ ok: false, error: error.message || 'professional_poster_generate_failed' });
