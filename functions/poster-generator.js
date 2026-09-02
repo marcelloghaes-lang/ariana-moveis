@@ -604,6 +604,51 @@ async function loadHeaderMascotBuffer(options = {}) {
   return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/mascote-oficial-cabecalho.jpeg'));
 }
 
+function detectSceneTheme(product = {}, requested = '') {
+  const selected = String(requested || '').toLowerCase();
+  if (['cozinha', 'quarto', 'sala', 'lazer'].includes(selected)) return selected;
+  const text = removeAccents(`${product.name || product.title || ''} ${product.categoryName || product.category || ''}`);
+  if (/cama|colchao|cabeceira|guarda[- ]?roupa|roupeiro|comoda|criado/.test(text)) return 'quarto';
+  if (/sofa|poltrona|rack|painel|televis|smart\s*tv|sala|mesa de centro/.test(text)) return 'sala';
+  if (/churrasque|lazer|piscina|bicicleta|esporte|jardim|varanda|cervejeira/.test(text)) return 'lazer';
+  return 'cozinha';
+}
+
+async function loadSceneBackgroundBuffer(product = {}, options = {}) {
+  const theme = detectSceneTheme(product, options.sceneTheme);
+  const encodedPath = path.resolve(__dirname, `./assets/cenarios/${theme}.base64.txt`);
+  try {
+    if (fs.existsSync(encodedPath)) {
+      const encoded = fs.readFileSync(encodedPath, 'utf8').trim();
+      if (encoded) return { theme, buffer: Buffer.from(encoded, 'base64') };
+    }
+  } catch (_error) {}
+  return { theme, buffer: null };
+}
+
+async function professionalBackgroundBuffer(product = {}, options = {}) {
+  const { default: sharp } = await import('sharp');
+  const layout = String(options.layoutVariant || 'classic').toLowerCase();
+  if (layout !== 'split') {
+    return Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: layout, colorTheme: options.colorTheme }));
+  }
+  const scene = await loadSceneBackgroundBuffer(product, options);
+  if (!scene.buffer) {
+    return Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: layout, colorTheme: options.colorTheme }));
+  }
+  const tintMap = { azul: '#1687D2', dourado: '#B7791F', esmeralda: '#168A72', violeta: '#7650B9' };
+  const tint = tintMap[String(options.colorTheme || 'azul').toLowerCase()] || tintMap.azul;
+  const overlay = Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".08"/><stop offset=".58" stop-color="#ffffff" stop-opacity=".02"/><stop offset="1" stop-color="#001B3A" stop-opacity=".36"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#shade)"/><rect y="1190" width="1080" height="160" fill="#001B3A" opacity=".96"/></svg>`);
+  return sharp(scene.buffer)
+    .resize(1080, 1350, { fit: 'cover', position: 'centre' })
+    .grayscale()
+    .tint(tint)
+    .modulate({ brightness: 0.92, saturation: 0.86 })
+    .composite([{ input: overlay, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+}
+
 function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic', colorTheme = 'azul' }) {
   const palette = professionalPalette(template, colorTheme);
   const layout = String(layoutVariant || 'classic').toLowerCase();
@@ -672,23 +717,30 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const mainPriceColor = darkPanel ? palette.accent : palette.price;
   const priceTextColor = darkPanel ? '#ffffff' : palette.priceText;
   const priceLineColor = darkPanel ? '#ffffff' : palette.line;
-  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${350 + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}">${escapeXml(line)}</text>`).join('');
+  const isSplit = layout === 'split';
+  const productNameTop = isSplit ? 304 : 350;
+  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
+  const brandSvg = isSplit ? `
+    <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
+    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="${palette.brandSecondary}">móveis</text>
+    <path d="M450 160 H630" stroke="${palette.accent}" stroke-width="6" stroke-linecap="round"/>` : `
+    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
+    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="${palette.brandSecondary}">móveis</text>
+    <path d="M73 169 H425" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>`;
   const pricingBlock = layout === 'split' ? `
     <g>
-      <rect x="280" y="810" width="760" height="308" rx="32" fill="#002A5C" opacity=".82" stroke="${palette.accent}" stroke-width="2"/>
-      <line x1="660" y1="834" x2="660" y2="1094" stroke="#62B6FF" stroke-width="2" opacity=".65"/>
-      <text x="470" y="850" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${palette.accent}">SUPER DESCONTO À VISTA</text>
-      <text x="470" y="925" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="950" letter-spacing="-2" fill="#ffffff">R$ ${escapeXml(cashValue)}</text>
-      <rect x="322" y="946" width="296" height="34" rx="17" fill="#075AAE" opacity=".92"/>
-      <text x="470" y="969" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="900" fill="#ffffff">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="470" y="1006" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="800" fill="#E2E8F0">NO PIX OU DINHEIRO</text>
-      <text x="470" y="1042" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="900" fill="${palette.accent}">CONSULTE CONDIÇÕES NO</text>
-      <text x="470" y="1066" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="950" fill="${palette.accent}">CREDIÁRIO PRÓPRIO</text>
-      <text x="850" y="850" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" fill="#E2E8F0">POR R$</text>
-      <text x="850" y="925" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="59" font-weight="950" letter-spacing="-2" fill="#ffffff">${escapeXml(fullValue)}</text>
-      <text x="850" y="969" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#E2E8F0">EM ATÉ</text>
-      <text x="850" y="1008" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="950" fill="${palette.accent}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
-      <text x="850" y="1042" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" fill="#ffffff">SEM JUROS NO CARTÃO</text>
+      <rect x="270" y="810" width="770" height="308" rx="28" fill="#D9F2FF" opacity=".20"/>
+      <line x1="660" y1="832" x2="660" y2="1095" stroke="${palette.line}" stroke-width="3" opacity=".85"/>
+      <text x="470" y="852" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="950" fill="${palette.bodyText}">SUPER DESCONTO À VISTA</text>
+      <text x="470" y="928" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" letter-spacing="-2" fill="${palette.price}">R$ ${escapeXml(cashValue)}</text>
+      <text x="470" y="974" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${palette.bodyText}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
+      <text x="470" y="1004" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="850" fill="${palette.bodyText}">(NO PIX OU BOLETO)</text>
+      <text x="470" y="1048" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" fill="${palette.bodyText}">CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
+      <text x="850" y="852" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" fill="${palette.bodyText}">POR R$</text>
+      <text x="850" y="928" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="950" letter-spacing="-2" fill="${palette.price}">${escapeXml(fullValue)}</text>
+      <text x="850" y="973" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="${palette.bodyText}">EM ATÉ</text>
+      <text x="850" y="1011" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="${palette.price}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+      <text x="850" y="1047" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="900" fill="${palette.bodyText}">SEM JUROS NO CARTÃO</text>
     </g>` : `
     <g transform="translate(0 ${layoutPriceY})">
       ${pricePanel}
@@ -705,11 +757,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
-    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="${palette.brandSecondary}">móveis</text>
-    <path d="M73 169 H425" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>
-    <text x="540" y="274" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
-    <text x="540" y="314" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
+    ${brandSvg}
+    <text x="540" y="${isSplit ? 222 : 274}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
+    <text x="540" y="${isSplit ? 260 : 314}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
     ${productNameSvg}
 
     ${pricingBlock}
@@ -745,7 +795,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const width = 1080;
   const height = 1350;
   const pricing = professionalPricing(product, options);
-  const background = Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: options.layoutVariant, colorTheme: options.colorTheme }));
+  const background = await professionalBackgroundBuffer(product, options);
   const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
 
@@ -789,8 +839,11 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const automaticOffsetX = layout === 'showcase' ? -85 : layout === 'premium' ? 85 : layout === 'catalog' ? -25 : 0;
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
     const left = Math.max(20, Math.round((width - productW) / 2 + automaticOffsetX + Number(options.productOffsetX || 0)));
-    const desiredTop = Math.round(405 + (390 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
-    const top = Math.max(400, Math.min(805 - productH, desiredTop));
+    const splitLayout = layout === 'split';
+    const imageAnchorTop = splitLayout ? 350 : 405;
+    const minProductTop = splitLayout ? 338 : 400;
+    const desiredTop = Math.round(imageAnchorTop + (390 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
+    const top = Math.max(minProductTop, Math.min(805 - productH, desiredTop));
     composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
   }
 
