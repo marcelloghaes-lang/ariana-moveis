@@ -100,6 +100,17 @@ async function loadImageBuffer(url) {
   }
 }
 
+function cloudinaryBackgroundRemovalUrl(url = '') {
+  const raw = String(url || '').trim();
+  if (!/^https:\/\/res\.cloudinary\.com\//i.test(raw) || !raw.includes('/image/upload/')) return '';
+  if (/\/image\/upload\/[^?]*e_background_removal/i.test(raw)) return raw;
+  const [pathname, query = ''] = raw.split('?');
+  const transformed = pathname
+    .replace('/image/upload/', '/image/upload/e_background_removal/')
+    .replace(/\.(?:jpe?g|webp|avif)$/i, '.png');
+  return query ? `${transformed}?${query}` : transformed;
+}
+
 async function loadLocalImageBuffer(filePath = '') {
   const rawPath = String(filePath || '').trim();
   if (!rawPath) return null;
@@ -442,7 +453,10 @@ async function removeEdgeConnectedLightBackground(rawImage, enabled = true) {
     ), 0) / borderSamples.length
     : 999;
   const uniformBackground = borderDeviation <= 54;
-  const colorTolerance = Math.max(24, Math.min(48, 52 - borderDeviation * 0.45));
+  // Recorte local deliberadamente conservador. Em produtos brancos sobre fundo
+  // branco (freezers, geladeiras e lavadoras), tolerância alta apaga a lataria.
+  // O recorte inteligente do Cloudinary é tentado antes deste fallback.
+  const colorTolerance = Math.max(7, Math.min(14, 14 - borderDeviation * 0.12));
 
   const isBackground = (pixelIndex) => {
     const offset = pixelIndex * channels;
@@ -732,15 +746,15 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
     <defs>
-      <radialGradient id="brandHalo" cx="50%" cy="18%" r="68%">
-        <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".52"/>
-        <stop offset="48%" stop-color="#FFFFFF" stop-opacity=".20"/>
+      <linearGradient id="brandHalo" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".72"/>
+        <stop offset="52%" stop-color="#FFFFFF" stop-opacity=".42"/>
         <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-      </radialGradient>
+      </linearGradient>
     </defs>
     <rect x="0" y="0" width="1080" height="210" fill="url(#brandHalo)"/>
-    <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D">ARIANA</text>
-    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#2E6DA4" stroke="#FFFFFF" stroke-width=".7" paint-order="stroke fill">móveis</text>
+    <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
+    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
   const pricingBlock = layout === 'split' ? `
     <g>
@@ -829,15 +843,40 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
-  const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
+  const intelligentCutoutUrl = options.removeLightBackground !== false ? cloudinaryBackgroundRemovalUrl(imageUrl) : '';
+  let usedIntelligentCutout = false;
+  let rawImage = null;
+  if (intelligentCutoutUrl) {
+    rawImage = await loadImageBuffer(intelligentCutoutUrl).catch(() => null);
+    usedIntelligentCutout = Boolean(rawImage);
+  }
+  if (!rawImage) rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    const cutout = await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
+    const cutout = usedIntelligentCutout
+      ? rawImage
+      : await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
     const preset = professionalProductPreset(product);
     // O produto permanece no centro geométrico do cartaz. Quando a mascote está
     // presente, produtos largos usam uma faixa vertical mais baixa para terminar
     // acima dela, em vez de serem empurrados visualmente para a direita.
+    const layout = String(options.layoutVariant || 'classic').toLowerCase();
+    const splitLayout = layout === 'split';
+    const posterProductName = String(options.productName || product.name || product.title || 'PRODUTO ARIANA MÓVEIS').trim().toUpperCase();
+    const productLineCount = wrapText(posterProductName, 34, 2).length;
+    const productNameTop = splitLayout ? 304 : 350;
+    const lastProductLineBaseline = productNameTop + (productLineCount - 1) * 37;
+    const minProductTop = lastProductLineBaseline + 38;
+    const cutoutMeta = await sharp(cutout).metadata();
+    const naturalWidth = Math.max(1, Number(cutoutMeta.width || preset.w));
+    const naturalHeight = Math.max(1, Number(cutoutMeta.height || preset.h));
+    const initialScale = Math.min(preset.w / naturalWidth, preset.h / naturalHeight);
+    const estimatedWidth = naturalWidth * initialScale;
+    const estimatedHeight = naturalHeight * initialScale;
+    const centeredEstimatedLeft = (width - estimatedWidth) / 2;
+    const mayReachMascot = Boolean(headerMascotComposite) && centeredEstimatedLeft < 315 && minProductTop + estimatedHeight > 690;
+    const productBottomLimit = mayReachMascot ? 690 : 790;
     const productMaxWidth = preset.w;
-    const productMaxHeight = headerMascotComposite ? Math.min(preset.h, 330) : preset.h;
+    const productMaxHeight = Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
     const resizedProduct = await sharp(cutout)
       .rotate()
       .ensureAlpha()
@@ -859,18 +898,13 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const meta = await sharp(productPng).metadata();
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
-    const layout = String(options.layoutVariant || 'classic').toLowerCase();
     // Todos os modelos partem do centro real; somente o controle manual do
     // painel pode deslocar o produto horizontalmente.
     const automaticOffsetX = 0;
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
     const centeredLeft = Math.round((width - productW) / 2);
     const left = Math.max(20, Math.round(centeredLeft + automaticOffsetX + Number(options.productOffsetX || 0)));
-    const splitLayout = layout === 'split';
-    const imageAnchorTop = splitLayout ? 350 : 365;
-    const minProductTop = splitLayout ? 338 : 350;
-    const productBottomLimit = headerMascotComposite ? 690 : 805;
-    const desiredTop = Math.round(imageAnchorTop + (330 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
+    const desiredTop = Math.round(minProductTop + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(minProductTop, Math.min(productBottomLimit - productH, desiredTop));
     composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
   }
