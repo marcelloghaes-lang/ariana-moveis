@@ -731,8 +731,16 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
+    <defs>
+      <radialGradient id="brandHalo" cx="50%" cy="46%" r="55%">
+        <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".78"/>
+        <stop offset="58%" stop-color="#FFFFFF" stop-opacity=".38"/>
+        <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <ellipse cx="540" cy="105" rx="285" ry="126" fill="url(#brandHalo)"/>
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D">ARIANA</text>
-    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#2E7DBB">móveis</text>
+    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#2E6DA4" stroke="#FFFFFF" stroke-width=".7" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
   const pricingBlock = layout === 'split' ? `
     <g>
