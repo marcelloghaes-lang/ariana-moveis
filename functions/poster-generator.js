@@ -610,13 +610,13 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       ${pricePanel}
       <text x="${priceX}" y="852" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="${priceTextColor}">POR R$</text>
       <text x="${priceX + 112}" y="875" font-family="Arial, Helvetica, sans-serif" font-size="91" font-weight="950" letter-spacing="-4" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
-      <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500" fill="${priceTextColor}">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X SEM JUROS</tspan> NO CARTÃO</text>
+      <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="500" fill="${priceTextColor}">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</tspan> SEM JUROS NO CARTÃO</text>
       <line x1="${priceX}" y1="960" x2="${priceX + Math.round(priceWidth * .38)}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="970" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="${priceTextColor}">OU</text>
       <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
       <text x="${priceX + Math.round(priceWidth * .5)}" y="1082" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • ${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+      <text x="${priceX + Math.round(priceWidth * .5)}" y="1116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO BOLETO</text>
     </g>
 
     <g transform="translate(360 1132)">
@@ -660,10 +660,10 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       .rotate()
       .ensureAlpha()
       .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-      .resize(800, 205, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(700, 180, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    composites.push({ input: logoPng, top: 5, left: 140 });
+    composites.push({ input: logoPng, top: 8, left: 190 });
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
