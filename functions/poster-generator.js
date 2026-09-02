@@ -732,13 +732,13 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
     <defs>
-      <radialGradient id="brandHalo" cx="50%" cy="46%" r="55%">
-        <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".78"/>
-        <stop offset="58%" stop-color="#FFFFFF" stop-opacity=".38"/>
+      <radialGradient id="brandHalo" cx="50%" cy="18%" r="68%">
+        <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".52"/>
+        <stop offset="48%" stop-color="#FFFFFF" stop-opacity=".20"/>
         <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
       </radialGradient>
     </defs>
-    <ellipse cx="540" cy="105" rx="285" ry="126" fill="url(#brandHalo)"/>
+    <rect x="0" y="0" width="1080" height="210" fill="url(#brandHalo)"/>
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#2E6DA4" stroke="#FFFFFF" stroke-width=".7" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
@@ -833,15 +833,15 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   if (rawImage) {
     const cutout = await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
     const preset = professionalProductPreset(product);
-    // Quando a mascote está presente, a faixa esquerda entre x=0 e x=305 é
-    // reservada exclusivamente para ela. Produtos largos (sofás, racks, camas)
-    // passam a caber na área restante sem cobrir rosto, cabelo ou braços.
-    const mascotSafeLeft = headerMascotComposite ? 315 : 20;
-    const productMaxWidth = headerMascotComposite ? 745 : preset.w;
+    // O produto permanece no centro geométrico do cartaz. Quando a mascote está
+    // presente, produtos largos usam uma faixa vertical mais baixa para terminar
+    // acima dela, em vez de serem empurrados visualmente para a direita.
+    const productMaxWidth = preset.w;
+    const productMaxHeight = headerMascotComposite ? Math.min(preset.h, 330) : preset.h;
     const resizedProduct = await sharp(cutout)
       .rotate()
       .ensureAlpha()
-      .resize(Math.min(preset.w, productMaxWidth), preset.h, {
+      .resize(productMaxWidth, productMaxHeight, {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 },
         withoutEnlargement: false
@@ -849,8 +849,8 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       .png()
       .toBuffer();
     const resizedMeta = await sharp(resizedProduct).metadata();
-    const resizedWidth = Number(resizedMeta.width || Math.min(preset.w, productMaxWidth));
-    const resizedHeight = Number(resizedMeta.height || preset.h);
+    const resizedWidth = Number(resizedMeta.width || productMaxWidth);
+    const resizedHeight = Number(resizedMeta.height || productMaxHeight);
     const roundedMask = Buffer.from(`<svg width="${resizedWidth}" height="${resizedHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="${resizedWidth}" height="${resizedHeight}" rx="18" fill="#fff"/></svg>`);
     const productPng = await sharp(resizedProduct)
       .composite([{ input: roundedMask, blend: 'dest-in' }])
@@ -860,17 +860,19 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
     const layout = String(options.layoutVariant || 'classic').toLowerCase();
-    const automaticOffsetX = layout === 'showcase' ? -85 : layout === 'premium' ? 85 : layout === 'catalog' ? -25 : 0;
+    // Todos os modelos partem do centro real; somente o controle manual do
+    // painel pode deslocar o produto horizontalmente.
+    const automaticOffsetX = 0;
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
-    const availableRight = width - 20;
-    const centeredInSafeArea = mascotSafeLeft + Math.round((availableRight - mascotSafeLeft - productW) / 2);
-    const left = Math.max(mascotSafeLeft, Math.round(centeredInSafeArea + automaticOffsetX + Number(options.productOffsetX || 0)));
+    const centeredLeft = Math.round((width - productW) / 2);
+    const left = Math.max(20, Math.round(centeredLeft + automaticOffsetX + Number(options.productOffsetX || 0)));
     const splitLayout = layout === 'split';
-    const imageAnchorTop = splitLayout ? 350 : 405;
-    const minProductTop = splitLayout ? 338 : 400;
-    const desiredTop = Math.round(imageAnchorTop + (390 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
-    const top = Math.max(minProductTop, Math.min(805 - productH, desiredTop));
-    composites.push({ input: productPng, left: Math.max(mascotSafeLeft, Math.min(width - productW - 20, left)), top });
+    const imageAnchorTop = splitLayout ? 350 : 365;
+    const minProductTop = splitLayout ? 338 : 350;
+    const productBottomLimit = headerMascotComposite ? 690 : 805;
+    const desiredTop = Math.round(imageAnchorTop + (330 - productH) / 2 + automaticOffsetY + Number(options.productOffsetY || 0));
+    const top = Math.max(minProductTop, Math.min(productBottomLimit - productH, desiredTop));
+    composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
   }
 
   // A mascote entra depois do produto e permanece totalmente visível.
