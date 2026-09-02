@@ -728,13 +728,12 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const isSplit = layout === 'split';
   const productNameTop = isSplit ? 304 : 350;
   const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
-  const brandSvg = isSplit ? `
-    <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
-    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="${palette.brandSecondary}">móveis</text>
-    <path d="M450 160 H630" stroke="${palette.accent}" stroke-width="6" stroke-linecap="round"/>` : `
-    <text x="70" y="94" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="${palette.brandText}" stroke="${palette.brandStroke}" stroke-width="2" paint-order="stroke fill">ARIANA</text>
-    <text x="73" y="151" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="900" letter-spacing="1" fill="${palette.brandSecondary}">móveis</text>
-    <path d="M73 169 H425" stroke="${palette.accent}" stroke-width="7" stroke-linecap="round"/>`;
+  // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
+  // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
+  const brandSvg = `
+    <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D">ARIANA</text>
+    <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#2E7DBB">móveis</text>
+    <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
   const pricingBlock = layout === 'split' ? `
     <g>
       <rect x="270" y="810" width="770" height="308" rx="28" fill="#D9F2FF" opacity=".20"/>
