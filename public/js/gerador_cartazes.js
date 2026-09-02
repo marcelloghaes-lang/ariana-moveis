@@ -100,8 +100,16 @@
     return document.querySelector('input[name="color-theme"]:checked')?.value || 'azul';
   }
 
+  function layoutVariantValue() {
+    return document.querySelector('input[name="layout-variant"]:checked')?.value || '';
+  }
+
   function updateColorSelection() {
     document.querySelectorAll('.palette-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
+  }
+
+  function updateLayoutSelection() {
+    document.querySelectorAll('.layout-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
   }
 
   function updateTemplateSelection(changeText = false) {
@@ -265,6 +273,7 @@
       options: {
         template: templateValue(),
         colorTheme: colorThemeValue(),
+        layoutVariant: layoutVariantValue() || undefined,
         headline: els.headline.value.trim(),
         subtitle: els.subtitle.value.trim(),
         productName: name,
@@ -396,6 +405,7 @@
 
     document.querySelectorAll('input[name="template"]').forEach(input => input.addEventListener('change', () => updateTemplateSelection(true)));
     document.querySelectorAll('input[name="color-theme"]').forEach(input => input.addEventListener('change', updateColorSelection));
+    document.querySelectorAll('input[name="layout-variant"]').forEach(input => input.addEventListener('change', updateLayoutSelection));
     els.productSearch.addEventListener('input', () => renderProductResults(els.productSearch.value));
     els.productResults.addEventListener('click', event => {
       const button = event.target.closest('[data-product-id]');
@@ -435,6 +445,7 @@
     bind();
     updateTemplateSelection(false);
     updateColorSelection();
+    updateLayoutSelection();
     updatePricingSummary();
     renderHistory();
     if (!token()) {
