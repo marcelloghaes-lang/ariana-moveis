@@ -155,7 +155,8 @@
       els.pricingSummary.classList.remove('ready');
       return;
     }
-    els.pricingSummary.innerHTML = `De <b>${money(full)}</b> por <b>${money(cash)}</b> à vista no dinheiro ou Pix • ou <b>${installments}x de ${money(installmentPrice)}</b> sem juros no cartão.`;
+    const cardTotal = installmentPrice * installments;
+    els.pricingSummary.innerHTML = `<b>${money(cash)}</b> à vista no Pix ou dinheiro • ou <b>${money(cardTotal)}</b> no cartão, em até <b>${installments}x de ${money(installmentPrice)}</b> sem juros.`;
     els.pricingSummary.classList.add('ready');
   }
 
@@ -167,9 +168,11 @@
       return;
     }
     const installments = Number(els.installments.value || 12);
-    const full = cash / 0.8272;
-    els.fullPrice.value = moneyInput(full);
-    els.installmentPrice.value = moneyInput(full / installments);
+    const calculatedFull = cash / 0.8272;
+    const installmentPrice = Math.round((calculatedFull / installments) * 100) / 100;
+    const exactCardTotal = installmentPrice * installments;
+    els.fullPrice.value = moneyInput(exactCardTotal);
+    els.installmentPrice.value = moneyInput(installmentPrice);
     updatePricingSummary();
     status('Regra ÷ 0,8272 aplicada ao preço a prazo e às parcelas.', 'ok');
   }
@@ -283,7 +286,7 @@
     if (!imageUrl) throw new Error('Selecione ou envie a imagem real do produto.');
     if (!cashPrice || !fullPrice) throw new Error('Informe o preço anterior e o preço à vista.');
     if (!installmentPrice) throw new Error('Informe o valor de cada parcela.');
-    if (fullPrice < cashPrice) throw new Error('O preço anterior não pode ser menor que o preço à vista.');
+    if (fullPrice < cashPrice) throw new Error('O preço total no cartão não pode ser menor que o preço à vista.');
     return {
       productId: String(selectedProduct?.id || selectedProduct?._id || ''),
       product: {
