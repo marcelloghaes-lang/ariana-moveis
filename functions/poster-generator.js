@@ -822,10 +822,11 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const headerMascot = await sharp(headerMascotBuffer)
       .rotate()
       .ensureAlpha()
-      .resize(275, 350, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+      .resize(285, 360, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    headerMascotComposite = { input: headerMascot, top: 830, left: 8 };
+    headerMascotComposite = { input: headerMascot, top: 830, left: 4 };
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
@@ -893,14 +894,40 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const meta = await sharp(productPng).metadata();
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
-    // Centralização horizontal obrigatória. A mascote é aplicada depois do
-    // produto e, caso as áreas se encontrem, permanece sempre por cima.
+    // Centraliza o objeto visível, e não apenas o retângulo do arquivo. Alguns
+    // recortes da nuvem mantêm transparência ou pequenos resíduos de um lado,
+    // o que deslocava visualmente celulares, caixas de som e móveis.
+    const visual = await sharp(productPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const visualChannels = Number(visual.info.channels || 4);
+    let alphaWeight = 0;
+    let weightedX = 0;
+    let visibleMinX = productW;
+    let visibleMaxX = 0;
+    for (let y = 0; y < productH; y += 1) {
+      for (let x = 0; x < productW; x += 1) {
+        const alpha = visual.data[(y * productW + x) * visualChannels + 3] || 0;
+        if (alpha < 48) continue;
+        alphaWeight += alpha;
+        weightedX += x * alpha;
+        visibleMinX = Math.min(visibleMinX, x);
+        visibleMaxX = Math.max(visibleMaxX, x);
+      }
+    }
+    const visibleCenterX = alphaWeight > 0 ? weightedX / alphaWeight : productW / 2;
+    if (alphaWeight <= 0) {
+      visibleMinX = 0;
+      visibleMaxX = productW - 1;
+    }
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
-    const centeredLeft = Math.round((width - productW) / 2);
-    const left = Math.max(20, centeredLeft);
+    const centeredLeft = Math.round(width / 2 - visibleCenterX);
+    // A moldura transparente pode sair do canvas; somente os pixels visíveis
+    // precisam respeitar a margem de segurança de 20 px.
+    const minSafeLeft = 20 - visibleMinX;
+    const maxSafeLeft = width - 20 - visibleMaxX;
+    const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
     const desiredTop = Math.round(minProductTop + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(minProductTop, Math.min(productBottomLimit - productH, desiredTop));
-    composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
+    composites.push({ input: productPng, left, top });
   }
 
   // A mascote entra depois do produto e permanece totalmente visível.
