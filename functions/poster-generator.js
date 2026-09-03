@@ -353,13 +353,19 @@ function professionalPricing(product = {}, options = {}) {
   const discountPercent = fullPrice > 0 && cashPrice > 0
     ? Math.max(0, Math.round((1 - cashPrice / fullPrice) * 100))
     : pixPercent;
+  const explicitInstallmentPrice = toNumber(
+    options.installmentPrice ?? options.parcelPrice ?? product.installmentPrice ?? product.parcelPrice,
+    0
+  );
 
   return {
     fullPrice,
     cashPrice,
     discountPercent,
     installmentCount,
-    installmentPrice: installmentCount > 0 ? fullPrice / installmentCount : fullPrice
+    installmentPrice: explicitInstallmentPrice > 0
+      ? explicitInstallmentPrice
+      : (installmentCount > 0 ? fullPrice / installmentCount : fullPrice)
   };
 }
 
@@ -728,17 +734,6 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const whatsapp = String(options.whatsapp || '(31) 98514-7119').trim();
   const email = String(options.email || 'contato@arianamoveis.com.br').trim();
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
-  const layoutPriceShift = layout === 'showcase' ? 45 : layout === 'premium' ? -25 : 0;
-  const layoutPriceY = layout === 'showcase' ? 8 : layout === 'premium' ? -6 : layout === 'catalog' ? 3 : 0;
-  const priceX = 300 + layoutPriceShift;
-  const priceWidth = 720;
-  const pricePanelX = 280;
-  const pricePanelWidth = 760;
-  const darkPanel = layout === 'premium';
-  const pricePanel = layout === 'classic' ? '' : `<rect x="${pricePanelX}" y="810" width="${pricePanelWidth}" height="318" rx="32" fill="${darkPanel ? '#003477' : '#ffffff'}" opacity="${darkPanel ? '.90' : '.82'}" stroke="${palette.accent}" stroke-width="2"/>`;
-  const mainPriceColor = darkPanel ? palette.accent : palette.price;
-  const priceTextColor = darkPanel ? '#ffffff' : palette.priceText;
-  const priceLineColor = darkPanel ? '#ffffff' : palette.line;
   const isSplit = layout === 'split';
   const productNameTop = isSplit ? 304 : 350;
   const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
@@ -756,32 +751,24 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
-  const pricingBlock = layout === 'split' ? `
-    <g>
-      <rect x="270" y="810" width="770" height="308" rx="28" fill="#D9F2FF" opacity=".20"/>
-      <line x1="660" y1="832" x2="660" y2="1095" stroke="${palette.line}" stroke-width="3" opacity=".85"/>
-      <text x="470" y="852" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="950" fill="${palette.bodyText}">SUPER DESCONTO À VISTA</text>
-      <text x="470" y="928" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" letter-spacing="-2" fill="${palette.price}">R$ ${escapeXml(cashValue)}</text>
-      <text x="470" y="974" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${palette.bodyText}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="470" y="1004" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="850" fill="${palette.bodyText}">(NO PIX OU BOLETO)</text>
-      <text x="470" y="1048" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" fill="${palette.bodyText}">CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
-      <text x="850" y="852" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" fill="${palette.bodyText}">POR R$</text>
-      <text x="850" y="928" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="950" letter-spacing="-2" fill="${palette.price}">${escapeXml(fullValue)}</text>
-      <text x="850" y="973" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700" fill="${palette.bodyText}">EM ATÉ</text>
-      <text x="850" y="1011" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="${palette.price}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
-      <text x="850" y="1047" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="900" fill="${palette.bodyText}">SEM JUROS NO CARTÃO</text>
-    </g>` : `
-    <g transform="translate(0 ${layoutPriceY})">
-      ${pricePanel}
-      <text x="${priceX}" y="870" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="900" fill="${priceTextColor}">POR R$</text>
-      <text x="${priceX + 170}" y="884" font-family="Arial, Helvetica, sans-serif" font-size="84" font-weight="950" letter-spacing="-3" fill="${mainPriceColor}">${escapeXml(fullValue)}</text>
-      <text x="${priceX}" y="920" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="500" fill="${priceTextColor}">EM ATÉ <tspan font-weight="950">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</tspan> SEM JUROS NO CARTÃO</text>
-      <line x1="${priceX}" y1="960" x2="${priceX + Math.round(priceWidth * .38)}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="970" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="${priceTextColor}">OU</text>
-      <line x1="${priceX + Math.round(priceWidth * .62)}" y1="960" x2="${priceX + priceWidth}" y2="960" stroke="${priceLineColor}" stroke-width="2"/>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1040" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="950" fill="${mainPriceColor}">R$ ${escapeXml(cashValue)}</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1074" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="950" fill="${priceTextColor}">À VISTA COM ${pricing.discountPercent}% DE DESCONTO</text>
-      <text x="${priceX + Math.round(priceWidth * .5)}" y="1110" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="900" fill="${priceTextColor}">NO PIX OU BOLETO • CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
+  // Padrão comercial Ariana: preço anterior riscado, oferta em amarelo e
+  // parcelamento do mesmo valor promocional. O bloco é igual em todos os temas.
+  const pricingBlock = `
+    <g font-family="Arial, Helvetica, sans-serif">
+      <text x="315" y="838" font-size="27" font-weight="950" fill="#FFFFFF">DE R$</text>
+      <text x="455" y="842" font-size="50" font-weight="950" fill="#FFFFFF">${escapeXml(fullValue)}</text>
+      <line x1="440" y1="817" x2="720" y2="852" stroke="#E51C23" stroke-width="7" stroke-linecap="round"/>
+      <text x="290" y="918" font-size="27" font-weight="950" fill="#FFE600">POR R$</text>
+      <text x="430" y="930" font-size="94" font-weight="950" letter-spacing="-4" fill="#FFE600" stroke="#00449A" stroke-width="1" paint-order="stroke fill">${escapeXml(cashValue)}</text>
+      <text x="430" y="976" font-size="25" font-weight="950" fill="#FFFFFF">À VISTA NO DINHEIRO OU PIX</text>
+      <line x1="270" y1="1012" x2="550" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
+      <text x="590" y="1022" text-anchor="middle" font-size="34" font-weight="950" fill="#FFE600">OU</text>
+      <line x1="635" y1="1012" x2="930" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
+      <text x="345" y="1050" text-anchor="middle" font-size="22" font-weight="900" fill="#FFFFFF">EM ATÉ</text>
+      <text x="345" y="1112" text-anchor="middle" font-size="72" font-weight="950" fill="#FFFFFF">${pricing.installmentCount}X</text>
+      <line x1="500" y1="1035" x2="500" y2="1120" stroke="#FFFFFF" stroke-width="2" opacity=".8"/>
+      <text x="700" y="1085" text-anchor="middle" font-size="54" font-weight="950" fill="#FFE600">${escapeXml(installmentValue)}</text>
+      <text x="700" y="1120" text-anchor="middle" font-size="23" font-weight="950" fill="#FFFFFF">SEM JUROS NO CARTÃO</text>
     </g>`;
 
   return `
@@ -793,7 +780,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
     ${pricingBlock}
 
-    <g transform="translate(185 1130)">
+    <g transform="translate(185 1135)">
       <rect x="0" y="0" width="855" height="54" rx="25" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
       <circle cx="35" cy="27" r="16" fill="none" stroke="${palette.accent}" stroke-width="3"/>
       <path d="M19 27h32M35 11c-7 5-10 10-10 16s3 11 10 16M35 11c7 5 10 10 10 16s-3 11-10 16M35 11v32" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
@@ -836,10 +823,10 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const headerMascot = await sharp(headerMascotBuffer)
       .rotate()
       .ensureAlpha()
-      .resize(300, 410, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize(275, 350, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    headerMascotComposite = { input: headerMascot, top: 700, left: 5 };
+    headerMascotComposite = { input: headerMascot, top: 800, left: 8 };
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
@@ -874,7 +861,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const estimatedHeight = naturalHeight * initialScale;
     const centeredEstimatedLeft = (width - estimatedWidth) / 2;
     const mayReachMascot = Boolean(headerMascotComposite) && centeredEstimatedLeft < 315 && minProductTop + estimatedHeight > 690;
-    const productBottomLimit = mayReachMascot ? 690 : 790;
+    const productBottomLimit = 790;
     const productMaxWidth = preset.w;
     const productMaxHeight = Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
     const resizedProduct = await sharp(cutout)
