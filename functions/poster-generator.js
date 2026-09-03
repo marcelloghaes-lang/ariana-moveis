@@ -893,12 +893,11 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const meta = await sharp(productPng).metadata();
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
-    // Todos os modelos partem do centro real; somente o controle manual do
-    // painel pode deslocar o produto horizontalmente.
-    const automaticOffsetX = 0;
+    // Centralização horizontal obrigatória. A mascote é aplicada depois do
+    // produto e, caso as áreas se encontrem, permanece sempre por cima.
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
     const centeredLeft = Math.round((width - productW) / 2);
-    const left = Math.max(20, Math.round(centeredLeft + automaticOffsetX + Number(options.productOffsetX || 0)));
+    const left = Math.max(20, centeredLeft);
     const desiredTop = Math.round(minProductTop + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(minProductTop, Math.min(productBottomLimit - productH, desiredTop));
     composites.push({ input: productPng, left: Math.min(width - productW - 20, left), top });
