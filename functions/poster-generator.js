@@ -350,22 +350,28 @@ function professionalPricing(product = {}, options = {}) {
   if (cashPrice <= 0 && fullPrice > 0) cashPrice = +(fullPrice * (1 - pixPercent / 100)).toFixed(2);
   if (fullPrice <= 0 && cashPrice > 0) fullPrice = +(cashPrice / 0.8272).toFixed(2);
 
-  const discountPercent = fullPrice > 0 && cashPrice > 0
-    ? Math.max(0, Math.round((1 - cashPrice / fullPrice) * 100))
-    : pixPercent;
   const explicitInstallmentPrice = toNumber(
     options.installmentPrice ?? options.parcelPrice ?? product.installmentPrice ?? product.parcelPrice,
     0
   );
+  const installmentPrice = explicitInstallmentPrice > 0
+    ? explicitInstallmentPrice
+    : (installmentCount > 0 ? +(fullPrice / installmentCount).toFixed(2) : fullPrice);
+  // O total anunciado no cartão precisa fechar exatamente com a multiplicação
+  // das parcelas, inclusive nos centavos.
+  if (installmentCount > 0 && installmentPrice > 0) {
+    fullPrice = +(installmentPrice * installmentCount).toFixed(2);
+  }
+  const discountPercent = fullPrice > 0 && cashPrice > 0
+    ? Math.max(0, Math.round((1 - cashPrice / fullPrice) * 100))
+    : pixPercent;
 
   return {
     fullPrice,
     cashPrice,
     discountPercent,
     installmentCount,
-    installmentPrice: explicitInstallmentPrice > 0
-      ? explicitInstallmentPrice
-      : (installmentCount > 0 ? fullPrice / installmentCount : fullPrice)
+    installmentPrice
   };
 }
 
@@ -751,23 +757,20 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
-  // Padrão comercial Ariana: preço anterior riscado, oferta em amarelo e
-  // parcelamento do mesmo valor promocional. O bloco é igual em todos os temas.
+  // Condições separadas por forma de pagamento. Não usa “DE/POR”: o valor
+  // menor é identificado como preço no Pix/dinheiro, e o total maior como
+  // preço no cartão, cuja soma fecha exatamente com as parcelas anunciadas.
   const pricingBlock = `
     <g font-family="Arial, Helvetica, sans-serif">
-      <text x="315" y="838" font-size="27" font-weight="950" fill="#FFFFFF">DE R$</text>
-      <text x="455" y="842" font-size="50" font-weight="950" fill="#FFFFFF">${escapeXml(fullValue)}</text>
-      <line x1="440" y1="817" x2="720" y2="852" stroke="#E51C23" stroke-width="7" stroke-linecap="round"/>
-      <text x="290" y="918" font-size="27" font-weight="950" fill="#FFE600">POR R$</text>
-      <text x="430" y="930" font-size="94" font-weight="950" letter-spacing="-4" fill="#FFE600" stroke="#00449A" stroke-width="1" paint-order="stroke fill">${escapeXml(cashValue)}</text>
-      <text x="430" y="976" font-size="25" font-weight="950" fill="#FFFFFF">À VISTA NO DINHEIRO OU PIX</text>
+      <text x="315" y="838" font-size="27" font-weight="950" fill="#FFFFFF">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+      <text x="300" y="930" font-size="38" font-weight="950" fill="#FFE600">R$</text>
+      <text x="385" y="930" font-size="94" font-weight="950" letter-spacing="-4" fill="#FFE600" stroke="#00449A" stroke-width="1" paint-order="stroke fill">${escapeXml(cashValue)}</text>
+      <text x="430" y="976" font-size="24" font-weight="950" fill="#FFFFFF">COM DESCONTO PARA PAGAMENTO À VISTA</text>
       <line x1="270" y1="1012" x2="550" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
       <text x="590" y="1022" text-anchor="middle" font-size="34" font-weight="950" fill="#FFE600">OU</text>
       <line x1="635" y1="1012" x2="930" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
-      <text x="405" y="1050" text-anchor="middle" font-size="22" font-weight="900" fill="#FFFFFF">EM ATÉ</text>
-      <text x="405" y="1112" text-anchor="middle" font-size="72" font-weight="950" fill="#FFFFFF">${pricing.installmentCount}X</text>
-      <text x="665" y="1085" text-anchor="middle" font-size="54" font-weight="950" fill="#FFE600">${escapeXml(installmentValue)}</text>
-      <text x="665" y="1120" text-anchor="middle" font-size="23" font-weight="950" fill="#FFFFFF">SEM JUROS NO CARTÃO</text>
+      <text x="650" y="1065" text-anchor="middle" font-size="38" font-weight="950" fill="#FFFFFF">NO CARTÃO: R$ ${escapeXml(fullValue)}</text>
+      <text x="650" y="1112" text-anchor="middle" font-size="31" font-weight="950" fill="#FFE600">EM ATÉ ${pricing.installmentCount}X DE ${escapeXml(installmentValue)} SEM JUROS</text>
     </g>`;
 
   return `
