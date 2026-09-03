@@ -149,13 +149,13 @@
     const cash = parseMoney(els.cashPrice.value);
     const full = parseMoney(els.fullPrice.value);
     const installments = Number(els.installments.value || 12);
+    const installmentPrice = parseMoney(els.installmentPrice.value) || (full / installments);
     if (!cash || !full) {
       els.pricingSummary.textContent = 'Informe o preço à vista para calcular o parcelamento.';
       els.pricingSummary.classList.remove('ready');
       return;
     }
-    const discount = Math.max(0, Math.round((1 - cash / full) * 100));
-    els.pricingSummary.innerHTML = `<b>${money(full)}</b> no cartão • <b>${installments}x de ${money(full / installments)}</b> sem juros • <b>${money(cash)}</b> à vista • desconto aproximado de <b>${discount}%</b>.`;
+    els.pricingSummary.innerHTML = `De <b>${money(full)}</b> por <b>${money(cash)}</b> à vista no dinheiro ou Pix • ou <b>${installments}x de ${money(installmentPrice)}</b> sem juros no cartão.`;
     els.pricingSummary.classList.add('ready');
   }
 
@@ -166,9 +166,16 @@
       els.cashPrice.focus();
       return;
     }
-    els.fullPrice.value = moneyInput(cash / 0.8272);
+    const full = parseMoney(els.fullPrice.value);
+    const installments = Number(els.installments.value || 12);
+    if (!full) {
+      status('Informe também o preço anterior (DE).', 'error');
+      els.fullPrice.focus();
+      return;
+    }
+    els.installmentPrice.value = moneyInput(full / installments);
     updatePricingSummary();
-    status('Total no cartão calculado pela regra oficial.', 'ok');
+    status('Valor da parcela calculado pelo preço anterior.', 'ok');
   }
 
   function renderProductResults(query = '') {
@@ -208,6 +215,7 @@
     els.imageUrl.value = imageOf(selectedProduct);
     if (cash) els.cashPrice.value = moneyInput(cash);
     if (full) els.fullPrice.value = moneyInput(full);
+    if (full) els.installmentPrice.value = moneyInput(full / Number(els.installments.value || 12));
     els.productSearch.value = selectedProduct.name || '';
     els.productResults.classList.add('hidden');
     els.selectedProduct.innerHTML = `<img src="${escapeHtml(imageOf(selectedProduct))}" alt=""><div><b>${escapeHtml(selectedProduct.name || 'Produto selecionado')}</b><span>${escapeHtml(selectedProduct.sku || selectedProduct.brand || 'Produto do catálogo')}</span></div><button id="clear-product" type="button">Trocar</button>`;
@@ -274,10 +282,12 @@
     const imageUrl = els.imageUrl.value.trim();
     const cashPrice = parseMoney(els.cashPrice.value);
     const fullPrice = parseMoney(els.fullPrice.value);
+    const installmentPrice = parseMoney(els.installmentPrice.value);
     if (!name) throw new Error('Informe o nome do produto.');
     if (!imageUrl) throw new Error('Selecione ou envie a imagem real do produto.');
-    if (!cashPrice || !fullPrice) throw new Error('Informe os preços à vista e no cartão.');
-    if (fullPrice < cashPrice) throw new Error('O total no cartão não pode ser menor que o preço à vista.');
+    if (!cashPrice || !fullPrice) throw new Error('Informe o preço anterior e o preço à vista.');
+    if (!installmentPrice) throw new Error('Informe o valor de cada parcela.');
+    if (fullPrice < cashPrice) throw new Error('O preço anterior não pode ser menor que o preço à vista.');
     return {
       productId: String(selectedProduct?.id || selectedProduct?._id || ''),
       product: {
@@ -288,7 +298,8 @@
         category: selectedProduct?.category || selectedProduct?.categoryName || '',
         cashPrice,
         fullPrice,
-        installmentCount: Number(els.installments.value || 12)
+        installmentCount: Number(els.installments.value || 12),
+        installmentPrice
       },
       options: {
         template: templateValue(),
@@ -302,6 +313,7 @@
         cashPrice,
         fullPrice,
         installmentCount: Number(els.installments.value || 12),
+        installmentPrice,
         removeLightBackground: els.removeBackground.checked,
         showMascot: els.showMascot.checked,
         productOffsetX: Number(els.offsetX.value || 0),
@@ -417,7 +429,7 @@
   function bind() {
     Object.assign(els, {
       headline: byId('headline'), subtitle: byId('subtitle'), productSearch: byId('product-search'), productResults: byId('product-results'), selectedProduct: byId('selected-product'),
-      productName: byId('product-name'), imageUrl: byId('image-url'), imageFile: byId('image-file'), uploadStatus: byId('upload-status'), cashPrice: byId('cash-price'), fullPrice: byId('full-price'),
+      productName: byId('product-name'), imageUrl: byId('image-url'), imageFile: byId('image-file'), uploadStatus: byId('upload-status'), cashPrice: byId('cash-price'), fullPrice: byId('full-price'), installmentPrice: byId('installment-price'),
       installments: byId('installments'), calculateCard: byId('calculate-card'), pricingSummary: byId('pricing-summary'), removeBackground: byId('remove-background'), showMascot: byId('show-mascot'),
       offsetX: byId('offset-x'), offsetY: byId('offset-y'), offsetXValue: byId('offset-x-value'), offsetYValue: byId('offset-y-value'), previewButton: byId('preview-button'), saveButton: byId('save-button'),
       downloadButton: byId('download-button'), shareButton: byId('share-button'), globalStatus: byId('global-status'), previewEmpty: byId('preview-empty'), previewLoading: byId('preview-loading'),
@@ -440,6 +452,7 @@
     els.calculateCard.addEventListener('click', calculateCardPrice);
     els.cashPrice.addEventListener('input', updatePricingSummary);
     els.fullPrice.addEventListener('input', updatePricingSummary);
+    els.installmentPrice.addEventListener('input', updatePricingSummary);
     els.installments.addEventListener('change', updatePricingSummary);
     els.offsetX.addEventListener('input', () => { els.offsetXValue.textContent = `${els.offsetX.value} px`; });
     els.offsetY.addEventListener('input', () => { els.offsetYValue.textContent = `${els.offsetY.value} px`; });
