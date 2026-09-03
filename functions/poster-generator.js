@@ -390,12 +390,12 @@ function professionalTextSize(text = '', large = 52, medium = 44, small = 36) {
 function professionalProductPreset(product = {}) {
   const type = detectProductType(product);
   const presets = {
-    tv: { w: 850, h: 380 },
-    wide: { w: 790, h: 390 },
-    large: { w: 760, h: 390 },
-    phone: { w: 480, h: 390 },
-    medium: { w: 650, h: 390 },
-    default: { w: 690, h: 390 }
+    tv: { w: 900, h: 420 },
+    wide: { w: 900, h: 420 },
+    large: { w: 840, h: 420 },
+    phone: { w: 620, h: 420 },
+    medium: { w: 760, h: 420 },
+    default: { w: 800, h: 420 }
   };
   return presets[type] || presets.default;
 }
@@ -766,7 +766,6 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <line x1="635" y1="1012" x2="930" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
       <text x="345" y="1050" text-anchor="middle" font-size="22" font-weight="900" fill="#FFFFFF">EM ATÉ</text>
       <text x="345" y="1112" text-anchor="middle" font-size="72" font-weight="950" fill="#FFFFFF">${pricing.installmentCount}X</text>
-      <line x1="500" y1="1035" x2="500" y2="1120" stroke="#FFFFFF" stroke-width="2" opacity=".8"/>
       <text x="700" y="1085" text-anchor="middle" font-size="54" font-weight="950" fill="#FFE600">${escapeXml(installmentValue)}</text>
       <text x="700" y="1120" text-anchor="middle" font-size="23" font-weight="950" fill="#FFFFFF">SEM JUROS NO CARTÃO</text>
     </g>`;
@@ -842,6 +841,17 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const cutout = usedIntelligentCutout
       ? rawImage
       : await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
+    // O serviço de recorte pode devolver um PNG transparente com uma grande
+    // margem vazia. Se essa margem entrar no cálculo, o objeto real fica
+    // pequeno. Normalizamos e retiramos apenas transparência externa antes de
+    // medir e redimensionar; nenhuma parte visível do produto é removida.
+    const normalizedCutout = await sharp(cutout)
+      .rotate()
+      .ensureAlpha()
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+      .png()
+      .toBuffer()
+      .catch(() => cutout);
     const preset = professionalProductPreset(product);
     // O produto permanece no centro geométrico do cartaz. Quando a mascote está
     // presente, produtos largos usam uma faixa vertical mais baixa para terminar
@@ -853,18 +863,16 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const productNameTop = splitLayout ? 304 : 350;
     const lastProductLineBaseline = productNameTop + (productLineCount - 1) * 37;
     const minProductTop = lastProductLineBaseline + 38;
-    const cutoutMeta = await sharp(cutout).metadata();
+    const cutoutMeta = await sharp(normalizedCutout).metadata();
     const naturalWidth = Math.max(1, Number(cutoutMeta.width || preset.w));
     const naturalHeight = Math.max(1, Number(cutoutMeta.height || preset.h));
     const initialScale = Math.min(preset.w / naturalWidth, preset.h / naturalHeight);
     const estimatedWidth = naturalWidth * initialScale;
     const estimatedHeight = naturalHeight * initialScale;
-    const centeredEstimatedLeft = (width - estimatedWidth) / 2;
-    const mayReachMascot = Boolean(headerMascotComposite) && centeredEstimatedLeft < 315 && minProductTop + estimatedHeight > 690;
     const productBottomLimit = 790;
     const productMaxWidth = preset.w;
     const productMaxHeight = Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
-    const resizedProduct = await sharp(cutout)
+    const resizedProduct = await sharp(normalizedCutout)
       .rotate()
       .ensureAlpha()
       .resize(productMaxWidth, productMaxHeight, {
