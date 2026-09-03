@@ -100,7 +100,7 @@
           <label class="field"><span>Preço anterior (DE)</span><input id="full-price" inputmode="decimal" placeholder="1.000,00"></label>
           <label class="field"><span>Quantidade de parcelas</span><select id="installments"><option>10</option><option selected>12</option><option>15</option><option>18</option></select></label>
           <label class="field"><span>Valor de cada parcela</span><input id="installment-price" inputmode="decimal" placeholder="90,00"></label>
-          <button id="calculate-card" class="button button-soft field-action" type="button">Calcular parcela pelo preço DE</button>
+          <button id="calculate-card" class="button button-soft field-action" type="button">Aplicar regra ÷ 0,8272</button>
         </div>
         <div id="pricing-summary" class="pricing-summary">Informe o preço à vista para calcular o parcelamento.</div>
       </div>
@@ -111,7 +111,7 @@
           <label class="switch-row"><input id="remove-background" type="checkbox" checked><span><b>Remover fundo branco automaticamente</b><small>Preserva o produto e elimina somente o fundo claro conectado às bordas.</small></span></label>
           <label class="switch-row"><input id="show-mascot" type="checkbox"><span><b>Usar mascote somente nesta campanha</b><small>Desligada por padrão. Ative apenas em campanhas especiais; ela ficará posicionada sem cobrir o produto ou os preços.</small></span></label>
           <div class="field-grid">
-            <label class="field"><span>Mover para os lados</span><input id="offset-x" type="range" min="-120" max="120" step="5" value="0"><output id="offset-x-value">0 px</output></label>
+            <label class="field"><span>Centralização horizontal automática</span><input id="offset-x" type="range" min="0" max="0" step="1" value="0" disabled><output id="offset-x-value">Centralizado</output></label>
             <label class="field"><span>Mover para cima/baixo</span><input id="offset-y" type="range" min="-90" max="90" step="5" value="0"><output id="offset-y-value">0 px</output></label>
           </div>
         </div>
@@ -147,7 +147,7 @@
     </section>
   </main>
 
-  <script src="./js/gerador_cartazes.js?v=20260903-1"></script>
+  <script src="./js/gerador_cartazes.js?v=20260903-2"></script>
   <script src="./pwa-register.js" data-sw="./sw-gerador-cartazes.js" data-scope="./gerador_cartazes.html"></script>
 </body>
 </html>
