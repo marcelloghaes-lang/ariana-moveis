@@ -764,10 +764,10 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <line x1="270" y1="1012" x2="550" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
       <text x="590" y="1022" text-anchor="middle" font-size="34" font-weight="950" fill="#FFE600">OU</text>
       <line x1="635" y1="1012" x2="930" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
-      <text x="345" y="1050" text-anchor="middle" font-size="22" font-weight="900" fill="#FFFFFF">EM ATÉ</text>
-      <text x="345" y="1112" text-anchor="middle" font-size="72" font-weight="950" fill="#FFFFFF">${pricing.installmentCount}X</text>
-      <text x="700" y="1085" text-anchor="middle" font-size="54" font-weight="950" fill="#FFE600">${escapeXml(installmentValue)}</text>
-      <text x="700" y="1120" text-anchor="middle" font-size="23" font-weight="950" fill="#FFFFFF">SEM JUROS NO CARTÃO</text>
+      <text x="405" y="1050" text-anchor="middle" font-size="22" font-weight="900" fill="#FFFFFF">EM ATÉ</text>
+      <text x="405" y="1112" text-anchor="middle" font-size="72" font-weight="950" fill="#FFFFFF">${pricing.installmentCount}X</text>
+      <text x="665" y="1085" text-anchor="middle" font-size="54" font-weight="950" fill="#FFE600">${escapeXml(installmentValue)}</text>
+      <text x="665" y="1120" text-anchor="middle" font-size="23" font-weight="950" fill="#FFFFFF">SEM JUROS NO CARTÃO</text>
     </g>`;
 
   return `
@@ -779,8 +779,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
     ${pricingBlock}
 
-    <g transform="translate(185 1135)">
-      <rect x="0" y="0" width="855" height="54" rx="25" fill="#0057A8" opacity=".74" stroke="${palette.accent}" stroke-width="2"/>
+    <g transform="translate(260 1135)">
+      <rect x="0" y="0" width="760" height="54" rx="25" fill="#0057A8" opacity=".86" stroke="${palette.accent}" stroke-width="2"/>
       <circle cx="35" cy="27" r="16" fill="none" stroke="${palette.accent}" stroke-width="3"/>
       <path d="M19 27h32M35 11c-7 5-10 10-10 16s3 11 10 16M35 11c7 5 10 10 10 16s-3 11-10 16M35 11v32" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
       <text x="68" y="22" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
@@ -825,7 +825,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       .resize(275, 350, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    headerMascotComposite = { input: headerMascot, top: 800, left: 8 };
+    headerMascotComposite = { input: headerMascot, top: 830, left: 8 };
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
