@@ -166,16 +166,12 @@
       els.cashPrice.focus();
       return;
     }
-    const full = parseMoney(els.fullPrice.value);
     const installments = Number(els.installments.value || 12);
-    if (!full) {
-      status('Informe também o preço anterior (DE).', 'error');
-      els.fullPrice.focus();
-      return;
-    }
+    const full = cash / 0.8272;
+    els.fullPrice.value = moneyInput(full);
     els.installmentPrice.value = moneyInput(full / installments);
     updatePricingSummary();
-    status('Valor da parcela calculado pelo preço anterior.', 'ok');
+    status('Regra ÷ 0,8272 aplicada ao preço a prazo e às parcelas.', 'ok');
   }
 
   function renderProductResults(query = '') {
