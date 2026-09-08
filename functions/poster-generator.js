@@ -750,13 +750,13 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     </svg>`;
   }
   const layoutDecoration = layout === 'showcase'
-    ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="${palette.accent}" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
+    ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="#FFD400" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
     : layout === 'premium'
       ? `<path d="M-80 880 L1080 520 L1080 930 L-80 1150 Z" fill="#001B4D" opacity=".16"/><rect x="36" y="300" width="1008" height="500" rx="38" fill="none" stroke="#ffffff" stroke-width="2" opacity=".12"/>`
       : layout === 'catalog'
         ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".12" stroke="#ffffff" stroke-width="3"/>`
         : layout === 'diagonal'
-          ? `<path d="M-120 360 L1080 120 L1080 340 L-120 580 Z" fill="${palette.accent}" opacity=".12"/><path d="M-100 890 L1080 560 L1080 820 L-100 1110 Z" fill="#001B4D" opacity=".16"/><circle cx="905" cy="510" r="190" fill="#ffffff" opacity=".06"/>`
+          ? `<path d="M-120 360 L1080 120 L1080 340 L-120 580 Z" fill="#FFD400" opacity=".12"/><path d="M-100 890 L1080 560 L1080 820 L-100 1110 Z" fill="#001B4D" opacity=".16"/><circle cx="905" cy="510" r="190" fill="#ffffff" opacity=".06"/>`
           : layout === 'split'
           ? `<path d="M0 420 C210 350 390 385 570 345 C760 302 920 310 1080 255 L1080 760 C850 720 650 790 465 760 C285 730 130 690 0 735 Z" fill="#ffffff" opacity=".07"/>`
           : layout === 'varejo'
@@ -788,7 +788,7 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     <path d="M0 745 C230 690 390 770 600 720 C790 675 915 605 1080 650 L1080 1080 C880 1040 720 1110 525 1080 C315 1045 180 980 0 1035 Z" fill="#ffffff" opacity=".055"/>
     <ellipse cx="555" cy="756" rx="315" ry="34" fill="#00163F" opacity=".32" filter="url(#softShadow)"/>
     <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="${layout === 'varejo' ? 175 : 160}" fill="${palette.footer}"/>
-    <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="6" fill="${palette.accent}" opacity=".98"/>
+    <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="6" fill="#FFD400" opacity=".98"/>
   </svg>`;
 }
 
@@ -832,11 +832,10 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
   if (isExactLateral) {
     const colorKey = String(options.colorTheme || 'azul').toLowerCase();
-    const isYellowTheme = colorKey === 'amarelo';
-    const richYellow = isYellowTheme ? '#073B78' : '#FFD400';
-    const strongBlue = '#0B3F7E';
-    const lightText = isYellowTheme ? '#073B78' : '#FFFFFF';
-    const priceStroke = isYellowTheme ? '#FFFFFF' : '#8A7100';
+    const exactText = professionalAdaptiveText(options.colorTheme);
+    const richYellow = exactText.accent;
+    const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : exactText.primary;
+    const lightText = exactText.primary;
     const exactProductLines = wrapText(productNameRaw, 30, 2);
     const exactProductSize = professionalTextSize(productNameRaw, 34, 30, 27);
     const emailParts = email.includes('@') ? [email.slice(0, email.indexOf('@') + 1), email.slice(email.indexOf('@') + 1)] : [email];
@@ -851,11 +850,11 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
         <text x="540" y="248" text-anchor="middle" font-size="28" font-weight="800" fill="${lightText}">${escapeXml(subtitle)}</text>
         <text x="540" y="315" text-anchor="middle" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
 
-        ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}" stroke="${priceStroke}" stroke-width=".65" paint-order="stroke fill">${escapeXml(line)}</text>`).join('')}
+        ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
 
         <text x="775" y="704" text-anchor="middle" font-size="27" font-weight="950" fill="${lightText}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
         <text x="610" y="805" font-size="44" font-weight="950" fill="${lightText}">R$</text>
-        <text x="685" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="${richYellow}" stroke="${priceStroke}" stroke-width="1.1" paint-order="stroke fill">${escapeXml(cashValue)}</text>
+        <text x="685" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
         <text x="775" y="846" text-anchor="middle" font-size="22" font-weight="850" fill="${lightText}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
 
         <text x="775" y="910" text-anchor="middle" font-size="42" font-weight="950" fill="${richYellow}">OU</text>
@@ -900,22 +899,21 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   }
 
   if (isVarejo) {
-    const isYellowTheme = String(options.colorTheme || '').toLowerCase() === 'amarelo';
-    const richYellow = isYellowTheme ? '#073B78' : '#FFD400';
-    const footerGold = '#FFD400';
-    const priceStroke = isYellowTheme ? '#FFFFFF' : '#7A6400';
-    const strongBlue = '#0B3F7E';
+    const colorKey = String(options.colorTheme || '').toLowerCase();
     const varejoText = professionalAdaptiveText(options.colorTheme);
+    const richYellow = varejoText.accent;
+    const footerGold = '#FFD400';
+    const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : varejoText.primary;
     return `
     <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
       ${brandSvg}
       <text x="540" y="250" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="800" fill="${varejoText.primary}">${escapeXml(subtitle)}</text>
       <text x="540" y="315" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
-      ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}" stroke="${priceStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('')}
+      ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
       <g font-family="Arial, Helvetica, sans-serif">
         <text x="770" y="690" text-anchor="middle" font-size="27" font-weight="950" fill="${varejoText.primary}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
         <text x="630" y="790" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
-        <text x="705" y="790" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}" stroke="${priceStroke}" stroke-width="1.2" paint-order="stroke fill">${escapeXml(cashValue)}</text>
+        <text x="705" y="790" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
         <text x="770" y="830" text-anchor="middle" font-size="22" font-weight="850" fill="${varejoText.secondary}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
         <text x="770" y="885" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
         <text x="770" y="950" text-anchor="middle" font-size="40" font-weight="950" fill="${varejoText.primary}">EM ATÉ ${pricing.installmentCount}X DE</text>
@@ -967,11 +965,11 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     ${pricingBlock}
 
     <g transform="translate(260 1135)">
-      <rect x="0" y="0" width="760" height="54" rx="25" fill="#0057A8" opacity=".86" stroke="${palette.accent}" stroke-width="2"/>
-      <circle cx="35" cy="27" r="16" fill="none" stroke="${palette.accent}" stroke-width="3"/>
-      <path d="M19 27h32M35 11c-7 5-10 10-10 16s3 11 10 16M35 11c7 5 10 10 10 16s-3 11-10 16M35 11v32" fill="none" stroke="${palette.accent}" stroke-width="1.8"/>
+      <rect x="0" y="0" width="760" height="54" rx="25" fill="#0057A8" opacity=".86" stroke="#FFD400" stroke-width="2"/>
+      <circle cx="35" cy="27" r="16" fill="none" stroke="#FFD400" stroke-width="3"/>
+      <path d="M19 27h32M35 11c-7 5-10 10-10 16s3 11 10 16M35 11c7 5 10 10 10 16s-3 11-10 16M35 11v32" fill="none" stroke="#FFD400" stroke-width="1.8"/>
       <text x="68" y="22" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="800" fill="#ffffff">Compre também pelo nosso site:</text>
-      <text x="68" y="46" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="${palette.accent}">${escapeXml(site)}</text>
+      <text x="68" y="46" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
     </g>
 
     <g transform="translate(44 1215)">
@@ -979,15 +977,15 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <path d="M43 20C31 20 22 29 22 41c0 7 3 13 9 17l-3 10 11-5c1 0 3 1 4 1 12 0 22-9 22-22S55 20 43 20Z" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"/>
       <path d="M34 30c-3 3-2 10 4 17 6 7 13 10 17 7l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-5-8-3 3Z" fill="#ffffff"/>
       <text x="98" y="33" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="500" fill="#ffffff">Atendimento pelo WhatsApp</text>
-      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="${palette.accent}">${escapeXml(whatsapp)}</text>
+      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="#FFD400">${escapeXml(whatsapp)}</text>
     </g>
     <line x1="515" y1="1219" x2="515" y2="1325" stroke="#ffffff" stroke-width="2" opacity=".75"/>
     <g transform="translate(548 1215)">
-      <circle cx="43" cy="43" r="38" fill="none" stroke="${palette.accent}" stroke-width="4"/>
-      <rect x="22" y="29" width="42" height="29" rx="3" fill="none" stroke="${palette.accent}" stroke-width="4"/>
-      <path d="M23 31l20 16 20-16" fill="none" stroke="${palette.accent}" stroke-width="4"/>
+      <circle cx="43" cy="43" r="38" fill="none" stroke="#FFD400" stroke-width="4"/>
+      <rect x="22" y="29" width="42" height="29" rx="3" fill="none" stroke="#FFD400" stroke-width="4"/>
+      <path d="M23 31l20 16 20-16" fill="none" stroke="#FFD400" stroke-width="4"/>
       <text x="98" y="33" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="500" fill="#ffffff">E-mail</text>
-      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="${palette.accent}">${escapeXml(email)}</text>
+      <text x="98" y="69" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="#FFD400">${escapeXml(email)}</text>
     </g>
   </svg>`;
 }
