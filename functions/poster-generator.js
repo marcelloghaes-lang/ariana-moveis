@@ -754,8 +754,10 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     : layout === 'premium'
       ? `<path d="M-80 880 L1080 520 L1080 930 L-80 1150 Z" fill="#001B4D" opacity=".16"/><rect x="36" y="300" width="1008" height="500" rx="38" fill="none" stroke="#ffffff" stroke-width="2" opacity=".12"/>`
       : layout === 'catalog'
-        ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".07" stroke="#ffffff" stroke-width="2"/>`
-        : layout === 'split'
+        ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".12" stroke="#ffffff" stroke-width="3"/>`
+        : layout === 'diagonal'
+          ? `<path d="M-120 360 L1080 120 L1080 340 L-120 580 Z" fill="${palette.accent}" opacity=".12"/><path d="M-100 890 L1080 560 L1080 820 L-100 1110 Z" fill="#001B4D" opacity=".16"/><circle cx="905" cy="510" r="190" fill="#ffffff" opacity=".06"/>`
+          : layout === 'split'
           ? `<path d="M0 420 C210 350 390 385 570 345 C760 302 920 310 1080 255 L1080 760 C850 720 650 790 465 760 C285 730 130 690 0 735 Z" fill="#ffffff" opacity=".07"/>`
           : layout === 'varejo'
             ? `<path d="M0 415 C250 345 470 370 650 338 C830 305 955 300 1080 270 L1080 870 C850 820 650 860 455 835 C285 815 125 760 0 795 Z" fill="#ffffff" opacity=".10"/>`
@@ -794,6 +796,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const template = String(options.template || 'oferta').toLowerCase();
   const layout = String(options.layoutVariant || 'classic').toLowerCase();
   const palette = professionalPalette(template, options.colorTheme);
+  const adaptive = professionalAdaptiveText(options.colorTheme);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
   const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
   const productNameRaw = String(options.productName || product.name || product.title || 'Produto Ariana Móveis').trim();
@@ -811,7 +814,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const isVarejo = layout === 'varejo';
   const isExactLateral = layout === 'azul_lateral_exato';
   const productNameTop = isVarejo ? 480 : (isSplit ? 304 : 350);
-  const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
+  const standardProductNameX = layout === 'catalog' ? 285 : (['showcase', 'split', 'diagonal'].includes(layout) ? 760 : 540);
+  const productNameSvg = productLines.map((line, index) => `<text x="${standardProductNameX}" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${adaptive.primary}">${escapeXml(line)}</text>`).join('');
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
@@ -860,6 +864,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
           <tspan fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS </tspan>
           <tspan fill="${lightText}">NO CARTÃO</tspan>
         </text>
+        <text x="775" y="1065" text-anchor="middle" font-size="24" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
       </g>
 
       <g transform="translate(32 1203)" font-family="Arial, Helvetica, sans-serif">
@@ -900,20 +905,22 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     const footerGold = '#FFD400';
     const priceStroke = isYellowTheme ? '#FFFFFF' : '#7A6400';
     const strongBlue = '#0B3F7E';
+    const varejoText = professionalAdaptiveText(options.colorTheme);
     return `
     <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
       ${brandSvg}
-      <text x="540" y="250" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#FFFFFF">${escapeXml(subtitle)}</text>
+      <text x="540" y="250" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="800" fill="${varejoText.primary}">${escapeXml(subtitle)}</text>
       <text x="540" y="315" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
       ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}" stroke="${priceStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('')}
       <g font-family="Arial, Helvetica, sans-serif">
-        <text x="770" y="690" text-anchor="middle" font-size="27" font-weight="950" fill="#FFFFFF">PREÇO À VISTA NO PIX OU DINHEIRO</text>
-        <text x="630" y="790" font-size="42" font-weight="950" fill="#FFFFFF">R$</text>
+        <text x="770" y="690" text-anchor="middle" font-size="27" font-weight="950" fill="${varejoText.primary}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+        <text x="630" y="790" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
         <text x="705" y="790" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}" stroke="${priceStroke}" stroke-width="1.2" paint-order="stroke fill">${escapeXml(cashValue)}</text>
-        <text x="770" y="830" text-anchor="middle" font-size="22" font-weight="850" fill="#FFFFFF">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+        <text x="770" y="830" text-anchor="middle" font-size="22" font-weight="850" fill="${varejoText.secondary}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
         <text x="770" y="885" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
-        <text x="770" y="950" text-anchor="middle" font-size="40" font-weight="950" fill="#FFFFFF">EM ATÉ ${pricing.installmentCount}X DE</text>
+        <text x="770" y="950" text-anchor="middle" font-size="40" font-weight="950" fill="${varejoText.primary}">EM ATÉ ${pricing.installmentCount}X DE</text>
         <text x="770" y="1005" text-anchor="middle" font-size="35" font-weight="950" fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS NO CARTÃO</text>
+        <text x="770" y="1048" text-anchor="middle" font-size="24" font-weight="850" fill="${varejoText.primary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
       </g>
       <g transform="translate(35 1205)">
         <circle cx="44" cy="44" r="37" fill="#19B64B" stroke="#FFFFFF" stroke-width="5"/>
@@ -937,27 +944,24 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     </svg>`;
   }
 
-  // Condições separadas por forma de pagamento. Não usa “DE/POR”: o valor
-  // menor é identificado como preço no Pix/dinheiro, e o total maior como
-  // preço no cartão, cuja soma fecha exatamente com as parcelas anunciadas.
+  // Padrão único de preços em todos os layouts:
+  // à vista, parcelas sem juros e o valor parcelado total logo abaixo.
   const pricingBlock = `
     <g font-family="Arial, Helvetica, sans-serif">
-      <text x="315" y="838" font-size="27" font-weight="950" fill="#FFFFFF">PREÇO À VISTA NO PIX OU DINHEIRO</text>
-      <text x="300" y="930" font-size="38" font-weight="950" fill="#FFE600">R$</text>
-      <text x="385" y="930" font-size="94" font-weight="950" letter-spacing="-4" fill="#FFE600" stroke="#00449A" stroke-width="1" paint-order="stroke fill">${escapeXml(cashValue)}</text>
-      <text x="430" y="976" font-size="24" font-weight="950" fill="#FFFFFF">COM DESCONTO PARA PAGAMENTO À VISTA</text>
-      <line x1="270" y1="1012" x2="550" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
-      <text x="590" y="1022" text-anchor="middle" font-size="34" font-weight="950" fill="#FFE600">OU</text>
-      <line x1="635" y1="1012" x2="930" y2="1012" stroke="#FFFFFF" stroke-width="2" opacity=".9"/>
-      <text x="650" y="1065" text-anchor="middle" font-size="38" font-weight="950" fill="#FFFFFF">NO CARTÃO: R$ ${escapeXml(fullValue)}</text>
-      <text x="650" y="1112" text-anchor="middle" font-size="31" font-weight="950" fill="#FFE600">EM ATÉ ${pricing.installmentCount}X DE ${escapeXml(installmentValue)} SEM JUROS</text>
+      <text x="540" y="820" text-anchor="middle" font-size="27" font-weight="950" fill="${adaptive.primary}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+      <text x="345" y="908" font-size="38" font-weight="950" fill="${adaptive.primary}">R$</text>
+      <text x="420" y="908" font-size="88" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
+      <text x="540" y="950" text-anchor="middle" font-size="22" font-weight="850" fill="${adaptive.secondary}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+      <text x="540" y="1002" text-anchor="middle" font-size="34" font-weight="950" fill="${adaptive.accent}">OU</text>
+      <text x="540" y="1048" text-anchor="middle" font-size="33" font-weight="950" fill="${adaptive.primary}">EM ATÉ ${pricing.installmentCount}X DE ${escapeXml(installmentValue)} SEM JUROS NO CARTÃO</text>
+      <text x="540" y="1088" text-anchor="middle" font-size="24" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
     </g>`;
 
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     ${brandSvg}
-    <text x="540" y="${isSplit ? 222 : 274}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${palette.headlineText}" stroke="${palette.brandText}" stroke-width="1" paint-order="stroke fill">${escapeXml(headline)}</text>
-    <text x="540" y="${isSplit ? 260 : 314}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" fill="${palette.subtitleText}">${escapeXml(subtitle)}</text>
+    <text x="540" y="${isSplit ? 222 : 274}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${adaptive.primary}">${escapeXml(headline)}</text>
+    <text x="540" y="${isSplit ? 260 : 314}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="750" fill="${adaptive.secondary}">${escapeXml(subtitle)}</text>
     ${productNameSvg}
 
     ${pricingBlock}
