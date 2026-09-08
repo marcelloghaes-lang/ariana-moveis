@@ -393,6 +393,29 @@ function professionalPalette(_template = 'oferta', colorTheme = 'azul') {
   return palettes[key] || palettes.azul;
 }
 
+function professionalAdaptiveText(colorTheme = 'azul') {
+  const key = String(colorTheme || 'azul').toLowerCase();
+  const lightThemes = new Set(['celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']);
+  if (lightThemes.has(key)) {
+    return {
+      primary: '#073B78',
+      secondary: '#164B7E',
+      accent: key === 'amarelo' ? '#073B78' : '#C58A00',
+      price: '#073B78',
+      onDark: '#FFFFFF',
+      outline: '#FFFFFF'
+    };
+  }
+  return {
+    primary: '#FFFFFF',
+    secondary: '#F4FAFF',
+    accent: '#FFD400',
+    price: '#FFD400',
+    onDark: '#FFFFFF',
+    outline: '#073B78'
+  };
+}
+
 function professionalTextSize(text = '', large = 52, medium = 44, small = 36) {
   const length = String(text || '').trim().length;
   if (length <= 28) return large;
