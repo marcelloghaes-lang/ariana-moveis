@@ -379,6 +379,12 @@ function professionalPalette(_template = 'oferta', colorTheme = 'azul') {
   const key = String(colorTheme || 'azul').toLowerCase();
   const palettes = {
     azul: { start: '#0047AB', middle: '#0797DE', end: '#07C3F4', glow: '#BCEEFF', accent: '#FFE600', footer: '#00398D', brandText: '#062B63', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#FFE600', subtitleText: '#FFFFFF', bodyText: '#062B63', price: '#00398D', priceText: '#063B86', line: '#064B9A' },
+    celeste: { start: '#69BDEB', middle: '#8FD0F3', end: '#D5F2FF', glow: '#FFFFFF', accent: '#FFD900', footer: '#073B78', brandText: '#0C4B8E', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#0B3A75', subtitleText: '#FFFFFF', bodyText: '#123F7D', price: '#0A4F91', priceText: '#0A4F91', line: '#4EA6D8' },
+    champagne: { start: '#B8935B', middle: '#D8BE8C', end: '#F4E9D4', glow: '#FFF9EE', accent: '#FFD400', footer: '#5B4528', brandText: '#51402A', brandStroke: '#FFFDF8', brandSecondary: '#FFFDF8', headlineText: '#47371F', subtitleText: '#FFFDF8', bodyText: '#51402A', price: '#5B4528', priceText: '#51402A', line: '#B0905C' },
+    salvia: { start: '#6D8C79', middle: '#9EB7A5', end: '#DCE7DF', glow: '#F8FFF9', accent: '#FFD84A', footer: '#355342', brandText: '#2F4B3A', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#2F4B3A', subtitleText: '#FFFFFF', bodyText: '#2F4B3A', price: '#355342', priceText: '#355342', line: '#6D8C79' },
+    areia: { start: '#C98E6D', middle: '#E7B99E', end: '#F7DDD0', glow: '#FFF8F3', accent: '#FFD348', footer: '#694738', brandText: '#5B3B2F', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#5B3B2F', subtitleText: '#FFFFFF', bodyText: '#5B3B2F', price: '#694738', priceText: '#694738', line: '#B77858' },
+    prata: { start: '#768492', middle: '#B6C0C9', end: '#EEF2F5', glow: '#FFFFFF', accent: '#FFD800', footer: '#394754', brandText: '#2D3A46', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#2D3A46', subtitleText: '#FFFFFF', bodyText: '#2D3A46', price: '#394754', priceText: '#394754', line: '#6E7A86' },
+    lilas: { start: '#8575A8', middle: '#B7A9D0', end: '#ECE6F5', glow: '#FFFFFF', accent: '#FFE05B', footer: '#4A3D67', brandText: '#46385F', brandStroke: '#FFFFFF', brandSecondary: '#FFFFFF', headlineText: '#46385F', subtitleText: '#FFFFFF', bodyText: '#46385F', price: '#4A3D67', priceText: '#4A3D67', line: '#7A6A9A' },
     dourado: { start: '#6B3F12', middle: '#B7791F', end: '#E8B84E', glow: '#FFF0B3', accent: '#FFF06A', footer: '#3D240B', brandText: '#3D240B', brandStroke: '#FFF8DC', brandSecondary: '#FFF8DC', headlineText: '#3D240B', subtitleText: '#4A2B0A', bodyText: '#3D240B', price: '#3D240B', priceText: '#4A2B0A', line: '#6B3F12' },
     esmeralda: { start: '#064E3B', middle: '#0F766E', end: '#2DB89A', glow: '#CFFDEE', accent: '#FFD84D', footer: '#043B32', brandText: '#043B32', brandStroke: '#EFFFF8', brandSecondary: '#FFFFFF', headlineText: '#FFD84D', subtitleText: '#FFFFFF', bodyText: '#043B32', price: '#043B32', priceText: '#064E3B', line: '#08705E' },
     violeta: { start: '#35166D', middle: '#6D3DB5', end: '#A66DE8', glow: '#E9D8FF', accent: '#FFE066', footer: '#251044', brandText: '#251044', brandStroke: '#F7F0FF', brandSecondary: '#FFFFFF', headlineText: '#FFE066', subtitleText: '#FFFFFF', bodyText: '#251044', price: '#251044', priceText: '#35166D', line: '#4B2585' }
@@ -662,7 +668,7 @@ async function professionalBackgroundBuffer(product = {}, options = {}) {
   if (!scene.buffer) {
     return Buffer.from(professionalBackgroundSvg({ template: options.template, layoutVariant: layout, colorTheme: options.colorTheme }));
   }
-  const tintMap = { azul: '#1687D2', dourado: '#B7791F', esmeralda: '#168A72', violeta: '#7650B9' };
+  const tintMap = { azul: '#1687D2', celeste: '#8BCDF1', champagne: '#C7A56E', salvia: '#93AD9A', areia: '#D4A084', prata: '#9EABB6', lilas: '#A99AC3', dourado: '#B7791F', esmeralda: '#168A72', violeta: '#7650B9' };
   const tint = tintMap[String(options.colorTheme || 'azul').toLowerCase()] || tintMap.azul;
   const overlay = Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".08"/><stop offset=".58" stop-color="#ffffff" stop-opacity=".02"/><stop offset="1" stop-color="#001B3A" stop-opacity=".36"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#shade)"/><rect y="1190" width="1080" height="160" fill="#001B3A" opacity=".96"/></svg>`);
   try {
@@ -694,7 +700,9 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
         ? `<path d="M0 390 C260 315 445 355 650 315 C840 278 960 300 1080 250 L1080 790 C860 750 690 800 495 775 C300 750 145 700 0 735 Z" fill="#ffffff" opacity=".09"/><rect x="55" y="375" width="970" height="430" rx="38" fill="#ffffff" opacity=".07" stroke="#ffffff" stroke-width="2"/>`
         : layout === 'split'
           ? `<path d="M0 420 C210 350 390 385 570 345 C760 302 920 310 1080 255 L1080 760 C850 720 650 790 465 760 C285 730 130 690 0 735 Z" fill="#ffffff" opacity=".07"/>`
-          : '';
+          : layout === 'varejo'
+            ? `<path d="M0 415 C250 345 470 370 650 338 C830 305 955 300 1080 270 L1080 870 C850 820 650 860 455 835 C285 815 125 760 0 795 Z" fill="#ffffff" opacity=".10"/>`
+            : '';
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -714,13 +722,14 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
     </defs>
     <rect width="1080" height="1350" fill="url(#posterBg)"/>
     <rect width="1080" height="1350" fill="url(#posterGlow)"/>
+    ${layout === 'varejo' ? `<rect x="0" y="0" width="1080" height="1350" fill="#7CC7F1" opacity=".20"/>` : ''}
     <circle cx="930" cy="165" r="220" fill="#ffffff" opacity=".035"/>
     <circle cx="85" cy="560" r="210" fill="#ffffff" opacity=".025"/>
     ${layoutDecoration}
     <path d="M0 745 C230 690 390 770 600 720 C790 675 915 605 1080 650 L1080 1080 C880 1040 720 1110 525 1080 C315 1045 180 980 0 1035 Z" fill="#ffffff" opacity=".055"/>
     <ellipse cx="555" cy="756" rx="315" ry="34" fill="#00163F" opacity=".32" filter="url(#softShadow)"/>
-    <rect x="0" y="1190" width="1080" height="160" fill="${palette.footer}"/>
-    <rect x="0" y="1190" width="1080" height="6" fill="${palette.accent}" opacity=".95"/>
+    <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="${layout === 'varejo' ? 175 : 160}" fill="${palette.footer}"/>
+    <rect x="0" y="${layout === 'varejo' ? 1175 : 1190}" width="1080" height="6" fill="${palette.accent}" opacity=".98"/>
   </svg>`;
 }
 
@@ -741,7 +750,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const email = String(options.email || 'contato@arianamoveis.com.br').trim();
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
   const isSplit = layout === 'split';
-  const productNameTop = isSplit ? 304 : 350;
+  const isVarejo = layout === 'varejo';
+  const productNameTop = isVarejo ? 480 : (isSplit ? 304 : 350);
   const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
@@ -757,6 +767,46 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
+  if (isVarejo) {
+    const richYellow = '#FFD400';
+    const strongBlue = '#0B3F7E';
+    return `
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      ${brandSvg}
+      <text x="540" y="250" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700" fill="#FFFFFF">${escapeXml(subtitle)}</text>
+      <text x="540" y="315" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
+      ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}" stroke="#7A6400" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('')}
+      <g font-family="Arial, Helvetica, sans-serif">
+        <text x="770" y="690" text-anchor="middle" font-size="27" font-weight="950" fill="#FFFFFF">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+        <text x="630" y="790" font-size="42" font-weight="950" fill="#FFFFFF">R$</text>
+        <text x="705" y="790" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}" stroke="#8B7200" stroke-width="1.2" paint-order="stroke fill">${escapeXml(cashValue)}</text>
+        <text x="770" y="830" text-anchor="middle" font-size="22" font-weight="850" fill="#FFFFFF">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+        <text x="770" y="885" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
+        <text x="770" y="950" text-anchor="middle" font-size="40" font-weight="950" fill="#FFFFFF">EM ATÉ ${pricing.installmentCount}X DE</text>
+        <text x="770" y="1005" text-anchor="middle" font-size="35" font-weight="950" fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS NO CARTÃO</text>
+      </g>
+      <g transform="translate(35 1205)">
+        <circle cx="44" cy="44" r="37" fill="#19B64B" stroke="#FFFFFF" stroke-width="5"/>
+        <text x="100" y="30" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#FFFFFF">Atendimento pelo WhatsApp</text>
+        <text x="100" y="67" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="950" fill="${richYellow}">${escapeXml(whatsapp)}</text>
+      </g>
+      <line x1="350" y1="1197" x2="350" y2="1330" stroke="${richYellow}" stroke-width="2"/>
+      <g transform="translate(382 1205)">
+        <circle cx="44" cy="44" r="35" fill="none" stroke="${richYellow}" stroke-width="4"/>
+        <text x="100" y="30" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#FFFFFF">Compre também pelo nosso site</text>
+        <text x="100" y="67" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="${richYellow}">${escapeXml(site)}</text>
+      </g>
+      <line x1="705" y1="1197" x2="705" y2="1330" stroke="${richYellow}" stroke-width="2"/>
+      <g transform="translate(735 1205)">
+        <circle cx="44" cy="44" r="35" fill="none" stroke="${richYellow}" stroke-width="4"/>
+        <rect x="25" y="31" width="38" height="26" rx="3" fill="none" stroke="${richYellow}" stroke-width="3"/>
+        <path d="M26 33l18 14 18-14" fill="none" stroke="${richYellow}" stroke-width="3"/>
+        <text x="98" y="30" font-family="Arial, Helvetica, sans-serif" font-size="19" fill="#FFFFFF">E-mail</text>
+        <text x="98" y="67" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="950" fill="${richYellow}">${escapeXml(email)}</text>
+      </g>
+    </svg>`;
+  }
+
   // Condições separadas por forma de pagamento. Não usa “DE/POR”: o valor
   // menor é identificado como preço no Pix/dinheiro, e o total maior como
   // preço no cartão, cuja soma fecha exatamente com as parcelas anunciadas.
@@ -820,7 +870,9 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
 
   // A mascote é parte fixa da assinatura da marca na lateral esquerda.
   // O arquivo já possui transparência limpa e enquadramento até o quadril.
-  const headerMascotBuffer = await loadHeaderMascotBuffer(options).catch(() => null);
+  const headerMascotBuffer = String(options.layoutVariant || '').toLowerCase() === 'varejo'
+    ? null
+    : await loadHeaderMascotBuffer(options).catch(() => null);
   if (headerMascotBuffer) {
     const headerMascot = await sharp(headerMascotBuffer)
       .rotate()
@@ -873,9 +925,9 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const initialScale = Math.min(preset.w / naturalWidth, preset.h / naturalHeight);
     const estimatedWidth = naturalWidth * initialScale;
     const estimatedHeight = naturalHeight * initialScale;
-    const productBottomLimit = 790;
-    const productMaxWidth = preset.w;
-    const productMaxHeight = Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
+    const productBottomLimit = layout === 'varejo' ? 1090 : 790;
+    const productMaxWidth = layout === 'varejo' ? Math.min(preset.w, 520) : preset.w;
+    const productMaxHeight = layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
     const resizedProduct = await sharp(normalizedCutout)
       .rotate()
       .ensureAlpha()
@@ -922,14 +974,16 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       visibleMaxX = productW - 1;
     }
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
-    const centeredLeft = Math.round(width / 2 - visibleCenterX);
+    const centeredLeft = layout === 'varejo'
+      ? Math.round(285 - visibleCenterX)
+      : Math.round(width / 2 - visibleCenterX);
     // A moldura transparente pode sair do canvas; somente os pixels visíveis
     // precisam respeitar a margem de segurança de 20 px.
     const minSafeLeft = 20 - visibleMinX;
     const maxSafeLeft = width - 20 - visibleMaxX;
     const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
-    const desiredTop = Math.round(minProductTop + automaticOffsetY + Number(options.productOffsetY || 0));
-    const top = Math.max(minProductTop, Math.min(productBottomLimit - productH, desiredTop));
+    const desiredTop = Math.round((layout === 'varejo' ? 430 : minProductTop) + automaticOffsetY + Number(options.productOffsetY || 0));
+    const top = Math.max(layout === 'varejo' ? 390 : minProductTop, Math.min(productBottomLimit - productH, desiredTop));
     composites.push({ input: productPng, left, top });
   }
 
