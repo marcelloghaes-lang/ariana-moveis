@@ -3,6 +3,8 @@
 
   const API = String(window.API_BASE || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, '');
   const HISTORY_KEY = 'ariana_professional_poster_history_v1';
+  const AUTO_LAYOUT_COUNTER_KEY = 'ariana_professional_poster_auto_layout_count_v1';
+  const AUTO_LAYOUTS = ['classic', 'showcase', 'premium', 'azul_lateral_exato', 'split', 'catalog', 'diagonal', 'varejo'];
   const els = {};
   let products = [];
   let productsLoading = true;
@@ -102,6 +104,29 @@
 
   function layoutVariantValue() {
     return document.querySelector('input[name="layout-variant"]:checked')?.value || '';
+  }
+
+  function autoLayoutCount() {
+    const value = Number(localStorage.getItem(AUTO_LAYOUT_COUNTER_KEY) || 0);
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+  }
+
+  function effectiveLayoutVariant() {
+    const manual = layoutVariantValue();
+    if (manual) return manual;
+    const block = Math.floor(autoLayoutCount() / 10);
+    return AUTO_LAYOUTS[block % AUTO_LAYOUTS.length];
+  }
+
+  function autoLayoutLabel(value) {
+    const labels = { classic: 'Clássico', showcase: 'Vitrine', premium: 'Premium', azul_lateral_exato: 'Azul lateral exato', split: 'Temático profissional', catalog: 'Catálogo', diagonal: 'Diagonal', varejo: 'Modelo lateral' };
+    return labels[value] || value;
+  }
+
+  function incrementAutoLayoutCounter() {
+    const next = autoLayoutCount() + 1;
+    localStorage.setItem(AUTO_LAYOUT_COUNTER_KEY, String(next));
+    return next;
   }
 
   function sceneThemeValue() {
@@ -309,7 +334,7 @@
       options: {
         template: templateValue(),
         colorTheme: colorThemeValue(),
-        layoutVariant: layoutVariantValue() || undefined,
+        layoutVariant: effectiveLayoutVariant(),
         sceneTheme: sceneThemeValue() || undefined,
         headline: els.headline.value.trim(),
         subtitle: els.subtitle.value.trim(),
@@ -383,8 +408,16 @@
       const data = await api('/admin/posters/professional', { method: 'POST', body: JSON.stringify(payload) });
       if (!data.url) throw new Error('O endereço final não retornou.');
       savedPosterUrl = data.url;
-      saveHistory({ url: data.url, name: payload.product.name, createdAt: new Date().toISOString(), template: payload.options.template });
-      status('Cartaz salvo em alta resolução. Agora você pode baixar ou compartilhar.', 'ok');
+      saveHistory({ url: data.url, name: payload.product.name, createdAt: new Date().toISOString(), template: payload.options.template, layout: payload.options.layoutVariant });
+      if (!layoutVariantValue()) {
+        const nextCount = incrementAutoLayoutCounter();
+        const nextLayout = AUTO_LAYOUTS[Math.floor(nextCount / 10) % AUTO_LAYOUTS.length];
+        const position = nextCount % 10;
+        const remaining = position === 0 ? 0 : 10 - position;
+        status('Cartaz salvo. Automático: ' + autoLayoutLabel(payload.options.layoutVariant) + '. Próximo bloco: ' + autoLayoutLabel(nextLayout) + (remaining ? ' em ' + remaining + ' cartaz(es).' : '.'), 'ok');
+      } else {
+        status('Cartaz salvo em alta resolução. Agora você pode baixar ou compartilhar.', 'ok');
+      }
       window.open(data.url, '_blank', 'noopener');
     } catch (error) {
       status(`Erro ao salvar: ${error.message}`, 'error');
@@ -489,6 +522,11 @@
     updateSceneSelection();
     updatePricingSummary();
     renderHistory();
+    if (!layoutVariantValue()) {
+      const current = effectiveLayoutVariant();
+      const usedInBlock = autoLayoutCount() % 10;
+      status('Automático ativo: ' + autoLayoutLabel(current) + ' — ' + usedInBlock + '/10 cartazes deste bloco.', '');
+    }
     if (!token()) {
       location.href = 'admin_login.html?return=gerador_cartazes.html';
       return;
