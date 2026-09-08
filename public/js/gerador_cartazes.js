@@ -112,8 +112,14 @@
     document.querySelectorAll('.palette-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
   }
 
-  function updateLayoutSelection() {
+  function updateLayoutSelection(applyPreset = false) {
     document.querySelectorAll('.layout-card').forEach(card => card.classList.toggle('selected', card.querySelector('input')?.checked));
+    if (!applyPreset) return;
+    if (layoutVariantValue() === 'azul_lateral_exato') {
+      els.headline.value = 'Ofertas Para Melhorar Seu Dia a Dia';
+      els.subtitle.value = 'Tudo que Sua Casa Precisa Você Encontra Aqui';
+      status('Layout Azul lateral exato selecionado. A mascote continua sendo a mesma do painel e só aparece quando você ativar.', 'ok');
+    }
   }
 
   function updateSceneSelection() {
@@ -437,7 +443,7 @@
 
     document.querySelectorAll('input[name="template"]').forEach(input => input.addEventListener('change', () => updateTemplateSelection(true)));
     document.querySelectorAll('input[name="color-theme"]').forEach(input => input.addEventListener('change', updateColorSelection));
-    document.querySelectorAll('input[name="layout-variant"]').forEach(input => input.addEventListener('change', updateLayoutSelection));
+    document.querySelectorAll('input[name="layout-variant"]').forEach(input => input.addEventListener('change', () => updateLayoutSelection(true)));
     document.querySelectorAll('input[name="scene-theme"]').forEach(input => input.addEventListener('change', updateSceneSelection));
     els.productSearch.addEventListener('input', () => renderProductResults(els.productSearch.value));
     els.productResults.addEventListener('click', event => {
