@@ -833,7 +833,7 @@ function professionalCreativeInput(body = {}) {
 
 const PROFESSIONAL_POSTER_ROTATION_KEY = 'professional_poster_layout_rotation';
 function professionalLayoutForSequence(sequence = 0) {
-  const layouts = ['classic', 'showcase', 'premium', 'catalog', 'split'];
+  const layouts = ['classic', 'showcase', 'premium', 'azul_lateral_exato', 'split', 'catalog', 'diagonal', 'varejo'];
   return layouts[Math.floor(Math.max(0, Number(sequence) || 0) / 10) % layouts.length];
 }
 async function professionalPosterRotationState() {
@@ -865,47 +865,36 @@ app.post('/api/admin/posters/preview', adminRequired, async (req, res) => {
 
 app.post('/api/admin/posters/professional', adminRequired, async (req, res) => {
   try {
-    if (!isCloudinaryConfigured()) return res.status(500).json({ ok: false, error: 'Cloudinary não configurado.' });
     const { product, options } = professionalCreativeInput(req.body || {});
     const rotation = await professionalPosterRotationState();
+    const manualLayout = Boolean(options.layoutVariant || options.sceneTheme);
     options.layoutVariant = options.sceneTheme ? 'split' : (options.layoutVariant || rotation.layoutVariant);
-    const buffer = await generateProductPosterBuffer(product, options);
-    const productName = String(product.name || product.title || 'cartaz-ariana');
-    const publicId = `${sanitizeIdPart(productName)}-whatsapp-${Date.now()}`;
-    const result = await uploadBufferToCloudinary(buffer, {
-      folder: buildCloudinaryFolder('posters/profissionais/whatsapp'),
-      public_id: publicId
-    });
-    const poster = {
-      variant: 'whatsapp',
-      template: options.template,
-      layoutVariant: options.layoutVariant,
-      url: result.secure_url,
-      public_id: result.public_id,
-      width: result.width,
-      height: result.height,
-      format: result.format,
-      createdAt: new Date().toISOString()
-    };
 
-    const productId = String(req.body?.productId || product.id || product._id || '').trim();
-    const oid = normalizeObjectId(productId);
-    if (oid) {
-      await Product.findByIdAndUpdate(oid, {
-        $push: { posters: { $each: [poster], $slice: -20 } },
-        $set: { updatedAt: new Date() }
-      }).catch(() => null);
+    const buffer = await generateProductPosterBuffer(product, options);
+    const nextCount = manualLayout ? rotation.count : rotation.count + 1;
+
+    if (!manualLayout) {
+      await setSetting(
+        PROFESSIONAL_POSTER_ROTATION_KEY,
+        { count: nextCount, lastLayout: options.layoutVariant, updatedAt: new Date().toISOString() },
+        String(req.admin?.email || req.admin?.id || 'admin')
+      ).catch(() => null);
     }
 
-    await setSetting(
-      PROFESSIONAL_POSTER_ROTATION_KEY,
-      { count: rotation.count + 1, lastLayout: options.layoutVariant, updatedAt: new Date().toISOString() },
-      String(req.admin?.email || req.admin?.id || 'admin')
-    ).catch(() => null);
-
-    return res.json({ ok: true, poster, url: poster.url, sequence: rotation.count + 1, nextLayoutChangeAt: (Math.floor(rotation.count / 10) + 1) * 10 });
+    const productName = String(product.name || product.title || 'cartaz-ariana');
+    const safeName = sanitizeIdPart(productName) || 'cartaz-ariana';
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': `attachment; filename="${safeName}.png"`,
+      'Cache-Control': 'no-store, max-age=0',
+      'X-Poster-Layout': options.layoutVariant,
+      'X-Poster-Sequence': String(nextCount),
+      'X-Next-Layout-Change-At': String((Math.floor(nextCount / 10) + 1) * 10),
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.send(buffer);
   } catch (error) {
-    console.error('[posters] erro ao publicar cartaz profissional:', error);
+    console.error('[posters] erro ao gerar cartaz profissional:', error);
     return res.status(500).json({ ok: false, error: error.message || 'professional_poster_generate_failed' });
   }
 });
