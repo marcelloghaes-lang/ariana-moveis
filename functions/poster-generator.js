@@ -693,6 +693,39 @@ async function professionalBackgroundBuffer(product = {}, options = {}) {
 function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'classic', colorTheme = 'azul' }) {
   const palette = professionalPalette(template, colorTheme);
   const layout = String(layoutVariant || 'classic').toLowerCase();
+
+  if (layout === 'azul_lateral_exato') {
+    const colorKey = String(colorTheme || 'azul').toLowerCase();
+    const isBlueFamily = colorKey === 'azul' || colorKey === 'celeste';
+    const isYellowTheme = colorKey === 'amarelo';
+    const base = isBlueFamily ? '#79C8F2' : (isYellowTheme ? '#F4C430' : palette.middle);
+    const wave = isBlueFamily ? '#62B7E8' : (isYellowTheme ? '#E5AD12' : palette.end);
+    const glow = isBlueFamily ? '#CDEFFF' : palette.glow;
+    const footer = '#062F68';
+    const gold = '#FFD400';
+    return `
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="exactGlow" cx="50%" cy="12%" r="78%">
+          <stop offset="0%" stop-color="${glow}" stop-opacity=".48"/>
+          <stop offset="100%" stop-color="${glow}" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="exactSoftShadow" x="-50%" y="-100%" width="200%" height="300%">
+          <feGaussianBlur stdDeviation="18"/>
+        </filter>
+      </defs>
+      <rect width="1080" height="1350" fill="${base}"/>
+      <rect width="1080" height="1175" fill="url(#exactGlow)"/>
+      <path d="M0 510 C245 425 510 405 765 430 C905 445 1000 472 1080 500 L1080 910 C865 875 655 900 460 875 C270 850 120 805 0 835 Z" fill="${wave}" opacity=".74"/>
+      <ellipse cx="286" cy="1040" rx="205" ry="31" fill="#123F7D" opacity=".20" filter="url(#exactSoftShadow)"/>
+      <rect x="0" y="1175" width="1080" height="175" fill="${footer}"/>
+      <rect x="0" y="1175" width="1080" height="6" fill="${gold}"/>
+      <path d="M0 1175 H56 L18 1235 H0 Z" fill="${gold}"/>
+      <path d="M1080 1175 H1024 L1062 1235 H1080 Z" fill="${gold}"/>
+      <path d="M0 1344 H74 L45 1310 H0 Z" fill="${gold}" opacity=".92"/>
+      <path d="M1080 1344 H1006 L1035 1310 H1080 Z" fill="${gold}" opacity=".92"/>
+    </svg>`;
+  }
   const layoutDecoration = layout === 'showcase'
     ? `<path d="M0 250 L1080 80 L1080 350 L0 520 Z" fill="${palette.accent}" opacity=".08"/><circle cx="930" cy="720" r="300" fill="#ffffff" opacity=".055"/>`
     : layout === 'premium'
@@ -740,7 +773,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const palette = professionalPalette(template, options.colorTheme);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
   const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
-  const productName = String(options.productName || product.name || product.title || 'PRODUTO ARIANA MÓVEIS').trim().toUpperCase();
+  const productNameRaw = String(options.productName || product.name || product.title || 'Produto Ariana Móveis').trim();
+  const productName = productNameRaw.toUpperCase();
   const productLines = wrapText(productName, 34, 2);
   const headlineSize = professionalTextSize(headline, 54, 46, 38);
   const productNameSize = professionalTextSize(productName, 36, 32, 27);
@@ -752,6 +786,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const site = String(options.siteLabel || options.siteText || 'arianamoveis.com.br').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim();
   const isSplit = layout === 'split';
   const isVarejo = layout === 'varejo';
+  const isExactLateral = layout === 'azul_lateral_exato';
   const productNameTop = isVarejo ? 480 : (isSplit ? 304 : 350);
   const productNameSvg = productLines.map((line, index) => `<text x="540" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="800" fill="${palette.bodyText}" stroke="${palette.brandStroke}" stroke-width=".7" paint-order="stroke fill">${escapeXml(line)}</text>`).join('');
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
@@ -768,6 +803,74 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
+  if (isExactLateral) {
+    const colorKey = String(options.colorTheme || 'azul').toLowerCase();
+    const isYellowTheme = colorKey === 'amarelo';
+    const richYellow = isYellowTheme ? '#073B78' : '#FFD400';
+    const strongBlue = '#0B3F7E';
+    const lightText = isYellowTheme ? '#073B78' : '#FFFFFF';
+    const priceStroke = isYellowTheme ? '#FFFFFF' : '#8A7100';
+    const exactProductLines = wrapText(productNameRaw, 30, 2);
+    const exactProductSize = professionalTextSize(productNameRaw, 34, 30, 27);
+    const emailParts = email.includes('@') ? [email.slice(0, email.indexOf('@') + 1), email.slice(email.indexOf('@') + 1)] : [email];
+
+    return `
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="Arial, Helvetica, sans-serif">
+        <text x="540" y="94" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="78" font-weight="950" letter-spacing="2" fill="#123F7D">ARIANA</text>
+        <text x="540" y="151" text-anchor="middle" font-size="45" font-weight="900" fill="#123F7D">móveis</text>
+        <path d="M448 170 H632" stroke="#FFD400" stroke-width="7" stroke-linecap="round"/>
+
+        <text x="540" y="248" text-anchor="middle" font-size="28" font-weight="800" fill="${lightText}">${escapeXml(subtitle)}</text>
+        <text x="540" y="315" text-anchor="middle" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
+
+        ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}" stroke="${priceStroke}" stroke-width=".65" paint-order="stroke fill">${escapeXml(line)}</text>`).join('')}
+
+        <text x="775" y="704" text-anchor="middle" font-size="27" font-weight="950" fill="${lightText}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+        <text x="610" y="805" font-size="44" font-weight="950" fill="${lightText}">R$</text>
+        <text x="685" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="${richYellow}" stroke="${priceStroke}" stroke-width="1.1" paint-order="stroke fill">${escapeXml(cashValue)}</text>
+        <text x="775" y="846" text-anchor="middle" font-size="22" font-weight="850" fill="${lightText}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+
+        <text x="775" y="910" text-anchor="middle" font-size="42" font-weight="950" fill="${richYellow}">OU</text>
+        <text x="775" y="970" text-anchor="middle" font-size="39" font-weight="950" fill="${lightText}">EM ATÉ ${pricing.installmentCount}X DE</text>
+        <text x="775" y="1022" text-anchor="middle" font-size="34" font-weight="950">
+          <tspan fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS </tspan>
+          <tspan fill="${lightText}">NO CARTÃO</tspan>
+        </text>
+      </g>
+
+      <g transform="translate(32 1203)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="43" cy="43" r="36" fill="#19B64B" stroke="#FFFFFF" stroke-width="5"/>
+        <path d="M43 20C31 20 22 29 22 41c0 7 3 13 9 17l-3 10 11-5c1 0 3 1 4 1 12 0 22-9 22-22S55 20 43 20Z" fill="none" stroke="#FFFFFF" stroke-width="3.2"/>
+        <text x="98" y="30" font-size="18" fill="#FFFFFF">Atendimento pelo</text>
+        <text x="98" y="53" font-size="18" fill="#FFFFFF">WhatsApp</text>
+        <text x="98" y="88" font-size="28" font-weight="950" fill="#FFD400">${escapeXml(whatsapp.replace(/[()]/g, ''))}</text>
+      </g>
+
+      <line x1="346" y1="1193" x2="346" y2="1332" stroke="#FFD400" stroke-width="2"/>
+
+      <g transform="translate(375 1203)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="43" cy="43" r="35" fill="none" stroke="#FFD400" stroke-width="4"/>
+        <ellipse cx="43" cy="43" rx="15" ry="34" fill="none" stroke="#FFD400" stroke-width="2.4"/>
+        <path d="M10 43h66M15 29h56M15 57h56" fill="none" stroke="#FFD400" stroke-width="2.2"/>
+        <text x="98" y="30" font-size="18" fill="#FFFFFF">Compre também pelo</text>
+        <text x="98" y="53" font-size="18" fill="#FFFFFF">nosso site</text>
+        <text x="98" y="88" font-size="25" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
+      </g>
+
+      <line x1="704" y1="1193" x2="704" y2="1332" stroke="#FFD400" stroke-width="2"/>
+
+      <g transform="translate(732 1203)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="43" cy="43" r="35" fill="none" stroke="#FFD400" stroke-width="4"/>
+        <rect x="24" y="30" width="38" height="27" rx="3" fill="none" stroke="#FFD400" stroke-width="3"/>
+        <path d="M25 32l18 14 18-14" fill="none" stroke="#FFD400" stroke-width="3"/>
+        <text x="98" y="30" font-size="18" fill="#FFFFFF">E-mail</text>
+        <text x="98" y="58" font-size="22" font-weight="950" fill="#FFD400">${escapeXml(emailParts[0] || '')}</text>
+        <text x="98" y="84" font-size="22" font-weight="950" fill="#FFD400">${escapeXml(emailParts[1] || '')}</text>
+      </g>
+    </svg>`;
+  }
+
   if (isVarejo) {
     const isYellowTheme = String(options.colorTheme || '').toLowerCase() === 'amarelo';
     const richYellow = isYellowTheme ? '#073B78' : '#FFD400';
@@ -874,7 +977,8 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
 
   // A mascote é parte fixa da assinatura da marca na lateral esquerda.
   // O arquivo já possui transparência limpa e enquadramento até o quadril.
-  const headerMascotBuffer = String(options.layoutVariant || '').toLowerCase() === 'varejo'
+  const currentLayout = String(options.layoutVariant || '').toLowerCase();
+  const headerMascotBuffer = ['varejo', 'azul_lateral_exato'].includes(currentLayout)
     ? null
     : await loadHeaderMascotBuffer(options).catch(() => null);
   if (headerMascotBuffer) {
@@ -929,9 +1033,10 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const initialScale = Math.min(preset.w / naturalWidth, preset.h / naturalHeight);
     const estimatedWidth = naturalWidth * initialScale;
     const estimatedHeight = naturalHeight * initialScale;
-    const productBottomLimit = layout === 'varejo' ? 1090 : 790;
-    const productMaxWidth = layout === 'varejo' ? Math.min(preset.w, 520) : preset.w;
-    const productMaxHeight = layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop));
+    const exactLateral = layout === 'azul_lateral_exato';
+    const productBottomLimit = exactLateral ? 1110 : (layout === 'varejo' ? 1090 : 790);
+    const productMaxWidth = exactLateral ? Math.min(preset.w, 500) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w);
+    const productMaxHeight = exactLateral ? Math.min(650, productBottomLimit - 425) : (layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop)));
     const resizedProduct = await sharp(normalizedCutout)
       .rotate()
       .ensureAlpha()
@@ -978,16 +1083,16 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       visibleMaxX = productW - 1;
     }
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
-    const centeredLeft = layout === 'varejo'
+    const centeredLeft = exactLateral
       ? Math.round(285 - visibleCenterX)
-      : Math.round(width / 2 - visibleCenterX);
+      : (layout === 'varejo' ? Math.round(285 - visibleCenterX) : Math.round(width / 2 - visibleCenterX));
     // A moldura transparente pode sair do canvas; somente os pixels visíveis
     // precisam respeitar a margem de segurança de 20 px.
     const minSafeLeft = 20 - visibleMinX;
     const maxSafeLeft = width - 20 - visibleMaxX;
     const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
-    const desiredTop = Math.round((layout === 'varejo' ? 430 : minProductTop) + automaticOffsetY + Number(options.productOffsetY || 0));
-    const top = Math.max(layout === 'varejo' ? 390 : minProductTop, Math.min(productBottomLimit - productH, desiredTop));
+    const desiredTop = Math.round((exactLateral ? 430 : (layout === 'varejo' ? 430 : minProductTop)) + automaticOffsetY + Number(options.productOffsetY || 0));
+    const top = Math.max(exactLateral ? 405 : (layout === 'varejo' ? 390 : minProductTop), Math.min(productBottomLimit - productH, desiredTop));
     composites.push({ input: productPng, left, top });
   }
 
@@ -997,14 +1102,17 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   if (options.showMascot === true || options.useMascot === true || options.mascote === true) {
     const mascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
     if (mascotBuffer) {
+      const mascotLayout = String(options.layoutVariant || '').toLowerCase() === 'azul_lateral_exato'
+        ? { w: 210, h: 260, top: 915, left: 18 }
+        : { w: 255, h: 330, top: 835, left: 20 };
       const mascotPng = await sharp(mascotBuffer)
         .rotate()
         .ensureAlpha()
         .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-        .resize(255, 330, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .resize(mascotLayout.w, mascotLayout.h, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
         .png()
         .toBuffer();
-      composites.push({ input: mascotPng, top: 835, left: 20 });
+      composites.push({ input: mascotPng, top: mascotLayout.top, left: mascotLayout.left });
     }
   }
 
