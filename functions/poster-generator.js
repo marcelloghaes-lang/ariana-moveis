@@ -814,7 +814,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const isVarejo = layout === 'varejo';
   const isExactLateral = layout === 'azul_lateral_exato';
   const productNameTop = isVarejo ? 480 : (isSplit ? 304 : 350);
-  const standardProductNameX = layout === 'catalog' ? 285 : (['showcase', 'split', 'diagonal'].includes(layout) ? 760 : 540);
+  const standardProductNameX = ['catalog', 'diagonal'].includes(layout) ? 285 : (['showcase', 'split'].includes(layout) ? 760 : 540);
   const productNameSvg = productLines.map((line, index) => `<text x="${standardProductNameX}" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${adaptive.primary}">${escapeXml(line)}</text>`).join('');
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
@@ -1109,10 +1109,13 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       visibleMinX = 0;
       visibleMaxX = productW - 1;
     }
-    const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : 0;
+    const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : layout === 'diagonal' ? 8 : 0;
+    const layoutCenterX = ['showcase', 'split'].includes(layout)
+      ? 315
+      : (['catalog', 'diagonal'].includes(layout) ? 755 : width / 2);
     const centeredLeft = exactLateral
       ? Math.round(285 - visibleCenterX)
-      : (layout === 'varejo' ? Math.round(285 - visibleCenterX) : Math.round(width / 2 - visibleCenterX));
+      : (layout === 'varejo' ? Math.round(285 - visibleCenterX) : Math.round(layoutCenterX - visibleCenterX));
     // A moldura transparente pode sair do canvas; somente os pixels visíveis
     // precisam respeitar a margem de segurança de 20 px.
     const minSafeLeft = 20 - visibleMinX;
