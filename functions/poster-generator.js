@@ -393,26 +393,35 @@ function professionalPalette(_template = 'oferta', colorTheme = 'azul') {
   return palettes[key] || palettes.azul;
 }
 
-function professionalAdaptiveText(colorTheme = 'azul') {
+function professionalAdaptiveText(colorTheme = 'azul', layoutVariant = 'classic') {
   const key = String(colorTheme || 'azul').toLowerCase();
-  const lightThemes = new Set(['celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']);
-  if (lightThemes.has(key)) {
+  const layout = String(layoutVariant || 'classic').toLowerCase();
+
+  // O layout lateral exato transforma Azul Ariana e Azul Celeste em fundos
+  // propositalmente claros. Por isso eles precisam ser tratados como superfícies
+  // claras, mesmo que a paleta "azul" tradicional seja escura nos outros modelos.
+  const naturallyLight = new Set(['celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']);
+  const exactLight = layout === 'azul_lateral_exato' && new Set(['azul', 'celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']).has(key);
+  const lightSurface = naturallyLight.has(key) || exactLight;
+
+  if (lightSurface) {
     return {
-      primary: '#073B78',
-      secondary: '#164B7E',
-      accent: key === 'amarelo' ? '#073B78' : '#C58A00',
-      price: '#073B78',
+      primary: '#062B63',
+      secondary: '#123F7D',
+      accent: '#062B63',
+      price: '#062B63',
       onDark: '#FFFFFF',
-      outline: '#FFFFFF'
+      decorative: '#FFD400'
     };
   }
+
   return {
     primary: '#FFFFFF',
-    secondary: '#F4FAFF',
+    secondary: '#F8FBFF',
     accent: '#FFD400',
     price: '#FFD400',
     onDark: '#FFFFFF',
-    outline: '#073B78'
+    decorative: '#FFD400'
   };
 }
 
@@ -796,7 +805,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const template = String(options.template || 'oferta').toLowerCase();
   const layout = String(options.layoutVariant || 'classic').toLowerCase();
   const palette = professionalPalette(template, options.colorTheme);
-  const adaptive = professionalAdaptiveText(options.colorTheme);
+  const adaptive = professionalAdaptiveText(options.colorTheme, layout);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
   const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
   const productNameRaw = String(options.productName || product.name || product.title || 'Produto Ariana Móveis').trim();
@@ -832,8 +841,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
   if (isExactLateral) {
     const colorKey = String(options.colorTheme || 'azul').toLowerCase();
-    const exactText = professionalAdaptiveText(options.colorTheme);
-    const richYellow = exactText.accent;
+    const exactText = professionalAdaptiveText(options.colorTheme, layout);
+    const richYellow = exactText.price;
     const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : exactText.primary;
     const lightText = exactText.primary;
     const exactProductLines = wrapText(productNameRaw, 30, 2);
@@ -901,8 +910,8 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
   if (isVarejo) {
     const colorKey = String(options.colorTheme || '').toLowerCase();
-    const varejoText = professionalAdaptiveText(options.colorTheme);
-    const richYellow = varejoText.accent;
+    const varejoText = professionalAdaptiveText(options.colorTheme, layout);
+    const richYellow = varejoText.price;
     const footerGold = '#FFD400';
     const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : varejoText.primary;
     return `
