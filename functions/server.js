@@ -186,9 +186,7 @@ function isAllowedOrigin(origin = '') {
   // Domínios oficiais da Ariana Móveis.
   if (/^https:\/\/(www\.)?arianamoveis\.(com\.br|site)$/i.test(normalized)) return true;
 
-  // Ambientes de homologação publicados na Render.
-  if (/^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(normalized)) return true;
-
+  // Ambientes Render somente quando cadastrados explicitamente em allowedOrigins/FRONTEND_URLS.
   // Desenvolvimento local em qualquer porta.
   if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized)) return true;
 
