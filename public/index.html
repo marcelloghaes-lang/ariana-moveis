@@ -7,6 +7,9 @@
   <!-- SEO: página oficial da home para evitar duplicidade /index.html no Google Search Console -->
   <link rel="canonical" href="https://arianamoveis.com.br/">
   <meta property="og:url" content="https://arianamoveis.com.br/">
+  <meta name="description" content="Móveis, eletrodomésticos, eletrônicos e utilidades para todo o Brasil. Compre na Ariana Móveis com preço especial no Pix e parcelamento no cartão.">
+  <meta property="og:title" content="Ariana Móveis | Sua casa merece o melhor">
+  <meta property="og:description" content="Móveis, eletrodomésticos, eletrônicos e utilidades com entrega para todo o Brasil.">
   <meta name="robots" content="index,follow,max-image-preview:large">
 
 
@@ -15,32 +18,7 @@
 <link rel="icon" type="image/png" href="./favicon.png">
   <link rel="stylesheet" href="css/tailwind.min.css">
 
-  <script src="js/api-config.js">  
-
-// Botão do menu superior chama esta função para abrir a janela de cupons.
-window.openCouponsWindow = window.openCouponsWindow || function(){
-  try {
-    const modal = document.getElementById('coupons-window');
-    if (modal) {
-      const hiddenBtn = document.getElementById('open-coupons-window');
-      if (hiddenBtn && hiddenBtn !== document.activeElement) { try { hiddenBtn.click(); return; } catch(_e){} }
-      modal.classList.add('open');
-      modal.setAttribute('aria-hidden', 'false');
-      if (typeof window.loadPublicCoupons === 'function') window.loadPublicCoupons();
-    }
-  } catch(_e) {}
-};
-window.closeCouponsWindow = window.closeCouponsWindow || function(){
-  try {
-    const modal = document.getElementById('coupons-window');
-    if (modal) {
-      modal.classList.remove('open');
-      modal.setAttribute('aria-hidden', 'true');
-    }
-  } catch(_e) {}
-};
-
-</script>
+  <script src="js/api-config.js"></script>
 
   <script>
     window.syncHeroBannerLayout = window.syncHeroBannerLayout || function(){};
@@ -978,6 +956,20 @@ const normalizeListResponse = (data) => {
   return [];
 };
 
+// Compartilha uma única chamada entre banners, categorias e produtos.
+// Isso reduz a espera principalmente quando o backend está saindo do modo
+// de economia de recursos.
+let __homeIndexDataPromise = null;
+const getHomeIndexData = () => {
+  if (!__homeIndexDataPromise) {
+    __homeIndexDataPromise = apiRequest('/home/index-data').catch((error) => {
+      __homeIndexDataPromise = null;
+      throw error;
+    });
+  }
+  return __homeIndexDataPromise;
+};
+
     window.BRAND_NAME = 'ARIANA MOVEIS';
 
     window.displayMessage = (message, type = 'info') => {
@@ -1218,10 +1210,13 @@ window.loadData = async () => {
     __homeDataBooted = true;
     window.updateBranding(window.BRAND_NAME);
     loadClientAddress();
-    await loadAllBanners();
+    await Promise.all([
+      loadAllBanners(),
+      loadCategories(),
+      loadHomeProductsWhenAuthReady()
+    ]);
     if (typeof window.syncHeroBannerLayout === 'function') window.syncHeroBannerLayout();
     if (typeof window.initMiniBannersCarousel === 'function') window.initMiniBannersCarousel();
-    await loadCategories();
   }
   await loadHomeProductsWhenAuthReady();
 };
@@ -1432,14 +1427,17 @@ const loadAllBanners = async () => {
 
   try {
     const merged = [];
-    try {
-      const direct = await apiRequest('/banners');
-      merged.push(...normalizeListResponse(direct));
-    } catch (_) {}
-    try {
-      const home = await apiRequest('/home/index-data');
+    const [directResult, homeResult] = await Promise.allSettled([
+      apiRequest('/banners'),
+      getHomeIndexData()
+    ]);
+    if (directResult.status === 'fulfilled') {
+      merged.push(...normalizeListResponse(directResult.value));
+    }
+    if (homeResult.status === 'fulfilled') {
+      const home = homeResult.value;
       merged.push(...normalizeListResponse(home && home.banners ? home.banners : []));
-    } catch (_) {}
+    }
 
     Object.keys(bannerSlots).forEach((slotKey) => {
       const aliases = slotAliases[slotKey] || [slotKey];
@@ -1576,10 +1574,11 @@ const loadCategories = async () => {
 
     let categories = [];
     try {
-      categories = normalizeListResponse(await apiRequest('/categories'));
-    } catch (_) {
-      const home = await apiRequest('/home/index-data');
+      const home = await getHomeIndexData();
       categories = normalizeListResponse(home && home.categories ? home.categories : []);
+      if (!categories.length) throw new Error('Categorias ausentes no índice da home.');
+    } catch (_) {
+      categories = normalizeListResponse(await apiRequest('/categories'));
     }
 
     categories.forEach((category) => {
@@ -1809,13 +1808,14 @@ const loadProducts = async () => {
 
     let products = [];
     try {
-      products = normalizeListResponse(await apiRequest('/seller/products'));
+      const home = await getHomeIndexData();
+      products = normalizeListResponse(home && home.products ? home.products : []);
+      if (!products.length) throw new Error('Produtos ausentes no índice da home.');
     } catch (_) {
       try {
-        products = normalizeListResponse(await apiRequest('/products'));
+        products = normalizeListResponse(await apiRequest('/seller/products'));
       } catch (_) {
-        const home = await apiRequest('/home/index-data');
-        products = normalizeListResponse(home && home.products ? home.products : []);
+        products = normalizeListResponse(await apiRequest('/products'));
       }
     }
 
@@ -2502,9 +2502,15 @@ window.addEventListener('load', () => {
     modal?.setAttribute('aria-hidden','true');
   }
 
+  // O menu principal chama estas funções diretamente.
+  window.openCouponsWindow = openModal;
+  window.closeCouponsWindow = closeModal;
+  window.loadPublicCoupons = loadCoupons;
+
   openBtn?.addEventListener('click', openModal);
   closeBtn?.addEventListener('click', closeModal);
   modal?.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeModal(); });
   list?.addEventListener('click', async (e)=>{
     const btn = e.target.closest?.('[data-code]');
     if(!btn) return;

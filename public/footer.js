@@ -31,9 +31,7 @@ const renderGlobalFooter = () => {
         <div class="footer-column space-y-4 text-gray-300">
             <h3 class="text-lg font-semibold mb-3 text-primary-blue">Siga-nos</h3>
             <div class="social-icons flex space-x-4 text-2xl">
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-facebook-f"></i></a>
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="text-gray-400 hover:text-white transition duration-150"><i class="fab fa-whatsapp"></i></a>
+                <a href="https://wa.me/5531985147119" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition duration-150" aria-label="WhatsApp oficial da Ariana Móveis"><i class="fab fa-whatsapp"></i></a>
             </div>
             <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
             <div class="flex flex-nowrap items-center gap-2">
@@ -47,7 +45,7 @@ const renderGlobalFooter = () => {
         </div>
     </div>
     <div class="bg-[#101923] py-3 text-center text-xs text-gray-400">
-        &copy; 2022 Ariana Móveis. Todos os direitos reservados.
+        &copy; ${new Date().getFullYear()} Ariana Móveis. Todos os direitos reservados.
     </div>
 </footer>`;
 

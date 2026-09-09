@@ -11,6 +11,7 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     Order,
     Product,
     Ticket,
+    User,
     authRequired,
     ensureArray,
     mongoose,
@@ -21,6 +22,7 @@ export default function registerOrderSupportRoutes(app, context = {}) {
 
   const MARKETPLACE_CARD_DISCOUNT_PERCENT = Number(process.env.MARKETPLACE_CARD_DISCOUNT_PERCENT || 17);
   function roundMoney(value = 0) { return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100; }
+  function onlyDigits(value = '') { return String(value || '').replace(/\D/g, ''); }
   function getMarketplaceFactor() { const p = Math.min(90, Math.max(0, Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17))); return roundMoney((100 - p) / 100) || 0.83; }
   function sellerBaseToMarketplacePrice(basePrice = 0) { const base = Number(basePrice || 0); if (!base) return 0; return roundMoney(base / getMarketplaceFactor()); }
   function isCreditCardPayment(method = '') { const m = String(method || '').toLowerCase(); return m.includes('card') || m.includes('cartao') || m.includes('cartão') || m.includes('credit'); }
@@ -202,6 +204,7 @@ export default function registerOrderSupportRoutes(app, context = {}) {
         customerName: body.customerName || body.customer?.name || '',
         customerEmail: body.customerEmail || body.customer?.email || '',
         customerPhone: body.customerPhone || body.customer?.phone || '',
+        customerCpf: onlyDigits(body.customerCpf || body.cpf || body.customer?.cpf),
         status: body.status || 'pendente',
         statusLabel: body.statusLabel || body.status || 'pendente',
         items,
@@ -236,6 +239,133 @@ export default function registerOrderSupportRoutes(app, context = {}) {
       });
     }
   });
+
+  const publicTrackingAttempts = new Map();
+  function trackingRateLimit(req, res) {
+    const currentTime = Date.now();
+    const windowMs = 15 * 60 * 1000;
+    const maximumAttempts = 12;
+    const clientKey = String(req.ip || req.socket?.remoteAddress || 'unknown');
+    const previous = publicTrackingAttempts.get(clientKey);
+    const entry = !previous || currentTime - previous.startedAt >= windowMs
+      ? { count: 0, startedAt: currentTime }
+      : previous;
+
+    entry.count += 1;
+    publicTrackingAttempts.set(clientKey, entry);
+
+    if (publicTrackingAttempts.size > 5000) {
+      for (const [key, value] of publicTrackingAttempts.entries()) {
+        if (currentTime - value.startedAt >= windowMs) publicTrackingAttempts.delete(key);
+      }
+    }
+
+    if (entry.count > maximumAttempts) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((windowMs - (currentTime - entry.startedAt)) / 1000));
+      res.set('Retry-After', String(retryAfterSeconds));
+      res.status(429).json({ ok: false, error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
+      return false;
+    }
+    return true;
+  }
+
+  function publicTrackingEvent(event = {}) {
+    const description = String(event.descricao || event.description || event.label || event.status || 'Atualização do pedido')
+      .trim()
+      .slice(0, 200);
+    const location = String(event.local || event.location || event.cidade || '')
+      .trim()
+      .slice(0, 120);
+    return {
+      descricao: description || 'Atualização do pedido',
+      data: event.data || event.date || event.createdAt || event.updatedAt || null,
+      local: location || undefined
+    };
+  }
+
+  async function publicTrackingHandler(req, res) {
+    res.set('Cache-Control', 'no-store');
+    if (!trackingRateLimit(req, res)) return;
+
+    const orderReference = String(req.query?.orderId || req.query?.id || '')
+      .replace(/^#/, '')
+      .trim()
+      .slice(0, 120);
+    const suppliedDocument = onlyDigits(req.query?.cpfCnpj || req.query?.cpf);
+
+    if (!orderReference || ![11, 14].includes(suppliedDocument.length)) {
+      return res.status(400).json({ ok: false, error: 'Informe um pedido e um CPF/CNPJ válido.' });
+    }
+
+    try {
+      const referenceQuery = mongoose.Types.ObjectId.isValid(orderReference)
+        ? { _id: new mongoose.Types.ObjectId(orderReference) }
+        : {
+            $or: [
+              { trackingCode: orderReference },
+              { 'televendas.orderNumber': orderReference },
+              { 'televendas.orderId': orderReference },
+              { 'payment.externalReference': orderReference }
+            ]
+          };
+      const order = await Order.findOne(referenceQuery).lean();
+      const genericNotFound = () => res.status(404).json({
+        ok: false,
+        error: 'Não foi possível encontrar um pedido com os dados informados.'
+      });
+
+      if (!order) return genericNotFound();
+
+      let storedDocument = onlyDigits(
+        order.customerCpf ||
+        order.cpf ||
+        order.customer?.cpf ||
+        order.payment?.payer?.identification?.number ||
+        order.payment?.payer?.cpf ||
+        order.shippingAddress?.cpf ||
+        order.televendas?.customer?.cpf
+      );
+
+      if (!storedDocument && order.userId && User) {
+        const owner = await User.findById(order.userId).select('cpf').lean();
+        storedDocument = onlyDigits(owner?.cpf);
+      }
+
+      if (!storedDocument || storedDocument !== suppliedDocument) return genericNotFound();
+
+      const rawHistory = ensureArray(
+        order.trackingHistory ||
+        order.shipping?.trackingHistory ||
+        order.manufacturerDispatch?.trackingHistory
+      );
+      const trackingHistory = rawHistory.map(publicTrackingEvent);
+      if (!trackingHistory.length) {
+        trackingHistory.push(publicTrackingEvent({
+          descricao: order.statusLabel || order.status || 'Pedido recebido',
+          data: order.updatedAt || order.createdAt || null
+        }));
+      }
+
+      return res.json({
+        ok: true,
+        pedido: {
+          id: String(order._id),
+          orderId: String(order.televendas?.orderNumber || order._id),
+          status: order.statusLabel || order.status || 'Pedido recebido',
+          rastreamento: trackingHistory,
+          codigoRastreio: order.trackingCode || order.shipping?.trackingCode || null,
+          transportadora: order.shipping?.name || order.shipping?.carrier || null,
+          prazo: order.shipping?.prazo || order.shipping?.deliveryTime || null
+        }
+      });
+    } catch (error) {
+      console.error('[PUBLIC_TRACKING]', error?.message || error);
+      return res.status(500).json({ ok: false, error: 'Não foi possível consultar o pedido agora. Tente novamente.' });
+    }
+  }
+
+  app.get('/api/pedidos/rastrear', publicTrackingHandler);
+  app.get('/api/orders/track', publicTrackingHandler);
   app.get('/api/orders/me', authRequired, async (req, res) => res.json((await Order.find({ userId: req.user._id }).sort({ createdAt: -1 })).map(toJSON)));
   app.get('/api/pedidos/meus', authRequired, async (req, res) => res.json((await Order.find({ userId: req.user._id }).sort({ createdAt: -1 })).map(toJSON)));
   app.get('/api/users/:id/pedidos', authRequired, async (req, res) => {

@@ -21,7 +21,7 @@ function handleNavigation(page) {
         'Política de Reclamação': 'politica-reclamacao.html',
         'Política de Troca': 'politica-de-troca.html',
         'Produto Detalhes': 'produto-detalhes.html',
-        'Rastrear Pedido': 'rastrear-pedido.html',
+        'Rastrear Pedido': 'rastrear_pedido.html',
         'Sobre Nós': 'sobre-nos.html',
         'Fabricantes': 'fabricantes.html'
     };

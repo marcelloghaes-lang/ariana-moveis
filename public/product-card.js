@@ -101,6 +101,7 @@
       .product-card-body,.am-pro-card__body{padding:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start;}
       .product-name,.am-pro-card__title{font-size:.85rem;font-weight:400;color:#444;min-height:3em;max-height:3em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px;line-height:1.45;}
       .product-old-price,.am-pro-card__old-price{font-size:.80rem;color:#999;text-decoration:line-through;font-weight:400;line-height:1.2;margin-bottom:5px;min-height:15px;}
+      .am-card-card-price,.am-pro-card__card-price{font-size:.78rem;color:#667085;text-decoration:none;font-weight:600;line-height:1.3;margin-bottom:5px;min-height:15px;}
       .product-price,.am-pro-card__main-price{font-size:1.30rem;font-weight:800;color:#333;margin-top:0;display:flex;align-items:center;gap:6px;line-height:1.08;flex-wrap:wrap;}
       .am-card-discount,.am-pro-card__discount-tag{font-size:.72rem;color:#00a650;font-weight:800;white-space:nowrap;}
       .am-card-pix,.am-pro-card__pix-info{font-size:.75rem;color:#555;font-weight:600;margin-top:5px;line-height:1.25;}
@@ -131,9 +132,12 @@
     const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;
     const imageUrl = getImageUrl(product);
     const href = `produto.html?id=${encodeURIComponent(id)}`;
-    const oldHtml = oldPrice > 0
-      ? `<div class="product-old-price am-pro-card__old-price">${formatCurrency(oldPrice)}</div>`
-      : `<div class="product-old-price am-pro-card__old-price" style="min-height:15px"></div>`;
+    // O valor cheio não é "preço antigo": é o total da compra no cartão.
+    // Rotulá-lo explicitamente evita a leitura enganosa de "DE/POR" junto de
+    // um parcelamento cujo total é maior que o valor no PIX.
+    const cardPriceHtml = fullPrice > 0
+      ? `<div class="am-card-card-price am-pro-card__card-price">Preço no cartão: ${formatCurrency(fullPrice)}</div>`
+      : `<div class="am-card-card-price am-pro-card__card-price" style="min-height:15px"></div>`;
 
     return `
       <a class="product-card am-pro-card" href="${escapeHtml(href)}">
@@ -143,7 +147,7 @@
         </div>
         <div class="product-card-body am-pro-card__body">
           <div class="product-name am-pro-card__title">${escapeHtml(name)}</div>
-          ${oldHtml}
+          ${cardPriceHtml}
           <div class="product-price am-pro-card__main-price">
             <span>${formatCurrency(pixPrice)}</span>
             <span class="am-card-discount am-pro-card__discount-tag">${Math.round(pixPercent)}% OFF</span>
@@ -154,4 +158,8 @@
         </div>
       </a>`;
   };
+
+  // Permite que páginas legadas confirmem que o renderer oficial e corrigido
+  // foi carregado antes de montar seus próprios cards.
+  window.__ARIANA_PRODUCT_CARD_VERSION__ = "15";
 })();

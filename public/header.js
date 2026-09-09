@@ -1246,7 +1246,7 @@ function carregarHeader() {
     <div class="hidden md:block bg-gray-50 text-gray-500 text-[11px] border-b border-gray-200">
       <div class="max-w-[1440px] mx-auto px-3 sm:px-6 py-2 flex items-center justify-between">
         <div class="flex items-center gap-6 font-bold uppercase tracking-wider">
-          <a href="rastreio.html" class="hover:text-primary-blue transition-colors">Rastrear Pedido</a>
+          <a href="rastrear_pedido.html" class="hover:text-primary-blue transition-colors">Rastrear Pedido</a>
           <a href="quem_somos.html" class="hover:text-primary-blue transition-colors">Nossas Lojas</a>
           <a href="contato.html" class="hover:text-primary-blue transition-colors">Atendimento</a>
         </div>
@@ -1767,4 +1767,3 @@ window.bindHeaderAuthListener = window.bindHeaderAuthListener || function() { re
 async function carregarEnderecoHeaderFirestore() {
   try { await __syncHeaderAddressFromAuth(); } catch (_) {}
 }
-
