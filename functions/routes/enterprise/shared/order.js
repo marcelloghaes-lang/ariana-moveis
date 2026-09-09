@@ -16,23 +16,36 @@ export function createEnterpriseOrder(context = {}) {
     normalizeProductForResponse
   } = context;
 
-  async function enterpriseCompatFindOrder(orderId = '') {
+  async function enterpriseCompatFindOrder(orderId = '', partner = {}) {
     const id = String(orderId || '').trim();
     if (!id) return null;
 
+    const identity = [
+      { 'manufacturerDispatch.externalOrderId': id },
+      { 'manufacturerDispatch.orderId': id },
+      { 'manufacturerDispatch.enterpriseOrderId': id },
+      { status_integracao: id },
+      { trackingCode: id }
+    ];
     const oid = normalizeObjectId(id);
-    if (oid) {
-      const byId = await Order.findById(oid);
-      if (byId) return byId;
+    if (oid) identity.unshift({ _id: oid });
+
+    const partnerIds = enterprisePartnerProductScope(partner);
+    if (!partnerIds.length) {
+      return Order.findOne({ $or: identity });
     }
 
     return Order.findOne({
-      $or: [
-        { 'manufacturerDispatch.externalOrderId': id },
-        { 'manufacturerDispatch.orderId': id },
-        { 'manufacturerDispatch.enterpriseOrderId': id },
-        { status_integracao: id },
-        { trackingCode: id }
+      $and: [
+        { $or: identity },
+        {
+          $or: [
+            { manufacturer: { $in: partnerIds } },
+            { sellerIds: { $in: partnerIds } },
+            { 'items.sellerId': { $in: partnerIds } },
+            { 'manufacturerDispatch.payload.manufacturer': { $in: partnerIds } }
+          ]
+        }
       ]
     });
   }
@@ -123,7 +136,9 @@ export function createEnterpriseOrder(context = {}) {
     let product = await Product.findOne(scoped);
     if (product) return product;
 
-    // Compatibilidade com produtos antigos que foram criados sem escopo correto.
+    // Nunca atravessa o escopo de outro parceiro. Consultas internas sem parceiro
+    // ainda podem usar o fallback global para manutenção administrativa.
+    if (sellerIds.length) return null;
     return Product.findOne({ sku: cleanSku });
   }
 
