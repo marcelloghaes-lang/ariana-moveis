@@ -665,8 +665,9 @@ router.put('/products/:sku/stock', partnerKeyRequired, async (req, res) => {
       sku: req.params.sku,
       sellerId: req.body?.sellerId || req.query?.sellerId,
       stock: req.body?.stock ?? req.body?.quantity ?? req.body?.estoque,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
-      payload: req.body
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      payload: req.body,
+      partner: req.enterprisePartner || null
     });
     return ok(res, { product });
   } catch (error) {
@@ -680,8 +681,9 @@ router.put('/products/:sku/price', partnerKeyRequired, async (req, res) => {
       sku: req.params.sku,
       sellerId: req.body?.sellerId || req.query?.sellerId,
       price: req.body?.price ?? req.body?.preco ?? req.body?.valor,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
-      payload: req.body
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      payload: req.body,
+      partner: req.enterprisePartner || null
     });
     return ok(res, { product });
   } catch (error) {
@@ -698,7 +700,7 @@ router.post('/products/:sku/sync', partnerKeyRequired, async (req, res) => {
     const product = await syncEnterpriseProductState({
       sku: req.params.sku,
       sellerId: req.body?.sellerId || req.query?.sellerId,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       price: req.body?.price ?? req.body?.preco ?? req.body?.valor,
       stock: req.body?.stock ?? req.body?.quantity ?? req.body?.estoque,
       active: req.body?.active ?? req.body?.ativo,
@@ -731,7 +733,7 @@ router.get('/products/:sku/sync-history', adminOnly, async (req, res) => {
   try {
     return ok(res, await listEnterpriseProductSyncHistory({
       sku: req.params.sku,
-      manufacturer: req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       limit: req.query?.limit
     }));
   } catch (error) {
@@ -806,8 +808,9 @@ router.post('/orders/:orderId/status', partnerKeyRequired, async (req, res) => {
       orderId: req.params.orderId,
       status: req.body?.status || req.body?.status_integracao,
       statusLabel: req.body?.statusLabel || req.body?.label || req.body?.mensagem,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
-      payload: req.body
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
+      payload: req.body,
+      partner: req.enterprisePartner || null
     });
     return ok(res, { order });
   } catch (error) {
@@ -822,7 +825,7 @@ router.post('/orders/:orderId/tracking', partnerKeyRequired, async (req, res) =>
       trackingCode: req.body?.trackingCode || req.body?.codigoRastreio || req.body?.rastreio,
       carrier: req.body?.carrier || req.body?.transportadora,
       trackingUrl: req.body?.trackingUrl || req.body?.urlRastreio,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       payload: req.body
     });
     return ok(res, { order });
@@ -836,7 +839,7 @@ router.post('/orders/:orderId/invoice', partnerKeyRequired, async (req, res) => 
     const order = await attachEnterpriseInvoice({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       payload: req.body
     });
     return ok(res, { order });
@@ -856,7 +859,7 @@ router.post('/orders/:orderId/xml/generate', partnerKeyRequired, async (req, res
     const result = await generateEnterpriseOrderXml({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       payload: req.body,
       partner: req.enterprisePartner || null
     });
@@ -870,7 +873,7 @@ router.get('/orders/:orderId/xml', partnerKeyRequired, async (req, res) => {
   try {
     const result = await getEnterpriseOrderXml({
       orderId: req.params.orderId,
-      manufacturer: req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       partner: req.enterprisePartner || null
     });
     return ok(res, result);
@@ -883,7 +886,7 @@ router.get('/orders/:orderId/xml/download', partnerKeyRequired, async (req, res)
   try {
     const result = await downloadEnterpriseOrderXml({
       orderId: req.params.orderId,
-      manufacturer: req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       partner: req.enterprisePartner || null
     });
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
@@ -899,7 +902,7 @@ router.post('/orders/:orderId/xml/regenerate', partnerKeyRequired, async (req, r
     const result = await regenerateEnterpriseOrderXml({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       payload: req.body,
       partner: req.enterprisePartner || null
     });
@@ -921,7 +924,7 @@ router.post('/orders/:orderId/danfe/generate', partnerKeyRequired, async (req, r
     const result = await generateEnterpriseOrderDanfe({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       payload: req.body,
       partner: req.enterprisePartner || null
     });
@@ -935,7 +938,7 @@ router.get('/orders/:orderId/danfe', partnerKeyRequired, async (req, res) => {
   try {
     const result = await getEnterpriseOrderDanfe({
       orderId: req.params.orderId,
-      manufacturer: req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       partner: req.enterprisePartner || null
     });
     return ok(res, result);
@@ -948,7 +951,7 @@ router.get('/orders/:orderId/danfe/download', partnerKeyRequired, async (req, re
   try {
     const result = await downloadEnterpriseOrderDanfe({
       orderId: req.params.orderId,
-      manufacturer: req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       partner: req.enterprisePartner || null
     });
     res.setHeader('Content-Type', 'application/pdf');
@@ -964,7 +967,7 @@ router.post('/orders/:orderId/danfe/regenerate', partnerKeyRequired, async (req,
     const result = await regenerateEnterpriseOrderDanfe({
       orderId: req.params.orderId,
       invoice: req.body?.invoice || req.body?.nfe || req.body,
-      manufacturer: req.body?.manufacturer || req.query?.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || '',
       payload: req.body,
       partner: req.enterprisePartner || null
     });
