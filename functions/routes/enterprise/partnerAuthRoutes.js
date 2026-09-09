@@ -55,7 +55,7 @@ app.post('/api/enterprise/oauth/token', async (req, res) => {
     }).catch(() => null);
     return res.json({ ok: true, token_type: 'Bearer', access_token: accessToken, expires_in: 3600, scope: scopes.join(' '), environment: picked.environment });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao emitir token OAuth' });
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao emitir token OAuth' });
   }
 });
 
