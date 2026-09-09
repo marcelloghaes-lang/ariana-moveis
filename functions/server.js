@@ -57,7 +57,11 @@ app.use((req, res, next) => {
 
 
 const PORT = Number(process.env.PORT || 3000);
-const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
+const CONFIGURED_JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
+const JWT_SECRET = CONFIGURED_JWT_SECRET || crypto.randomBytes(48).toString('hex');
+if (!CONFIGURED_JWT_SECRET) {
+  console.warn('[SECURITY] JWT_SECRET não configurado: usando segredo aleatório temporário. Configure JWT_SECRET no Render para manter sessões após reinícios.');
+}
 const MONGODB_URI = process.env.MONGODB_URI || '';
 const MONGODB_DB = process.env.MONGODB_DB || 'ariana_moveis_db';
 const APP_BASE_URL = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
