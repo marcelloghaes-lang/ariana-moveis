@@ -50,7 +50,7 @@ const enterpriseCatalogSyncJobSchema = new mongoose.Schema({
   nextAttemptAt: { type: Date, default: now, index: true },
   lastError: String,
   metadata: mongoose.Schema.Types.Mixed
-}, baseOptions);
+}, { ...baseOptions, suppressReservedKeysWarning: true });
 
 const EnterpriseCatalogSyncJob = mongoose.models.EnterpriseCatalogSyncJob || mongoose.model('EnterpriseCatalogSyncJob', enterpriseCatalogSyncJobSchema);
 
