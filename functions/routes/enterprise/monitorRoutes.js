@@ -9,7 +9,8 @@ export default function registerEnterpriseMonitorRoutes(app, context = {}) {
     IntegrationAuditLog,
     ManufacturerDispatchQueue,
     OperationalAlert,
-    enterpriseVersionHeaders
+    enterpriseVersionHeaders,
+    adminRequired
   } = context;
 
 // ============================================================
@@ -130,7 +131,7 @@ async function buildEnterpriseMonitorOverview(req) {
   };
 }
 
-app.get('/api/enterprise/monitor/overview', async (req, res) => {
+app.get('/api/enterprise/monitor/overview', adminRequired, async (req, res) => {
   try {
     const overview = await buildEnterpriseMonitorOverview(req);
     return res.json(overview);
@@ -140,7 +141,7 @@ app.get('/api/enterprise/monitor/overview', async (req, res) => {
   }
 });
 
-app.get('/api/v1/enterprise/monitor/overview', enterpriseVersionHeaders('v1'), async (req, res) => {
+app.get('/api/v1/enterprise/monitor/overview', enterpriseVersionHeaders('v1'), adminRequired, async (req, res) => {
   try {
     const overview = await buildEnterpriseMonitorOverview(req);
     return res.json({ ...overview, requestedVersion: 'v1' });
@@ -149,7 +150,7 @@ app.get('/api/v1/enterprise/monitor/overview', enterpriseVersionHeaders('v1'), a
   }
 });
 
-app.get('/api/v2/enterprise/monitor/overview', enterpriseVersionHeaders('v2', true), async (req, res) => {
+app.get('/api/v2/enterprise/monitor/overview', enterpriseVersionHeaders('v2', true), adminRequired, async (req, res) => {
   try {
     const overview = await buildEnterpriseMonitorOverview(req);
     return res.json({ ...overview, requestedVersion: 'v2', warning: 'v2 ainda está em preview.' });
