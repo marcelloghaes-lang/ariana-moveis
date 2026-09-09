@@ -1,3 +1,6 @@
+import dns from 'dns';
+import net from 'net';
+
 // ============================================================
 // ENTERPRISE WEBHOOK ROUTES - ARIANA MÓVEIS
 // Extraído de routes/enterpriseRoutes.js sem alterar endpoints, regras ou respostas.
@@ -63,6 +66,99 @@ const ENTERPRISE_WEBHOOK_EVENTS = [
   'order_cancelled'
 ];
 
+
+function enterpriseWebhookPrivateAddress(address = '') {
+  const value = String(address || '').toLowerCase().split('%')[0];
+  const version = net.isIP(value);
+
+  if (version === 4) {
+    const [a, b] = value.split('.').map(Number);
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    );
+  }
+
+  if (version === 6) {
+    if (value === '::' || value === '::1') return true;
+    if (value.startsWith('fc') || value.startsWith('fd') || /^fe[89ab]/.test(value)) return true;
+    if (value.startsWith('::ffff:')) return enterpriseWebhookPrivateAddress(value.slice(7));
+  }
+
+  return false;
+}
+
+async function enterpriseValidateWebhookUrl(rawUrl = '', partner = {}) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    const err = new Error('URL do webhook inválida');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const environment = String(partner.environment || 'sandbox').toLowerCase();
+  const allowHttp = environment !== 'production' &&
+    String(process.env.ENTERPRISE_ALLOW_HTTP_WEBHOOKS || 'false').toLowerCase() === 'true';
+
+  if (parsed.protocol !== 'https:' && !(allowHttp && parsed.protocol === 'http:')) {
+    const err = new Error('Webhook deve usar HTTPS');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (parsed.username || parsed.password) {
+    const err = new Error('URL de webhook não pode conter usuário ou senha');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const hostname = String(parsed.hostname || '').toLowerCase().replace(/\.$/, '');
+  const blockedHost = (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname === 'host.docker.internal' ||
+    hostname === 'kubernetes.default' ||
+    hostname === 'metadata' ||
+    hostname === 'metadata.google.internal'
+  );
+
+  if (!hostname || blockedHost || enterpriseWebhookPrivateAddress(hostname)) {
+    const err = new Error('Destino de webhook não permitido');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  try {
+    const addresses = await dns.promises.lookup(hostname, { all: true, verbatim: true });
+    if (!addresses.length || addresses.some((entry) => enterpriseWebhookPrivateAddress(entry.address))) {
+      const err = new Error('Destino de webhook resolve para rede privada ou reservada');
+      err.statusCode = 400;
+      throw err;
+    }
+  } catch (error) {
+    if (error.statusCode) throw error;
+    const err = new Error('Não foi possível validar o domínio do webhook');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return parsed.toString();
+}
+
 function enterprisePartnerWebhookSettingKey(partner = {}) {
   return `enterprise_webhooks_${sanitizeIdPart(partner.requestId || partner.partnerId || partner.companyName || 'partner')}`;
 }
@@ -109,10 +205,8 @@ async function enterprisePartnerSaveWebhookConfig(partner = {}, payload = {}) {
     lastStatusCode: current.lastStatusCode || null
   };
 
-  if (value.url && !/^https?:\/\//i.test(value.url)) {
-    const err = new Error('URL do webhook deve começar com http:// ou https://');
-    err.statusCode = 400;
-    throw err;
+  if (value.url) {
+    value.url = await enterpriseValidateWebhookUrl(value.url, partner);
   }
 
   await Setting.findOneAndUpdate(
@@ -164,6 +258,7 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
     throw err;
   }
 
+  const safeWebhookUrl = await enterpriseValidateWebhookUrl(config.url, partner);
   const payload = enterprisePartnerBuildWebhookPayload(partner, event, extraPayload);
   const rawBody = JSON.stringify(payload);
   const signature = enterprisePartnerSignWebhook(config.secret, rawBody);
@@ -174,7 +269,7 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
   let message = '';
 
   try {
-    const response = await axios.post(config.url, payload, {
+    const response = await axios.post(safeWebhookUrl, payload, {
       timeout: 15000,
       headers: {
         'Content-Type': 'application/json',
@@ -184,7 +279,8 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
         'X-Ariana-Signature': signature,
         'X-Webhook-Signature': signature
       },
-      validateStatus: () => true
+      validateStatus: () => true,
+      maxRedirects: 0
     });
     statusCode = Number(response.status || 0);
     responseData = redact(response.data || null);
@@ -205,10 +301,10 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
     status: ok ? 'success' : 'error',
     statusCode: statusCode || 500,
     message,
-    request: { url: config.url, event, payload, headers: { 'X-Ariana-Signature': '[redacted]' } },
+    request: { url: safeWebhookUrl, event, payload, headers: { 'X-Ariana-Signature': '[redacted]' } },
     response: responseData,
     metadata: {
-      endpoint: config.url,
+      endpoint: safeWebhookUrl,
       event,
       deliveryId: payload.id,
       durationMs,
@@ -327,7 +423,7 @@ app.post('/api/enterprise/partner/webhooks/:id/retry', enterprisePartnerRequired
       request: { previousLogId: String(previous._id), event, payload },
       response: result,
       metadata: {
-        endpoint: config.url,
+        endpoint: safeWebhookUrl,
         event,
         deliveryId: result.deliveryId,
         previousLogId: String(previous._id),
