@@ -167,7 +167,7 @@ async function enterpriseOccurrenceUpsert(order, payload = {}, req = {}, action 
 
 app.post('/api/enterprise/orders/:orderId/occurrences', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para registrar ocorrência' });
 
     const result = await enterpriseOccurrenceUpsert(order, req.body || {}, req, 'enterprise_occurrence_registered');
@@ -186,7 +186,7 @@ app.post('/api/enterprise/orders/:orderId/occurrences', enterpriseOrderOperation
 
 app.get('/api/enterprise/orders/:orderId/occurrences', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar ocorrências' });
 
     const items = await EnterpriseOccurrenceRecord.find({ orderId: String(order._id) }).sort({ occurredAt: -1, updatedAt: -1, createdAt: -1 }).lean();
@@ -205,7 +205,11 @@ app.get('/api/enterprise/orders/:orderId/occurrences', enterpriseOrderOperationA
 app.get('/api/enterprise/occurrences', enterpriseOrderOperationAuth, async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
-    const filter = {};
+    const partner = req.enterprisePartner || req.enterprisePortal || {};
+    const partnerIds = [partner.requestId, partner.partnerId, partner.id, partner.companyName, partner.tradeName].map((v) => String(v || '').trim()).filter(Boolean);
+    const filter = partnerIds.length
+      ? { $or: [{ partnerRequestId: { $in: partnerIds } }, { manufacturer: { $in: partnerIds } }] }
+      : { _id: null };
     if (req.query.orderId) filter.orderId = String(req.query.orderId).trim();
     if (req.query.occurrenceId) filter.occurrenceId = String(req.query.occurrenceId).trim();
     if (req.query.status) filter.status = String(req.query.status).trim();
@@ -241,7 +245,7 @@ app.get('/api/enterprise/occurrences', enterpriseOrderOperationAuth, async (req,
 // Compatibilidade Postman: atualiza a ocorrência mais recente do pedido sem exigir occurrenceId na URL.
 app.patch('/api/enterprise/orders/:orderId/occurrences', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar ocorrência' });
 
     const requestedOccurrenceId = String(req.body?.occurrenceId || req.query?.occurrenceId || '').trim();
@@ -282,7 +286,7 @@ app.patch('/api/enterprise/orders/:orderId/occurrences', enterpriseOrderOperatio
 
 app.patch('/api/enterprise/orders/:orderId/occurrences/:occurrenceId', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar ocorrência' });
 
     const existing = await enterpriseFindOccurrenceRecord(String(order._id), req.params.occurrenceId);
@@ -304,7 +308,7 @@ app.patch('/api/enterprise/orders/:orderId/occurrences/:occurrenceId', enterpris
 
 app.post('/api/enterprise/orders/:orderId/occurrences/:occurrenceId/status', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar status da ocorrência' });
 
     const existing = await enterpriseFindOccurrenceRecord(String(order._id), req.params.occurrenceId);
@@ -333,7 +337,7 @@ app.post('/api/enterprise/orders/:orderId/occurrences/:occurrenceId/status', ent
 // ============================================================
 app.post('/api/enterprise/orders/:orderId/events', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para registrar evento' });
     const result = await enterpriseOccurrenceUpsert(order, { ...(req.body || {}), event: req.body?.event || req.body }, req, 'enterprise_event_registered');
     return res.status(201).json({ ok: true, action: 'event_registered', orderId: String(result.order._id), event: result.occurrence, occurrence: result.occurrence, order: enterpriseNormalizeOrderForResponse(result.order) });
@@ -344,7 +348,7 @@ app.post('/api/enterprise/orders/:orderId/events', enterpriseOrderOperationAuth,
 
 app.get('/api/enterprise/orders/:orderId/events', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar eventos' });
     const items = await EnterpriseOccurrenceRecord.find({ orderId: String(order._id) }).sort({ updatedAt: -1, createdAt: -1 }).lean();
     return res.json({ ok: true, orderId: String(order._id), total: items.length, events: items.map(enterpriseOccurrenceNormalizeResponse), occurrences: items.map(enterpriseOccurrenceNormalizeResponse) });
@@ -356,7 +360,11 @@ app.get('/api/enterprise/orders/:orderId/events', enterpriseOrderOperationAuth, 
 app.get('/api/enterprise/events', enterpriseOrderOperationAuth, async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
-    const filter = {};
+    const partner = req.enterprisePartner || req.enterprisePortal || {};
+    const partnerIds = [partner.requestId, partner.partnerId, partner.id, partner.companyName, partner.tradeName].map((v) => String(v || '').trim()).filter(Boolean);
+    const filter = partnerIds.length
+      ? { $or: [{ partnerRequestId: { $in: partnerIds } }, { manufacturer: { $in: partnerIds } }] }
+      : { _id: null };
     if (req.query.orderId) filter.orderId = String(req.query.orderId);
     const items = await EnterpriseOccurrenceRecord.find(filter).sort({ updatedAt: -1, createdAt: -1 }).limit(limit).lean();
     return res.json({ ok: true, total: items.length, events: items.map(enterpriseOccurrenceNormalizeResponse) });
