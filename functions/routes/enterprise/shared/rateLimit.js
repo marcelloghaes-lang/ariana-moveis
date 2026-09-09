@@ -23,7 +23,7 @@ export function createEnterpriseRateLimit(deps = {}) {
     manufacturer: { type: String, index: true },
     environment: { type: String, index: true },
     apiKeyHash: { type: String, index: true },
-    windowType: { type: String, enum: ['minute', 'day'], index: true },
+    windowType: { type: String, enum: ['minute', 'hour', 'day'], index: true },
     windowStart: { type: Date, index: true },
     count: { type: Number, default: 0 },
     limit: { type: Number, default: 0 },
@@ -37,6 +37,11 @@ export function createEnterpriseRateLimit(deps = {}) {
   function enterpriseCompatMinuteStart(date = new Date()) {
     const d = new Date(date);
     d.setSeconds(0, 0);
+    return d;
+  }
+  function enterpriseCompatHourStart(date = new Date()) {
+    const d = new Date(date);
+    d.setMinutes(0, 0, 0);
     return d;
   }
   function enterpriseCompatDayStart(date = new Date()) {
@@ -81,26 +86,41 @@ export function createEnterpriseRateLimit(deps = {}) {
     const partnerId = String(partner?._id || partner?.id || partner?.requestId || 'enterprise');
     const manufacturer = String(partner?.requestId || partner?.tradeName || partner?.companyName || 'enterprise');
     const minuteStart = enterpriseCompatMinuteStart(nowDate);
+    const hourStart = enterpriseCompatHourStart(nowDate);
     const dayStart = enterpriseCompatDayStart(nowDate);
 
-    const [minute, day] = await Promise.all([
+    const [minute, hour, day] = await Promise.all([
       enterpriseCompatIncrementBucket({ partnerId, manufacturer, environment, apiKeyHash, windowType: 'minute', windowStart: minuteStart, expiresAt: new Date(minuteStart.getTime() + 10 * 60 * 1000), limit: config.requestsPerMinute }),
+      enterpriseCompatIncrementBucket({ partnerId, manufacturer, environment, apiKeyHash, windowType: 'hour', windowStart: hourStart, expiresAt: new Date(hourStart.getTime() + 3 * 60 * 60 * 1000), limit: config.requestsPerHour }),
       enterpriseCompatIncrementBucket({ partnerId, manufacturer, environment, apiKeyHash, windowType: 'day', windowStart: dayStart, expiresAt: new Date(dayStart.getTime() + 3 * 24 * 60 * 60 * 1000), limit: config.requestsPerDay })
     ]);
 
     const remainingMinute = Math.max(0, config.requestsPerMinute - Number(minute?.count || 0));
+    const remainingHour = Math.max(0, config.requestsPerHour - Number(hour?.count || 0));
     const remainingDay = Math.max(0, config.requestsPerDay - Number(day?.count || 0));
     const resetMinute = Math.ceil((minuteStart.getTime() + 60 * 1000) / 1000);
+    const resetHour = Math.ceil((hourStart.getTime() + 60 * 60 * 1000) / 1000);
     const resetDay = Math.ceil((dayStart.getTime() + 24 * 60 * 60 * 1000) / 1000);
 
     res.setHeader('X-RateLimit-Limit', String(config.requestsPerMinute));
     res.setHeader('X-RateLimit-Remaining', String(remainingMinute));
     res.setHeader('X-RateLimit-Reset', String(resetMinute));
+    res.setHeader('X-RateLimit-Hour-Limit', String(config.requestsPerHour));
+    res.setHeader('X-RateLimit-Hour-Remaining', String(remainingHour));
     res.setHeader('X-RateLimit-Day-Limit', String(config.requestsPerDay));
     res.setHeader('X-RateLimit-Day-Remaining', String(remainingDay));
 
-    if (Number(minute?.count || 0) > config.requestsPerMinute || Number(day?.count || 0) > config.requestsPerDay) {
-      const retryAfter = Number(minute?.count || 0) > config.requestsPerMinute ? Math.max(1, resetMinute - Math.floor(Date.now() / 1000)) : Math.max(1, resetDay - Math.floor(Date.now() / 1000));
+    if (
+      Number(minute?.count || 0) > config.requestsPerMinute ||
+      Number(hour?.count || 0) > config.requestsPerHour ||
+      Number(day?.count || 0) > config.requestsPerDay
+    ) {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const retryAfter = Number(minute?.count || 0) > config.requestsPerMinute
+        ? Math.max(1, resetMinute - nowSeconds)
+        : Number(hour?.count || 0) > config.requestsPerHour
+          ? Math.max(1, resetHour - nowSeconds)
+          : Math.max(1, resetDay - nowSeconds);
       res.setHeader('Retry-After', String(retryAfter));
       await IntegrationAuditLog.create({
         scope: 'enterprise',
@@ -111,7 +131,7 @@ export function createEnterpriseRateLimit(deps = {}) {
         statusCode: 429,
         message: 'Rate limit Enterprise excedido',
         request: redact({ method: req.method, url: req.originalUrl || req.url, headers: { 'x-ariana-key': '[redacted]' } }),
-        metadata: { environment, requestsPerMinute: config.requestsPerMinute, requestsPerDay: config.requestsPerDay, minuteCount: minute?.count || 0, dayCount: day?.count || 0, retryAfter }
+        metadata: { environment, requestsPerMinute: config.requestsPerMinute, requestsPerHour: config.requestsPerHour, requestsPerDay: config.requestsPerDay, minuteCount: minute?.count || 0, hourCount: hour?.count || 0, dayCount: day?.count || 0, retryAfter }
       }).catch(() => null);
       res.status(429).json({
         ok: false,
@@ -124,7 +144,7 @@ export function createEnterpriseRateLimit(deps = {}) {
       });
       return false;
     }
-    req.enterpriseRateLimit = { ...config, remainingMinute, remainingDay, resetMinute, resetDay };
+    req.enterpriseRateLimit = { ...config, remainingMinute, remainingHour, remainingDay, resetMinute, resetHour, resetDay };
     return true;
   }
 
@@ -133,6 +153,7 @@ export function createEnterpriseRateLimit(deps = {}) {
     EnterpriseRateLimitBucket,
     enterpriseCompatKeyHash,
     enterpriseCompatMinuteStart,
+    enterpriseCompatHourStart,
     enterpriseCompatDayStart,
     enterpriseCompatRateLimitConfig,
     enterpriseCompatIncrementBucket,
