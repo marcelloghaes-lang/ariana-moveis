@@ -40,7 +40,7 @@ import {
 } from '../services/manufacturerService.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'ariana_enterprise_secret';
+const JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
 
 // ============================================================
 // ETAPA 10 - Solicitações públicas de homologação Enterprise
@@ -149,6 +149,7 @@ function adminOnly(req, res, next) {
       : '';
 
     if (!token) return fail(res, 401, 'Token ausente');
+    if (!JWT_SECRET) return fail(res, 503, 'Autenticação administrativa Enterprise indisponível: JWT_SECRET não configurado');
 
     const decoded = jwt.verify(token, JWT_SECRET);
 
