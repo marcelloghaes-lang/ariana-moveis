@@ -199,9 +199,6 @@ function getPartnerApiKey(req) {
   ).trim();
   if (fromHeader) return fromHeader;
 
-  const fromQuery = String(req.query?.key || req.query?.apiKey || req.query?.api_key || '').trim();
-  if (fromQuery) return fromQuery;
-
   const auth = String(req.headers.authorization || '').trim();
   if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
   return '';
@@ -214,8 +211,9 @@ function getRequestIp(req) {
 }
 
 function isLegacyEnterpriseSecret(key = '') {
+  const enabled = String(process.env.ENTERPRISE_ALLOW_LEGACY_GLOBAL_SECRET || 'false').toLowerCase() === 'true';
   const expected = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
-  return Boolean(expected && key && key === expected);
+  return Boolean(enabled && expected && key && key === expected);
 }
 
 function buildPartnerAuthQuery(key = '') {
@@ -289,8 +287,6 @@ async function partnerKey(req, res, next) {
       return next();
     }
 
-    // Webhooks antigos continuam opcionais quando nenhuma chave global foi configurada.
-    if (!key && !String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim()) return next();
     if (!key) return fail(res, 401, 'Chave de integração ausente');
 
     const partner = await findEnterprisePartnerByKey(key);
@@ -637,10 +633,10 @@ router.post('/queue/:queueId/dispatch', adminOnly, async (req, res) => {
   catch (error) { return fail(res, 500, error.response?.data || error.message || 'Erro ao enviar fila'); }
 });
 
-router.post('/webhooks/:manufacturer', partnerKey, async (req, res) => {
+router.post('/webhooks/:manufacturer', partnerKeyRequired, async (req, res) => {
   try {
     const event = await registerWebhookEvent({
-      manufacturer: req.params.manufacturer,
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.params.manufacturer,
       eventType: req.body?.event || req.body?.type || 'manufacturer_webhook',
       payload: req.body
     });
