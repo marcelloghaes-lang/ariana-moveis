@@ -1,6 +1,55 @@
 import express from 'express';
 import { createTelevendasController } from '../../controllers/televendas/televendasController.js';
 
+const clean = (value = '', max = 1000) => String(value ?? '').trim().slice(0, max);
+const digits = (value = '') => String(value || '').replace(/\D/g, '');
+
+function chatwootConfig(body = {}) {
+  const baseUrl = clean(
+    process.env.CHATWOOT_BASE_URL ||
+    process.env.CHATWOOT_URL ||
+    '',
+    1000
+  ).replace(/\/+$/, '');
+
+  const apiToken = clean(
+    process.env.CHATWOOT_API_TOKEN ||
+    process.env.CHATWOOT_ACCESS_TOKEN ||
+    '',
+    2000
+  );
+
+  const accountId = clean(
+    process.env.CHATWOOT_ACCOUNT_ID || body.accountId || body.account_id || '',
+    80
+  );
+
+  return { baseUrl, apiToken, accountId };
+}
+
+async function findTelevendasOrder(Order, orderId) {
+  let order = null;
+
+  try {
+    order = await Order.findById(orderId);
+  } catch (_error) {}
+
+  if (!order) {
+    order = await Order.findOne({
+      origin: 'televendas',
+      'televendas.orderCode': clean(orderId, 100)
+    });
+  }
+
+  if (!order || order.origin !== 'televendas') {
+    const error = new Error('Pedido do Televendas não encontrado.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return order;
+}
+
 export default function createTelevendasRouter(context = {}) {
   const router = express.Router();
 
@@ -18,6 +67,157 @@ export default function createTelevendasRouter(context = {}) {
   router.post('/televendas/orders/:orderId/payment-link', context.adminRequired, controller.generatePaymentLink);
   router.post('/televendas/orders/:orderId/cancel', context.adminRequired, controller.cancelOrder);
   router.post('/televendas/orders/:orderId/reconcile-payment', context.adminRequired, controller.reconcilePayment);
+
+  // Associa a venda à conversa que originou o atendimento no Chatwoot.
+  // Nenhum token do Chatwoot é exposto ao navegador.
+  router.post('/televendas/orders/:orderId/chatwoot', context.adminRequired, async (req, res) => {
+    try {
+      const order = await findTelevendasOrder(context.Order, req.params.orderId);
+      const conversationId = clean(req.body?.conversationId || req.body?.conversation_id || '', 80);
+      const accountId = clean(req.body?.accountId || req.body?.account_id || '', 80);
+
+      if (!conversationId) {
+        return res.status(400).json({ ok: false, error: 'conversationId do Chatwoot é obrigatório.' });
+      }
+
+      order.televendas = {
+        ...(order.televendas || {}),
+        chatwoot: {
+          conversationId,
+          accountId,
+          inboxId: clean(req.body?.inboxId || req.body?.inbox_id || '', 80),
+          contactId: clean(req.body?.contactId || req.body?.contact_id || '', 80),
+          contactName: clean(req.body?.contactName || req.body?.contact_name || order.customerName || '', 180),
+          contactPhone: digits(req.body?.contactPhone || req.body?.contact_phone || order.customerPhone || ''),
+          contactEmail: clean(req.body?.contactEmail || req.body?.contact_email || order.customerEmail || '', 180),
+          agentId: clean(req.body?.agentId || req.body?.agent_id || '', 80),
+          agentName: clean(req.body?.agentName || req.body?.agent_name || '', 180),
+          linkedAt: new Date()
+        }
+      };
+
+      await order.save();
+
+      return res.json({
+        ok: true,
+        orderId: String(order._id),
+        chatwoot: order.televendas.chatwoot
+      });
+    } catch (error) {
+      console.error('[televendas/chatwoot/link]', error);
+      return res.status(Number(error?.statusCode || 500)).json({
+        ok: false,
+        error: error?.message || 'Erro ao vincular conversa do Chatwoot.'
+      });
+    }
+  });
+
+  // Envia o link de pagamento diretamente na MESMA conversa do Chatwoot.
+  router.post('/televendas/orders/:orderId/chatwoot/send-payment-link', context.adminRequired, async (req, res) => {
+    try {
+      const order = await findTelevendasOrder(context.Order, req.params.orderId);
+      const chatwoot = order.televendas?.chatwoot || {};
+      const conversationId = clean(chatwoot.conversationId || req.body?.conversationId || '', 80);
+      const cfg = chatwootConfig({
+        accountId: chatwoot.accountId || req.body?.accountId || ''
+      });
+
+      if (!cfg.baseUrl || !cfg.apiToken) {
+        return res.status(503).json({
+          ok: false,
+          error: 'Chatwoot não configurado no backend. Configure CHATWOOT_BASE_URL e CHATWOOT_API_TOKEN.'
+        });
+      }
+
+      if (!cfg.accountId) {
+        return res.status(503).json({
+          ok: false,
+          error: 'CHATWOOT_ACCOUNT_ID não configurado e account_id não recebido da conversa.'
+        });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Esta venda ainda não está vinculada a uma conversa do Chatwoot.'
+        });
+      }
+
+      const token = clean(order.paymentLinkToken || order.payment?.paymentLinkToken || '', 400);
+      if (!token) {
+        return res.status(409).json({ ok: false, error: 'Gere o link de pagamento antes de enviar.' });
+      }
+
+      const frontend = clean(
+        req.body?.frontendUrl || context.FRONTEND_URL || process.env.FRONTEND_URL || 'https://arianamoveis.com.br',
+        1000
+      ).replace(/\/+$/, '');
+      const paymentLink = `${frontend}/pagamento_link.html?token=${encodeURIComponent(token)}`;
+      const installments = Math.max(1, Number(order.payment?.installments || 1));
+      const installmentValue = Number(order.payment?.installmentValue || order.total || 0);
+      const formattedInstallment = installmentValue.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+
+      const customerFirstName = clean(order.customerName || 'cliente', 180).split(/\s+/)[0] || 'cliente';
+      const content = clean(
+        req.body?.content ||
+        `Olá, ${customerFirstName}! Segue o link de pagamento da sua compra na Ariana Móveis:\n${paymentLink}\n\nCondição definida: ${installments}x de ${formattedInstallment}.`,
+        5000
+      );
+
+      const url = `${cfg.baseUrl}/api/v1/accounts/${encodeURIComponent(cfg.accountId)}/conversations/${encodeURIComponent(conversationId)}/messages`;
+      const response = await context.axios.post(url, {
+        content,
+        message_type: 'outgoing',
+        private: false,
+        content_type: 'text'
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          api_access_token: cfg.apiToken
+        },
+        timeout: 20000,
+        validateStatus: () => true
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        console.error('[televendas/chatwoot/send]', response.status, response.data);
+        return res.status(502).json({
+          ok: false,
+          error: `Chatwoot recusou o envio (HTTP ${response.status}).`,
+          providerStatus: response.status
+        });
+      }
+
+      order.televendas = {
+        ...(order.televendas || {}),
+        chatwoot: {
+          ...(order.televendas?.chatwoot || {}),
+          accountId: cfg.accountId,
+          conversationId,
+          lastPaymentLinkSentAt: new Date(),
+          lastMessageId: clean(response.data?.id || '', 120)
+        }
+      };
+      await order.save();
+
+      return res.json({
+        ok: true,
+        paymentLink,
+        conversationId,
+        messageId: response.data?.id || null,
+        status: response.data?.status || 'sent'
+      });
+    } catch (error) {
+      console.error('[televendas/chatwoot/send]', error);
+      return res.status(Number(error?.statusCode || 500)).json({
+        ok: false,
+        error: error?.message || 'Erro ao enviar link pelo Chatwoot.'
+      });
+    }
+  });
 
   router.get('/televendas/payment-links/:token', controller.getPublicOrder);
   router.post('/televendas/payment-links/:token/access', controller.registerAccess);
