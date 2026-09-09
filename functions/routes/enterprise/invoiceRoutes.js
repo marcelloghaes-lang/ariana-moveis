@@ -17,7 +17,7 @@ export default function registerEnterpriseInvoiceRoutes(app, context = {}) {
 
 app.post('/api/enterprise/orders/:orderId/invoice', enterpriseCompatAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para anexar NF-e' });
 
     // Normaliza a NF-e recebida do parceiro/fabricante.
@@ -84,8 +84,8 @@ app.post('/api/enterprise/orders/:orderId/invoice', enterpriseCompatAuth, async 
   }
 });
 
-async function enterpriseFindInvoiceDocument(orderId) {
-  const order = await enterpriseCompatFindOrder(orderId);
+async function enterpriseFindInvoiceDocument(orderId, partner = {}) {
+  const order = await enterpriseCompatFindOrder(orderId, partner);
   if (!order) return { order: null, invoice: null, billing: null };
 
   const id = String(order._id || '').trim();
@@ -125,7 +125,7 @@ function enterpriseResolveXmlContent(invoice = {}, billing = {}) {
 
 app.get('/api/enterprise/orders/:orderId/xml', enterpriseCompatAuth, async (req, res) => {
   try {
-    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar XML' });
 
     const xmlUrl = enterpriseResolveDocumentUrl('xml', invoice, billing);
@@ -162,7 +162,7 @@ app.get('/api/enterprise/orders/:orderId/xml', enterpriseCompatAuth, async (req,
 
 app.get('/api/enterprise/orders/:orderId/danfe', enterpriseCompatAuth, async (req, res) => {
   try {
-    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para baixar DANFE' });
 
     const danfeUrl = enterpriseResolveDocumentUrl('danfe', invoice, billing);
@@ -194,7 +194,7 @@ app.post('/api/enterprise/invoice', enterpriseOrderOperationAuth, async (req, re
   req.params.orderId = orderId;
 
   try {
-    const order = await enterpriseCompatFindOrder(orderId);
+    const order = await enterpriseCompatFindOrder(orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para anexar NF-e' });
 
     const invoice = req.body?.invoice || {
@@ -227,7 +227,7 @@ app.post('/api/enterprise/invoice', enterpriseOrderOperationAuth, async (req, re
 // ============================================================
 app.get('/api/enterprise/orders/:orderId/invoice', enterpriseCompatAuth, async (req, res) => {
   try {
-    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId);
+    const { order, invoice, billing } = await enterpriseFindInvoiceDocument(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar NF-e' });
 
     return res.json({
@@ -253,7 +253,12 @@ app.get('/api/enterprise/orders/:orderId/nfe', enterpriseCompatAuth, async (req,
 app.get('/api/enterprise/invoices', enterpriseOrderOperationAuth, async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
-    const rows = await EnterpriseBillingRecord.find({}).sort({ updatedAt: -1, createdAt: -1 }).limit(limit).lean().catch(() => []);
+    const partner = req.enterprisePartner || req.enterprisePortal || {};
+    const partnerIds = [partner.requestId, partner.partnerId, partner.id, partner.companyName, partner.tradeName].map((v) => String(v || '').trim()).filter(Boolean);
+    const partnerFilter = partnerIds.length
+      ? { $or: [{ partnerRequestId: { $in: partnerIds } }, { manufacturer: { $in: partnerIds } }] }
+      : { _id: null };
+    const rows = await EnterpriseBillingRecord.find(partnerFilter).sort({ updatedAt: -1, createdAt: -1 }).limit(limit).lean().catch(() => []);
     return res.json({
       ok: true,
       total: rows.length,
