@@ -44,8 +44,9 @@ export function createEnterpriseHelpers(context = {}) {
   function enterpriseCompatProductPayload(item = {}, parent = {}, partner = {}) {
     const sku = String(item.sku || item.codigo || item.productSku || uid('ent_sku')).trim();
     const name = String(item.name || item.nome || item.title || sku).trim();
-    const sellerId = String(item.sellerId || parent.sellerId || parent.manufacturer || partner.requestId || 'enterprise').trim();
-    const sellerName = String(item.sellerName || parent.sellerName || partner.tradeName || partner.companyName || parent.manufacturer || 'Enterprise').trim();
+    const authenticatedSellerId = String(partner.requestId || partner.partnerId || partner.id || partner._id || '').trim();
+    const sellerId = String(authenticatedSellerId || item.sellerId || parent.sellerId || parent.manufacturer || 'enterprise').trim();
+    const sellerName = String(partner.tradeName || partner.companyName || item.sellerName || parent.sellerName || parent.manufacturer || 'Enterprise').trim();
     const price = enterpriseCompatNumber(item.price ?? item.preco ?? item.unitPrice, 0);
     const stock = enterpriseCompatNumber(item.stock ?? item.estoque ?? item.quantity, 0);
 
