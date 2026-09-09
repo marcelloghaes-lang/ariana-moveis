@@ -852,48 +852,49 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
         ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
 
-        <text x="775" y="704" text-anchor="middle" font-size="27" font-weight="950" fill="${lightText}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
-        <text x="610" y="805" font-size="44" font-weight="950" fill="${lightText}">R$</text>
-        <text x="685" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
-        <text x="775" y="846" text-anchor="middle" font-size="22" font-weight="850" fill="${lightText}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+        <text x="790" y="704" text-anchor="middle" font-size="27" font-weight="950" fill="${lightText}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+        <text x="625" y="805" font-size="44" font-weight="950" fill="${lightText}">R$</text>
+        <text x="700" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
+        <text x="790" y="846" text-anchor="middle" font-size="22" font-weight="850" fill="${lightText}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
 
-        <text x="775" y="910" text-anchor="middle" font-size="42" font-weight="950" fill="${richYellow}">OU</text>
-        <text x="775" y="970" text-anchor="middle" font-size="39" font-weight="950" fill="${lightText}">EM ATÉ ${pricing.installmentCount}X DE</text>
-        <text x="775" y="1022" text-anchor="middle" font-size="34" font-weight="950">
+        <text x="790" y="910" text-anchor="middle" font-size="42" font-weight="950" fill="${richYellow}">OU</text>
+        <text x="790" y="970" text-anchor="middle" font-size="39" font-weight="950" fill="${lightText}">EM ATÉ ${pricing.installmentCount}X DE</text>
+        <text x="790" y="1022" text-anchor="middle" font-size="34" font-weight="950">
           <tspan fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS </tspan>
           <tspan fill="${lightText}">NO CARTÃO</tspan>
         </text>
-        <text x="775" y="1065" text-anchor="middle" font-size="24" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+        <text x="790" y="1065" text-anchor="middle" font-size="24" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
       </g>
 
-      <g transform="translate(32 1203)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="43" cy="43" r="36" fill="#19B64B" stroke="#FFFFFF" stroke-width="5"/>
-        <path d="M43 20C31 20 22 29 22 41c0 7 3 13 9 17l-3 10 11-5c1 0 3 1 4 1 12 0 22-9 22-22S55 20 43 20Z" fill="none" stroke="#FFFFFF" stroke-width="3.2"/>
-        <text x="98" y="30" font-size="18" fill="#FFFFFF">Atendimento pelo</text>
-        <text x="98" y="53" font-size="18" fill="#FFFFFF">WhatsApp</text>
-        <text x="98" y="88" font-size="28" font-weight="950" fill="#FFD400">${escapeXml(whatsapp.replace(/[()]/g, ''))}</text>
+      <g transform="translate(28 1203)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="46" cy="45" r="37" fill="#1DB954" stroke="#FFFFFF" stroke-width="4"/>
+        <path d="M46 20c-14 0-25 10-25 23 0 7 3 13 8 17l-3 12 12-5c3 1 5 1 8 1 14 0 25-10 25-24S60 20 46 20Z" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="round"/>
+        <path d="M36 31c-2 2-2 6 0 10 3 6 8 11 14 14 4 2 8 2 10 0l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-6-8-5 3Z" fill="#FFFFFF"/>
+        <text x="98" y="30" font-size="17" fill="#FFFFFF">Atendimento pelo</text>
+        <text x="98" y="52" font-size="17" fill="#FFFFFF">WhatsApp</text>
+        <text x="98" y="87" font-size="27" font-weight="950" fill="#FFD400">${escapeXml(whatsapp.replace(/[()]/g, ''))}</text>
       </g>
 
       <line x1="346" y1="1193" x2="346" y2="1332" stroke="#FFD400" stroke-width="2"/>
 
-      <g transform="translate(375 1203)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="43" cy="43" r="35" fill="none" stroke="#FFD400" stroke-width="4"/>
-        <ellipse cx="43" cy="43" rx="15" ry="34" fill="none" stroke="#FFD400" stroke-width="2.4"/>
-        <path d="M10 43h66M15 29h56M15 57h56" fill="none" stroke="#FFD400" stroke-width="2.2"/>
-        <text x="98" y="30" font-size="18" fill="#FFFFFF">Compre também pelo</text>
-        <text x="98" y="53" font-size="18" fill="#FFFFFF">nosso site</text>
-        <text x="98" y="88" font-size="25" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
+      <g transform="translate(365 1203)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="42" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
+        <ellipse cx="42" cy="43" rx="14" ry="33" fill="none" stroke="#FFD400" stroke-width="2.2"/>
+        <path d="M10 43h64M15 29h54M15 57h54" fill="none" stroke="#FFD400" stroke-width="2.1"/>
+        <text x="92" y="30" font-size="17" fill="#FFFFFF">Compre também pelo</text>
+        <text x="92" y="52" font-size="17" fill="#FFFFFF">nosso site</text>
+        <text x="172" y="86" text-anchor="middle" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
       </g>
 
       <line x1="704" y1="1193" x2="704" y2="1332" stroke="#FFD400" stroke-width="2"/>
 
-      <g transform="translate(732 1203)" font-family="Arial, Helvetica, sans-serif">
-        <circle cx="43" cy="43" r="35" fill="none" stroke="#FFD400" stroke-width="4"/>
+      <g transform="translate(724 1203)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="43" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
         <rect x="24" y="30" width="38" height="27" rx="3" fill="none" stroke="#FFD400" stroke-width="3"/>
         <path d="M25 32l18 14 18-14" fill="none" stroke="#FFD400" stroke-width="3"/>
-        <text x="98" y="30" font-size="18" fill="#FFFFFF">E-mail</text>
-        <text x="98" y="58" font-size="22" font-weight="950" fill="#FFD400">${escapeXml(emailParts[0] || '')}</text>
-        <text x="98" y="84" font-size="22" font-weight="950" fill="#FFD400">${escapeXml(emailParts[1] || '')}</text>
+        <text x="96" y="29" font-size="17" fill="#FFFFFF">E-mail</text>
+        <text x="96" y="57" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(emailParts[0] || '')}</text>
+        <text x="96" y="82" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(emailParts[1] || '')}</text>
       </g>
     </svg>`;
   }
@@ -1060,7 +1061,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const estimatedHeight = naturalHeight * initialScale;
     const exactLateral = layout === 'azul_lateral_exato';
     const productBottomLimit = exactLateral ? 1110 : (layout === 'varejo' ? 1090 : 790);
-    const productMaxWidth = exactLateral ? Math.min(preset.w, 500) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w);
+    const productMaxWidth = exactLateral ? Math.min(preset.w, 490) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w);
     const productMaxHeight = exactLateral ? Math.min(650, productBottomLimit - 425) : (layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop)));
     const resizedProduct = await sharp(normalizedCutout)
       .rotate()
@@ -1117,7 +1118,11 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     // A moldura transparente pode sair do canvas; somente os pixels visíveis
     // precisam respeitar a margem de segurança de 20 px.
     const minSafeLeft = 20 - visibleMinX;
-    const maxSafeLeft = width - 20 - visibleMaxX;
+    const canvasMaxSafeLeft = width - 20 - visibleMaxX;
+    const textColumnSafeLeft = exactLateral
+      ? 520 - visibleMaxX
+      : (layout === 'varejo' ? 525 - visibleMaxX : canvasMaxSafeLeft);
+    const maxSafeLeft = Math.min(canvasMaxSafeLeft, textColumnSafeLeft);
     const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
     const desiredTop = Math.round((exactLateral ? 430 : (layout === 'varejo' ? 430 : minProductTop)) + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(exactLateral ? 405 : (layout === 'varejo' ? 390 : minProductTop), Math.min(productBottomLimit - productH, desiredTop));
