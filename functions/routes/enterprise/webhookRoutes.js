@@ -423,7 +423,7 @@ app.post('/api/enterprise/partner/webhooks/:id/retry', enterprisePartnerRequired
       request: { previousLogId: String(previous._id), event, payload },
       response: result,
       metadata: {
-        endpoint: safeWebhookUrl,
+        endpoint: config.url,
         event,
         deliveryId: result.deliveryId,
         previousLogId: String(previous._id),
