@@ -74,11 +74,13 @@
 
 <script>
 const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');
+const ADMIN_TOKEN=localStorage.getItem('admin_token')||'';
+if(!ADMIN_TOKEN){location.href='/admin_painel.html';}
 let auto=true, timer=null;
 function fmt(v){return Number(v||0).toLocaleString('pt-BR')}
 function dt(v){try{return new Date(v).toLocaleString('pt-BR')}catch{return '—'}}
 function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-async function fetchJson(path){const r=await fetch(API_BASE+path);const d=await r.json().catch(()=>({ok:false,error:'Resposta inválida'}));if(!r.ok||d.ok===false)throw new Error(d.error||'Erro HTTP '+r.status);return d}
+async function fetchJson(path){const r=await fetch(API_BASE+path,{headers:{'Authorization':'Bearer '+ADMIN_TOKEN}});const d=await r.json().catch(()=>({ok:false,error:'Resposta inválida'}));if(r.status===401||r.status===403){localStorage.removeItem('admin_token');location.href='/admin_painel.html';throw new Error('Sessão administrativa inválida');}if(!r.ok||d.ok===false)throw new Error(d.error||'Erro HTTP '+r.status);return d}
 function chart(el, data){
   const max=Math.max(...(data||[]).map(x=>Number(x.value||0)),1);
   el.innerHTML=(data&&data.length?data:[{label:'sem dados',value:0}]).map(x=>{
