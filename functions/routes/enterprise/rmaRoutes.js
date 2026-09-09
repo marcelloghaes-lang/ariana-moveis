@@ -219,7 +219,7 @@ async function enterpriseRmaUpsert(order, payload = {}, req = {}, action = 'ente
 
 app.post('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para abrir RMA' });
 
     const result = await enterpriseRmaUpsert(order, req.body || {}, req, 'enterprise_rma_opened');
@@ -238,7 +238,7 @@ app.post('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, as
 
 app.get('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar RMA' });
 
     const items = await EnterpriseRmaRecord.find({ orderId: String(order._id) }).sort({ updatedAt: -1, createdAt: -1 }).lean();
@@ -257,7 +257,11 @@ app.get('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, asy
 app.get('/api/enterprise/rma', enterpriseOrderOperationAuth, async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
-    const filter = {};
+    const partner = req.enterprisePartner || req.enterprisePortal || {};
+    const partnerIds = [partner.requestId, partner.partnerId, partner.id, partner.companyName, partner.tradeName].map((v) => String(v || '').trim()).filter(Boolean);
+    const filter = partnerIds.length
+      ? { $or: [{ partnerRequestId: { $in: partnerIds } }, { manufacturer: { $in: partnerIds } }] }
+      : { _id: null };
     if (req.query.orderId) filter.orderId = String(req.query.orderId).trim();
     if (req.query.rmaId) filter.rmaId = String(req.query.rmaId).trim();
     if (req.query.status) filter.status = String(req.query.status).trim();
@@ -293,7 +297,7 @@ app.get('/api/enterprise/rma', enterpriseOrderOperationAuth, async (req, res) =>
 // Mantém a rota principal /orders/:orderId/rma/:rmaId intacta.
 app.patch('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar RMA' });
 
     const requestedRmaId = String(req.body?.rmaId || req.query?.rmaId || '').trim();
@@ -336,7 +340,7 @@ app.patch('/api/enterprise/orders/:orderId/rma', enterpriseOrderOperationAuth, a
 
 app.patch('/api/enterprise/orders/:orderId/rma/:rmaId', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar RMA' });
 
     const existing = await enterpriseFindRmaRecord(String(order._id), req.params.rmaId);
@@ -358,7 +362,7 @@ app.patch('/api/enterprise/orders/:orderId/rma/:rmaId', enterpriseOrderOperation
 
 app.post('/api/enterprise/orders/:orderId/rma/:rmaId/status', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar status do RMA' });
 
     const existing = await enterpriseFindRmaRecord(String(order._id), req.params.rmaId);
@@ -396,7 +400,7 @@ app.post('/api/enterprise/rma', enterpriseOrderOperationAuth, async (req, res) =
   const orderId = String(req.body?.orderId || req.body?.id || req.body?.externalOrderId || '').trim();
   if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
   try {
-    const order = await enterpriseCompatFindOrder(orderId);
+    const order = await enterpriseCompatFindOrder(orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para abrir RMA' });
     const result = await enterpriseRmaUpsert(order, req.body || {}, req, 'enterprise_rma_opened');
     return res.status(201).json({ ok: true, action: 'rma_opened', orderId: String(result.order._id), rma: result.rma, order: enterpriseNormalizeOrderForResponse(result.order) });
@@ -409,7 +413,7 @@ app.post('/api/enterprise/reverse-pickup', enterpriseOrderOperationAuth, async (
   const orderId = String(req.body?.orderId || req.body?.id || req.body?.externalOrderId || '').trim();
   if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
   try {
-    const order = await enterpriseCompatFindOrder(orderId);
+    const order = await enterpriseCompatFindOrder(orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para solicitar coleta reversa' });
     const payload = { ...(req.body || {}), pickupRequired: true, reverseLogistics: req.body?.reverseLogistics || req.body?.coleta || req.body || {}, type: req.body?.type || 'reverse_pickup', reason: req.body?.reason || req.body?.motivo || 'Coleta reversa solicitada' };
     const result = await enterpriseRmaUpsert(order, payload, req, 'enterprise_reverse_pickup_requested');
@@ -421,7 +425,7 @@ app.post('/api/enterprise/reverse-pickup', enterpriseOrderOperationAuth, async (
 
 app.post('/api/enterprise/orders/:orderId/reverse-pickup', enterpriseOrderOperationAuth, async (req, res) => {
   req.body = { ...(req.body || {}), orderId: req.params.orderId };
-  const order = await enterpriseCompatFindOrder(req.params.orderId).catch(() => null);
+  const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {}).catch(() => null);
   if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para solicitar coleta reversa' });
   try {
     const payload = { ...(req.body || {}), pickupRequired: true, reverseLogistics: req.body?.reverseLogistics || req.body?.coleta || req.body || {}, type: req.body?.type || 'reverse_pickup', reason: req.body?.reason || req.body?.motivo || 'Coleta reversa solicitada' };
