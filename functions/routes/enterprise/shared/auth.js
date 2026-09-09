@@ -19,9 +19,6 @@ export function createEnterpriseAuth(deps = {}) {
     ).trim();
     if (headerKey) return headerKey;
 
-    const queryKey = String(req.query?.key || req.query?.apiKey || req.query?.api_key || '').trim();
-    if (queryKey) return queryKey;
-
     const auth = String(req.headers.authorization || '').trim();
     if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
 
@@ -69,7 +66,8 @@ export function createEnterpriseAuth(deps = {}) {
       if (!key) return res.status(401).json({ ok: false, error: 'Chave de integração ausente' });
 
       const legacySecret = String(process.env.ENTERPRISE_WEBHOOK_SECRET || '').trim();
-      if (legacySecret && key === legacySecret) {
+      const allowLegacySecret = String(process.env.ENTERPRISE_ALLOW_LEGACY_GLOBAL_SECRET || 'false').toLowerCase() === 'true';
+      if (allowLegacySecret && legacySecret && key === legacySecret) {
         req.enterprisePartner = {
           environment: 'legacy',
           companyName: 'Chave global Enterprise',
@@ -81,36 +79,8 @@ export function createEnterpriseAuth(deps = {}) {
 
       let partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseCompatKeyQuery(key)).lean();
 
-      // Compatibilidade imediata para chaves Sandbox geradas no modal do painel.
-      // Em alguns deploys antigos a chave aparece no painel, mas o documento salvo no Mongo
-      // pode ficar em estrutura diferente da consulta. Para não travar a homologação,
-      // aceitamos somente chaves com prefixo ari_sbx_ como ambiente sandbox.
-      if (!partner && /^ari_sbx_[a-z0-9_]+$/i.test(key)) {
-        const keySlug = key.replace(/^ari_sbx_/i, '').replace(/_[a-f0-9]{10,}$/i, '');
-        partner = await EnterpriseHomologationRequestCompat.findOne({
-          $or: [
-            { requestId: key },
-            { 'sandboxCredentials.apiKey': key },
-            { 'credentials.sandbox.apiKey': key },
-            { companyName: new RegExp(keySlug.replace(/_/g, '.*'), 'i') },
-            { tradeName: new RegExp(keySlug.replace(/_/g, '.*'), 'i') }
-          ]
-        }).lean();
-
-        if (!partner) {
-          partner = {
-            _id: null,
-            requestId: keySlug || 'sandbox',
-            companyName: 'Parceiro Sandbox',
-            tradeName: 'Parceiro Sandbox',
-            cnpj: '',
-            email: '',
-            status: 'sandbox',
-            integrationTypes: ['catalog','stock','price','orders','invoice','tracking','webhooks'],
-            sandboxCredentials: { apiKey: key, active: true, environment: 'sandbox' }
-          };
-        }
-      }
+      // Segurança: somente credenciais realmente persistidas no banco são aceitas.
+      // Prefixos como ari_sbx_ identificam o ambiente, mas nunca autenticam sozinhos.
 
       if (!partner) {
         return res.status(401).json({
@@ -120,7 +90,7 @@ export function createEnterpriseAuth(deps = {}) {
         });
       }
 
-      const environment = /^ari_sbx_/i.test(key) ? 'sandbox' : enterpriseCompatEnvFromPartner(partner, key);
+      const environment = enterpriseCompatEnvFromPartner(partner, key);
       const status = String(partner.status || '').toLowerCase();
 
       const allowedStatus = ['sandbox', 'approved', 'production', 'active', 'homologated', 'homologado', 'aprovado', 'aprovada'];
