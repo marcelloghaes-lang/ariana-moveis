@@ -793,15 +793,13 @@ export async function receiveEnterpriseOrder(input = {}) {
   return doc;
 }
 
-export async function updateEnterpriseOrderStatus({ orderId, status, statusLabel = '', manufacturer = '', payload = {} }) {
+export async function updateEnterpriseOrderStatus({ orderId, status, statusLabel = '', manufacturer = '', payload = {}, partner = null }) {
   const Order = getOrderModel();
   const normalizedStatus = String(status || '').trim();
   if (!orderId) throw new Error('orderId é obrigatório');
   if (!normalizedStatus) throw new Error('status é obrigatório');
 
-  const query = mongoose.Types.ObjectId.isValid(orderId)
-    ? { _id: new mongoose.Types.ObjectId(orderId) }
-    : { $or: [{ 'manufacturerDispatch.externalOrderId': String(orderId) }, { trackingCode: String(orderId) }] };
+  const query = buildEnterpriseOrderLookup(orderId, partner);
 
   const doc = await Order.findOneAndUpdate(query, {
     $set: {
@@ -819,15 +817,13 @@ export async function updateEnterpriseOrderStatus({ orderId, status, statusLabel
   return doc;
 }
 
-export async function updateEnterpriseOrderTracking({ orderId, trackingCode, carrier = '', trackingUrl = '', manufacturer = '', payload = {} }) {
+export async function updateEnterpriseOrderTracking({ orderId, trackingCode, carrier = '', trackingUrl = '', manufacturer = '', payload = {}, partner = null }) {
   const Order = getOrderModel();
   const code = String(trackingCode || '').trim();
   if (!orderId) throw new Error('orderId é obrigatório');
   if (!code) throw new Error('trackingCode é obrigatório');
 
-  const query = mongoose.Types.ObjectId.isValid(orderId)
-    ? { _id: new mongoose.Types.ObjectId(orderId) }
-    : { $or: [{ 'manufacturerDispatch.externalOrderId': String(orderId) }, { trackingCode: String(orderId) }] };
+  const query = buildEnterpriseOrderLookup(orderId, partner);
 
   const trackingEntry = {
     code,
@@ -856,12 +852,10 @@ export async function updateEnterpriseOrderTracking({ orderId, trackingCode, car
   return doc;
 }
 
-export async function attachEnterpriseInvoice({ orderId, invoice = {}, manufacturer = '', payload = {} }) {
+export async function attachEnterpriseInvoice({ orderId, invoice = {}, manufacturer = '', payload = {}, partner = null }) {
   const Order = getOrderModel();
   if (!orderId) throw new Error('orderId é obrigatório');
-  const query = mongoose.Types.ObjectId.isValid(orderId)
-    ? { _id: new mongoose.Types.ObjectId(orderId) }
-    : { $or: [{ 'manufacturerDispatch.externalOrderId': String(orderId) }, { trackingCode: String(orderId) }] };
+  const query = buildEnterpriseOrderLookup(orderId, partner);
 
   const invoicePayload = {
     number: String(invoice.number || invoice.numero || invoice.nNF || '').trim(),
@@ -888,10 +882,11 @@ export async function attachEnterpriseInvoice({ orderId, invoice = {}, manufactu
 }
 
 
-function buildEnterpriseOrderLookup(orderId = '') {
+function buildEnterpriseOrderLookup(orderId = '', partner = null) {
   const value = String(orderId || '').trim();
   if (!value) throw new Error('orderId é obrigatório');
-  return mongoose.Types.ObjectId.isValid(value)
+
+  const identity = mongoose.Types.ObjectId.isValid(value)
     ? { _id: new mongoose.Types.ObjectId(value) }
     : {
         $or: [
@@ -900,6 +895,31 @@ function buildEnterpriseOrderLookup(orderId = '') {
           { status_integracao: value }
         ]
       };
+
+  const partnerIds = [
+    partner?.requestId,
+    partner?.partnerId,
+    partner?.id,
+    partner?._id,
+    partner?.tradeName,
+    partner?.companyName
+  ].map((v) => String(v || '').trim()).filter(Boolean);
+
+  if (!partnerIds.length) return identity;
+
+  return {
+    $and: [
+      identity,
+      {
+        $or: [
+          { manufacturer: { $in: partnerIds } },
+          { sellerIds: { $in: partnerIds } },
+          { 'items.sellerId': { $in: partnerIds } },
+          { 'manufacturerDispatch.payload.manufacturer': { $in: partnerIds } }
+        ]
+      }
+    ]
+  };
 }
 
 function escapeXmlValue(value = '') {
@@ -1021,7 +1041,7 @@ function publicEnterpriseXmlPayload(order = {}) {
 
 export async function generateEnterpriseOrderXml({ orderId, invoice = {}, manufacturer = '', payload = {}, partner = null } = {}) {
   const Order = getOrderModel();
-  const query = buildEnterpriseOrderLookup(orderId);
+  const query = buildEnterpriseOrderLookup(orderId, partner);
   const order = await Order.findOne(query).lean();
   if (!order) throw new Error('Pedido não encontrado para gerar XML');
 
@@ -1072,7 +1092,7 @@ export async function generateEnterpriseOrderXml({ orderId, invoice = {}, manufa
 
 export async function getEnterpriseOrderXml({ orderId, manufacturer = '', partner = null } = {}) {
   const Order = getOrderModel();
-  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId)).lean();
+  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId, partner)).lean();
   if (!order) throw new Error('Pedido não encontrado');
   const xml = publicEnterpriseXmlPayload(order);
   if (!xml) throw new Error('XML ainda não foi gerado para este pedido');
@@ -1091,7 +1111,7 @@ export async function getEnterpriseOrderXml({ orderId, manufacturer = '', partne
 
 export async function downloadEnterpriseOrderXml({ orderId, manufacturer = '', partner = null } = {}) {
   const Order = getOrderModel();
-  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId)).lean();
+  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId, partner)).lean();
   if (!order) throw new Error('Pedido não encontrado');
   const xml = order?.manufacturerDispatch?.xml || null;
   if (!xml?.content) throw new Error('XML ainda não foi gerado para este pedido');
@@ -1233,7 +1253,7 @@ function publicEnterpriseDanfePayload(order = {}) {
 
 export async function generateEnterpriseOrderDanfe({ orderId, invoice = {}, manufacturer = '', payload = {}, partner = null } = {}) {
   const Order = getOrderModel();
-  const query = buildEnterpriseOrderLookup(orderId);
+  const query = buildEnterpriseOrderLookup(orderId, partner);
   const order = await Order.findOne(query).lean();
   if (!order) throw new Error('Pedido não encontrado para gerar DANFE');
 
@@ -1284,7 +1304,7 @@ export async function generateEnterpriseOrderDanfe({ orderId, invoice = {}, manu
 
 export async function getEnterpriseOrderDanfe({ orderId, manufacturer = '', partner = null } = {}) {
   const Order = getOrderModel();
-  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId)).lean();
+  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId, partner)).lean();
   if (!order) throw new Error('Pedido não encontrado');
   const danfe = publicEnterpriseDanfePayload(order);
   if (!danfe) throw new Error('DANFE ainda não foi gerado para este pedido');
@@ -1303,7 +1323,7 @@ export async function getEnterpriseOrderDanfe({ orderId, manufacturer = '', part
 
 export async function downloadEnterpriseOrderDanfe({ orderId, manufacturer = '', partner = null } = {}) {
   const Order = getOrderModel();
-  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId)).lean();
+  const order = await Order.findOne(buildEnterpriseOrderLookup(orderId, partner)).lean();
   if (!order) throw new Error('Pedido não encontrado');
   const danfe = order?.manufacturerDispatch?.danfe || null;
   if (!danfe?.contentBase64) throw new Error('DANFE ainda não foi gerado para este pedido');
