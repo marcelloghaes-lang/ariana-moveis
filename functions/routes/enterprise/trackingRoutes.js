@@ -14,7 +14,7 @@ export default function registerEnterpriseTrackingRoutes(app, context = {}) {
 
 app.post('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar rastreio' });
 
     const trackingCode = String(req.body?.trackingCode || req.body?.codigoRastreio || req.body?.rastreio || '').trim();
@@ -47,7 +47,7 @@ app.post('/api/enterprise/tracking', enterpriseOrderOperationAuth, async (req, r
   if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
 
   try {
-    const order = await enterpriseCompatFindOrder(orderId);
+    const order = await enterpriseCompatFindOrder(orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar rastreio' });
 
     const trackingCode = String(req.body?.trackingCode || req.body?.codigoRastreio || req.body?.code || '').trim();
@@ -97,7 +97,7 @@ function enterpriseNormalizeTracking(order = {}) {
 
 app.get('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar rastreio' });
     const tracking = enterpriseNormalizeTracking(order);
     return res.json({ ok: true, orderId: String(order._id), tracking, hasTracking: Boolean(tracking.trackingCode || tracking.carrier || tracking.trackingUrl || tracking.history.length) });
@@ -110,7 +110,7 @@ app.get('/api/enterprise/tracking', enterpriseOrderOperationAuth, async (req, re
   const orderId = String(req.query.orderId || req.query.id || req.query.externalOrderId || '').trim();
   if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
   try {
-    const order = await enterpriseCompatFindOrder(orderId);
+    const order = await enterpriseCompatFindOrder(orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar rastreio' });
     const tracking = enterpriseNormalizeTracking(order);
     return res.json({ ok: true, orderId: String(order._id), tracking, hasTracking: Boolean(tracking.trackingCode || tracking.carrier || tracking.trackingUrl || tracking.history.length) });
@@ -138,7 +138,7 @@ function enterprisePickLabelFromOrder(order = {}, labelDoc = null) {
 
 app.get('/api/enterprise/orders/:orderId/label', enterpriseCompatAuth, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar etiqueta' });
     const orderIdString = String(order._id || '').trim();
 
