@@ -45,7 +45,7 @@ app.post('/api/enterprise/catalog/push', enterpriseCompatAuth, async (req, res) 
     await IntegrationAuditLog.create({
       scope: 'enterprise',
       eventType: 'catalog_push',
-      manufacturer: req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise',
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.manufacturer || 'enterprise',
       status: 'success',
       statusCode: 201,
       message: `Catálogo recebido: ${results.length} produto(s)`,
@@ -55,7 +55,7 @@ app.post('/api/enterprise/catalog/push', enterpriseCompatAuth, async (req, res) 
 
     return res.status(201).json({
       ok: true,
-      manufacturer: req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise',
+      manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.manufacturer || 'enterprise',
       total: results.length,
       success: results.length,
       errors: 0,
@@ -73,7 +73,7 @@ app.post('/api/enterprise/catalog/push', enterpriseCompatAuth, async (req, res) 
 // ============================================================
 app.get('/api/enterprise/catalog/summary', enterpriseOrderOperationAuth, async (req, res) => {
   try {
-    const manufacturer = String(req.query.manufacturer || req.query.sellerId || '').trim();
+    const manufacturer = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.query.manufacturer || req.query.sellerId || '').trim();
     const productFilter = enterpriseBuildProductManufacturerQuery(manufacturer);
 
     const [
@@ -217,7 +217,8 @@ async function enterpriseFindProductBySkuForPartner(sku = '', partner = {}) {
   let product = await Product.findOne(scoped);
   if (product) return product;
 
-  // Compatibilidade com produtos antigos que foram criados sem escopo correto.
+  // Nunca atravessa o escopo de outro parceiro.
+  if (sellerIds.length) return null;
   return Product.findOne({ sku: cleanSku });
 }
 
@@ -402,10 +403,11 @@ app.post('/api/enterprise/product/update', enterpriseCompatAuth, async (req, res
 
 app.post('/api/enterprise/products/:sku/sync', enterpriseCompatAuth, async (req, res) => {
   try {
+    if (!enterpriseRequirePermission(req, res, 'catalog')) return;
     const sku = String(req.params.sku || req.body?.sku || '').trim();
     if (!sku) return res.status(400).json({ ok: false, error: 'SKU obrigatório' });
 
-    const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+    const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
     const update = {
       sku,
       sellerId,
@@ -430,8 +432,9 @@ app.post('/api/enterprise/products/:sku/sync', enterpriseCompatAuth, async (req,
 
 app.put('/api/enterprise/products/:sku/stock', enterpriseCompatAuth, async (req, res) => {
   try {
+    if (!enterpriseRequirePermission(req, res, 'stock')) return;
     const sku = String(req.params.sku || '').trim();
-    const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+    const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
     const stock = enterpriseCompatNumber(req.body?.stock ?? req.body?.estoque, 0);
 
     const product = await Product.findOneAndUpdate(
@@ -448,8 +451,9 @@ app.put('/api/enterprise/products/:sku/stock', enterpriseCompatAuth, async (req,
 
 app.put('/api/enterprise/products/:sku/price', enterpriseCompatAuth, async (req, res) => {
   try {
+    if (!enterpriseRequirePermission(req, res, 'price')) return;
     const sku = String(req.params.sku || '').trim();
-    const sellerId = String(req.body?.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise').trim();
+    const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
     const price = enterpriseCompatNumber(req.body?.price ?? req.body?.preco, 0);
 
     const product = await Product.findOneAndUpdate(
