@@ -260,7 +260,7 @@ app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
 
 app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/approve', adminRequired, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' });
     const invoiceId = String(req.params.invoiceId || '').trim();
     const list = ensureArray(order.sellerInvoices).map((i) => String(i.invoiceId || '') === invoiceId ? { ...i, status: 'aprovada', approvedAt: new Date(), approvedBy: req.admin?.email || req.admin?.id || 'admin' } : i);
@@ -276,7 +276,7 @@ app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/approve', adminR
 
 app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/reject', adminRequired, async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' });
     const invoiceId = String(req.params.invoiceId || '').trim();
     const reason = String(req.body?.reason || req.body?.motivo || '').trim();
@@ -291,9 +291,9 @@ app.post('/api/admin/orders/:orderId/seller-invoices/:invoiceId/reject', adminRe
 
 app.post('/api/enterprise/orders/:orderId/nfe', enterpriseCompatAuth, upload.fields([{ name: 'xml', maxCount: 1 }, { name: 'danfe', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
   try {
-    const order = await enterpriseCompatFindOrder(req.params.orderId);
+    const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido nÃ£o encontrado' });
-    const manufacturer = String(req.enterprisePartner?.manufacturer || req.body?.manufacturer || order.manufacturer || '').trim();
+    const manufacturer = String(req.enterprisePartner?.requestId || req.enterprisePartner?.companyName || req.enterprisePartner?.tradeName || order.manufacturer || '').trim();
     const prefix = `enterprise-${manufacturer || 'partner'}-${String(order._id).slice(-8)}`;
     const xmlFile = await arianaSaveInvoiceUpload(req, req.files?.xml?.[0], `${prefix}-xml`, '.xml');
     const danfeFile = await arianaSaveInvoiceUpload(req, req.files?.danfe?.[0] || req.files?.pdf?.[0], `${prefix}-danfe`, '.pdf');
