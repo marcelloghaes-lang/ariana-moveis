@@ -18,7 +18,7 @@ export default function registerEnterpriseBillingRoutes(app, context = {}) {
 
 app.post('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para registrar faturamento' });
   
       const result = await enterpriseBillingUpsert(order, req.body || {}, req, 'enterprise_billing_registered');
@@ -37,7 +37,7 @@ app.post('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth
   
   app.get('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para consultar faturamento' });
   
       const orderId = String(order._id || '').trim();
@@ -59,7 +59,7 @@ app.post('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth
   
   app.patch('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar faturamento' });
   
       const result = await enterpriseBillingUpsert(order, req.body || {}, req, 'enterprise_billing_updated');
@@ -78,7 +78,7 @@ app.post('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth
   
   app.post('/api/enterprise/orders/:orderId/billing/cancel', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cancelar faturamento' });
   
       const current = order.manufacturerDispatch?.billing || {};
@@ -122,7 +122,11 @@ app.post('/api/enterprise/orders/:orderId/billing', enterpriseOrderOperationAuth
   app.get('/api/enterprise/billing', enterpriseOrderOperationAuth, async (req, res) => {
     try {
       const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
-      const filter = {};
+      const partner = req.enterprisePartner || req.enterprisePortal || {};
+      const partnerIds = [partner.requestId, partner.partnerId, partner.id, partner.companyName, partner.tradeName].map((v) => String(v || '').trim()).filter(Boolean);
+      const filter = partnerIds.length
+        ? { $or: [{ partnerRequestId: { $in: partnerIds } }, { manufacturer: { $in: partnerIds } }] }
+        : { _id: null };
       if (req.query.orderId) filter.orderId = String(req.query.orderId).trim();
       if (req.query.status) filter.status = String(req.query.status).trim();
       if (req.query.manufacturer) filter.manufacturer = new RegExp(escapeRegex(String(req.query.manufacturer).trim()), 'i');
