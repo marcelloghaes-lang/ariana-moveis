@@ -20,13 +20,14 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
 
   app.post('/api/enterprise/orders', enterpriseCompatAuth, async (req, res) => {
     try {
+      const partnerSellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || '').trim();
       const items = Array.isArray(req.body?.items) ? req.body.items : [];
       const normalizedItems = items.map((item) => {
         const qty = enterpriseCompatNumber(item.qty ?? item.quantity, 1);
         const unitPrice = enterpriseCompatNumber(item.unitPrice ?? item.price, 0);
         return {
           productId: String(item.productId || ''),
-          sellerId: String(item.sellerId || req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise'),
+          sellerId: String(partnerSellerId || item.sellerId || req.body?.manufacturer || 'enterprise'),
           name: String(item.name || item.nome || item.sku || 'Produto Enterprise'),
           sku: String(item.sku || ''),
           qty,
@@ -48,7 +49,7 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
         total: subtotal,
         currency: DEFAULT_CURRENCY,
         shippingAddress: req.body?.shippingAddress || req.body?.customer?.shippingAddress || {},
-        manufacturer: String(req.body?.manufacturer || req.enterprisePartner?.requestId || 'enterprise'),
+        manufacturer: String(partnerSellerId || req.body?.manufacturer || 'enterprise'),
         manufacturerDispatch: {
           source: 'api_enterprise',
           externalOrderId: String(req.body?.externalOrderId || req.body?.orderId || ''),
@@ -84,7 +85,7 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
 
   app.get('/api/enterprise/orders/:orderId', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
 
       return res.json({
@@ -99,7 +100,7 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
 
   app.post('/api/enterprise/orders/:orderId/status', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar status' });
 
       const status = String(req.body?.status || req.body?.code || req.body?.newStatus || '').trim();
@@ -156,7 +157,7 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
 
   app.post('/api/enterprise/orders/:orderId/cancel', enterpriseOrderOperationAuth, async (req, res) => {
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cancelar' });
 
       const reason = String(req.body?.reason || req.body?.motivo || req.body?.message || 'Cancelado pelo fabricante').trim();
@@ -214,7 +215,7 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
     if (!req.params.orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
 
     try {
-      const order = await enterpriseCompatFindOrder(req.params.orderId);
+      const order = await enterpriseCompatFindOrder(req.params.orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para atualizar status' });
 
       const status = String(req.body?.status || req.body?.code || req.body?.newStatus || '').trim();
@@ -245,7 +246,7 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
     if (!orderId) return res.status(400).json({ ok: false, error: 'orderId obrigatório' });
 
     try {
-      const order = await enterpriseCompatFindOrder(orderId);
+      const order = await enterpriseCompatFindOrder(orderId, req.enterprisePartner || req.enterprisePortal || {});
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado para cancelar' });
 
       const reason = String(req.body?.reason || req.body?.motivo || req.body?.message || 'Cancelado pelo fabricante').trim();
