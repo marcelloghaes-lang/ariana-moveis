@@ -16,6 +16,8 @@ export function createEnterpriseOrder(context = {}) {
     normalizeProductForResponse
   } = context;
 
+  const enterpriseJwtSecret = String(process.env.ENTERPRISE_JWT_SECRET || JWT_SECRET || '').trim();
+
   async function enterpriseCompatFindOrder(orderId = '', partner = {}) {
     const id = String(orderId || '').trim();
     if (!id) return null;
@@ -59,7 +61,8 @@ export function createEnterpriseOrder(context = {}) {
     if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      if (!enterpriseJwtSecret || enterpriseJwtSecret === 'ariana_enterprise_secret') return res.status(503).json({ ok: false, error: 'Autenticação Enterprise temporariamente indisponível' });
+      const decoded = jwt.verify(token, enterpriseJwtSecret);
       if (!decoded || decoded.role !== 'enterprise_partner') {
         return res.status(403).json({ ok: false, error: 'Token Enterprise inválido' });
       }
