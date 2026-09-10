@@ -27,8 +27,6 @@ jobs:
           path = Path('functions/poster-generator.js')
           text = path.read_text(encoding='utf-8')
 
-          # 1) Contraste previsível por superfície. Azul dos layouts laterais é claro;
-          # nesses casos preço/texto precisam ser azul-marinho, não amarelo lavado.
           adaptive = '''function professionalAdaptiveText(colorTheme = 'azul', layoutVariant = 'classic') {
             const key = String(colorTheme || 'azul').toLowerCase();
             const layout = String(layoutVariant || 'classic').toLowerCase();
@@ -69,9 +67,6 @@ jobs:
           if n != 1:
               raise SystemExit(f'Falha ao localizar professionalAdaptiveText: {n}')
 
-          # 2) Nunca usar transformação de IA do Cloudinary para recortar o produto.
-          # Baixa a imagem original e o fallback local altera apenas alfa do fundo,
-          # preservando 100% da geometria/RGB do produto.
           old_loader = '''  const intelligentCutoutUrl = options.removeLightBackground !== false ? cloudinaryBackgroundRemovalUrl(imageUrl) : '';
             let usedIntelligentCutout = false;
             let rawImage = null;
@@ -96,8 +91,6 @@ jobs:
               raise SystemExit('Falha ao localizar carregamento de recorte inteligente')
           text = text.replace(old_loader, new_loader, 1)
 
-          # 3) Redimensionar por uma única escala proporcional (fit inside).
-          # Não criar canvas forçado e não aplicar máscara arredondada no produto.
           resize_replacement = '''    const resizedProduct = await sharp(normalizedCutout)
               .rotate()
               .ensureAlpha()
@@ -123,7 +116,6 @@ jobs:
           if n != 1:
               raise SystemExit(f'Falha ao localizar redimensionamento profissional: {n}')
 
-          # Blindagem: esta correção não pode mexer no padrão de pagamento aprovado.
           required = [
               'À VISTA NO DINHEIRO OU PIX',
               'NO CARTÃO DE CRÉDITO',
@@ -141,10 +133,11 @@ jobs:
         shell: bash
         run: |
           node --check functions/poster-generator.js
-          grep -q "fit: 'inside'" functions/poster-generator.js
-          grep -q "const rawImage = await loadImageBuffer(imageUrl)" functions/poster-generator.js
-          grep -q "lateralLight" functions/poster-generator.js
-          grep -q "VALOR PARCELADO: R\$" functions/poster-generator.js
+          grep -Fq "fit: 'inside'" functions/poster-generator.js
+          grep -Fq "const rawImage = await loadImageBuffer(imageUrl)" functions/poster-generator.js
+          grep -Fq "lateralLight" functions/poster-generator.js
+          grep -Fq 'VALOR PARCELADO: R$' functions/poster-generator.js
+          grep -Fq 'NO CARTÃO DE CRÉDITO' functions/poster-generator.js
 
       - name: Gravar correção e remover workflow temporário
         shell: bash
