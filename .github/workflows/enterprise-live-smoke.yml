@@ -28,9 +28,21 @@ jobs:
     env:
       BACKEND: https://ariana-backend.onrender.com
       SITE: https://arianamoveis.com.br
+      EXPECTED_RELEASE: 2026.09.10-enterprise-hardening.1
     steps:
       - name: Wait for Render auto-deploy
         run: sleep 80
+
+      - name: Check deployed Enterprise release
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --retry 4 --retry-delay 5 --connect-timeout 15 --max-time 30 -sS -D /tmp/release-headers.txt -o /tmp/version.json -w '%{http_code}' "$BACKEND/api/enterprise/version")
+          echo "version -> $code"
+          cat /tmp/version.json
+          test "$code" = "200"
+          grep -q "\"release\":\"$EXPECTED_RELEASE\"" /tmp/version.json
+          tr -d '\r' < /tmp/release-headers.txt | grep -qi "^x-ariana-enterprise-release: $EXPECTED_RELEASE$"
 
       - name: Check public Enterprise endpoints
         shell: bash
@@ -49,8 +61,9 @@ jobs:
           get_2xx "$BACKEND/" /tmp/root.json
           grep -q '"ok":true' /tmp/root.json
 
-          get_2xx "$BACKEND/api/enterprise/version" /tmp/version.json
-          grep -q '"current":"v1"' /tmp/version.json
+          get_2xx "$BACKEND/api/enterprise/version" /tmp/version-public.json
+          grep -q '"current":"v1"' /tmp/version-public.json
+          grep -q "\"release\":\"$EXPECTED_RELEASE\"" /tmp/version-public.json
 
           get_2xx "$BACKEND/api/v1/enterprise/version" /tmp/version-v1.json
           grep -q '"requestedVersion":"v1"' /tmp/version-v1.json
@@ -69,6 +82,7 @@ jobs:
           echo "$headers"
           echo "$headers" | grep -qi '^x-ariana-api-version: v1$'
           echo "$headers" | grep -qi '^x-ariana-api-version-status: stable$'
+          echo "$headers" | grep -qi "^x-ariana-enterprise-release: $EXPECTED_RELEASE$"
 
       - name: Check authentication fences
         shell: bash
@@ -88,6 +102,15 @@ jobs:
 
           expect_status 401 "$BACKEND/api/enterprise/auth/check"
           expect_status 401 -H 'x-ariana-key: ari_sbx_smoke_invalid_key' "$BACKEND/api/enterprise/auth/check"
+
+          # JWT-shaped Bearer must be handled as JWT, never queried as API Key.
+          expect_status 401 -H 'Authorization: Bearer aaa.bbb.ccc' "$BACKEND/api/enterprise/auth/check"
+          grep -q 'Bearer Token' /tmp/resp.json
+
+          # Legacy integrations that used Bearer <API_KEY> remain compatible.
+          expect_status 401 -H 'Authorization: Bearer ari_sbx_smoke_invalid_legacy_key' "$BACKEND/api/enterprise/auth/check"
+          grep -q 'Chave de integração inválida' /tmp/resp.json
+
           expect_status 401 -X POST -H 'Content-Type: application/json' -d '{"externalOrderId":"SMOKE-NOAUTH","items":[{"sku":"TEST","qty":1,"unitPrice":1}]}' "$BACKEND/api/enterprise/orders"
           expect_status 400 -X POST -H 'Content-Type: application/json' -d '{}' "$BACKEND/api/enterprise/oauth/token"
           expect_status 400 -X POST -H 'Content-Type: application/json' -d '{}' "$BACKEND/api/enterprise/partner/login"
@@ -123,4 +146,4 @@ jobs:
 
       - name: Summary
         run: |
-          echo 'Ariana Enterprise public live smoke checks passed.'
+          echo "Ariana Enterprise release $EXPECTED_RELEASE is live and public smoke checks passed."

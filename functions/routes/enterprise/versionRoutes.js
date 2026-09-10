@@ -1,6 +1,5 @@
 // ============================================================
 // ROTAS ENTERPRISE - VERSIONAMENTO DA API (v1/v2)
-// Extraído de routes/enterpriseRoutes.js sem alterar endpoints, regras ou respostas.
 // ============================================================
 
 export const ENTERPRISE_API_VERSIONS = {
@@ -9,6 +8,7 @@ export const ENTERPRISE_API_VERSIONS = {
   supported: ['v1'],
   preview: ['v2'],
   defaultVersion: 'v1',
+  release: '2026.09.10-enterprise-hardening.1',
   deprecationPolicy: 'Rotas sem versão continuam funcionando, mas novos fabricantes devem usar /api/v1/enterprise.',
   routes: {
     v1: {
@@ -31,6 +31,7 @@ export function enterpriseVersionHeaders(version = 'v1', preview = false) {
     res.setHeader('X-Ariana-API-Version', version);
     res.setHeader('X-Ariana-API-Latest-Version', ENTERPRISE_API_VERSIONS.latest);
     res.setHeader('X-Ariana-API-Version-Status', preview ? 'preview' : 'stable');
+    res.setHeader('X-Ariana-Enterprise-Release', ENTERPRISE_API_VERSIONS.release);
     return next();
   };
 }
@@ -43,6 +44,7 @@ export default function registerEnterpriseVersionRoutes(app, context = {}) {
       res.setHeader('X-Ariana-API-Version', version);
       res.setHeader('X-Ariana-API-Latest-Version', ENTERPRISE_API_VERSIONS.latest);
       res.setHeader('X-Ariana-API-Version-Status', preview ? 'preview' : 'stable');
+      res.setHeader('X-Ariana-Enterprise-Release', ENTERPRISE_API_VERSIONS.release);
       res.setHeader('X-Ariana-API-Original-Path', req.originalUrl || req.url || '');
       req.url = `/api/enterprise${req.url || ''}`;
       return app.handle(req, res);
@@ -50,10 +52,12 @@ export default function registerEnterpriseVersionRoutes(app, context = {}) {
   }
 
   app.get('/api/enterprise/version', (_req, res) => {
+    res.setHeader('X-Ariana-Enterprise-Release', ENTERPRISE_API_VERSIONS.release);
     return res.json({ ok: true, ...ENTERPRISE_API_VERSIONS });
   });
 
   app.get('/api/enterprise/versions', (_req, res) => {
+    res.setHeader('X-Ariana-Enterprise-Release', ENTERPRISE_API_VERSIONS.release);
     return res.json({ ok: true, ...ENTERPRISE_API_VERSIONS });
   });
 

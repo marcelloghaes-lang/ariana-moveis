@@ -37,6 +37,7 @@ jobs:
           node --check functions/routes/enterprise/shared/billing.js
           node --check functions/routes/enterprise/invoiceRoutes.js
           node --check functions/routes/enterprise/enterpriseOrderRoutes.js
+          node --check functions/routes/enterprise/versionRoutes.js
 
       - name: Verify hardening guards
         shell: bash
@@ -52,6 +53,7 @@ jobs:
           grep -q 'recoveredAfterRestart: true' functions/routes/enterprise/enterpriseOrderRoutes.js
           grep -q "sourceOrderSchema.clone()" functions/routes/legacyRoutes.js
           grep -q "enterprise_sandbox_orders" functions/routes/legacyRoutes.js
+          grep -q "2026.09.10-enterprise-hardening.1" functions/routes/enterprise/versionRoutes.js
 
       - name: Verify no production collection substitution
         shell: bash
