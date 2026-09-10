@@ -26,9 +26,9 @@
     <section class="right">
       <div class="card">
         <h2>Entrar no portal</h2>
-        <p>Cole a API Key Sandbox liberada na homologação.</p>
-        <label class="label" for="apiKey">API Key Sandbox</label>
-        <input id="apiKey" class="input" type="password" placeholder="ari_sbx_..." autocomplete="off" />
+        <p>Informe sua API Key Enterprise. Credenciais Sandbox e Produção são aceitas de acordo com a liberação do parceiro.</p>
+        <label class="label" for="apiKey">API Key Enterprise</label>
+        <input id="apiKey" class="input" type="password" placeholder="ari_sbx_... ou ari_live_..." autocomplete="off" />
         <button class="btn" onclick="login()">Entrar</button>
         <div class="links">
           <a class="btn2" href="/developers.html">Documentação</a>
@@ -45,13 +45,15 @@ const API_BASE = 'https://ariana-backend.onrender.com/api';
 function showMsg(text, ok=false){ const el=document.getElementById('msg'); el.textContent=text; el.className='msg '+(ok?'ok':'err'); }
 async function login(){
   const apiKey = document.getElementById('apiKey').value.trim();
-  if(!apiKey) return showMsg('Cole a API Key Sandbox para acessar.');
+  if(!apiKey) return showMsg('Informe sua API Key Enterprise para acessar.');
   try{
     const res = await fetch(`${API_BASE}/enterprise/partner/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey})});
     const data = await res.json().catch(()=>({ok:false,error:'Resposta inválida'}));
     if(!res.ok || !data.ok) return showMsg(data.error || `Erro HTTP ${res.status}`);
-    localStorage.setItem('ariana_enterprise_partner_token', data.token);
-    localStorage.setItem('ariana_enterprise_partner', JSON.stringify(data.partner || {}));
+    sessionStorage.setItem('ariana_enterprise_partner_token', data.token);
+    sessionStorage.setItem('ariana_enterprise_partner', JSON.stringify(data.partner || {}));
+    localStorage.removeItem('ariana_enterprise_partner_token');
+    localStorage.removeItem('ariana_enterprise_partner');
     showMsg('Acesso autorizado. Abrindo portal...', true);
     setTimeout(()=>{ location.href='/portal_fabricante.html'; }, 500);
   }catch(err){ showMsg(err.message || 'Erro ao acessar portal.'); }
