@@ -1,4 +1,4 @@
-name: Composição inteligente das legendas dos cartazes
+name: Smart label composition
 
 on:
   push:
@@ -17,250 +17,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Aplicar composição inteligente somente nas legendas
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Apply patch
+        run: python3 .github/scripts/smart_label_patch.py
 
-          path = Path('functions/poster-generator.js')
-          text = path.read_text(encoding='utf-8')
-
-          helper = r'''function professionalTextComposition({ product = {}, options = {}, layout = 'classic', headline = '', subtitle = '', productName = '', adaptive = {} }) {
-            const type = detectProductType(product);
-            const hints = options.compositionHints && typeof options.compositionHints === 'object'
-              ? options.compositionHints
-              : null;
-            const lightSurface = adaptive.primary !== '#FFFFFF';
-
-            // Cores editoriais: produto recebe destaque próprio; campanha e apoio
-            // permanecem hierarquizados e sempre com alto contraste.
-            const productColor = lightSurface ? '#0A4A86' : '#FFF200';
-            const headlineColor = lightSurface ? '#052B60' : '#FFFFFF';
-            const subtitleColor = lightSurface ? '#2B5F88' : '#DDF4FF';
-
-            const sideLeftProduct = ['showcase', 'split', 'azul_lateral_exato', 'varejo'].includes(layout);
-            const sideRightProduct = ['catalog', 'diagonal'].includes(layout);
-            const centered = !sideLeftProduct && !sideRightProduct;
-
-            let productX = sideLeftProduct ? 785 : (sideRightProduct ? 285 : 540);
-            let productY = sideLeftProduct ? 455 : (sideRightProduct ? 360 : 246);
-            let productMaxChars = sideLeftProduct || sideRightProduct ? 28 : 36;
-            let productMaxLines = 2;
-
-            // Quando já conhecemos a caixa real do produto, usamos o espaço livre
-            // medido no cartaz em vez de uma posição fixa. Nunca entra na área de preço.
-            if (hints && Number.isFinite(Number(hints.left)) && Number.isFinite(Number(hints.right))) {
-              const left = Number(hints.left);
-              const right = Number(hints.right);
-              const top = Number(hints.top || 420);
-              const leftSpace = Math.max(0, left - 38);
-              const rightSpace = Math.max(0, 1080 - right - 38);
-
-              if (rightSpace >= 315 && rightSpace >= leftSpace) {
-                productX = Math.round(right + rightSpace / 2);
-                productY = Math.max(390, Math.min(575, top + 58));
-                productMaxChars = rightSpace >= 430 ? 30 : 24;
-              } else if (leftSpace >= 315) {
-                productX = Math.round(38 + leftSpace / 2);
-                productY = Math.max(390, Math.min(575, top + 58));
-                productMaxChars = leftSpace >= 430 ? 30 : 24;
-              } else if (centered) {
-                productX = 540;
-                productY = Math.max(238, Math.min(350, top - 62));
-                productMaxChars = 36;
-              }
-            }
-
-            const productLines = wrapText(productName, productMaxChars, productMaxLines);
-            const productSize = professionalTextSize(productName, 38, 33, 27);
-            const productGap = productSize >= 36 ? 42 : 36;
-
-            let subtitleX = 540;
-            let headlineX = 540;
-            let subtitleY;
-            let headlineY;
-            let headlineMaxChars;
-            let subtitleMaxChars;
-
-            if (['azul_lateral_exato', 'varejo'].includes(layout)) {
-              subtitleY = 238;
-              headlineY = 292;
-              headlineMaxChars = 38;
-              subtitleMaxChars = 52;
-              // Nesses dois layouts o produto fica à esquerda e as legendas de produto
-              // aproveitam a coluna direita medida acima.
-              if (!hints) productY = 470;
-            } else if (['showcase', 'split', 'catalog', 'diagonal'].includes(layout)) {
-              headlineY = 235;
-              subtitleY = 292;
-              headlineMaxChars = 38;
-              subtitleMaxChars = 48;
-            } else {
-              // Clássico/Premium: nome do produto primeiro, apoio logo abaixo e
-              // campanha em seguida, como uma arte montada manualmente.
-              productY = Math.min(productY, 252);
-              subtitleY = productY + (productLines.length - 1) * productGap + 54;
-              headlineY = subtitleY + 48;
-              headlineMaxChars = 40;
-              subtitleMaxChars = 50;
-            }
-
-            const headlineLines = wrapText(headline, headlineMaxChars, 2);
-            const subtitleLines = wrapText(subtitle, subtitleMaxChars, 2);
-            const headlineSize = professionalTextSize(headline, 46, 40, 34);
-            const subtitleSize = professionalTextSize(subtitle, 28, 25, 22);
-
-            return {
-              product: { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 },
-              headline: { x: headlineX, y: headlineY, lines: headlineLines, size: headlineSize, gap: headlineSize + 7, color: headlineColor, weight: 950 },
-              subtitle: { x: subtitleX, y: subtitleY, lines: subtitleLines, size: subtitleSize, gap: subtitleSize + 6, color: subtitleColor, weight: 800 }
-            };
-          }
-
-          function professionalTextBlockSvg(block = {}) {
-            const lines = Array.isArray(block.lines) ? block.lines : [];
-            return lines.map((line, index) => `<text x="${block.x}" y="${block.y + index * block.gap}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${block.size}" font-weight="${block.weight || 900}" fill="${block.color}">${escapeXml(line)}</text>`).join('');
-          }
-
-'''
-
-          marker = 'function professionalForegroundSvg({ product = {}, pricing, options = {} }) {'
-          if 'function professionalTextComposition(' not in text:
-              if marker not in text:
-                  raise SystemExit('Função professionalForegroundSvg não encontrada')
-              text = text.replace(marker, helper + marker, 1)
-
-          old_vars = '''  const productName = productNameRaw.toUpperCase();
-            const productLines = wrapText(productName, 34, 2);
-            const headlineSize = professionalTextSize(headline, 54, 46, 38);
-            const productNameSize = professionalTextSize(productName, 36, 32, 27);'''
-          new_vars = '''  const productName = productNameRaw;
-            const textPlan = professionalTextComposition({ product, options, layout, headline, subtitle, productName: productNameRaw, adaptive });
-            const productLines = textPlan.product.lines;
-            const headlineSize = textPlan.headline.size;
-            const productNameSize = textPlan.product.size;
-            const headlineSvg = professionalTextBlockSvg(textPlan.headline);
-            const subtitleSvg = professionalTextBlockSvg(textPlan.subtitle);
-            const productNameSvg = professionalTextBlockSvg(textPlan.product);'''
-          if old_vars not in text:
-              raise SystemExit('Bloco inicial das legendas não encontrado')
-          text = text.replace(old_vars, new_vars, 1)
-
-          # Remove a posição fixa antiga do nome do produto; agora vem do textPlan.
-          text, n = re.subn(
-              r"  const productNameTop = isVarejo \? 480 : \(isSplit \? 304 : 350\);\n  const standardProductNameX = .*?\n  const productNameSvg = .*?;\n",
-              '',
-              text,
-              count=1,
-              flags=re.S,
-          )
-          if n != 1:
-              raise SystemExit(f'Posição fixa antiga do produto não encontrada: {n}')
-
-          # Layout lateral exato: mantém todo o restante, só troca as 3 áreas de legenda.
-          text = re.sub(
-              r'''\s*const exactProductLines = wrapText\(productNameRaw, 30, 2\);\n\s*const exactProductSize = professionalTextSize\(productNameRaw, 34, 30, 27\);''',
-              '',
-              text,
-              count=1,
-          )
-          exact_old = '''        <text x="540" y="248" text-anchor="middle" font-size="28" font-weight="800" fill="${lightText}">${escapeXml(subtitle)}</text>
-                <text x="540" y="315" text-anchor="middle" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
-
-                ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}'''
-          exact_new = '''        ${subtitleSvg}
-                ${headlineSvg}
-                ${productNameSvg}'''
-          if exact_old not in text:
-              raise SystemExit('Legendas fixas do Azul lateral exato não encontradas')
-          text = text.replace(exact_old, exact_new, 1)
-
-          # Modelo lateral: mesma inteligência, sem tocar nos preços nem no rodapé.
-          varejo_old = '''      <text x="540" y="250" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="800" fill="${varejoText.primary}">${escapeXml(subtitle)}</text>
-              <text x="540" y="315" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
-              ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}'''
-          varejo_new = '''      ${subtitleSvg}
-              ${headlineSvg}
-              ${productNameSvg}'''
-          if varejo_old not in text:
-              raise SystemExit('Legendas fixas do Modelo lateral não encontradas')
-          text = text.replace(varejo_old, varejo_new, 1)
-
-          # Demais layouts: substitui somente headline/subtitle/nome, preservando preço/site/rodapé.
-          standard_old = '''    <text x="540" y="${isSplit ? 222 : 274}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${adaptive.primary}">${escapeXml(headline)}</text>
-              <text x="540" y="${isSplit ? 260 : 314}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="750" fill="${adaptive.secondary}">${escapeXml(subtitle)}</text>
-              ${productNameSvg}'''
-          standard_new = '''    ${productNameSvg}
-              ${subtitleSvg}
-              ${headlineSvg}'''
-          if standard_old not in text:
-              raise SystemExit('Legendas fixas dos layouts padrão não encontradas')
-          text = text.replace(standard_old, standard_new, 1)
-
-          # O foreground precisa ser montado DEPOIS de conhecermos os limites reais do produto.
-          early_foreground = '  const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));\n'
-          if early_foreground not in text:
-              raise SystemExit('Foreground antecipado não encontrado')
-          text = text.replace(early_foreground, '', 1)
-
-          product_push = '    composites.push({ input: productPng, left, top });'
-          product_push_new = '''    options.compositionHints = {
-              left,
-              top,
-              right: left + productW,
-              bottom: top + productH,
-              width: productW,
-              height: productH
-            };
-            composites.push({ input: productPng, left, top });'''
-          if product_push not in text:
-              raise SystemExit('Composição do produto não encontrada')
-          text = text.replace(product_push, product_push_new, 1)
-
-          final_push = '  composites.push({ input: foreground, top: 0, left: 0 });'
-          final_push_new = '''  const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
-            composites.push({ input: foreground, top: 0, left: 0 });'''
-          if final_push not in text:
-              raise SystemExit('Composição final não encontrada')
-          text = text.replace(final_push, final_push_new, 1)
-
-          # Blindagens: não tocar no pagamento, produto, rodapé ou demais recursos.
-          required = [
-              'À VISTA NO DINHEIRO OU PIX',
-              'NO CARTÃO DE CRÉDITO',
-              'VALOR PARCELADO: R$',
-              'CREDIÁRIO PRÓPRIO',
-              "fit: 'inside'",
-              'const rawImage = await loadImageBuffer(imageUrl)',
-              'Atendimento pelo WhatsApp',
-              'arianamoveis.com.br'
-          ]
-          for item in required:
-              if item not in text:
-                  raise SystemExit(f'Regra protegida ausente após patch: {item}')
-
-          path.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Validar sintaxe e escopo
-        shell: bash
+      - name: Validate
         run: |
           node --check functions/poster-generator.js
           grep -q "function professionalTextComposition" functions/poster-generator.js
           grep -q "options.compositionHints" functions/poster-generator.js
-          grep -q "professionalTextBlockSvg" functions/poster-generator.js
-          grep -q "À VISTA NO DINHEIRO OU PIX" functions/poster-generator.js
           grep -q "VALOR PARCELADO: R\$" functions/poster-generator.js
           grep -q "fit: 'inside'" functions/poster-generator.js
 
-      - name: Gravar e remover workflow temporário
-        shell: bash
+      - name: Commit
         run: |
           git config user.name "Ariana Móveis Bot"
           git config user.email "actions@users.noreply.github.com"
-          git rm .github/workflows/temp-smart-label-composition.yml
+          git rm .github/workflows/temp-smart-label-composition.yml .github/scripts/smart_label_patch.py
           git add functions/poster-generator.js
           git commit -m "feat: posiciona e estiliza legendas de forma inteligente sem alterar o restante"
           git push origin HEAD:main
