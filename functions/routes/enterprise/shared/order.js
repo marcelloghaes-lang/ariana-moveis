@@ -1,7 +1,6 @@
 // ============================================================
 // ENTERPRISE SHARED - ORDER
 // Funções compartilhadas de pedidos/produtos Enterprise.
-// Extraído de routes/enterpriseRoutes.js sem alterar regras ou respostas.
 // ============================================================
 
 export function createEnterpriseOrder(context = {}) {
@@ -17,8 +16,6 @@ export function createEnterpriseOrder(context = {}) {
     EnterpriseSandboxProduct,
     normalizeProductForResponse
   } = context;
-
-  const enterpriseJwtSecret = String(process.env.ENTERPRISE_JWT_SECRET || JWT_SECRET || '').trim();
 
   function enterpriseEnvironment(partner = {}) {
     return String(partner?.environment || 'sandbox').trim().toLowerCase();
@@ -58,9 +55,7 @@ export function createEnterpriseOrder(context = {}) {
 
     const OrderModel = enterpriseOrderModelForPartner(partner);
     const partnerIds = enterprisePartnerProductScope(partner);
-    if (!partnerIds.length) {
-      return OrderModel.findOne({ $or: identity });
-    }
+    if (!partnerIds.length) return OrderModel.findOne({ $or: identity });
 
     return OrderModel.findOne({
       $and: [
@@ -77,33 +72,14 @@ export function createEnterpriseOrder(context = {}) {
     });
   }
 
+  // Toda autenticação de operação passa pelo autenticador unificado.
+  // Ele distingue API Key (x-ariana-key) de Bearer JWT do Portal/OAuth.
   async function enterpriseOrderOperationAuth(req, res, next) {
     const apiKey = getEnterpriseCompatKey(req);
-    if (apiKey) return enterpriseCompatAuth(req, res, next);
-
-    const header = String(req.headers.authorization || '').trim();
-    const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
-    if (!token) return res.status(401).json({ ok: false, error: 'Token ausente' });
-
-    try {
-      if (!enterpriseJwtSecret || enterpriseJwtSecret === 'ariana_enterprise_secret') return res.status(503).json({ ok: false, error: 'Autenticação Enterprise temporariamente indisponível' });
-      const decoded = jwt.verify(token, enterpriseJwtSecret);
-      if (!decoded || decoded.role !== 'enterprise_partner') {
-        return res.status(403).json({ ok: false, error: 'Token Enterprise inválido' });
-      }
-      req.enterprisePortal = decoded;
-      req.enterprisePartner = {
-        id: decoded.partnerId || '',
-        requestId: decoded.requestId || '',
-        companyName: decoded.companyName || '',
-        tradeName: decoded.tradeName || '',
-        environment: decoded.environment || 'sandbox',
-        permissions: Array.isArray(decoded.permissions) ? decoded.permissions : []
-      };
-      return next();
-    } catch (_error) {
-      return res.status(401).json({ ok: false, error: 'Token Enterprise expirado ou inválido' });
-    }
+    const auth = String(req.headers.authorization || '').trim();
+    const hasBearer = auth.toLowerCase().startsWith('bearer ');
+    if (!apiKey && !hasBearer) return res.status(401).json({ ok: false, error: 'Credencial Enterprise ausente' });
+    return enterpriseCompatAuth(req, res, next);
   }
 
   function enterprisePartnerProductScope(partner = {}) {
@@ -164,9 +140,6 @@ export function createEnterpriseOrder(context = {}) {
     const ProductModel = enterpriseProductModelForPartner(partner);
     let product = await ProductModel.findOne(scoped);
     if (product) return product;
-
-    // Nunca atravessa o escopo de outro parceiro. Consultas internas sem parceiro
-    // ainda podem usar o fallback global dentro do ambiente selecionado.
     if (sellerIds.length) return null;
     return ProductModel.findOne({ sku: cleanSku });
   }

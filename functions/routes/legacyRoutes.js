@@ -86,49 +86,47 @@ function ensureEnterpriseSandboxModels(context = {}) {
     throw new Error('[legacyRoutes] Mongoose indisponível para inicializar o Sandbox Enterprise');
   }
 
-  if (!mongoose.models.EnterpriseSandboxProduct) {
-    const sandboxProductSchema = new mongoose.Schema({
-      sku: { type: String, index: true },
-      sellerId: { type: String, index: true },
-      sellerIds: [{ type: String }],
-      sellerName: String,
-      brand: String,
-      name: String,
-      description: String,
-      price: Number,
-      stock: Number,
-      active: { type: Boolean, default: true },
-      images: [mongoose.Schema.Types.Mixed],
-      metadata: mongoose.Schema.Types.Mixed,
-      status_integracao: String
-    }, { timestamps: true, versionKey: false, strict: false });
+  const sourceProductSchema = context.productSchema || context.Product?.schema || null;
+  const sourceOrderSchema = context.orderSchema || context.Order?.schema || null;
 
-    sandboxProductSchema.index({ sku: 1, sellerId: 1 }, { unique: false });
+  if (!sourceProductSchema) {
+    throw new Error('[legacyRoutes] productSchema indisponível para inicializar o Sandbox Enterprise');
+  }
+  if (!sourceOrderSchema) {
+    throw new Error('[legacyRoutes] orderSchema indisponível para inicializar o Sandbox Enterprise');
+  }
+
+  // O Sandbox replica o schema operacional para que todos os campos usados em
+  // catálogo, preço, estoque, imagens, logística e especificações sejam realmente
+  // persistidos. As coleções continuam fisicamente separadas da produção.
+  if (!mongoose.models.EnterpriseSandboxProduct) {
+    const sandboxProductSchema = sourceProductSchema.clone();
+    sandboxProductSchema.set('strict', false);
+    sandboxProductSchema.add({
+      sellerIds: [{ type: String }],
+      manufacturer: { type: String, index: true },
+      codigo: { type: String, index: true },
+      productSku: { type: String, index: true },
+      metadata: mongoose.Schema.Types.Mixed,
+      status_integracao: { type: String, index: true }
+    });
+    sandboxProductSchema.index({ sku: 1, sellerId: 1 });
     mongoose.model('EnterpriseSandboxProduct', sandboxProductSchema, 'enterprise_sandbox_products');
   }
 
+  // Pedidos Sandbox também mantêm paridade com o pedido real: rastreio, histórico,
+  // NF-e, dados fiscais, pagamento e demais campos permanecem disponíveis sem tocar
+  // na coleção pública de pedidos.
   if (!mongoose.models.EnterpriseSandboxOrder) {
-    const sandboxOrderSchema = new mongoose.Schema({
-      sellerIds: [{ type: String }],
-      customerName: String,
-      customerEmail: String,
-      customerPhone: String,
-      status: { type: String, index: true },
-      statusLabel: String,
-      items: [mongoose.Schema.Types.Mixed],
-      subtotal: Number,
-      total: Number,
-      currency: String,
-      shippingAddress: mongoose.Schema.Types.Mixed,
-      manufacturer: { type: String, index: true },
-      manufacturerDispatch: mongoose.Schema.Types.Mixed,
-      status_integracao: { type: String, index: true },
+    const sandboxOrderSchema = sourceOrderSchema.clone();
+    sandboxOrderSchema.set('strict', false);
+    sandboxOrderSchema.add({
       invoice: mongoose.Schema.Types.Mixed,
       tracking: mongoose.Schema.Types.Mixed,
       metadata: mongoose.Schema.Types.Mixed
-    }, { timestamps: true, versionKey: false, strict: false });
-
+    });
     sandboxOrderSchema.index({ manufacturer: 1, 'manufacturerDispatch.externalOrderId': 1 });
+    sandboxOrderSchema.index({ manufacturer: 1, 'manufacturerDispatch.idempotencyKeyHash': 1 });
     mongoose.model('EnterpriseSandboxOrder', sandboxOrderSchema, 'enterprise_sandbox_orders');
   }
 }
@@ -148,7 +146,7 @@ function buildRuntimeContext(context = {}) {
     throw new Error('[legacyRoutes] orderSchema indisponível para inicializar o Ariana Enterprise');
   }
 
-  ensureEnterpriseSandboxModels(context);
+  ensureEnterpriseSandboxModels({ ...context, productSchema, orderSchema });
 
   return {
     ...context,
