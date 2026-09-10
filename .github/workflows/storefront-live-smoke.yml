@@ -1,0 +1,135 @@
+name: Ariana Storefront Live Smoke
+
+on:
+  push:
+    branches:
+      - audit-storefront-smoke-2026-09-10
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storefront-live-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SITE: https://arianamoveis.com.br
+      BACKEND: https://ariana-backend.onrender.com
+
+    steps:
+      - name: Check public storefront pages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          check_page() {
+            local path="$1"
+            local marker="$2"
+            local file
+            file="/tmp/page-$(echo "$path" | tr '/?=&' '----').html"
+            local code
+            code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o "$file" -w '%{http_code}' "$SITE$path")
+            echo "$path -> $code"
+            [[ "$code" =~ ^2[0-9][0-9]$ ]]
+            test -s "$file"
+            test "$(wc -c < "$file")" -gt 200
+            grep -Fqi "$marker" "$file"
+          }
+
+          check_page "/" "Ariana"
+          check_page "/todos_produtos.html" "Catálogo Completo"
+          check_page "/produto.html" "Descrição Completa"
+          check_page "/carrinho.html" "Meu carrinho"
+          check_page "/checkout.html" "Checkout"
+          check_page "/pagamento.html" "Pagamento"
+          check_page "/login_cadastro.html" "Ariana"
+          check_page "/ofertas.html" "Ariana"
+          check_page "/busca.html" "Ariana"
+          check_page "/categoria.html" "Ariana"
+
+      - name: Check critical storefront assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for asset in \
+            /js/api-config.js \
+            /marketplace-core.js \
+            /marketplace-core_global_payments.js \
+            /product-card.js \
+            /checkout-ariana.css; do
+            file="/tmp/asset-$(basename "$asset")"
+            code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o "$file" -w '%{http_code}' "$SITE$asset")
+            echo "$asset -> $code"
+            [[ "$code" =~ ^2[0-9][0-9]$ ]]
+            test -s "$file"
+          done
+
+          grep -Fq 'https://ariana-backend.onrender.com' /tmp/asset-api-config.js
+
+      - name: Check backend health and storefront catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          root_code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o /tmp/backend-root.json -w '%{http_code}' "$BACKEND/")
+          echo "/ -> $root_code"
+          [[ "$root_code" =~ ^2[0-9][0-9]$ ]]
+          grep -q '"ok":true' /tmp/backend-root.json
+
+          catalog_ok=0
+          for endpoint in /api/products /api/home/index-data; do
+            file="/tmp/catalog-$(echo "$endpoint" | tr '/' '-').json"
+            code=$(curl --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -L -o "$file" -w '%{http_code}' "$BACKEND$endpoint" || true)
+            echo "$endpoint -> $code"
+            if [[ "$code" =~ ^2[0-9][0-9]$ ]] && test -s "$file"; then
+              if node - "$file" <<'NODE'
+          const fs = require('fs');
+          const file = process.argv[2];
+          let data;
+          try { data = JSON.parse(fs.readFileSync(file, 'utf8')); }
+          catch { process.exit(1); }
+          const arrays = [];
+          if (Array.isArray(data)) arrays.push(data);
+          if (data && typeof data === 'object') {
+            for (const key of ['products','items','results','docs','data']) {
+              if (Array.isArray(data[key])) arrays.push(data[key]);
+              else if (data[key] && typeof data[key] === 'object') {
+                for (const nested of ['products','items','results','docs','data']) {
+                  if (Array.isArray(data[key][nested])) arrays.push(data[key][nested]);
+                }
+              }
+            }
+          }
+          process.exit(arrays.some(arr => arr.length > 0) ? 0 : 1);
+          NODE
+              then
+                catalog_ok=1
+                break
+              fi
+            fi
+          done
+
+          test "$catalog_ok" -eq 1
+
+      - name: Check storefront CORS to backend
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          headers=$(curl --retry 2 --retry-all-errors --connect-timeout 15 --max-time 35 -sS -D - -o /dev/null -X OPTIONS \
+            -H 'Origin: https://arianamoveis.com.br' \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            "$BACKEND/api/products" | tr -d '\r')
+
+          echo "$headers"
+          echo "$headers" | grep -qi '^access-control-allow-origin: https://arianamoveis.com.br$'
+
+      - name: Summary
+        run: echo 'Ariana storefront live smoke checks passed.'
