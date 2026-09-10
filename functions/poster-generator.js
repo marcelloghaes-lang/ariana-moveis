@@ -798,6 +798,91 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
   </svg>`;
 }
 
+function professionalTextComposition({ product = {}, options = {}, layout = 'classic', headline = '', subtitle = '', productName = '', adaptive = {} }) {
+  const hints = options.compositionHints && typeof options.compositionHints === 'object'
+    ? options.compositionHints
+    : null;
+  const lightSurface = adaptive.primary !== '#FFFFFF';
+
+  const productColor = lightSurface ? '#0A4A86' : '#FFF200';
+  const headlineColor = lightSurface ? '#052B60' : '#FFFFFF';
+  const subtitleColor = lightSurface ? '#2B5F88' : '#DDF4FF';
+
+  const sideLeftProduct = ['showcase', 'split', 'azul_lateral_exato', 'varejo'].includes(layout);
+  const sideRightProduct = ['catalog', 'diagonal'].includes(layout);
+  const centered = !sideLeftProduct && !sideRightProduct;
+
+  let productX = sideLeftProduct ? 785 : (sideRightProduct ? 285 : 540);
+  let productY = sideLeftProduct ? 455 : (sideRightProduct ? 360 : 246);
+  let productMaxChars = sideLeftProduct || sideRightProduct ? 28 : 36;
+
+  if (hints && Number.isFinite(Number(hints.left)) && Number.isFinite(Number(hints.right))) {
+    const left = Number(hints.left);
+    const right = Number(hints.right);
+    const top = Number(hints.top || 420);
+    const leftSpace = Math.max(0, left - 38);
+    const rightSpace = Math.max(0, 1080 - right - 38);
+
+    if (rightSpace >= 315 && rightSpace >= leftSpace) {
+      productX = Math.round(right + rightSpace / 2);
+      productY = Math.max(390, Math.min(575, top + 58));
+      productMaxChars = rightSpace >= 430 ? 30 : 24;
+    } else if (leftSpace >= 315) {
+      productX = Math.round(38 + leftSpace / 2);
+      productY = Math.max(390, Math.min(575, top + 58));
+      productMaxChars = leftSpace >= 430 ? 30 : 24;
+    } else if (centered) {
+      productX = 540;
+      productY = Math.max(238, Math.min(350, top - 62));
+      productMaxChars = 36;
+    }
+  }
+
+  const productLines = wrapText(productName, productMaxChars, 2);
+  const productSize = professionalTextSize(productName, 38, 33, 27);
+  const productGap = productSize >= 36 ? 42 : 36;
+
+  let subtitleY;
+  let headlineY;
+  let headlineMaxChars;
+  let subtitleMaxChars;
+
+  if (['azul_lateral_exato', 'varejo'].includes(layout)) {
+    subtitleY = 238;
+    headlineY = 292;
+    headlineMaxChars = 38;
+    subtitleMaxChars = 52;
+    if (!hints) productY = 470;
+  } else if (['showcase', 'split', 'catalog', 'diagonal'].includes(layout)) {
+    headlineY = 235;
+    subtitleY = 292;
+    headlineMaxChars = 38;
+    subtitleMaxChars = 48;
+  } else {
+    productY = Math.min(productY, 252);
+    subtitleY = productY + (productLines.length - 1) * productGap + 54;
+    headlineY = subtitleY + 48;
+    headlineMaxChars = 40;
+    subtitleMaxChars = 50;
+  }
+
+  const headlineLines = wrapText(headline, headlineMaxChars, 2);
+  const subtitleLines = wrapText(subtitle, subtitleMaxChars, 2);
+  const headlineSize = professionalTextSize(headline, 46, 40, 34);
+  const subtitleSize = professionalTextSize(subtitle, 28, 25, 22);
+
+  return {
+    product: { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 },
+    headline: { x: 540, y: headlineY, lines: headlineLines, size: headlineSize, gap: headlineSize + 7, color: headlineColor, weight: 950 },
+    subtitle: { x: 540, y: subtitleY, lines: subtitleLines, size: subtitleSize, gap: subtitleSize + 6, color: subtitleColor, weight: 800 }
+  };
+}
+
+function professionalTextBlockSvg(block = {}) {
+  const lines = Array.isArray(block.lines) ? block.lines : [];
+  return lines.map((line, index) => `<text x="${block.x}" y="${block.y + index * block.gap}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${block.size}" font-weight="${block.weight || 900}" fill="${block.color}">${escapeXml(line)}</text>`).join('');
+}
+
 function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const template = String(options.template || 'oferta').toLowerCase();
   const layout = String(options.layoutVariant || 'classic').toLowerCase();
@@ -806,10 +891,14 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
   const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
   const productNameRaw = String(options.productName || product.name || product.title || 'Produto Ariana Móveis').trim();
-  const productName = productNameRaw.toUpperCase();
-  const productLines = wrapText(productName, 34, 2);
-  const headlineSize = professionalTextSize(headline, 54, 46, 38);
-  const productNameSize = professionalTextSize(productName, 36, 32, 27);
+  const productName = productNameRaw;
+  const textPlan = professionalTextComposition({ product, options, layout, headline, subtitle, productName: productNameRaw, adaptive });
+  const productLines = textPlan.product.lines;
+  const headlineSize = textPlan.headline.size;
+  const productNameSize = textPlan.product.size;
+  const headlineSvg = professionalTextBlockSvg(textPlan.headline);
+  const subtitleSvg = professionalTextBlockSvg(textPlan.subtitle);
+  const productNameSvg = professionalTextBlockSvg(textPlan.product);
   const fullValue = brl(pricing.fullPrice).replace(/^R\$\s*/, '');
   const cashValue = brl(pricing.cashPrice).replace(/^R\$\s*/, '');
   const installmentValue = brl(pricing.installmentPrice);
@@ -819,9 +908,6 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const isSplit = layout === 'split';
   const isVarejo = layout === 'varejo';
   const isExactLateral = layout === 'azul_lateral_exato';
-  const productNameTop = isVarejo ? 480 : (isSplit ? 304 : 350);
-  const standardProductNameX = ['catalog', 'diagonal'].includes(layout) ? 285 : (['showcase', 'split'].includes(layout) ? 760 : 540);
-  const productNameSvg = productLines.map((line, index) => `<text x="${standardProductNameX}" y="${productNameTop + index * 37}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${adaptive.primary}">${escapeXml(line)}</text>`).join('');
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
@@ -842,8 +928,6 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     const richYellow = exactText.price;
     const strongBlue = ['azul', 'celeste'].includes(colorKey) ? '#0B3F7E' : exactText.primary;
     const lightText = exactText.primary;
-    const exactProductLines = wrapText(productNameRaw, 30, 2);
-    const exactProductSize = professionalTextSize(productNameRaw, 34, 30, 27);
     const emailParts = email.includes('@') ? [email.slice(0, email.indexOf('@') + 1), email.slice(email.indexOf('@') + 1)] : [email];
 
     return `
@@ -853,10 +937,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
         <text x="540" y="151" text-anchor="middle" font-size="45" font-weight="900" fill="#123F7D">móveis</text>
         <path d="M448 170 H632" stroke="#FFD400" stroke-width="7" stroke-linecap="round"/>
 
-        <text x="540" y="248" text-anchor="middle" font-size="28" font-weight="800" fill="${lightText}">${escapeXml(subtitle)}</text>
-        <text x="540" y="315" text-anchor="middle" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
-
-        ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
+        ${subtitleSvg}
+        ${headlineSvg}
+        ${productNameSvg}
 
         <text x="790" y="704" text-anchor="middle" font-size="30" font-weight="950" fill="${lightText}">POR</text>
         <text x="625" y="795" font-size="43" font-weight="950" fill="${lightText}">R$</text>
@@ -913,9 +996,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     return `
     <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
       ${brandSvg}
-      <text x="540" y="250" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="800" fill="${varejoText.primary}">${escapeXml(subtitle)}</text>
-      <text x="540" y="315" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
-      ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
+      ${subtitleSvg}
+      ${headlineSvg}
+      ${productNameSvg}
       <g font-family="Arial, Helvetica, sans-serif">
         <text x="770" y="690" text-anchor="middle" font-size="30" font-weight="950" fill="${varejoText.primary}">POR</text>
         <text x="630" y="780" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
@@ -967,9 +1050,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   return `
   <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
     ${brandSvg}
-    <text x="540" y="${isSplit ? 222 : 274}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${adaptive.primary}">${escapeXml(headline)}</text>
-    <text x="540" y="${isSplit ? 260 : 314}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="750" fill="${adaptive.secondary}">${escapeXml(subtitle)}</text>
     ${productNameSvg}
+    ${subtitleSvg}
+    ${headlineSvg}
 
     ${pricingBlock}
 
@@ -1005,7 +1088,6 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   const height = 1350;
   const pricing = professionalPricing(product, options);
   const background = await professionalBackgroundBuffer(product, options);
-  const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   const composites = [{ input: background, top: 0, left: 0 }];
   let headerMascotComposite = null;
 
@@ -1126,6 +1208,14 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
     const desiredTop = Math.round((exactLateral ? 430 : (layout === 'varejo' ? 430 : minProductTop)) + automaticOffsetY + Number(options.productOffsetY || 0));
     const top = Math.max(exactLateral ? 405 : (layout === 'varejo' ? 390 : minProductTop), Math.min(productBottomLimit - productH, desiredTop));
+    options.compositionHints = {
+      left,
+      top,
+      right: left + productW,
+      bottom: top + productH,
+      width: productW,
+      height: productH
+    };
     composites.push({ input: productPng, left, top });
   }
 
@@ -1149,6 +1239,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     }
   }
 
+  const foreground = Buffer.from(professionalForegroundSvg({ product, pricing, options }));
   composites.push({ input: foreground, top: 0, left: 0 });
   return sharp({ create: { width, height, channels: 4, background: '#ffffff' } })
     .composite(composites)
