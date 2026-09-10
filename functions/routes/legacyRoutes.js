@@ -80,8 +80,31 @@ function prioritizeSpecificAdminRoutes(app) {
   );
 }
 
+function buildRuntimeContext(context = {}) {
+  const Product = context.Product;
+  const Order = context.Order;
+
+  const productSchema = context.productSchema || Product?.schema || null;
+  const orderSchema = context.orderSchema || Order?.schema || null;
+
+  if (!productSchema) {
+    throw new Error('[legacyRoutes] productSchema indisponível para inicializar o Ariana Enterprise');
+  }
+
+  if (!orderSchema) {
+    throw new Error('[legacyRoutes] orderSchema indisponível para inicializar o Ariana Enterprise');
+  }
+
+  return {
+    ...context,
+    productSchema,
+    orderSchema
+  };
+}
+
 export default function registerLegacyRoutes(app, context = {}) {
-  const result = registerLegacyRuntimeRoutes(app, context);
+  const runtimeContext = buildRuntimeContext(context);
+  const result = registerLegacyRuntimeRoutes(app, runtimeContext);
   prioritizeSpecificAdminRoutes(app);
   return result;
 }
