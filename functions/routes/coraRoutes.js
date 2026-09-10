@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getCoraConfig, getCoraSafeStatus } from '../integrations/cora/coraConfig.js';
 import { getCoraAccessToken, getCoraTokenCacheStatus } from '../integrations/cora/coraAuth.js';
-import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../integrations/cora/coraInstallmentService.js';
+import { buildCoraInstallmentPayload, issueCoraInstallmentBook, getCoraInvoiceDetails } from '../integrations/cora/coraInstallmentService.js';
 import { getCoraAuditModel, getCoraChargeModel } from '../integrations/cora/coraChargeModel.js';
 import { calculateCrediarioPlan, moneyToCents, centsToMoney, CREDIARIO_DIVISORS } from '../services/crediarioEngine.js';
 
@@ -554,51 +554,112 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
     return res.json({ ok: true, charge });
   });
 
-  // Webhook preparado. Configure CORA_WEBHOOK_SECRET quando a Cora fornecer o segredo/assinatura.
+  // A Cora envia os dados de identificação do evento no cabeçalho. O status só é
+  // aplicado depois de uma consulta autenticada à própria API da Cora.
   app.post('/api/webhooks/cora', async (req, res) => {
+    let charge = null;
+    const eventBody = req.body || {};
+    const eventId = String(req.headers['webhook-event-id'] || '').trim();
+    const eventType = String(req.headers['webhook-event-type'] || '').trim();
+    const headerResourceId = String(req.headers['webhook-resource-id'] || '').trim();
+    const bodyResourceId = String(eventBody.id || eventBody.invoice?.id || eventBody.data?.id || '').trim();
+    const resourceId = headerResourceId || bodyResourceId;
+    const eventMeta = {
+      eventId,
+      eventType,
+      resourceId,
+      source: headerResourceId ? 'cora-header' : (bodyResourceId ? 'body-fallback' : 'unknown')
+    };
+
     try {
-      const event = req.body || {};
-      const secret = String(process.env.CORA_WEBHOOK_SECRET || '');
-      const received = String(req.headers['x-webhook-signature'] || req.headers['x-cora-signature'] || '');
-      if (secret && received) {
-        const expected = crypto.createHmac('sha256', secret).update(JSON.stringify(event)).digest('hex');
-        const a = Buffer.from(received); const b = Buffer.from(expected);
-        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(401).json({ ok: false, error: 'Assinatura inválida.' });
+      if (!CoraCharge) return res.status(503).json({ ok: false, error: 'Integração Cora indisponível.' });
+
+      if (!resourceId) {
+        if (CoraAuditLog) await CoraAuditLog.create({
+          chargeId: '', action: 'WEBHOOK_IGNORED_NO_RESOURCE_ID', method: 'POST', url: '/api/webhooks/cora',
+          requestHeaders: eventMeta, requestBody: null, responseBody: { matched: false, ignored: true }, status: 200
+        });
+        return res.status(200).json({ ok: true, matched: false, ignored: true });
       }
-      const code = String(event.code || event.invoice?.code || event.data?.code || '');
-      const providerId = String(event.id || event.invoice?.id || event.data?.id || '');
-      const charge = await CoraCharge.findOne({ $or: [{ code }, { 'invoices.id': providerId }, { 'invoices.invoice_id': providerId }] }).sort({ createdAt: -1 });
-      if (charge) {
-        charge.webhookEvents.push({ receivedAt: new Date(), event });
-        const eventData = event.data || event.invoice || event;
-        const incomingStatus = String(eventData.status || event.status || '').toUpperCase();
-        const invoices = Array.isArray(charge.invoices) ? charge.invoices.map((item) => ({ ...(item || {}) })) : [];
-        const index = invoices.findIndex((item) => invoiceMatchesEvent(item, event));
-        if (index >= 0 && incomingStatus) {
-          invoices[index] = {
-            ...invoices[index],
-            status: incomingStatus,
-            paid_at: eventData.paid_at || eventData.paidAt || invoices[index].paid_at || null,
-            updated_at: eventData.updated_at || eventData.updatedAt || new Date().toISOString()
-          };
-          charge.invoices = invoices;
-          charge.markModified('invoices');
-        }
-        charge.status = statusFromInvoices(charge.invoices);
-        if (['CANCELLED', 'CANCELED'].includes(incomingStatus) && index < 0) charge.status = 'CANCELLED';
-        if (['PAID', 'SETTLED'].includes(incomingStatus) && index < 0 && charge.invoices.length === 1) {
-          charge.invoices[0] = { ...charge.invoices[0], status: incomingStatus };
-          charge.markModified('invoices');
-          charge.status = 'PAID';
-        }
-        charge.resolvedAt = ['PAID', 'CANCELLED'].includes(charge.status) ? new Date() : charge.resolvedAt;
-        await charge.save();
-        if (charge.orderId) await updateOrderCora(charge.orderId, charge);
+
+      charge = await CoraCharge.findOne({
+        $or: [
+          { 'invoices.id': resourceId },
+          { 'invoices.invoice_id': resourceId },
+          { 'invoices.invoiceId': resourceId }
+        ]
+      }).sort({ createdAt: -1 });
+
+      if (!charge) {
+        if (CoraAuditLog) await CoraAuditLog.create({
+          chargeId: '', action: 'WEBHOOK_IGNORED_UNKNOWN_INVOICE', method: 'POST', url: '/api/webhooks/cora',
+          requestHeaders: eventMeta, requestBody: null, responseBody: { matched: false, resourceId }, status: 200
+        });
+        return res.status(200).json({ ok: true, matched: false, ignored: true });
       }
-      if (CoraAuditLog) await CoraAuditLog.create({ chargeId: charge ? String(charge._id) : '', action: 'WEBHOOK_RECEIVED', method: 'POST', url: '/api/webhooks/cora', requestHeaders: {}, requestBody: event, responseBody: { matched: Boolean(charge) }, status: 200 });
-      return res.json({ ok: true, matched: Boolean(charge) });
+
+      const verifiedInvoice = await getCoraInvoiceDetails(resourceId, {
+        onTrace: (trace) => saveTrace(charge._id, 'WEBHOOK_VERIFY_INVOICE', trace)
+      });
+      const verifiedId = String(verifiedInvoice?.id || '').trim();
+      if (!verifiedId || verifiedId !== resourceId) {
+        const error = new Error('A API da Cora retornou uma fatura diferente da informada no webhook.');
+        error.code = 'CORA_WEBHOOK_RESOURCE_MISMATCH';
+        error.statusCode = 502;
+        throw error;
+      }
+
+      const verifiedStatus = String(verifiedInvoice?.status || '').trim().toUpperCase();
+      if (!verifiedStatus) {
+        const error = new Error('A API da Cora não retornou o status da fatura.');
+        error.code = 'CORA_WEBHOOK_STATUS_MISSING';
+        error.statusCode = 502;
+        throw error;
+      }
+
+      const invoices = Array.isArray(charge.invoices) ? charge.invoices.map((item) => ({ ...(item || {}) })) : [];
+      const index = invoices.findIndex((item) => {
+        const ids = [item?.id, item?.invoice_id, item?.invoiceId].map((value) => String(value || '').trim());
+        return ids.includes(resourceId);
+      });
+      if (index < 0) {
+        const error = new Error('A fatura confirmada pela Cora não pertence ao carnê local encontrado.');
+        error.code = 'CORA_WEBHOOK_LOCAL_INVOICE_MISMATCH';
+        error.statusCode = 409;
+        throw error;
+      }
+
+      invoices[index] = {
+        ...invoices[index],
+        status: verifiedStatus,
+        occurrence_date: verifiedInvoice?.occurrence_date ?? invoices[index]?.occurrence_date ?? null,
+        total_paid: verifiedInvoice?.total_paid ?? invoices[index]?.total_paid ?? 0,
+        verified_at: new Date().toISOString()
+      };
+      charge.invoices = invoices;
+      charge.markModified('invoices');
+      charge.status = statusFromInvoices(invoices);
+      charge.webhookEvents.push({
+        receivedAt: new Date(),
+        event: { ...eventMeta, verifiedStatus, verifiedBy: 'cora-api' }
+      });
+      if (charge.webhookEvents.length > 100) charge.webhookEvents = charge.webhookEvents.slice(-100);
+      charge.resolvedAt = ['PAID', 'CANCELLED'].includes(charge.status) ? new Date() : charge.resolvedAt;
+      await charge.save();
+      if (charge.orderId) await updateOrderCora(charge.orderId, charge);
+
+      if (CoraAuditLog) await CoraAuditLog.create({
+        chargeId: String(charge._id), action: 'WEBHOOK_VERIFIED', method: 'POST', url: '/api/webhooks/cora',
+        requestHeaders: eventMeta, requestBody: null,
+        responseBody: { matched: true, resourceId, verifiedStatus, chargeStatus: charge.status }, status: 200
+      });
+      return res.status(200).json({ ok: true, matched: true });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: safeError(error) });
+      if (CoraAuditLog) await CoraAuditLog.create({
+        chargeId: charge ? String(charge._id) : '', action: 'WEBHOOK_VERIFICATION_FAILED', method: 'POST', url: '/api/webhooks/cora',
+        requestHeaders: eventMeta, requestBody: null, responseBody: { matched: Boolean(charge), error: safeError(error) }, status: 500
+      }).catch(() => null);
+      return res.status(Number(error.statusCode || 500) >= 500 ? 500 : Number(error.statusCode || 500)).json({ ok: false, error: safeError(error) });
     }
   });
 }
