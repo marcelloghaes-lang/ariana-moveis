@@ -1,0 +1,40 @@
+name: Corrigir colisões de texto dos cartazes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-fix-poster-text-collisions.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply text collision patch
+        run: python3 .github/scripts/fix_poster_text_collisions_patch.py
+
+      - name: Validate isolated change
+        run: |
+          node --check functions/poster-generator.js
+          grep -Fq 'const blockRect = (block) =>' functions/poster-generator.js
+          grep -Fq 'const placeAwayFromImage = (block) =>' functions/poster-generator.js
+          grep -Fq '<text x="650" y="1017"' functions/poster-generator.js
+          grep -Fq 'À VISTA NO DINHEIRO OU PIX' functions/poster-generator.js
+          grep -Fq 'VALOR PARCELADO: R$' functions/poster-generator.js
+          grep -Fq "fit: 'inside'" functions/poster-generator.js
+
+      - name: Commit only generator text fix
+        run: |
+          git config user.name "Ariana Móveis Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/temp-fix-poster-text-collisions.yml .github/scripts/fix_poster_text_collisions_patch.py
+          git add functions/poster-generator.js
+          git commit -m "fix: evita sobreposição de textos e imagens nos cartazes"
+          git push origin HEAD:main
