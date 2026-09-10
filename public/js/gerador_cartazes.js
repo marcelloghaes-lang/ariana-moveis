@@ -162,7 +162,7 @@
       return;
     }
     const cardTotal = installmentPrice * installments;
-    els.pricingSummary.innerHTML = `<b>${money(cash)}</b> à vista no Pix ou dinheiro • ou <b>${money(cardTotal)}</b> no cartão, em até <b>${installments}x de ${money(installmentPrice)}</b> sem juros.`;
+    els.pricingSummary.innerHTML = `<b>${money(cash)}</b> à vista no dinheiro ou Pix • ou <b>${installments}x de ${money(installmentPrice)}</b> no cartão de crédito • valor parcelado: <b>${money(cardTotal)}</b> • consulte condições de pagamento no crediário próprio.`;
     els.pricingSummary.classList.add('ready');
   }
 

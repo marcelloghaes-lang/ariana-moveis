@@ -861,18 +861,17 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
 
         ${exactProductLines.map((line, index) => `<text x="775" y="${495 + index * 42}" text-anchor="middle" font-size="${exactProductSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
 
-        <text x="790" y="704" text-anchor="middle" font-size="27" font-weight="950" fill="${lightText}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
-        <text x="625" y="805" font-size="44" font-weight="950" fill="${lightText}">R$</text>
-        <text x="700" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
-        <text x="790" y="846" text-anchor="middle" font-size="22" font-weight="850" fill="${lightText}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+        <text x="790" y="704" text-anchor="middle" font-size="30" font-weight="950" fill="${lightText}">POR</text>
+        <text x="625" y="795" font-size="43" font-weight="950" fill="${lightText}">R$</text>
+        <text x="700" y="795" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
+        <text x="790" y="840" text-anchor="middle" font-size="25" font-weight="900" fill="${lightText}">À VISTA NO DINHEIRO OU PIX</text>
 
-        <text x="790" y="910" text-anchor="middle" font-size="42" font-weight="950" fill="${richYellow}">OU</text>
-        <text x="790" y="970" text-anchor="middle" font-size="39" font-weight="950" fill="${lightText}">EM ATÉ ${pricing.installmentCount}X DE</text>
-        <text x="790" y="1022" text-anchor="middle" font-size="34" font-weight="950">
-          <tspan fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS </tspan>
-          <tspan fill="${lightText}">NO CARTÃO</tspan>
-        </text>
-        <text x="790" y="1065" text-anchor="middle" font-size="24" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+        <text x="790" y="898" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
+        <text x="790" y="955" text-anchor="middle" font-size="34" font-weight="950" fill="${lightText}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+        <text x="790" y="996" text-anchor="middle" font-size="27" font-weight="900" fill="${lightText}">NO CARTÃO DE CRÉDITO</text>
+        <text x="790" y="1042" text-anchor="middle" font-size="23" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+        <text x="790" y="1085" text-anchor="middle" font-size="19" font-weight="850" fill="${lightText}">CONSULTE CONDIÇÕES DE PAGAMENTO</text>
+        <text x="790" y="1113" text-anchor="middle" font-size="19" font-weight="850" fill="${lightText}">NO CREDIÁRIO PRÓPRIO</text>
       </g>
 
       <g transform="translate(28 1203)" font-family="Arial, Helvetica, sans-serif">
@@ -921,14 +920,16 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <text x="540" y="315" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineSize}" font-weight="950" fill="${strongBlue}">${escapeXml(headline)}</text>
       ${productLines.map((line, index) => `<text x="770" y="${470 + index * 42}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${productNameSize}" font-weight="900" fill="${richYellow}">${escapeXml(line)}</text>`).join('')}
       <g font-family="Arial, Helvetica, sans-serif">
-        <text x="770" y="690" text-anchor="middle" font-size="27" font-weight="950" fill="${varejoText.primary}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
-        <text x="630" y="790" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
-        <text x="705" y="790" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
-        <text x="770" y="830" text-anchor="middle" font-size="22" font-weight="850" fill="${varejoText.secondary}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
-        <text x="770" y="885" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
-        <text x="770" y="950" text-anchor="middle" font-size="40" font-weight="950" fill="${varejoText.primary}">EM ATÉ ${pricing.installmentCount}X DE</text>
-        <text x="770" y="1005" text-anchor="middle" font-size="35" font-weight="950" fill="${richYellow}">${escapeXml(installmentValue)} SEM JUROS NO CARTÃO</text>
-        <text x="770" y="1048" text-anchor="middle" font-size="24" font-weight="850" fill="${varejoText.primary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+        <text x="770" y="690" text-anchor="middle" font-size="30" font-weight="950" fill="${varejoText.primary}">POR</text>
+        <text x="630" y="780" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
+        <text x="705" y="780" font-size="90" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
+        <text x="770" y="825" text-anchor="middle" font-size="25" font-weight="900" fill="${varejoText.primary}">À VISTA NO DINHEIRO OU PIX</text>
+        <text x="770" y="883" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
+        <text x="770" y="940" text-anchor="middle" font-size="34" font-weight="950" fill="${varejoText.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+        <text x="770" y="981" text-anchor="middle" font-size="27" font-weight="900" fill="${varejoText.primary}">NO CARTÃO DE CRÉDITO</text>
+        <text x="770" y="1027" text-anchor="middle" font-size="23" font-weight="850" fill="${varejoText.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+        <text x="770" y="1070" text-anchor="middle" font-size="19" font-weight="850" fill="${varejoText.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO</text>
+        <text x="770" y="1098" text-anchor="middle" font-size="19" font-weight="850" fill="${varejoText.secondary}">NO CREDIÁRIO PRÓPRIO</text>
       </g>
       <g transform="translate(35 1205)">
         <circle cx="44" cy="44" r="37" fill="#19B64B" stroke="#FFFFFF" stroke-width="5"/>
@@ -952,17 +953,18 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     </svg>`;
   }
 
-  // Padrão único de preços em todos os layouts:
-  // à vista, parcelas sem juros e o valor parcelado total logo abaixo.
+  // Padrão único de pagamento em todos os layouts:
+  // preço à vista, parcelas no cartão, total parcelado e crediário próprio.
   const pricingBlock = `
     <g font-family="Arial, Helvetica, sans-serif">
-      <text x="540" y="820" text-anchor="middle" font-size="27" font-weight="950" fill="${adaptive.primary}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
-      <text x="345" y="908" font-size="38" font-weight="950" fill="${adaptive.primary}">R$</text>
-      <text x="420" y="908" font-size="88" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
-      <text x="540" y="950" text-anchor="middle" font-size="22" font-weight="850" fill="${adaptive.secondary}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
-      <text x="540" y="1002" text-anchor="middle" font-size="34" font-weight="950" fill="${adaptive.accent}">OU</text>
-      <text x="540" y="1048" text-anchor="middle" font-size="33" font-weight="950" fill="${adaptive.primary}">EM ATÉ ${pricing.installmentCount}X DE ${escapeXml(installmentValue)} SEM JUROS NO CARTÃO</text>
-      <text x="540" y="1088" text-anchor="middle" font-size="24" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+      <text x="540" y="808" text-anchor="middle" font-size="29" font-weight="950" fill="${adaptive.primary}">POR</text>
+      <text x="345" y="892" font-size="38" font-weight="950" fill="${adaptive.primary}">R$</text>
+      <text x="420" y="892" font-size="86" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
+      <text x="540" y="932" text-anchor="middle" font-size="24" font-weight="900" fill="${adaptive.primary}">À VISTA NO DINHEIRO OU PIX</text>
+      <text x="540" y="973" text-anchor="middle" font-size="32" font-weight="950" fill="${adaptive.accent}">OU</text>
+      <text x="540" y="1017" text-anchor="middle" font-size="31" font-weight="950" fill="${adaptive.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)} NO CARTÃO DE CRÉDITO</text>
+      <text x="540" y="1055" text-anchor="middle" font-size="23" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+      <text x="540" y="1092" text-anchor="middle" font-size="19" font-weight="850" fill="${adaptive.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO NO CREDIÁRIO PRÓPRIO</text>
     </g>`;
 
   return `
