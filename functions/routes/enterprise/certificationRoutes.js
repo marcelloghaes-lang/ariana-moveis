@@ -8,6 +8,7 @@ export default function registerEnterpriseCertificationRoutes(app, context = {})
     FRONTEND_URL,
     IntegrationAuditLog,
     EnterprisePartner,
+    adminRequired,
     sanitizeIdPart,
     now
   } = context;
@@ -56,7 +57,7 @@ async function buildEnterpriseCertificationOverview(period = '30d') {
       sandbox: Boolean(p.sandboxApiKeyActive || p.sandbox?.active || p.apiKey || true),
       totalCalls: total,
       certificateId: `CERT-ARIANA-${key.toUpperCase().slice(0, 28)}-${String(new Date(certifiedAt).getFullYear() || new Date().getFullYear())}`,
-      publicUrl: `${FRONTEND_URL}/enterprise_certification.html?cert=${encodeURIComponent(key)}`,
+      publicUrl: status === 'certified' ? `${FRONTEND_URL}/enterprise_certification.html?cert=${encodeURIComponent(key)}` : '',
       certifiedAt,
       expiresAt: new Date(new Date(certifiedAt).getTime() + 365 * 24 * 60 * 60 * 1000)
     };
@@ -86,11 +87,27 @@ async function buildEnterpriseCertificationOverview(period = '30d') {
   };
 }
 
-app.get('/api/enterprise/certification/overview', async (req, res) => {
+function enterprisePublicCertificate(cert = {}) {
+  return {
+    id: cert.id || '',
+    manufacturer: cert.manufacturer || cert.companyName || '',
+    status: cert.status || '',
+    level: cert.level || '',
+    score: Number(cert.score || 0),
+    successRate: Number(cert.successRate || 0),
+    homologation: Number(cert.homologation || 0),
+    certificateId: cert.certificateId || '',
+    certifiedAt: cert.certifiedAt || null,
+    expiresAt: cert.expiresAt || null,
+    publicUrl: cert.publicUrl || ''
+  };
+}
+
+app.get('/api/enterprise/certification/overview', adminRequired, async (req, res) => {
   try { return res.json(await buildEnterpriseCertificationOverview(req.query.period || '30d')); }
   catch (error) { console.error('certification overview error', error); return res.status(500).json({ ok:false, error:'Erro ao gerar Central de Certificação' }); }
 });
-app.get('/api/enterprise/certification/certificates', async (req, res) => {
+app.get('/api/enterprise/certification/certificates', adminRequired, async (req, res) => {
   const data = await buildEnterpriseCertificationOverview(req.query.period || '30d');
   return res.json({ ok:true, generatedAt:data.generatedAt, certificates:data.certificates });
 });
@@ -98,10 +115,10 @@ app.get('/api/enterprise/certification/certificates/:id', async (req, res) => {
   const data = await buildEnterpriseCertificationOverview('365d');
   const id = String(req.params.id || '').toLowerCase();
   const cert = data.certificates.find(c => String(c.id).toLowerCase() === id || String(c.certificateId).toLowerCase() === id);
-  if (!cert) return res.status(404).json({ ok:false, error:'Certificado não encontrado' });
-  return res.json({ ok:true, certificate:cert, checklist:data.checklist, levels:data.levels });
+  if (!cert || cert.status !== 'certified') return res.status(404).json({ ok:false, error:'Certificado não encontrado' });
+  return res.json({ ok:true, certificate:enterprisePublicCertificate(cert) });
 });
-app.get('/api/enterprise/certification/export', async (req, res) => {
+app.get('/api/enterprise/certification/export', adminRequired, async (req, res) => {
   const data = await buildEnterpriseCertificationOverview(req.query.period || '30d');
   const format = String(req.query.format || 'json').toLowerCase();
   if (format === 'csv') {
