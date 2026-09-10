@@ -116,7 +116,7 @@
   "customerName":"Cliente Teste",
   "items":[{"sku":"ARI-0001","qty":1,"unitPrice":2299}]
 }</div></div>
-      <div class="card" id="webhooks"><h2>Webhooks</h2><p class="muted">Eventos enviados ao ERP do fabricante com HTTPS, assinatura HMAC, delivery ID e timestamp. Falhas entram em fila persistente com retry automático e dead-letter após esgotar as tentativas.</p><div class="code">Eventos: order_created, payment_approved, invoice_received, tracking_updated, order_cancelled
+      <div class="card" id="webhooks"><h2>Webhooks</h2><p class="muted">Eventos enviados ao ERP do fabricante com HTTPS, assinatura HMAC, delivery ID e timestamp. Em Produção, pedidos pagos podem ser entregues automaticamente ao webhook configurado no Portal. Falhas entram em fila persistente com retry automático e dead-letter após esgotar as tentativas.</p><div class="code">Eventos: order_created, payment_approved, invoice_received, tracking_updated, order_cancelled
 
 Headers de segurança:
 X-Ariana-Delivery: evt_...

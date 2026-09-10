@@ -291,9 +291,247 @@ const {
 
 // Funções avançadas de WhatsApp/notificações foram movidas para controllers/whatsappController.js na Etapa 24.
 
-async function getManufacturerIntegration(manufacturer) { return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() }); }
-function computeNextAttempt(attempts) { const backoff = Math.pow(2, Math.max(0, attempts - 1)) * DISPATCH_RETRY_BASE_MS; return new Date(Date.now() + backoff); }
-async function dispatchOrderToManufacturer(orderPayload = {}) { const manufacturer = String(orderPayload.manufacturer || orderPayload.fabricante || orderPayload.sellerIds?.[0] || orderPayload.sellerId || '').trim(); if (!manufacturer) throw new Error('Fabricante não informado no pedido.'); const integration = await getManufacturerIntegration(manufacturer); if (!integration || !integration.enabled) throw new Error(`Integração do fabricante ${manufacturer} não configurada ou desativada.`); const endpoint = String(integration.endpoint || '').trim(); if (!endpoint) throw new Error(`Endpoint do fabricante ${manufacturer} não configurado.`); const method = String(integration.method || 'POST').toUpperCase(); const sendAs = String(integration.sendAs || 'json').toLowerCase(); const headers = { ...(integration.headers || {}) }; if (integration.apiKey) headers.apikey = integration.apiKey; if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`; let response; if (sendAs === 'form') { const body = new URLSearchParams(); Object.entries(orderPayload || {}).forEach(([k, v]) => { if (v === undefined || v === null) return; body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); }); response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, data: body.toString(), timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } else { response = await axios({ url: endpoint, method, headers: { 'Content-Type': 'application/json', ...headers }, data: orderPayload, timeout: Number(integration.timeoutMs || 30000), validateStatus: () => true }); } const ok = response.status >= 200 && response.status < 300; await writeAuditLog({ scope: 'manufacturer_integration', eventType: 'manufacturer_dispatch_http', orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''), manufacturer, status: ok ? 'success' : 'error', statusCode: response.status, request: orderPayload, response: response.data, metadata: { endpoint, method, sendAs } }); return { ok, manufacturer, endpoint, status: response.status, data: response.data, sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json' }; }
+async function getManufacturerIntegration(manufacturer) {
+  return ManufacturerIntegration.findOne({ manufacturer: String(manufacturer || '').trim() });
+}
+
+async function getEnterprisePartnerWebhookFallback(manufacturer = '') {
+  const PartnerModel = mongoose.models.EnterpriseHomologationRequest;
+  if (!PartnerModel) return null;
+
+  const target = normalizeEnterpriseManufacturerKey(manufacturer);
+  if (!target) return null;
+
+  const candidates = await PartnerModel.find({
+    $or: [
+      { status: { $in: ['production', 'active'] } },
+      { 'productionCredentials.active': true },
+      { 'production.active': true },
+      { 'credentials.production.active': true }
+    ]
+  })
+    .select('_id requestId partnerRequestId partnerId companyName tradeName status environment productionCredentials production credentials')
+    .lean()
+    .limit(1000)
+    .catch(() => []);
+
+  const partner = candidates.find((row) => {
+    const keys = [row.requestId, row.partnerRequestId, row.partnerId, row.companyName, row.tradeName]
+      .map((value) => normalizeEnterpriseManufacturerKey(value))
+      .filter(Boolean);
+    return keys.includes(target);
+  });
+  if (!partner) return null;
+
+  const settingKey = `enterprise_webhooks_${sanitizeIdPart(partner.requestId || partner.partnerRequestId || partner.partnerId || partner.companyName || 'partner')}`;
+  const setting = await Setting.findOne({ key: settingKey }).lean().catch(() => null);
+  const config = setting?.value || {};
+  if (config.active !== true || !String(config.url || '').trim() || !String(config.secret || '').trim()) return null;
+
+  const events = Array.isArray(config.events) ? config.events.map((event) => String(event || '').trim()) : [];
+  const event = events.includes('payment_approved')
+    ? 'payment_approved'
+    : events.includes('order_created')
+      ? 'order_created'
+      : '';
+  if (!event) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(String(config.url || '').trim());
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+
+  const hostname = String(parsed.hostname || '').toLowerCase();
+  if (
+    !hostname ||
+    hostname === 'localhost' ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    /^10\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+  ) return null;
+
+  return {
+    partner,
+    event,
+    endpoint: parsed.toString(),
+    secret: String(config.secret),
+    timeoutMs: Math.max(3000, Number(config.timeoutMs || 30000))
+  };
+}
+
+async function dispatchOrderToPartnerWebhook(orderPayload = {}, manufacturer = '') {
+  const fallback = await getEnterprisePartnerWebhookFallback(manufacturer);
+  if (!fallback) return null;
+
+  const orderId = String(orderPayload._id || orderPayload.id || orderPayload.orderId || orderPayload.externalOrderId || '').trim();
+  const stableSeed = [manufacturer, orderId || JSON.stringify(orderPayload.items || [])].join(':');
+  const deliveryId = `evt_order_${crypto.createHash('sha256').update(stableSeed).digest('hex').slice(0, 24)}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const payload = {
+    id: deliveryId,
+    event: fallback.event,
+    createdAt: new Date().toISOString(),
+    environment: 'production',
+    manufacturer: fallback.partner.requestId || fallback.partner.tradeName || fallback.partner.companyName || manufacturer,
+    data: orderPayload
+  };
+  const rawBody = JSON.stringify(payload);
+  const signature = crypto.createHmac('sha256', fallback.secret).update(rawBody).digest('hex');
+  const signatureV2 = crypto
+    .createHmac('sha256', fallback.secret)
+    .update(`${timestamp}.${deliveryId}.${rawBody}`)
+    .digest('hex');
+
+  const response = await axios({
+    url: fallback.endpoint,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Ariana-Enterprise-Webhooks/1.0',
+      'X-Ariana-Event': fallback.event,
+      'X-Ariana-Delivery': deliveryId,
+      'X-Ariana-Timestamp': timestamp,
+      'X-Ariana-Signature': signature,
+      'X-Ariana-Signature-V2': `sha256=${signatureV2}`,
+      'X-Webhook-Signature': signature
+    },
+    data: payload,
+    timeout: fallback.timeoutMs,
+    validateStatus: () => true,
+    maxRedirects: 0
+  });
+
+  const ok = response.status >= 200 && response.status < 300;
+  await writeAuditLog({
+    scope: 'enterprise',
+    eventType: ok ? 'webhook_sent' : 'webhook_failed',
+    orderId,
+    manufacturer: fallback.partner.requestId || manufacturer,
+    status: ok ? 'success' : 'error',
+    statusCode: response.status,
+    message: ok ? 'Pedido real entregue ao webhook do fabricante' : `Webhook do fabricante retornou HTTP ${response.status}`,
+    request: { event: fallback.event, deliveryId, payload },
+    response: redact(response.data || null),
+    metadata: {
+      endpoint: fallback.endpoint,
+      event: fallback.event,
+      deliveryId,
+      timestamp,
+      signatureVersion: 'v2',
+      environment: 'production',
+      origin: 'payment_approved_outbound_enterprise'
+    }
+  }).catch(() => null);
+
+  return {
+    ok,
+    manufacturer,
+    endpoint: fallback.endpoint,
+    status: response.status,
+    data: response.data,
+    sentContentType: 'application/json',
+    deliveryId,
+    transport: 'partner_webhook'
+  };
+}
+
+function computeNextAttempt(attempts) {
+  const backoff = Math.pow(2, Math.max(0, attempts - 1)) * DISPATCH_RETRY_BASE_MS;
+  return new Date(Date.now() + backoff);
+}
+
+async function dispatchOrderToManufacturer(orderPayload = {}) {
+  const manufacturer = String(
+    orderPayload.manufacturer ||
+    orderPayload.fabricante ||
+    orderPayload.sellerIds?.[0] ||
+    orderPayload.sellerId ||
+    ''
+  ).trim();
+  if (!manufacturer) throw new Error('Fabricante não informado no pedido.');
+
+  const integration = await getManufacturerIntegration(manufacturer);
+
+  // Quando não existe integração administrativa específica, usa automaticamente
+  // o webhook de Produção configurado pelo próprio fabricante no Portal Enterprise.
+  if (!integration) {
+    const webhookResult = await dispatchOrderToPartnerWebhook(orderPayload, manufacturer);
+    if (webhookResult) return webhookResult;
+    throw new Error(`Integração do fabricante ${manufacturer} não configurada. Configure Manufacturer Integration ou um webhook de Produção no Portal Enterprise.`);
+  }
+
+  if (!integration.enabled) {
+    throw new Error(`Integração do fabricante ${manufacturer} está desativada administrativamente.`);
+  }
+
+  const endpoint = String(integration.endpoint || '').trim();
+  if (!endpoint) {
+    const webhookResult = await dispatchOrderToPartnerWebhook(orderPayload, manufacturer);
+    if (webhookResult) return webhookResult;
+    throw new Error(`Endpoint do fabricante ${manufacturer} não configurado.`);
+  }
+
+  const method = String(integration.method || 'POST').toUpperCase();
+  const sendAs = String(integration.sendAs || 'json').toLowerCase();
+  const headers = { ...(integration.headers || {}) };
+  if (integration.apiKey) headers.apikey = integration.apiKey;
+  if (integration.authToken) headers.Authorization = `Bearer ${integration.authToken}`;
+
+  let response;
+  if (sendAs === 'form') {
+    const body = new URLSearchParams();
+    Object.entries(orderPayload || {}).forEach(([k, v]) => {
+      if (v === undefined || v === null) return;
+      body.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+    });
+    response = await axios({
+      url: endpoint,
+      method,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+      data: body.toString(),
+      timeout: Number(integration.timeoutMs || 30000),
+      validateStatus: () => true
+    });
+  } else {
+    response = await axios({
+      url: endpoint,
+      method,
+      headers: { 'Content-Type': 'application/json', ...headers },
+      data: orderPayload,
+      timeout: Number(integration.timeoutMs || 30000),
+      validateStatus: () => true
+    });
+  }
+
+  const ok = response.status >= 200 && response.status < 300;
+  await writeAuditLog({
+    scope: 'manufacturer_integration',
+    eventType: 'manufacturer_dispatch_http',
+    orderId: String(orderPayload._id || orderPayload.id || orderPayload.orderId || ''),
+    manufacturer,
+    status: ok ? 'success' : 'error',
+    statusCode: response.status,
+    request: orderPayload,
+    response: response.data,
+    metadata: { endpoint, method, sendAs }
+  });
+  return {
+    ok,
+    manufacturer,
+    endpoint,
+    status: response.status,
+    data: response.data,
+    sentContentType: sendAs === 'form' ? 'application/x-www-form-urlencoded' : 'application/json',
+    transport: 'manufacturer_integration'
+  };
+}
 
 function normalizeEnterpriseManufacturerKey(value = '') {
   return String(value || '')
