@@ -110,9 +110,20 @@ app.get('/api/enterprise/catalog/summary', enterpriseOrderOperationAuth, async (
       ])
     ]);
 
-    const lastSyncLog = await IntegrationAuditLog.findOne({
-      eventType: { $in: ['enterprise_product_state_sync', 'enterprise_product_bulk_state_sync', 'enterprise_catalog_sync_completed', 'enterprise_catalog_bulk_upsert', 'enterprise_stock_update', 'enterprise_price_update'] }
-    }).sort({ createdAt: -1 }).lean().catch(() => null);
+    const partnerScope = [
+      req.enterprisePartner?.requestId,
+      req.enterprisePartner?.partnerId,
+      req.enterprisePartner?.id,
+      req.enterprisePartner?.tradeName,
+      req.enterprisePartner?.companyName
+    ].map((v) => String(v || '').trim()).filter(Boolean);
+    const lastSyncLog = partnerScope.length ? await IntegrationAuditLog.findOne({
+      eventType: { $in: ['enterprise_product_state_sync', 'enterprise_product_bulk_state_sync', 'enterprise_catalog_sync_completed', 'enterprise_catalog_bulk_upsert', 'enterprise_stock_update', 'enterprise_price_update'] },
+      $or: [
+        { manufacturer: { $in: partnerScope } },
+        { integrationId: { $in: partnerScope } }
+      ]
+    }).sort({ createdAt: -1 }).lean().catch(() => null) : null;
 
     return res.json({
       ok: true,
