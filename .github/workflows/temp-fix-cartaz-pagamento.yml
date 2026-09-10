@@ -1,0 +1,136 @@
+name: Correção temporária do gerador de cartazes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-fix-cartaz-pagamento.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Corrigir apresentação das condições de pagamento
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          poster_path = Path('functions/poster-generator.js')
+          js_path = Path('public/js/gerador_cartazes.js')
+
+          poster = poster_path.read_text(encoding='utf-8')
+
+          exact_pattern = re.compile(
+              r'''        <text x="790" y="704" text-anchor="middle" font-size="27" font-weight="950" fill="\$\{lightText\}">PREÇO À VISTA NO PIX OU DINHEIRO</text>\n'''
+              r'''        <text x="625" y="805" font-size="44" font-weight="950" fill="\$\{lightText\}">R\$</text>\n'''
+              r'''        <text x="700" y="805" font-size="94" font-weight="950" letter-spacing="-3" fill="\$\{richYellow\}">\$\{escapeXml\(cashValue\)\}</text>\n'''
+              r'''        <text x="790" y="846" text-anchor="middle" font-size="22" font-weight="850" fill="\$\{lightText\}">COM DESCONTO PARA PAGAMENTO À VISTA</text>\n\n'''
+              r'''        <text x="790" y="910" text-anchor="middle" font-size="42" font-weight="950" fill="\$\{richYellow\}">OU</text>\n'''
+              r'''        <text x="790" y="970" text-anchor="middle" font-size="39" font-weight="950" fill="\$\{lightText\}">EM ATÉ \$\{pricing\.installmentCount\}X DE</text>\n'''
+              r'''        <text x="790" y="1022" text-anchor="middle" font-size="34" font-weight="950">\n'''
+              r'''          <tspan fill="\$\{richYellow\}">\$\{escapeXml\(installmentValue\)\} SEM JUROS </tspan>\n'''
+              r'''          <tspan fill="\$\{lightText\}">NO CARTÃO</tspan>\n'''
+              r'''        </text>\n'''
+              r'''        <text x="790" y="1065" text-anchor="middle" font-size="24" font-weight="850" fill="\$\{lightText\}">VALOR PARCELADO: R\$ \$\{escapeXml\(fullValue\)\}</text>'''
+          )
+          exact_replacement = '''        <text x="790" y="704" text-anchor="middle" font-size="30" font-weight="950" fill="${lightText}">POR</text>
+          <text x="625" y="795" font-size="43" font-weight="950" fill="${lightText}">R$</text>
+          <text x="700" y="795" font-size="92" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
+          <text x="790" y="840" text-anchor="middle" font-size="25" font-weight="900" fill="${lightText}">À VISTA NO DINHEIRO OU PIX</text>
+
+          <text x="790" y="898" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
+          <text x="790" y="955" text-anchor="middle" font-size="34" font-weight="950" fill="${lightText}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+          <text x="790" y="996" text-anchor="middle" font-size="27" font-weight="900" fill="${lightText}">NO CARTÃO DE CRÉDITO</text>
+          <text x="790" y="1042" text-anchor="middle" font-size="23" font-weight="850" fill="${lightText}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+          <text x="790" y="1085" text-anchor="middle" font-size="19" font-weight="850" fill="${lightText}">CONSULTE CONDIÇÕES DE PAGAMENTO</text>
+          <text x="790" y="1113" text-anchor="middle" font-size="19" font-weight="850" fill="${lightText}">NO CREDIÁRIO PRÓPRIO</text>'''
+          poster, n1 = exact_pattern.subn(exact_replacement, poster, count=1)
+          if n1 != 1:
+              raise SystemExit(f'Falha ao localizar bloco de preço do Azul lateral exato: {n1}')
+
+          varejo_pattern = re.compile(
+              r'''        <text x="770" y="690" text-anchor="middle" font-size="27" font-weight="950" fill="\$\{varejoText\.primary\}">PREÇO À VISTA NO PIX OU DINHEIRO</text>\n'''
+              r'''        <text x="630" y="790" font-size="42" font-weight="950" fill="\$\{varejoText\.primary\}">R\$</text>\n'''
+              r'''        <text x="705" y="790" font-size="92" font-weight="950" letter-spacing="-3" fill="\$\{richYellow\}">\$\{escapeXml\(cashValue\)\}</text>\n'''
+              r'''        <text x="770" y="830" text-anchor="middle" font-size="22" font-weight="850" fill="\$\{varejoText\.secondary\}">COM DESCONTO PARA PAGAMENTO À VISTA</text>\n'''
+              r'''        <text x="770" y="885" text-anchor="middle" font-size="38" font-weight="950" fill="\$\{richYellow\}">OU</text>\n'''
+              r'''        <text x="770" y="950" text-anchor="middle" font-size="40" font-weight="950" fill="\$\{varejoText\.primary\}">EM ATÉ \$\{pricing\.installmentCount\}X DE</text>\n'''
+              r'''        <text x="770" y="1005" text-anchor="middle" font-size="35" font-weight="950" fill="\$\{richYellow\}">\$\{escapeXml\(installmentValue\)\} SEM JUROS NO CARTÃO</text>\n'''
+              r'''        <text x="770" y="1048" text-anchor="middle" font-size="24" font-weight="850" fill="\$\{varejoText\.primary\}">VALOR PARCELADO: R\$ \$\{escapeXml\(fullValue\)\}</text>'''
+          )
+          varejo_replacement = '''        <text x="770" y="690" text-anchor="middle" font-size="30" font-weight="950" fill="${varejoText.primary}">POR</text>
+          <text x="630" y="780" font-size="42" font-weight="950" fill="${varejoText.primary}">R$</text>
+          <text x="705" y="780" font-size="90" font-weight="950" letter-spacing="-3" fill="${richYellow}">${escapeXml(cashValue)}</text>
+          <text x="770" y="825" text-anchor="middle" font-size="25" font-weight="900" fill="${varejoText.primary}">À VISTA NO DINHEIRO OU PIX</text>
+          <text x="770" y="883" text-anchor="middle" font-size="38" font-weight="950" fill="${richYellow}">OU</text>
+          <text x="770" y="940" text-anchor="middle" font-size="34" font-weight="950" fill="${varejoText.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+          <text x="770" y="981" text-anchor="middle" font-size="27" font-weight="900" fill="${varejoText.primary}">NO CARTÃO DE CRÉDITO</text>
+          <text x="770" y="1027" text-anchor="middle" font-size="23" font-weight="850" fill="${varejoText.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+          <text x="770" y="1070" text-anchor="middle" font-size="19" font-weight="850" fill="${varejoText.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO</text>
+          <text x="770" y="1098" text-anchor="middle" font-size="19" font-weight="850" fill="${varejoText.secondary}">NO CREDIÁRIO PRÓPRIO</text>'''
+          poster, n2 = varejo_pattern.subn(varejo_replacement, poster, count=1)
+          if n2 != 1:
+              raise SystemExit(f'Falha ao localizar bloco de preço do Modelo lateral: {n2}')
+
+          old_generic = '''  // Padrão único de preços em todos os layouts:
+          // à vista, parcelas sem juros e o valor parcelado total logo abaixo.
+          const pricingBlock = `
+            <g font-family="Arial, Helvetica, sans-serif">
+              <text x="540" y="820" text-anchor="middle" font-size="27" font-weight="950" fill="${adaptive.primary}">PREÇO À VISTA NO PIX OU DINHEIRO</text>
+              <text x="345" y="908" font-size="38" font-weight="950" fill="${adaptive.primary}">R$</text>
+              <text x="420" y="908" font-size="88" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
+              <text x="540" y="950" text-anchor="middle" font-size="22" font-weight="850" fill="${adaptive.secondary}">COM DESCONTO PARA PAGAMENTO À VISTA</text>
+              <text x="540" y="1002" text-anchor="middle" font-size="34" font-weight="950" fill="${adaptive.accent}">OU</text>
+              <text x="540" y="1048" text-anchor="middle" font-size="33" font-weight="950" fill="${adaptive.primary}">EM ATÉ ${pricing.installmentCount}X DE ${escapeXml(installmentValue)} SEM JUROS NO CARTÃO</text>
+              <text x="540" y="1088" text-anchor="middle" font-size="24" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+            </g>`;'''
+          new_generic = '''  // Padrão único de pagamento em todos os layouts:
+          // preço à vista, parcelas no cartão, total parcelado e crediário próprio.
+          const pricingBlock = `
+            <g font-family="Arial, Helvetica, sans-serif">
+              <text x="540" y="808" text-anchor="middle" font-size="29" font-weight="950" fill="${adaptive.primary}">POR</text>
+              <text x="345" y="892" font-size="38" font-weight="950" fill="${adaptive.primary}">R$</text>
+              <text x="420" y="892" font-size="86" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
+              <text x="540" y="932" text-anchor="middle" font-size="24" font-weight="900" fill="${adaptive.primary}">À VISTA NO DINHEIRO OU PIX</text>
+              <text x="540" y="973" text-anchor="middle" font-size="32" font-weight="950" fill="${adaptive.accent}">OU</text>
+              <text x="540" y="1017" text-anchor="middle" font-size="31" font-weight="950" fill="${adaptive.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)} NO CARTÃO DE CRÉDITO</text>
+              <text x="540" y="1055" text-anchor="middle" font-size="23" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+              <text x="540" y="1092" text-anchor="middle" font-size="19" font-weight="850" fill="${adaptive.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO NO CREDIÁRIO PRÓPRIO</text>
+            </g>`;'''
+          if old_generic not in poster:
+              raise SystemExit('Falha ao localizar bloco de preço dos demais layouts')
+          poster = poster.replace(old_generic, new_generic, 1)
+          poster_path.write_text(poster, encoding='utf-8')
+
+          js = js_path.read_text(encoding='utf-8')
+          old_summary = "    els.pricingSummary.innerHTML = `<b>${money(cash)}</b> à vista no Pix ou dinheiro • ou <b>${money(cardTotal)}</b> no cartão, em até <b>${installments}x de ${money(installmentPrice)}</b> sem juros.`;"
+          new_summary = "    els.pricingSummary.innerHTML = `<b>${money(cash)}</b> à vista no dinheiro ou Pix • ou <b>${installments}x de ${money(installmentPrice)}</b> no cartão de crédito • valor parcelado: <b>${money(cardTotal)}</b> • consulte condições de pagamento no crediário próprio.`;"
+          if old_summary not in js:
+              raise SystemExit('Falha ao localizar resumo de pagamento no painel')
+          js = js.replace(old_summary, new_summary, 1)
+          js_path.write_text(js, encoding='utf-8')
+          PY
+
+      - name: Validar sintaxe JavaScript
+        run: |
+          node --check functions/poster-generator.js
+          node --check public/js/gerador_cartazes.js
+
+      - name: Gravar correção e remover workflow temporário
+        shell: bash
+        run: |
+          git config user.name "Ariana Móveis Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/temp-fix-cartaz-pagamento.yml
+          git add functions/poster-generator.js public/js/gerador_cartazes.js
+          git commit -m "fix: simplifica condições de pagamento nos cartazes"
+          git push origin HEAD:main
