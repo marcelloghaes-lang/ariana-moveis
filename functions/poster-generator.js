@@ -841,40 +841,96 @@ function professionalTextComposition({ product = {}, options = {}, layout = 'cla
   const productLines = wrapText(productName, productMaxChars, 2);
   const productSize = professionalTextSize(productName, 38, 33, 27);
   const productGap = productSize >= 36 ? 42 : 36;
-
-  let subtitleY;
-  let headlineY;
-  let headlineMaxChars;
-  let subtitleMaxChars;
-
-  if (['azul_lateral_exato', 'varejo'].includes(layout)) {
-    subtitleY = 238;
-    headlineY = 292;
-    headlineMaxChars = 38;
-    subtitleMaxChars = 52;
-    if (!hints) productY = 470;
-  } else if (['showcase', 'split', 'catalog', 'diagonal'].includes(layout)) {
-    headlineY = 235;
-    subtitleY = 292;
-    headlineMaxChars = 38;
-    subtitleMaxChars = 48;
-  } else {
-    productY = Math.min(productY, 252);
-    subtitleY = productY + (productLines.length - 1) * productGap + 54;
-    headlineY = subtitleY + 48;
-    headlineMaxChars = 40;
-    subtitleMaxChars = 50;
-  }
-
-  const headlineLines = wrapText(headline, headlineMaxChars, 2);
-  const subtitleLines = wrapText(subtitle, subtitleMaxChars, 2);
+  const headlineLines = wrapText(headline, 40, 2);
+  const subtitleLines = wrapText(subtitle, 50, 2);
   const headlineSize = professionalTextSize(headline, 46, 40, 34);
   const subtitleSize = professionalTextSize(subtitle, 28, 25, 22);
+  const headlineGap = headlineSize + 7;
+  const subtitleGap = subtitleSize + 6;
+
+  // Calcula a caixa visual aproximada de cada bloco para impedir que uma
+  // legenda invada outra legenda ou a fotografia/recorte do produto.
+  const blockRect = (block) => {
+    const lines = Array.isArray(block.lines) && block.lines.length ? block.lines : [''];
+    const longest = lines.reduce((max, line) => Math.max(max, String(line).length), 0);
+    const width = Math.min(980, Math.max(90, longest * block.size * 0.56));
+    return {
+      left: block.x - width / 2,
+      right: block.x + width / 2,
+      top: block.y - block.size,
+      bottom: block.y + (lines.length - 1) * block.gap + block.size * 0.32,
+      width
+    };
+  };
+
+  const placeAwayFromImage = (block) => {
+    if (!hints || !Number.isFinite(Number(hints.left)) || !Number.isFinite(Number(hints.right)) || !Number.isFinite(Number(hints.top)) || !Number.isFinite(Number(hints.bottom))) {
+      return block;
+    }
+
+    const image = {
+      left: Number(hints.left) - 18,
+      right: Number(hints.right) + 18,
+      top: Number(hints.top) - 18,
+      bottom: Number(hints.bottom) + 18
+    };
+    const rect = blockRect(block);
+    const collides = rect.right > image.left && rect.left < image.right && rect.bottom > image.top && rect.top < image.bottom;
+    if (!collides) return block;
+
+    const leftSpace = Math.max(0, image.left - 30);
+    const rightSpace = Math.max(0, 1080 - image.right - 30);
+    const needed = rect.width + 34;
+
+    if (rightSpace >= needed || leftSpace >= needed) {
+      if (rightSpace >= leftSpace) {
+        block.x = Math.round(image.right + rightSpace / 2 + 15);
+      } else {
+        block.x = Math.round(15 + leftSpace / 2);
+      }
+      return block;
+    }
+
+    // Se não houver coluna lateral suficiente, mantém o texto acima da imagem
+    // com uma folga real, sem reduzir nem deslocar a própria imagem do produto.
+    const lastLineOffset = (block.lines.length - 1) * block.gap;
+    const safeBaseline = Math.floor(image.top - 24 - lastLineOffset);
+    if (safeBaseline >= 205) block.y = Math.min(block.y, safeBaseline);
+    return block;
+  };
+
+  let productBlock;
+  let headlineBlock;
+  let subtitleBlock;
+
+  if (['azul_lateral_exato', 'varejo'].includes(layout)) {
+    subtitleBlock = { x: 540, y: 225, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
+    const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleGap;
+    headlineBlock = { x: 540, y: subtitleLast + subtitleSize + 24, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
+    if (!hints) productY = 470;
+    productBlock = { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 };
+  } else if (['showcase', 'split', 'catalog', 'diagonal'].includes(layout)) {
+    headlineBlock = { x: 540, y: 225, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
+    const headlineLast = headlineBlock.y + (headlineLines.length - 1) * headlineGap;
+    subtitleBlock = { x: 540, y: headlineLast + headlineSize + 22, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
+    productBlock = { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 };
+  } else {
+    productY = Math.min(productY, 252);
+    productBlock = { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 };
+    const productLast = productBlock.y + (productLines.length - 1) * productGap;
+    subtitleBlock = { x: 540, y: productLast + productSize + 26, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
+    const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleGap;
+    headlineBlock = { x: 540, y: subtitleLast + subtitleSize + 26, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
+  }
+
+  productBlock = placeAwayFromImage(productBlock);
+  headlineBlock = placeAwayFromImage(headlineBlock);
+  subtitleBlock = placeAwayFromImage(subtitleBlock);
 
   return {
-    product: { x: productX, y: productY, lines: productLines, size: productSize, gap: productGap, color: productColor, weight: 950 },
-    headline: { x: 540, y: headlineY, lines: headlineLines, size: headlineSize, gap: headlineSize + 7, color: headlineColor, weight: 950 },
-    subtitle: { x: 540, y: subtitleY, lines: subtitleLines, size: subtitleSize, gap: subtitleSize + 6, color: subtitleColor, weight: 800 }
+    product: productBlock,
+    headline: headlineBlock,
+    subtitle: subtitleBlock
   };
 }
 
@@ -1042,9 +1098,9 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
       <text x="420" y="892" font-size="86" font-weight="950" letter-spacing="-3" fill="${adaptive.price}">${escapeXml(cashValue)}</text>
       <text x="540" y="932" text-anchor="middle" font-size="24" font-weight="900" fill="${adaptive.primary}">À VISTA NO DINHEIRO OU PIX</text>
       <text x="540" y="973" text-anchor="middle" font-size="32" font-weight="950" fill="${adaptive.accent}">OU</text>
-      <text x="540" y="1017" text-anchor="middle" font-size="31" font-weight="950" fill="${adaptive.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)} NO CARTÃO DE CRÉDITO</text>
-      <text x="540" y="1055" text-anchor="middle" font-size="23" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
-      <text x="540" y="1092" text-anchor="middle" font-size="19" font-weight="850" fill="${adaptive.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO NO CREDIÁRIO PRÓPRIO</text>
+      <text x="650" y="1017" text-anchor="middle" font-size="29" font-weight="950" fill="${adaptive.primary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)} NO CARTÃO DE CRÉDITO</text>
+      <text x="650" y="1055" text-anchor="middle" font-size="23" font-weight="850" fill="${adaptive.secondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+      <text x="650" y="1092" text-anchor="middle" font-size="19" font-weight="850" fill="${adaptive.secondary}">CONSULTE CONDIÇÕES DE PAGAMENTO NO CREDIÁRIO PRÓPRIO</text>
     </g>`;
 
   return `
