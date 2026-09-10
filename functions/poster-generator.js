@@ -397,31 +397,28 @@ function professionalAdaptiveText(colorTheme = 'azul', layoutVariant = 'classic'
   const key = String(colorTheme || 'azul').toLowerCase();
   const layout = String(layoutVariant || 'classic').toLowerCase();
 
-  // O layout lateral exato transforma Azul Ariana e Azul Celeste em fundos
-  // propositalmente claros. Por isso eles precisam ser tratados como superfícies
-  // claras, mesmo que a paleta "azul" tradicional seja escura nos outros modelos.
   const naturallyLight = new Set(['celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']);
-  const exactLight = layout === 'azul_lateral_exato' && new Set(['azul', 'celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']).has(key);
-  const lightSurface = naturallyLight.has(key) || exactLight;
+  const lateralLight = ['azul_lateral_exato', 'varejo'].includes(layout) && ['azul', 'celeste'].includes(key);
+  const lightSurface = naturallyLight.has(key) || lateralLight;
 
   if (lightSurface) {
     return {
-      primary: '#062B63',
-      secondary: '#123F7D',
-      accent: '#062B63',
-      price: '#062B63',
+      primary: '#052B60',
+      secondary: '#0B3F7E',
+      accent: '#052B60',
+      price: '#052B60',
       onDark: '#FFFFFF',
-      decorative: '#FFD400'
+      decorative: '#FFF200'
     };
   }
 
   return {
     primary: '#FFFFFF',
-    secondary: '#F8FBFF',
-    accent: '#FFD400',
-    price: '#FFD400',
+    secondary: '#FFFFFF',
+    accent: '#FFF200',
+    price: '#FFF200',
     onDark: '#FFFFFF',
-    decorative: '#FFD400'
+    decorative: '#FFF200'
   };
 }
 
@@ -1030,18 +1027,14 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
-  const intelligentCutoutUrl = options.removeLightBackground !== false ? cloudinaryBackgroundRemovalUrl(imageUrl) : '';
-  let usedIntelligentCutout = false;
-  let rawImage = null;
-  if (intelligentCutoutUrl) {
-    rawImage = await loadImageBuffer(intelligentCutoutUrl).catch(() => null);
-    usedIntelligentCutout = Boolean(rawImage);
-  }
-  if (!rawImage) rawImage = await loadImageBuffer(imageUrl).catch(() => null);
+  // Usa sempre a imagem ORIGINAL como fonte. O recorte local conserva os pixels
+  // do produto e só torna transparente o fundo conectado às bordas.
+  const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    const cutout = usedIntelligentCutout
-      ? rawImage
-      : await removeEdgeConnectedLightBackground(rawImage, options.removeLightBackground !== false).catch(() => rawImage);
+    const cutout = await removeEdgeConnectedLightBackground(
+      rawImage,
+      options.removeLightBackground !== false
+    ).catch(() => rawImage);
     // O serviço de recorte pode devolver um PNG transparente com uma grande
     // margem vazia. Se essa margem entrar no cálculo, o objeto real fica
     // pequeno. Normalizamos e retiramos apenas transparência externa antes de
@@ -1075,24 +1068,20 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const productMaxWidth = exactLateral ? Math.min(preset.w, 490) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w);
     const productMaxHeight = exactLateral ? Math.min(650, productBottomLimit - 425) : (layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop)));
     const resizedProduct = await sharp(normalizedCutout)
-      .rotate()
-      .ensureAlpha()
-      .resize(productMaxWidth, productMaxHeight, {
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-        withoutEnlargement: false
-      })
-      .png()
-      .toBuffer();
-    const resizedMeta = await sharp(resizedProduct).metadata();
-    const resizedWidth = Number(resizedMeta.width || productMaxWidth);
-    const resizedHeight = Number(resizedMeta.height || productMaxHeight);
-    const roundedMask = Buffer.from(`<svg width="${resizedWidth}" height="${resizedHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="${resizedWidth}" height="${resizedHeight}" rx="18" fill="#fff"/></svg>`);
-    const productPng = await sharp(resizedProduct)
-      .composite([{ input: roundedMask, blend: 'dest-in' }])
-      .png()
-      .toBuffer();
-    const meta = await sharp(productPng).metadata();
+    .rotate()
+    .ensureAlpha()
+    .resize({
+      width: Math.max(1, Math.round(productMaxWidth)),
+      height: Math.max(1, Math.round(productMaxHeight)),
+      fit: 'inside',
+      withoutEnlargement: false
+    })
+    .png()
+    .toBuffer();
+  // Mantém exatamente o recorte/proporção resultante; nenhuma máscara altera
+  // cantos, antenas, telas, pés ou bordas do produto.
+  const productPng = resizedProduct;
+  const meta = await sharp(productPng).metadata();
     const productW = Number(meta.width || preset.w);
     const productH = Number(meta.height || preset.h);
     // Centraliza o objeto visível, e não apenas o retângulo do arquivo. Alguns
