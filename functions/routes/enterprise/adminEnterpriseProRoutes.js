@@ -324,21 +324,22 @@ app.post('/api/admin/enterprise/pro/partners/:id/api-keys/:environment/revoke', 
 
 
 // ============================================================
-// PASSO 24 - HOMOLOGAÇÃO AUTOMÁTICA ENTERPRISE
-// Executa/registre checklist de homologação por fabricante e libera produção.
+// HOMOLOGAÇÃO REAL ENTERPRISE
+// O score é calculado exclusivamente por evidências reais registradas
+// durante chamadas Sandbox do próprio fabricante.
 // ============================================================
 const ENTERPRISE_HOMOLOGATION_STEPS = [
-  { key: 'catalog', label: 'Catálogo', eventType: 'homologation_catalog', weight: 10 },
-  { key: 'stock', label: 'Estoque', eventType: 'homologation_stock', weight: 10 },
-  { key: 'price', label: 'Preço', eventType: 'homologation_price', weight: 10 },
-  { key: 'order', label: 'Pedido', eventType: 'homologation_order', weight: 15 },
-  { key: 'invoice', label: 'NF-e', eventType: 'homologation_invoice', weight: 10 },
-  { key: 'xml', label: 'XML', eventType: 'homologation_xml', weight: 10 },
-  { key: 'danfe', label: 'DANFE', eventType: 'homologation_danfe', weight: 10 },
-  { key: 'tracking', label: 'Rastreio', eventType: 'homologation_tracking', weight: 10 },
-  { key: 'webhook', label: 'Webhook', eventType: 'homologation_webhook', weight: 10 },
-  { key: 'cancelation', label: 'Cancelamento', eventType: 'homologation_cancelation', weight: 3 },
-  { key: 'return', label: 'Devolução', eventType: 'homologation_return', weight: 2 }
+  { key: 'catalog', label: 'Catálogo', weight: 10, evidenceEvents: ['catalog_push', 'catalog_sync.completed'] },
+  { key: 'stock', label: 'Estoque', weight: 10, evidenceEvents: ['product.stock.updated'] },
+  { key: 'price', label: 'Preço', weight: 10, evidenceEvents: ['product.price.updated'] },
+  { key: 'order', label: 'Pedido', weight: 15, evidenceEvents: ['enterprise_order_created'] },
+  { key: 'invoice', label: 'NF-e', weight: 10, evidenceEvents: ['enterprise_invoice_received'] },
+  { key: 'xml', label: 'XML', weight: 10, evidenceEvents: ['enterprise_xml_verified'] },
+  { key: 'danfe', label: 'DANFE', weight: 10, evidenceEvents: ['enterprise_danfe_verified'] },
+  { key: 'tracking', label: 'Rastreio', weight: 10, evidenceEvents: ['enterprise_tracking_updated'] },
+  { key: 'webhook', label: 'Webhook', weight: 10, evidenceEvents: ['webhook_sent'] },
+  { key: 'cancelation', label: 'Cancelamento', weight: 3, evidenceEvents: ['enterprise_order_cancelled'] },
+  { key: 'return', label: 'Devolução', weight: 2, evidenceEvents: ['enterprise_rma_opened'] }
 ];
 
 function adminEnterpriseDefaultHomologation(partner = {}) {
@@ -349,99 +350,126 @@ function adminEnterpriseDefaultHomologation(partner = {}) {
     return {
       ...step,
       status: current.status || 'pending',
-      statusLabel: current.statusLabel || 'Não testado',
+      statusLabel: current.statusLabel || 'Aguardando evidência real',
       passed: current.passed === true,
       httpStatus: current.httpStatus || null,
       durationMs: current.durationMs || 0,
       message: current.message || '',
-      testedAt: current.testedAt || null
+      testedAt: current.testedAt || null,
+      evidenceEvent: current.evidenceEvent || '',
+      evidenceId: current.evidenceId || '',
+      orderId: current.orderId || ''
     };
   });
   const approved = steps.filter((step) => step.passed).length;
-  const score = Math.round((steps.reduce((sum, step) => sum + (step.passed ? Number(step.weight || 0) : 0), 0) / Math.max(1, ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + Number(step.weight || 0), 0))) * 100);
+  const totalWeight = Math.max(1, ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + Number(step.weight || 0), 0));
+  const approvedWeight = steps.reduce((sum, step) => sum + (step.passed ? Number(step.weight || 0) : 0), 0);
+  const score = Math.round((approvedWeight / totalWeight) * 100);
   return {
-    status: raw.status || (score >= 100 ? 'approved' : 'pending'),
-    statusLabel: raw.statusLabel || (score >= 100 ? 'Homologação aprovada' : 'Aguardando homologação'),
+    status: raw.status || (score >= 100 ? 'approved' : 'in_progress'),
+    statusLabel: raw.statusLabel || (score >= 100 ? 'Homologação real aprovada' : 'Homologação real em andamento'),
     score,
     approved,
     total: steps.length,
     startedAt: raw.startedAt || null,
     completedAt: raw.completedAt || null,
     lastRunAt: raw.lastRunAt || null,
+    report: raw.report || null,
     steps
   };
 }
 
-
-// PASSO 25 FIX - Sincroniza a homologação pelo histórico de logs.
-// Se o checklist não estiver gravado no documento, mas os logs comprovarem
-// que a homologação 100% já foi executada, reconstruímos o estado aprovado
-// e persistimos no MongoDB. Isso evita bloquear a liberação de produção.
 async function adminEnterpriseResolvedHomologation(partner = {}) {
-  const current = adminEnterpriseDefaultHomologation(partner);
-  if (Number(current.score || 0) >= 100) return current;
-
   try {
     const partnerId = String(partner._id || '');
-    const manufacturerKeys = [partner.requestId, partner.tradeName, partner.companyName, partner.cnpj, partner.email]
-      .map((v) => String(v || '').trim())
-      .filter(Boolean);
+    const manufacturerKeys = [
+      partner.requestId,
+      partner.partnerRequestId,
+      partner.partnerId,
+      partner.tradeName,
+      partner.companyName,
+      partner.cnpj,
+      partner.email
+    ].map((v) => String(v || '').trim()).filter(Boolean);
 
     const or = [];
     if (partnerId) or.push({ integrationId: partnerId }, { 'metadata.partnerId': partnerId });
     for (const key of manufacturerKeys) {
-      or.push({ manufacturer: key }, { 'metadata.requestId': key }, { 'metadata.companyName': key }, { 'metadata.tradeName': key });
-    }
-    if (!or.length) return current;
-
-    const eventTypes = ENTERPRISE_HOMOLOGATION_STEPS.map((step) => step.eventType);
-    const logs = await IntegrationAuditLog.find({
-      scope: 'enterprise',
-      eventType: { $in: eventTypes.concat(['homologation_completed']) },
-      $or: or
-    }).sort({ createdAt: -1 }).limit(80).lean().catch(() => []);
-
-    const byEvent = new Map();
-    for (const log of logs) {
-      if (!byEvent.has(log.eventType) && Number(log.statusCode || 0) < 400) byEvent.set(log.eventType, log);
+      or.push(
+        { manufacturer: key },
+        { 'metadata.requestId': key },
+        { 'metadata.companyName': key },
+        { 'metadata.tradeName': key },
+        { 'metadata.partnerRequestId': key }
+      );
     }
 
-    const completedLog = byEvent.get('homologation_completed');
-    const allStepsPassed = ENTERPRISE_HOMOLOGATION_STEPS.every((step) => byEvent.has(step.eventType));
-    if (!completedLog && !allStepsPassed) return current;
+    const evidenceTypes = Array.from(new Set(ENTERPRISE_HOMOLOGATION_STEPS.flatMap((step) => step.evidenceEvents || [])));
+    const sinceRaw = partner.approvedAt || partner.reviewedAt || partner.sandboxCredentials?.generatedAt || partner.sandboxCredentials?.createdAt || partner.createdAt || null;
+    const since = sinceRaw && !Number.isNaN(new Date(sinceRaw).getTime()) ? new Date(sinceRaw) : null;
 
-    const nowDate = completedLog?.createdAt || new Date();
+    let logs = [];
+    if (or.length) {
+      const query = {
+        scope: 'enterprise',
+        eventType: { $in: evidenceTypes },
+        $or: or
+      };
+      if (since) query.createdAt = { $gte: since };
+      logs = await IntegrationAuditLog.find(query).sort({ createdAt: -1 }).limit(500).lean().catch(() => []);
+    }
+
+    const successfulLogs = logs.filter((log) => {
+      const status = String(log.status || 'success').toLowerCase();
+      const statusCode = Number(log.statusCode || 200);
+      return status !== 'error' && status !== 'failed' && statusCode < 400;
+    });
+
     const stepsObject = {};
     for (const step of ENTERPRISE_HOMOLOGATION_STEPS) {
-      const log = byEvent.get(step.eventType) || completedLog || {};
+      const log = successfulLogs.find((item) => (step.evidenceEvents || []).includes(item.eventType));
       stepsObject[step.key] = {
         key: step.key,
         label: step.label,
-        status: 'approved',
-        statusLabel: 'Aprovado',
-        passed: true,
-        httpStatus: Number(log.statusCode || (['catalog', 'order'].includes(step.key) ? 201 : 200)),
-        durationMs: Number(log.metadata?.durationMs || 0),
-        message: log.message || `${step.label} validado com sucesso`,
-        testedAt: log.createdAt || nowDate
+        status: log ? 'approved' : 'pending',
+        statusLabel: log ? 'Aprovado por evidência real' : 'Pendente',
+        passed: Boolean(log),
+        httpStatus: log ? Number(log.statusCode || 200) : null,
+        durationMs: log ? Number(log.metadata?.durationMs || 0) : 0,
+        message: log ? `Evidência real registrada: ${log.eventType}` : `Execute a etapa ${step.label} no Sandbox para homologar.`,
+        testedAt: log?.createdAt || null,
+        evidenceEvent: log?.eventType || '',
+        evidenceId: log?._id ? String(log._id) : '',
+        orderId: log?.orderId ? String(log.orderId) : ''
       };
     }
 
+    const totalWeight = Math.max(1, ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + Number(step.weight || 0), 0));
+    const approvedWeight = ENTERPRISE_HOMOLOGATION_STEPS.reduce((sum, step) => sum + (stepsObject[step.key]?.passed ? Number(step.weight || 0) : 0), 0);
+    const score = Math.round((approvedWeight / totalWeight) * 100);
+    const approved = Object.values(stepsObject).filter((step) => step.passed).length;
+    const missingSteps = ENTERPRISE_HOMOLOGATION_STEPS.filter((step) => !stepsObject[step.key]?.passed).map((step) => step.key);
+    const evidenceDates = Object.values(stepsObject).map((step) => step.testedAt).filter(Boolean).map((v) => new Date(v)).filter((d) => !Number.isNaN(d.getTime()));
+    const completedAt = score >= 100 && evidenceDates.length ? new Date(Math.max(...evidenceDates.map((d) => d.getTime()))) : null;
+    const evaluatedAt = new Date();
+
     const homologation = {
-      status: 'approved',
-      statusLabel: 'Homologação aprovada',
-      score: 100,
-      approved: ENTERPRISE_HOMOLOGATION_STEPS.length,
+      status: score >= 100 ? 'approved' : 'in_progress',
+      statusLabel: score >= 100 ? 'Homologação real aprovada' : 'Homologação real em andamento',
+      score,
+      approved,
       total: ENTERPRISE_HOMOLOGATION_STEPS.length,
-      startedAt: current.startedAt || nowDate,
-      completedAt: nowDate,
-      lastRunAt: nowDate,
+      startedAt: since || partner.homologation?.startedAt || evaluatedAt,
+      completedAt,
+      lastRunAt: evaluatedAt,
       steps: stepsObject,
       report: {
-        ok: true,
-        source: 'admin_enterprise_log_sync',
-        syncedAt: new Date(),
-        syncedBy: 'system'
+        ok: score >= 100,
+        source: 'real_api_evidence',
+        evaluatedAt,
+        evidenceCount: successfulLogs.length,
+        missingSteps,
+        windowStartedAt: since || null
       }
     };
 
@@ -452,12 +480,7 @@ async function adminEnterpriseResolvedHomologation(partner = {}) {
           $set: {
             homologation,
             enterpriseHomologation: homologation,
-            status: partner.status === 'production' ? 'production' : 'approved',
-            statusLabel: partner.status === 'production' ? (partner.statusLabel || 'Produção liberada') : 'Homologação aprovada',
-            environment: partner.environment === 'production' ? 'production' : 'sandbox'
-          },
-          $push: {
-            history: { status: 'homologation_synced_from_logs', at: new Date(), by: 'system', source: 'admin_enterprise_pro' }
+            ...(score >= 100 ? { homologationVerifiedAt: evaluatedAt } : {})
           }
         }
       ).catch(() => null);
@@ -465,7 +488,7 @@ async function adminEnterpriseResolvedHomologation(partner = {}) {
 
     return adminEnterpriseDefaultHomologation({ homologation });
   } catch (_error) {
-    return current;
+    return adminEnterpriseDefaultHomologation(partner);
   }
 }
 
@@ -509,7 +532,6 @@ registerEnterpriseSandboxRoutes(app, {
   IntegrationAuditLog,
   adminEnterpriseFindPartnerOr404,
   adminEnterpriseResolvedHomologation,
-  adminEnterpriseSaveHomologationLog,
   adminEnterpriseDefaultHomologation,
   adminEnterprisePartnerDTO,
   ENTERPRISE_HOMOLOGATION_STEPS

@@ -212,13 +212,13 @@ async function openPartner(id){
     </div>
 
     <div class="card">
-      <h3>Homologação automática Enterprise</h3>
+      <h3>Homologação real Enterprise</h3>
       <p class="muted">Execute todos os testes oficiais: Catálogo, Estoque, Preço, Pedido, NF-e, XML, DANFE, Rastreio, Webhook, Cancelamento e Devolução.</p>
       <div class="progress"><span id="homologationProgress" style="width:${Number(h.score||0)}%"></span></div>
       <div><b id="homologationScore">${Number(h.score||0)}%</b> • <span id="homologationStatus">${esc(h.statusLabel||'Aguardando homologação')}</span></div>
       <div class="checklist" id="homologationChecklist">${renderHomologationSteps(h.steps||[])}</div>
       <div class="btnrow">
-        <button class="btn" onclick="runHomologation('${esc(p.id)}')">Executar Homologação Completa</button>
+        <button class="btn" onclick="runHomologation('${esc(p.id)}')">Verificar Homologação Real</button>
         <button class="btn warn" onclick="releaseProduction('${esc(p.id)}')">Liberar Produção</button>
       </div>
     </div>
@@ -226,7 +226,7 @@ async function openPartner(id){
     <div class="grid2">
       <div class="card">
         <h3>Produção Enterprise</h3>
-        <p class="muted">Libere a operação real somente após homologação 100% aprovada.</p>
+        <p class="muted">A produção só pode ser liberada quando 100% das etapas tiverem evidências reais registradas no Sandbox.</p>
         <p><b>Status:</b> ${p.production.active?'<span class="ok">Produção ativa</span>':'<span class="warn">Aguardando liberação</span>'}</p>
         <p><b>API Key:</b> <span class="code">${esc(p.production.apiKeyMasked||'não gerada')}</span></p>
         <p><b>Ambiente atual:</b> ${esc(p.environment||p.status||'-')}</p>
@@ -331,10 +331,11 @@ function renderHomologationSteps(steps){
   return list.map(s=>`<div class="checkitem ${s.passed?'okitem':'pendingitem'}"><div><b>${esc(s.label)}</b><br><span class="muted">${esc(s.statusLabel||s.message||'Não testado')}</span></div><span class="badge ${s.passed?'green':'yellow'}">${s.passed?'Aprovado':'Pendente'}</span></div>`).join('');
 }
 async function runHomologation(id){
-  if(!confirm('Executar a homologação completa deste fabricante?')) return;
-  toastMsg('Executando homologação automática...');
+  if(!confirm('Verificar agora as evidências reais deste fabricante no Sandbox?')) return;
+  toastMsg('Verificando evidências reais da integração...');
   const d=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/homologation/run',{method:'POST',body:'{}'});
-  toastMsg('Homologação aprovada: '+(d.score||100)+'%');
+  const missing=Array.isArray(d.missingSteps)&&d.missingSteps.length?' • Pendentes: '+d.missingSteps.join(', '):'';
+  toastMsg((d.approved?'Homologação real aprovada: ':'Homologação real: ')+(d.score||0)+'%'+missing);
   await openPartner(id);
   await loadPartners();
   await loadOverview();

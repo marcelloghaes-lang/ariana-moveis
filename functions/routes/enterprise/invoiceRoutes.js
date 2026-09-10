@@ -12,8 +12,29 @@ export default function registerEnterpriseInvoiceRoutes(app, context = {}) {
     enterpriseBillingNormalizeResponse,
     enterpriseNormalizeOrderForResponse,
     EnterpriseBillingRecord,
+    IntegrationAuditLog,
     ensureArray
   } = context;
+
+async function enterpriseAuditInvoiceEvidence(eventType, order = {}, req = {}, message = '', metadata = {}) {
+  const partner = req.enterprisePartner || req.enterprisePortal || {};
+  return IntegrationAuditLog?.create({
+    scope: 'enterprise',
+    eventType,
+    orderId: String(order._id || ''),
+    manufacturer: partner.requestId || partner.id || order.manufacturer || '',
+    integrationId: String(partner.id || partner.partnerId || ''),
+    status: 'success',
+    statusCode: 200,
+    message,
+    metadata: {
+      source: 'api_enterprise_invoice',
+      environment: partner.environment || 'sandbox',
+      requestId: partner.requestId || '',
+      ...metadata
+    }
+  }).catch(() => null);
+}
 
 app.post('/api/enterprise/orders/:orderId/invoice', enterpriseCompatAuth, async (req, res) => {
   try {
@@ -45,6 +66,16 @@ app.post('/api/enterprise/orders/:orderId/invoice', enterpriseCompatAuth, async 
     order.statusLabel = 'NF-e recebida';
     order.status_integracao = 'invoice_received';
     await order.save();
+
+    if (invoice.number && invoice.accessKey) {
+      await enterpriseAuditInvoiceEvidence(
+        'enterprise_invoice_received',
+        order,
+        req,
+        'NF-e recebida com número e chave de acesso',
+        { invoiceNumber: invoice.number, invoiceKey: invoice.accessKey }
+      );
+    }
 
     // Também registra/atualiza o faturamento Enterprise para liberar XML/DANFE
     // nos endpoints GET /xml e GET /danfe.
@@ -132,6 +163,14 @@ app.get('/api/enterprise/orders/:orderId/xml', enterpriseCompatAuth, async (req,
     const xmlContent = enterpriseResolveXmlContent(invoice, billing);
     if (!xmlUrl && !xmlContent) return res.status(404).json({ ok: false, error: 'XML ainda não foi gerado para este pedido' });
 
+    await enterpriseAuditInvoiceEvidence(
+      'enterprise_xml_verified',
+      order,
+      req,
+      'XML da NF-e validado e disponível no Sandbox',
+      { invoiceNumber: invoice.number || billing?.invoiceNumber || '', invoiceKey: invoice.accessKey || billing?.invoiceKey || '' }
+    );
+
     if (xmlUrl && (String(req.query.download || '').toLowerCase() === '1' || String(req.query.redirect || '').toLowerCase() === 'true')) {
       return res.redirect(xmlUrl);
     }
@@ -167,6 +206,14 @@ app.get('/api/enterprise/orders/:orderId/danfe', enterpriseCompatAuth, async (re
 
     const danfeUrl = enterpriseResolveDocumentUrl('danfe', invoice, billing);
     if (!danfeUrl) return res.status(404).json({ ok: false, error: 'DANFE ainda não foi gerado para este pedido' });
+
+    await enterpriseAuditInvoiceEvidence(
+      'enterprise_danfe_verified',
+      order,
+      req,
+      'DANFE validado e disponível no Sandbox',
+      { invoiceNumber: invoice.number || billing?.invoiceNumber || '', invoiceKey: invoice.accessKey || billing?.invoiceKey || '' }
+    );
 
     if (String(req.query.download || '').toLowerCase() === '1' || String(req.query.redirect || '').toLowerCase() === 'true') {
       return res.redirect(danfeUrl);
@@ -212,6 +259,19 @@ app.post('/api/enterprise/invoice', enterpriseOrderOperationAuth, async (req, re
     order.statusLabel = 'NF-e recebida';
     order.status_integracao = 'invoice_received';
     await order.save();
+
+    if (String(invoice.number || invoice.invoiceNumber || '').trim() && String(invoice.accessKey || invoice.invoiceKey || invoice.key || '').trim()) {
+      await enterpriseAuditInvoiceEvidence(
+        'enterprise_invoice_received',
+        order,
+        req,
+        'NF-e recebida com número e chave de acesso',
+        {
+          invoiceNumber: String(invoice.number || invoice.invoiceNumber || '').trim(),
+          invoiceKey: String(invoice.accessKey || invoice.invoiceKey || invoice.key || '').trim()
+        }
+      );
+    }
 
     return res.json({ ok: true, action: 'invoice_received', orderId: String(order._id), status: order.status, invoice, order: enterpriseNormalizeOrderForResponse(order) });
   } catch (error) {

@@ -410,6 +410,7 @@ registerEnterpriseInvoiceRoutes(app, {
   enterpriseBillingNormalizeResponse,
   enterpriseNormalizeOrderForResponse,
   EnterpriseBillingRecord,
+  IntegrationAuditLog,
   ensureArray
 });
 
@@ -518,6 +519,7 @@ registerEnterpriseTrackingRoutes(app, {
   enterpriseOrderOperationAuth,
   enterpriseCompatFindOrder,
   enterpriseNormalizeOrderForResponse,
+  IntegrationAuditLog,
   LogisticsLabel
 });
 

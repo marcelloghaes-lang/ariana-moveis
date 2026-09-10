@@ -19,7 +19,18 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequi
     const partner = await adminEnterpriseFindPartnerOr404(req.params.id);
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
     const homologation = await adminEnterpriseResolvedHomologation(partner);
-    if (homologation.score < 100) return res.status(400).json({ ok: false, error: 'Produção só pode ser liberada após homologação 100% aprovada' });
+    const realEvidenceApproved = Number(homologation.score || 0) >= 100 &&
+      homologation.status === 'approved' &&
+      homologation?.report?.source === 'real_api_evidence' &&
+      homologation?.report?.ok === true;
+    if (!realEvidenceApproved) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Produção só pode ser liberada após homologação real 100% aprovada',
+        score: Number(homologation.score || 0),
+        missingSteps: homologation?.report?.missingSteps || []
+      });
+    }
 
     const key = enterprisePartnerGenerateKey('production', partner);
     const nowDate = new Date();
@@ -32,7 +43,7 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequi
       rotatedAt: nowDate,
       generatedBy: req.admin?.email || req.admin?.id || 'admin',
       baseUrl: String(process.env.ENTERPRISE_PRODUCTION_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
-      docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/developers.html').trim(),
+      docsUrl: String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/ariana_enterprise_docs.html').trim(),
       lastAccessAt: null,
       requestCount: 0
     };
@@ -97,7 +108,7 @@ app.get('/api/admin/enterprise/pro/partners/:id/production/status', adminRequire
         suspendedAt: prod.suspendedAt || partner.productionSuspendedAt || null,
         suspendedBy: prod.suspendedBy || partner.productionSuspendedBy || '',
         baseUrl: prod.baseUrl || String(process.env.ENTERPRISE_PRODUCTION_BASE_URL || process.env.APP_BASE_URL || 'https://ariana-backend.onrender.com/api').replace(/\/+$/, ''),
-        docsUrl: prod.docsUrl || String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/developers.html').trim(),
+        docsUrl: prod.docsUrl || String(process.env.ENTERPRISE_DOCS_URL || 'https://arianamoveis.com.br/ariana_enterprise_docs.html').trim(),
         rateLimit: prod.rateLimit || partner.rateLimit || { requestsPerMinute: 500, requestsPerDay: 50000 },
         scopes: prod.scopes || partner.scopes || ['catalog','stock','price','orders','invoice','tracking','webhooks']
       }

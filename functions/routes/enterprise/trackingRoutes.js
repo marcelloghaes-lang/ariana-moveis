@@ -9,8 +9,30 @@ export default function registerEnterpriseTrackingRoutes(app, context = {}) {
     enterpriseOrderOperationAuth,
     enterpriseCompatFindOrder,
     enterpriseNormalizeOrderForResponse,
+    IntegrationAuditLog,
     LogisticsLabel
   } = context;
+
+async function enterpriseAuditTrackingEvidence(order = {}, req = {}, trackingCode = '') {
+  if (!trackingCode) return null;
+  const partner = req.enterprisePartner || req.enterprisePortal || {};
+  return IntegrationAuditLog?.create({
+    scope: 'enterprise',
+    eventType: 'enterprise_tracking_updated',
+    orderId: String(order._id || ''),
+    manufacturer: partner.requestId || partner.id || order.manufacturer || '',
+    integrationId: String(partner.id || partner.partnerId || ''),
+    status: 'success',
+    statusCode: 200,
+    message: 'Rastreio atualizado via Ariana Enterprise API',
+    metadata: {
+      source: 'api_enterprise_tracking',
+      environment: partner.environment || 'sandbox',
+      requestId: partner.requestId || '',
+      trackingCode
+    }
+  }).catch(() => null);
+}
 
 app.post('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async (req, res) => {
   try {
@@ -35,6 +57,7 @@ app.post('/api/enterprise/orders/:orderId/tracking', enterpriseCompatAuth, async
       trackingReceivedAt: new Date()
     };
     await order.save();
+    await enterpriseAuditTrackingEvidence(order, req, String(order.trackingCode || trackingCode || '').trim());
 
     return res.json({ ok: true, orderId: String(order._id), trackingCode: order.trackingCode, status: order.status });
   } catch (error) {
@@ -69,6 +92,7 @@ app.post('/api/enterprise/tracking', enterpriseOrderOperationAuth, async (req, r
     order.status_integracao = 'tracking_received';
     order.manufacturerDispatch = { ...(order.manufacturerDispatch || {}), tracking: req.body || tracking, trackingReceivedAt: new Date() };
     await order.save();
+    await enterpriseAuditTrackingEvidence(order, req, trackingCode);
 
     return res.json({ ok: true, action: 'tracking_updated', orderId: String(order._id), trackingCode: order.trackingCode, status: order.status, tracking, order: enterpriseNormalizeOrderForResponse(order) });
   } catch (error) {

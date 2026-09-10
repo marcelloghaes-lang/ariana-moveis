@@ -59,6 +59,25 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
         status_integracao: String(req.body?.externalOrderId || req.body?.orderId || '')
       });
 
+      await IntegrationAuditLog.create({
+        scope: 'enterprise',
+        eventType: 'enterprise_order_created',
+        orderId: String(order._id || ''),
+        manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.id || partnerSellerId || '',
+        integrationId: String(req.enterprisePartner?.id || ''),
+        status: 'success',
+        statusCode: 201,
+        message: 'Pedido criado via Ariana Enterprise API',
+        request: redact(req.body || {}),
+        response: { ok: true, orderId: String(order._id || ''), externalOrderId: req.body?.externalOrderId || req.body?.orderId || '' },
+        metadata: {
+          source: 'api_enterprise_orders',
+          environment: req.enterprisePartner?.environment || 'sandbox',
+          requestId: req.enterprisePartner?.requestId || '',
+          externalOrderId: req.body?.externalOrderId || req.body?.orderId || ''
+        }
+      }).catch(() => null);
+
       return res.status(201).json({
         ok: true,
         orderId: String(order._id),
