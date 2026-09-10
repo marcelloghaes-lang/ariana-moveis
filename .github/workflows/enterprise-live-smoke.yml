@@ -1,0 +1,126 @@
+name: Ariana Enterprise Live Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/routes/enterprise/**'
+      - 'functions/routes/enterpriseRoutes.js'
+      - 'functions/routes/legacyRoutes.js'
+      - 'functions/routes/legacyRuntimeRoutes.js'
+      - 'public/*enterprise*.html'
+      - 'public/fabricantes.html'
+      - 'public/fabricante_login.html'
+      - '.github/workflows/enterprise-live-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ariana-enterprise-live-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BACKEND: https://ariana-backend.onrender.com
+      SITE: https://arianamoveis.com.br
+    steps:
+      - name: Wait for Render auto-deploy
+        run: sleep 80
+
+      - name: Check public Enterprise endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          get_2xx() {
+            local url="$1"
+            local body="$2"
+            local code
+            code=$(curl --retry 3 --retry-delay 3 --connect-timeout 15 --max-time 30 -sS -L -o "$body" -w '%{http_code}' "$url")
+            echo "$url -> $code"
+            [[ "$code" =~ ^2[0-9][0-9]$ ]]
+          }
+
+          get_2xx "$BACKEND/" /tmp/root.json
+          grep -q '"ok":true' /tmp/root.json
+
+          get_2xx "$BACKEND/api/enterprise/version" /tmp/version.json
+          grep -q '"current":"v1"' /tmp/version.json
+
+          get_2xx "$BACKEND/api/v1/enterprise/version" /tmp/version-v1.json
+          grep -q '"requestedVersion":"v1"' /tmp/version-v1.json
+
+          get_2xx "$BACKEND/api/enterprise/dx" /tmp/dx.json
+          grep -q '"status":"online"' /tmp/dx.json
+
+          get_2xx "$BACKEND/api/v1/enterprise/dx" /tmp/dx-v1.json
+          grep -q '"requestedVersion":"v1"' /tmp/dx-v1.json
+
+      - name: Check version headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers=$(curl --retry 3 --connect-timeout 15 --max-time 30 -sSI "$BACKEND/api/v1/enterprise/version" | tr -d '\r')
+          echo "$headers"
+          echo "$headers" | grep -qi '^x-ariana-api-version: v1$'
+          echo "$headers" | grep -qi '^x-ariana-api-version-status: stable$'
+
+      - name: Check authentication fences
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expect_status() {
+            local expected="$1"
+            shift
+            local code
+            code=$(curl --retry 2 --connect-timeout 15 --max-time 30 -sS -o /tmp/resp.json -w '%{http_code}' "$@")
+            echo "$* -> $code (expected $expected)"
+            cat /tmp/resp.json || true
+            echo
+            test "$code" = "$expected"
+          }
+
+          expect_status 401 "$BACKEND/api/enterprise/auth/check"
+          expect_status 401 -H 'x-ariana-key: ari_sbx_smoke_invalid_key' "$BACKEND/api/enterprise/auth/check"
+          expect_status 401 -X POST -H 'Content-Type: application/json' -d '{"externalOrderId":"SMOKE-NOAUTH","items":[{"sku":"TEST","qty":1,"unitPrice":1}]}' "$BACKEND/api/enterprise/orders"
+          expect_status 400 -X POST -H 'Content-Type: application/json' -d '{}' "$BACKEND/api/enterprise/oauth/token"
+          expect_status 400 -X POST -H 'Content-Type: application/json' -d '{}' "$BACKEND/api/enterprise/partner/login"
+
+      - name: Check CORS for Ariana site
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers=$(curl --retry 2 --connect-timeout 15 --max-time 30 -sS -D - -o /dev/null -X OPTIONS \
+            -H 'Origin: https://arianamoveis.com.br' \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: x-ariana-key,content-type' \
+            "$BACKEND/api/enterprise/auth/check" | tr -d '\r')
+          echo "$headers"
+          echo "$headers" | grep -qi '^access-control-allow-origin: https://arianamoveis.com.br$'
+
+      - name: Check public Enterprise pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for page in \
+            fabricantes.html \
+            developers.html \
+            ariana_enterprise_docs.html \
+            enterprise_swagger.html \
+            ariana_enterprise_sdk.html \
+            fabricante_login.html; do
+            code=$(curl --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 30 -sS -L -o "/tmp/$page" -w '%{http_code}' "$SITE/$page")
+            echo "$page -> $code"
+            [[ "$code" =~ ^2[0-9][0-9]$ ]]
+            test -s "/tmp/$page"
+          done
+
+      - name: Summary
+        run: |
+          echo 'Ariana Enterprise public live smoke checks passed.'
