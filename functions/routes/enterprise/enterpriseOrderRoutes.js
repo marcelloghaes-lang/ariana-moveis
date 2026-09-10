@@ -14,36 +14,121 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
     enterpriseCompatNumber,
     DEFAULT_CURRENCY,
     Order,
+    EnterpriseSandboxOrder,
+    enterpriseOrderModelForPartner,
+    EnterpriseIdempotencyRecord,
+    crypto,
     IntegrationAuditLog,
     redact
   } = context;
 
   app.post('/api/enterprise/orders', enterpriseCompatAuth, async (req, res) => {
+    let idempotencyClaim = null;
     try {
-      const partnerSellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || '').trim();
+      const partner = req.enterprisePartner || {};
+      const environment = String(partner.environment || 'sandbox').toLowerCase();
+      const partnerSellerId = String(partner.requestId || partner.id || '').trim();
+      const externalOrderId = String(req.body?.externalOrderId || req.body?.orderId || '').trim();
+      const headerIdempotencyKey = String(req.headers['idempotency-key'] || req.headers['x-idempotency-key'] || '').trim();
+      const canonicalIdempotencyKey = externalOrderId ? `external:${externalOrderId}` : (headerIdempotencyKey ? `header:${headerIdempotencyKey}` : '');
+
+      if (!canonicalIdempotencyKey) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Informe externalOrderId/orderId ou o header Idempotency-Key para criar pedidos Enterprise com segurança.'
+        });
+      }
+
       const items = Array.isArray(req.body?.items) ? req.body.items : [];
-      const normalizedItems = items.map((item) => {
-        const qty = enterpriseCompatNumber(item.qty ?? item.quantity, 1);
-        const unitPrice = enterpriseCompatNumber(item.unitPrice ?? item.price, 0);
+      if (!items.length) return res.status(400).json({ ok: false, error: 'Pedido precisa conter ao menos um item' });
+      if (items.length > 200) return res.status(413).json({ ok: false, error: 'Máximo de 200 itens por pedido Enterprise' });
+
+      const validationErrors = [];
+      const normalizedItems = items.map((item, index) => {
+        const sku = String(item.sku || item.productSku || '').trim();
+        const qty = enterpriseCompatNumber(item.qty ?? item.quantity, NaN);
+        const unitPrice = enterpriseCompatNumber(item.unitPrice ?? item.price, NaN);
+        if (!sku) validationErrors.push({ index, field: 'sku', error: 'sku_required' });
+        if (!Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) validationErrors.push({ index, field: 'qty', error: 'invalid_quantity' });
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) validationErrors.push({ index, field: 'unitPrice', error: 'invalid_unit_price' });
         return {
           productId: String(item.productId || ''),
           sellerId: String(partnerSellerId || item.sellerId || req.body?.manufacturer || 'enterprise'),
-          name: String(item.name || item.nome || item.sku || 'Produto Enterprise'),
-          sku: String(item.sku || ''),
-          qty,
-          unitPrice,
-          totalPrice: qty * unitPrice
+          name: String(item.name || item.nome || sku || 'Produto Enterprise'),
+          sku,
+          qty: Number.isFinite(qty) ? qty : 0,
+          unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
+          totalPrice: Number.isFinite(qty) && Number.isFinite(unitPrice) ? qty * unitPrice : 0
         };
       });
 
+      if (validationErrors.length) {
+        return res.status(422).json({ ok: false, error: 'Pedido Enterprise contém itens inválidos', details: validationErrors });
+      }
+
+      const OrderModel = enterpriseOrderModelForPartner(partner);
+      const requestHash = crypto.createHash('sha256').update(JSON.stringify({
+        externalOrderId,
+        customerName: req.body?.customerName || req.body?.customer?.name || '',
+        items: normalizedItems.map((item) => ({ sku: item.sku, qty: item.qty, unitPrice: item.unitPrice }))
+      })).digest('hex');
+      const keyHash = crypto.createHash('sha256').update([`enterprise_order`, environment, partnerSellerId || partner.id || 'partner', canonicalIdempotencyKey].join(':')).digest('hex');
+
+      if (externalOrderId) {
+        const existingOrder = await OrderModel.findOne({
+          manufacturer: String(partnerSellerId || req.body?.manufacturer || 'enterprise'),
+          'manufacturerDispatch.externalOrderId': externalOrderId
+        });
+        if (existingOrder) {
+          return res.status(200).json({
+            ok: true,
+            orderId: String(existingOrder._id),
+            externalOrderId,
+            status: existingOrder.status,
+            idempotentReplay: true
+          });
+        }
+      }
+
+      try {
+        idempotencyClaim = await EnterpriseIdempotencyRecord.create({
+          keyHash,
+          partnerId: partnerSellerId || String(partner.id || ''),
+          environment,
+          externalOrderId,
+          requestHash,
+          status: 'processing'
+        });
+      } catch (claimError) {
+        if (claimError?.code !== 11000) throw claimError;
+        const existingClaim = await EnterpriseIdempotencyRecord.findOne({ keyHash }).lean();
+        if (existingClaim?.requestHash && existingClaim.requestHash !== requestHash) {
+          return res.status(409).json({ ok: false, error: 'Idempotency-Key já utilizado com payload diferente' });
+        }
+        if (existingClaim?.status === 'completed' && existingClaim?.response) {
+          return res.status(200).json({ ...existingClaim.response, idempotentReplay: true });
+        }
+        if (existingClaim?.status === 'processing') {
+          return res.status(409).json({ ok: false, error: 'Pedido com esta chave de idempotência já está sendo processado. Tente novamente em instantes.' });
+        }
+        idempotencyClaim = await EnterpriseIdempotencyRecord.findOneAndUpdate(
+          { keyHash, status: { $in: ['failed', 'error'] } },
+          { $set: { status: 'processing', requestHash, lastError: '' } },
+          { new: true }
+        );
+        if (!idempotencyClaim) {
+          return res.status(409).json({ ok: false, error: 'Não foi possível adquirir a chave de idempotência' });
+        }
+      }
+
       const subtotal = normalizedItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-      const order = await Order.create({
+      const order = await OrderModel.create({
         sellerIds: Array.from(new Set(normalizedItems.map((i) => i.sellerId).filter(Boolean))),
         customerName: String(req.body?.customerName || req.body?.customer?.name || 'Cliente Enterprise'),
         customerEmail: String(req.body?.customerEmail || req.body?.customer?.email || ''),
         customerPhone: String(req.body?.customerPhone || req.body?.customer?.phone || ''),
         status: 'enterprise_recebido',
-        statusLabel: 'Pedido Enterprise recebido',
+        statusLabel: environment === 'sandbox' ? 'Pedido Enterprise Sandbox recebido' : 'Pedido Enterprise recebido',
         items: normalizedItems,
         subtotal,
         total: subtotal,
@@ -52,39 +137,57 @@ export default function registerEnterpriseOrderRoutes(app, context = {}) {
         manufacturer: String(partnerSellerId || req.body?.manufacturer || 'enterprise'),
         manufacturerDispatch: {
           source: 'api_enterprise',
-          externalOrderId: String(req.body?.externalOrderId || req.body?.orderId || ''),
+          environment,
+          externalOrderId,
+          idempotencyKeyHash: keyHash,
           payload: req.body,
           receivedAt: new Date()
         },
-        status_integracao: String(req.body?.externalOrderId || req.body?.orderId || '')
+        status_integracao: externalOrderId
       });
+
+      const responsePayload = {
+        ok: true,
+        orderId: String(order._id),
+        externalOrderId,
+        status: order.status,
+        environment
+      };
+
+      await EnterpriseIdempotencyRecord.updateOne(
+        { _id: idempotencyClaim._id },
+        { $set: { status: 'completed', orderId: String(order._id), response: responsePayload, completedAt: new Date() } }
+      ).catch(() => null);
 
       await IntegrationAuditLog.create({
         scope: 'enterprise',
         eventType: 'enterprise_order_created',
         orderId: String(order._id || ''),
-        manufacturer: req.enterprisePartner?.requestId || req.enterprisePartner?.id || partnerSellerId || '',
-        integrationId: String(req.enterprisePartner?.id || ''),
+        manufacturer: partner.requestId || partner.id || partnerSellerId || '',
+        integrationId: String(partner.id || ''),
         status: 'success',
         statusCode: 201,
-        message: 'Pedido criado via Ariana Enterprise API',
+        message: environment === 'sandbox' ? 'Pedido criado na coleção isolada Sandbox' : 'Pedido criado via Ariana Enterprise API',
         request: redact(req.body || {}),
-        response: { ok: true, orderId: String(order._id || ''), externalOrderId: req.body?.externalOrderId || req.body?.orderId || '' },
+        response: responsePayload,
         metadata: {
           source: 'api_enterprise_orders',
-          environment: req.enterprisePartner?.environment || 'sandbox',
-          requestId: req.enterprisePartner?.requestId || '',
-          externalOrderId: req.body?.externalOrderId || req.body?.orderId || ''
+          environment,
+          requestId: partner.requestId || '',
+          externalOrderId,
+          idempotencyKeyHash: keyHash,
+          sandboxIsolated: environment === 'sandbox'
         }
       }).catch(() => null);
 
-      return res.status(201).json({
-        ok: true,
-        orderId: String(order._id),
-        externalOrderId: req.body?.externalOrderId || req.body?.orderId || '',
-        status: order.status
-      });
+      return res.status(201).json(responsePayload);
     } catch (error) {
+      if (idempotencyClaim?._id) {
+        await EnterpriseIdempotencyRecord.updateOne(
+          { _id: idempotencyClaim._id },
+          { $set: { status: 'failed', lastError: String(error.message || 'order_create_failed') } }
+        ).catch(() => null);
+      }
       console.error('[enterprise/orders] erro:', error.message || error);
       return res.status(400).json({ ok: false, error: error.message || 'Erro ao receber pedido Enterprise' });
     }

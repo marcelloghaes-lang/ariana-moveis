@@ -296,6 +296,33 @@ const EnterpriseHomologationRequestCompat =
   mongoose.models.EnterpriseHomologationRequest ||
   mongoose.model('EnterpriseHomologationRequest', enterpriseHomologationRequestCompatSchema);
 
+// Sandbox Enterprise usa coleções fisicamente separadas da operação real.
+// Nenhum produto/pedido de homologação é gravado nas coleções públicas.
+const EnterpriseSandboxProduct =
+  mongoose.models.EnterpriseSandboxProduct ||
+  mongoose.model('EnterpriseSandboxProduct', productSchema, 'enterprise_sandbox_products');
+
+const EnterpriseSandboxOrder =
+  mongoose.models.EnterpriseSandboxOrder ||
+  mongoose.model('EnterpriseSandboxOrder', orderSchema, 'enterprise_sandbox_orders');
+
+const enterpriseIdempotencySchema = new mongoose.Schema({
+  keyHash: { type: String, required: true, unique: true, index: true },
+  partnerId: { type: String, required: true, index: true },
+  environment: { type: String, required: true, index: true },
+  externalOrderId: { type: String, default: '', index: true },
+  requestHash: { type: String, required: true },
+  status: { type: String, default: 'processing', index: true },
+  orderId: { type: String, default: '', index: true },
+  response: mongoose.Schema.Types.Mixed,
+  lastError: { type: String, default: '' },
+  completedAt: { type: Date, default: null }
+}, { timestamps: true, versionKey: false });
+
+const EnterpriseIdempotencyRecord =
+  mongoose.models.EnterpriseIdempotencyRecord ||
+  mongoose.model('EnterpriseIdempotencyRecord', enterpriseIdempotencySchema, 'enterprise_idempotency_records');
+
 
 // ============================================================
 // ENTERPRISE PARTNER REQUEST ROUTES
@@ -354,7 +381,10 @@ const {
   enterpriseRequirePermission,
   enterpriseProductSkuFromBody,
   enterpriseFindProductBySkuForPartner,
-  enterpriseProductResponse
+  enterpriseProductResponse,
+  enterpriseOrderModelForPartner,
+  enterpriseProductModelForPartner,
+  enterpriseProductModelForEnvironment
 } = createEnterpriseOrder({
   getEnterpriseCompatKey,
   enterpriseCompatAuth,
@@ -363,6 +393,8 @@ const {
   normalizeObjectId,
   Order,
   Product,
+  EnterpriseSandboxOrder,
+  EnterpriseSandboxProduct,
   normalizeProductForResponse
 });
 
@@ -436,6 +468,8 @@ registerEnterpriseCatalogSyncRoutes(app, {
   enterpriseCompatNumber,
   enterpriseCompatProductPayload,
   Product,
+  EnterpriseSandboxProduct,
+  enterpriseProductModelForEnvironment,
   IntegrationAuditLog,
   redact,
   escapeRegex,
@@ -452,6 +486,8 @@ registerEnterpriseCatalogRoutes(app, {
   enterpriseCompatProductPayload,
   enterpriseBuildProductManufacturerQuery,
   Product,
+  EnterpriseSandboxProduct,
+  enterpriseProductModelForPartner,
   IntegrationAuditLog,
   redact
 });
@@ -472,6 +508,8 @@ registerEnterpriseProductRoutes(app, {
   normalizeImageEntry,
   IntegrationAuditLog,
   Product,
+  EnterpriseSandboxProduct,
+  enterpriseProductModelForPartner,
   redact,
   changedKeys
 });
@@ -489,6 +527,10 @@ registerEnterpriseOrderRoutes(app, {
   enterpriseCompatNumber,
   DEFAULT_CURRENCY,
   Order,
+  EnterpriseSandboxOrder,
+  enterpriseOrderModelForPartner,
+  EnterpriseIdempotencyRecord,
+  crypto,
   IntegrationAuditLog,
   redact
 });

@@ -13,6 +13,8 @@ export default function registerEnterpriseCatalogSyncRoutes(app, context = {}) {
     enterpriseCompatNumber,
     enterpriseCompatProductPayload,
     Product,
+    EnterpriseSandboxProduct,
+    enterpriseProductModelForEnvironment,
     IntegrationAuditLog,
     redact,
     escapeRegex,
@@ -92,6 +94,7 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
 
   const items = normalizeEnterpriseCatalogSyncItems(job.payload || {});
   const partner = job.metadata?.partner || {};
+  const ProductModel = enterpriseProductModelForEnvironment(job.environment || 'sandbox');
   const parent = { ...(job.payload || {}), manufacturer: job.manufacturer };
   const results = [];
   const errors = [];
@@ -116,8 +119,8 @@ async function processEnterpriseCatalogSyncJob(jobId = '') {
         payload.metadata = { ...(payload.metadata || {}), enterpriseSyncJobId: job.jobId, enterprisePartnerId: job.partnerId, enterpriseEnvironment: job.environment };
 
         const filter = { sku: payload.sku, sellerId: payload.sellerId };
-        const before = await Product.findOne(filter).lean();
-        const product = await Product.findOneAndUpdate(
+        const before = await ProductModel.findOne(filter).lean();
+        const product = await ProductModel.findOneAndUpdate(
           filter,
           { $set: payload, $setOnInsert: { createdAt: new Date() } },
           { upsert: true, new: true }

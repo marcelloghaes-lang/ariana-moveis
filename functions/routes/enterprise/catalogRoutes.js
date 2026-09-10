@@ -14,6 +14,8 @@ export default function registerEnterpriseCatalogRoutes(app, context = {}) {
     normalizeImageEntry,
     changedKeys,
     Product,
+    EnterpriseSandboxProduct,
+    enterpriseProductModelForPartner,
     IntegrationAuditLog,
     redact
   } = context;
@@ -30,11 +32,12 @@ app.post('/api/enterprise/catalog/push', enterpriseCompatAuth, async (req, res) 
 
     if (!items.length) return res.status(400).json({ ok: false, error: 'Nenhum produto enviado no catálogo' });
 
+    const ProductModel = enterpriseProductModelForPartner(req.enterprisePartner || {});
     const results = [];
     for (const item of items) {
       const payload = enterpriseCompatProductPayload(item, req.body, req.enterprisePartner);
       const filter = { sku: payload.sku, sellerId: payload.sellerId };
-      const product = await Product.findOneAndUpdate(
+      const product = await ProductModel.findOneAndUpdate(
         filter,
         { $set: payload, $setOnInsert: { createdAt: new Date() } },
         { upsert: true, new: true }
@@ -74,6 +77,7 @@ app.post('/api/enterprise/catalog/push', enterpriseCompatAuth, async (req, res) 
 app.get('/api/enterprise/catalog/summary', enterpriseOrderOperationAuth, async (req, res) => {
   try {
     const manufacturer = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.query.manufacturer || req.query.sellerId || '').trim();
+    const ProductModel = enterpriseProductModelForPartner(req.enterprisePartner || {});
     const productFilter = enterpriseBuildProductManufacturerQuery(manufacturer);
 
     const [
@@ -84,16 +88,16 @@ app.get('/api/enterprise/catalog/summary', enterpriseOrderOperationAuth, async (
       recentProducts,
       bySeller
     ] = await Promise.all([
-      Product.countDocuments(productFilter),
-      Product.countDocuments({ ...productFilter, active: { $ne: false } }),
-      Product.countDocuments({ ...productFilter, active: false }),
-      Product.countDocuments({ ...productFilter, stock: { $lte: 0 } }),
-      Product.find(productFilter)
+      ProductModel.countDocuments(productFilter),
+      ProductModel.countDocuments({ ...productFilter, active: { $ne: false } }),
+      ProductModel.countDocuments({ ...productFilter, active: false }),
+      ProductModel.countDocuments({ ...productFilter, stock: { $lte: 0 } }),
+      ProductModel.find(productFilter)
         .sort({ updatedAt: -1, createdAt: -1 })
         .limit(10)
         .select('sellerId sellerName brand sku name price stock active updatedAt createdAt')
         .lean(),
-      Product.aggregate([
+      ProductModel.aggregate([
         { $match: Object.keys(productFilter).length ? productFilter : { sellerId: { $exists: true, $ne: '' } } },
         {
           $group: {
@@ -225,12 +229,13 @@ async function enterpriseFindProductBySkuForPartner(sku = '', partner = {}) {
       }
     : { $or: or };
 
-  let product = await Product.findOne(scoped);
+  const ProductModel = enterpriseProductModelForPartner(partner);
+  let product = await ProductModel.findOne(scoped);
   if (product) return product;
 
   // Nunca atravessa o escopo de outro parceiro.
   if (sellerIds.length) return null;
-  return Product.findOne({ sku: cleanSku });
+  return ProductModel.findOne({ sku: cleanSku });
 }
 
 function enterpriseProductResponse(productDoc = {}) {
@@ -429,7 +434,7 @@ app.post('/api/enterprise/products/:sku/sync', enterpriseCompatAuth, async (req,
     if (req.body?.price !== undefined) update.price = enterpriseCompatNumber(req.body.price, 0);
     if (req.body?.status) update.status_integracao = String(req.body.status);
 
-    const product = await Product.findOneAndUpdate(
+    const product = await ProductModel.findOneAndUpdate(
       { sku, sellerId },
       { $set: update, $setOnInsert: { name: sku, sellerName: req.enterprisePartner?.tradeName || req.enterprisePartner?.companyName || 'Enterprise' } },
       { upsert: true, new: true }
@@ -448,7 +453,7 @@ app.put('/api/enterprise/products/:sku/stock', enterpriseCompatAuth, async (req,
     const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
     const stock = enterpriseCompatNumber(req.body?.stock ?? req.body?.estoque, 0);
 
-    const product = await Product.findOneAndUpdate(
+    const product = await ProductModel.findOneAndUpdate(
       { sku, sellerId },
       { $set: { stock, updatedAt: new Date() }, $setOnInsert: { name: sku, sellerId, sellerName: req.enterprisePartner?.tradeName || 'Enterprise', price: 0, active: true } },
       { upsert: true, new: true }
@@ -467,7 +472,7 @@ app.put('/api/enterprise/products/:sku/price', enterpriseCompatAuth, async (req,
     const sellerId = String(req.enterprisePartner?.requestId || req.enterprisePartner?.id || req.body?.sellerId || req.body?.manufacturer || 'enterprise').trim();
     const price = enterpriseCompatNumber(req.body?.price ?? req.body?.preco, 0);
 
-    const product = await Product.findOneAndUpdate(
+    const product = await ProductModel.findOneAndUpdate(
       { sku, sellerId },
       { $set: { price, updatedAt: new Date() }, $setOnInsert: { name: sku, sellerId, sellerName: req.enterprisePartner?.tradeName || 'Enterprise', stock: 0, active: true } },
       { upsert: true, new: true }

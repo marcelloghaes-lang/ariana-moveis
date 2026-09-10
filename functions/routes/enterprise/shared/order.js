@@ -13,10 +13,34 @@ export function createEnterpriseOrder(context = {}) {
     normalizeObjectId,
     Order,
     Product,
+    EnterpriseSandboxOrder,
+    EnterpriseSandboxProduct,
     normalizeProductForResponse
   } = context;
 
   const enterpriseJwtSecret = String(process.env.ENTERPRISE_JWT_SECRET || JWT_SECRET || '').trim();
+
+  function enterpriseEnvironment(partner = {}) {
+    return String(partner?.environment || 'sandbox').trim().toLowerCase();
+  }
+
+  function enterpriseOrderModelForPartner(partner = {}) {
+    return enterpriseEnvironment(partner) === 'sandbox' && EnterpriseSandboxOrder
+      ? EnterpriseSandboxOrder
+      : Order;
+  }
+
+  function enterpriseProductModelForPartner(partner = {}) {
+    return enterpriseEnvironment(partner) === 'sandbox' && EnterpriseSandboxProduct
+      ? EnterpriseSandboxProduct
+      : Product;
+  }
+
+  function enterpriseProductModelForEnvironment(environment = 'sandbox') {
+    return String(environment || 'sandbox').trim().toLowerCase() === 'sandbox' && EnterpriseSandboxProduct
+      ? EnterpriseSandboxProduct
+      : Product;
+  }
 
   async function enterpriseCompatFindOrder(orderId = '', partner = {}) {
     const id = String(orderId || '').trim();
@@ -32,12 +56,13 @@ export function createEnterpriseOrder(context = {}) {
     const oid = normalizeObjectId(id);
     if (oid) identity.unshift({ _id: oid });
 
+    const OrderModel = enterpriseOrderModelForPartner(partner);
     const partnerIds = enterprisePartnerProductScope(partner);
     if (!partnerIds.length) {
-      return Order.findOne({ $or: identity });
+      return OrderModel.findOne({ $or: identity });
     }
 
-    return Order.findOne({
+    return OrderModel.findOne({
       $and: [
         { $or: identity },
         {
@@ -136,13 +161,14 @@ export function createEnterpriseOrder(context = {}) {
         }
       : { $or: or };
 
-    let product = await Product.findOne(scoped);
+    const ProductModel = enterpriseProductModelForPartner(partner);
+    let product = await ProductModel.findOne(scoped);
     if (product) return product;
 
     // Nunca atravessa o escopo de outro parceiro. Consultas internas sem parceiro
-    // ainda podem usar o fallback global para manutenção administrativa.
+    // ainda podem usar o fallback global dentro do ambiente selecionado.
     if (sellerIds.length) return null;
-    return Product.findOne({ sku: cleanSku });
+    return ProductModel.findOne({ sku: cleanSku });
   }
 
   function enterpriseProductResponse(productDoc = {}) {
@@ -167,6 +193,9 @@ export function createEnterpriseOrder(context = {}) {
     enterpriseRequirePermission,
     enterpriseProductSkuFromBody,
     enterpriseFindProductBySkuForPartner,
-    enterpriseProductResponse
+    enterpriseProductResponse,
+    enterpriseOrderModelForPartner,
+    enterpriseProductModelForPartner,
+    enterpriseProductModelForEnvironment
   };
 }
