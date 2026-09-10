@@ -23,10 +23,10 @@ jobs:
       - name: Validate
         run: |
           node --check functions/poster-generator.js
-          grep -q "function professionalTextComposition" functions/poster-generator.js
-          grep -q "options.compositionHints" functions/poster-generator.js
-          grep -q "VALOR PARCELADO: R\$" functions/poster-generator.js
-          grep -q "fit: 'inside'" functions/poster-generator.js
+          grep -Fq 'function professionalTextComposition' functions/poster-generator.js
+          grep -Fq 'options.compositionHints' functions/poster-generator.js
+          grep -Fq 'VALOR PARCELADO: R$' functions/poster-generator.js
+          grep -Fq "fit: 'inside'" functions/poster-generator.js
 
       - name: Commit
         run: |
