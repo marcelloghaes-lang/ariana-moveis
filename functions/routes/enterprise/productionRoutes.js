@@ -11,7 +11,8 @@ export default function registerEnterpriseProductionRoutes(app, context = {}) {
     adminEnterpriseFindPartnerOr404,
     adminEnterpriseResolvedHomologation,
     adminEnterprisePartnerDTO,
-    enterprisePartnerGenerateKey
+    enterprisePartnerGenerateKey,
+    enterpriseHashSecret
   } = context;
 
 app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequired, async (req, res) => {
@@ -33,11 +34,14 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequi
     }
 
     const key = enterprisePartnerGenerateKey('production', partner);
+    const keyHash = enterpriseHashSecret(key);
+    const keyLast4 = key.slice(-4);
     const nowDate = new Date();
     const productionCredentials = {
       ...(partner.productionCredentials || {}),
       environment: 'production',
-      apiKey: key,
+      apiKeyHash: keyHash,
+      apiKeyLast4: keyLast4,
       active: true,
       generatedAt: partner.productionCredentials?.generatedAt || nowDate,
       rotatedAt: nowDate,
@@ -53,17 +57,26 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/release', adminRequi
       {
         $set: {
           productionCredentials,
-          'production.apiKey': key,
+          'production.apiKeyHash': keyHash,
+          'production.apiKeyLast4': keyLast4,
           'production.active': true,
-          'credentials.production.apiKey': key,
+          'credentials.production.apiKeyHash': keyHash,
+          'credentials.production.apiKeyLast4': keyLast4,
           'credentials.production.active': true,
-          enterpriseApiKey: key,
-          apiKey: key,
+          apiKeyProductionHash: keyHash,
           status: 'production',
           statusLabel: 'Produção liberada',
           environment: 'production',
           productionReleasedAt: nowDate,
           productionReleasedBy: req.admin?.email || req.admin?.id || 'admin'
+        },
+        $unset: {
+          'productionCredentials.apiKey': '',
+          'production.apiKey': '',
+          'credentials.production.apiKey': '',
+          apiKeyProduction: '',
+          enterpriseApiKey: '',
+          apiKey: ''
         },
         $push: {
           history: { status: 'production_released', at: nowDate, by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_enterprise_pro' },
@@ -153,8 +166,18 @@ app.post('/api/admin/enterprise/pro/partners/:id/production/reactivate', adminRe
   try {
     const partner = await adminEnterpriseFindPartnerOr404(req.params.id);
     if (!partner) return res.status(404).json({ ok: false, error: 'Fabricante não encontrado' });
-    const prodKey = partner.productionCredentials?.apiKey || partner.production?.apiKey || partner.credentials?.production?.apiKey || partner.enterpriseApiKey || partner.apiKey || '';
-    if (!prodKey) return res.status(400).json({ ok: false, error: 'Não existe API Key de produção para reativar' });
+    const hasProdKey = Boolean(
+      partner.productionCredentials?.apiKeyHash ||
+      partner.production?.apiKeyHash ||
+      partner.credentials?.production?.apiKeyHash ||
+      partner.apiKeyProductionHash ||
+      partner.productionCredentials?.apiKey ||
+      partner.production?.apiKey ||
+      partner.credentials?.production?.apiKey ||
+      partner.enterpriseApiKey ||
+      partner.apiKey
+    );
+    if (!hasProdKey) return res.status(400).json({ ok: false, error: 'Não existe API Key de produção para reativar' });
     const nowDate = new Date();
     await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, {
       $set: {

@@ -15,13 +15,17 @@ export default function registerEnterprisePartnerCredentialsRoutes(app, context 
     enterprisePartnerRequired,
     enterpriseCreateOAuthId,
     enterpriseRandomKey,
-    enterpriseCreateWebhookSecret
+    enterpriseCreateWebhookSecret,
+    enterpriseHashSecret
   } = context;
 
 
 function enterpriseAdminCredentialDTO(partner = {}) {
+  const maskLast4 = (prefix, last4) => last4 ? `${prefix}••••••••${last4}` : '';
   const sandboxApiKey = partner?.sandboxCredentials?.apiKey || partner?.credentials?.sandbox?.apiKey || partner?.sandbox?.apiKey || partner?.apiKeySandbox || partner?.sandboxApiKey || '';
   const productionApiKey = partner?.productionCredentials?.apiKey || partner?.credentials?.production?.apiKey || partner?.production?.apiKey || partner?.apiKeyProduction || partner?.enterpriseApiKey || partner?.apiKey || '';
+  const sandboxLast4 = partner?.sandboxCredentials?.apiKeyLast4 || partner?.credentials?.sandbox?.apiKeyLast4 || partner?.sandbox?.apiKeyLast4 || (sandboxApiKey ? sandboxApiKey.slice(-4) : '');
+  const productionLast4 = partner?.productionCredentials?.apiKeyLast4 || partner?.credentials?.production?.apiKeyLast4 || partner?.production?.apiKeyLast4 || (productionApiKey ? productionApiKey.slice(-4) : '');
   const oauthSandbox = partner?.oauth?.sandbox || partner?.sandboxCredentials?.oauth || partner?.credentials?.sandbox?.oauth || {};
   const oauthProduction = partner?.oauth?.production || partner?.productionCredentials?.oauth || partner?.credentials?.production?.oauth || {};
   const webhookSecret = partner?.webhookSecret || partner?.sandboxCredentials?.webhookSecret || partner?.credentials?.sandbox?.webhookSecret || '';
@@ -36,14 +40,16 @@ function enterpriseAdminCredentialDTO(partner = {}) {
     status: String(partner?.status || ''),
     environment: String(partner?.environment || 'sandbox'),
     sandbox: {
-      apiKey: sandboxApiKey,
+      apiKeyMasked: maskLast4('ari_sbx_', sandboxLast4),
+      configured: Boolean(partner?.sandboxCredentials?.apiKeyHash || partner?.credentials?.sandbox?.apiKeyHash || sandboxApiKey),
       active: partner?.sandboxCredentials?.active !== false,
       environment: 'sandbox',
       createdAt: partner?.sandboxCredentials?.createdAt || partner?.createdAt || null,
       rotatedAt: partner?.sandboxCredentials?.rotatedAt || partner?.sandbox?.rotatedAt || null
     },
     production: {
-      apiKey: productionApiKey,
+      apiKeyMasked: maskLast4('ari_live_', productionLast4),
+      configured: Boolean(partner?.productionCredentials?.apiKeyHash || partner?.credentials?.production?.apiKeyHash || productionApiKey),
       active: partner?.productionCredentials?.active === true || partner?.production?.active === true || partner?.credentials?.production?.active === true,
       environment: 'production',
       createdAt: partner?.productionCredentials?.createdAt || partner?.createdAt || null,
@@ -52,7 +58,7 @@ function enterpriseAdminCredentialDTO(partner = {}) {
     oauth: {
       sandbox: {
         clientId: oauthSandbox?.clientId || partner?.oauthClientId || '',
-        clientSecret: oauthSandbox?.clientSecret || partner?.oauthClientSecret || '',
+        clientSecretConfigured: Boolean(oauthSandbox?.clientSecretHash || oauthSandbox?.clientSecret || partner?.oauthClientSecret),
         active: oauthSandbox?.active !== false,
         environment: 'sandbox',
         createdAt: oauthSandbox?.createdAt || null,
@@ -60,7 +66,7 @@ function enterpriseAdminCredentialDTO(partner = {}) {
       },
       production: {
         clientId: oauthProduction?.clientId || '',
-        clientSecret: oauthProduction?.clientSecret || '',
+        clientSecretConfigured: Boolean(oauthProduction?.clientSecretHash || oauthProduction?.clientSecret),
         active: oauthProduction?.active === true,
         environment: 'production',
         createdAt: oauthProduction?.createdAt || null,
@@ -68,13 +74,13 @@ function enterpriseAdminCredentialDTO(partner = {}) {
       }
     },
     webhook: {
-      webhookSecret,
-      signingSecret,
+      configured: Boolean(webhookSecret || signingSecret),
       active: true,
       rotatedAt: partner?.webhookRotatedAt || partner?.signingRotatedAt || null
     }
   };
 }
+
 app.get('/api/enterprise/partners/:id/credentials', adminRequired, async (req, res) => {
   try {
     const partner = await enterpriseAdminFindPartner(req.params.id);
@@ -94,8 +100,11 @@ app.post('/api/enterprise/partners/:id/regenerate-api-key', adminRequired, async
       ? enterprisePartnerGenerateKey('production', partner)
       : enterprisePartnerGenerateKey('sandbox', partner);
     const path = enterprisePartnerEnvironmentPath(environment);
+    const apiKeyHash = enterpriseHashSecret(apiKey);
+    const apiKeyLast4 = apiKey.slice(-4);
     const setPayload = {
-      [`${path}.apiKey`]: apiKey,
+      [`${path}.apiKeyHash`]: apiKeyHash,
+      [`${path}.apiKeyLast4`]: apiKeyLast4,
       [`${path}.active`]: true,
       [`${path}.environment`]: environment,
       [`${path}.rotatedAt`]: new Date(),
@@ -105,32 +114,39 @@ app.post('/api/enterprise/partners/:id/regenerate-api-key', adminRequired, async
 
     if (environment === 'sandbox') {
       Object.assign(setPayload, {
-        'sandbox.apiKey': apiKey,
+        'sandbox.apiKeyHash': apiKeyHash,
+        'sandbox.apiKeyLast4': apiKeyLast4,
         'sandbox.active': true,
         'sandbox.environment': 'sandbox',
-        'credentials.sandbox.apiKey': apiKey,
+        'credentials.sandbox.apiKeyHash': apiKeyHash,
+        'credentials.sandbox.apiKeyLast4': apiKeyLast4,
         'credentials.sandbox.active': true,
         'credentials.sandbox.environment': 'sandbox',
-        apiKeySandbox: apiKey,
-        sandboxApiKey: apiKey
+        apiKeySandboxHash: apiKeyHash
       });
     } else {
       Object.assign(setPayload, {
-        'production.apiKey': apiKey,
+        'production.apiKeyHash': apiKeyHash,
+        'production.apiKeyLast4': apiKeyLast4,
         'production.active': true,
         'production.environment': 'production',
-        'credentials.production.apiKey': apiKey,
+        'credentials.production.apiKeyHash': apiKeyHash,
+        'credentials.production.apiKeyLast4': apiKeyLast4,
         'credentials.production.active': true,
         'credentials.production.environment': 'production',
-        apiKeyProduction: apiKey,
-        enterpriseApiKey: apiKey,
-        apiKey
+        apiKeyProductionHash: apiKeyHash
       });
     }
 
     const updated = await EnterpriseHomologationRequestCompat.findByIdAndUpdate(
       partner._id,
-      { $set: setPayload, $push: { history: { status: 'api_key_regenerated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_credentials' } } },
+      {
+        $set: setPayload,
+        $unset: environment === 'sandbox'
+          ? { [`${path}.apiKey`]: '', 'sandbox.apiKey': '', 'credentials.sandbox.apiKey': '', apiKeySandbox: '', sandboxApiKey: '' }
+          : { [`${path}.apiKey`]: '', 'production.apiKey': '', 'credentials.production.apiKey': '', apiKeyProduction: '', enterpriseApiKey: '', apiKey: '' },
+        $push: { history: { status: 'api_key_regenerated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_credentials' } }
+      },
       { new: true }
     );
 
@@ -155,9 +171,11 @@ app.post('/api/enterprise/partners/:id/regenerate-oauth', adminRequired, async (
     const partner = await enterpriseAdminFindPartner(req.params.id);
     if (!partner) return res.status(404).json({ ok: false, error: 'Parceiro Enterprise não encontrado' });
 
+    const clientSecret = enterpriseRandomKey(24);
     const oauth = {
       clientId: enterpriseCreateOAuthId(),
-      clientSecret: enterpriseRandomKey(24),
+      clientSecretHash: enterpriseHashSecret(clientSecret),
+      clientSecretLast4: clientSecret.slice(-4),
       active: true,
       environment,
       rotatedAt: new Date(),
@@ -170,19 +188,35 @@ app.post('/api/enterprise/partners/:id/regenerate-oauth', adminRequired, async (
           'sandboxCredentials.oauth': oauth,
           'credentials.sandbox.oauth': oauth,
           oauthClientId: oauth.clientId,
-          oauthClientSecret: oauth.clientSecret
+          oauthClientSecretHash: oauth.clientSecretHash
         }
       : {
           'oauth.production': oauth,
           'productionCredentials.oauth': oauth,
           'credentials.production.oauth': oauth,
           oauthProductionClientId: oauth.clientId,
-          oauthProductionClientSecret: oauth.clientSecret
+          oauthProductionClientSecretHash: oauth.clientSecretHash
         };
 
     const updated = await EnterpriseHomologationRequestCompat.findByIdAndUpdate(
       partner._id,
-      { $set: setPayload, $push: { history: { status: 'oauth_regenerated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_credentials' } } },
+      {
+        $set: setPayload,
+        $unset: environment === 'sandbox'
+          ? {
+              'oauth.sandbox.clientSecret': '',
+              'sandboxCredentials.oauth.clientSecret': '',
+              'credentials.sandbox.oauth.clientSecret': '',
+              oauthClientSecret: ''
+            }
+          : {
+              'oauth.production.clientSecret': '',
+              'productionCredentials.oauth.clientSecret': '',
+              'credentials.production.oauth.clientSecret': '',
+              oauthProductionClientSecret: ''
+            },
+        $push: { history: { status: 'oauth_regenerated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'admin_credentials' } }
+      },
       { new: true }
     );
 
@@ -196,7 +230,7 @@ app.post('/api/enterprise/partners/:id/regenerate-oauth', adminRequired, async (
       metadata: { environment, partnerId: String(partner._id), clientId: oauth.clientId }
     }).catch(() => null);
 
-    return res.json({ ok: true, environment, oauth, credentials: enterpriseAdminCredentialDTO(updated) });
+    return res.json({ ok: true, environment, oauth: { ...oauth, clientSecret: undefined }, oneTimeClientSecret: clientSecret, credentials: enterpriseAdminCredentialDTO(updated) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao regenerar OAuth Enterprise' });
   }
@@ -258,37 +292,45 @@ app.post('/api/enterprise/partner/api-keys/:environment/rotate', enterprisePartn
     }
 
     const key = enterprisePartnerGenerateKey(environment, partner);
+    const keyHash = enterpriseHashSecret(key);
+    const keyLast4 = key.slice(-4);
     const path = enterprisePartnerEnvironmentPath(environment);
     await EnterpriseHomologationRequestCompat.updateOne(
       { _id: partner._id },
       {
         $set: {
-          [`${path}.apiKey`]: key,
+          [`${path}.apiKeyHash`]: keyHash,
+          [`${path}.apiKeyLast4`]: keyLast4,
           [`${path}.active`]: true,
           [`${path}.environment`]: environment,
           [`${path}.rotatedAt`]: new Date(),
           [`${path}.lastAccessAt`]: null,
           [`${path}.requestCount`]: 0,
           ...(environment === 'sandbox' ? {
-            'sandbox.apiKey': key,
+            'sandbox.apiKeyHash': keyHash,
+            'sandbox.apiKeyLast4': keyLast4,
             'sandbox.active': true,
             'sandbox.environment': 'sandbox',
-            'credentials.sandbox.apiKey': key,
+            'credentials.sandbox.apiKeyHash': keyHash,
+            'credentials.sandbox.apiKeyLast4': keyLast4,
             'credentials.sandbox.active': true,
             'credentials.sandbox.environment': 'sandbox',
-            apiKeySandbox: key,
-            sandboxApiKey: key
+            apiKeySandboxHash: keyHash
           } : {
-            'production.apiKey': key,
+            'production.apiKeyHash': keyHash,
+            'production.apiKeyLast4': keyLast4,
             'production.active': true,
             'production.environment': 'production',
-            'credentials.production.apiKey': key,
+            'credentials.production.apiKeyHash': keyHash,
+            'credentials.production.apiKeyLast4': keyLast4,
             'credentials.production.active': true,
             'credentials.production.environment': 'production',
-            enterpriseApiKey: key,
-            apiKey: key
+            apiKeyProductionHash: keyHash
           })
-        }
+        },
+        $unset: environment === 'sandbox'
+          ? { [`${path}.apiKey`]: '', 'sandbox.apiKey': '', 'credentials.sandbox.apiKey': '', apiKeySandbox: '', sandboxApiKey: '' }
+          : { [`${path}.apiKey`]: '', 'production.apiKey': '', 'credentials.production.apiKey': '', apiKeyProduction: '', enterpriseApiKey: '', apiKey: '' }
       }
     );
 

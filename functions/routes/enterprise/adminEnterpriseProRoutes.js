@@ -16,7 +16,8 @@ export default function registerEnterpriseAdminProRoutes(app, context = {}) {
     redact,
     enterpriseCompatRateLimitConfig,
     enterprisePartnerGenerateKey,
-    enterpriseOAuthGenerateCredentials
+    enterpriseOAuthGenerateCredentials,
+    enterpriseHashSecret
   } = context;
 
 // ============================================================
@@ -62,16 +63,20 @@ function adminEnterprisePartnerDTO(partner = {}, extra = {}) {
     createdAt: obj.createdAt || null,
     updatedAt: obj.updatedAt || null,
     sandbox: {
-      active: sandbox?.active !== false && Boolean(sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey),
-      apiKeyMasked: adminEnterpriseMaskKey(sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey || ''),
+      active: sandbox?.active !== false && Boolean(sandbox?.apiKeyHash || obj.apiKeySandboxHash || sandbox?.apiKey || obj.apiKeySandbox || obj.sandboxApiKey),
+      apiKeyMasked: sandbox?.apiKey
+        ? adminEnterpriseMaskKey(sandbox.apiKey)
+        : (sandbox?.apiKeyLast4 ? `ari_sbx_••••••••${sandbox.apiKeyLast4}` : ''),
       requestCount: Number(sandbox?.requestCount || 0),
       lastAccessAt: sandbox?.lastAccessAt || null,
       rotatedAt: sandbox?.rotatedAt || null,
       revokedAt: sandbox?.revokedAt || null
     },
     production: {
-      active: production?.active === true && Boolean(production?.apiKey || obj.enterpriseApiKey || obj.apiKey),
-      apiKeyMasked: adminEnterpriseMaskKey(production?.apiKey || obj.enterpriseApiKey || obj.apiKey || ''),
+      active: production?.active === true && Boolean(production?.apiKeyHash || obj.apiKeyProductionHash || production?.apiKey || obj.enterpriseApiKey || obj.apiKey),
+      apiKeyMasked: production?.apiKey
+        ? adminEnterpriseMaskKey(production.apiKey)
+        : (production?.apiKeyLast4 ? `ari_live_••••••••${production.apiKeyLast4}` : ''),
       requestCount: Number(production?.requestCount || 0),
       lastAccessAt: production?.lastAccessAt || null,
       rotatedAt: production?.rotatedAt || null,
@@ -551,7 +556,8 @@ registerEnterpriseProductionRoutes(app, {
   adminEnterpriseFindPartnerOr404,
   adminEnterpriseResolvedHomologation,
   adminEnterprisePartnerDTO,
-  enterprisePartnerGenerateKey
+  enterprisePartnerGenerateKey,
+  enterpriseHashSecret
 });
 
 
@@ -618,12 +624,35 @@ app.post('/api/admin/enterprise/pro/partners/:id/oauth/:environment/rotate', adm
       const prodActive = partner.productionCredentials?.active !== false && (partner.productionActive === true || String(partner.environment || '').toLowerCase() === 'production' || String(partner.status || '').toLowerCase() === 'production');
       if (!prodActive) return res.status(403).json({ ok: false, error: 'Libere Produção antes de gerar OAuth de produção' });
     }
-    const oauth = enterpriseOAuthGenerateCredentials(partner, environment);
+    const generatedOauth = enterpriseOAuthGenerateCredentials(partner, environment);
+    const oneTimeClientSecret = generatedOauth.clientSecret;
     const scopes = Array.isArray(req.body?.scopes) && req.body.scopes.length ? req.body.scopes : (partner.integrationTypes || ['catalog','stock','price','orders','invoice','tracking','webhooks']);
-    oauth.scopes = scopes;
-    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: { [`oauth.${environment}`]: oauth, [`${environment}Credentials.oauth`]: oauth, [`credentials.${environment}.oauth`]: oauth }, $push: { history: { status: 'oauth_rotated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin' } } });
+    const oauth = {
+      ...generatedOauth,
+      clientSecret: undefined,
+      clientSecretHash: enterpriseHashSecret(oneTimeClientSecret),
+      clientSecretLast4: String(oneTimeClientSecret || '').slice(-4),
+      scopes
+    };
+    await EnterpriseHomologationRequestCompat.updateOne(
+      { _id: partner._id },
+      {
+        $set: {
+          [`oauth.${environment}`]: oauth,
+          [`${environment}Credentials.oauth`]: oauth,
+          [`credentials.${environment}.oauth`]: oauth
+        },
+        $unset: {
+          [`oauth.${environment}.clientSecret`]: '',
+          [`${environment}Credentials.oauth.clientSecret`]: '',
+          [`credentials.${environment}.oauth.clientSecret`]: '',
+          ...(environment === 'sandbox' ? { oauthClientSecret: '' } : { oauthProductionClientSecret: '' })
+        },
+        $push: { history: { status: 'oauth_rotated', environment, at: new Date(), by: req.admin?.email || req.admin?.id || 'admin' } }
+      }
+    );
     await IntegrationAuditLog.create({ scope: 'enterprise', eventType: 'oauth_credentials_rotated', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '', integrationId: String(partner._id || ''), status: 'success', statusCode: 200, message: `OAuth ${environment} gerado pelo Admin Enterprise`, metadata: { environment, clientId: oauth.clientId, admin: req.admin?.email || req.admin?.id || '' } }).catch(() => null);
-    return res.json({ ok: true, environment, oauth, message: 'Credenciais OAuth geradas com sucesso' });
+    return res.json({ ok: true, environment, oauth, oneTimeClientSecret, message: 'Credenciais OAuth geradas. Copie o client_secret agora; ele não poderá ser recuperado depois.' });
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar OAuth' }); }
 });
 

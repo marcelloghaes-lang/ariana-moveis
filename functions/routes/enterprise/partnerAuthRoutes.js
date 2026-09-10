@@ -14,6 +14,8 @@ export default function registerEnterprisePartnerAuthRoutes(app, context = {}) {
     enterpriseOAuthRequired,
     enterprisePartnerRequired,
     enterpriseCompatFindPartnerByKey,
+    enterpriseSecretMatches,
+    enterpriseHashSecret,
     enterprisePartnerSign
   } = context;
 
@@ -34,12 +36,38 @@ app.post('/api/enterprise/oauth/token', async (req, res) => {
     if (grantType !== 'client_credentials') return res.status(400).json({ ok: false, error: 'grant_type não suportado', supported: 'client_credentials' });
     if (!clientId || !clientSecret) return res.status(400).json({ ok: false, error: 'client_id e client_secret são obrigatórios' });
 
-    const partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseOAuthQuery(clientId, clientSecret)).lean();
+    const partner = await EnterpriseHomologationRequestCompat.findOne(enterpriseOAuthQuery(clientId)).lean();
     if (!partner) return res.status(401).json({ ok: false, error: 'client_id ou client_secret inválido' });
 
     const picked = enterpriseOAuthPickCredential(partner, clientId);
-    if (!picked.credential || picked.credential.clientSecret !== clientSecret || picked.credential.active === false) {
+    if (!picked.credential || !enterpriseSecretMatches(clientSecret, picked.credential.clientSecret || '', picked.credential.clientSecretHash || '') || picked.credential.active === false) {
       return res.status(401).json({ ok: false, error: 'credencial OAuth desativada ou inválida' });
+    }
+
+    // Migração transparente de segredos OAuth legados em texto puro.
+    if (!picked.credential.clientSecretHash && picked.credential.clientSecret) {
+      const env = picked.environment === 'production' ? 'production' : 'sandbox';
+      const hash = enterpriseHashSecret(clientSecret);
+      const last4 = clientSecret.slice(-4);
+      await EnterpriseHomologationRequestCompat.updateOne(
+        { _id: partner._id },
+        {
+          $set: {
+            [`oauth.${env}.clientSecretHash`]: hash,
+            [`oauth.${env}.clientSecretLast4`]: last4,
+            [`${env}Credentials.oauth.clientSecretHash`]: hash,
+            [`${env}Credentials.oauth.clientSecretLast4`]: last4,
+            [`credentials.${env}.oauth.clientSecretHash`]: hash,
+            [`credentials.${env}.oauth.clientSecretLast4`]: last4
+          },
+          $unset: {
+            [`oauth.${env}.clientSecret`]: '',
+            [`${env}Credentials.oauth.clientSecret`]: '',
+            [`credentials.${env}.oauth.clientSecret`]: '',
+            ...(env === 'sandbox' ? { oauthClientSecret: '' } : { oauthProductionClientSecret: '' })
+          }
+        }
+      ).catch(() => null);
     }
     if (picked.environment === 'production') {
       const prodActive = partner.productionCredentials?.active !== false && (partner.productionActive === true || String(partner.environment || '').toLowerCase() === 'production' || String(partner.status || '').toLowerCase() === 'production');
@@ -129,7 +157,8 @@ app.get('/api/enterprise/partner/api-keys', enterprisePartnerRequired, async (re
           ...(partner.credentials?.sandbox || {}),
           ...(partner.metadata?.sandboxCredentials || {}),
           ...(partner.sandboxCredentials || {}),
-          apiKey: partner.sandboxCredentials?.apiKey || partner.sandbox?.apiKey || partner.credentials?.sandbox?.apiKey || partner.metadata?.sandboxCredentials?.apiKey || partner.apiKeySandbox || partner.sandboxApiKey || ''
+          apiKey: partner.sandboxCredentials?.apiKey || partner.sandbox?.apiKey || partner.credentials?.sandbox?.apiKey || partner.metadata?.sandboxCredentials?.apiKey || partner.apiKeySandbox || partner.sandboxApiKey || '',
+          apiKeyLast4: partner.sandboxCredentials?.apiKeyLast4 || partner.sandbox?.apiKeyLast4 || partner.credentials?.sandbox?.apiKeyLast4 || ''
         }
       : {};
     const production = partner
@@ -138,7 +167,8 @@ app.get('/api/enterprise/partner/api-keys', enterprisePartnerRequired, async (re
           ...(partner.credentials?.production || {}),
           ...(partner.metadata?.productionCredentials || {}),
           ...(partner.productionCredentials || {}),
-          apiKey: partner.productionCredentials?.apiKey || partner.production?.apiKey || partner.credentials?.production?.apiKey || partner.metadata?.productionCredentials?.apiKey || partner.enterpriseApiKey || partner.apiKey || ''
+          apiKey: partner.productionCredentials?.apiKey || partner.production?.apiKey || partner.credentials?.production?.apiKey || partner.metadata?.productionCredentials?.apiKey || partner.enterpriseApiKey || partner.apiKey || '',
+          apiKeyLast4: partner.productionCredentials?.apiKeyLast4 || partner.production?.apiKeyLast4 || partner.credentials?.production?.apiKeyLast4 || ''
         }
       : {};
 
@@ -148,14 +178,14 @@ app.get('/api/enterprise/partner/api-keys', enterprisePartnerRequired, async (re
         sandbox: {
           active: sandbox.active !== false,
           environment: 'sandbox',
-          apiKeyMasked: mask(sandbox.apiKey || ''),
+          apiKeyMasked: sandbox.apiKey ? mask(sandbox.apiKey) : (sandbox.apiKeyLast4 ? `ari_sbx_••••••••${sandbox.apiKeyLast4}` : ''),
           lastAccessAt: sandbox.lastAccessAt || null,
           requestCount: Number(sandbox.requestCount || 0)
         },
         production: {
           active: production.active === true,
           environment: 'production',
-          apiKeyMasked: mask(production.apiKey || ''),
+          apiKeyMasked: production.apiKey ? mask(production.apiKey) : (production.apiKeyLast4 ? `ari_live_••••••••${production.apiKeyLast4}` : ''),
           lastAccessAt: production.lastAccessAt || null,
           requestCount: Number(production.requestCount || 0)
         }

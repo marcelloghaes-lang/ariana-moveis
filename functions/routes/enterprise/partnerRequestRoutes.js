@@ -188,12 +188,15 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
       const request = await EnterpriseHomologationRequestCompat.findOne(query);
       if (!request) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
 
+      const hashSecret = (value = '') => crypto.createHash('sha256').update(String(value || '')).digest('hex');
       const partnerId = String(request.partnerRequestId || request.partnerId || createEnterprisePartnerId()).trim();
-      const sandboxApiKey = request?.sandboxCredentials?.apiKey || request?.credentials?.sandbox?.apiKey || enterpriseCreateApiKey('ari_sbx');
-      const productionApiKey = request?.productionCredentials?.apiKey || request?.credentials?.production?.apiKey || enterpriseCreateApiKey('ari_live');
-      const oauth = request?.oauth?.sandbox || request?.sandboxCredentials?.oauth || {
+      const sandboxApiKey = enterpriseCreateApiKey('ari_sbx');
+      const sandboxApiKeyHash = hashSecret(sandboxApiKey);
+      const oauthClientSecret = enterpriseRandomKey(24);
+      const oauth = {
         clientId: enterpriseCreateOAuthId(),
-        clientSecret: enterpriseRandomKey(24),
+        clientSecretHash: hashSecret(oauthClientSecret),
+        clientSecretLast4: oauthClientSecret.slice(-4),
         active: true,
         environment: 'sandbox',
         createdAt: new Date()
@@ -212,15 +215,15 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
         responsibleName: request.responsibleName || req.body?.responsibleName || 'Responsável não informado',
         environment: 'sandbox',
         integrationTypes: Array.isArray(request.integrationTypes) && request.integrationTypes.length ? request.integrationTypes : ['catalog', 'stock', 'price', 'orders', 'invoice', 'tracking', 'webhooks'],
-        apiKeySandbox: sandboxApiKey,
-        apiKeyProduction: productionApiKey,
+        apiKeySandboxHash: sandboxApiKeyHash,
         oauthClientId: oauth.clientId,
-        oauthClientSecret: oauth.clientSecret,
+        oauthClientSecretHash: oauth.clientSecretHash,
         webhookSecret,
         signingSecret,
         sandboxCredentials: {
           ...(request.sandboxCredentials || {}),
-          apiKey: sandboxApiKey,
+          apiKeyHash: sandboxApiKeyHash,
+          apiKeyLast4: sandboxApiKey.slice(-4),
           active: true,
           environment: 'sandbox',
           webhookSecret,
@@ -229,14 +232,19 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
         },
         productionCredentials: {
           ...(request.productionCredentials || {}),
-          apiKey: productionApiKey,
           active: false,
           environment: 'production'
         },
         credentials: {
           ...(request.credentials || {}),
-          sandbox: { ...(request.credentials?.sandbox || {}), apiKey: sandboxApiKey, active: true, oauth },
-          production: { ...(request.credentials?.production || {}), apiKey: productionApiKey, active: false }
+          sandbox: {
+            ...(request.credentials?.sandbox || {}),
+            apiKeyHash: sandboxApiKeyHash,
+            apiKeyLast4: sandboxApiKey.slice(-4),
+            active: true,
+            oauth
+          },
+          production: { ...(request.credentials?.production || {}), active: false }
         }
       });
 
@@ -244,17 +252,64 @@ export default function registerEnterprisePartnerRequestRoutes(app, context = {}
       request.history.push({ status: 'approved', at: new Date(), by: req.admin?.email || req.admin?.id || 'admin', source: 'partner_request_approve' });
       await request.save();
 
+      await EnterpriseHomologationRequestCompat.updateOne(
+        { _id: request._id },
+        { $unset: {
+          apiKeySandbox: '', sandboxApiKey: '', apiKeyProduction: '', enterpriseApiKey: '', apiKey: '',
+          oauthClientSecret: '', oauthProductionClientSecret: '',
+          'sandboxCredentials.apiKey': '', 'productionCredentials.apiKey': '',
+          'sandboxCredentials.oauth.clientSecret': '', 'productionCredentials.oauth.clientSecret': '',
+          'sandbox.apiKey': '', 'production.apiKey': '',
+          'credentials.sandbox.apiKey': '', 'credentials.production.apiKey': '',
+          'credentials.sandbox.oauth.clientSecret': '', 'credentials.production.oauth.clientSecret': ''
+        } }
+      ).catch(() => null);
+
       await IntegrationAuditLog.create({
         scope: 'enterprise_partner_request',
         eventType: 'partner_request.approved',
         manufacturer: request.companyName || request.tradeName || request.brand || request.requestId,
         status: 'success',
         statusCode: 200,
-        message: 'Solicitação aprovada com sucesso',
+        message: 'Solicitação aprovada com credenciais Sandbox protegidas por hash',
         metadata: { requestId: request.requestId, partnerRequestId: partnerId }
       }).catch(() => null);
 
-      return res.json({ ok: true, message: 'Solicitação aprovada com sucesso.', request: toJSON(request) });
+      const safeRequest = toJSON(request) || {};
+      delete safeRequest.apiKeySandbox;
+      delete safeRequest.sandboxApiKey;
+      delete safeRequest.apiKeyProduction;
+      delete safeRequest.enterpriseApiKey;
+      delete safeRequest.apiKey;
+      delete safeRequest.oauthClientSecret;
+      delete safeRequest.oauthProductionClientSecret;
+      delete safeRequest.webhookSecret;
+      delete safeRequest.signingSecret;
+      if (safeRequest.sandboxCredentials) {
+        delete safeRequest.sandboxCredentials.apiKey;
+        delete safeRequest.sandboxCredentials.webhookSecret;
+        delete safeRequest.sandboxCredentials.signingSecret;
+        if (safeRequest.sandboxCredentials.oauth) delete safeRequest.sandboxCredentials.oauth.clientSecret;
+      }
+      if (safeRequest.productionCredentials) delete safeRequest.productionCredentials.apiKey;
+      if (safeRequest.credentials?.sandbox) {
+        delete safeRequest.credentials.sandbox.apiKey;
+        if (safeRequest.credentials.sandbox.oauth) delete safeRequest.credentials.sandbox.oauth.clientSecret;
+      }
+      if (safeRequest.credentials?.production) delete safeRequest.credentials.production.apiKey;
+
+      return res.json({
+        ok: true,
+        message: 'Solicitação aprovada. Copie as credenciais abaixo agora; os segredos não poderão ser recuperados depois.',
+        request: safeRequest,
+        oneTimeCredentials: {
+          sandboxApiKey,
+          oauthClientId: oauth.clientId,
+          oauthClientSecret,
+          webhookSecret,
+          signingSecret
+        }
+      });
     } catch (error) {
       console.error('[enterprise partner-request approve] erro:', error.message || error);
       return res.status(500).json({ ok: false, error: error.message || 'Erro ao aprovar solicitação Enterprise' });

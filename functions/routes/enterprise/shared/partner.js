@@ -9,6 +9,8 @@ export function createEnterprisePartner(context = {}) {
     EnterpriseHomologationRequestCompat,
     enterpriseCompatEnvFromPartner,
     enterpriseCompatKeyQuery,
+    enterpriseHashSecret,
+    enterpriseSecretMatches,
     crypto,
     jwt,
     JWT_SECRET,
@@ -136,27 +138,21 @@ function enterpriseOAuthGenerateCredentials(partner = {}, environment = 'sandbox
   };
 }
 
-function enterpriseOAuthQuery(clientId = '', clientSecret = '') {
-  const or = [
-    { 'oauth.sandbox.clientId': clientId },
-    { 'oauth.production.clientId': clientId },
-    { 'sandboxCredentials.oauth.clientId': clientId },
-    { 'productionCredentials.oauth.clientId': clientId },
-    { 'credentials.sandbox.oauth.clientId': clientId },
-    { 'credentials.production.oauth.clientId': clientId }
-  ];
-  if (clientSecret) {
-    return { $or: or, $and: [{ $or: [
-      { 'oauth.sandbox.clientSecret': clientSecret },
-      { 'oauth.production.clientSecret': clientSecret },
-      { 'sandboxCredentials.oauth.clientSecret': clientSecret },
-      { 'productionCredentials.oauth.clientSecret': clientSecret },
-      { 'credentials.sandbox.oauth.clientSecret': clientSecret },
-      { 'credentials.production.oauth.clientSecret': clientSecret }
-    ] }] };
-  }
-  return { $or: or };
+function enterpriseOAuthQuery(clientId = '') {
+  return {
+    $or: [
+      { 'oauth.sandbox.clientId': clientId },
+      { 'oauth.production.clientId': clientId },
+      { 'sandboxCredentials.oauth.clientId': clientId },
+      { 'productionCredentials.oauth.clientId': clientId },
+      { 'credentials.sandbox.oauth.clientId': clientId },
+      { 'credentials.production.oauth.clientId': clientId },
+      { oauthClientId: clientId },
+      { oauthProductionClientId: clientId }
+    ]
+  };
 }
+
 
 function enterpriseOAuthPickCredential(partner = {}, clientId = '') {
   const candidates = [
@@ -165,7 +161,21 @@ function enterpriseOAuthPickCredential(partner = {}, clientId = '') {
     ['sandbox', partner.sandboxCredentials?.oauth],
     ['production', partner.productionCredentials?.oauth],
     ['sandbox', partner.credentials?.sandbox?.oauth],
-    ['production', partner.credentials?.production?.oauth]
+    ['production', partner.credentials?.production?.oauth],
+    ['sandbox', partner.oauthClientId ? {
+      clientId: partner.oauthClientId,
+      clientSecret: partner.oauthClientSecret || '',
+      clientSecretHash: partner.oauthClientSecretHash || '',
+      active: true,
+      scopes: partner.integrationTypes || []
+    } : null],
+    ['production', partner.oauthProductionClientId ? {
+      clientId: partner.oauthProductionClientId,
+      clientSecret: partner.oauthProductionClientSecret || '',
+      clientSecretHash: partner.oauthProductionClientSecretHash || '',
+      active: true,
+      scopes: partner.integrationTypes || []
+    } : null]
   ];
   for (const [environment, credential] of candidates) {
     if (credential && credential.clientId === clientId) return { environment, credential };

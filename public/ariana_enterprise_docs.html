@@ -90,7 +90,7 @@
       <a href="#inicio">Visão geral</a><a href="#autenticacao">Autenticação</a><a href="#ambientes">Ambientes</a><a href="#fluxo">Fluxo recomendado</a><a href="#endpoints">Endpoints</a><a href="#payloads">Payloads</a><a href="#webhooks">Webhooks</a><a href="#tester">Testador rápido</a><a href="#sdkphp">SDK PHP</a><a href="#sdkpython">SDK Python</a><a href="#sdkjava">SDK Java</a><a href="#erros">Erros</a><a href="#checklist">Checklist</a>
     </nav>
     <section>
-      <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação real no Sandbox: o Ariana Enterprise valida evidências das chamadas executadas de verdade antes de permitir a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Testes e homologação sem impacto real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP, Python e Java prontas para ERP.</p></div></div></div>
+      <div class="card" id="inicio"><span class="pill">v1 estável</span> <span class="pill warn">v2 preview</span><h2>Comece por aqui</h2><p class="muted">A integração pode ser feita por API Key, OAuth 2.0 Client Credentials, SDK oficial ou chamadas HTTP diretas. Para produção, o fabricante precisa concluir a homologação real no Sandbox: o Ariana Enterprise valida evidências das chamadas executadas de verdade antes de permitir a liberação no Admin Enterprise.</p><div class="grid"><div><b>Sandbox</b><p class="muted">Coleções fisicamente separadas de produtos e pedidos. Testes não aparecem na operação real.</p></div><div><b>Produção</b><p class="muted">Operação real após aprovação.</p></div><div><b>SDK</b><p class="muted">Bibliotecas JavaScript, Node.js, PHP, Python e Java prontas para ERP.</p></div></div></div>
       <div class="card" id="autenticacao"><h2>Autenticação</h2><p>Use <span class="kbd">x-ariana-key</span> ou <span class="kbd">Authorization: Bearer</span>.</p><div class="code">curl -H "x-ariana-key: ari_live_xxxxx" \
   https://ariana-backend.onrender.com/api/v1/enterprise/health</div><h3>OAuth 2.0</h3><div class="code">POST /api/v1/enterprise/oauth/token
 {
@@ -101,7 +101,13 @@
       <div class="card" id="ambientes"><h2>Ambientes e versionamento</h2><p><b>Base estável:</b> <span class="kbd">/api/v1/enterprise</span></p><p><b>Próxima versão:</b> <span class="kbd">/api/v2/enterprise</span></p><p class="muted">Use v1 em produção. Use v2 apenas para testes e recursos futuros.</p></div>
       <div class="card" id="fluxo"><h2>Fluxo recomendado</h2><ol><li>Solicitar homologação.</li><li>Receber API Key Sandbox.</li><li>Testar catálogo, estoque, preço, pedido, NF-e e rastreio.</li><li>Solicitar a verificação da homologação real; o sistema calcula o score pelas evidências registradas no Sandbox.</li><li>Receber liberação de produção.</li><li>Ativar webhooks e monitorar consumo.</li></ol></div>
       <div class="card" id="endpoints"><h2>Endpoints principais</h2><div id="endpointList"></div></div>
-      <div class="card" id="payloads"><h2>Payloads essenciais</h2><h3>Catálogo</h3><div class="code">{
+      <div class="card"><h2>Idempotência de pedidos</h2><p class="muted">Para impedir pedidos duplicados quando o ERP repete uma chamada após timeout, envie sempre <span class="kbd">externalOrderId</span> único ou o header <span class="kbd">Idempotency-Key</span>. A mesma chave com o mesmo payload devolve o pedido já criado; a mesma chave com payload diferente retorna conflito.</p><div class="code">Idempotency-Key: pedido-erp-2026-000123
+
+{
+  "externalOrderId": "ERP-000123",
+  "items": [...]
+}</div></div>
+<div class="card" id="payloads"><h2>Payloads essenciais</h2><h3>Catálogo</h3><div class="code">{
   "manufacturer":"ariana_moveis",
   "products":[{"sku":"ARI-0001","name":"Produto Teste","price":2299,"stock":10}]
 }</div><h3>Pedido</h3><div class="code">{
@@ -110,7 +116,18 @@
   "customerName":"Cliente Teste",
   "items":[{"sku":"ARI-0001","qty":1,"unitPrice":2299}]
 }</div></div>
-      <div class="card" id="webhooks"><h2>Webhooks</h2><p class="muted">Eventos enviados ao ERP do fabricante com assinatura HMAC quando configurado.</p><div class="code">Eventos: order_created, payment_approved, invoice_received, tracking_updated, order_cancelled</div></div>
+      <div class="card" id="webhooks"><h2>Webhooks</h2><p class="muted">Eventos enviados ao ERP do fabricante com HTTPS, assinatura HMAC, delivery ID e timestamp. Falhas entram em fila persistente com retry automático e dead-letter após esgotar as tentativas.</p><div class="code">Eventos: order_created, payment_approved, invoice_received, tracking_updated, order_cancelled
+
+Headers de segurança:
+X-Ariana-Delivery: evt_...
+X-Ariana-Timestamp: 1720000000
+X-Ariana-Signature-V2: sha256=...
+
+Assinatura V2:
+HMAC-SHA256(secret, timestamp + "." + deliveryId + "." + rawBody)
+
+Retry automático:
+1 min → 5 min → 15 min → 1 h → 3 h → 6 h</div></div>
       <div class="card" id="tester"><h2>Testador rápido</h2><div class="tester"><div><label>Endpoint</label><select id="testEndpoint" class="select"><option value="/v1/enterprise/health">GET /v1/health</option><option value="/v2/enterprise/health">GET /v2/health</option><option value="/enterprise/versions">GET /versions</option><option value="/enterprise/sdk/manifest">GET /sdk/manifest</option><option value="/enterprise/sdk/php/manifest">GET /sdk/php/manifest</option><option value="/enterprise/sdk/python/manifest">GET /sdk/python/manifest</option><option value="/enterprise/developer/manifest">GET /developer/manifest</option></select><label>API Key opcional</label><input id="apiKey" class="input" placeholder="ari_sbx_... ou ari_live_..."><div style="margin-top:12px"><button class="btn" onclick="runTest()">Executar</button> <button class="btn light" onclick="copyCurl()">Copiar cURL</button></div></div><pre id="result" class="result">Clique em Executar para testar.</pre></div></div>
       <div class="card" id="sdkphp"><h2>SDK PHP</h2><p class="muted">Baixe o pacote ZIP oficial e adicione o SDK ao seu projeto. A publicação em registry público deve ser considerada disponível somente quando indicada oficialmente pela Ariana Enterprise.</p><pre>use ArianaEnterprise\\Client;
 $api = new Client(['apiKey' => 'ari_live_xxxxx', 'environment' => 'production']);

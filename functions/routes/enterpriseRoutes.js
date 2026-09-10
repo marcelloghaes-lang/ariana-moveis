@@ -364,10 +364,13 @@ const {
   getEnterpriseCompatKey,
   enterpriseCompatKeyQuery,
   enterpriseCompatEnvFromPartner,
+  enterpriseHashSecret,
+  enterpriseSecretMatches,
   enterpriseCompatAuth
 } = createEnterpriseAuth({
   EnterpriseHomologationRequestCompat,
-  enterpriseCompatApplyRateLimit
+  enterpriseCompatApplyRateLimit,
+  crypto
 });
 
 
@@ -628,6 +631,8 @@ const {
   EnterpriseHomologationRequestCompat,
   enterpriseCompatEnvFromPartner,
   enterpriseCompatKeyQuery,
+  enterpriseHashSecret,
+  enterpriseSecretMatches,
   crypto,
   jwt,
   JWT_SECRET,
@@ -654,6 +659,7 @@ registerEnterpriseWebhookRoutes(app, {
   ...context,
   Setting,
   IntegrationAuditLog,
+  EnterpriseHomologationRequestCompat,
   axios,
   crypto,
   mongoose,
@@ -681,6 +687,8 @@ registerEnterprisePartnerAuthRoutes(app, {
   enterpriseOAuthRequired,
   enterprisePartnerRequired,
   enterpriseCompatFindPartnerByKey,
+  enterpriseSecretMatches,
+  enterpriseHashSecret,
   enterprisePartnerSign
 });
 
@@ -699,7 +707,8 @@ registerEnterprisePartnerCredentialsRoutes(app, {
   enterprisePartnerRequired,
   enterpriseCreateOAuthId,
   enterpriseRandomKey,
-  enterpriseCreateWebhookSecret
+  enterpriseCreateWebhookSecret,
+  enterpriseHashSecret
 });
 
 
@@ -783,7 +792,8 @@ registerEnterpriseAdminProRoutes(app, {
   redact,
   enterpriseCompatRateLimitConfig,
   enterprisePartnerGenerateKey,
-  enterpriseOAuthGenerateCredentials
+  enterpriseOAuthGenerateCredentials,
+  enterpriseHashSecret
 });
 
 

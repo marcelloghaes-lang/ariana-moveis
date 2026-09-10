@@ -7,8 +7,20 @@
 export function createEnterpriseAuth(deps = {}) {
   const {
     EnterpriseHomologationRequestCompat,
-    enterpriseCompatApplyRateLimit
+    enterpriseCompatApplyRateLimit,
+    crypto
   } = deps;
+
+  function enterpriseHashSecret(value = '') {
+    return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+  }
+
+  function enterpriseSecretMatches(candidate = '', plain = '', hash = '') {
+    const value = String(candidate || '');
+    if (!value) return false;
+    if (plain && value === String(plain)) return true;
+    return Boolean(hash && enterpriseHashSecret(value) === String(hash));
+  }
 
   function getEnterpriseCompatKey(req) {
     const headerKey = String(
@@ -26,8 +38,18 @@ export function createEnterpriseAuth(deps = {}) {
   }
 
   function enterpriseCompatKeyQuery(key = '') {
+    const keyHash = enterpriseHashSecret(key);
     return {
       $or: [
+        { 'sandboxCredentials.apiKeyHash': keyHash },
+        { 'productionCredentials.apiKeyHash': keyHash },
+        { 'sandbox.apiKeyHash': keyHash },
+        { 'production.apiKeyHash': keyHash },
+        { 'credentials.sandbox.apiKeyHash': keyHash },
+        { 'credentials.production.apiKeyHash': keyHash },
+        { apiKeySandboxHash: keyHash },
+        { apiKeyProductionHash: keyHash },
+        // Compatibilidade temporária com credenciais legadas em texto puro.
         { 'sandboxCredentials.apiKey': key },
         { 'productionCredentials.apiKey': key },
         { 'sandbox.apiKey': key },
@@ -45,6 +67,23 @@ export function createEnterpriseAuth(deps = {}) {
   }
 
   function enterpriseCompatEnvFromPartner(partner = {}, key = '') {
+    const keyHash = enterpriseHashSecret(key);
+    const sandboxHashes = [
+      partner?.sandboxCredentials?.apiKeyHash,
+      partner?.sandbox?.apiKeyHash,
+      partner?.credentials?.sandbox?.apiKeyHash,
+      partner?.apiKeySandboxHash
+    ].filter(Boolean);
+    const productionHashes = [
+      partner?.productionCredentials?.apiKeyHash,
+      partner?.production?.apiKeyHash,
+      partner?.credentials?.production?.apiKeyHash,
+      partner?.apiKeyProductionHash
+    ].filter(Boolean);
+
+    if (sandboxHashes.includes(keyHash)) return 'sandbox';
+    if (productionHashes.includes(keyHash)) return 'production';
+
     if (partner?.sandboxCredentials?.apiKey === key) return 'sandbox';
     if (partner?.sandbox?.apiKey === key) return 'sandbox';
     if (partner?.credentials?.sandbox?.apiKey === key) return 'sandbox';
@@ -58,6 +97,41 @@ export function createEnterpriseAuth(deps = {}) {
 
     if (partner?.enterpriseApiKey === key || partner?.apiKey === key) return String(partner.environment || 'sandbox');
     return 'sandbox';
+  }
+
+  async function enterpriseMigrateLegacyApiKey(partner = {}, environment = 'sandbox', key = '') {
+    if (!partner?._id || !key) return;
+    const env = environment === 'production' ? 'production' : 'sandbox';
+    const hash = enterpriseHashSecret(key);
+    const last4 = String(key).slice(-4);
+    const set = env === 'production' ? {
+      'productionCredentials.apiKeyHash': hash,
+      'productionCredentials.apiKeyLast4': last4,
+      'production.apiKeyHash': hash,
+      'credentials.production.apiKeyHash': hash,
+      apiKeyProductionHash: hash
+    } : {
+      'sandboxCredentials.apiKeyHash': hash,
+      'sandboxCredentials.apiKeyLast4': last4,
+      'sandbox.apiKeyHash': hash,
+      'credentials.sandbox.apiKeyHash': hash,
+      apiKeySandboxHash: hash
+    };
+    const unset = env === 'production' ? {
+      'productionCredentials.apiKey': '',
+      'production.apiKey': '',
+      'credentials.production.apiKey': '',
+      apiKeyProduction: '',
+      enterpriseApiKey: '',
+      apiKey: ''
+    } : {
+      'sandboxCredentials.apiKey': '',
+      'sandbox.apiKey': '',
+      'credentials.sandbox.apiKey': '',
+      apiKeySandbox: '',
+      sandboxApiKey: ''
+    };
+    await EnterpriseHomologationRequestCompat.updateOne({ _id: partner._id }, { $set: set, $unset: unset }).catch(() => null);
   }
 
   async function enterpriseCompatAuth(req, res, next) {
@@ -113,6 +187,11 @@ export function createEnterpriseAuth(deps = {}) {
       const rateAllowed = await enterpriseCompatApplyRateLimit(req, res, partner, credential, environment, key);
       if (!rateAllowed) return;
 
+      const hasHash = environment === 'production'
+        ? Boolean(partner.productionCredentials?.apiKeyHash || partner.production?.apiKeyHash || partner.credentials?.production?.apiKeyHash || partner.apiKeyProductionHash)
+        : Boolean(partner.sandboxCredentials?.apiKeyHash || partner.sandbox?.apiKeyHash || partner.credentials?.sandbox?.apiKeyHash || partner.apiKeySandboxHash);
+      if (!hasHash) await enterpriseMigrateLegacyApiKey(partner, environment, key);
+
       req.enterprisePartner = {
         id: String(partner._id || ''),
         requestId: partner.requestId || '',
@@ -153,6 +232,8 @@ export function createEnterpriseAuth(deps = {}) {
     getEnterpriseCompatKey,
     enterpriseCompatKeyQuery,
     enterpriseCompatEnvFromPartner,
+    enterpriseHashSecret,
+    enterpriseSecretMatches,
     enterpriseCompatAuth
   };
 }

@@ -385,8 +385,8 @@ function closeModal(){partnerModal.classList.remove('show')}
 async function rotateOAuth(id,env){
   const data=await api('/admin/enterprise/pro/partners/'+encodeURIComponent(id)+'/oauth/'+env+'/rotate',{method:'POST',body:JSON.stringify({})});
   const box=document.getElementById('oauthOut');
-  if(box){box.style.display='block';box.innerHTML='<b>Guarde estas credenciais agora:</b><br><br><b>Environment:</b> '+esc(data.environment)+'<br><b>Client ID:</b><br><span class="code">'+esc(data.oauth?.clientId||'')+'</span><br><br><b>Client Secret:</b><br><span class="code">'+esc(data.oauth?.clientSecret||'')+'</span><br><br><b>Token URL:</b><br><span class="code">https://ariana-backend.onrender.com/api/enterprise/oauth/token</span>';}
-  toastMsg('OAuth '+env+' gerado.');
+  if(box){box.style.display='block';box.innerHTML='<b>Guarde estas credenciais agora:</b><br><br><b>Environment:</b> '+esc(data.environment)+'<br><b>Client ID:</b><br><span class="code">'+esc(data.oauth?.clientId||'')+'</span><br><br><b>Client Secret (exibido uma única vez):</b><br><span class="code">'+esc(data.oneTimeClientSecret||'')+'</span><br><br><b>Token URL:</b><br><span class="code">https://ariana-backend.onrender.com/api/enterprise/oauth/token</span>';}
+  toastMsg('OAuth '+env+' gerado. Copie o Client Secret agora; ele não poderá ser recuperado depois.');
   await loadPartners();
 }
 async function revokeOAuth(id,env){

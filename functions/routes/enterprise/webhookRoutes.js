@@ -10,6 +10,7 @@ export default function registerEnterpriseWebhookRoutes(app, context = {}) {
   const {
     Setting,
     IntegrationAuditLog,
+    EnterpriseHomologationRequestCompat,
     axios,
     crypto,
     mongoose,
@@ -20,6 +21,35 @@ export default function registerEnterpriseWebhookRoutes(app, context = {}) {
     sanitizeIdPart,
     redact
   } = context;
+
+const enterpriseWebhookDeliverySchema = new mongoose.Schema({
+  deliveryId: { type: String, required: true, unique: true, index: true },
+  partnerObjectId: { type: String, default: '', index: true },
+  requestId: { type: String, default: '', index: true },
+  manufacturer: { type: String, default: '', index: true },
+  environment: { type: String, default: 'sandbox', index: true },
+  event: { type: String, required: true, index: true },
+  payload: mongoose.Schema.Types.Mixed,
+  status: { type: String, default: 'retrying', index: true },
+  attempts: { type: Number, default: 1 },
+  maxAttempts: { type: Number, default: 6 },
+  nextAttemptAt: { type: Date, default: null, index: true },
+  lastAttemptAt: { type: Date, default: null },
+  deliveredAt: { type: Date, default: null },
+  lastStatusCode: { type: Number, default: 0 },
+  lastError: { type: String, default: '' },
+  lastResponse: mongoose.Schema.Types.Mixed,
+  lockedAt: { type: Date, default: null }
+}, { timestamps: true, versionKey: false });
+
+const EnterpriseWebhookDelivery =
+  mongoose.models.EnterpriseWebhookDelivery ||
+  mongoose.model('EnterpriseWebhookDelivery', enterpriseWebhookDeliverySchema, 'enterprise_webhook_deliveries');
+
+function enterpriseWebhookBackoffMs(attempt = 1) {
+  const schedule = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000, 3 * 60 * 60_000, 6 * 60 * 60_000];
+  return schedule[Math.min(Math.max(Number(attempt || 1) - 1, 0), schedule.length - 1)];
+}
 
 app.post('/api/enterprise/webhooks/test', enterpriseCompatAuth, async (req, res) => {
   try {
@@ -218,10 +248,10 @@ async function enterprisePartnerSaveWebhookConfig(partner = {}, payload = {}) {
   return { ...value, secretMasked: enterprisePartnerWebhookMaskSecret(value.secret) };
 }
 
-function enterprisePartnerBuildWebhookPayload(partner = {}, event = 'order_created', extra = {}) {
+function enterprisePartnerBuildWebhookPayload(partner = {}, event = 'order_created', extra = {}, forcedDeliveryId = '') {
   const nowIso = new Date().toISOString();
   return {
-    id: `evt_${crypto.randomBytes(10).toString('hex')}`,
+    id: forcedDeliveryId || `evt_${crypto.randomBytes(10).toString('hex')}`,
     event,
     createdAt: nowIso,
     environment: partner.environment || 'sandbox',
@@ -241,7 +271,49 @@ function enterprisePartnerSignWebhook(secret = '', rawBody = '') {
   return crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 }
 
-async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event = 'order_created', extraPayload = {}) {
+function enterprisePartnerSignWebhookV2(secret = '', timestamp = '', deliveryId = '', rawBody = '') {
+  if (!secret) return '';
+  const canonical = `${timestamp}.${deliveryId}.${rawBody}`;
+  return crypto.createHmac('sha256', secret).update(canonical).digest('hex');
+}
+
+async function enterpriseQueueWebhookRetry(partner = {}, event = '', payload = {}, result = {}) {
+  const deliveryId = String(payload?.id || result?.deliveryId || '').trim();
+  if (!deliveryId) return null;
+  const attempts = Math.max(1, Number(result?.attempt || 1));
+  const maxAttempts = Math.max(2, Number(process.env.ENTERPRISE_WEBHOOK_MAX_ATTEMPTS || 6));
+  const nextAttemptAt = attempts >= maxAttempts ? null : new Date(Date.now() + enterpriseWebhookBackoffMs(attempts));
+  const status = attempts >= maxAttempts ? 'dead_letter' : 'retrying';
+
+  return EnterpriseWebhookDelivery.findOneAndUpdate(
+    { deliveryId },
+    {
+      $setOnInsert: {
+        deliveryId,
+        partnerObjectId: String(partner?.id || partner?._id || ''),
+        requestId: String(partner?.requestId || ''),
+        manufacturer: String(partner?.companyName || partner?.tradeName || partner?.requestId || 'enterprise'),
+        environment: String(partner?.environment || 'sandbox'),
+        event,
+        payload
+      },
+      $set: {
+        status,
+        attempts,
+        maxAttempts,
+        nextAttemptAt,
+        lastAttemptAt: new Date(),
+        lastStatusCode: Number(result?.statusCode || 0),
+        lastError: String(result?.message || 'Falha ao entregar webhook'),
+        lastResponse: redact(result?.response || null),
+        lockedAt: null
+      }
+    },
+    { upsert: true, new: true }
+  ).lean();
+}
+
+async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event = 'order_created', extraPayload = {}, options = {}) {
   if (!config.url) {
     const err = new Error('URL do webhook não configurada');
     err.statusCode = 400;
@@ -259,9 +331,12 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
   }
 
   const safeWebhookUrl = await enterpriseValidateWebhookUrl(config.url, partner);
-  const payload = enterprisePartnerBuildWebhookPayload(partner, event, extraPayload);
+  const payload = options.payload || enterprisePartnerBuildWebhookPayload(partner, event, extraPayload, options.deliveryId || '');
   const rawBody = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = enterprisePartnerSignWebhook(config.secret, rawBody);
+  const signatureV2 = enterprisePartnerSignWebhookV2(config.secret, timestamp, payload.id, rawBody);
+  const attempt = Math.max(1, Number(options.attempt || 1));
   const started = Date.now();
   let statusCode = 0;
   let responseData = null;
@@ -276,7 +351,9 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
         'User-Agent': 'Ariana-Enterprise-Webhooks/1.0',
         'X-Ariana-Event': event,
         'X-Ariana-Delivery': payload.id,
+        'X-Ariana-Timestamp': timestamp,
         'X-Ariana-Signature': signature,
+        'X-Ariana-Signature-V2': `sha256=${signatureV2}`,
         'X-Webhook-Signature': signature
       },
       validateStatus: () => true,
@@ -307,6 +384,9 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
       endpoint: safeWebhookUrl,
       event,
       deliveryId: payload.id,
+      timestamp,
+      signatureVersion: 'v2',
+      attempt,
       durationMs,
       environment: partner.environment || 'sandbox',
       companyName: partner.companyName || '',
@@ -320,7 +400,153 @@ async function enterprisePartnerDeliverWebhook(partner = {}, config = {}, event 
     { $set: { 'value.lastTestAt': new Date(), 'value.lastStatusCode': statusCode || 500 } }
   ).catch(() => null);
 
-  return { ok, statusCode, durationMs, event, deliveryId: payload.id, logId: String(log._id), response: responseData };
+  const result = { ok, statusCode, durationMs, event, deliveryId: payload.id, logId: String(log._id), response: responseData, message, attempt, payload };
+  if (!ok && options.queueOnFailure !== false) {
+    const queued = await enterpriseQueueWebhookRetry(partner, event, payload, result).catch(() => null);
+    result.retryQueued = Boolean(queued);
+    result.retryStatus = queued?.status || '';
+    result.nextAttemptAt = queued?.nextAttemptAt || null;
+  }
+  return result;
+}
+
+async function enterpriseFindWebhookPartnerForDelivery(job = {}) {
+  if (!EnterpriseHomologationRequestCompat) return null;
+  if (job.partnerObjectId && mongoose.Types.ObjectId.isValid(job.partnerObjectId)) {
+    const byId = await EnterpriseHomologationRequestCompat.findById(job.partnerObjectId).lean().catch(() => null);
+    if (byId) return byId;
+  }
+  if (job.requestId) {
+    return EnterpriseHomologationRequestCompat.findOne({ requestId: job.requestId }).lean().catch(() => null);
+  }
+  return null;
+}
+
+async function processEnterpriseWebhookRetryQueue(limit = 10) {
+  const nowDate = new Date();
+  const staleBefore = new Date(Date.now() - 5 * 60 * 1000);
+  const rows = await EnterpriseWebhookDelivery.find({
+    $or: [
+      { status: { $in: ['retrying', 'pending'] }, nextAttemptAt: { $lte: nowDate } },
+      { status: 'processing', lockedAt: { $lte: staleBefore } }
+    ]
+  }).sort({ nextAttemptAt: 1, createdAt: 1 }).limit(Math.max(1, Number(limit || 10))).lean();
+
+  const results = [];
+  for (const row of rows) {
+    const claimed = await EnterpriseWebhookDelivery.findOneAndUpdate(
+      {
+        _id: row._id,
+        $or: [
+          { status: { $in: ['retrying', 'pending'] } },
+          { status: 'processing', lockedAt: { $lte: staleBefore } }
+        ]
+      },
+      { $set: { status: 'processing', lockedAt: new Date() } },
+      { new: true }
+    ).lean();
+    if (!claimed) continue;
+
+    try {
+      const partnerDoc = await enterpriseFindWebhookPartnerForDelivery(claimed);
+      if (!partnerDoc) throw new Error('Parceiro do webhook não encontrado');
+      const partner = {
+        id: String(partnerDoc._id || ''),
+        requestId: partnerDoc.requestId || '',
+        companyName: partnerDoc.companyName || '',
+        tradeName: partnerDoc.tradeName || '',
+        environment: claimed.environment || partnerDoc.environment || 'sandbox'
+      };
+      const config = await enterprisePartnerGetWebhookConfig(partner);
+      const nextAttempt = Number(claimed.attempts || 1) + 1;
+      const result = await enterprisePartnerDeliverWebhook(
+        partner,
+        config,
+        claimed.event,
+        {},
+        { payload: claimed.payload, deliveryId: claimed.deliveryId, attempt: nextAttempt, queueOnFailure: false }
+      );
+
+      if (result.ok) {
+        await EnterpriseWebhookDelivery.updateOne(
+          { _id: claimed._id },
+          {
+            $set: {
+              status: 'delivered',
+              attempts: nextAttempt,
+              deliveredAt: new Date(),
+              lastAttemptAt: new Date(),
+              nextAttemptAt: null,
+              lastStatusCode: result.statusCode,
+              lastError: '',
+              lastResponse: redact(result.response || null),
+              lockedAt: null
+            }
+          }
+        );
+      } else {
+        const maxAttempts = Number(claimed.maxAttempts || 6);
+        const dead = nextAttempt >= maxAttempts;
+        await EnterpriseWebhookDelivery.updateOne(
+          { _id: claimed._id },
+          {
+            $set: {
+              status: dead ? 'dead_letter' : 'retrying',
+              attempts: nextAttempt,
+              nextAttemptAt: dead ? null : new Date(Date.now() + enterpriseWebhookBackoffMs(nextAttempt)),
+              lastAttemptAt: new Date(),
+              lastStatusCode: result.statusCode || 0,
+              lastError: result.message || 'Falha no retry do webhook',
+              lastResponse: redact(result.response || null),
+              lockedAt: null
+            }
+          }
+        );
+        if (dead) {
+          await IntegrationAuditLog.create({
+            scope: 'enterprise',
+            eventType: 'webhook_dead_letter',
+            manufacturer: partner.requestId || partner.companyName || '',
+            status: 'error',
+            statusCode: result.statusCode || 500,
+            message: 'Webhook esgotou todas as tentativas automáticas',
+            metadata: { deliveryId: claimed.deliveryId, event: claimed.event, attempts: nextAttempt, environment: partner.environment }
+          }).catch(() => null);
+        }
+      }
+      results.push({ deliveryId: claimed.deliveryId, ok: result.ok });
+    } catch (error) {
+      const nextAttempt = Number(claimed.attempts || 1) + 1;
+      const maxAttempts = Number(claimed.maxAttempts || 6);
+      const dead = nextAttempt >= maxAttempts;
+      await EnterpriseWebhookDelivery.updateOne(
+        { _id: claimed._id },
+        {
+          $set: {
+            status: dead ? 'dead_letter' : 'retrying',
+            attempts: nextAttempt,
+            nextAttemptAt: dead ? null : new Date(Date.now() + enterpriseWebhookBackoffMs(nextAttempt)),
+            lastAttemptAt: new Date(),
+            lastError: String(error.message || error),
+            lockedAt: null
+          }
+        }
+      ).catch(() => null);
+      results.push({ deliveryId: claimed.deliveryId, ok: false, error: String(error.message || error) });
+    }
+  }
+  return results;
+}
+
+if (!globalThis.__ARIANA_ENTERPRISE_WEBHOOK_RETRY_WORKER__) {
+  globalThis.__ARIANA_ENTERPRISE_WEBHOOK_RETRY_WORKER__ = true;
+  const intervalMs = Math.max(30_000, Number(process.env.ENTERPRISE_WEBHOOK_RETRY_INTERVAL_MS || 60_000));
+  const timer = setInterval(() => {
+    processEnterpriseWebhookRetryQueue(Number(process.env.ENTERPRISE_WEBHOOK_RETRY_BATCH || 10))
+      .catch((error) => console.error('[enterprise webhook retry worker]', error.message || error));
+  }, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  console.log(`🔁 Enterprise webhook retry worker ativo: ${intervalMs}ms`);
 }
 
 app.get('/api/enterprise/partner/webhooks', enterprisePartnerRequired, async (req, res) => {
@@ -328,8 +554,18 @@ app.get('/api/enterprise/partner/webhooks', enterprisePartnerRequired, async (re
     const config = await enterprisePartnerGetWebhookConfig(req.enterprisePortal || {});
     const logs = await IntegrationAuditLog.find({
       ...enterprisePartnerLogQuery(req.enterprisePortal || {}),
-      eventType: { $in: ['webhook_test', 'webhook_received', 'webhook_sent', 'webhook_retry', 'webhook_failed'] }
+      eventType: { $in: ['webhook_test', 'webhook_received', 'webhook_sent', 'webhook_retry', 'webhook_failed', 'webhook_dead_letter'] }
     }).sort({ createdAt: -1 }).limit(80).lean().catch(() => []);
+
+    const portal = req.enterprisePortal || {};
+    const deliveryFilter = portal.partnerId && mongoose.Types.ObjectId.isValid(portal.partnerId)
+      ? { partnerObjectId: String(portal.partnerId) }
+      : { requestId: String(portal.requestId || '') };
+    const retryDeliveries = await EnterpriseWebhookDelivery.find(deliveryFilter)
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean()
+      .catch(() => []);
 
     return res.json({
       ok: true,
@@ -343,6 +579,19 @@ app.get('/api/enterprise/partner/webhooks', enterprisePartnerRequired, async (re
         lastStatusCode: config.lastStatusCode,
         updatedAt: config.updatedAt
       },
+      retryQueue: retryDeliveries.map((item) => ({
+        id: String(item._id),
+        deliveryId: item.deliveryId,
+        event: item.event,
+        status: item.status,
+        attempts: item.attempts,
+        maxAttempts: item.maxAttempts,
+        nextAttemptAt: item.nextAttemptAt,
+        lastStatusCode: item.lastStatusCode,
+        lastError: item.lastError,
+        createdAt: item.createdAt,
+        deliveredAt: item.deliveredAt
+      })),
       webhooks: logs.map((log) => ({
         id: String(log._id),
         eventType: log.eventType || '',
@@ -401,6 +650,40 @@ app.post('/api/enterprise/partner/webhooks/test', enterprisePartnerRequired, asy
   }
 });
 
+app.post('/api/enterprise/partner/webhooks/deliveries/:deliveryId/retry', enterprisePartnerRequired, async (req, res) => {
+  try {
+    const portal = req.enterprisePortal || {};
+    const deliveryId = String(req.params.deliveryId || '').trim();
+    if (!deliveryId) return res.status(400).json({ ok: false, error: 'deliveryId obrigatório' });
+
+    const ownership = portal.partnerId && mongoose.Types.ObjectId.isValid(portal.partnerId)
+      ? { partnerObjectId: String(portal.partnerId) }
+      : { requestId: String(portal.requestId || '') };
+
+    const job = await EnterpriseWebhookDelivery.findOneAndUpdate(
+      { deliveryId, ...ownership },
+      {
+        $set: {
+          status: 'retrying',
+          attempts: 0,
+          nextAttemptAt: new Date(),
+          lastError: '',
+          lockedAt: null,
+          deliveredAt: null
+        }
+      },
+      { new: true }
+    ).lean();
+
+    if (!job) return res.status(404).json({ ok: false, error: 'Entrega de webhook não encontrada para este parceiro' });
+
+    processEnterpriseWebhookRetryQueue(1).catch((error) => console.error('[enterprise webhook manual retry]', error.message || error));
+    return res.json({ ok: true, deliveryId, status: job.status, message: 'Webhook recolocado na fila de entrega' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao recolocar webhook na fila' });
+  }
+});
+
 app.post('/api/enterprise/partner/webhooks/:id/retry', enterprisePartnerRequired, async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ ok: false, error: 'ID inválido' });
@@ -443,5 +726,10 @@ app.post('/api/enterprise/partner/webhooks/:id/retry', enterprisePartnerRequired
 
 
 
+return {
+  EnterpriseWebhookDelivery,
+  processEnterpriseWebhookRetryQueue,
+  enterprisePartnerDeliverWebhook
+};
 
 }
