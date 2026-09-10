@@ -1,6 +1,6 @@
 // ============================================================
 // ENTERPRISE PARTNER AUTH ROUTES - ARIANA MÓVEIS
-// Extraído de routes/enterpriseRoutes.js sem alterar endpoints, regras ou respostas.
+// OAuth, login do Portal e consulta segura das credenciais.
 // ============================================================
 
 export default function registerEnterprisePartnerAuthRoutes(app, context = {}) {
@@ -69,26 +69,57 @@ app.post('/api/enterprise/oauth/token', async (req, res) => {
         }
       ).catch(() => null);
     }
+
     if (picked.environment === 'production') {
-      const prodActive = partner.productionCredentials?.active !== false && (partner.productionActive === true || String(partner.environment || '').toLowerCase() === 'production' || String(partner.status || '').toLowerCase() === 'production');
+      const prodActive = partner.productionCredentials?.active !== false && (
+        partner.productionActive === true ||
+        String(partner.environment || '').toLowerCase() === 'production' ||
+        String(partner.status || '').toLowerCase() === 'production' ||
+        Boolean(partner.productionReleasedAt)
+      );
       if (!prodActive) return res.status(403).json({ ok: false, error: 'Produção não está ativa para este parceiro' });
     }
 
-    const scopes = Array.isArray(picked.credential.scopes) && picked.credential.scopes.length ? picked.credential.scopes : (partner.integrationTypes || []);
-    const accessToken = enterpriseOAuthSignAccessToken(partner, picked.environment, scopes);
+    const scopes = Array.isArray(picked.credential.scopes) && picked.credential.scopes.length
+      ? picked.credential.scopes
+      : (partner.integrationTypes || []);
+    const accessToken = enterpriseOAuthSignAccessToken(partner, picked.environment, scopes, clientId);
+
     await IntegrationAuditLog.create({
-      scope: 'enterprise', eventType: 'oauth_token_issued', manufacturer: partner.requestId || partner.tradeName || partner.companyName || '',
-      integrationId: String(partner._id || ''), status: 'success', statusCode: 200, message: `OAuth token emitido para ${picked.environment}`,
+      scope: 'enterprise',
+      eventType: 'oauth_token_issued',
+      manufacturer: partner.requestId || partner.tradeName || partner.companyName || '',
+      integrationId: String(partner._id || ''),
+      status: 'success',
+      statusCode: 200,
+      message: `OAuth token emitido para ${picked.environment}`,
       metadata: { environment: picked.environment, clientId, scopes }
     }).catch(() => null);
-    return res.json({ ok: true, token_type: 'Bearer', access_token: accessToken, expires_in: 3600, scope: scopes.join(' '), environment: picked.environment });
+
+    return res.json({
+      ok: true,
+      token_type: 'Bearer',
+      access_token: accessToken,
+      expires_in: 3600,
+      scope: scopes.join(' '),
+      environment: picked.environment
+    });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao emitir token OAuth' });
   }
 });
 
 app.get('/api/enterprise/oauth/check', enterpriseOAuthRequired, async (req, res) => {
-  return res.json({ ok: true, valid: true, environment: req.enterprisePartner?.environment || 'sandbox', partner: { requestId: req.enterprisePartner?.requestId || '', tradeName: req.enterprisePartner?.tradeName || '', scopes: req.enterpriseOAuth?.scopes || [] } });
+  return res.json({
+    ok: true,
+    valid: true,
+    environment: req.enterprisePartner?.environment || 'sandbox',
+    partner: {
+      requestId: req.enterprisePartner?.requestId || '',
+      tradeName: req.enterprisePartner?.tradeName || '',
+      scopes: req.enterpriseOAuth?.scopes || []
+    }
+  });
 });
 
 app.post('/api/enterprise/partner/login', async (req, res) => {

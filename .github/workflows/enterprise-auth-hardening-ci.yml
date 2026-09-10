@@ -1,0 +1,62 @@
+name: Ariana Enterprise Auth Hardening CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'functions/routes/enterprise/**'
+      - 'functions/routes/legacyRoutes.js'
+      - '.github/workflows/enterprise-auth-hardening-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check functions/routes/legacyRoutes.js
+          node --check functions/routes/enterprise/shared/auth.js
+          node --check functions/routes/enterprise/shared/order.js
+          node --check functions/routes/enterprise/shared/partner.js
+          node --check functions/routes/enterprise/partnerAuthRoutes.js
+          node --check functions/routes/enterprise/shared/billing.js
+          node --check functions/routes/enterprise/invoiceRoutes.js
+          node --check functions/routes/enterprise/enterpriseOrderRoutes.js
+
+      - name: Verify hardening guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'enterpriseBearerLooksLikeJwt' functions/routes/enterprise/shared/auth.js
+          grep -q 'rateIdentity' functions/routes/enterprise/shared/auth.js
+          grep -q 'return enterpriseCompatAuth(req, res, next)' functions/routes/enterprise/shared/order.js
+          grep -q 'enterpriseOAuthSignAccessToken(partner, picked.environment, scopes, clientId)' functions/routes/enterprise/partnerAuthRoutes.js
+          grep -q 'decoded.clientId && oauthCredential' functions/routes/enterprise/shared/partner.js
+          grep -q 'findOne({ orderId, environment })' functions/routes/enterprise/shared/billing.js
+          grep -q 'EnterpriseBillingRecord.findOne({ orderId: id, environment })' functions/routes/enterprise/invoiceRoutes.js
+          grep -q 'recoveredAfterRestart: true' functions/routes/enterprise/enterpriseOrderRoutes.js
+          grep -q "sourceOrderSchema.clone()" functions/routes/legacyRoutes.js
+          grep -q "enterprise_sandbox_orders" functions/routes/legacyRoutes.js
+
+      - name: Verify no production collection substitution
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "mongoose.model('EnterpriseSandboxProduct'.*'enterprise_sandbox_products'" functions/routes/legacyRoutes.js
+          grep -q "mongoose.model('EnterpriseSandboxOrder'.*'enterprise_sandbox_orders'" functions/routes/legacyRoutes.js
+          echo 'Enterprise hardening static checks passed.'

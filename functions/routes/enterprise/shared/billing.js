@@ -1,7 +1,6 @@
 // ============================================================
 // ENTERPRISE SHARED - BILLING
 // Funções compartilhadas de faturamento Enterprise.
-// Extraído de routes/enterpriseRoutes.js sem alterar regras ou respostas.
 // ============================================================
 
 export function createEnterpriseBilling(context = {}) {
@@ -20,7 +19,7 @@ export function createEnterpriseBilling(context = {}) {
     const issuedAtRaw = invoice.issuedAt || invoice.emittedAt || invoice.issueDate || invoice.dataEmissao || invoice.emissao || source.issuedAt;
     const issuedAt = issuedAtRaw ? new Date(issuedAtRaw) : new Date();
     const amountRaw = invoice.amount ?? invoice.value ?? invoice.valor ?? invoice.total ?? invoice.totalAmount ?? source.amount ?? order.total ?? 0;
-    const amount = Number(String(amountRaw).replace(/R\\$/gi, '').replace(/\s+/g, '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
+    const amount = Number(String(amountRaw).replace(/R\$/gi, '').replace(/\s+/g, '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
 
     return {
       status: String(invoice.status || source.status || 'billed').trim() || 'billed',
@@ -74,7 +73,10 @@ export function createEnterpriseBilling(context = {}) {
       throw err;
     }
 
-    const partner = req.enterprisePartner || {};
+    const partner = req.enterprisePartner || req.enterprisePortal || {};
+    const environment = String(partner.environment || order.manufacturerDispatch?.environment || 'sandbox').trim().toLowerCase() === 'production'
+      ? 'production'
+      : 'sandbox';
     const manufacturer = String(order.manufacturer || order.manufacturerDispatch?.payload?.manufacturer || partner.requestId || partner.companyName || '').trim();
     const historyEntry = {
       action,
@@ -84,14 +86,15 @@ export function createEnterpriseBilling(context = {}) {
       payload: normalized.raw
     };
 
-    const existing = await EnterpriseBillingRecord.findOne({ orderId }).sort({ updatedAt: -1 });
+    // Sandbox e Produção nunca reutilizam o mesmo registro fiscal.
+    const existing = await EnterpriseBillingRecord.findOne({ orderId, environment }).sort({ updatedAt: -1 });
     let record;
     if (existing) {
       existing.set({
         orderObjectId: normalizeObjectId(orderId),
         manufacturer,
         partnerRequestId: String(partner.requestId || '').trim(),
-        environment: String(partner.environment || 'sandbox').trim() || 'sandbox',
+        environment,
         status: normalized.status,
         invoiceNumber: normalized.invoiceNumber,
         serie: normalized.serie,
@@ -113,7 +116,7 @@ export function createEnterpriseBilling(context = {}) {
         orderObjectId: normalizeObjectId(orderId),
         manufacturer,
         partnerRequestId: String(partner.requestId || '').trim(),
-        environment: String(partner.environment || 'sandbox').trim() || 'sandbox',
+        environment,
         status: normalized.status,
         invoiceNumber: normalized.invoiceNumber,
         serie: normalized.serie,
@@ -135,6 +138,7 @@ export function createEnterpriseBilling(context = {}) {
     const previousHistory = Array.isArray(currentDispatch.billingHistory) ? currentDispatch.billingHistory : [];
     order.manufacturerDispatch = {
       ...currentDispatch,
+      environment,
       billing: billingResponse,
       billingHistory: [...previousHistory, historyEntry].slice(-100),
       billingReceivedAt: new Date(),
@@ -169,7 +173,7 @@ export function createEnterpriseBilling(context = {}) {
       response: { ok: true, billing: billingResponse },
       metadata: {
         source: 'api_enterprise_billing',
-        environment: partner.environment || 'sandbox',
+        environment,
         invoiceNumber: normalized.invoiceNumber,
         invoiceKey: normalized.invoiceKey
       }
