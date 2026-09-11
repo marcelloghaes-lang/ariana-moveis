@@ -1,8 +1,8 @@
 // ============================================================
 // ESTOQUE - RESERVA SEGURA DO CHECKOUT
-// Mantém a baixa imediata feita na criação do pedido, mas registra
-// a reserva para permitir confirmação, devolução e reaquisição sem
-// duplicar incremento/decremento de estoque.
+// A reserva fica em campo próprio no documento Mongo do pedido.
+// O serviço usa Order.collection para preservar compatibilidade com
+// o schema legado sem exigir migração destrutiva da coleção orders.
 // ============================================================
 
 function normalizeMethod(value = '') {
@@ -24,6 +24,20 @@ function positiveInt(value, fallback = 1) {
 function envMinutes(name, fallback) {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function castOrderId(Order, orderId) {
+  const raw = String(orderId || '').trim();
+  if (!raw) return null;
+  try {
+    return Order?.schema?.path('_id')?.cast(raw) || raw;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function orderCollection(Order) {
+  return Order?.collection || null;
 }
 
 export function reservationTtlMs(method = '') {
@@ -63,10 +77,6 @@ export function buildStockReservation(items = [], method = '', at = new Date()) 
   };
 }
 
-function orderIdValue(orderId) {
-  return String(orderId || '').trim();
-}
-
 function reservationItems(order = {}) {
   const source = Array.isArray(order?.stockReservation?.items) && order.stockReservation.items.length
     ? order.stockReservation.items
@@ -79,15 +89,29 @@ function reservationItems(order = {}) {
     .filter((item) => item.productId);
 }
 
-export async function releaseStockReservation({ Order, Product, orderId, reason = 'payment_not_completed', at = new Date() } = {}) {
-  if (!Order || !Product) return { ok: false, skipped: true, reason: 'models_missing' };
-  const id = orderIdValue(orderId);
-  if (!id) return { ok: false, skipped: true, reason: 'order_id_missing' };
-  const now = at instanceof Date ? at : new Date(at || Date.now());
-  const releaseToken = `${id}:${now.getTime()}:${Math.random().toString(36).slice(2, 10)}`;
+export async function persistInitialStockReservation({ Order, orderId, items = [], method = '', at = new Date() } = {}) {
+  const collection = orderCollection(Order);
+  const oid = castOrderId(Order, orderId);
+  if (!collection || !oid) return { ok: false, reason: 'order_missing' };
+  const reservation = buildStockReservation(items, method, at);
+  const result = await collection.updateOne(
+    { _id: oid, stockReservation: { $exists: false } },
+    { $set: { stockReservation: reservation } }
+  );
+  if (result.modifiedCount === 1) return { ok: true, created: true, reservation };
+  const current = await collection.findOne({ _id: oid }, { projection: { stockReservation: 1 } });
+  return { ok: Boolean(current?.stockReservation), reused: true, reservation: current?.stockReservation || null };
+}
 
-  const claimed = await Order.findOneAndUpdate(
-    { _id: id, 'stockReservation.status': 'reserved' },
+export async function releaseStockReservation({ Order, Product, orderId, reason = 'payment_not_completed', at = new Date() } = {}) {
+  const collection = orderCollection(Order);
+  const oid = castOrderId(Order, orderId);
+  if (!collection || !Product || !oid) return { ok: false, skipped: true, reason: 'models_or_order_missing' };
+  const now = at instanceof Date ? at : new Date(at || Date.now());
+  const releaseToken = `${String(orderId)}:${now.getTime()}:${Math.random().toString(36).slice(2, 10)}`;
+
+  const claim = await collection.updateOne(
+    { _id: oid, 'stockReservation.status': 'reserved' },
     {
       $set: {
         'stockReservation.status': 'releasing',
@@ -96,21 +120,16 @@ export async function releaseStockReservation({ Order, Product, orderId, reason 
         'stockReservation.releaseStartedAt': now,
         'stockReservation.updatedAt': now
       }
-    },
-    { new: true }
-  ).catch(() => null);
+    }
+  );
 
-  if (!claimed) {
-    const current = await Order.findById(id).select('stockReservation status payment.status').lean().catch(() => null);
-    return {
-      ok: true,
-      skipped: true,
-      reason: current?.stockReservation?.status || 'reservation_missing',
-      status: current?.stockReservation?.status || ''
-    };
+  if (claim.modifiedCount !== 1) {
+    const current = await collection.findOne({ _id: oid }, { projection: { stockReservation: 1, status: 1, 'payment.status': 1 } });
+    return { ok: true, skipped: true, reason: current?.stockReservation?.status || 'reservation_missing', status: current?.stockReservation?.status || '' };
   }
 
-  const items = reservationItems(claimed);
+  const claimed = await collection.findOne({ _id: oid });
+  const items = reservationItems(claimed || {});
   try {
     if (items.length) {
       await Product.bulkWrite(
@@ -124,8 +143,8 @@ export async function releaseStockReservation({ Order, Product, orderId, reason 
       );
     }
 
-    await Order.updateOne(
-      { _id: id, 'stockReservation.releaseToken': releaseToken, 'stockReservation.status': 'releasing' },
+    await collection.updateOne(
+      { _id: oid, 'stockReservation.releaseToken': releaseToken, 'stockReservation.status': 'releasing' },
       {
         $set: {
           'stockReservation.status': 'released',
@@ -138,8 +157,8 @@ export async function releaseStockReservation({ Order, Product, orderId, reason 
 
     return { ok: true, released: true, items: items.length };
   } catch (error) {
-    await Order.updateOne(
-      { _id: id, 'stockReservation.releaseToken': releaseToken },
+    await collection.updateOne(
+      { _id: oid, 'stockReservation.releaseToken': releaseToken },
       {
         $set: {
           'stockReservation.status': 'release_error',
@@ -153,13 +172,14 @@ export async function releaseStockReservation({ Order, Product, orderId, reason 
 }
 
 async function reacquireReleasedReservation({ Order, Product, order, reason = 'late_payment_approved' } = {}) {
-  const id = orderIdValue(order?._id || order?.id);
-  if (!id) return { ok: false, reason: 'order_id_missing' };
+  const collection = orderCollection(Order);
+  const oid = castOrderId(Order, order?._id || order?.id);
+  if (!collection || !Product || !oid) return { ok: false, reason: 'order_missing' };
   const now = new Date();
-  const token = `${id}:${now.getTime()}:${Math.random().toString(36).slice(2, 10)}`;
+  const token = `${String(order?._id || order?.id)}:${now.getTime()}:${Math.random().toString(36).slice(2, 10)}`;
 
-  const claimed = await Order.findOneAndUpdate(
-    { _id: id, 'stockReservation.status': 'released' },
+  const claim = await collection.updateOne(
+    { _id: oid, 'stockReservation.status': 'released' },
     {
       $set: {
         'stockReservation.status': 'reacquiring',
@@ -167,18 +187,18 @@ async function reacquireReleasedReservation({ Order, Product, order, reason = 'l
         'stockReservation.reacquireStartedAt': now,
         'stockReservation.updatedAt': now
       }
-    },
-    { new: true }
-  ).catch(() => null);
+    }
+  );
 
-  if (!claimed) {
-    const current = await Order.findById(id).select('stockReservation').lean().catch(() => null);
+  if (claim.modifiedCount !== 1) {
+    const current = await collection.findOne({ _id: oid }, { projection: { stockReservation: 1 } });
     const status = String(current?.stockReservation?.status || '');
     return { ok: status === 'committed', status, reason: status || 'reacquire_not_claimed' };
   }
 
+  const current = await collection.findOne({ _id: oid });
   const reacquired = [];
-  const items = reservationItems(claimed);
+  const items = reservationItems(current || order || {});
   try {
     for (const item of items) {
       const product = await Product.findOneAndUpdate(
@@ -194,8 +214,8 @@ async function reacquireReleasedReservation({ Order, Product, order, reason = 'l
       reacquired.push(item);
     }
 
-    await Order.updateOne(
-      { _id: id, 'stockReservation.reacquireToken': token, 'stockReservation.status': 'reacquiring' },
+    await collection.updateOne(
+      { _id: oid, 'stockReservation.reacquireToken': token, 'stockReservation.status': 'reacquiring' },
       {
         $set: {
           'stockReservation.status': 'committed',
@@ -209,13 +229,10 @@ async function reacquireReleasedReservation({ Order, Product, order, reason = 'l
     return { ok: true, committed: true, reacquired: true, items: reacquired.length };
   } catch (error) {
     for (const item of reacquired.reverse()) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        { $inc: { stock: item.qty }, $set: { updatedAt: new Date() } }
-      ).catch(() => null);
+      await Product.findByIdAndUpdate(item.productId, { $inc: { stock: item.qty }, $set: { updatedAt: new Date() } }).catch(() => null);
     }
-    await Order.updateOne(
-      { _id: id, 'stockReservation.reacquireToken': token },
+    await collection.updateOne(
+      { _id: oid, 'stockReservation.reacquireToken': token },
       {
         $set: {
           'stockReservation.status': 'reacquire_failed',
@@ -231,22 +248,23 @@ async function reacquireReleasedReservation({ Order, Product, order, reason = 'l
 }
 
 export async function finalizeStockReservationForApprovedPayment({ Order, Product, orderId, reason = 'payment_approved' } = {}) {
-  if (!Order || !Product) return { ok: false, reviewRequired: true, reason: 'models_missing' };
-  const id = orderIdValue(orderId);
-  if (!id) return { ok: false, reviewRequired: true, reason: 'order_id_missing' };
-  const order = await Order.findById(id).select('stockReservation items status payment.status').lean().catch(() => null);
+  const collection = orderCollection(Order);
+  const oid = castOrderId(Order, orderId);
+  if (!collection || !Product || !oid) return { ok: false, reviewRequired: true, reason: 'models_or_order_missing' };
+  const order = await collection.findOne({ _id: oid });
   if (!order) return { ok: false, reviewRequired: true, reason: 'order_not_found' };
 
   const status = String(order?.stockReservation?.status || '').trim().toLowerCase();
-  // Pedidos antigos não tinham marcador. Não baixa estoque novamente para evitar dupla baixa.
+  // Pedidos criados antes desta correção não tinham marcador. Como o fluxo legado
+  // já baixava estoque ao criar o pedido, não fazemos uma segunda baixa.
   if (!status) return { ok: true, legacy: true, reason: 'legacy_order_without_reservation_marker' };
   if (status === 'committed') return { ok: true, committed: true, reused: true };
   if (status === 'released') return reacquireReleasedReservation({ Order, Product, order, reason });
   if (status !== 'reserved') return { ok: false, reviewRequired: true, reason: `reservation_${status || 'unknown'}` };
 
   const now = new Date();
-  const committed = await Order.findOneAndUpdate(
-    { _id: id, 'stockReservation.status': 'reserved' },
+  const result = await collection.updateOne(
+    { _id: oid, 'stockReservation.status': 'reserved' },
     {
       $set: {
         'stockReservation.status': 'committed',
@@ -254,12 +272,10 @@ export async function finalizeStockReservationForApprovedPayment({ Order, Produc
         'stockReservation.commitReason': String(reason || '').slice(0, 200),
         'stockReservation.updatedAt': now
       }
-    },
-    { new: true }
-  ).catch(() => null);
-
-  if (committed) return { ok: true, committed: true };
-  const fresh = await Order.findById(id).select('stockReservation').lean().catch(() => null);
+    }
+  );
+  if (result.modifiedCount === 1) return { ok: true, committed: true };
+  const fresh = await collection.findOne({ _id: oid }, { projection: { stockReservation: 1 } });
   return { ok: String(fresh?.stockReservation?.status || '') === 'committed', status: fresh?.stockReservation?.status || '' };
 }
 
@@ -267,31 +283,42 @@ export async function releaseStockReservationForFailedPayment({ Order, Product, 
   return releaseStockReservation({ Order, Product, orderId, reason, at: new Date() });
 }
 
+export async function reconcileStockReservationFromOrder({ Order, Product, orderId, origin = 'payment_route' } = {}) {
+  const collection = orderCollection(Order);
+  const oid = castOrderId(Order, orderId);
+  if (!collection || !Product || !oid) return { ok: false, skipped: true, reason: 'models_or_order_missing' };
+  const order = await collection.findOne({ _id: oid });
+  if (!order) return { ok: false, skipped: true, reason: 'order_not_found' };
+
+  const orderStatus = String(order.status || '').trim().toLowerCase();
+  const paymentStatus = String(order?.payment?.status || '').trim().toLowerCase();
+  const approved = ['pago', 'paid', 'payment_confirmed'].includes(orderStatus) || ['approved', 'paid', 'captured'].includes(paymentStatus);
+  const failed = ['pagamento_recusado', 'cancelado', 'cancelled', 'canceled'].includes(orderStatus) || ['rejected', 'denied', 'failed', 'cancelled', 'canceled', 'voided', 'aborted'].includes(paymentStatus);
+
+  if (approved) return finalizeStockReservationForApprovedPayment({ Order, Product, orderId: oid, reason: `${origin}_approved` });
+  if (failed) return releaseStockReservationForFailedPayment({ Order, Product, orderId: oid, reason: `${origin}_${paymentStatus || orderStatus || 'failed'}` });
+  return { ok: true, skipped: true, reason: 'payment_not_final' };
+}
+
 export async function sweepExpiredStockReservations({ Order, Product, limit = 50 } = {}) {
-  if (!Order || !Product) return { ok: false, skipped: true, reason: 'models_missing' };
+  const collection = orderCollection(Order);
+  if (!collection || !Product) return { ok: false, skipped: true, reason: 'models_missing' };
   const now = new Date();
-  const rows = await Order.find({
+  const rows = await collection.find({
     'stockReservation.status': 'reserved',
     'stockReservation.expiresAt': { $lte: now },
     status: { $nin: ['pago', 'paid', 'pagamento_autorizado', 'payment_review'] },
     'payment.status': { $nin: ['approved', 'paid', 'captured', 'authorized'] }
-  })
-    .select('_id stockReservation status payment.status')
+  }, { projection: { _id: 1, stockReservation: 1, status: 1, 'payment.status': 1 } })
     .sort({ 'stockReservation.expiresAt': 1 })
     .limit(Math.max(1, Math.min(Number(limit || 50), 200)))
-    .lean()
+    .toArray()
     .catch(() => []);
 
   let released = 0;
   let reviewRequired = 0;
   for (const row of rows) {
-    const result = await releaseStockReservation({
-      Order,
-      Product,
-      orderId: row._id,
-      reason: 'reservation_expired',
-      at: new Date()
-    });
+    const result = await releaseStockReservation({ Order, Product, orderId: row._id, reason: 'reservation_expired', at: new Date() });
     if (result?.released) released += 1;
     if (result?.reviewRequired) reviewRequired += 1;
   }
@@ -306,9 +333,7 @@ export function startStockReservationSweeper({ Order, Product } = {}) {
   const run = () => {
     sweepExpiredStockReservations({ Order, Product, limit: Number(process.env.STOCK_RESERVATION_SWEEP_LIMIT || 50) })
       .then((result) => {
-        if (result?.released || result?.reviewRequired) {
-          console.log('[STOCK RESERVATION]', result);
-        }
+        if (result?.released || result?.reviewRequired) console.log('[STOCK RESERVATION]', result);
       })
       .catch((error) => console.error('[STOCK RESERVATION] sweep error:', error?.message || error));
   };
