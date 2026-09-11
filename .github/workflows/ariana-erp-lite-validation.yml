@@ -1,0 +1,65 @@
+name: Ariana ERP Lite Validation
+
+on:
+  pull_request:
+    paths:
+      - 'functions/services/erp/**'
+      - 'functions/routes/televendas/televendasRoutes.js'
+      - 'public/erp_*.html'
+      - '.github/workflows/ariana-erp-lite-validation.yml'
+  push:
+    branches:
+      - main
+      - erp-ariana-lite
+    paths:
+      - 'functions/services/erp/**'
+      - 'functions/routes/televendas/televendasRoutes.js'
+      - 'public/erp_*.html'
+      - '.github/workflows/ariana-erp-lite-validation.yml'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check backend JavaScript syntax
+        run: |
+          node --check functions/services/erp/erpService.js
+          node --check functions/services/erp/erpFinanceService.js
+          node --check functions/services/erp/erpProductService.js
+          node --check functions/routes/televendas/televendasRoutes.js
+
+      - name: Extract and check ERP inline scripts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          out = Path('/tmp/erp-inline')
+          out.mkdir(parents=True, exist_ok=True)
+          files = sorted(Path('public').glob('erp_*.html'))
+          if not files:
+              raise SystemExit('Nenhuma tela ERP encontrada.')
+          generated = []
+          for html in files:
+              text = html.read_text(encoding='utf-8')
+              scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script\s*>', text, flags=re.I | re.S)
+              for index, script in enumerate(scripts, 1):
+                  target = out / f'{html.stem}-{index}.js'
+                  target.write_text(script, encoding='utf-8')
+                  generated.append(target)
+          if not generated:
+              raise SystemExit('Nenhum script inline ERP encontrado.')
+          print('\n'.join(str(x) for x in generated))
+          PY
+          for file in /tmp/erp-inline/*.js; do
+            echo "Checking $file"
+            node --check "$file"
+          done

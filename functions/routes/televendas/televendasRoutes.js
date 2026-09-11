@@ -1,5 +1,8 @@
 import express from 'express';
 import { createTelevendasController } from '../../controllers/televendas/televendasController.js';
+import { createErpService } from '../../services/erp/erpService.js';
+import { createErpFinanceService } from '../../services/erp/erpFinanceService.js';
+import { createErpProductService } from '../../services/erp/erpProductService.js';
 
 const clean = (value = '', max = 1000) => String(value ?? '').trim().slice(0, max);
 const digits = (value = '') => String(value || '').replace(/\D/g, '');
@@ -54,10 +57,57 @@ export default function createTelevendasRouter(context = {}) {
   const router = express.Router();
 
   if (!context.Order) throw new Error('[televendas] Order não informado');
+  if (!context.Product) throw new Error('[erp] Product não informado');
   if (!context.adminRequired) throw new Error('[televendas] adminRequired não informado');
   if (!context.axios) throw new Error('[televendas] axios não informado');
 
   const controller = createTelevendasController(context);
+  const erp = createErpService(context);
+  const erpFinance = createErpFinanceService(context);
+  const erpProducts = createErpProductService(context);
+
+  const erpHandler = (action, successStatus = 200) => async (req, res) => {
+    try {
+      const result = await action(req);
+      return res.status(successStatus).json({
+        ok: true,
+        ...(result && typeof result === 'object' && !Array.isArray(result) && !result._id && !result.id
+          ? result
+          : { data: result })
+      });
+    } catch (error) {
+      console.error('[erp]', error);
+      return res.status(Number(error?.statusCode || 500)).json({
+        ok: false,
+        error: error?.message || 'Erro no Ariana ERP.',
+        code: error?.code || 'ERP_ERROR'
+      });
+    }
+  };
+
+  // ============================================================
+  // ARIANA ERP LITE
+  // Fluxo próprio: orçamento -> pedido -> venda -> faturamento.
+  // Faturar gera financeiro interno e baixa estoque real; estornar restaura.
+  // Não chama SIGE e não depende da disponibilidade do SIGE.
+  // ============================================================
+  router.get('/erp/dashboard', context.adminRequired, erpHandler(async () => ({ dashboard: await erp.dashboard() })));
+  router.get('/erp/products', context.adminRequired, erpHandler(async (req) => ({ products: await erpProducts.list(req.query || {}) })));
+  router.get('/erp/financeiro', context.adminRequired, erpHandler(async (req) => ({ finance: await erpFinance.list(req.query || {}) })));
+  router.get('/erp/orders', context.adminRequired, erpHandler(async (req) => erp.listOrders(req.query || {})));
+  router.post('/erp/orders', context.adminRequired, erpHandler(async (req) => {
+    await erpProducts.assertItems(req.body?.items || []);
+    return { order: await erp.createOrder(req.body || {}, req.admin || req.auth || req.user) };
+  }, 201));
+  router.get('/erp/orders/:orderId', context.adminRequired, erpHandler(async (req) => ({ order: await erp.getOrder(req.params.orderId) })));
+  router.patch('/erp/orders/:orderId', context.adminRequired, erpHandler(async (req) => {
+    if (Array.isArray(req.body?.items)) await erpProducts.assertItems(req.body.items);
+    return { order: await erp.updateOrder(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) };
+  }));
+  router.post('/erp/orders/:orderId/faturar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.faturar(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
+  router.post('/erp/orders/:orderId/estornar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.estornar(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
+  router.post('/erp/orders/:orderId/cancelar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.cancel(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
+  router.post('/erp/orders/:orderId/receivables/:number/receive', context.adminRequired, erpHandler(async (req) => erpFinance.receive(req.params.orderId, req.params.number, req.body || {}, req.admin || req.auth || req.user)));
 
   router.post('/televendas/orders', context.adminRequired, controller.createOrder);
   router.get('/televendas/orders', context.adminRequired, controller.listOrders);
