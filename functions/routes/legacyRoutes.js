@@ -4,6 +4,7 @@ import registerStorefrontOrderSecurity from './storefrontOrderSecurity.js';
 import registerStorefrontCheckoutIntegrity from './storefrontCheckoutIntegrity.js';
 import registerStorefrontStockSecurity from './storefrontStockSecurity.js';
 import registerRetiredPagarmeRoutes from './retiredPagarmeRoutes.js';
+import registerCredentialResponseSecurity from './credentialResponseSecurity.js';
 import { createMercadoPagoIdempotentAxios } from '../services/mercadoPagoIdempotencyTransport.js';
 
 // ============================================================
@@ -170,6 +171,7 @@ export default function registerLegacyRoutes(app, context = {}) {
   registerStorefrontCheckoutIntegrity(app, runtimeContext);
   registerStorefrontStockSecurity(app, runtimeContext);
   registerRetiredPagarmeRoutes(app);
+  registerCredentialResponseSecurity(app, runtimeContext);
   const result = registerLegacyRuntimeRoutes(app, runtimeContext);
   prioritizeSpecificAdminRoutes(app);
   return result;
