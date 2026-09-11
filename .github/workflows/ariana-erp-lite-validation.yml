@@ -20,6 +20,7 @@ on:
       - erp-native-ui-cleanup
       - erp-sige-history-parity-finance
       - erp-finance-reports-parity
+      - erp-sige-fiscal-history
     paths:
       - 'functions/services/erp/**'
       - 'functions/routes/erp/**'
@@ -51,12 +52,14 @@ jobs:
           node --check functions/services/erp/erpSigeMigrationService.js
           node --check functions/services/erp/erpSigeMasterDataImportService.js
           node --check functions/services/erp/erpSigeHistoryImportService.js
+          node --check functions/services/erp/erpSigeFiscalHistoryService.js
           node --check functions/services/erp/erpPeopleService.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpParityAnalyticsRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js
           node --check functions/routes/erp/erpSigeMasterDataRoutes.js
           node --check functions/routes/erp/erpSigeHistoryRoutes.js
+          node --check functions/routes/erp/erpSigeFiscalHistoryRoutes.js
           node --check functions/routes/erp/erpPeopleRoutes.js
           node --check functions/routes/televendas/televendasRoutes.js
           node --check functions/routes/televendas/index.js
