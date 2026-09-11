@@ -62,7 +62,10 @@ export default function registerHomePerformanceRoutes(app, context = {}) {
           .sort({ sortOrder: 1, name: 1 })
           .lean(),
         Product.find({ active: true })
-          .select('-posters -specs -logistics')
+          // A Home usa nome/categorias/preços/flags e a imagem principal. Mantemos
+          // `images` como fallback para produtos antigos, mas retiramos duplicatas
+          // e campos grandes que só são necessários na página do produto.
+          .select('-posters -specs -logistics -description -imageUrls -imagePaths')
           .sort({ createdAt: -1 })
           .limit(200)
           .lean(),
