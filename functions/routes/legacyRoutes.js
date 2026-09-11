@@ -1,6 +1,7 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
 import registerStorefrontPaymentSecurity from './storefrontPaymentSecurity.js';
 import registerStorefrontOrderSecurity from './storefrontOrderSecurity.js';
+import registerStorefrontStockSecurity from './storefrontStockSecurity.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -162,6 +163,7 @@ export default function registerLegacyRoutes(app, context = {}) {
   const paymentSecurity = registerStorefrontPaymentSecurity(app, runtimeContext);
   Object.assign(runtimeContext, paymentSecurity || {});
   registerStorefrontOrderSecurity(app, runtimeContext);
+  registerStorefrontStockSecurity(app, runtimeContext);
   const result = registerLegacyRuntimeRoutes(app, runtimeContext);
   prioritizeSpecificAdminRoutes(app);
   return result;
