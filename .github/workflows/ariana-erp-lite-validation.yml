@@ -49,7 +49,7 @@ jobs:
           node --check functions/services/erp/erpCashService.js
           node --check functions/services/erp/erpSigeMigrationService.js
           node --check functions/services/erp/erpSigeMasterDataImportService.js
-          node --check functions/services/erp/erpSigeHistoryImportService.js
+          node --check functions/services/erp/erpSigeHistoryImportServiceV2.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js
           node --check functions/routes/erp/erpSigeMasterDataRoutes.js
