@@ -19,6 +19,7 @@ on:
       - erp-sige-import-masterdata
       - erp-native-ui-cleanup
       - erp-sige-history-parity-finance
+      - erp-finance-reports-parity
     paths:
       - 'functions/services/erp/**'
       - 'functions/routes/erp/**'
@@ -45,12 +46,14 @@ jobs:
           node --check functions/services/erp/erpLedgerService.js
           node --check functions/services/erp/erpStockMovementService.js
           node --check functions/services/erp/erpReportService.js
+          node --check functions/services/erp/erpParityAnalyticsService.js
           node --check functions/services/erp/erpCashService.js
           node --check functions/services/erp/erpSigeMigrationService.js
           node --check functions/services/erp/erpSigeMasterDataImportService.js
           node --check functions/services/erp/erpSigeHistoryImportService.js
           node --check functions/services/erp/erpPeopleService.js
           node --check functions/routes/erp/erpManagementRoutes.js
+          node --check functions/routes/erp/erpParityAnalyticsRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js
           node --check functions/routes/erp/erpSigeMasterDataRoutes.js
           node --check functions/routes/erp/erpSigeHistoryRoutes.js
