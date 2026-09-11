@@ -15,6 +15,7 @@ on:
       - erp-ariana-lite
       - erp-ariana-lite-gestao
       - erp-ariana-caixa-v2
+      - erp-sige-import-dryrun
     paths:
       - 'functions/services/erp/**'
       - 'functions/routes/erp/**'
@@ -44,7 +45,9 @@ jobs:
           node --check functions/services/erp/erpStockMovementService.js
           node --check functions/services/erp/erpReportService.js
           node --check functions/services/erp/erpCashService.js
+          node --check functions/services/erp/erpSigeMigrationService.js
           node --check functions/routes/erp/erpManagementRoutes.js
+          node --check functions/routes/erp/erpSigeMigrationRoutes.js
           node --check functions/routes/televendas/televendasRoutes.js
           node --check functions/routes/televendas/index.js
 
