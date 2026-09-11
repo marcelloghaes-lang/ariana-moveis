@@ -18,6 +18,7 @@ on:
       - erp-sige-import-dryrun
       - erp-sige-import-masterdata
       - erp-native-ui-cleanup
+      - erp-sige-history-parity-finance
     paths:
       - 'functions/services/erp/**'
       - 'functions/routes/erp/**'
@@ -32,12 +33,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Check backend JavaScript syntax
         run: |
           node --check functions/services/erp/erpService.js
@@ -49,14 +48,15 @@ jobs:
           node --check functions/services/erp/erpCashService.js
           node --check functions/services/erp/erpSigeMigrationService.js
           node --check functions/services/erp/erpSigeMasterDataImportService.js
+          node --check functions/services/erp/erpSigeHistoryImportService.js
           node --check functions/services/erp/erpPeopleService.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js
           node --check functions/routes/erp/erpSigeMasterDataRoutes.js
+          node --check functions/routes/erp/erpSigeHistoryRoutes.js
           node --check functions/routes/erp/erpPeopleRoutes.js
           node --check functions/routes/televendas/televendasRoutes.js
           node --check functions/routes/televendas/index.js
-
       - name: Extract and check ERP inline scripts
         shell: bash
         run: |
