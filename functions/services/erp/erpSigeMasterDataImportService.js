@@ -1,0 +1,86 @@
+import crypto from 'crypto';
+import mongoose from 'mongoose';
+import { extractCsvFilesFromZip, parseCsvBuffer } from './erpSigeMigrationService.js';
+
+const clean=(v='',m=1000)=>String(v??'').trim().slice(0,m);
+const digits=(v='')=>String(v??'').replace(/\D/g,'');
+const normalize=(v='')=>clean(v,500).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const normalizeCode=(v='')=>normalize(v).replace(/\s+/g,'');
+const numberValue=(v=0)=>{if(typeof v==='number')return Number.isFinite(v)?v:0;const s=String(v??'').trim();if(!s)return 0;const n=Number(s.includes(',')?s.replace(/\./g,'').replace(',','.'):s);return Number.isFinite(n)?n:0};
+const money=(v=0)=>Math.round((numberValue(v)+Number.EPSILON)*100)/100;
+const bool=(v)=>['1','true','sim','yes'].includes(String(v??'').trim().toLowerCase());
+const dateValue=(v)=>{const s=clean(v,80);if(!s)return null;const d=new Date(s);return Number.isNaN(d.getTime())?null:d};
+const actorName=(a={})=>clean(a.name||a.nome||a.email||'Administrador',180);
+
+function fail(message,statusCode=400,code='ERP_SIGE_IMPORT_ERROR'){const e=new Error(message);e.statusCode=statusCode;e.code=code;return e}
+
+const personSchema=new mongoose.Schema({
+  name:{type:String,required:true,index:true},companyName:String,document:{type:String,default:'',index:true},ie:String,ieExempt:{type:Boolean,default:false},email:{type:String,default:'',index:true},phone:{type:String,default:'',index:true},personType:String,roles:[String],birthdayFoundation:Date,address:{type:mongoose.Schema.Types.Mixed,default:{}},active:{type:Boolean,default:true,index:true},source:{type:String,default:'manual',index:true},sourceId:{type:String,default:'',index:true},linkedUserId:{type:mongoose.Schema.Types.ObjectId,ref:'User',default:null,index:true},metadata:{type:mongoose.Schema.Types.Mixed,default:{}},originalCreatedAt:Date,originalUpdatedAt:Date,importedAt:Date
+},{timestamps:true,versionKey:false,minimize:false});
+personSchema.index({source:1,sourceId:1},{unique:true,sparse:true});
+
+const mapSchema=new mongoose.Schema({
+  source:{type:String,required:true,index:true},entityType:{type:String,required:true,index:true},sourceId:{type:String,required:true,index:true},targetModel:{type:String,required:true},targetId:{type:String,required:true,index:true},matchType:{type:String,default:'created',index:true},details:{type:mongoose.Schema.Types.Mixed,default:{}},importedAt:{type:Date,default:Date.now}
+},{timestamps:true,versionKey:false,minimize:false});
+mapSchema.index({source:1,entityType:1,sourceId:1},{unique:true});
+
+const runSchema=new mongoose.Schema({
+  source:{type:String,default:'sige',index:true},packageName:String,packageSha256:{type:String,index:true},scope:{type:String,index:true},status:{type:String,index:true},stats:{type:mongoose.Schema.Types.Mixed,default:{}},warnings:[String],actor:String,startedAt:Date,finishedAt:Date
+},{timestamps:true,versionKey:false,minimize:false});
+
+const Person=mongoose.models.ErpPerson||mongoose.model('ErpPerson',personSchema);
+const MigrationMap=mongoose.models.ErpMigrationMap||mongoose.model('ErpMigrationMap',mapSchema);
+const MigrationRun=mongoose.models.ErpMigrationRun||mongoose.model('ErpMigrationRun',runSchema);
+
+function rows(files,names=[]){const out=[];for(const name of names){const file=files.get(String(name).toLowerCase());if(file)out.push(...parseCsvBuffer(file))}return out}
+function datasets(buffer){const files=extractCsvFilesFromZip(buffer);return{files,people:rows(files,['clientes_fornecedores.csv','pessoas.csv']),products:rows(files,['produtos.csv']),categories:rows(files,['plano_contas.csv']),banks:rows(files,['contas_bancarias.csv'])}}
+function roleList(value=''){const text=clean(value,500);if(!text)return[];try{const parsed=JSON.parse(text);if(Array.isArray(parsed))return parsed.map(v=>clean(v,80)).filter(Boolean)}catch{}return text.split(/[|,;]/).map(v=>clean(v,80)).filter(Boolean)}
+function addressFrom(row={}){return{street:clean(row.Address_Street,220),number:clean(row.Address_Number,80),complement:clean(row.Address_Complement,220),neighborhood:clean(row.Address_Neighborhood,160),city:clean(row.Address_City,160),cityCode:clean(row.Address_CityCode,40),state:clean(row.Address_State,80),stateCode:clean(row.Address_StateCode,20),zipCode:digits(row.Address_ZipCode),country:clean(row.Address_Country,100),countryCode:clean(row.Address_CountryCode,30),deliveryFee:money(row.Address_DeliveryFee)}}
+function categoryType(row={}){const key=normalize(row.Type||row.AccountType);if(['income','receita'].includes(key))return'receita';if(['expense','despesa'].includes(key))return'despesa';return''}
+function bankAccount(row={}){return{agency:clean(`${row.AgencyNumber||''}${row.AgencyDigit?`-${row.AgencyDigit}`:''}`,80),account:clean(`${row.AccountNumber||row.Number||''}${row.AccountDigit?`-${row.AccountDigit}`:''}`,100)}}
+function ownArianaProduct(product={}){const seller=normalize(`${product.sellerId||''} ${product.sellerName||''}`);return !seller||seller.includes('ariana')||seller.includes('marcelo nunes')}
+function sourceProductSnapshot(row={}){return{stock:numberValue(row.Stock),costPrice:money(row.CostPrice),sellingPrice:money(row.SellingPrice),barcode:digits(row.BarCode),ncm:clean(row.NCM,20),cest:clean(row.CEST,20),cfop:clean(row.CFOPCode,20),taxGroupId:clean(row.TaxGroupId,100),taxGroupName:clean(row.TaxGroupName,160),unit:clean(row.UnitOfMeasurement||row.UnitOfMeasurementCode,40),origin:clean(row.ProductOrigin,80),inactive:bool(row.InactiveProduct)}}
+async function saveMap(entityType,sourceId,targetModel,targetId,matchType,details={}){if(!sourceId||!targetId)return;await MigrationMap.updateOne({source:'sige',entityType,sourceId},{$set:{targetModel,targetId:String(targetId),matchType,details,importedAt:new Date()},$setOnInsert:{source:'sige',entityType,sourceId}},{upsert:true})}
+function indexMany(rows,keyFn){const m=new Map();for(const row of rows){const key=keyFn(row);if(!key)continue;if(!m.has(key))m.set(key,[]);m.get(key).push(row)}return m}
+
+export function createErpSigeMasterDataImportService(context={}){
+  const {User,Product,IntegrationAuditLog,redact}=context;
+  if(!User||!Product)throw new Error('[erp-sige-import] User/Product não disponíveis');
+  async function audit(eventType,metadata={}){if(!IntegrationAuditLog)return;try{await IntegrationAuditLog.create({scope:'erp_sige_migration',eventType,status:clean(metadata.status||'',80),message:clean(metadata.message||'',1000),metadata:redact?redact(metadata):metadata})}catch(e){console.warn('[erp-sige-import/audit]',e.message)}}
+
+  async function importCategories(sourceRows,actor){
+    const Category=mongoose.models.ErpAccountCategory;if(!Category)throw fail('Módulo de categorias financeiras não inicializado.',500,'ERP_CATEGORY_MODEL_UNAVAILABLE');
+    const existing=await Category.find({}).lean();const byKey=indexMany(existing,r=>`${normalize(r.name)}|${normalize(r.type)}`);const stats={source:sourceRows.length,created:0,linked:0,skipped:0,conflicts:0};
+    for(const row of sourceRows){const sourceId=clean(row.Id,120);const name=clean(row.Name||row.Description,160),type=categoryType(row);if(!sourceId||!name||!type){stats.skipped++;continue}const mapped=await MigrationMap.findOne({source:'sige',entityType:'account_category',sourceId}).lean();if(mapped){stats.linked++;continue}const matches=byKey.get(`${normalize(name)}|${normalize(type)}`)||[];if(matches.length>1){stats.conflicts++;continue}let target=matches[0];let matchType='exact';if(!target){target=(await Category.create({name,type,active:true,system:false})).toObject();byKey.set(`${normalize(name)}|${normalize(type)}`,[target]);stats.created++;matchType='created'}else stats.linked++;await saveMap('account_category',sourceId,'ErpAccountCategory',target._id,matchType,{sourceName:name,sourceType:type})}
+    return stats;
+  }
+
+  async function importBanks(sourceRows,actor){
+    const Bank=mongoose.models.ErpBankAccount;if(!Bank)throw fail('Módulo de contas bancárias não inicializado.',500,'ERP_BANK_MODEL_UNAVAILABLE');
+    const existing=await Bank.find({}).lean();const byName=indexMany(existing,r=>normalize(r.name));const byAccount=indexMany(existing,r=>`${normalizeCode(r.agency)}|${normalizeCode(r.account)}`);const stats={source:sourceRows.length,created:0,linked:0,skipped:0,conflicts:0};
+    for(const row of sourceRows){const sourceId=clean(row.Id,120),name=clean(row.Description||row.Name,180);if(!sourceId||!name){stats.skipped++;continue}const mapped=await MigrationMap.findOne({source:'sige',entityType:'bank_account',sourceId}).lean();if(mapped){stats.linked++;continue}const acct=bankAccount(row);const candidates=new Map();for(const x of byName.get(normalize(name))||[])candidates.set(String(x._id),x);if(acct.account)for(const x of byAccount.get(`${normalizeCode(acct.agency)}|${normalizeCode(acct.account)}`)||[])candidates.set(String(x._id),x);if(candidates.size>1){stats.conflicts++;continue}let target=[...candidates.values()][0],matchType='exact';if(!target){const opening=money(row.OpeningBalance);target=(await Bank.create({name,bank:clean(row.Bank,120),agency:acct.agency,account:acct.account,type:'corrente',openingBalance:opening,currentBalance:opening,active:true,notes:'Importada do SIGE; saldo inicial preservado sem replay do histórico.'})).toObject();stats.created++;matchType='created';if(!byName.has(normalize(name)))byName.set(normalize(name),[]);byName.get(normalize(name)).push(target);if(acct.account){const k=`${normalizeCode(acct.agency)}|${normalizeCode(acct.account)}`;if(!byAccount.has(k))byAccount.set(k,[]);byAccount.get(k).push(target)}}else stats.linked++;await saveMap('bank_account',sourceId,'ErpBankAccount',target._id,matchType,{sourceName:name,openingBalance:money(row.OpeningBalance)})}
+    return stats;
+  }
+
+  async function importPeople(sourceRows,actor){
+    const users=await User.find({}).select('_id cpf email phone').lean();const byDoc=indexMany(users,u=>digits(u.cpf));const stats={source:sourceRows.length,created:0,updated:0,linkedUsers:0,withoutStrongUserLink:0,documentConflicts:0,skipped:0};
+    for(const row of sourceRows){const sourceId=clean(row.Id,120),name=clean(row.Name||row.CompanyName,220);if(!sourceId||!name){stats.skipped++;continue}const document=digits(row.CpfCnpj);const matches=document?(byDoc.get(document)||[]):[];let linkedUserId=null;if(matches.length===1){linkedUserId=matches[0]._id;stats.linkedUsers++}else if(matches.length>1)stats.documentConflicts++;else stats.withoutStrongUserLink++;const payload={name,companyName:clean(row.CompanyName,220),document,ie:clean(row.IE,80),ieExempt:bool(row.IEExempt),email:clean(row.Email,320).toLowerCase(),phone:digits(row.Phone),personType:clean(row.Type,80),roles:roleList(row.Roles),birthdayFoundation:dateValue(row.BirthdayFoundation),address:addressFrom(row),active:!clean(row.TrashTitle,200),source:'sige',sourceId,linkedUserId,metadata:{defaultSalesmanId:clean(row.DefaultSalesmanId,120),defaultSalesman:clean(row.DefaultSalesman,180),bankAccountSourceId:clean(row.BankAccountId,120),priceTableSourceId:clean(row.PriceTableId,120),priceTable:clean(row.PriceTable,160),customFields:clean(row.CustomFields,5000)},originalCreatedAt:dateValue(row.CreatedAt),originalUpdatedAt:dateValue(row.LastUpdate),importedAt:new Date()};const result=await Person.findOneAndUpdate({source:'sige',sourceId},{$set:payload},{new:true,upsert:true,setDefaultsOnInsert:true});const existed=await MigrationMap.findOne({source:'sige',entityType:'person',sourceId}).lean();if(existed)stats.updated++;else stats.created++;await saveMap('person',sourceId,'ErpPerson',result._id,existed?'updated':'created',{linkedUserId:linkedUserId?String(linkedUserId):'',documentPresent:Boolean(document)})}
+    return stats;
+  }
+
+  async function importProducts(sourceRows,actor){
+    const existing=(await Product.find({}).select('_id name sku sellerId sellerName stock price specs').lean()).filter(ownArianaProduct);const bySku=indexMany(existing,p=>normalizeCode(p.sku));const byBarcode=indexMany(existing,p=>digits(p?.specs?.ean||p?.specs?.barcode||p?.specs?.gtin||''));const byName=indexMany(existing,p=>normalize(p.name));const stats={source:sourceRows.length,created:0,linked:0,alreadyMapped:0,nameOnlyReview:0,conflicts:0,skipped:0,matchedStockNotChanged:0};
+    for(const row of sourceRows){const sourceId=clean(row.Id,120),name=clean(row.Name,260);if(!sourceId||!name){stats.skipped++;continue}const prior=await MigrationMap.findOne({source:'sige',entityType:'product',sourceId}).lean();if(prior){stats.alreadyMapped++;continue}const code=normalizeCode(row.Code),barcode=digits(row.BarCode),strong=new Map();if(code)for(const p of bySku.get(code)||[])strong.set(String(p._id),p);if(barcode)for(const p of byBarcode.get(barcode)||[])strong.set(String(p._id),p);if(strong.size>1){stats.conflicts++;continue}let target=[...strong.values()][0],matchType='exact';const snapshot=sourceProductSnapshot(row);if(target){stats.linked++;stats.matchedStockNotChanged++;await saveMap('product',sourceId,'Product',target._id,matchType,{sourceCode:clean(row.Code,120),...snapshot,stockAction:'preserved_target_stock'});continue}const nameMatches=byName.get(normalize(name))||[];if(nameMatches.length){stats.nameOnlyReview++;continue}const specs={ean:barcode,ncm:clean(row.NCM,20),cest:clean(row.CEST,20),cfop:clean(row.CFOPCode,20),unit:clean(row.UnitOfMeasurement||row.UnitOfMeasurementCode,40),productOrigin:clean(row.ProductOrigin,80),taxGroupId:clean(row.TaxGroupId,120),taxGroupName:clean(row.TaxGroupName,160),sigeSourceId:sourceId,costPrice:money(row.CostPrice),minimumPrice:money(row.MinPrice),standardSupplierId:clean(row.StandardSupplierId,120),standardSupplier:clean(row.StandardSupplier,180)};const product=await Product.create({name,sku:clean(row.Code,120),description:clean(row.Description,5000),brand:clean(row.Brand,160),price:money(row.SellingPrice),stock:numberValue(row.Stock),active:!bool(row.InactiveProduct),specs,weight:numberValue(row.Weigth)||undefined});target=product.toObject();stats.created++;await saveMap('product',sourceId,'Product',target._id,'created',{sourceCode:clean(row.Code,120),...snapshot,stockAction:'initialized_from_sige'});if(code){if(!bySku.has(code))bySku.set(code,[]);bySku.get(code).push(target)}if(barcode){if(!byBarcode.has(barcode))byBarcode.set(barcode,[]);byBarcode.get(barcode).push(target)}if(!byName.has(normalize(name)))byName.set(normalize(name),[]);byName.get(normalize(name)).push(target)}
+    return stats;
+  }
+
+  async function importMasterData(file,confirmation,actor={}){
+    if(confirmation!=='IMPORTAR_CADASTROS_SIGE')throw fail('Confirmação de importação inválida.',409,'SIGE_IMPORT_CONFIRMATION_REQUIRED');if(!file?.buffer)throw fail('Selecione o pacote ZIP de recuperação do SIGE.');const packageName=clean(file.originalname||'pacote_sige.zip',255);const packageSha256=crypto.createHash('sha256').update(file.buffer).digest('hex');const data=datasets(file.buffer);const run=await MigrationRun.create({source:'sige',packageName,packageSha256,scope:'master-data',status:'running',stats:{},warnings:[],actor:actorName(actor),startedAt:new Date()});
+    try{const stats={categories:await importCategories(data.categories,actor),banks:await importBanks(data.banks,actor),people:await importPeople(data.people,actor),products:await importProducts(data.products,actor)};const warnings=[];if(stats.products.nameOnlyReview)warnings.push(`${stats.products.nameOnlyReview} produto(s) ficaram para revisão porque só o nome coincide com produto já existente.`);if(stats.products.conflicts)warnings.push(`${stats.products.conflicts} produto(s) têm conflito de SKU/EAN e não foram gravados.`);if(stats.people.documentConflicts)warnings.push(`${stats.people.documentConflicts} pessoa(s) encontraram mais de um usuário Ariana com o mesmo documento; o vínculo de login não foi feito automaticamente.`);run.status='completed';run.stats=stats;run.warnings=warnings;run.finishedAt=new Date();await run.save();await audit('erp.sige.master_data.completed',{status:'completed',message:'Cadastros mestres do SIGE processados',runId:String(run._id),packageSha256,stats,warnings,by:actorName(actor)});return{runId:String(run._id),scope:'master-data',status:'completed',packageSha256,stats,warnings,safety:{existingUsersModified:false,existingMatchedProductStockModified:false,financialHistoryImported:false,fiscalDocumentsImported:false}}}catch(error){run.status='failed';run.finishedAt=new Date();run.warnings=[clean(error.message,1000)];await run.save().catch(()=>{});await audit('erp.sige.master_data.failed',{status:'failed',message:clean(error.message,1000),runId:String(run._id),packageSha256,by:actorName(actor)});throw error}
+  }
+
+  async function status(){const [people,maps,runs]=await Promise.all([Person.countDocuments({source:'sige'}),MigrationMap.aggregate([{$match:{source:'sige'}},{$group:{_id:'$entityType',count:{$sum:1}}},{$sort:{_id:1}}]),MigrationRun.find({source:'sige'}).sort({createdAt:-1}).limit(10).select('scope status stats warnings actor startedAt finishedAt createdAt packageSha256').lean()]);return{people,maps:Object.fromEntries(maps.map(x=>[x._id,x.count])),runs}}
+  return{importMasterData,status};
+}
+
+export default createErpSigeMasterDataImportService;
