@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - erp-ariana-lite
+      - erp-ariana-lite-paridade-2
     paths:
       - 'functions/services/erp/**'
       - 'functions/routes/televendas/televendasRoutes.js'
@@ -34,6 +35,7 @@ jobs:
           node --check functions/services/erp/erpService.js
           node --check functions/services/erp/erpFinanceService.js
           node --check functions/services/erp/erpProductService.js
+          node --check functions/services/erp/erpCashService.js
           node --check functions/routes/televendas/televendasRoutes.js
 
       - name: Extract and check ERP inline scripts
