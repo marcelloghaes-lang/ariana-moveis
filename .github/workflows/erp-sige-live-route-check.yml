@@ -3,10 +3,14 @@ name: ERP SIGE Live Route Check
 on:
   push:
     branches:
+      - main
       - erp-sige-import-masterdata
     paths:
       - '.github/workflows/erp-sige-live-route-check.yml'
+      - 'functions/services/erp/erpSigeMigrationService.js'
+      - 'functions/services/erp/erpSigeMasterDataImportService.js'
       - 'functions/routes/erp/erpSigeMigrationRoutes.js'
+      - 'functions/routes/erp/erpSigeMasterDataRoutes.js'
       - 'functions/routes/televendas/index.js'
       - 'public/erp_migracao_sige.html'
 
@@ -32,7 +36,7 @@ jobs:
           echo "$headers" | grep -qi '^access-control-allow-methods: .*POST'
           echo "$headers" | grep -qi '^access-control-allow-headers: .*Authorization'
 
-      - name: Check migration route exists and is protected
+      - name: Check dry-run route exists and is protected
         shell: bash
         run: |
           set -euo pipefail
@@ -42,3 +46,23 @@ jobs:
           echo "HTTP $code"
           cat /tmp/body.json || true
           test "$code" = "401"
+
+      - name: Wait for master-data route after main deploy
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 12); do
+            code=$(curl --connect-timeout 15 --max-time 35 -sS -o /tmp/master-body.json -w '%{http_code}' -X POST \
+              -H "Origin: $ORIGIN" \
+              "$BACKEND/api/erp/migracao/sige/import/master-data" || true)
+            echo "Tentativa $attempt -> HTTP $code"
+            if [ "$code" = "401" ]; then
+              ok=1
+              break
+            fi
+            sleep 15
+          done
+          cat /tmp/master-body.json || true
+          test "$ok" -eq 1
