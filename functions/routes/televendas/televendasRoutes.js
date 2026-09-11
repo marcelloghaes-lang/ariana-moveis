@@ -1,6 +1,7 @@
 import express from 'express';
 import { createTelevendasController } from '../../controllers/televendas/televendasController.js';
 import { createErpService } from '../../services/erp/erpService.js';
+import { createErpFinanceService } from '../../services/erp/erpFinanceService.js';
 
 const clean = (value = '', max = 1000) => String(value ?? '').trim().slice(0, max);
 const digits = (value = '') => String(value || '').replace(/\D/g, '');
@@ -61,11 +62,17 @@ export default function createTelevendasRouter(context = {}) {
 
   const controller = createTelevendasController(context);
   const erp = createErpService(context);
+  const erpFinance = createErpFinanceService(context);
 
   const erpHandler = (action, successStatus = 200) => async (req, res) => {
     try {
       const result = await action(req);
-      return res.status(successStatus).json({ ok: true, ...(result && typeof result === 'object' && !Array.isArray(result) && !result._id && !result.id ? result : { data: result }) });
+      return res.status(successStatus).json({
+        ok: true,
+        ...(result && typeof result === 'object' && !Array.isArray(result) && !result._id && !result.id
+          ? result
+          : { data: result })
+      });
     } catch (error) {
       console.error('[erp]', error);
       return res.status(Number(error?.statusCode || 500)).json({
@@ -84,6 +91,7 @@ export default function createTelevendasRouter(context = {}) {
   // ============================================================
   router.get('/erp/dashboard', context.adminRequired, erpHandler(async () => ({ dashboard: await erp.dashboard() })));
   router.get('/erp/products', context.adminRequired, erpHandler(async (req) => ({ products: await erp.listProducts(req.query || {}) })));
+  router.get('/erp/financeiro', context.adminRequired, erpHandler(async (req) => ({ finance: await erpFinance.list(req.query || {}) })));
   router.get('/erp/orders', context.adminRequired, erpHandler(async (req) => erp.listOrders(req.query || {})));
   router.post('/erp/orders', context.adminRequired, erpHandler(async (req) => ({ order: await erp.createOrder(req.body || {}, req.admin || req.auth || req.user) }), 201));
   router.get('/erp/orders/:orderId', context.adminRequired, erpHandler(async (req) => ({ order: await erp.getOrder(req.params.orderId) })));
@@ -91,6 +99,7 @@ export default function createTelevendasRouter(context = {}) {
   router.post('/erp/orders/:orderId/faturar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.faturar(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
   router.post('/erp/orders/:orderId/estornar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.estornar(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
   router.post('/erp/orders/:orderId/cancelar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.cancel(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
+  router.post('/erp/orders/:orderId/receivables/:number/receive', context.adminRequired, erpHandler(async (req) => erpFinance.receive(req.params.orderId, req.params.number, req.body || {}, req.admin || req.auth || req.user)));
 
   router.post('/televendas/orders', context.adminRequired, controller.createOrder);
   router.get('/televendas/orders', context.adminRequired, controller.listOrders);
