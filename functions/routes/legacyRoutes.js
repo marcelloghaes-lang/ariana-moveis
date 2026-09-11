@@ -1,6 +1,7 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
 import registerStorefrontPaymentSecurity from './storefrontPaymentSecurity.js';
 import registerStorefrontOrderSecurity from './storefrontOrderSecurity.js';
+import registerStorefrontCheckoutIntegrity from './storefrontCheckoutIntegrity.js';
 import registerStorefrontStockSecurity from './storefrontStockSecurity.js';
 import registerRetiredPagarmeRoutes from './retiredPagarmeRoutes.js';
 
@@ -164,6 +165,7 @@ export default function registerLegacyRoutes(app, context = {}) {
   const paymentSecurity = registerStorefrontPaymentSecurity(app, runtimeContext);
   Object.assign(runtimeContext, paymentSecurity || {});
   registerStorefrontOrderSecurity(app, runtimeContext);
+  registerStorefrontCheckoutIntegrity(app, runtimeContext);
   registerStorefrontStockSecurity(app, runtimeContext);
   registerRetiredPagarmeRoutes(app);
   const result = registerLegacyRuntimeRoutes(app, runtimeContext);
