@@ -4,16 +4,21 @@ on:
   pull_request:
     paths:
       - 'functions/services/erp/**'
+      - 'functions/routes/erp/**'
       - 'functions/routes/televendas/televendasRoutes.js'
+      - 'functions/routes/televendas/index.js'
       - 'public/erp_*.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
   push:
     branches:
       - main
       - erp-ariana-lite
+      - erp-ariana-lite-gestao
     paths:
       - 'functions/services/erp/**'
+      - 'functions/routes/erp/**'
       - 'functions/routes/televendas/televendasRoutes.js'
+      - 'functions/routes/televendas/index.js'
       - 'public/erp_*.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
 
@@ -34,7 +39,12 @@ jobs:
           node --check functions/services/erp/erpService.js
           node --check functions/services/erp/erpFinanceService.js
           node --check functions/services/erp/erpProductService.js
+          node --check functions/services/erp/erpLedgerService.js
+          node --check functions/services/erp/erpStockMovementService.js
+          node --check functions/services/erp/erpReportService.js
+          node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/televendas/televendasRoutes.js
+          node --check functions/routes/televendas/index.js
 
       - name: Extract and check ERP inline scripts
         shell: bash
