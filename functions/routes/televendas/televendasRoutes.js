@@ -3,6 +3,7 @@ import { createTelevendasController } from '../../controllers/televendas/televen
 import { createErpService } from '../../services/erp/erpService.js';
 import { createErpFinanceService } from '../../services/erp/erpFinanceService.js';
 import { createErpProductService } from '../../services/erp/erpProductService.js';
+import { createErpCashService } from '../../services/erp/erpCashService.js';
 
 const clean = (value = '', max = 1000) => String(value ?? '').trim().slice(0, max);
 const digits = (value = '') => String(value || '').replace(/\D/g, '');
@@ -65,6 +66,7 @@ export default function createTelevendasRouter(context = {}) {
   const erp = createErpService(context);
   const erpFinance = createErpFinanceService(context);
   const erpProducts = createErpProductService(context);
+  const erpCash = createErpCashService(context);
 
   const erpHandler = (action, successStatus = 200) => async (req, res) => {
     try {
@@ -85,6 +87,8 @@ export default function createTelevendasRouter(context = {}) {
     }
   };
 
+  const erpActor = (req) => req.admin || req.auth || req.user || {};
+
   // ============================================================
   // ARIANA ERP LITE
   // Fluxo próprio: orçamento -> pedido -> venda -> faturamento.
@@ -94,20 +98,35 @@ export default function createTelevendasRouter(context = {}) {
   router.get('/erp/dashboard', context.adminRequired, erpHandler(async () => ({ dashboard: await erp.dashboard() })));
   router.get('/erp/products', context.adminRequired, erpHandler(async (req) => ({ products: await erpProducts.list(req.query || {}) })));
   router.get('/erp/financeiro', context.adminRequired, erpHandler(async (req) => ({ finance: await erpFinance.list(req.query || {}) })));
+
+  // Caixa por operador: abertura, reforço, sangria, fechamento e histórico.
+  router.get('/erp/caixa', context.adminRequired, erpHandler(async (req) => ({ cash: await erpCash.current(erpActor(req)) })));
+  router.get('/erp/caixa/historico', context.adminRequired, erpHandler(async (req) => ({ sessions: await erpCash.history(erpActor(req), req.query || {}) })));
+  router.post('/erp/caixa/abrir', context.adminRequired, erpHandler(async (req) => ({ cash: await erpCash.open(req.body || {}, erpActor(req)) }), 201));
+  router.post('/erp/caixa/reforco', context.adminRequired, erpHandler(async (req) => ({ cash: await erpCash.reinforcement(req.body || {}, erpActor(req)) })));
+  router.post('/erp/caixa/sangria', context.adminRequired, erpHandler(async (req) => ({ cash: await erpCash.withdrawal(req.body || {}, erpActor(req)) })));
+  router.post('/erp/caixa/fechar', context.adminRequired, erpHandler(async (req) => ({ cash: await erpCash.close(req.body || {}, erpActor(req)) })));
+
   router.get('/erp/orders', context.adminRequired, erpHandler(async (req) => erp.listOrders(req.query || {})));
   router.post('/erp/orders', context.adminRequired, erpHandler(async (req) => {
     await erpProducts.assertItems(req.body?.items || []);
-    return { order: await erp.createOrder(req.body || {}, req.admin || req.auth || req.user) };
+    return { order: await erp.createOrder(req.body || {}, erpActor(req)) };
   }, 201));
   router.get('/erp/orders/:orderId', context.adminRequired, erpHandler(async (req) => ({ order: await erp.getOrder(req.params.orderId) })));
   router.patch('/erp/orders/:orderId', context.adminRequired, erpHandler(async (req) => {
     if (Array.isArray(req.body?.items)) await erpProducts.assertItems(req.body.items);
-    return { order: await erp.updateOrder(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) };
+    return { order: await erp.updateOrder(req.params.orderId, req.body || {}, erpActor(req)) };
   }));
-  router.post('/erp/orders/:orderId/faturar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.faturar(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
-  router.post('/erp/orders/:orderId/estornar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.estornar(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
-  router.post('/erp/orders/:orderId/cancelar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.cancel(req.params.orderId, req.body || {}, req.admin || req.auth || req.user) })));
-  router.post('/erp/orders/:orderId/receivables/:number/receive', context.adminRequired, erpHandler(async (req) => erpFinance.receive(req.params.orderId, req.params.number, req.body || {}, req.admin || req.auth || req.user)));
+  router.post('/erp/orders/:orderId/faturar', context.adminRequired, erpHandler(async (req) => {
+    const actor = erpActor(req);
+    if (req.body?.requireCash === true) await erpCash.requireOpen(actor);
+    const order = await erp.faturar(req.params.orderId, req.body || {}, actor);
+    await erpCash.registerSale(order, actor);
+    return { order };
+  }));
+  router.post('/erp/orders/:orderId/estornar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.estornar(req.params.orderId, req.body || {}, erpActor(req)) })));
+  router.post('/erp/orders/:orderId/cancelar', context.adminRequired, erpHandler(async (req) => ({ order: await erp.cancel(req.params.orderId, req.body || {}, erpActor(req)) })));
+  router.post('/erp/orders/:orderId/receivables/:number/receive', context.adminRequired, erpHandler(async (req) => erpFinance.receive(req.params.orderId, req.params.number, req.body || {}, erpActor(req))));
 
   router.post('/televendas/orders', context.adminRequired, controller.createOrder);
   router.get('/televendas/orders', context.adminRequired, controller.listOrders);
