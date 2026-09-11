@@ -6,6 +6,7 @@ import createErpSigeMasterDataRoutes from '../erp/erpSigeMasterDataRoutes.js';
 import createErpPeopleRoutes from '../erp/erpPeopleRoutes.js';
 import createErpSigeHistoryRoutes from '../erp/erpSigeHistoryRoutes.js';
 import createErpParityAnalyticsRoutes from '../erp/erpParityAnalyticsRoutes.js';
+import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.js';
 
 export default function createTelevendasRoutes(context={}){
   const router=express.Router();
@@ -16,5 +17,6 @@ export default function createTelevendasRoutes(context={}){
   router.use(createErpPeopleRoutes(context));
   router.use(createErpSigeHistoryRoutes(context));
   router.use(createErpParityAnalyticsRoutes(context));
+  router.use(createErpSigeFiscalHistoryRoutes(context));
   return router;
 }
