@@ -1,4 +1,5 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
+import registerStorefrontPaymentIntentGuard from './storefrontPaymentIntentGuard.js';
 import registerStorefrontPaymentSecurity from './storefrontPaymentSecurity.js';
 import registerStorefrontOrderSecurity from './storefrontOrderSecurity.js';
 import registerStorefrontCheckoutIntegrity from './storefrontCheckoutIntegrity.js';
@@ -167,6 +168,7 @@ function buildRuntimeContext(context = {}) {
 export default function registerLegacyRoutes(app, context = {}) {
   const runtimeContext = buildRuntimeContext(context);
   runtimeContext.axios = createMercadoPagoIdempotentAxios(runtimeContext.axios, runtimeContext.crypto);
+  registerStorefrontPaymentIntentGuard(app, runtimeContext);
   const paymentSecurity = registerStorefrontPaymentSecurity(app, runtimeContext);
   Object.assign(runtimeContext, paymentSecurity || {});
   registerStorefrontOrderSecurity(app, runtimeContext);
