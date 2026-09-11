@@ -57,10 +57,13 @@ const renderGlobalFooter = () => {
     }
 };
 
-function enhanceArianaHomeSeo() {
+function isArianaHomePage() {
     const path = String(window.location.pathname || '/').toLowerCase().replace(/\/+$/, '') || '/';
-    const isHome = path === '/' || path === '/index.html' || path.endsWith('/public/index.html');
-    if (!isHome) return;
+    return path === '/' || path === '/index.html' || path.endsWith('/public/index.html');
+}
+
+function enhanceArianaHomeSeo() {
+    if (!isArianaHomePage()) return;
 
     document.documentElement.lang = 'pt-BR';
     document.title = 'Ariana Móveis | Móveis, Eletrodomésticos, Eletrônicos e Mais';
@@ -120,8 +123,46 @@ function enhanceArianaHomeSeo() {
     }
 }
 
-// Executa após o carregamento do DOM para evitar problemas de cache.
+function prioritizeArianaHomeLoading() {
+    if (!isArianaHomePage()) return;
+
+    const backendOrigin = 'https://ariana-backend.onrender.com';
+    const ensureLink = (rel, href, crossOrigin = false) => {
+        let link = document.head.querySelector(`link[rel="${rel}"][href="${href}"]`);
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = rel;
+            link.href = href;
+            if (crossOrigin) link.crossOrigin = 'anonymous';
+            document.head.appendChild(link);
+        }
+        return link;
+    };
+
+    // O footer.js é executado antes do DOMContentLoaded da Home. A conexão fica
+    // pronta antes das chamadas de catálogo/banners iniciarem.
+    ensureLink('preconnect', backendOrigin, true);
+    ensureLink('dns-prefetch', backendOrigin);
+
+    // O banner real só recebe src após a API responder. Retiramos o lazy antes
+    // dessa troca para que a imagem principal seja tratada como conteúdo crítico.
+    const hero = document.getElementById('main-banner-image');
+    if (hero) {
+        hero.loading = 'eager';
+        hero.decoding = 'async';
+        hero.fetchPriority = 'high';
+        hero.setAttribute('fetchpriority', 'high');
+    }
+}
+
+// Estes ajustes não dependem das APIs; executam imediatamente quando o arquivo
+// já foi encontrado no fim do HTML, antes de disparar o carregamento dinâmico.
+prioritizeArianaHomeLoading();
+enhanceArianaHomeSeo();
+
+// O rodapé visual continua sendo montado no mesmo momento de antes.
 document.addEventListener('DOMContentLoaded', () => {
     renderGlobalFooter();
+    prioritizeArianaHomeLoading();
     enhanceArianaHomeSeo();
 });
