@@ -35,12 +35,12 @@ const renderGlobalFooter = () => {
             </div>
             <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
             <div class="flex flex-nowrap items-center gap-2">
-                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
-                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain" loading="lazy" decoding="async">
             </div>
         </div>
     </div>
@@ -57,5 +57,112 @@ const renderGlobalFooter = () => {
     }
 };
 
-// Executa após o carregamento do DOM para evitar problemas de cache
-document.addEventListener('DOMContentLoaded', renderGlobalFooter);
+function isArianaHomePage() {
+    const path = String(window.location.pathname || '/').toLowerCase().replace(/\/+$/, '') || '/';
+    return path === '/' || path === '/index.html' || path.endsWith('/public/index.html');
+}
+
+function enhanceArianaHomeSeo() {
+    if (!isArianaHomePage()) return;
+
+    document.documentElement.lang = 'pt-BR';
+    document.title = 'Ariana Móveis | Móveis, Eletrodomésticos, Eletrônicos e Mais';
+
+    const ensureMeta = (selector, attrs) => {
+        let node = document.head.querySelector(selector);
+        if (!node) {
+            node = document.createElement('meta');
+            document.head.appendChild(node);
+        }
+        Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+        return node;
+    };
+
+    ensureMeta('meta[name="robots"]', {
+        name: 'robots',
+        content: 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'
+    });
+    ensureMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' });
+    ensureMeta('meta[property="og:site_name"]', { property: 'og:site_name', content: 'Ariana Móveis' });
+    ensureMeta('meta[property="og:locale"]', { property: 'og:locale', content: 'pt_BR' });
+    ensureMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary' });
+    ensureMeta('meta[name="twitter:title"]', {
+        name: 'twitter:title',
+        content: 'Ariana Móveis | Móveis, Eletrodomésticos, Eletrônicos e Mais'
+    });
+    ensureMeta('meta[name="twitter:description"]', {
+        name: 'twitter:description',
+        content: 'Móveis, eletrodomésticos, eletrônicos e utilidades com entrega para todo o Brasil.'
+    });
+
+    if (!document.getElementById('ariana-home-structured-data')) {
+        const script = document.createElement('script');
+        script.id = 'ariana-home-structured-data';
+        script.type = 'application/ld+json';
+        script.textContent = JSON.stringify({
+            '@context': 'https://schema.org',
+            '@graph': [
+                {
+                    '@type': 'Organization',
+                    '@id': 'https://arianamoveis.com.br/#organization',
+                    name: 'Ariana Móveis',
+                    url: 'https://arianamoveis.com.br/',
+                    logo: 'https://arianamoveis.com.br/favicon.png'
+                },
+                {
+                    '@type': 'WebSite',
+                    '@id': 'https://arianamoveis.com.br/#website',
+                    url: 'https://arianamoveis.com.br/',
+                    name: 'Ariana Móveis',
+                    publisher: { '@id': 'https://arianamoveis.com.br/#organization' },
+                    inLanguage: 'pt-BR'
+                }
+            ]
+        });
+        document.head.appendChild(script);
+    }
+}
+
+function prioritizeArianaHomeLoading() {
+    if (!isArianaHomePage()) return;
+
+    const backendOrigin = 'https://ariana-backend.onrender.com';
+    const ensureLink = (rel, href, crossOrigin = false) => {
+        let link = document.head.querySelector(`link[rel="${rel}"][href="${href}"]`);
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = rel;
+            link.href = href;
+            if (crossOrigin) link.crossOrigin = 'anonymous';
+            document.head.appendChild(link);
+        }
+        return link;
+    };
+
+    // O footer.js é executado antes do DOMContentLoaded da Home. A conexão fica
+    // pronta antes das chamadas de catálogo/banners iniciarem.
+    ensureLink('preconnect', backendOrigin, true);
+    ensureLink('dns-prefetch', backendOrigin);
+
+    // O banner real só recebe src após a API responder. Retiramos o lazy antes
+    // dessa troca para que a imagem principal seja tratada como conteúdo crítico.
+    const hero = document.getElementById('main-banner-image');
+    if (hero) {
+        hero.loading = 'eager';
+        hero.decoding = 'async';
+        hero.fetchPriority = 'high';
+        hero.setAttribute('fetchpriority', 'high');
+    }
+}
+
+// Estes ajustes não dependem das APIs; executam imediatamente quando o arquivo
+// já foi encontrado no fim do HTML, antes de disparar o carregamento dinâmico.
+prioritizeArianaHomeLoading();
+enhanceArianaHomeSeo();
+
+// O rodapé visual continua sendo montado no mesmo momento de antes.
+document.addEventListener('DOMContentLoaded', () => {
+    renderGlobalFooter();
+    prioritizeArianaHomeLoading();
+    enhanceArianaHomeSeo();
+});

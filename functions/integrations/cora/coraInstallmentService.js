@@ -208,3 +208,20 @@ export async function issueCoraInstallmentBook(input = {}, { idempotencyKey, onT
   });
   return { idempotencyKey: key, payload, response: response.data };
 }
+
+export async function getCoraInvoiceDetails(invoiceId, { onTrace } = {}) {
+  const id = clean(invoiceId, 160);
+  if (!id) {
+    const error = new Error('Identificador da fatura Cora é obrigatório.');
+    error.code = 'CORA_INVOICE_ID_REQUIRED';
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const response = await coraRequest({
+    method: 'GET',
+    path: `/v2/invoices/${encodeURIComponent(id)}`,
+    onTrace
+  });
+  return response.data;
+}

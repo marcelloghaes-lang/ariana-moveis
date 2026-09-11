@@ -7,7 +7,7 @@
 export default function registerOrderStatusRoutes(app, context = {}) {
   const {
     Order,
-    authRequired,
+    adminRequired,
     normalizeObjectId,
     toJSON,
     changedKeys,
@@ -18,7 +18,7 @@ export default function registerOrderStatusRoutes(app, context = {}) {
     waNotifyAdminOrderStatusChange
   } = context;
 
-app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
+app.patch('/api/orders/:id/status', adminRequired, async (req, res) => {
   try {
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
@@ -41,7 +41,7 @@ app.patch('/api/orders/:id/status', authRequired, async (req, res) => {
       orderId: String(after._id),
       status: 'success',
       changedKeys: changedKeys(toJSON(before), toJSON(after)),
-      metadata: { actorUserId: String(req.user._id) }
+      metadata: { actorUserId: String(req.user?._id || req.auth?.id || '') }
     });
 
     if (String(after.status || '') !== previousStatus || String(after.trackingCode || '') !== String(before.trackingCode || '')) {

@@ -1,0 +1,114 @@
+name: Ariana Storefront Security CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'functions/routes/**'
+      - 'functions/services/**'
+      - 'functions/integrations/cora/**'
+      - 'public/footer.js'
+      - '.github/workflows/storefront-security-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check critical JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            functions/integrations/cora/coraInstallmentService.js
+            functions/routes/cieloRoutes.js
+            functions/routes/cieloRoutesLegacy.js
+            functions/routes/cieloRoutesSecurityBase.js
+            functions/routes/coraRoutes.js
+            functions/routes/coraRoutesSecureBase.js
+            functions/routes/credentialResponseSecurity.js
+            functions/routes/homePerformanceRoutes.js
+            functions/routes/legacyRoutes.js
+            functions/routes/orderRoutes.js
+            functions/routes/orderStatusRoutes.js
+            functions/routes/seoCanonicalRoutes.js
+            functions/routes/shippingLogisticsRoutes.js
+            functions/routes/storefrontCheckoutIntegrity.js
+            functions/routes/storefrontOrderSecurity.js
+            functions/routes/storefrontPaymentIntentGuard.js
+            functions/routes/storefrontPaymentSecurity.js
+            functions/routes/storefrontStockSecurity.js
+            functions/services/mercadoPagoIdempotencyTransport.js
+            functions/services/stockReservationService.js
+            public/footer.js
+          )
+          for file in "${files[@]}"; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+
+      - name: Verify payment intent guard ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('functions/routes/legacyRoutes.js', 'utf8');
+          const guard = source.indexOf('registerStorefrontPaymentIntentGuard(app');
+          const payment = source.indexOf('registerStorefrontPaymentSecurity(app');
+          const order = source.indexOf('registerStorefrontOrderSecurity(app');
+          if (guard < 0 || payment < 0 || order < 0 || !(guard < payment && payment < order)) {
+            throw new Error('Storefront payment guard ordering is invalid');
+          }
+          NODE
+
+      - name: Verify Cielo legacy implementation was preserved
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git show "origin/${{ github.base_ref }}:functions/routes/cieloRoutes.js" > /tmp/cielo-main.js
+          cmp --silent /tmp/cielo-main.js functions/routes/cieloRoutesLegacy.js || {
+            echo 'Cielo legacy implementation differs from the base branch.' >&2
+            diff -u /tmp/cielo-main.js functions/routes/cieloRoutesLegacy.js || true
+            exit 1
+          }
+
+      - name: Verify protected operational routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "router.patch('/orders/:id/status', adminRequired" functions/routes/orderRoutes.js
+          grep -q "app.patch('/api/orders/:id/status', adminRequired" functions/routes/orderStatusRoutes.js
+          grep -q "router.get('/api/shipping/correios/debug', adminRequired" functions/routes/shippingLogisticsRoutes.js
+          grep -q "router.get('/api/shipping/correios/token-test', adminRequired" functions/routes/shippingLogisticsRoutes.js
+          grep -q "router.get('/api/shipping/correios/tracking/:code', adminRequired" functions/routes/shippingLogisticsRoutes.js
+          grep -q "router.get('/api/shipping/correios/label/:orderId/html', adminRequired" functions/routes/shippingLogisticsRoutes.js
+
+      - name: Verify storefront payment methods and providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "pix: 'mercadopago'" functions/routes/storefrontPaymentIntentGuard.js
+          grep -q "boleto: 'mercadopago'" functions/routes/storefrontPaymentIntentGuard.js
+          grep -q "card: 'cielo'" functions/routes/storefrontPaymentIntentGuard.js
+          grep -q "crediario_ariana: 'cora'" functions/routes/storefrontPaymentIntentGuard.js
+          grep -q "PAYMENT_METHOD_REQUIRED" functions/routes/storefrontPaymentIntentGuard.js
+
+      - name: Summary
+        run: echo 'Storefront security syntax and compatibility checks passed.'

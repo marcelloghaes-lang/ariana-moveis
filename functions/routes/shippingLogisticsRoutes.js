@@ -58,7 +58,8 @@ export default function createShippingLogisticsRoutes(deps = {}) {
     }
   });
 
-  router.get('/api/shipping/correios/debug', async (_req, res) => {
+  // Diagnóstico da integração expõe detalhes operacionais e é somente administrativo.
+  router.get('/api/shipping/correios/debug', adminRequired, async (_req, res) => {
     try {
       const getter = requireDep('getShippingSettings', getShippingSettings);
       const cfgFn = requireDep('correiosCfg', correiosCfg);
@@ -78,7 +79,8 @@ export default function createShippingLogisticsRoutes(deps = {}) {
     }
   });
 
-  router.get('/api/shipping/correios/token-test', async (_req, res) => {
+  // Teste de credencial não deve ficar disponível ao público.
+  router.get('/api/shipping/correios/token-test', adminRequired, async (_req, res) => {
     try {
       const getter = requireDep('getShippingSettings', getShippingSettings);
       const tokenFn = requireDep('getCorreiosToken', getCorreiosToken);
@@ -104,7 +106,9 @@ export default function createShippingLogisticsRoutes(deps = {}) {
   router.post('/api/shipping/correios/quote', runCorreiosQuote);
   router.post('/shipping/correios/quote', runCorreiosQuote);
 
-  router.get('/api/shipping/correios/tracking/:code', async (req, res) => {
+  // A consulta bruta por código retorna dados do pedido. O rastreio público seguro
+  // permanece na rota que valida pedido + CPF/CNPJ em orderSupportRoutes.js.
+  router.get('/api/shipping/correios/tracking/:code', adminRequired, async (req, res) => {
     try {
       const OrderModel = requireDep('Order', Order);
       const code = String(req.params.code || '').trim();
@@ -132,7 +136,8 @@ export default function createShippingLogisticsRoutes(deps = {}) {
     }
   });
 
-  router.get('/api/shipping/correios/label/:orderId/html', async (req, res) => {
+  // Etiqueta contém nome, telefone e endereço completo do cliente: somente admin.
+  router.get('/api/shipping/correios/label/:orderId/html', adminRequired, async (req, res) => {
     try {
       const OrderModel = requireDep('Order', Order);
       const order = await OrderModel.findById(req.params.orderId);

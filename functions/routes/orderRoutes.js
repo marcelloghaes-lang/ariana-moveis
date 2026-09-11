@@ -126,7 +126,8 @@ export default function createOrderRoutes(deps = {}) {
     }
   });
 
-  router.patch('/orders/:id/status', authRequired, updateOrderById);
+  // Alterar status/rastreio é operação operacional da loja, nunca do cliente.
+  router.patch('/orders/:id/status', adminRequired, updateOrderById);
 
   router.get('/admin/orders', adminRequired, async (req, res) => {
     try {
