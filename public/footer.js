@@ -35,12 +35,12 @@ const renderGlobalFooter = () => {
             </div>
             <h3 class="text-lg font-semibold pt-4 text-primary-blue">Formas de Pagamento</h3>
             <div class="flex flex-nowrap items-center gap-2">
-                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain">
-                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain">
-                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain">
+                <img src="/assets/imagens/bandeira_visa.png" alt="Visa" class="h-4 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/bandeira_mastercard.png" alt="Mastercard" class="h-6 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/bandeira_elo.png" alt="Elo" class="h-6 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/bandeira_brasilcard (2).png" alt="Brasilcard" class="h-6 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/logo_pix.png" alt="Pix" class="h-4 w-auto object-contain" loading="lazy" decoding="async">
+                <img src="/assets/imagens/icone_boleto.png" alt="Boleto" class="h-4 w-auto object-contain" loading="lazy" decoding="async">
             </div>
         </div>
     </div>
@@ -57,5 +57,71 @@ const renderGlobalFooter = () => {
     }
 };
 
-// Executa após o carregamento do DOM para evitar problemas de cache
-document.addEventListener('DOMContentLoaded', renderGlobalFooter);
+function enhanceArianaHomeSeo() {
+    const path = String(window.location.pathname || '/').toLowerCase().replace(/\/+$/, '') || '/';
+    const isHome = path === '/' || path === '/index.html' || path.endsWith('/public/index.html');
+    if (!isHome) return;
+
+    document.documentElement.lang = 'pt-BR';
+    document.title = 'Ariana Móveis | Móveis, Eletrodomésticos, Eletrônicos e Mais';
+
+    const ensureMeta = (selector, attrs) => {
+        let node = document.head.querySelector(selector);
+        if (!node) {
+            node = document.createElement('meta');
+            document.head.appendChild(node);
+        }
+        Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+        return node;
+    };
+
+    ensureMeta('meta[name="robots"]', {
+        name: 'robots',
+        content: 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'
+    });
+    ensureMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' });
+    ensureMeta('meta[property="og:site_name"]', { property: 'og:site_name', content: 'Ariana Móveis' });
+    ensureMeta('meta[property="og:locale"]', { property: 'og:locale', content: 'pt_BR' });
+    ensureMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary' });
+    ensureMeta('meta[name="twitter:title"]', {
+        name: 'twitter:title',
+        content: 'Ariana Móveis | Móveis, Eletrodomésticos, Eletrônicos e Mais'
+    });
+    ensureMeta('meta[name="twitter:description"]', {
+        name: 'twitter:description',
+        content: 'Móveis, eletrodomésticos, eletrônicos e utilidades com entrega para todo o Brasil.'
+    });
+
+    if (!document.getElementById('ariana-home-structured-data')) {
+        const script = document.createElement('script');
+        script.id = 'ariana-home-structured-data';
+        script.type = 'application/ld+json';
+        script.textContent = JSON.stringify({
+            '@context': 'https://schema.org',
+            '@graph': [
+                {
+                    '@type': 'Organization',
+                    '@id': 'https://arianamoveis.com.br/#organization',
+                    name: 'Ariana Móveis',
+                    url: 'https://arianamoveis.com.br/',
+                    logo: 'https://arianamoveis.com.br/favicon.png'
+                },
+                {
+                    '@type': 'WebSite',
+                    '@id': 'https://arianamoveis.com.br/#website',
+                    url: 'https://arianamoveis.com.br/',
+                    name: 'Ariana Móveis',
+                    publisher: { '@id': 'https://arianamoveis.com.br/#organization' },
+                    inLanguage: 'pt-BR'
+                }
+            ]
+        });
+        document.head.appendChild(script);
+    }
+}
+
+// Executa após o carregamento do DOM para evitar problemas de cache.
+document.addEventListener('DOMContentLoaded', () => {
+    renderGlobalFooter();
+    enhanceArianaHomeSeo();
+});
