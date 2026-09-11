@@ -1,0 +1,1 @@
+Ariana ERP Lite - etapa de caixa em desenvolvimento e validacao.
