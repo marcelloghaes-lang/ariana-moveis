@@ -1,14 +1,14 @@
 // ============================================================
 // MERCADO PAGO - IDEMPOTÊNCIA DE TRANSPORTE
-// O legado gerava uma chave aleatória a cada repetição. Esta camada preserva
-// o restante do axios, mas substitui apenas o header das criações /v1/payments
-// por uma chave determinística por pedido + meio de pagamento.
+// Mantém a mesma chave ao repetir a mesma tentativa. Para cartão, um novo
+// token representa uma nova transação e portanto recebe outra chave; Pix e
+// boleto continuam estáveis por pedido + meio de pagamento.
 // ============================================================
 
-function stablePaymentKey(crypto, orderId, method) {
+function stablePaymentKey(crypto, orderId, method, attemptIdentity = '') {
   const hash = crypto
     .createHash('sha256')
-    .update(`ariana-mp-v1|${String(orderId)}|${String(method)}`)
+    .update(`ariana-mp-v1|${String(orderId)}|${String(method)}|${String(attemptIdentity || '')}`)
     .digest('hex');
 
   // UUID determinístico para manter um formato aceito amplamente por gateways.
@@ -31,7 +31,17 @@ function paymentIdentity(payload = {}) {
     'payment'
   ).trim().toLowerCase();
 
-  return { orderId, method };
+  // O token de cartão é descartável no Mercado Pago: a mesma tentativa mantém
+  // a mesma chave, enquanto uma nova tokenização pode criar uma nova cobrança.
+  const cardToken = String(
+    payload?.token ||
+    payload?.card?.token ||
+    payload?.payment_token ||
+    ''
+  ).trim();
+  const attemptIdentity = cardToken ? `card-token:${cardToken}` : '';
+
+  return { orderId, method, attemptIdentity };
 }
 
 export function createMercadoPagoIdempotentAxios(axios, crypto) {
@@ -43,7 +53,12 @@ export function createMercadoPagoIdempotentAxios(axios, crypto) {
     if (/^https:\/\/api\.mercadopago\.com\/v1\/payments(?:\?|$)/i.test(target)) {
       const identity = paymentIdentity(data || {});
       if (identity.orderId) {
-        const key = stablePaymentKey(crypto, identity.orderId, identity.method);
+        const key = stablePaymentKey(
+          crypto,
+          identity.orderId,
+          identity.method,
+          identity.attemptIdentity
+        );
         config = {
           ...(config || {}),
           headers: {
