@@ -4,6 +4,7 @@ import registerStorefrontOrderSecurity from './storefrontOrderSecurity.js';
 import registerStorefrontCheckoutIntegrity from './storefrontCheckoutIntegrity.js';
 import registerStorefrontStockSecurity from './storefrontStockSecurity.js';
 import registerRetiredPagarmeRoutes from './retiredPagarmeRoutes.js';
+import { createMercadoPagoIdempotentAxios } from '../services/mercadoPagoIdempotencyTransport.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -162,6 +163,7 @@ function buildRuntimeContext(context = {}) {
 
 export default function registerLegacyRoutes(app, context = {}) {
   const runtimeContext = buildRuntimeContext(context);
+  runtimeContext.axios = createMercadoPagoIdempotentAxios(runtimeContext.axios, runtimeContext.crypto);
   const paymentSecurity = registerStorefrontPaymentSecurity(app, runtimeContext);
   Object.assign(runtimeContext, paymentSecurity || {});
   registerStorefrontOrderSecurity(app, runtimeContext);
