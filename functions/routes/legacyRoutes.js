@@ -1,4 +1,5 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
+import registerStorefrontProductVisibilityRoutes from './storefrontProductVisibilityRoutes.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -157,6 +158,12 @@ function buildRuntimeContext(context = {}) {
 
 export default function registerLegacyRoutes(app, context = {}) {
   const runtimeContext = buildRuntimeContext(context);
+
+  // Rotas públicas da vitrine precisam ser registradas antes das rotas legadas.
+  // A migração SIGE usa o mesmo model Product para o ERP; produtos criados apenas
+  // para o ERP possuem specs.sigeSourceId e não devem ocupar a home/catálogo público.
+  registerStorefrontProductVisibilityRoutes(app, runtimeContext);
+
   const result = registerLegacyRuntimeRoutes(app, runtimeContext);
   prioritizeSpecificAdminRoutes(app);
   return result;
