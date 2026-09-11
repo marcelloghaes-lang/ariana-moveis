@@ -113,7 +113,16 @@ export default function registerStorefrontPaymentSecurity(app, context = {}) {
   }
 
   function mercadoPagoMethod(mpData = {}) {
-    return normalizeMethod(mpData?.payment_method_id || mpData?.payment_type_id || '');
+    const methodId = normalizeMethod(mpData?.payment_method_id || '');
+    const paymentType = String(mpData?.payment_type_id || '').trim().toLowerCase();
+
+    // Para cartão, payment_method_id normalmente é a bandeira (Visa/Master),
+    // enquanto payment_type_id informa credit_card/debit_card. Para Pix e boleto,
+    // o identificador do método continua sendo a referência mais específica.
+    if (methodId === 'pix') return 'pix';
+    if (methodId === 'boleto' || paymentType === 'ticket' || paymentType === 'atm') return 'boleto';
+    if (['credit_card', 'debit_card', 'prepaid_card'].includes(paymentType)) return 'card';
+    return methodId || normalizeMethod(paymentType);
   }
 
   function apiError(status, message, code = 'PAYMENT_INTEGRITY_ERROR') {
@@ -186,7 +195,7 @@ export default function registerStorefrontPaymentSecurity(app, context = {}) {
     }
 
     const provider = normalizeProvider(order?.payment?.provider || '');
-    if (provider && provider !== 'mercadopago' && !paymentCanRetry(order)) {
+    if (provider && provider !== 'mercadopago') {
       throw apiError(409, 'O pedido está vinculado a outro provedor de pagamento.', 'MP_PROVIDER_MISMATCH');
     }
 
@@ -274,7 +283,7 @@ export default function registerStorefrontPaymentSecurity(app, context = {}) {
       }
 
       const provider = normalizeProvider(order?.payment?.provider || '');
-      if (provider && provider !== 'mercadopago' && !paymentCanRetry(order)) {
+      if (provider && provider !== 'mercadopago') {
         return res.status(409).json({
           ok: false,
           error: 'Este pedido está vinculado a outro provedor de pagamento.',
