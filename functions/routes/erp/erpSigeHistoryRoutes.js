@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createErpSigeHistoryImportService } from '../../services/erp/erpSigeHistoryImportService.js';
+import { createErpSigeHistoryImportService } from '../../services/erp/erpSigeHistoryImportServiceV2.js';
 
 const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:8*1024*1024}});
 const actor=req=>{const u=req.adminUser||req.user||{};return{name:u.name||u.nome||'',email:u.email||'',id:String(u._id||u.id||'')}};
