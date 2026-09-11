@@ -18,7 +18,7 @@ function actor(a = {}) {
 }
 
 const movementSchema = new mongoose.Schema({
-  type: { type: String, enum: ['opening', 'sale', 'reinforcement', 'withdrawal', 'adjustment'], required: true },
+  type: { type: String, enum: ['opening', 'sale', 'reversal', 'reinforcement', 'withdrawal', 'adjustment'], required: true },
   method: { type: String, default: 'dinheiro' },
   value: { type: Number, default: 0 },
   orderId: { type: String, default: '' },
@@ -54,9 +54,10 @@ function summarize(session) {
     const value = money(m.value || 0);
     const method = clean(m.method || 'outro', 80);
     if (m.type === 'sale') totals[method] = money((totals[method] || 0) + value);
+    if (m.type === 'reversal') totals[method] = money((totals[method] || 0) - value);
     if (method === 'dinheiro') {
       if (m.type === 'sale' || m.type === 'reinforcement') cash = money(cash + value);
-      if (m.type === 'withdrawal') cash = money(cash - value);
+      if (m.type === 'withdrawal' || m.type === 'reversal') cash = money(cash - value);
     }
   }
   return {
@@ -144,14 +145,43 @@ export function createErpCashService(context = {}) {
     if (!session) return null;
     const method = clean(order.payment?.method || 'outro', 80);
     const code = clean(order.televendas?.erp?.code || String(order._id || ''), 120);
-    const exists = session.movements.some(m => m.type === 'sale' && m.orderId === String(order._id || ''));
+    const orderId = String(order._id || order.id || '');
+    const exists = session.movements.some(m => m.type === 'sale' && m.orderId === orderId);
     if (exists) return summarize(session);
     session.movements.push({
-      type: 'sale', method, value: money(order.total), orderId: String(order._id || ''), orderCode: code,
+      type: 'sale', method, value: money(order.total), orderId, orderCode: code,
       note: clean(`Venda ${code}`, 500), createdAt: new Date()
     });
     await session.save();
-    await audit('erp.cash.sale', session, { message: `Venda ${code} registrada no caixa`, orderId: String(order._id || ''), value: money(order.total), method });
+    await audit('erp.cash.sale', session, { message: `Venda ${code} registrada no caixa`, orderId, value: money(order.total), method });
+    return summarize(session);
+  }
+
+  async function reverseSale(order, a = {}) {
+    if (!order) return null;
+    const orderId = String(order._id || order.id || '');
+    if (!orderId) return null;
+    const session = await ErpCashSession.findOne({ 'movements.orderId': orderId }).sort({ openedAt: -1 });
+    if (!session) return null;
+    const sale = session.movements.find(m => m.type === 'sale' && m.orderId === orderId);
+    if (!sale) return summarize(session);
+    const already = session.movements.some(m => m.type === 'reversal' && m.orderId === orderId);
+    if (already) return summarize(session);
+    const code = clean(order.televendas?.erp?.code || sale.orderCode || orderId, 120);
+    session.movements.push({
+      type: 'reversal', method: sale.method || order.payment?.method || 'outro', value: money(sale.value || order.total),
+      orderId, orderCode: code, note: clean(`Estorno da venda ${code}`, 500), createdAt: new Date()
+    });
+    if (session.status === 'closed') {
+      const updated = summarize(session);
+      session.closingExpected = updated.expectedCash;
+      session.difference = session.closingDeclared == null ? null : money(session.closingDeclared - updated.expectedCash);
+    }
+    await session.save();
+    await audit('erp.cash.reversal', session, {
+      message: `Estorno da venda ${code} registrado no caixa`, orderId, value: money(sale.value || order.total), method: sale.method || order.payment?.method || 'outro',
+      reversedBy: actor(a).name
+    });
     return summarize(session);
   }
 
@@ -184,6 +214,7 @@ export function createErpCashService(context = {}) {
     reinforcement: (payload, a) => addMovement('reinforcement', payload, a),
     withdrawal: (payload, a) => addMovement('withdrawal', payload, a),
     registerSale,
+    reverseSale,
     close,
     history
   };
