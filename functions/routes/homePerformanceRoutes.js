@@ -57,7 +57,7 @@ export default function registerHomePerformanceRoutes(app, context = {}) {
             splitEnabled: paymentSettings?.mercadopago?.splitEnabled !== false
           },
           // Mantido apenas por compatibilidade do contrato antigo da Home.
-          // Esta camada nao altera configuracoes nem integrações legadas.
+          // Esta camada nao altera configuracoes nem integracoes legadas.
           pagarme: {
             enabled: !!paymentSettings?.pagarme?.enabled
           }
@@ -80,10 +80,15 @@ export default function registerHomePerformanceRoutes(app, context = {}) {
     }
   }
 
-  async function sendHome(req, res, next) {
+  function setPublicCacheHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    res.setHeader('Vary', 'Accept-Encoding');
+  }
+
+  async function sendHome(_req, res, next) {
     try {
       const payload = await loadHomePayload();
-      res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+      setPublicCacheHeaders(res);
       res.setHeader('X-Ariana-Home-Cache', cache.expiresAt > Date.now() ? 'active' : 'expired');
       return res.json(payload);
     } catch (error) {
@@ -96,13 +101,23 @@ export default function registerHomePerformanceRoutes(app, context = {}) {
   app.get('/api/index-data', sendHome);
   app.get('/api/home', sendHome);
 
-  // A Home antiga ainda chama /api/banners em paralelo. Servimos o mesmo snapshot
-  // em cache para que essa chamada nao provoque uma segunda consulta ao MongoDB.
+  // A Home e o header antigo ainda chamam estes endpoints em paralelo. Servimos
+  // o mesmo snapshot para impedir novas consultas Mongo no mesmo carregamento.
   app.get('/api/banners', async (_req, res, next) => {
     try {
       const payload = await loadHomePayload();
-      res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+      setPublicCacheHeaders(res);
       return res.json(payload.banners || []);
+    } catch (error) {
+      return next();
+    }
+  });
+
+  app.get('/api/categories', async (_req, res, next) => {
+    try {
+      const payload = await loadHomePayload();
+      setPublicCacheHeaders(res);
+      return res.json(payload.categories || []);
     } catch (error) {
       return next();
     }
