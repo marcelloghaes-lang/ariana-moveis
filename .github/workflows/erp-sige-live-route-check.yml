@@ -1,0 +1,44 @@
+name: ERP SIGE Live Route Check
+
+on:
+  push:
+    branches:
+      - erp-sige-import-masterdata
+    paths:
+      - '.github/workflows/erp-sige-live-route-check.yml'
+      - 'functions/routes/erp/erpSigeMigrationRoutes.js'
+      - 'functions/routes/televendas/index.js'
+      - 'public/erp_migracao_sige.html'
+
+jobs:
+  live-route:
+    runs-on: ubuntu-latest
+    env:
+      BACKEND: https://ariana-backend.onrender.com
+      ORIGIN: https://arianamoveis.com.br
+    steps:
+      - name: Check migration CORS preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -D - -o /dev/null -X OPTIONS \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: authorization,content-type' \
+            "$BACKEND/api/erp/migracao/sige/dry-run" | tr -d '\r')
+          echo "$headers"
+          echo "$headers" | grep -qi '^HTTP/.* 204'
+          echo "$headers" | grep -qi "^access-control-allow-origin: $ORIGIN$"
+          echo "$headers" | grep -qi '^access-control-allow-methods: .*POST'
+          echo "$headers" | grep -qi '^access-control-allow-headers: .*Authorization'
+
+      - name: Check migration route exists and is protected
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 15 --max-time 35 -sS -o /tmp/body.json -w '%{http_code}' -X POST \
+            -H "Origin: $ORIGIN" \
+            "$BACKEND/api/erp/migracao/sige/dry-run")
+          echo "HTTP $code"
+          cat /tmp/body.json || true
+          test "$code" = "401"
