@@ -63,5 +63,6 @@ export function drawBottom(c,d,productsEnd){
   c.wrap(d.additional,6.0,365,5).forEach((ln,i)=>c.text(38.41,boxY+12+i*8,ln,6.0,false,'left',365));
   c.text(412.0,boxY+1.5,'RESERVADO AO FISCO',6.38,false,'left',149);
   c.wrap(d.reserved,6.0,147,5).forEach((ln,i)=>c.text(412.0,boxY+12+i*8,ln,6.0,false,'left',147));
+  c.text(35.44,809.5,'Emitido pelo ERP Ariana - www.arianamoveis.com.br',5.4,false,'center',528.58);
 }
 
