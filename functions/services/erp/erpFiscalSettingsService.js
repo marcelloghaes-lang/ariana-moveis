@@ -59,7 +59,12 @@ async function validateImage(buffer){
 async function normalizeMascot(buffer){
   await validateImage(buffer);
   try{
-    const jpeg=await sharp(buffer,{failOn:'error'}).rotate().resize({width:480,height:500,fit:'contain',background:{r:255,g:255,b:255,alpha:1}}).flatten({background:{r:255,g:255,b:255}}).jpeg({quality:90,chromaSubsampling:'4:4:4'}).toBuffer();
+    const jpeg=await sharp(buffer,{failOn:'error'})
+      .rotate()
+      .resize({width:480,height:500,fit:'contain',background:{r:255,g:255,b:255,alpha:1}})
+      .flatten({background:{r:255,g:255,b:255}})
+      .jpeg({quality:90,chromaSubsampling:'4:4:4'})
+      .toBuffer();
     if(jpeg.length>900*1024)throw fail('A imagem otimizada da mascote deve ter no máximo 900 KB.',413,'ERP_MASCOT_TOO_LARGE');
     return jpeg;
   }catch(error){
@@ -70,7 +75,12 @@ async function normalizeMascot(buffer){
 
 async function composeDanfeLogo(mascotBuffer){
   await validateImage(mascotBuffer);
-  const mascot=await sharp(mascotBuffer,{failOn:'error'}).rotate().resize({width:176,height:190,fit:'contain',background:{r:255,g:255,b:255,alpha:0}}).png().toBuffer();
+  const mascot=await sharp(mascotBuffer,{failOn:'error'})
+    .rotate()
+    .resize({width:176,height:190,fit:'contain',background:{r:255,g:255,b:255,alpha:0}})
+    .png()
+    .toBuffer();
+
   const brandSvg=Buffer.from(`
     <svg width="570" height="190" viewBox="0 0 570 190" xmlns="http://www.w3.org/2000/svg">
       <rect width="570" height="190" fill="#ffffff"/>
@@ -79,7 +89,15 @@ async function composeDanfeLogo(mascotBuffer){
       <text x="12" y="126" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" letter-spacing="1.2" fill="#2E6DA4">Sua casa merece o melhor.</text>
     </svg>
   `);
-  const jpeg=await sharp({create:{width:760,height:210,channels:3,background:{r:255,g:255,b:255}}}).composite([{input:mascot,left:0,top:10},{input:brandSvg,left:178,top:10}]).jpeg({quality:95,chromaSubsampling:'4:4:4'}).toBuffer();
+
+  const jpeg=await sharp({create:{width:760,height:210,channels:3,background:{r:255,g:255,b:255}}})
+    .composite([
+      {input:mascot,left:0,top:10},
+      {input:brandSvg,left:178,top:10}
+    ])
+    .jpeg({quality:95,chromaSubsampling:'4:4:4'})
+    .toBuffer();
+
   if(jpeg.length>900*1024)throw fail('A identidade visual otimizada do DANFE excedeu o limite de 900 KB.',413,'ERP_MASCOT_TOO_LARGE');
   return jpeg;
 }
@@ -89,10 +107,18 @@ async function officialLogo(){
     officialLogoPromise=(async()=>{
       try{
         let mascot;
-        try{mascot=await readFile(new URL('../../../public/assets/imagens/avatar-ariana.png',import.meta.url));}
-        catch{mascot=await readFile(new URL('../../assets/mascote.png',import.meta.url));}
+        try{
+          // Usa primeiro exatamente o avatar referenciado pelo cabeçalho da loja.
+          mascot=await readFile(new URL('../../../public/assets/imagens/avatar-ariana.png',import.meta.url));
+        }catch{
+          // Fallback mantido dentro de functions para ambientes que empacotam somente o backend.
+          mascot=await readFile(new URL('../../assets/mascote.png',import.meta.url));
+        }
         return await composeDanfeLogo(mascot);
-      }catch(error){console.warn('[erp-fiscal-settings/official-logo]',error?.message||error);return null;}
+      }catch(error){
+        console.warn('[erp-fiscal-settings/official-logo]',error?.message||error);
+        return null;
+      }
     })();
   }
   return officialLogoPromise;
@@ -105,13 +131,23 @@ export function createErpFiscalSettingsService(context={}){
   async function get(){const x=await row();return{hasMascot:Boolean(x.mascotJpeg),mascotUpdatedAt:x.mascotUpdatedAt||null,emission:emissionPublic(x)}}
   async function mascot(){
     const x=await row();
-    if(x.mascotJpeg){try{const custom=Buffer.from(x.mascotJpeg,'base64');if(custom.length)return await composeDanfeLogo(custom)}catch(error){console.warn('[erp-fiscal-settings/custom-logo]',error?.message||error)}}
+    if(x.mascotJpeg){
+      try{
+        const custom=Buffer.from(x.mascotJpeg,'base64');
+        if(custom.length)return await composeDanfeLogo(custom);
+      }catch(error){
+        console.warn('[erp-fiscal-settings/custom-logo]',error?.message||error);
+      }
+    }
     return officialLogo();
   }
   async function setMascot(buffer,actor={}){
-    const jpeg=await normalizeMascot(buffer),who=clean(actor.name||actor.nome||actor.email||'Operador',180),now=new Date();
+    const jpeg=await normalizeMascot(buffer);
+    const who=clean(actor.name||actor.nome||actor.email||'Operador',180);
+    const now=new Date();
     await Settings.updateOne({key:'default'},{$set:{mascotJpeg:jpeg.toString('base64'),mascotUpdatedAt:now,updatedBy:who},$setOnInsert:{key:'default'}},{upsert:true});
-    await audit('erp.fiscal.mascot.updated',{message:'Mascote do DANFE atualizada',by:who,size:jpeg.length});return get();
+    await audit('erp.fiscal.mascot.updated',{message:'Mascote do DANFE atualizada',by:who,size:jpeg.length});
+    return get();
   }
   async function clearMascot(actor={}){const who=clean(actor.name||actor.nome||actor.email||'Operador',180);await Settings.updateOne({key:'default'},{$set:{mascotJpeg:'',mascotUpdatedAt:new Date(),updatedBy:who},$setOnInsert:{key:'default'}},{upsert:true});await audit('erp.fiscal.mascot.cleared',{message:'Mascote personalizada removida; identidade visual oficial do DANFE restaurada',by:who});return get()}
   async function setEmission(payload={},actor={}){
