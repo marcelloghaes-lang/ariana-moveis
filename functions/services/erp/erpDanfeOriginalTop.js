@@ -1,4 +1,4 @@
-import {brl,clean,fmtCep,fmtDoc,fmtPhone,keyGroups,dateOnlyBr,timeBr,dateTimeCompact,money} from './erpDanfeOriginalPdf.js';
+import {brl,clean,fmtCep,fmtDoc,fmtPhone,keyGroups,dateOnlyBr,timeBr,dateTimeCompact,money,digits} from './erpDanfeOriginalPdf.js';
 
 export function drawReceipt(c,d){
   const y=29.05;
@@ -84,4 +84,3 @@ export function drawBilling(c,d){
   });
   return boxY+boxH;
 }
-
