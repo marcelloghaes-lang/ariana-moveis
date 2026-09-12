@@ -5,42 +5,22 @@ const digits=(v='')=>String(v??'').replace(/\D/g,'');
 const esc=(v='')=>String(v).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 let sigeActiveRepairDone=false;
 
-function personModel(){
-  const Person=mongoose.models.ErpPerson;
-  if(!Person)throw Object.assign(new Error('Cadastro comercial do ERP ainda não foi inicializado.'),{statusCode:503,code:'ERP_PEOPLE_UNAVAILABLE'});
-  return Person;
-}
-async function ensureSigePeopleVisible(Person){
-  if(sigeActiveRepairDone)return;
-  await Person.updateMany(
-    {source:'sige',active:false,importedAt:{$exists:true}},
-    {$set:{active:true,'metadata.activeRepair':'trash_title_import_bug_2026-09-11'}}
-  );
-  sigeActiveRepairDone=true;
-}
-function addressText(a={}){
-  return [a.street,a.number,a.neighborhood,a.city,a.state||a.stateCode].map(x=>clean(x,180)).filter(Boolean).join(', ');
-}
-function personRow(p={}){
-  return {id:String(p._id||''),source:p.source||'',sourceId:p.sourceId||'',name:p.name||p.companyName||'',companyName:p.companyName||'',document:p.document||'',email:p.email||'',phone:p.phone||'',personType:p.personType||'',roles:Array.isArray(p.roles)?p.roles:[],address:p.address||{},addressText:addressText(p.address||{}),linkedUserId:p.linkedUserId?String(p.linkedUserId):'',active:p.active!==false};
-}
-function userRow(u={}){
-  return {id:`user:${String(u._id||'')}`,source:'site',sourceId:String(u._id||''),name:u.name||u.email||'Cliente',companyName:'',document:digits(u.cpf),email:u.email||'',phone:digits(u.phone),personType:'Cliente do site',roles:['Cliente'],address:{city:u.city||'',stateCode:u.uf||''},addressText:[u.city,u.uf].filter(Boolean).join('/'),linkedUserId:String(u._id||''),active:u.isActive!==false};
-}
-function keyOf(row={}){return row.document?`doc:${digits(row.document)}`:(row.email?`mail:${String(row.email).toLowerCase()}`:(row.phone?`tel:${digits(row.phone)}`:`id:${row.id}`));}
+function fail(message,statusCode=400,code='ERP_PEOPLE_ERROR'){const e=new Error(message);e.statusCode=statusCode;e.code=code;return e}
+function personModel(){const Person=mongoose.models.ErpPerson;if(!Person)throw fail('Cadastro comercial do ERP ainda não foi inicializado.',503,'ERP_PEOPLE_UNAVAILABLE');return Person}
+async function ensureSigePeopleVisible(Person){if(sigeActiveRepairDone)return;await Person.updateMany({source:'sige',active:false,importedAt:{$exists:true}},{$set:{active:true,'metadata.activeRepair':'trash_title_import_bug_2026-09-11'}});sigeActiveRepairDone=true}
+function normalizeAddress(a={}){return{street:clean(a.street??a.logradouro,220),number:clean(a.number??a.numero,80),complement:clean(a.complement??a.complemento,220),neighborhood:clean(a.neighborhood??a.bairro,160),city:clean(a.city??a.municipio,160),cityCode:digits(a.cityCode??a.codigoMunicipio).slice(0,7),state:clean(a.state??a.estado,80),stateCode:clean(a.stateCode??a.uf,2).toUpperCase(),zipCode:digits(a.zipCode??a.cep).slice(0,8),country:clean(a.country??a.pais??'Brasil',100),countryCode:clean(a.countryCode??a.codigoPais??'1058',30)}}
+function addressText(a={}){return[a.street,a.number,a.neighborhood,a.city,a.stateCode||a.state].map(x=>clean(x,180)).filter(Boolean).join(', ')}
+function personRow(p={}){return{id:String(p._id||''),source:p.source||'',sourceId:p.sourceId||'',name:p.name||p.companyName||'',companyName:p.companyName||'',document:p.document||'',ie:p.ie||'',ieExempt:Boolean(p.ieExempt),email:p.email||'',phone:p.phone||'',personType:p.personType||'',roles:Array.isArray(p.roles)?p.roles:[],address:p.address||{},addressText:addressText(p.address||{}),linkedUserId:p.linkedUserId?String(p.linkedUserId):'',active:p.active!==false}}
+function userRow(u={}){return{id:`user:${String(u._id||'')}`,source:'site',sourceId:String(u._id||''),name:u.name||u.email||'Cliente',companyName:'',document:digits(u.cpf),ie:'',ieExempt:false,email:u.email||'',phone:digits(u.phone),personType:'Cliente do site',roles:['Cliente'],address:{city:u.city||'',stateCode:u.uf||''},addressText:[u.city,u.uf].filter(Boolean).join('/'),linkedUserId:String(u._id||''),active:u.isActive!==false}}
+function keyOf(row={}){return row.document?`doc:${digits(row.document)}`:(row.email?`mail:${String(row.email).toLowerCase()}`:(row.phone?`tel:${digits(row.phone)}`:`id:${row.id}`))}
+function validatePayload(payload={}){const name=clean(payload.name||payload.companyName,220);if(!name)throw fail('Informe o nome ou razão social do cliente.');const document=digits(payload.document);if(document&&![11,14].includes(document.length))throw fail('CPF/CNPJ deve ter 11 ou 14 dígitos.');const a=normalizeAddress(payload.address||{});if(a.zipCode&&a.zipCode.length!==8)throw fail('CEP deve ter 8 dígitos.');if(a.cityCode&&a.cityCode.length!==7)throw fail('Código IBGE do município deve ter 7 dígitos.');if(a.stateCode&&a.stateCode.length!==2)throw fail('UF deve ter 2 letras.');return{name,companyName:clean(payload.companyName,220),document,ie:clean(payload.ie,80),ieExempt:Boolean(payload.ieExempt),email:clean(payload.email,320).toLowerCase(),phone:digits(payload.phone).slice(0,20),personType:clean(payload.personType|| (document.length===14?'Pessoa Jurídica':'Pessoa Física'),80),roles:Array.isArray(payload.roles)&&payload.roles.length?payload.roles.map(x=>clean(x,80)).filter(Boolean):['Cliente'],address:a,active:payload.active!==false}}
 
 export function createErpPeopleService(context={}){
   const {User}=context;if(!User)throw new Error('[erp-people] User não informado');
-  async function list(query={}){
-    const Person=personModel();await ensureSigePeopleVisible(Person);const q=clean(query.q||query.search,160),limit=Math.min(200,Math.max(1,Number(query.limit||50)));
-    const filter={active:{$ne:false}};
-    if(q){const rx=new RegExp(esc(q),'i'),qd=digits(q);filter.$or=[{name:rx},{companyName:rx},{email:rx},{phone:rx},{document:rx}];if(qd)filter.$or.push({document:new RegExp(esc(qd),'i')},{phone:new RegExp(esc(qd),'i')});}
-    const commercial=(await Person.find(filter).sort({name:1}).limit(limit).lean()).map(personRow);
-    const seen=new Set(commercial.map(keyOf));const users=[];
-    if(commercial.length<limit){const uf={role:'customer',isActive:{$ne:false}};if(q){const rx=new RegExp(esc(q),'i'),qd=digits(q);uf.$or=[{name:rx},{email:rx},{phone:rx},{cpf:rx}];if(qd)uf.$or.push({phone:new RegExp(esc(qd),'i')},{cpf:new RegExp(esc(qd),'i')});}const site=await User.find(uf).select('_id name email phone cpf city uf isActive').sort({name:1}).limit(limit).lean();for(const u of site){const row=userRow(u),k=keyOf(row);if(seen.has(k))continue;seen.add(k);users.push(row);if(commercial.length+users.length>=limit)break;}}
-    return {people:[...commercial,...users],count:commercial.length+users.length,commercialCount:commercial.length,siteOnlyCount:users.length};
-  }
-  async function get(id){const Person=personModel();await ensureSigePeopleVisible(Person);if(String(id).startsWith('user:')){const u=await User.findById(String(id).slice(5)).select('_id name email phone cpf city uf isActive').lean();if(!u)throw Object.assign(new Error('Cliente não encontrado.'),{statusCode:404});return userRow(u);}const p=await Person.findById(id).lean();if(!p)throw Object.assign(new Error('Cliente não encontrado.'),{statusCode:404});return personRow(p);}
-  return {list,get};
+  async function list(query={}){const Person=personModel();await ensureSigePeopleVisible(Person);const q=clean(query.q||query.search,160),limit=Math.min(200,Math.max(1,Number(query.limit||50)));const filter={active:{$ne:false}};if(q){const rx=new RegExp(esc(q),'i'),qd=digits(q);filter.$or=[{name:rx},{companyName:rx},{email:rx},{phone:rx},{document:rx}];if(qd)filter.$or.push({document:new RegExp(esc(qd),'i')},{phone:new RegExp(esc(qd),'i')})}const commercial=(await Person.find(filter).sort({name:1}).limit(limit).lean()).map(personRow);const seen=new Set(commercial.map(keyOf)),users=[];if(commercial.length<limit){const uf={role:'customer',isActive:{$ne:false}};if(q){const rx=new RegExp(esc(q),'i'),qd=digits(q);uf.$or=[{name:rx},{email:rx},{phone:rx},{cpf:rx}];if(qd)uf.$or.push({phone:new RegExp(esc(qd),'i')},{cpf:new RegExp(esc(qd),'i')})}const site=await User.find(uf).select('_id name email phone cpf city uf isActive').sort({name:1}).limit(limit).lean();for(const u of site){const row=userRow(u),k=keyOf(row);if(seen.has(k))continue;seen.add(k);users.push(row);if(commercial.length+users.length>=limit)break}}return{people:[...commercial,...users],count:commercial.length+users.length,commercialCount:commercial.length,siteOnlyCount:users.length}}
+  async function get(id){const Person=personModel();await ensureSigePeopleVisible(Person);if(String(id).startsWith('user:')){const u=await User.findById(String(id).slice(5)).select('_id name email phone cpf city uf isActive').lean();if(!u)throw fail('Cliente não encontrado.',404,'CUSTOMER_NOT_FOUND');return userRow(u)}if(!mongoose.isValidObjectId(id))throw fail('Cliente não encontrado.',404,'CUSTOMER_NOT_FOUND');const p=await Person.findById(id).lean();if(!p)throw fail('Cliente não encontrado.',404,'CUSTOMER_NOT_FOUND');return personRow(p)}
+  async function create(payload={},actor={}){const Person=personModel(),data=validatePayload(payload),who=clean(actor.name||actor.nome||actor.email||'Operador',180);if(data.document){const exists=await Person.findOne({document:data.document,active:{$ne:false}}).lean();if(exists)throw fail('Já existe um cliente ativo com este CPF/CNPJ.',409,'CUSTOMER_DOCUMENT_EXISTS')}const sourceId=`manual_${new mongoose.Types.ObjectId()}`;const p=await Person.create({...data,source:'manual',sourceId,metadata:{createdBy:who,createdIn:'ariana_erp'},importedAt:null});return personRow(p.toObject())}
+  async function update(id,payload={},actor={}){const Person=personModel(),data=validatePayload(payload),who=clean(actor.name||actor.nome||actor.email||'Operador',180);let targetId=id;if(String(id).startsWith('user:')){const uid=String(id).slice(5),u=await User.findById(uid).select('_id name email phone cpf city uf isActive').lean();if(!u)throw fail('Cliente não encontrado.',404,'CUSTOMER_NOT_FOUND');let linked=await Person.findOne({linkedUserId:u._id,active:{$ne:false}});if(!linked){const p=await Person.create({...data,source:'manual',sourceId:`site_${uid}`,linkedUserId:u._id,metadata:{createdBy:who,createdIn:'ariana_erp',promotedFromSite:true}});return personRow(p.toObject())}targetId=String(linked._id)}if(!mongoose.isValidObjectId(targetId))throw fail('Cliente não encontrado.',404,'CUSTOMER_NOT_FOUND');if(data.document){const dup=await Person.findOne({_id:{$ne:targetId},document:data.document,active:{$ne:false}}).lean();if(dup)throw fail('Já existe outro cliente ativo com este CPF/CNPJ.',409,'CUSTOMER_DOCUMENT_EXISTS')}const p=await Person.findByIdAndUpdate(targetId,{$set:{...data,'metadata.updatedBy':who,'metadata.updatedIn':'ariana_erp'}},{new:true});if(!p)throw fail('Cliente não encontrado.',404,'CUSTOMER_NOT_FOUND');return personRow(p.toObject())}
+  return{list,get,create,update};
 }
 export default createErpPeopleService;
