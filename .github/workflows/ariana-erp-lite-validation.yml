@@ -56,6 +56,7 @@ jobs:
           node --check functions/services/erp/erpDanfeService.js
           node --check functions/services/erp/erpDanfeBrandedService.js
           node --check functions/services/erp/erpFiscalSettingsService.js
+          node --check functions/services/erp/erpNfeSefazService.js
           node --check functions/services/erp/erpPeopleService.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpParityAnalyticsRoutes.js
