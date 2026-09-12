@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Entrar | Ariana ERP</title><meta name="theme-color" content="#0646a5">
+<style>
+:root{--blue:#0646a5;--blue2:#083978;--bg:#f3f6fa;--text:#172033;--muted:#6d778b;--line:#dde4ee;--red:#b62d3b;--green:#087a52}*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);background:linear-gradient(145deg,#eef4fc,#f8fafc)}body{display:grid;place-items:center;padding:20px}.card{width:min(440px,100%);background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 60px rgba(15,39,76,.15);overflow:hidden}.brand{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;padding:28px;display:flex;gap:14px;align-items:center}.mark{width:52px;height:52px;border-radius:15px;background:#ffd43b;color:#06377b;display:grid;place-items:center;font-size:27px;font-weight:1000}.brand strong{display:block;font-size:21px}.brand small{color:#c7daf8}.body{padding:28px}.body h1{margin:0 0 8px;font-size:23px}.body p{margin:0 0 22px;color:var(--muted);line-height:1.5}.field{margin-bottom:15px}label{display:block;font-size:12px;font-weight:900;margin-bottom:6px}input{width:100%;border:1px solid #cfd8e6;border-radius:11px;padding:13px 14px;font:inherit;outline:none}input:focus{border-color:#6c9ed7;box-shadow:0 0 0 3px rgba(6,70,165,.09)}button{width:100%;border:0;border-radius:11px;padding:13px;background:var(--blue);color:#fff;font-weight:900;font-size:15px;cursor:pointer}button:disabled{opacity:.65;cursor:wait}.msg{display:none;margin-top:14px;padding:11px 12px;border-radius:10px;font-size:13px;font-weight:700}.msg.bad{display:block;background:#fdebed;color:var(--red)}.msg.ok{display:block;background:#eef7f3;color:var(--green)}.foot{text-align:center;color:var(--muted);font-size:11px;padding-top:18px}.foot a{color:var(--blue);font-weight:800;text-decoration:none}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand"><div class="mark">A</div><div><strong>ARIANA ERP</strong><small>Gestão comercial • acesso restrito</small></div></div>
+  <div class="body">
+    <h1>Entrar no ERP</h1>
+    <p>Use seu usuário administrativo autorizado da Ariana Móveis.</p>
+    <form id="form">
+      <div class="field"><label for="email">E-mail</label><input id="email" type="email" autocomplete="username" required placeholder="seuemail@arianamoveis.com.br"></div>
+      <div class="field"><label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" required placeholder="Sua senha"></div>
+      <button id="submit" type="submit">Entrar no Ariana ERP</button>
+      <div id="msg" class="msg"></div>
+    </form>
+    <div class="foot"><a href="index.html">← Voltar ao site Ariana Móveis</a></div>
+  </div>
+</main>
+<script>
+const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search),requested=String(params.get('return')||'').trim();
+const safeReturn=requested&&!requested.includes('://')&&!requested.startsWith('//')?requested.replace(/^\/+/, ''):'erp_ariana.html';
+function show(text,bad=true){$('msg').className='msg '+(bad?'bad':'ok');$('msg').textContent=text}
+function existingToken(){return localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||''}
+if(existingToken()&&params.get('force')!=='1')location.replace(safeReturn);
+$('form').addEventListener('submit',async e=>{
+  e.preventDefault();const email=String($('email').value||'').trim(),password=String($('password').value||'');
+  if(!email||!password)return show('Informe e-mail e senha.');
+  $('submit').disabled=true;$('submit').textContent='Entrando…';
+  try{
+    const r=await fetch(API+'/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.message||'E-mail ou senha inválidos.');
+    const t=String(d.token||'');if(!t)throw new Error('O servidor não retornou uma sessão válida.');
+    localStorage.setItem('adminToken',t);localStorage.setItem('admin_token',t);localStorage.setItem('API_BASE',API);
+    localStorage.setItem('admin_name',d?.name||d?.user?.name||d?.user?.nome||'Operador');localStorage.setItem('admin_email',d?.email||d?.user?.email||email);localStorage.setItem('admin_id',String(d?.id||d?._id||d?.userId||d?.uid||d?.user?.id||''));
+    show('Login realizado. Abrindo o ERP…',false);setTimeout(()=>location.replace(safeReturn),250);
+  }catch(err){show(err.message||'Não foi possível entrar no ERP.');$('submit').disabled=false;$('submit').textContent='Entrar no Ariana ERP';}
+});
+</script>
+</body></html>
