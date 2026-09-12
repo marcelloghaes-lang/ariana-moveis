@@ -53,6 +53,7 @@ jobs:
           node --check functions/services/erp/erpSigeMasterDataImportService.js
           node --check functions/services/erp/erpSigeHistoryImportService.js
           node --check functions/services/erp/erpSigeFiscalHistoryService.js
+          node --check functions/services/erp/erpDanfeService.js
           node --check functions/services/erp/erpPeopleService.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpParityAnalyticsRoutes.js
