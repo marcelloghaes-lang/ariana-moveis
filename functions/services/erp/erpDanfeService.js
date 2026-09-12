@@ -107,11 +107,13 @@ function headerSection(c,d,y){
   y+=stubH+7;c.line(M,y-3,M+W,y-3,.35,[2,2]);
   const hh=82,left=282,right=W-left;
   c.rect(M,y,left,hh);c.rect(M+left,y,right,hh);
-  c.text(M+10,y+8,'ARIANA',14,true);c.text(M+62,y+10,'MÓVEIS',6,true);
-  c.text(M+10,y+28,d.issuer.name,7,true);
-  c.wrap(`${d.issuer.street} - ${d.issuer.city}/${d.issuer.uf} - CEP ${fmtCep(d.issuer.cep)}`,5.2,left-20,2).forEach((ln,i)=>c.text(M+10,y+39+i*7,ln,5.2));
-  c.text(M+10,y+56,`CNPJ/CPF: ${fmtDoc(d.issuer.doc)}   IE: ${d.issuer.ie||''}`,5.1);
-  c.text(M+10,y+65,`Fone: ${fmtPhone(d.issuer.phone)}`,5.1);
+  c.text(M+10,y+8,'ARIANA',14,true);
+  c.text(M+61,y+16,'MÓVEIS',5.6,true);
+  const issuerNameSize=c.fit(d.issuer.name,5.8,left-20,4.8);
+  c.text(M+10,y+29,d.issuer.name,issuerNameSize,true);
+  c.wrap(`${d.issuer.street} - ${d.issuer.city}/${d.issuer.uf} - CEP ${fmtCep(d.issuer.cep)}`,5.2,left-20,2).forEach((ln,i)=>c.text(M+10,y+40+i*7,ln,5.2));
+  c.text(M+10,y+57,`CNPJ/CPF: ${fmtDoc(d.issuer.doc)}   IE: ${d.issuer.ie||''}`,5.1);
+  c.text(M+10,y+66,`Fone: ${fmtPhone(d.issuer.phone)}`,5.1);
   const rx=M+left;
   c.text(rx+4,y+5,'DANFE',11,true,'center',right-8);
   c.text(rx+4,y+18,'Documento Auxiliar da Nota Fiscal Eletrônica',5.3,false,'center',right-8);
@@ -143,10 +145,10 @@ function drawDanfe(doc){
   c.labelValue(M,y,260,23,'Endereço',d.transport.addr,{valueSize:5});c.labelValue(M+260,y,130,23,'Município',d.transport.city,{valueSize:5});c.labelValue(M+390,y,40,23,'UF',d.transport.uf,{valueSize:5});c.labelValue(M+430,y,W-430,23,'Inscrição estadual',d.transport.ie,{valueSize:5});y+=23;
   const v=[['Quantidade',d.transport.qVol],['Espécie',d.transport.esp],['Marca',d.transport.marca],['Numeração',d.transport.nVol],['Peso bruto',d.transport.pesoB],['Peso líquido',d.transport.pesoL]];v.forEach((a,i)=>c.labelValue(M+i*cw6,y,cw6,23,a[0],a[1],{valueSize:5}));y+=23;
   c.text(M,y+2,'DADOS DOS PRODUTOS / SERVIÇOS',5,true);y+=9;
-  const colsI=[28,170,42,30,25,22,35,47,47,35,35,27,27];
+  const colsI=[28,160,38,24,25,20,34,47,47,35,35,27,27.28];
   const heads=['CÓD. PROD.','DESCRIÇÃO DOS PRODUTOS','NCM/SH','CST','CFOP','UN','QTD.','V. UNIT.','V. TOTAL','BC ICMS','V. ICMS','ALÍQ. ICMS','ALÍQ. IPI'];
-  let x=M;c.rect(M,y,W,15);heads.forEach((h,i)=>{if(i)c.line(x,y,x,y+15,.3);c.text(x+1,y+4,h,3.7,true,'center',colsI[i]-2);x+=colsI[i];});y+=15;
-  const rowH=17;const maxRows=Math.min(d.items.length,11);for(let r=0;r<maxRows;r++){const it=d.items[r];x=M;c.rect(M,y,W,rowH);const vals=[it.cProd,it.xProd,it.ncm,'',it.cfop,it.u,it.q,brl(it.vu),brl(it.vt),it.vbc?brl(it.vbc):'0,00',it.vicms?brl(it.vicms):'0,00',it.picms||'',it.pipi||''];vals.forEach((val,i)=>{if(i)c.line(x,y,x,y+rowH,.25);const align=i>=6?'right':(i===1?'left':'center');const sz=i===1?4.3:3.8;c.text(x+1,y+4,val,sz,false,align,colsI[i]-2);x+=colsI[i];});y+=rowH;}
+  let x=M;c.rect(M,y,W,15);heads.forEach((h,i)=>{if(i)c.line(x,y,x,y+15,.3);const hs=c.fit(h,3.7,colsI[i]-2,2.8);c.text(x+1,y+4,h,hs,true,'center',colsI[i]-2);x+=colsI[i];});y+=15;
+  const rowH=17;const maxRows=Math.min(d.items.length,11);for(let r=0;r<maxRows;r++){const it=d.items[r];x=M;c.rect(M,y,W,rowH);const vals=[it.cProd,it.xProd,it.ncm,'',it.cfop,it.u,it.q,brl(it.vu),brl(it.vt),it.vbc?brl(it.vbc):'0,00',it.vicms?brl(it.vicms):'0,00',it.picms||'',it.pipi||''];vals.forEach((val,i)=>{if(i)c.line(x,y,x,y+rowH,.25);const align=i>=6?'right':(i===1?'left':'center');const baseSize=i===1?4.3:3.8;const sz=c.fit(String(val??''),baseSize,colsI[i]-2,2.8);c.text(x+1,y+4,val,sz,false,align,colsI[i]-2);x+=colsI[i];});y+=rowH;}
   if(d.items.length>maxRows){c.rect(M,y,W,14);c.text(M+3,y+4,`+ ${d.items.length-maxRows} item(ns) não exibido(s) nesta primeira versão do DANFE. Consulte o XML original para a relação completa.`,4.4,true);y+=14;}
   const bottomTarget=PAGE_H-155;if(y<bottomTarget)y=bottomTarget;
   c.text(M,y+2,'CÁLCULO DO ISSQN',5,true);y+=9;
