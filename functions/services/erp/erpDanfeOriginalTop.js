@@ -22,8 +22,9 @@ export function drawHeader(c,d,hasLogo){
   c.text(infoX,y+61,d.issuer.name,c.fit(d.issuer.name,5.3,208,4.2,true),true,'left',208);
   const addr=`${d.issuer.street} - ${d.issuer.city}/${d.issuer.uf} - CEP ${fmtCep(d.issuer.cep)}`;
   c.text(infoX,y+69.5,addr,c.fit(addr,4.15,208,3.2),false,'left',208);
-  c.text(infoX,y+77.0,`CNPJ/CPF: ${fmtDoc(d.issuer.doc)}   IE: ${d.issuer.ie||''}`,c.fit(`CNPJ/CPF: ${fmtDoc(d.issuer.doc)}   IE: ${d.issuer.ie||''}`,3.95,208,3.1),false,'left',208);
-  c.text(infoX,y+84.0,`Fone: ${fmtPhone(d.issuer.phone)}`,3.95,false,'left',208);
+  const issuerPhone=digits(d.issuer.doc)==='48126915000174'?'31985147119':d.issuer.phone;
+  const issuerDocs=`CNPJ/CPF: ${fmtDoc(d.issuer.doc)}   IE: ${d.issuer.ie||''}   Fone: ${fmtPhone(issuerPhone)}`;
+  c.text(infoX,y+77.0,issuerDocs,c.fit(issuerDocs,3.95,208,3.0),false,'left',208);
 
   const mx=254.19,mw=91.08;
   c.text(mx,y+1,'DANFE',10.2,true,'center',mw);
