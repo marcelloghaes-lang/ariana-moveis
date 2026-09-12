@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { createErpSigeFiscalHistoryService } from '../../services/erp/erpSigeFiscalHistoryService.js';
-import { createErpDanfeService } from '../../services/erp/erpDanfeService.js';
+import { createErpDanfeBrandedService } from '../../services/erp/erpDanfeBrandedService.js';
 import { createErpFiscalSettingsService } from '../../services/erp/erpFiscalSettingsService.js';
 
 const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:4*1024*1024}});
@@ -12,7 +12,7 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
   const router=express.Router();
   if(!context.adminRequired)throw new Error('[erp-sige-fiscal] adminRequired não informado');
   const service=createErpSigeFiscalHistoryService();
-  const danfe=createErpDanfeService();
+  const danfe=createErpDanfeBrandedService();
   const settings=createErpFiscalSettingsService(context);
   router.get('/erp/migracao/sige/fiscal/status',context.adminRequired,async(_req,res)=>{try{return res.json({ok:true,fiscal:await service.status()})}catch(e){return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro ao consultar migração fiscal.',code:e?.code||'ERP_SIGE_FISCAL_ERROR'})}});
   router.post('/erp/migracao/sige/fiscal/dry-run',context.adminRequired,upload.single('package'),async(req,res)=>{try{return res.json({ok:true,preview:await service.preview(req.file||null)})}catch(e){return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro ao analisar pacote fiscal.',code:e?.code||'ERP_SIGE_FISCAL_ERROR'})}});
