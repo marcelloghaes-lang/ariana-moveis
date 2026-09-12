@@ -1,11 +1,23 @@
 import express from 'express';
 import { createErpPeopleService } from '../../services/erp/erpPeopleService.js';
+import { createErpProductService } from '../../services/erp/erpProductService.js';
 
 export default function createErpPeopleRoutes(context={}){
   const router=express.Router();
   if(!context.adminRequired)throw new Error('[erp-people] adminRequired não informado');
-  const service=createErpPeopleService(context);
-  router.get('/erp/people',context.adminRequired,async(req,res)=>{try{return res.json({ok:true,...await service.list(req.query||{})})}catch(error){console.error('[erp-people/list]',error?.message||error);return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao consultar clientes.',code:error?.code||'ERP_PEOPLE_ERROR'})}});
-  router.get('/erp/people/:id',context.adminRequired,async(req,res)=>{try{return res.json({ok:true,person:await service.get(req.params.id)})}catch(error){return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||'Erro ao consultar cliente.',code:error?.code||'ERP_PEOPLE_ERROR'})}});
+  const people=createErpPeopleService(context);
+  const products=context.Product?createErpProductService(context):null;
+  const actor=req=>req.adminUser||req.user||req.admin||req.auth||{};
+  const send=(res,error,fallback)=>{console.error('[erp-master-data]',error?.message||error);return res.status(Number(error?.statusCode||500)).json({ok:false,error:error?.message||fallback,code:error?.code||'ERP_MASTER_DATA_ERROR'})};
+
+  router.get('/erp/people',context.adminRequired,async(req,res)=>{try{return res.json({ok:true,...await people.list(req.query||{})})}catch(e){return send(res,e,'Erro ao consultar clientes.')}});
+  router.post('/erp/people',context.adminRequired,async(req,res)=>{try{return res.status(201).json({ok:true,person:await people.create(req.body||{},actor(req))})}catch(e){return send(res,e,'Erro ao cadastrar cliente.')}});
+  router.get('/erp/people/:id',context.adminRequired,async(req,res)=>{try{return res.json({ok:true,person:await people.get(req.params.id)})}catch(e){return send(res,e,'Erro ao consultar cliente.')}});
+  router.put('/erp/people/:id',context.adminRequired,async(req,res)=>{try{return res.json({ok:true,person:await people.update(req.params.id,req.body||{},actor(req))})}catch(e){return send(res,e,'Erro ao atualizar cliente.')}});
+
+  router.get('/erp/catalog/products',context.adminRequired,async(req,res)=>{try{if(!products)throw Object.assign(new Error('Catálogo de produtos não disponível.'),{statusCode:503});return res.json({ok:true,products:await products.list({...req.query,includeInactive:'1'})})}catch(e){return send(res,e,'Erro ao consultar produtos.')}});
+  router.post('/erp/catalog/products',context.adminRequired,async(req,res)=>{try{if(!products)throw Object.assign(new Error('Catálogo de produtos não disponível.'),{statusCode:503});return res.status(201).json({ok:true,product:await products.create(req.body||{})})}catch(e){return send(res,e,'Erro ao cadastrar produto.')}});
+  router.get('/erp/catalog/products/:id',context.adminRequired,async(req,res)=>{try{if(!products)throw Object.assign(new Error('Catálogo de produtos não disponível.'),{statusCode:503});return res.json({ok:true,product:await products.get(req.params.id)})}catch(e){return send(res,e,'Erro ao consultar produto.')}});
+  router.put('/erp/catalog/products/:id',context.adminRequired,async(req,res)=>{try{if(!products)throw Object.assign(new Error('Catálogo de produtos não disponível.'),{statusCode:503});return res.json({ok:true,product:await products.update(req.params.id,req.body||{})})}catch(e){return send(res,e,'Erro ao atualizar produto.')}});
   return router;
 }
