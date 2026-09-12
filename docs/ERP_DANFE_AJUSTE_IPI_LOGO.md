@@ -1,0 +1,1 @@
+Ajuste visual: MÓVEIS menor à direita de ARIANA, alinhado pela base; razão social menor; tabela de itens ajustada para manter IPI dentro da página A4.
