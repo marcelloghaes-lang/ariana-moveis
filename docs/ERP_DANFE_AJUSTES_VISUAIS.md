@@ -1,0 +1,1 @@
+Ajustes visuais do DANFE: alinhamento da marca ARIANA MÓVEIS, redução da razão social e correção da largura da grade de produtos para manter IPI dentro da página.
