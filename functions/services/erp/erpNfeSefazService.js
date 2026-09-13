@@ -60,6 +60,37 @@ function paymentParts(total,installments){
   const rem=Math.round(money(total)*100)-base*n;
   return Array.from({length:n},(_,i)=>(base+(i<rem?1:0))/100);
 }
+function parseIsoDate(value=''){
+  const m=clean(value,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m)return null;
+  const year=Number(m[1]),month=Number(m[2]),day=Number(m[3]);
+  const date=new Date(Date.UTC(year,month-1,day));
+  if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)return null;
+  return{year,month,day};
+}
+function addMonthsIso(value='',offset=0){
+  const parsed=parseIsoDate(value);
+  if(!parsed)return '';
+  const monthIndex=parsed.year*12+(parsed.month-1)+Math.max(0,Number(offset||0));
+  const year=Math.floor(monthIndex/12),month=monthIndex%12;
+  const lastDay=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+  const day=Math.min(parsed.day,lastDay);
+  return `${String(year).padStart(4,'0')}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+function buildCobranca(draft={},number,parts=[]){
+  const method=clean(draft?.payment?.method);
+  const firstDueDate=clean(draft?.payment?.firstDueDate,10);
+  if(!['crediario','boleto'].includes(method)||!parseIsoDate(firstDueDate))return undefined;
+  const total=money(draft?.totals?.total);
+  return{
+    fatura:{nFat:String(number),vOrig:total,vLiq:total},
+    duplicatas:parts.map((value,index)=>({
+      nDup:String(index+1).padStart(3,'0'),
+      dVenc:addMonthsIso(firstDueDate,index),
+      vDup:money(value)
+    }))
+  };
+}
 function publicProblem(code,message,field=''){return{code,message,field}}
 function orderMatchesDraft(order,draft={}){
   const expected=(Array.isArray(draft.items)?draft.items:[])
@@ -255,6 +286,7 @@ export function createErpNfeSefazService(context={},settings){
     const doc=digits(customer.document);
     const parts=paymentParts(draft.totals.total,draft.payment?.installments);
     const code=paymentCode[draft.payment?.method]||'99';
+    const cobranca=buildCobranca(draft,number,parts);
     return{
       identificacao:{
         naturezaOperacao:clean(issuer.naturezaOperacao||'Venda de mercadoria',60),
@@ -305,6 +337,7 @@ export function createErpNfeSefazService(context={},settings){
       },
       produtos:products,
       transporte:{modalidadeFrete:9},
+      ...(cobranca?{cobranca}:{}),
       pagamento:{pagamentos:parts.map(v=>({formaPagamento:code,valor:v}))}
     };
   }
