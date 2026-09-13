@@ -62,8 +62,11 @@ export function createErpSettingsService(context={}){
   await audit({by:set.updatedBy,sections:Object.keys(payload).filter(k=>['general','sales','finance','pdv'].includes(k))});
   return publicRow(x)
  }
- async function assertFinanceCreate(payload={}){
+ async function assertFinanceCreate(payload={},direction=''){
   const cfg=(await getErpSettingsSnapshot()).finance||{};
+  if(!clean(payload.paymentMethod,80)&&cfg.defaultPaymentMethod)payload.paymentMethod=cfg.defaultPaymentMethod;
+  if(!clean(payload.bankAccountId,120)&&cfg.defaultBankAccountId)payload.bankAccountId=cfg.defaultBankAccountId;
+  if(!clean(payload.categoryId,120)){if(direction==='receivable'&&cfg.defaultReceivableCategoryId)payload.categoryId=cfg.defaultReceivableCategoryId;if(direction==='payable'&&cfg.defaultPayableCategoryId)payload.categoryId=cfg.defaultPayableCategoryId}
   if(cfg.requireBankAccount&&!clean(payload.bankAccountId,120))throw fail('A configuração do ERP exige uma conta bancária neste lançamento.',409,'BANK_ACCOUNT_REQUIRED');
   if(cfg.lockDate){const d=new Date(payload.competenceAt||payload.competenceDate||payload.dueAt||payload.dueDate||new Date());if(!Number.isNaN(d.getTime())&&d<=new Date(cfg.lockDate))throw fail('O Financeiro está travado para esta data. Altere a data ou a configuração de travamento.',409,'FINANCE_LOCKED')}
  }
@@ -71,6 +74,10 @@ export function createErpSettingsService(context={}){
   const cfg=(await getErpSettingsSnapshot()).finance||{},Entry=mongoose.models.ErpFinancialEntry;
   if(!Entry)return;
   const entry=await Entry.findById(id).lean();if(!entry)return;
+  if(payload.__operation==='pay'){
+   if(!clean(payload.paymentMethod,80)&&cfg.defaultPaymentMethod)payload.paymentMethod=cfg.defaultPaymentMethod;
+   if(!clean(payload.bankAccountId,120)&&cfg.defaultBankAccountId)payload.bankAccountId=cfg.defaultBankAccountId;
+  }
   if(cfg.lockDate){const d=new Date(entry.competenceAt||entry.dueAt||entry.createdAt);if(!Number.isNaN(d.getTime())&&d<=new Date(cfg.lockDate))throw fail('Este lançamento está protegido pela data de travamento do Financeiro.',409,'FINANCE_LOCKED')}
   if(cfg.requireBankAccount&&!clean(payload.bankAccountId||entry.bankAccountId,120)&&payload.__operation==='pay')throw fail('A configuração do ERP exige uma conta bancária para realizar a baixa.',409,'BANK_ACCOUNT_REQUIRED')
  }
