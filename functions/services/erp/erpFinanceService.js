@@ -1,6 +1,7 @@
 const clean=(v='',m=1000)=>String(v??'').trim().slice(0,m);
 const array=v=>Array.isArray(v)?v:[];
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
+const digits=v=>String(v||'').replace(/\D/g,'');
 function fail(message,statusCode=400,code='ERP_FINANCE_ERROR'){const e=new Error(message);e.statusCode=statusCode;e.code=code;return e}
 function actorName(a={}){return clean(a.name||a.email||'Operador',160)}
 function validDate(v,label='Data'){const d=new Date(v);if(Number.isNaN(d.getTime()))throw fail(`${label} inválida.`,400,'INVALID_DATE');return d}
@@ -14,13 +15,17 @@ export function createErpFinanceService(context={}){
  function receivedTotal(r={}){if(array(r.payments).length)return money(array(r.payments).reduce((s,p)=>s+Number(p.principalApplied??p.amount??0),0));return money(r.receivedAmount??(r.status==='recebido'?r.value:0))}
  function remaining(r={}){return Math.max(0,money(Number(r.value||0)-receivedTotal(r)))}
  function state(r={}){const got=receivedTotal(r);if(r.status==='recebido'||remaining(r)<=0.009)return'recebido';if(got>0)return'parcial';return r.status||'pendente'}
+ function customerKey(order={}){const doc=digits(order.customerCpf);return doc?`doc:${doc}`:`name:${clean(order.customerName||'Consumidor',180).toLowerCase()}`}
+ function rowFrom(order,r){const got=receivedTotal(r),left=remaining(r),st=state(r),erp=order.televendas?.erp||{};return{orderId:String(order._id),code:erp.code||String(order._id).slice(-8).toUpperCase(),customerName:order.customerName||'Consumidor',customerCpf:order.customerCpf||'',customerPhone:order.customerPhone||'',customerEmail:order.customerEmail||'',number:Number(r.number||1),installments:Number(r.installments||1),value:money(r.value),dueAt:r.dueAt,status:st,rawStatus:r.status||'pendente',method:r.method||order.payment?.method||'',receivedAt:r.receivedAt||null,receivedAmount:got,remaining:left,payments:array(r.payments),orderTotal:money(order.total)}}
  async function list(query={}){
   const filter={origin:'erp_ariana','televendas.erp.financialStatus':{$in:['generated','partial','settled','reversed']}};
-  const orders=await Order.find(filter).sort({updatedAt:-1}).limit(1000);
+  const orders=await Order.find(filter).sort({updatedAt:-1}).limit(2000);
   let rows=[];
-  for(const order of orders){const erp=order.televendas?.erp||{};for(const r of array(erp.receivables)){const got=receivedTotal(r),left=remaining(r),st=state(r);rows.push({orderId:String(order._id),code:erp.code||String(order._id).slice(-8).toUpperCase(),customerName:order.customerName||'Consumidor',customerCpf:order.customerCpf||'',customerPhone:order.customerPhone||'',customerEmail:order.customerEmail||'',number:Number(r.number||1),installments:Number(r.installments||1),value:money(r.value),dueAt:r.dueAt,status:st,rawStatus:r.status||'pendente',method:r.method||order.payment?.method||'',receivedAt:r.receivedAt||null,receivedAmount:got,remaining:left,payments:array(r.payments),orderTotal:money(order.total)})}}
-  const q=clean(query.q||query.search||'',140).toLowerCase();
+  for(const order of orders){for(const r of array(order.televendas?.erp?.receivables))rows.push(rowFrom(order,r))}
+  const q=clean(query.q||query.search||'',180).toLowerCase();
   if(q)rows=rows.filter(r=>[r.code,r.customerName,r.customerCpf,r.customerPhone,r.customerEmail,r.method].join(' ').toLowerCase().includes(q));
+  const customer=clean(query.customer||query.cliente||'',180).toLowerCase();if(customer)rows=rows.filter(r=>[r.customerName,r.customerCpf,r.customerPhone,r.customerEmail].join(' ').toLowerCase().includes(customer));
+  const method=clean(query.method||query.paymentMethod||'',80).toLowerCase();if(method&&method!=='all')rows=rows.filter(r=>String(r.method||'').toLowerCase()===method);
   if(query.status&&query.status!=='all')rows=rows.filter(r=>r.status===query.status||(query.status==='pendente'&&['pendente','parcial'].includes(r.status)));
   if(query.from){const from=validDate(query.from,'Data inicial');from.setHours(0,0,0,0);rows=rows.filter(r=>r.dueAt&&new Date(r.dueAt)>=from)}
   if(query.to){const to=validDate(query.to,'Data final');to.setHours(23,59,59,999);rows=rows.filter(r=>r.dueAt&&new Date(r.dueAt)<=to)}
@@ -31,7 +36,7 @@ export function createErpFinanceService(context={}){
   const totalReceived=money(rows.reduce((s,r)=>s+r.receivedAmount,0));
   const today=new Date();today.setHours(0,0,0,0);
   const overdueRows=open.filter(r=>r.dueAt&&new Date(r.dueAt)<today);
-  return{receivables:rows,summary:{count:rows.length,totalPending,totalReceived,overdue:overdueRows.length,totalOverdue:money(overdueRows.reduce((s,r)=>s+r.remaining,0))}}
+  return{receivables:rows,summary:{count:rows.length,totalOriginal:money(rows.reduce((s,r)=>s+r.value,0)),totalPending,totalReceived,overdue:overdueRows.length,totalOverdue:money(overdueRows.reduce((s,r)=>s+r.remaining,0))}}
  }
  async function receive(orderId,number,payload={},actor={}){
   const order=await findOrder(orderId);
@@ -59,6 +64,26 @@ export function createErpFinanceService(context={}){
   await audit(paid?'erp.receivable.received':'erp.receivable.partial',order,{message:paid?`Parcela ${n} quitada`:`Pagamento parcial na parcela ${n}`,number:n,principal,cashTotal,remaining:newRemaining});
   return{order:serial(order),receivable:{...receivables[idx],status:state(receivables[idx]),remaining:newRemaining,receivedAmount:got},payment}
  }
- return{list,receive}
+ async function resolveSelection(items=[]){
+  const selected=array(items);if(!selected.length)throw fail('Selecione pelo menos um lançamento.',400,'NO_SELECTION');if(selected.length>300)throw fail('Selecione no máximo 300 lançamentos por operação.',400,'TOO_MANY_SELECTED');
+  const rows=[];
+  for(const item of selected){const order=await findOrder(item.orderId);if(order.status!=='faturado')throw fail(`A venda ${order.televendas?.erp?.code||order._id} não está faturada.`,409,'ORDER_NOT_BILLED');const n=Math.max(1,Number(item.number||0)),r=array(order.televendas?.erp?.receivables).find(x=>Number(x.number)===n);if(!r)throw fail(`Parcela ${n} não encontrada.`,404,'RECEIVABLE_NOT_FOUND');const left=remaining(r);if(['cancelado','estornado'].includes(r.status)||state(r)==='recebido'||left<=0.009)throw fail(`Parcela ${n} de ${order.customerName||'cliente'} não está disponível para recebimento.`,409,'RECEIVABLE_CLOSED');rows.push({order,number:n,receivable:r,remaining:left,key:customerKey(order),dueAt:r.dueAt})}
+  return rows
+ }
+ async function settleSelected(items=[],payload={},actor={}){
+  const rows=await resolveSelection(items),results=[];
+  for(const row of rows){results.push(await receive(String(row.order._id),row.number,{...payload,settle:true},actor))}
+  const totalPrincipal=money(results.reduce((s,x)=>s+Number(x.payment?.principalApplied||0),0)),totalPaid=money(results.reduce((s,x)=>s+Number(x.payment?.totalPaid||0),0));
+  return{processed:results.length,totalPrincipal,totalPaid,results:results.map(x=>({orderId:String(x.order?._id||x.order?.id||''),receivable:x.receivable,payment:x.payment}))}
+ }
+ async function allocateByCustomer(items=[],payload={},actor={}){
+  const rows=await resolveSelection(items);const keys=[...new Set(rows.map(r=>r.key))];if(keys.length!==1)throw fail('A distribuição por cliente aceita lançamentos de um único cliente por vez.',400,'MULTIPLE_CUSTOMERS');
+  let available=money(payload.amount??payload.value??0);if(available<=0)throw fail('Informe o valor recebido do cliente.',400,'INVALID_AMOUNT');
+  const totalOpen=money(rows.reduce((s,r)=>s+r.remaining,0));if(available-totalOpen>0.009)throw fail(`O valor recebido é maior que o saldo selecionado (${totalOpen.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}).`,400,'AMOUNT_EXCEEDS_SELECTION');
+  rows.sort((a,b)=>new Date(a.dueAt||0)-new Date(b.dueAt||0));const results=[];
+  for(const row of rows){if(available<=0.009)break;const principal=Math.min(available,row.remaining);results.push(await receive(String(row.order._id),row.number,{...payload,amount:principal,settle:false,fine:0,interest:0,discount:0},actor));available=money(available-principal)}
+  const applied=money(results.reduce((s,x)=>s+Number(x.payment?.principalApplied||0),0));return{processed:results.length,applied,unapplied:available,customerName:rows[0]?.order?.customerName||'',results:results.map(x=>({orderId:String(x.order?._id||x.order?.id||''),receivable:x.receivable,payment:x.payment}))}
+ }
+ return{list,receive,settleSelected,allocateByCustomer}
 }
 export default createErpFinanceService;
