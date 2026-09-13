@@ -295,6 +295,7 @@ export function createErpNfeSefazService(context={},settings){
         finalidade:1,
         consumidorFinal:1,
         presencaComprador:1,
+        ambiente:pre.environment==='producao'?1:2,
         uf:issuerUf,
         municipio:digits(issuer.codigoMunicipio),
         serie:pre.serie,
@@ -550,12 +551,16 @@ export function createErpNfeSefazService(context={},settings){
     if(existingOrderId){
       try{order=await Order.findById(existingOrderId)}catch{}
       if(!order)throw fail('Venda pendente não encontrada para nova tentativa.',404,'ORDER_NOT_FOUND');
+      if(order?.nfe?.environment&&order.nfe.environment!==pre.environment){
+        throw fail('Esta tentativa de NF-e foi iniciada em outro ambiente. Volte para a venda e gere uma nova revisão antes de emitir.',409,'NFE_ENVIRONMENT_CHANGED',{orderId:String(order._id),from:order.nfe.environment,to:pre.environment});
+      }
     }
     if(!order&&!existingOrderId){
       const since=new Date(Date.now()-6*60*60*1000);
       const candidates=await Order.find({
         origin:'erp_ariana',
         status:'venda',
+        'nfe.environment':pre.environment,
         'nfe.status':{$in:['reserved','error','authorized_homologation','authorized_recovery_pending']},
         createdAt:{$gte:since}
       }).sort({createdAt:-1}).limit(10);
@@ -664,9 +669,28 @@ export function createErpNfeSefazService(context={},settings){
     const lib=await import('@brasil-fiscal/nfe');
 
     const previousCStat=clean(order?.nfe?.lastCStat,20);
-    const previousKey=accessKeyFrom(order?.nfe?.lastError||'')||digits(order?.nfe?.preparedKey);
+    const previousError=clean(order?.nfe?.lastError,1000);
+    const previousKey=accessKeyFrom(previousError)||digits(order?.nfe?.preparedKey);
     if(['204','539'].includes(previousCStat)&&previousKey){
       return recoverDuplicate({order,number,pre,draft,cert,lib,key:previousKey});
+    }
+
+    const environmentMismatch=previousCStat==='252'||/Ambiente informado diverge do Ambiente de recebimento/i.test(previousError);
+    if(environmentMismatch){
+      order.nfe={
+        ...(order.nfe||{}),
+        status:'reserved',
+        environment:pre.environment,
+        lastError:'',
+        lastCStat:'',
+        unsignedXml:'',
+        signedXml:'',
+        preparedKey:'',
+        draftFingerprint:'',
+        preparedAt:null,
+        signedAt:null
+      };
+      await order.save();
     }
 
     const data=await buildNfeData(draft,pre,number);
