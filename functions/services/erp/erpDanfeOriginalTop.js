@@ -67,7 +67,7 @@ export function drawRecipient(c,d){
 }
 
 export function drawBilling(c,d){
-  const list=d.dups||[],count=list.length,lineH=count>15?Math.max(5.9,127.5/count):8.51;
+  const list=(d.dups||[]).filter(p=>clean(p.venc)),count=list.length,lineH=count>15?Math.max(5.9,127.5/count):8.51;
   const boxY=298.45,boxH=count?Math.max(19.15,1+count*lineH):19.15;
   c.text(34.58,291.4,'FATURA/DUPLICATA',6.38,false);
   c.roundRect(35.86,boxY,528.16,boxH,2.55);
