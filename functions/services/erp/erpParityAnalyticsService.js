@@ -8,7 +8,7 @@ const sum=(a,f='value')=>money(a.reduce((s,x)=>s+Number(x[f]||0),0));
 function dayStart(){const d=new Date();d.setHours(0,0,0,0);return d}
 function dueView(r){if(r.status==='paid')return'paid';if(r.status==='cancelled')return'cancelled';return new Date(r.dueAt)<dayStart()?'overdue':'upcoming'}
 function monthKey(v){const d=new Date(v);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
-function outstanding(r={}){if(r.status==='paid')return 0;if(Number.isFinite(Number(r.outstanding)))return Math.max(0,money(r.outstanding));const principal=Number(r.principalPaid??r.paidValue??0);return Math.max(0,money(Number(r.value||0)-principal))}
+function outstanding(r={}){if(r.status==='paid')return 0;if(Number.isFinite(Number(r.outstanding)))return Math.max(0,money(r.outstanding));const principal=Number(r.principalPaid??0);return Math.max(0,money(Number(r.value||0)-principal))}
 function realized(r={}){return Math.max(0,money(r.paidValue||0))}
 function reportPeriod(q={}){const now=new Date(),from=q.from?new Date(q.from):new Date(now.getFullYear(),0,1),to=q.to?new Date(q.to):new Date(now.getFullYear(),11,31,23,59,59,999);if(Number.isNaN(from.getTime())||Number.isNaN(to.getTime()))throw Object.assign(new Error('Período inválido.'),{statusCode:400});from.setHours(0,0,0,0);to.setHours(23,59,59,999);return{from,to}}
 
@@ -38,8 +38,8 @@ export function createErpParityAnalyticsService(context={}){
   if(q.bankAccountId)filter.bankAccountId=clean(q.bankAccountId,120);
   if(q.paymentMethod)filter.paymentMethod=clean(q.paymentMethod,100);
   if(q.from||q.to){filter.dueAt={};if(q.from)filter.dueAt.$gte=new Date(q.from);if(q.to){const d=new Date(q.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
-  const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{description:rx},{categoryName:rx}]}
-  let base=(await Entry.find(filter).sort({dueAt:1}).limit(30000).lean()).map(r=>({...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-Number(r.paidValue||0)))}));
+  const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{description:rx},{categoryName:rx},{documentNumber:rx},{boletoNumber:rx}]}
+  let base=(await Entry.find(filter).sort({dueAt:1}).limit(30000).lean()).map(r=>{const ps=array(r.payments),principal=money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??0),0):Number(r.principalPaid??(r.status==='paid'?r.value:0))),cash=money(ps.length?ps.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??0),0):Number(r.paidValue||0));return{...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',principalPaid:principal,paidValue:cash,outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-principal)),partial:r.status!=='paid'&&principal>0}});
   if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());
   if(['receivable','payable'].includes(q.direction))base=base.filter(r=>r.direction===q.direction);
   if(q.from||q.to){const from=q.from?new Date(q.from):null,to=q.to?new Date(q.to):null;if(to)to.setHours(23,59,59,999);base=base.filter(r=>{const d=new Date(r.dueAt);return(!from||d>=from)&&(!to||d<=to)})}
