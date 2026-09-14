@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { createErpLedgerService } from './erpLedgerService.js';
+import { createErpSettingsService } from './erpSettingsService.js';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
@@ -11,7 +12,7 @@ function addDays(d,days){const x=new Date(d);x.setDate(x.getDate()+days);return 
 export function createErpPurchasePayablesService(context={}){
   const Purchase=mongoose.models.ErpPurchase;
   if(!Purchase)throw new Error('[erp-purchase-payables] ErpPurchase não disponível');
-  const ledger=createErpLedgerService(context);
+  const ledger=createErpLedgerService(context),settings=createErpSettingsService(context);
 
   async function rawPurchase(id){let oid;try{oid=new mongoose.Types.ObjectId(id)}catch{return null}return Purchase.collection.findOne({_id:oid})}
 
@@ -34,7 +35,8 @@ export function createErpPurchasePayablesService(context={}){
     const existing=Entry?await Entry.find({direction:'payable',origin:'purchase',orderId:String(p._id)}).lean():[];
     const byDoc=new Map(existing.map(e=>[String(e.documentNumber||''),e])),created=[],reused=[];
     for(const inst of plan.installments){const old=byDoc.get(inst.documentNumber);if(old){reused.push(old);continue}
-      const row=await ledger.createPayable({personName:p.supplierName,personDocument:p.supplierDocument||'',description:`Compra ${p.number}${p.invoiceNumber?` • NF ${p.invoiceNumber}`:''} • parcela ${inst.number}/${inst.total}`,documentNumber:inst.documentNumber,categoryId:clean(payload.categoryId,120),categoryName:clean(payload.categoryName||'Compras de mercadorias',160),centerCostName:clean(payload.centerCostName||'Compras / Estoque',160),bankAccountId:clean(payload.bankAccountId,120),paymentMethod:clean(payload.paymentMethod||'',80),value:inst.value,competenceAt:p.issuedAt||new Date(),dueAt:inst.dueAt,notes:clean(payload.notes||`Gerado automaticamente pela compra ${p.number}.`,1200),origin:'purchase',orderId:String(p._id)},actor);created.push(row)}
+      const entryPayload={personName:p.supplierName,personDocument:p.supplierDocument||'',description:`Compra ${p.number}${p.invoiceNumber?` • NF ${p.invoiceNumber}`:''} • parcela ${inst.number}/${inst.total}`,documentNumber:inst.documentNumber,categoryId:clean(payload.categoryId,120),categoryName:clean(payload.categoryName||'Compras de mercadorias',160),centerCostName:clean(payload.centerCostName||'Compras / Estoque',160),bankAccountId:clean(payload.bankAccountId,120),paymentMethod:clean(payload.paymentMethod||'',80),value:inst.value,competenceAt:p.issuedAt||new Date(),dueAt:inst.dueAt,notes:clean(payload.notes||`Gerado automaticamente pela compra ${p.number}.`,1200),origin:'purchase',orderId:String(p._id)};
+      await settings.assertFinanceCreate(entryPayload,'payable');const row=await ledger.createPayable(entryPayload,actor);created.push(row)}
     const allIds=[...reused,...created].map(x=>String(x._id||x.id||'')).filter(Boolean),stamp=new Date(),by=actorName(actor);
     await Purchase.collection.updateOne({_id:p._id},{$set:{supplierPayableTotal:plan.total,payableInstallments:plan.count,payablesGeneratedAt:stamp,payablesGeneratedBy:by,financeEntryIds:allIds,updatedBy:by,updatedAt:stamp}});
     return{purchaseId:String(p._id),purchaseNumber:p.number,total:plan.total,installments:plan.count,created:created.length,reused:reused.length,entries:[...reused,...created]};
