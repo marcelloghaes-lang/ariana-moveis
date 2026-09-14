@@ -14,5 +14,11 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {"name":"Nova venda","short_name":"Venda","url":"/erp_nova_venda.html"},
+    {"name":"Financeiro e cobranças","short_name":"Financeiro","url":"/erp_financeiro_completo.html"},
+    {"name":"Relatórios","short_name":"Relatórios","url":"/erp_relatorios.html"},
+    {"name":"Comissões de vendedores","short_name":"Comissões","url":"/erp_comissoes.html"}
   ]
 }
