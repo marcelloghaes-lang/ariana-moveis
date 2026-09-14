@@ -14,7 +14,7 @@ const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://a
 const REVIEW_KEY='ariana_erp_nfe_review';
 const orderId=new URLSearchParams(location.search).get('id')||'';
 function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
-function fail(message){const status=document.getElementById('status');status.textContent=message;status.className='bad';document.getElementById('back').style.display='inline-block'}
+function fail(message,order=''){const status=document.getElementById('status');status.textContent=message;status.className='bad';const back=document.getElementById('back');back.style.display='inline-block';if(order){back.href='erp_venda_detalhe.html?id='+encodeURIComponent(order)+'&tab=pagamentos';back.textContent='Abrir pagamentos da venda'}}
 function addressText(value){if(typeof value==='string')return value;if(!value||typeof value!=='object')return'';return[value.logradouro||value.street,value.numero||value.number,value.bairro||value.district,value.cidade||value.city,value.uf].filter(Boolean).join(', ')}
 async function load(){
  if(!orderId)return fail('Venda não informada. Volte para a lista de vendas e tente novamente.');
@@ -27,13 +27,15 @@ async function load(){
   const order=data.order||data.data||data,erp=order.televendas?.erp||{},items=Array.isArray(order.items)?order.items:[];
   if(!items.length)throw new Error('A venda não possui produtos para emissão da NF-e.');
   if(['faturado','cancelado','estornado'].includes(String(order.status||'').toLowerCase()))throw new Error('Esta venda já está fechada e não pode iniciar uma nova emissão por este fluxo.');
+  const paymentMethod=order.payment?.method||'dinheiro',firstDueDate=order.payment?.firstDueDate||null;
+  if(['crediario','boleto'].includes(paymentMethod)&&!firstDueDate)return fail('Informe o primeiro vencimento na ficha da venda antes de revisar a NF-e. Nenhuma data foi criada automaticamente.',String(order._id||order.id||orderId));
   const draft={
    createdAt:new Date().toISOString(),
    pendingOrderId:String(order._id||order.id||orderId),
    customer:{name:order.customerName||'Consumidor',document:order.customerCpf||'',phone:order.customerPhone||'',email:order.customerEmail||'',address:addressText(order.shippingAddress)},
    items:items.map(item=>({productId:String(item.productId||item._id||''),name:item.name||'Produto',sku:item.sku||'',stock:Number(item.stock||item.qty||1),qty:Number(item.qty||1),unitPrice:Number(item.unitPrice||0),sellerBaseUnitPrice:Number(item.sellerBaseUnitPrice||item.unitPrice||0),image:item.image||''})),
    totals:{products:Number(order.subtotal||items.reduce((sum,item)=>sum+Number(item.qty||0)*Number(item.unitPrice||0),0)),shipping:Number(order.shippingCost||0),assembly:Number(order.montagemCost||0),discount:Number(erp.discount||0),total:Number(order.total||0)},
-   payment:{method:order.payment?.method||'dinheiro',installments:Number(order.payment?.installments||1),firstDueDate:order.payment?.firstDueDate||null},
+   payment:{method:paymentMethod,installments:Number(order.payment?.installments||1),firstDueDate},
    notes:order.notes||''
   };
   sessionStorage.setItem(REVIEW_KEY,JSON.stringify(draft));
