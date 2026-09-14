@@ -19,6 +19,29 @@ const productSchema = new mongoose.Schema({
         required: [true, 'O preço é obrigatório.'],
         default: 0
     },
+    // Custo real de aquisição usado nos relatórios de rentabilidade.
+    // Null significa que o custo ainda não foi informado e impede margem fictícia.
+    costPrice: {
+        type: Number,
+        default: null,
+        min: 0
+    },
+    costSource: {
+        type: String,
+        default: ''
+    },
+    costNotes: {
+        type: String,
+        default: ''
+    },
+    costUpdatedAt: {
+        type: Date,
+        default: null
+    },
+    costUpdatedBy: {
+        type: String,
+        default: ''
+    },
     // Quantidade em estoque
     stock: {
         type: Number,
