@@ -8,6 +8,7 @@ import { createErpCommissionService } from '../../services/erp/erpCommissionServ
 import { createErpAdvancedFinanceReportService } from '../../services/erp/erpAdvancedFinanceReportService.js';
 import { createErpProfitabilityService } from '../../services/erp/erpProfitabilityService.js';
 import { createErpPurchaseService } from '../../services/erp/erpPurchaseService.js';
+import { createErpPurchasePayablesService } from '../../services/erp/erpPurchasePayablesService.js';
 
 const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
 const isFullAdmin=req=>{const u=identity(req),role=String(u.role||'').trim().toLowerCase();return role==='admin'||u.admin===true||u.isSuperAdmin===true};
@@ -15,7 +16,7 @@ const adminOnly=req=>{if(isFullAdmin(req))return;const error=new Error('Esta inf
 
 export default function createErpManagementRoutes(context={}){
  const router=express.Router();if(!context.adminRequired)throw new Error('[erp-management] adminRequired não informado');
- const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context);const actor=req=>req.admin||req.auth||req.user||{};
+ const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context);const actor=req=>req.admin||req.auth||req.user||{};
  const handle=(fn,status=200)=>async(req,res)=>{try{const result=await fn(req);return res.status(status).json({ok:true,...(result&&typeof result==='object'&&!Array.isArray(result)?result:{data:result})})}catch(e){console.error('[erp-management]',e);return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro no módulo de gestão do ERP.',code:e?.code||'ERP_MANAGEMENT_ERROR'})}};
  router.get('/erp/configuracoes',context.adminRequired,handle(async()=>({settings:await settings.get()})));
  router.put('/erp/configuracoes',context.adminRequired,handle(async req=>({settings:await settings.update(req.body||{},actor(req))})));
@@ -51,6 +52,9 @@ export default function createErpManagementRoutes(context={}){
  router.patch('/erp/compras/:id',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.updatePurchase(req.params.id,req.body||{},identity(req))}}));
  router.post('/erp/compras/:id/receber',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.receivePurchase(req.params.id,req.body||{},identity(req))}}));
  router.post('/erp/compras/:id/finalizar-custo',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.finalizeCost(req.params.id,req.body||{},identity(req))}}));
+ router.get('/erp/compras/:id/contas-pagar',context.adminRequired,handle(async req=>{adminOnly(req);return await purchasePayables.status(req.params.id)}));
+ router.post('/erp/compras/:id/contas-pagar/preview',context.adminRequired,handle(async req=>{adminOnly(req);return await purchasePayables.preview(req.params.id,req.body||{})}));
+ router.post('/erp/compras/:id/contas-pagar/gerar',context.adminRequired,handle(async req=>{adminOnly(req);return await purchasePayables.generate(req.params.id,req.body||{},identity(req))}));
  router.post('/erp/compras/:id/cancelar',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.cancelPurchase(req.params.id,identity(req))}}));
  router.get('/erp/estoque/movimentacoes',context.adminRequired,handle(async req=>({movements:await stock.list(req.query||{})})));
  router.post('/erp/estoque/:productId/movimentacoes',context.adminRequired,handle(async req=>await stock.move(req.params.productId,req.body||{},actor(req)),201));
