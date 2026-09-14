@@ -7,6 +7,7 @@ import { createErpNfeSefazService } from '../../services/erp/erpNfeSefazService.
 import { createErpService } from '../../services/erp/erpService.js';
 import { createErpCashService } from '../../services/erp/erpCashService.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
+import { createErpOperationalRequired } from '../../services/erp/erpAccessControl.js';
 
 const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:5*1024*1024}});
 const actor=req=>{
@@ -18,6 +19,7 @@ const safeFilePart=(value='')=>String(value||'').replace(/[^a-zA-Z0-9._-]+/g,'-'
 export default function createErpSigeFiscalHistoryRoutes(context={}){
   const router=express.Router();
   if(!context.adminRequired)throw new Error('[erp-sige-fiscal] adminRequired não informado');
+  const operationalRequired=createErpOperationalRequired(context.adminRequired);
   const service=createErpSigeFiscalHistoryService();
   const danfe=createErpDanfeBrandedService();
   const settings=createErpFiscalSettingsService(context);
@@ -67,7 +69,7 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
     try{return res.json({ok:true,result:await nfe.testConnection()})}
     catch(e){return sendError(res,e,'Erro ao testar comunicação com a SEFAZ/MG.')}
   });
-  router.post('/erp/fiscal/nfe/preflight',context.adminRequired,async(req,res)=>{
+  router.post('/erp/fiscal/nfe/preflight',operationalRequired,async(req,res)=>{
     try{
       const draft=await operationalSettings.applySaleDefaults(req.body?.draft||req.body||{});
       const review=await nfe.preflight(draft);
@@ -75,7 +77,7 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
     }catch(e){return sendError(res,e,'Erro ao validar a NF-e.')}
   });
 
-  router.post('/erp/fiscal/nfe/emitir-e-faturar',context.adminRequired,async(req,res)=>{
+  router.post('/erp/fiscal/nfe/emitir-e-faturar',operationalRequired,async(req,res)=>{
     const who=actor(req),existingOrderId=String(req.body?.orderId||'').trim();
     let draft=req.body?.draft||{};
     try{
