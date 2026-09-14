@@ -2,6 +2,7 @@
   "use strict";
 
   const FALLBACK_IMG = "https://placehold.co/600x400/ffffff/333333?text=Sem+Imagem";
+  const DEFAULT_MIN_INSTALLMENT_VALUE = 10;
   const OLD_PRICE_KEYS = [
     "oldPrice", "old_price", "oldprice", "precoAntigo", "preco_antigo", "precoDe", "preco_de",
     "originalPrice", "original_price", "priceOriginal", "price_original", "listPrice", "list_price",
@@ -89,6 +90,20 @@
     return 17;
   }
 
+  function getInstallmentPlan(total, requestedInstallments = 12) {
+    const amount = Math.max(0, toNumberBR(total, 0));
+    const requested = Math.max(1, Math.min(24, Math.floor(toNumberBR(requestedInstallments, 12) || 12)));
+    const configuredMinimum = toNumberBR(window.ARIANA_MIN_INSTALLMENT_VALUE, DEFAULT_MIN_INSTALLMENT_VALUE);
+    const minimumValue = Math.max(1, configuredMinimum || DEFAULT_MIN_INSTALLMENT_VALUE);
+
+    if (amount <= 0) return { count: 1, value: 0, minimumValue };
+
+    const maxByMinimum = Math.max(1, Math.floor((amount + 0.000001) / minimumValue));
+    const count = Math.max(1, Math.min(requested, maxByMinimum));
+    const value = +(amount / count).toFixed(2);
+    return { count, value, minimumValue };
+  }
+
   function ensureCardStyles() {
     if (document.getElementById("ariana-card-unificado-v14")) return;
     const style = document.createElement("style");
@@ -128,8 +143,10 @@
     const pixPrice = sellerBasePrice;
     const oldPriceFromProduct = getOldPrice(product, fullPrice);
     const oldPrice = oldPriceFromProduct > 0 ? oldPriceFromProduct : (fullPrice > pixPrice ? fullPrice : 0);
-    const installmentCount = 12;
-    const installmentValue = fullPrice > 0 ? +(fullPrice / installmentCount).toFixed(2) : 0;
+    const requestedInstallments = Math.max(1, Math.min(24, Number(product?.installmentCount || product?.maxInstallments || 12) || 12));
+    const installmentPlan = getInstallmentPlan(fullPrice, requestedInstallments);
+    const installmentCount = installmentPlan.count;
+    const installmentValue = installmentPlan.value;
     const imageUrl = getImageUrl(product);
     const href = `produto.html?id=${encodeURIComponent(id)}`;
     // O valor cheio não é "preço antigo": é o total da compra no cartão.
@@ -138,6 +155,9 @@
     const cardPriceHtml = fullPrice > 0
       ? `<div class="am-card-card-price am-pro-card__card-price">Preço no cartão: ${formatCurrency(fullPrice)}</div>`
       : `<div class="am-card-card-price am-pro-card__card-price" style="min-height:15px"></div>`;
+    const installmentHtml = installmentCount > 1
+      ? `<div class="product-installments am-pro-card__installments">ou ${installmentCount}x de ${formatCurrency(installmentValue)} s/ juros</div>`
+      : `<div class="product-installments am-pro-card__installments">ou ${formatCurrency(fullPrice)} no cartão</div>`;
 
     return `
       <a class="product-card am-pro-card" href="${escapeHtml(href)}">
@@ -153,7 +173,7 @@
             <span class="am-card-discount am-pro-card__discount-tag">${Math.round(pixPercent)}% OFF</span>
           </div>
           <div class="am-card-pix am-pro-card__pix-info">no PIX à vista</div>
-          <div class="product-installments am-pro-card__installments">ou ${installmentCount}x de ${formatCurrency(installmentValue)} s/ juros</div>
+          ${installmentHtml}
           <div class="am-card-total am-pro-card__total-prazo">Total parcelado: ${formatCurrency(fullPrice)}</div>
         </div>
       </a>`;
@@ -161,5 +181,5 @@
 
   // Permite que páginas legadas confirmem que o renderer oficial e corrigido
   // foi carregado antes de montar seus próprios cards.
-  window.__ARIANA_PRODUCT_CARD_VERSION__ = "15";
+  window.__ARIANA_PRODUCT_CARD_VERSION__ = "16";
 })();
