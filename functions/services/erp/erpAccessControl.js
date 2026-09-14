@@ -62,6 +62,9 @@ export function resolveErpRequirement(req={}){
   if(/^\/erp\/orders\/[^/]+$/.test(path)&&read)return requirement(['orders:read'],'consultar vendas');
   if(/^\/erp\/orders\/[^/]+$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['orders:update'],'alterar vendas');
 
+  if(path==='/erp/fiscal/nfe/preflight'&&method==='POST')return requirement(['fiscal:nfe:emit'],'validar a NF-e');
+  if(path==='/erp/fiscal/nfe/emitir-e-faturar'&&method==='POST')return requirement(['fiscal:nfe:emit'],'emitir nota fiscal');
+
   if(path==='/erp/caixa'&&read)return requirement(['finance:read','payments:read'],'consultar o caixa');
   if(path==='/erp/caixa/historico'&&read)return requirement(['finance:read','payments:read'],'consultar o histórico do caixa');
   if(/^\/erp\/caixa\/(abrir|reforco|sangria|fechar)$/.test(path)&&method==='POST')return requirement(['payments:receive'],'movimentar o caixa');
@@ -121,10 +124,11 @@ export function erpAccessSummary(req={}){
       customers:{read:has('customers:read'),write:has('customers:update')},
       products:{read:has('products:read'),create:has('products:create'),write:has('products:update')},
       finance:{read:has('finance:read','payments:read'),receive:has('payments:receive'),cancel:has('payments:cancel')},
+      fiscal:{emitNfe:has('fiscal:nfe:emit')},
       reports:{read:has('reports:read','finance:reports')},
       settings:{read:has('settings:read'),write:has('settings:update')}
     },
-    restricted:{fiscal:true,sigeMigration:true,televendasAdmin:true}
+    restricted:{fiscal:!has('fiscal:nfe:emit'),sigeMigration:true,televendasAdmin:true}
   };
 }
 
