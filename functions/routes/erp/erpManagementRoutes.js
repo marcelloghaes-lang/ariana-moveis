@@ -4,6 +4,7 @@ import { createErpStockMovementService } from '../../services/erp/erpStockMoveme
 import { createErpReportService } from '../../services/erp/erpReportService.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
 import { createErpReconciliationService } from '../../services/erp/erpReconciliationService.js';
+import { createErpCommissionService } from '../../services/erp/erpCommissionService.js';
 
 const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
 const isFullAdmin=req=>{const u=identity(req),role=String(u.role||'').trim().toLowerCase();return role==='admin'||u.admin===true||u.isSuperAdmin===true};
@@ -11,10 +12,13 @@ const adminOnly=req=>{if(isFullAdmin(req))return;const error=new Error('Esta inf
 
 export default function createErpManagementRoutes(context={}){
  const router=express.Router();if(!context.adminRequired)throw new Error('[erp-management] adminRequired não informado');
- const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context);const actor=req=>req.admin||req.auth||req.user||{};
+ const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context);const actor=req=>req.admin||req.auth||req.user||{};
  const handle=(fn,status=200)=>async(req,res)=>{try{const result=await fn(req);return res.status(status).json({ok:true,...(result&&typeof result==='object'&&!Array.isArray(result)?result:{data:result})})}catch(e){console.error('[erp-management]',e);return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro no módulo de gestão do ERP.',code:e?.code||'ERP_MANAGEMENT_ERROR'})}};
  router.get('/erp/configuracoes',context.adminRequired,handle(async()=>({settings:await settings.get()})));
  router.put('/erp/configuracoes',context.adminRequired,handle(async req=>({settings:await settings.update(req.body||{},actor(req))})));
+ router.get('/erp/comissoes/regras',context.adminRequired,handle(async req=>{adminOnly(req);return{rules:await commissions.listRules()}}));
+ router.put('/erp/comissoes/regras',context.adminRequired,handle(async req=>{adminOnly(req);return{rule:await commissions.upsertRule(req.body||{},identity(req))}}));
+ router.get('/erp/comissoes/relatorio',context.adminRequired,handle(async req=>{adminOnly(req);return await commissions.report(req.query||{})}));
  router.get('/erp/financeiro/categorias',context.adminRequired,handle(async req=>({categories:await ledger.categories(req.query||{})})));
  router.post('/erp/financeiro/categorias',context.adminRequired,handle(async req=>({category:await ledger.createCategory(req.body||{},actor(req))}),201));
  router.patch('/erp/financeiro/categorias/:id',context.adminRequired,handle(async req=>({category:await ledger.updateCategory(req.params.id,req.body||{},actor(req))})));
