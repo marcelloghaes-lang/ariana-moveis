@@ -11,6 +11,9 @@ import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
 import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
 
+const clean=(v='',m=180)=>String(v??'').trim().slice(0,m);
+const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
+
 export default function createTelevendasRoutes(context={}){
   const router=express.Router();
   if(!context.adminRequired)throw new Error('[televendas] adminRequired não informado');
@@ -19,7 +22,20 @@ export default function createTelevendasRoutes(context={}){
   const operationalContext={...context,adminRequired:operationalRequired};
 
   // Endpoint usado pelo front para esconder/mostrar ações conforme a permissão do colaborador.
-  router.get('/erp/acesso',operationalRequired,(req,res)=>res.json({ok:true,access:erpAccessSummary(req)}));
+  // Também devolve apenas a identidade básica do usuário autenticado para personalizar o ERP.
+  router.get('/erp/acesso',operationalRequired,(req,res)=>{
+    const user=identity(req);
+    return res.json({
+      ok:true,
+      access:erpAccessSummary(req),
+      user:{
+        id:String(user.id||user._id||user.userId||''),
+        name:clean(user.name||user.fullName||user.displayName||user.email||'Usuário',160),
+        email:clean(user.email||'',180),
+        role:clean(user.role||'',40)
+      }
+    });
+  });
 
   // Regras de PDV são avaliadas no servidor antes das rotas operacionais.
   // Isso impede que uma tela antiga contorne revisão fiscal, inadimplência ou caixa obrigatório.
