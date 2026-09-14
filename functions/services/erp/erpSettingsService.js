@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const clean=(v='',m=500)=>String(v??'').trim().slice(0,m);
+const digits=(v='')=>String(v??'').replace(/\D/g,'');
+const money=(v=0)=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
 const actorName=a=>clean(a?.name||a?.nome||a?.email||'Operador',180);
 const base={timestamps:true,versionKey:false,minimize:false};
 
@@ -37,10 +39,13 @@ const schema=new mongoose.Schema({
 
 const Settings=mongoose.models.ErpOperationalSettings||mongoose.model('ErpOperationalSettings',schema);
 
-function fail(message,statusCode=400,code='ERP_SETTINGS_ERROR'){const e=new Error(message);e.statusCode=statusCode;e.code=code;return e}
+function fail(message,statusCode=400,code='ERP_SETTINGS_ERROR',details=undefined){const e=new Error(message);e.statusCode=statusCode;e.code=code;if(details)e.details=details;return e}
 function bool(v,fallback=false){return v===undefined?fallback:Boolean(v)}
 function number(v,fallback=0){const n=Number(v);return Number.isFinite(n)?n:fallback}
 function asDate(v){if(v===undefined)return undefined;if(v===null||v==='')return null;const d=new Date(v);if(Number.isNaN(d.getTime()))throw fail('Data de travamento financeiro inválida.');d.setHours(23,59,59,999);return d}
+function normalizedStatus(v=''){return clean(v,30).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+function paymentPrincipal(row={}){const ps=Array.isArray(row.payments)?row.payments:[];if(ps.length)return money(ps.reduce((s,p)=>s+Number(p?.principalApplied??p?.principal??0),0));return money(row.principalPaid??(row.status==='paid'?row.value:0))}
+function receivableOpen(row={}){return Math.max(0,money(Number(row.value||0)-paymentPrincipal(row)))}
 
 async function row(){return Settings.findOneAndUpdate({key:'default'},{$setOnInsert:{key:'default'}},{upsert:true,new:true,setDefaultsOnInsert:true})}
 function publicRow(x){const o=x?.toObject?x.toObject():x||{};return{general:o.general||{},sales:o.sales||{},finance:o.finance||{},pdv:o.pdv||{},updatedAt:o.updatedAt||null,updatedBy:o.updatedBy||''}}
@@ -48,7 +53,7 @@ function publicRow(x){const o=x?.toObject?x.toObject():x||{};return{general:o.ge
 export async function getErpSettingsSnapshot(){return publicRow(await row())}
 
 export function createErpSettingsService(context={}){
- const {IntegrationAuditLog,redact}=context;
+ const {IntegrationAuditLog,redact,Order}=context;
  async function audit(metadata={}){if(!IntegrationAuditLog)return;try{await IntegrationAuditLog.create({scope:'erp_ariana',eventType:'erp.settings.updated',status:'ok',message:'Configurações operacionais do ERP atualizadas',metadata:redact?redact(metadata):metadata})}catch(e){console.warn('[erp-settings/audit]',e.message)}}
  async function get(){return getErpSettingsSnapshot()}
  async function update(payload={},actor={}){
@@ -81,7 +86,31 @@ export function createErpSettingsService(context={}){
   if(cfg.lockDate){const d=new Date(entry.competenceAt||entry.dueAt||entry.createdAt);if(!Number.isNaN(d.getTime())&&d<=new Date(cfg.lockDate))throw fail('Este lançamento está protegido pela data de travamento do Financeiro.',409,'FINANCE_LOCKED')}
   if(cfg.requireBankAccount&&!clean(payload.bankAccountId||entry.bankAccountId,120)&&payload.__operation==='pay')throw fail('A configuração do ERP exige uma conta bancária para realizar a baixa.',409,'BANK_ACCOUNT_REQUIRED')
  }
- return{get,update,assertFinanceCreate,assertFinanceMutation}
+ async function applySaleDefaults(draft={}){
+  const cfg=await getErpSettingsSnapshot(),out={...draft,payment:{...(draft.payment||{})}};
+  if(!clean(out.payment.method,80)&&clean(cfg.pdv?.defaultPaymentMethod,80))out.payment.method=clean(cfg.pdv.defaultPaymentMethod,80);
+  return out
+ }
+ async function delinquencyForDraft(draft={}){
+  const doc=digits(draft?.customer?.document||draft?.customerDocument||draft?.customerCpf||draft?.cpf||'');
+  if(!doc)return{document:'',count:0,total:0,items:[]};
+  const cutoff=new Date();cutoff.setHours(0,0,0,0);const items=[];
+  const OrderModel=Order||mongoose.models.Order;
+  if(OrderModel){
+   const orders=await OrderModel.find({origin:'erp_ariana',customerCpf:doc,'televendas.erp.receivables':{$exists:true}}).select('_id televendas.erp.code televendas.erp.receivables').lean().limit(500).catch(()=>[]);
+   for(const order of orders){for(const rec of (Array.isArray(order?.televendas?.erp?.receivables)?order.televendas.erp.receivables:[])){const st=normalizedStatus(rec?.status),due=new Date(rec?.dueAt||rec?.dueDate||0);if(!['pendente','pending','parcial','partial'].includes(st)||Number.isNaN(due.getTime())||due>=cutoff)continue;const value=Math.max(0,money(Number(rec?.value||0)-Number(rec?.receivedValue||rec?.paidValue||0)));if(value>0.009)items.push({source:'sale',orderId:String(order._id||''),code:clean(order?.televendas?.erp?.code,100),dueAt:due,value})}}
+  }
+  const Entry=mongoose.models.ErpFinancialEntry;
+  if(Entry){const rows=await Entry.find({direction:'receivable',personDocument:doc,status:'pending',dueAt:{$lt:cutoff}}).lean().limit(1000).catch(()=>[]);for(const entry of rows){const value=receivableOpen(entry);if(value>0.009)items.push({source:'ledger',entryId:String(entry._id||''),dueAt:entry.dueAt,value})}}
+  return{document:doc,count:items.length,total:money(items.reduce((s,x)=>s+Number(x.value||0),0)),items}
+ }
+ async function assertSaleAllowed(draft={}){
+  const cfg=await getErpSettingsSnapshot();if(cfg.sales?.blockDelinquentSales!==true)return{blocked:false};
+  const debt=await delinquencyForDraft(draft);if(!debt.count)return{blocked:false,debt};
+  throw fail(`Venda bloqueada: cliente possui ${debt.count} parcela(s) vencida(s), totalizando ${debt.total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}.`,409,'DELINQUENT_CUSTOMER_BLOCKED',{count:debt.count,total:debt.total,document:debt.document})
+ }
+ async function requireOpenCashForBilling(){const cfg=await getErpSettingsSnapshot();return cfg.pdv?.requireOpenCashForBilling!==false}
+ return{get,update,assertFinanceCreate,assertFinanceMutation,applySaleDefaults,delinquencyForDraft,assertSaleAllowed,requireOpenCashForBilling}
 }
 
 export default createErpSettingsService;
