@@ -59,6 +59,7 @@ jobs:
           node --check functions/services/erp/erpNfeSefazService.js
           node --check functions/services/erp/erpPeopleService.js
           node --check functions/services/erp/erpAccessControl.js
+          node --check functions/services/erp/erpPdvRulesMiddleware.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpParityAnalyticsRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js

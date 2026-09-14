@@ -9,6 +9,7 @@ import createErpParityAnalyticsRoutes from '../erp/erpParityAnalyticsRoutes.js';
 import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.js';
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
+import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
 
 export default function createTelevendasRoutes(context={}){
   const router=express.Router();
@@ -19,6 +20,10 @@ export default function createTelevendasRoutes(context={}){
 
   // Endpoint usado pelo front para esconder/mostrar ações conforme a permissão do colaborador.
   router.get('/erp/acesso',operationalRequired,(req,res)=>res.json({ok:true,access:erpAccessSummary(req)}));
+
+  // Regras de PDV são avaliadas no servidor antes das rotas operacionais.
+  // Isso impede que uma tela antiga contorne revisão fiscal, inadimplência ou caixa obrigatório.
+  router.use(createErpPdvRulesMiddleware(context,operationalRequired));
 
   // Rotas operacionais do Ariana ERP usam a matriz granular de permissões.
   // Rotas administrativas do Televendas continuam negadas por padrão para colaboradores.

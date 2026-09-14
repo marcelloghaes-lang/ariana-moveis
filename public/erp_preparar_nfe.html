@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Preparar NF-e | Ariana ERP</title>
+<style>
+body{margin:0;background:#f4f6f9;color:#172033;font:14px Inter,Segoe UI,Arial,sans-serif}.box{max-width:620px;margin:80px auto;background:#fff;border:1px solid #dce3ec;border-radius:16px;padding:28px;box-shadow:0 8px 24px rgba(23,32,51,.07)}h1{margin:0 0 8px;font-size:21px}p{color:#69758a;line-height:1.5}.bad{color:#a62d38}.btn{display:inline-block;margin-top:10px;padding:10px 13px;border-radius:9px;background:#0646a5;color:#fff;text-decoration:none;font-weight:900}
+</style>
+</head>
+<body><main class="box"><h1>Preparando revisão da NF-e</h1><p id="status">Carregando a venda e montando a conferência fiscal…</p><a id="back" class="btn" href="erp_pedidos.html" style="display:none">Voltar para Vendas</a></main>
+<script>
+const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://ariana-backend.onrender.com/api';
+const REVIEW_KEY='ariana_erp_nfe_review';
+const orderId=new URLSearchParams(location.search).get('id')||'';
+function token(){const t=localStorage.getItem('admin_token')||localStorage.getItem('adminToken')||localStorage.getItem('auth_token')||localStorage.getItem('token')||'';if(t)return t;try{return JSON.parse(localStorage.getItem('banner_admin_session')||'null')?.token||''}catch{return''}}
+function fail(message,order=''){const status=document.getElementById('status');status.textContent=message;status.className='bad';const back=document.getElementById('back');back.style.display='inline-block';if(order){back.href='erp_venda_detalhe.html?id='+encodeURIComponent(order)+'&tab=pagamentos';back.textContent='Abrir pagamentos da venda'}}
+function addressText(value){if(typeof value==='string')return value;if(!value||typeof value!=='object')return'';return[value.logradouro||value.street,value.numero||value.number,value.bairro||value.district,value.cidade||value.city,value.uf].filter(Boolean).join(', ')}
+async function load(){
+ if(!orderId)return fail('Venda não informada. Volte para a lista de vendas e tente novamente.');
+ if(!token())return location.replace('erp_login.html?return='+encodeURIComponent(location.pathname+location.search));
+ try{
+  const response=await fetch(API+'/erp/orders/'+encodeURIComponent(orderId),{headers:{Authorization:'Bearer '+token()},cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(response.status===401)return location.replace('erp_login.html?return='+encodeURIComponent(location.pathname+location.search));
+  if(!response.ok)throw new Error(data.error||'Não foi possível carregar a venda.');
+  const order=data.order||data.data||data,erp=order.televendas?.erp||{},items=Array.isArray(order.items)?order.items:[];
+  if(!items.length)throw new Error('A venda não possui produtos para emissão da NF-e.');
+  if(['faturado','cancelado','estornado'].includes(String(order.status||'').toLowerCase()))throw new Error('Esta venda já está fechada e não pode iniciar uma nova emissão por este fluxo.');
+  const paymentMethod=order.payment?.method||'dinheiro',firstDueDate=order.payment?.firstDueDate||null;
+  if(['crediario','boleto'].includes(paymentMethod)&&!firstDueDate)return fail('Informe o primeiro vencimento na ficha da venda antes de revisar a NF-e. Nenhuma data foi criada automaticamente.',String(order._id||order.id||orderId));
+  const draft={
+   createdAt:new Date().toISOString(),
+   pendingOrderId:String(order._id||order.id||orderId),
+   customer:{name:order.customerName||'Consumidor',document:order.customerCpf||'',phone:order.customerPhone||'',email:order.customerEmail||'',address:addressText(order.shippingAddress)},
+   items:items.map(item=>({productId:String(item.productId||item._id||''),name:item.name||'Produto',sku:item.sku||'',stock:Number(item.stock||item.qty||1),qty:Number(item.qty||1),unitPrice:Number(item.unitPrice||0),sellerBaseUnitPrice:Number(item.sellerBaseUnitPrice||item.unitPrice||0),image:item.image||''})),
+   totals:{products:Number(order.subtotal||items.reduce((sum,item)=>sum+Number(item.qty||0)*Number(item.unitPrice||0),0)),shipping:Number(order.shippingCost||0),assembly:Number(order.montagemCost||0),discount:Number(erp.discount||0),total:Number(order.total||0)},
+   payment:{method:paymentMethod,installments:Number(order.payment?.installments||1),firstDueDate},
+   notes:order.notes||''
+  };
+  sessionStorage.setItem(REVIEW_KEY,JSON.stringify(draft));
+  location.replace('erp_revisao_nfe.html');
+ }catch(error){fail(error.message||'Falha ao preparar a revisão da NF-e.')}
+}
+load();
+</script></body></html>
