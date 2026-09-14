@@ -6,12 +6,14 @@
 
 export default function registerAdminOperationalRoutes(app, context = {}) {
   const {
+    User,
     Order,
     Notification,
     OperationalAlert,
     IntegrationAuditLog,
     ManufacturerDispatchQueue,
     ManufacturerIntegration,
+    mongoose,
     adminRequired,
     authRequired,
     scanOperationalAlerts,
@@ -23,6 +25,41 @@ export default function registerAdminOperationalRoutes(app, context = {}) {
     redact,
     now
   } = context;
+
+  app.patch('/api/admin/users/:id/fiscal-permission', adminRequired, async (req, res) => {
+    try {
+      const actor = req.adminUser || req.admin || req.auth || req.user || {};
+      const actorRole = String(actor.role || '').trim().toLowerCase();
+      const isAdmin = actorRole === 'admin' || actor.admin === true || actor.isSuperAdmin === true;
+      if (!isAdmin) {
+        return res.status(403).json({ ok: false, error: 'Somente administradores podem alterar permissões fiscais.' });
+      }
+
+      const id = String(req.params.id || '').trim();
+      if (mongoose?.isValidObjectId && !mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ ok: false, error: 'Usuário inválido.' });
+      }
+
+      const user = await User.findById(id);
+      if (!user || !['admin', 'staff'].includes(String(user.role || '').toLowerCase())) {
+        return res.status(404).json({ ok: false, error: 'Usuário não encontrado.' });
+      }
+
+      const permission = 'fiscal:nfe:emit';
+      const enabled = req.body?.enabled === true;
+      const permissions = new Set(Array.isArray(user.permissions) ? user.permissions : []);
+      if (enabled) permissions.add(permission);
+      else permissions.delete(permission);
+
+      user.permissions = [...permissions];
+      user.updatedBy = String(actor.email || actor.id || 'admin');
+      await user.save();
+
+      return res.json({ ok: true, enabled, permission, userId: String(user._id || user.id || '') });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || 'Falha ao atualizar permissão fiscal.' });
+    }
+  });
 
   app.get('/api/admin/orders', adminRequired, async (req, res) =>
     res.json((await Order.find().sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 10), 100))).map(toJSON))
