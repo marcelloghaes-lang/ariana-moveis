@@ -89,7 +89,7 @@ export function resolveErpRequirement(req={}){
   if(path==='/erp/estoque/movimentacoes'&&read)return requirement(['products:read'],'consultar movimentações de estoque');
   if(/^\/erp\/estoque\/[^/]+\/movimentacoes$/.test(path)&&method==='POST')return requirement(['products:update'],'movimentar estoque');
 
-  if(path==='/erp/relatorios/financeiro'&&read)return requirement(['finance:reports','reports:read','finance:read'],'consultar relatórios financeiros');
+  if(path==='/erp/relatorios/financeiro'&&read)return requirement(['finance:reports','reports:read'],'consultar relatórios financeiros');
   if(path==='/erp/relatorios/vendas'&&read)return requirement(['reports:read','orders:read'],'consultar relatórios de vendas');
   if(path==='/erp/relatorios/vendas-completo'&&read)return requirement(['reports:read','orders:read'],'consultar relatórios completos de vendas');
   if(path==='/erp/relatorios/estoque'&&read)return requirement(['reports:read','products:read'],'consultar relatórios de estoque');
