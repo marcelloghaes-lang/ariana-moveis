@@ -1,7 +1,6 @@
 import manufacturerIntegrationRoutes from './manufacturerIntegrationRoutes.js';
 import createSigeRoutes from './sige/index.js';
 import createTelevendasRoutes from './televendas/index.js';
-import registerAdminFiscalPermissionRoutes from './adminFiscalPermissionRoutes.js';
 import { createHealthController } from '../controllers/healthController.js';
 import { createAuthController } from '../controllers/authController.js';
 import { createUserController } from '../controllers/userController.js';
@@ -45,12 +44,6 @@ export function registerModularRoutes(app, deps = {}) {
     writeAuditLog: deps.writeAuditLog
   });
   registerUserRoutes(app, userController, { authRequired: deps.authRequired });
-
-  registerAdminFiscalPermissionRoutes(app, {
-    User: deps.User,
-    adminRequired: deps.adminRequired,
-    mongoose: deps.mongoose
-  });
 }
 
 /**
