@@ -50,6 +50,7 @@ export default function createErpManagementRoutes(context={}){
  router.post('/erp/compras',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.createPurchase(req.body||{},identity(req))}},201));
  router.patch('/erp/compras/:id',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.updatePurchase(req.params.id,req.body||{},identity(req))}}));
  router.post('/erp/compras/:id/receber',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.receivePurchase(req.params.id,req.body||{},identity(req))}}));
+ router.post('/erp/compras/:id/finalizar-custo',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.finalizeCost(req.params.id,req.body||{},identity(req))}}));
  router.post('/erp/compras/:id/cancelar',context.adminRequired,handle(async req=>{adminOnly(req);return{purchase:await purchases.cancelPurchase(req.params.id,identity(req))}}));
  router.get('/erp/estoque/movimentacoes',context.adminRequired,handle(async req=>({movements:await stock.list(req.query||{})})));
  router.post('/erp/estoque/:productId/movimentacoes',context.adminRequired,handle(async req=>await stock.move(req.params.productId,req.body||{},actor(req)),201));
