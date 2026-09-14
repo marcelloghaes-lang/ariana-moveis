@@ -222,6 +222,7 @@ export function createErpService(context = {}) {
         method: paymentMethod,
         installments,
         installmentValue: money(computed.total / installments),
+        firstDueDate: payload.payment?.firstDueDate || payload.firstDueDate || null,
         status: 'not_started',
         received: false
       },
@@ -405,6 +406,7 @@ export function createErpService(context = {}) {
         method: payment.method,
         installments: payment.installments,
         installmentValue: money(order.total / payment.installments),
+        firstDueDate: payment.firstDueDate || null,
         status: allReceived ? 'approved' : 'pending',
         received: allReceived,
         receivedAt: allReceived ? new Date() : null
