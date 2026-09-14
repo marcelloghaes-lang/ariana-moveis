@@ -6,6 +6,7 @@ import { createErpFiscalSettingsService } from '../../services/erp/erpFiscalSett
 import { createErpNfeSefazService } from '../../services/erp/erpNfeSefazService.js';
 import { createErpService } from '../../services/erp/erpService.js';
 import { createErpCashService } from '../../services/erp/erpCashService.js';
+import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
 
 const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:5*1024*1024}});
 const actor=req=>{
@@ -20,6 +21,7 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
   const service=createErpSigeFiscalHistoryService();
   const danfe=createErpDanfeBrandedService();
   const settings=createErpFiscalSettingsService(context);
+  const operationalSettings=createErpSettingsService(context);
   const erp=createErpService(context);
   const cash=createErpCashService(context);
   const nfe=createErpNfeSefazService({...context,erp},settings);
@@ -67,14 +69,17 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
   });
   router.post('/erp/fiscal/nfe/preflight',context.adminRequired,async(req,res)=>{
     try{
-      const review=await nfe.preflight(req.body?.draft||req.body||{});
+      const draft=await operationalSettings.applySaleDefaults(req.body?.draft||req.body||{});
+      const review=await nfe.preflight(draft);
       return res.status(review.ready?200:409).json({ok:review.ready,review});
     }catch(e){return sendError(res,e,'Erro ao validar a NF-e.')}
   });
 
   router.post('/erp/fiscal/nfe/emitir-e-faturar',context.adminRequired,async(req,res)=>{
-    const who=actor(req),draft=req.body?.draft||{},existingOrderId=String(req.body?.orderId||'').trim();
+    const who=actor(req),existingOrderId=String(req.body?.orderId||'').trim();
+    let draft=req.body?.draft||{};
     try{
+      draft=await operationalSettings.applySaleDefaults(draft);
       const review=await nfe.preflight(draft);
       if(!review.ready){
         return res.status(409).json({
@@ -86,8 +91,12 @@ export default function createErpSigeFiscalHistoryRoutes(context={}){
         });
       }
 
-      // Produção exige caixa aberto ANTES do envio. Homologação nunca movimenta caixa/estoque/financeiro.
-      if(review.environment==='producao')await cash.requireOpen(who);
+      // As regras operacionais são verificadas antes de qualquer transmissão real.
+      // Homologação continua livre para testes e jamais movimenta caixa/estoque/financeiro.
+      if(review.environment==='producao'){
+        await operationalSettings.assertSaleAllowed(draft);
+        if(await operationalSettings.requireOpenCashForBilling())await cash.requireOpen(who);
+      }
 
       const fiscal=await nfe.transmit(draft,who,existingOrderId);
 
