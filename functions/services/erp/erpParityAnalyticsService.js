@@ -5,11 +5,14 @@ const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
 const array=v=>Array.isArray(v)?v:[];
 const regexEscape=v=>String(v||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const sum=(a,f='value')=>money(a.reduce((s,x)=>s+Number(x[f]||0),0));
+const HISTORICAL_ANOMALY_MIN_VALUE=10_000_000;
 function dayStart(){const d=new Date();d.setHours(0,0,0,0);return d}
 function dueView(r){if(r.status==='paid')return'paid';if(r.status==='cancelled')return'cancelled';return new Date(r.dueAt)<dayStart()?'overdue':'upcoming'}
 function monthKey(v){const d=new Date(v);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 function outstanding(r={}){if(r.status==='paid')return 0;if(Number.isFinite(Number(r.outstanding)))return Math.max(0,money(r.outstanding));const principal=Number(r.principalPaid??0);return Math.max(0,money(Number(r.value||0)-principal))}
 function realized(r={}){return Math.max(0,money(r.paidValue||0))}
+function isHistoricalAnomaly(r={}){return r.origin==='sige_import'&&Math.abs(Number(r.value||0))>=HISTORICAL_ANOMALY_MIN_VALUE}
+function normalizeLedgerRow(r={}){const ps=array(r.payments),principal=money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??0),0):Number(r.principalPaid??(r.status==='paid'?r.value:0))),cash=money(ps.length?ps.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??0),0):Number(r.paidValue||0));return{...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',principalPaid:principal,paidValue:cash,outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-principal)),partial:r.status!=='paid'&&principal>0}}
 function reportPeriod(q={}){const now=new Date(),from=q.from?new Date(q.from):new Date(now.getFullYear(),0,1),to=q.to?new Date(q.to):new Date(now.getFullYear(),11,31,23,59,59,999);if(Number.isNaN(from.getTime())||Number.isNaN(to.getTime()))throw Object.assign(new Error('Período inválido.'),{statusCode:400});from.setHours(0,0,0,0);to.setHours(23,59,59,999);return{from,to}}
 
 export function createErpParityAnalyticsService(context={}){
@@ -17,12 +20,12 @@ export function createErpParityAnalyticsService(context={}){
  if(!Order)throw new Error('[erp-parity] Order não informado');
 
  async function currentReceivables(){
-  const orders=await Order.find({origin:'erp_ariana',status:'faturado','televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf payment televendas updatedAt').lean(),out=[];
+  const orders=await Order.find({origin:'erp_ariana',status:'faturado','televendas.erp.receivables.0':{$exists:true}}).select('_id customerName customerCpf customerPhone customerEmail payment televendas updatedAt').lean(),out=[];
   for(const o of orders){
    for(const r of o.televendas?.erp?.receivables||[]){
     if(['cancelado','estornado'].includes(r.status))continue;
     const payments=array(r.payments),principalPaid=money(payments.length?payments.reduce((s,p)=>s+Number(p.principalApplied??p.amount??0),0):Number(r.receivedAmount??(r.status==='recebido'?r.value:0))),cashPaid=money(payments.length?payments.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??p.amount??0),0):principalPaid),open=Math.max(0,money(Number(r.value||0)-principalPaid)),paid=r.status==='recebido'||open<=0.009;
-    out.push({id:`order:${o._id}:${r.number||out.length}`,source:'ariana_sale',origin:'ariana_sale',direction:'receivable',personName:o.customerName||'Consumidor',personDocument:o.customerCpf||'',description:o.televendas?.erp?.code||'Venda Ariana',categoryName:r.categoryName||'Vendas',bankAccountName:r.bankAccountName||'',paymentMethod:r.receivedMethod||r.method||o.payment?.method||'',value:Number(r.value||0),principalPaid,paidValue:cashPaid,outstanding:open,status:paid?'paid':'pending',partial:!paid&&principalPaid>0,dueAt:r.dueAt,competenceAt:r.competenceAt||o.updatedAt,paidAt:r.receivedAt||payments.at(-1)?.at||null,orderId:String(o._id),installmentNumber:Number(r.number||1),installments:Number(r.installments||1),payments})
+    out.push({id:`order:${o._id}:${r.number||out.length}`,source:'ariana_sale',origin:'ariana_sale',direction:'receivable',personName:o.customerName||'Consumidor',personDocument:o.customerCpf||'',personPhone:o.customerPhone||'',personEmail:o.customerEmail||'',description:o.televendas?.erp?.code||'Venda Ariana',categoryName:r.categoryName||'Vendas',bankAccountName:r.bankAccountName||'',paymentMethod:r.receivedMethod||r.method||o.payment?.method||'',value:Number(r.value||0),principalPaid,paidValue:cashPaid,outstanding:open,status:paid?'paid':'pending',partial:!paid&&principalPaid>0,dueAt:r.dueAt,competenceAt:r.competenceAt||o.updatedAt,paidAt:r.receivedAt||payments.at(-1)?.at||null,orderId:String(o._id),installmentNumber:Number(r.number||1),installments:Number(r.installments||1),payments})
    }
   }
   return out
@@ -39,12 +42,16 @@ export function createErpParityAnalyticsService(context={}){
   if(q.paymentMethod)filter.paymentMethod=clean(q.paymentMethod,100);
   if(q.from||q.to){filter.dueAt={};if(q.from)filter.dueAt.$gte=new Date(q.from);if(q.to){const d=new Date(q.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
   const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{description:rx},{categoryName:rx},{documentNumber:rx},{boletoNumber:rx}]}
-  let base=(await Entry.find(filter).sort({dueAt:1}).limit(30000).lean()).map(r=>{const ps=array(r.payments),principal=money(ps.length?ps.reduce((s,p)=>s+Number(p.principalApplied??0),0):Number(r.principalPaid??(r.status==='paid'?r.value:0))),cash=money(ps.length?ps.reduce((s,p)=>s+Number(p.totalPaid??p.principalApplied??0),0):Number(r.paidValue||0));return{...r,id:String(r._id),source:r.origin==='sige_import'?'historico':'financeiro',principalPaid:principal,paidValue:cash,outstanding:r.status==='paid'?0:Math.max(0,money(Number(r.value||0)-principal)),partial:r.status!=='paid'&&principal>0}});
+  let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);
   if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());
   if(['receivable','payable'].includes(q.direction))base=base.filter(r=>r.direction===q.direction);
+  if(text){const needle=text.toLowerCase();base=base.filter(r=>[r.personName,r.personDocument,r.personPhone,r.personEmail,r.description,r.categoryName,r.documentNumber,r.boletoNumber].join(' ').toLowerCase().includes(needle))}
+  if(q.paymentMethod){const method=clean(q.paymentMethod,100).toLowerCase();base=base.filter(r=>String(r.paymentMethod||'').toLowerCase()===method)}
   if(q.from||q.to){const from=q.from?new Date(q.from):null,to=q.to?new Date(q.to):null;if(to)to.setHours(23,59,59,999);base=base.filter(r=>{const d=new Date(r.dueAt);return(!from||d>=from)&&(!to||d<=to)})}
 
-  const active=base.filter(r=>r.status!=='cancelled'),rec=active.filter(r=>r.direction==='receivable'),pay=active.filter(r=>r.direction==='payable'),recPending=rec.filter(r=>r.status==='pending'),payPending=pay.filter(r=>r.status==='pending'),recOver=recPending.filter(r=>dueView(r)==='overdue'),payOver=payPending.filter(r=>dueView(r)==='overdue'),recUpcoming=recPending.filter(r=>dueView(r)==='upcoming'),payUpcoming=payPending.filter(r=>dueView(r)==='upcoming'),recPaid=rec.filter(r=>r.status==='paid'),payPaid=pay.filter(r=>r.status==='paid');
+  const anomalyFilter={origin:'sige_import',$or:[{value:{$gte:HISTORICAL_ANOMALY_MIN_VALUE}},{value:{$lte:-HISTORICAL_ANOMALY_MIN_VALUE}}]};
+  const qualityAnomalies=(await Entry.collection.find(anomalyFilter).toArray()).map(normalizeLedgerRow);
+  const operational=base.filter(r=>!isHistoricalAnomaly(r)),active=operational.filter(r=>r.status!=='cancelled'),rec=active.filter(r=>r.direction==='receivable'),pay=active.filter(r=>r.direction==='payable'),recPending=rec.filter(r=>r.status==='pending'),payPending=pay.filter(r=>r.status==='pending'),recOver=recPending.filter(r=>dueView(r)==='overdue'),payOver=payPending.filter(r=>dueView(r)==='overdue'),recUpcoming=recPending.filter(r=>dueView(r)==='upcoming'),payUpcoming=payPending.filter(r=>dueView(r)==='upcoming'),recPaid=rec.filter(r=>r.status==='paid'),payPaid=pay.filter(r=>r.status==='paid');
   const bucketOpen=a=>({count:a.length,value:money(a.reduce((s,r)=>s+outstanding(r),0))});
   const bucketTotal=a=>({count:a.length,value:sum(a)});
 
@@ -60,10 +67,11 @@ export function createErpParityAnalyticsService(context={}){
   for(const r of active){const k=r.categoryName||'Sem categoria',x=cm.get(k)||{category:k,direction:r.direction,expected:0,realized:0};x.expected+=Number(r.value||0);x.realized+=realized(r);cm.set(k,x)}
   const categories=[...cm.values()].map(x=>({...x,expected:money(x.expected),realized:money(x.realized)})).sort((a,b)=>b.expected-a.expected);
 
-  const view=clean(q.view,30);let entries=base;
-  if(view==='overdue')entries=base.filter(r=>r.status==='pending'&&dueView(r)==='overdue');else if(view==='upcoming')entries=base.filter(r=>r.status==='pending'&&dueView(r)==='upcoming');else if(view==='paid')entries=base.filter(r=>r.status==='paid');else if(view==='pending')entries=base.filter(r=>r.status==='pending');else if(view==='cancelled')entries=base.filter(r=>r.status==='cancelled');
+  const view=clean(q.view,30);let entries=q.includeAnomalies==='true'?base:operational;
+  if(view==='overdue')entries=entries.filter(r=>r.status==='pending'&&dueView(r)==='overdue');else if(view==='upcoming')entries=entries.filter(r=>r.status==='pending'&&dueView(r)==='upcoming');else if(view==='paid')entries=entries.filter(r=>r.status==='paid');else if(view==='pending')entries=entries.filter(r=>r.status==='pending');else if(view==='partial')entries=entries.filter(r=>r.status==='pending'&&r.partial===true);else if(view==='cancelled')entries=entries.filter(r=>r.status==='cancelled');
   entries=entries.sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt));
-  return{summary:{receivables:{total:bucketTotal(rec),pending:bucketOpen(recPending),upcoming:bucketOpen(recUpcoming),overdue:bucketOpen(recOver),paid:{count:recPaid.length,value:money(recPaid.reduce((s,r)=>s+realized(r),0))},realized:money(rec.reduce((s,r)=>s+realized(r),0))},payables:{total:bucketTotal(pay),pending:bucketOpen(payPending),upcoming:bucketOpen(payUpcoming),overdue:bucketOpen(payOver),paid:{count:payPaid.length,value:money(payPaid.reduce((s,r)=>s+realized(r),0))},realized:money(pay.reduce((s,r)=>s+realized(r),0))},delinquentCustomers:delinquents.length},delinquents:delinquents.slice(0,500),cashFlow,categories,entries:entries.slice(0,2000).map(r=>({...r,outstanding:outstanding(r),view:dueView(r)}))}
+  const anomalyOpen=money(qualityAnomalies.reduce((s,r)=>s+outstanding(r),0)),anomalyRealized=money(qualityAnomalies.reduce((s,r)=>s+realized(r),0));
+  return{summary:{receivables:{total:bucketTotal(rec),pending:bucketOpen(recPending),upcoming:bucketOpen(recUpcoming),overdue:bucketOpen(recOver),paid:{count:recPaid.length,value:money(recPaid.reduce((s,r)=>s+realized(r),0))},realized:money(rec.reduce((s,r)=>s+realized(r),0))},payables:{total:bucketTotal(pay),pending:bucketOpen(payPending),upcoming:bucketOpen(payUpcoming),overdue:bucketOpen(payOver),paid:{count:payPaid.length,value:money(payPaid.reduce((s,r)=>s+realized(r),0))},realized:money(pay.reduce((s,r)=>s+realized(r),0))},delinquentCustomers:delinquents.length},dataQuality:{excludedHistoricalAnomalies:{count:qualityAnomalies.length,threshold:HISTORICAL_ANOMALY_MIN_VALUE,totalValue:sum(qualityAnomalies),openValue:anomalyOpen,realizedValue:anomalyRealized,preserved:true}},delinquents:delinquents.slice(0,500),cashFlow,categories,entries:entries.slice(0,2000).map(r=>({...r,outstanding:outstanding(r),view:dueView(r)}))}
  }
 
  async function sales(q={}){
