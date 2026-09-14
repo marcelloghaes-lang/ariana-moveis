@@ -58,6 +58,7 @@ jobs:
           node --check functions/services/erp/erpFiscalSettingsService.js
           node --check functions/services/erp/erpNfeSefazService.js
           node --check functions/services/erp/erpPeopleService.js
+          node --check functions/services/erp/erpAccessControl.js
           node --check functions/routes/erp/erpManagementRoutes.js
           node --check functions/routes/erp/erpParityAnalyticsRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js
@@ -67,6 +68,23 @@ jobs:
           node --check functions/routes/erp/erpPeopleRoutes.js
           node --check functions/routes/televendas/televendasRoutes.js
           node --check functions/routes/televendas/index.js
+      - name: Validate ERP permission matrix
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { canAccess, resolveErpRequirement } from './functions/services/erp/erpAccessControl.js';
+
+          const rule = (method, path) => resolveErpRequirement({ method, path });
+          assert.deepEqual(rule('GET', '/erp/dashboard').any, ['dashboard:read']);
+          assert.deepEqual(rule('POST', '/erp/orders').any, ['orders:update']);
+          assert.deepEqual(rule('POST', '/erp/orders/abc/cancelar').any, ['orders:cancel']);
+          assert.deepEqual(rule('POST', '/erp/financeiro/lancamentos/abc/quitar').any, ['payments:receive']);
+          assert.equal(rule('POST', '/erp/migracao/sige/importar').mapped, false);
+          assert.equal(rule('POST', '/erp/fiscal/nfe/preflight').mapped, false);
+          assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:read']), true);
+          assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:update']), false);
+          assert.equal(canAccess({admin:{role:'admin',permissions:[]}},['settings:update']), true);
+          NODE
       - name: Extract and check ERP inline scripts
         shell: bash
         run: |
