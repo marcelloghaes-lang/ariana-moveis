@@ -93,6 +93,14 @@ header a{color:var(--b);font-weight:800;text-decoration:none}
           </table>
         </div>
       </div>
+      <div class="card">
+        <h3>Dados comerciais</h3>
+        <div class="rows">
+          <div class="row"><small>Data da venda</small><b id="sale-date">—</b></div>
+          <div class="row"><small>Vendedor</small><b id="seller-name">—</b></div>
+          <div class="row full"><small>Tabela de preço</small><span id="price-table">Preço Padrão</span></div>
+        </div>
+      </div>
       <div class="card"><h3>Observações</h3><div class="row"><span id="notes">—</span></div></div>
     </section>
     <aside>
@@ -130,6 +138,7 @@ header a{color:var(--b);font-weight:800;text-decoration:none}
         <div>Número: <b id="r-number"></b> • Série: <b id="r-series"></b></div>
         <div>Protocolo: <span id="r-protocol" class="mono"></span></div>
         <div>Chave: <span id="r-key" class="mono"></span></div>
+        <div id="commercial-warning" class="notice bad" style="display:none;margin-top:12px;margin-bottom:0"></div>
         <div class="actions">
           <button id="viewDanfe" class="btn secondary" style="display:none">Ver DANFE</button>
           <a class="btn primary" href="erp_nova_venda.html">Nova venda</a>
@@ -143,7 +152,7 @@ const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://a
 const $=id=>document.getElementById(id);
 const storageKey='ariana_erp_nfe_review';
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
 let data=null,preflightReady=false,lastFiscalDocumentId='';
 
 function token(){
@@ -164,18 +173,27 @@ function status(text,bad=false,ok=false){
   $('preflight').className='notice'+(bad?' bad':ok?' ok':'');
   $('preflight').innerHTML=esc(text);
 }
+function formatDate(value=''){
+  const v=String(value||'').trim();
+  if(!v)return'—';
+  const d=new Date(v.length===10?v+'T12:00:00':v);
+  return Number.isNaN(d.getTime())?v:d.toLocaleDateString('pt-BR');
+}
 try{data=JSON.parse(sessionStorage.getItem(storageKey)||'null')}catch{}
 
 function render(){
   if(!data){$('missing').style.display='block';return}
   $('review').style.display='grid';
-  const c=data.customer||{},t=data.totals||{},p=data.payment||{},rows=Array.isArray(data.items)?data.items:[];
+  const c=data.customer||{},t=data.totals||{},p=data.payment||{},cm=data.commercial||{},rows=Array.isArray(data.items)?data.items:[];
   $('c-name').textContent=c.name||'Consumidor';
   $('c-doc').textContent=c.document||'—';
   $('c-phone').textContent=c.phone||'—';
   $('c-email').textContent=c.email||'—';
   $('c-address').textContent=c.address||'—';
   $('items').innerHTML=rows.map(i=>`<tr><td><b>${esc(i.name||'Produto')}</b></td><td>${esc(i.sku||'—')}</td><td>${Number(i.qty||0)}</td><td class="money">${money(i.unitPrice)}</td><td class="money"><b>${money(Number(i.qty||0)*Number(i.unitPrice||0))}</b></td></tr>`).join('');
+  $('sale-date').textContent=formatDate(cm.saleDate);
+  $('seller-name').textContent=cm.sellerName||'—';
+  $('price-table').textContent=cm.priceTable||'Preço Padrão';
   $('notes').textContent=data.notes||'—';
   $('payment').textContent=labelPayment(p.method);
   $('installments').textContent=`${Number(p.installments||1)}x de ${money(Number(t.total||0)/Math.max(1,Number(p.installments||1)))}`;
@@ -216,6 +234,32 @@ function fillResult(d){
   $('r-key').textContent=d.key||'—';
   $('result').style.display='block';
   $('viewDanfe').style.display=(lastFiscalDocumentId&&d.xmlAvailable!==false)?'block':'none';
+}
+async function persistCommercial(orderId){
+  const cm=data?.commercial||{},id=String(orderId||'').trim();
+  const payload={
+    sellerName:String(cm.sellerName||'').trim(),
+    priceTable:String(cm.priceTable||'Preço Padrão').trim()||'Preço Padrão',
+    saleDate:String(cm.saleDate||'').trim()
+  };
+  if(!id)return{ok:false,error:'a venda foi faturada, mas o identificador interno não retornou para registrar vendedor/data/tabela de preço.'};
+  if(!payload.sellerName&&!payload.saleDate&&!payload.priceTable)return{ok:true};
+  try{
+    const r=await fetch(API+'/erp/orders/'+encodeURIComponent(id)+'/sige-fields',{
+      method:'PATCH',headers:headers(),body:JSON.stringify(payload),cache:'no-store'
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)return{ok:false,error:d.error||`não foi possível registrar os dados comerciais (HTTP ${r.status}).`};
+    return{ok:true};
+  }catch(e){
+    return{ok:false,error:e.message||'não foi possível registrar os dados comerciais.'};
+  }
+}
+function showCommercialWarning(message=''){
+  const box=$('commercial-warning');
+  if(!message){box.style.display='none';box.textContent='';return}
+  box.textContent='A NF-e e o faturamento foram concluídos. Atenção: '+message+' Não tente emitir a NF-e novamente; ajuste apenas os dados comerciais na ficha da venda.';
+  box.style.display='block';
 }
 async function preflight(){
   if(!data||!token())return token()?null:goLogin();
@@ -301,6 +345,8 @@ $('emit').onclick=async()=>{
     if(!d.authorized||!d.billingCompleted)throw new Error('A operação não foi concluída.');
     fillResult(d);
     $('result-title').textContent='NF-e autorizada e venda faturada';
+    const commercial=await persistCommercial(d.orderId||data.pendingOrderId||'');
+    showCommercialWarning(commercial.ok?'':commercial.error);
     status('✓ NF-e autorizada pela SEFAZ e venda faturada no Ariana ERP.',false,true);
     sessionStorage.removeItem(storageKey);
     b.disabled=true;
