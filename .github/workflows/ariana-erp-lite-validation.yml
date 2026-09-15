@@ -7,6 +7,7 @@ on:
       - 'functions/routes/erp/**'
       - 'functions/routes/televendas/televendasRoutes.js'
       - 'functions/routes/televendas/index.js'
+      - 'functions/server.js'
       - 'public/erp_*.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
   push:
@@ -26,6 +27,7 @@ on:
       - 'functions/routes/erp/**'
       - 'functions/routes/televendas/televendasRoutes.js'
       - 'functions/routes/televendas/index.js'
+      - 'functions/server.js'
       - 'public/erp_*.html'
       - '.github/workflows/ariana-erp-lite-validation.yml'
 
@@ -40,37 +42,13 @@ jobs:
         with:
           node-version: '20'
       - name: Check backend JavaScript syntax
+        shell: bash
         run: |
-          node --check functions/services/erp/erpService.js
-          node --check functions/services/erp/erpFinanceService.js
-          node --check functions/services/erp/erpFinancePanelBridgeService.js
-          node --check functions/services/erp/erpProductService.js
-          node --check functions/services/erp/erpLedgerService.js
-          node --check functions/services/erp/erpStockMovementService.js
-          node --check functions/services/erp/erpReportService.js
-          node --check functions/services/erp/erpParityAnalyticsService.js
-          node --check functions/services/erp/erpCashService.js
-          node --check functions/services/erp/erpSigeMigrationService.js
-          node --check functions/services/erp/erpSigeMasterDataImportService.js
-          node --check functions/services/erp/erpSigeHistoryImportService.js
-          node --check functions/services/erp/erpSigeFiscalHistoryService.js
-          node --check functions/services/erp/erpDanfeService.js
-          node --check functions/services/erp/erpDanfeBrandedService.js
-          node --check functions/services/erp/erpFiscalSettingsService.js
-          node --check functions/services/erp/erpNfeSefazService.js
-          node --check functions/services/erp/erpPeopleService.js
-          node --check functions/services/erp/erpAccessControl.js
-          node --check functions/services/erp/erpPdvRulesMiddleware.js
-          node --check functions/routes/erp/erpManagementRoutes.js
-          node --check functions/routes/erp/erpFinancePanelBridgeRoutes.js
-          node --check functions/routes/erp/erpParityAnalyticsRoutes.js
-          node --check functions/routes/erp/erpSigeMigrationRoutes.js
-          node --check functions/routes/erp/erpSigeMasterDataRoutes.js
-          node --check functions/routes/erp/erpSigeHistoryRoutes.js
-          node --check functions/routes/erp/erpSigeFiscalHistoryRoutes.js
-          node --check functions/routes/erp/erpPeopleRoutes.js
-          node --check functions/routes/televendas/televendasRoutes.js
-          node --check functions/routes/televendas/index.js
+          node --check functions/server.js
+          find functions/services/erp functions/routes/erp functions/routes/televendas \
+            -type f -name '*.js' -print0 \
+            | sort -z \
+            | xargs -0 -n1 node --check
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'

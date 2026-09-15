@@ -39,7 +39,8 @@ export function createErpProfitabilityService(context={}){
     for(const o of orders){
       const seller=o.televendas?.erp?.sellerName||o.sellerName||'Sem vendedor';let orderRevenue=0,orderCost=0,orderKnownRevenue=0,orderItems=0,knownItems=0,orderProvisional=0;
       for(const i of arr(o.items)){
-        const qty=Math.max(0,Number(i.qty||i.quantity||0)),revenue=money(Number(i.totalPrice??i.subtotal??(Number(i.unitPrice||i.price||0)*qty)||0));
+        const qty=Math.max(0,Number(i.qty||i.quantity||0));
+        const revenue=money(Number(i.totalPrice ?? i.subtotal ?? (Number(i.unitPrice||i.price||0)*qty) ?? 0));
         const p=pmap.get(String(i.productId||'')),hasCost=!!p&&p.costPrice!==null&&p.costPrice!==undefined&&Number.isFinite(Number(p.costPrice)),provisional=hasCost&&p.costStatus==='provisional',cost=hasCost?money(Number(p.costPrice)*qty):null,profit=hasCost?money(revenue-cost):null;
         items+=qty;orderItems+=qty;totalRevenue+=revenue;orderRevenue+=revenue;
         if(hasCost){itemsWithCost+=qty;knownItems+=qty;knownRevenue+=revenue;orderKnownRevenue+=revenue;knownCost+=cost;orderCost+=cost;knownProfit+=profit;if(provisional){provisionalItems+=qty;orderProvisional+=qty}}
