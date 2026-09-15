@@ -79,6 +79,7 @@ jobs:
           node --check functions/routes/televendas/index.js
           node --check public/financeiro_erp_preload.js
           node --check public/financeiro_erp_bridge.js
+          node --check public/financeiro_erp_payment_patch.js
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'
