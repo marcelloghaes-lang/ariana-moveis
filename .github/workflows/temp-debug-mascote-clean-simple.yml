@@ -1,0 +1,9 @@
+name: Temp debug mascot clean
+on:
+  push:
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: grep -n "mascote_lateral_clean\|Mascote lateral\|posters/preview\|posters/professional" public/gerador_cartazes.html public/js/gerador_cartazes.js functions/routes/adminCoreRoutes.js functions/poster-generator.js || true
