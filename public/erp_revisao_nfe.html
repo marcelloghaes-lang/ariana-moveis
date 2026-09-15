@@ -152,7 +152,7 @@ const API=location.hostname==='localhost'?'http://localhost:3000/api':'https://a
 const $=id=>document.getElementById(id);
 const storageKey='ariana_erp_nfe_review';
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let data=null,preflightReady=false,lastFiscalDocumentId='';
 
 function token(){
