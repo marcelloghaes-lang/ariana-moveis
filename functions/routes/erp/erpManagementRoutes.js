@@ -9,6 +9,7 @@ import { createErpAdvancedFinanceReportService } from '../../services/erp/erpAdv
 import { createErpProfitabilityService } from '../../services/erp/erpProfitabilityService.js';
 import { createErpPurchaseService } from '../../services/erp/erpPurchaseService.js';
 import { createErpPurchasePayablesService } from '../../services/erp/erpPurchasePayablesService.js';
+import { createErpRecurringFinanceService } from '../../services/erp/erpRecurringFinanceService.js';
 
 const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
 const isFullAdmin=req=>{const u=identity(req),role=String(u.role||'').trim().toLowerCase();return role==='admin'||u.admin===true||u.isSuperAdmin===true};
@@ -16,7 +17,7 @@ const adminOnly=req=>{if(isFullAdmin(req))return;const error=new Error('Esta inf
 
 export default function createErpManagementRoutes(context={}){
  const router=express.Router();if(!context.adminRequired)throw new Error('[erp-management] adminRequired não informado');
- const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context);const actor=req=>req.admin||req.auth||req.user||{};
+ const ledger=createErpLedgerService(context),stock=createErpStockMovementService(context),reports=createErpReportService(context),settings=createErpSettingsService(context),reconciliation=createErpReconciliationService(context),commissions=createErpCommissionService(context),advancedFinance=createErpAdvancedFinanceReportService(context),profitability=createErpProfitabilityService(context),purchases=createErpPurchaseService(context),purchasePayables=createErpPurchasePayablesService(context),recurringFinance=createErpRecurringFinanceService(context);const actor=req=>req.admin||req.auth||req.user||{};
  const handle=(fn,status=200)=>async(req,res)=>{try{const result=await fn(req);return res.status(status).json({ok:true,...(result&&typeof result==='object'&&!Array.isArray(result)?result:{data:result})})}catch(e){console.error('[erp-management]',e);return res.status(Number(e?.statusCode||500)).json({ok:false,error:e?.message||'Erro no módulo de gestão do ERP.',code:e?.code||'ERP_MANAGEMENT_ERROR'})}};
  router.get('/erp/configuracoes',context.adminRequired,handle(async()=>({settings:await settings.get()})));
  router.put('/erp/configuracoes',context.adminRequired,handle(async req=>({settings:await settings.update(req.body||{},actor(req))})));
@@ -38,6 +39,11 @@ export default function createErpManagementRoutes(context={}){
  router.patch('/erp/financeiro/lancamentos/:id/pagamentos/:paymentId/conciliacao',context.adminRequired,handle(async req=>({entry:await reconciliation.setPayment(req.params.id,req.params.paymentId,req.body?.reconciled!==false,actor(req))})));
  router.post('/erp/financeiro/lancamentos/:id/reabrir',context.adminRequired,handle(async req=>{await settings.assertFinanceMutation(req.params.id,{__operation:'reopen'});return{entry:await ledger.unpay(req.params.id,actor(req))}}));
  router.post('/erp/financeiro/lancamentos/:id/cancelar',context.adminRequired,handle(async req=>{await settings.assertFinanceMutation(req.params.id,{__operation:'cancel'});return{entry:await ledger.cancel(req.params.id,actor(req))}}));
+ router.get('/erp/financeiro/recorrencias',context.adminRequired,handle(async req=>{adminOnly(req);return{recurrences:await recurringFinance.list(req.query||{})}}));
+ router.post('/erp/financeiro/recorrencias',context.adminRequired,handle(async req=>{adminOnly(req);return await recurringFinance.create(req.body||{},identity(req))},201));
+ router.get('/erp/financeiro/recorrencias/:id',context.adminRequired,handle(async req=>{adminOnly(req);return await recurringFinance.status(req.params.id)}));
+ router.post('/erp/financeiro/recorrencias/:id/gerar',context.adminRequired,handle(async req=>{adminOnly(req);return await recurringFinance.generate(req.params.id,req.body||{},identity(req))}));
+ router.patch('/erp/financeiro/recorrencias/:id/ativo',context.adminRequired,handle(async req=>{adminOnly(req);return{recurrence:await recurringFinance.setActive(req.params.id,req.body?.active!==false,identity(req))}}));
  router.get('/erp/relatorios/financeiro',context.adminRequired,handle(async req=>{adminOnly(req);return{report:await reports.financial(req.query||{})}}));
  router.get('/erp/relatorios/financeiro-avancado',context.adminRequired,handle(async req=>{adminOnly(req);return{report:await advancedFinance.report(req.query||{})}}));
  router.get('/erp/produtos/custos',context.adminRequired,handle(async req=>{adminOnly(req);return await profitability.listCosts(req.query||{})}));
