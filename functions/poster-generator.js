@@ -398,7 +398,7 @@ function professionalAdaptiveText(colorTheme = 'azul', layoutVariant = 'classic'
   const layout = String(layoutVariant || 'classic').toLowerCase();
 
   const naturallyLight = new Set(['celeste', 'champagne', 'salvia', 'areia', 'prata', 'lilas', 'amarelo']);
-  const lateralLight = ['azul_lateral_exato', 'varejo'].includes(layout) && ['azul', 'celeste'].includes(key);
+  const lateralLight = ['azul_lateral_exato', 'varejo', 'mascote_lateral_clean'].includes(layout) && ['azul', 'celeste'].includes(key);
   const lightSurface = naturallyLight.has(key) || lateralLight;
 
   if (lightSurface) {
@@ -723,6 +723,37 @@ function professionalBackgroundSvg({ template = 'oferta', layoutVariant = 'class
   const palette = professionalPalette(template, colorTheme);
   const layout = String(layoutVariant || 'classic').toLowerCase();
 
+  if (layout === 'mascote_lateral_clean') {
+    return `
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="cleanBg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#9BE1FF"/>
+          <stop offset="38%" stop-color="#27B3F1"/>
+          <stop offset="100%" stop-color="#078FE4"/>
+        </linearGradient>
+        <radialGradient id="cleanGlow" cx="50%" cy="8%" r="68%">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".72"/>
+          <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="cleanShadow" x="-40%" y="-100%" width="180%" height="300%">
+          <feGaussianBlur stdDeviation="16"/>
+        </filter>
+      </defs>
+      <rect width="1080" height="1350" fill="url(#cleanBg)"/>
+      <rect width="1080" height="1190" fill="url(#cleanGlow)"/>
+      <path d="M0 655 C210 770 430 825 650 790 C845 760 970 690 1080 625 L1080 1040 C845 1010 650 1080 455 1050 C260 1022 125 930 0 865 Z" fill="#006FCB" opacity=".24"/>
+      <path d="M0 800 C230 905 460 955 680 920 C865 890 995 835 1080 785 L1080 1110 C855 1085 660 1130 450 1110 C245 1088 105 1020 0 955 Z" fill="#0B83D9" opacity=".26"/>
+      <ellipse cx="830" cy="1100" rx="180" ry="27" fill="#062B63" opacity=".20" filter="url(#cleanShadow)"/>
+      <rect x="0" y="1190" width="1080" height="160" fill="#062F68"/>
+      <rect x="0" y="1190" width="1080" height="6" fill="#FFD400"/>
+      <path d="M0 1190 H60 L20 1248 H0 Z" fill="#FFD400"/>
+      <path d="M1080 1190 H1020 L1060 1248 H1080 Z" fill="#FFD400"/>
+      <path d="M0 1344 H72 L44 1312 H0 Z" fill="#FFD400" opacity=".94"/>
+      <path d="M1080 1344 H1008 L1036 1312 H1080 Z" fill="#FFD400" opacity=".94"/>
+    </svg>`;
+  }
+
   if (layout === 'azul_lateral_exato') {
     const colorKey = String(colorTheme || 'azul').toLowerCase();
     const isBlueFamily = colorKey === 'azul' || colorKey === 'celeste';
@@ -808,15 +839,16 @@ function professionalTextComposition({ product = {}, options = {}, layout = 'cla
   const headlineColor = lightSurface ? '#052B60' : '#FFFFFF';
   const subtitleColor = lightSurface ? '#2B5F88' : '#DDF4FF';
 
+  const mascotClean = layout === 'mascote_lateral_clean';
   const sideLeftProduct = ['showcase', 'split', 'azul_lateral_exato', 'varejo'].includes(layout);
   const sideRightProduct = ['catalog', 'diagonal'].includes(layout);
-  const centered = !sideLeftProduct && !sideRightProduct;
+  const centered = !sideLeftProduct && !sideRightProduct && !mascotClean;
 
-  let productX = sideLeftProduct ? 785 : (sideRightProduct ? 285 : 540);
-  let productY = sideLeftProduct ? 455 : (sideRightProduct ? 360 : 246);
-  let productMaxChars = sideLeftProduct || sideRightProduct ? 28 : 36;
+  let productX = mascotClean ? 335 : (sideLeftProduct ? 785 : (sideRightProduct ? 285 : 540));
+  let productY = mascotClean ? 360 : (sideLeftProduct ? 455 : (sideRightProduct ? 360 : 246));
+  let productMaxChars = mascotClean ? 31 : (sideLeftProduct || sideRightProduct ? 28 : 36);
 
-  if (hints && Number.isFinite(Number(hints.left)) && Number.isFinite(Number(hints.right))) {
+  if (!mascotClean && hints && Number.isFinite(Number(hints.left)) && Number.isFinite(Number(hints.right))) {
     const left = Number(hints.left);
     const right = Number(hints.right);
     const top = Number(hints.top || 420);
@@ -878,6 +910,14 @@ function professionalTextComposition({ product = {}, options = {}, layout = 'cla
     const collides = rect.right > image.left && rect.left < image.right && rect.bottom > image.top && rect.top < image.bottom;
     if (!collides) return block;
 
+    if (mascotClean) {
+      const lastLineOffset = (block.lines.length - 1) * block.gap;
+      const safeBaseline = Math.floor(image.top - 28 - lastLineOffset);
+      block.x = Math.min(400, Math.max(285, block.x));
+      if (safeBaseline >= 205) block.y = Math.min(block.y, safeBaseline);
+      return block;
+    }
+
     const leftSpace = Math.max(0, image.left - 30);
     const rightSpace = Math.max(0, 1080 - image.right - 30);
     const needed = rect.width + 34;
@@ -903,7 +943,13 @@ function professionalTextComposition({ product = {}, options = {}, layout = 'cla
   let headlineBlock;
   let subtitleBlock;
 
-  if (['azul_lateral_exato', 'varejo'].includes(layout)) {
+  if (mascotClean) {
+    headlineBlock = { x: 335, y: 226, lines: headlineLines, size: Math.min(headlineSize, 40), gap: Math.min(headlineGap, 47), color: headlineColor, weight: 950 };
+    const headlineLast = headlineBlock.y + (headlineLines.length - 1) * headlineBlock.gap;
+    subtitleBlock = { x: 335, y: headlineLast + headlineBlock.size + 20, lines: subtitleLines, size: Math.min(subtitleSize, 25), gap: Math.min(subtitleGap, 31), color: subtitleColor, weight: 800 };
+    const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleBlock.gap;
+    productBlock = { x: 335, y: subtitleLast + subtitleBlock.size + 28, lines: productLines, size: Math.min(productSize, 34), gap: Math.min(productGap, 39), color: productColor, weight: 950 };
+  } else if (['azul_lateral_exato', 'varejo'].includes(layout)) {
     subtitleBlock = { x: 540, y: 225, lines: subtitleLines, size: subtitleSize, gap: subtitleGap, color: subtitleColor, weight: 800 };
     const subtitleLast = subtitleBlock.y + (subtitleLines.length - 1) * subtitleGap;
     headlineBlock = { x: 540, y: subtitleLast + subtitleSize + 24, lines: headlineLines, size: headlineSize, gap: headlineGap, color: headlineColor, weight: 950 };
@@ -964,6 +1010,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const isSplit = layout === 'split';
   const isVarejo = layout === 'varejo';
   const isExactLateral = layout === 'azul_lateral_exato';
+  const isMascotClean = layout === 'mascote_lateral_clean';
   // Assinatura 2D oficial: igual em todos os cartazes, independente do layout
   // ou da paleta escolhida. Posição central, azul institucional e traço amarelo.
   const brandSvg = `
@@ -978,6 +1025,62 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
     <text x="540" y="88" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="76" font-weight="950" letter-spacing="2" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.2" paint-order="stroke fill">ARIANA</text>
     <text x="540" y="143" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" fill="#123F7D" stroke="#FFFFFF" stroke-width="1.1" paint-order="stroke fill">móveis</text>
     <path d="M450 160 H630" stroke="#F7D800" stroke-width="6" stroke-linecap="round"/>`;
+  if (isMascotClean) {
+    const cleanPrimary = '#052B60';
+    const cleanSecondary = '#0B3F7E';
+    const cleanAccent = '#FFF200';
+    const emailParts = email.includes('@') ? [email.slice(0, email.indexOf('@') + 1), email.slice(email.indexOf('@') + 1)] : [email];
+    return `
+    <svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
+      ${brandSvg}
+      ${headlineSvg}
+      ${subtitleSvg}
+      ${productNameSvg}
+
+      <g font-family="Arial, Helvetica, sans-serif">
+        <text x="355" y="800" text-anchor="middle" font-size="29" font-weight="950" fill="${cleanPrimary}">POR</text>
+        <text x="210" y="880" font-size="40" font-weight="950" fill="${cleanPrimary}">R$</text>
+        <text x="280" y="880" font-size="82" font-weight="950" letter-spacing="-3" fill="${cleanPrimary}">${escapeXml(cashValue)}</text>
+        <text x="355" y="918" text-anchor="middle" font-size="23" font-weight="900" fill="${cleanSecondary}">À VISTA NO DINHEIRO OU PIX</text>
+        <text x="355" y="960" text-anchor="middle" font-size="31" font-weight="950" fill="${cleanAccent}">OU</text>
+        <text x="355" y="1005" text-anchor="middle" font-size="30" font-weight="950" fill="${cleanPrimary}">${pricing.installmentCount}X DE ${escapeXml(installmentValue)}</text>
+        <text x="355" y="1042" text-anchor="middle" font-size="24" font-weight="900" fill="${cleanPrimary}">NO CARTÃO DE CRÉDITO</text>
+        <text x="355" y="1080" text-anchor="middle" font-size="21" font-weight="850" fill="${cleanSecondary}">VALOR PARCELADO: R$ ${escapeXml(fullValue)}</text>
+        <text x="355" y="1118" text-anchor="middle" font-size="17" font-weight="850" fill="${cleanSecondary}">CONSULTE CONDIÇÕES NO CREDIÁRIO PRÓPRIO</text>
+      </g>
+
+      <g transform="translate(24 1204)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="44" cy="43" r="36" fill="#1DB954" stroke="#FFFFFF" stroke-width="4"/>
+        <path d="M35 29c-3 3-2 10 4 17 6 7 13 10 17 7l4-5-8-5-3 4c-4-2-8-6-10-10l4-3-5-8-3 3Z" fill="#FFFFFF"/>
+        <text x="94" y="30" font-size="17" fill="#FFFFFF">Atendimento pelo</text>
+        <text x="94" y="52" font-size="17" fill="#FFFFFF">WhatsApp</text>
+        <text x="94" y="86" font-size="26" font-weight="950" fill="#FFD400">${escapeXml(whatsapp.replace(/[()]/g, ''))}</text>
+      </g>
+
+      <line x1="350" y1="1198" x2="350" y2="1330" stroke="#FFD400" stroke-width="2"/>
+
+      <g transform="translate(374 1204)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="42" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
+        <ellipse cx="42" cy="43" rx="14" ry="33" fill="none" stroke="#FFD400" stroke-width="2.2"/>
+        <path d="M10 43h64M15 29h54M15 57h54" fill="none" stroke="#FFD400" stroke-width="2.1"/>
+        <text x="92" y="30" font-size="17" fill="#FFFFFF">Compre também pelo</text>
+        <text x="92" y="52" font-size="17" fill="#FFFFFF">nosso site</text>
+        <text x="174" y="86" text-anchor="middle" font-size="20" font-weight="950" fill="#FFD400">${escapeXml(site)}</text>
+      </g>
+
+      <line x1="710" y1="1198" x2="710" y2="1330" stroke="#FFD400" stroke-width="2"/>
+
+      <g transform="translate(732 1204)" font-family="Arial, Helvetica, sans-serif">
+        <circle cx="43" cy="43" r="34" fill="none" stroke="#FFD400" stroke-width="4"/>
+        <rect x="24" y="30" width="38" height="27" rx="3" fill="none" stroke="#FFD400" stroke-width="3"/>
+        <path d="M25 32l18 14 18-14" fill="none" stroke="#FFD400" stroke-width="3"/>
+        <text x="96" y="29" font-size="17" fill="#FFFFFF">E-mail</text>
+        <text x="96" y="57" font-size="19" font-weight="950" fill="#FFD400">${escapeXml(emailParts[0] || '')}</text>
+        <text x="96" y="82" font-size="19" font-weight="950" fill="#FFD400">${escapeXml(emailParts[1] || '')}</text>
+      </g>
+    </svg>`;
+  }
+
   if (isExactLateral) {
     const colorKey = String(options.colorTheme || 'azul').toLowerCase();
     const exactText = professionalAdaptiveText(options.colorTheme, layout);
@@ -1150,7 +1253,7 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   // A mascote é parte fixa da assinatura da marca na lateral esquerda.
   // O arquivo já possui transparência limpa e enquadramento até o quadril.
   const currentLayout = String(options.layoutVariant || '').toLowerCase();
-  const headerMascotBuffer = ['varejo', 'azul_lateral_exato'].includes(currentLayout)
+  const headerMascotBuffer = ['varejo', 'azul_lateral_exato', 'mascote_lateral_clean'].includes(currentLayout)
     ? null
     : await loadHeaderMascotBuffer(options).catch(() => null);
   if (headerMascotBuffer) {
@@ -1202,9 +1305,10 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     const estimatedWidth = naturalWidth * initialScale;
     const estimatedHeight = naturalHeight * initialScale;
     const exactLateral = layout === 'azul_lateral_exato';
-    const productBottomLimit = exactLateral ? 1110 : (layout === 'varejo' ? 1090 : 790);
-    const productMaxWidth = exactLateral ? Math.min(preset.w, 490) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w);
-    const productMaxHeight = exactLateral ? Math.min(650, productBottomLimit - 425) : (layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop)));
+    const mascotCleanProduct = layout === 'mascote_lateral_clean';
+    const productBottomLimit = mascotCleanProduct ? 790 : (exactLateral ? 1110 : (layout === 'varejo' ? 1090 : 790));
+    const productMaxWidth = mascotCleanProduct ? Math.min(preset.w, 570) : (exactLateral ? Math.min(preset.w, 490) : (layout === 'varejo' ? Math.min(preset.w, 520) : preset.w));
+    const productMaxHeight = mascotCleanProduct ? Math.min(390, productBottomLimit - 380) : (exactLateral ? Math.min(650, productBottomLimit - 425) : (layout === 'varejo' ? Math.min(650, productBottomLimit - 420) : Math.max(180, Math.min(preset.h, productBottomLimit - minProductTop))));
     const resizedProduct = await sharp(normalizedCutout)
     .rotate()
     .ensureAlpha()
@@ -1247,9 +1351,11 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
       visibleMaxX = productW - 1;
     }
     const automaticOffsetY = layout === 'showcase' ? 12 : layout === 'premium' ? -10 : layout === 'diagonal' ? 8 : 0;
-    const layoutCenterX = ['showcase', 'split'].includes(layout)
-      ? 315
-      : (['catalog', 'diagonal'].includes(layout) ? 755 : width / 2);
+    const layoutCenterX = mascotCleanProduct
+      ? 335
+      : (['showcase', 'split'].includes(layout)
+        ? 315
+        : (['catalog', 'diagonal'].includes(layout) ? 755 : width / 2));
     const centeredLeft = exactLateral
       ? Math.round(285 - visibleCenterX)
       : (layout === 'varejo' ? Math.round(285 - visibleCenterX) : Math.round(layoutCenterX - visibleCenterX));
@@ -1257,13 +1363,15 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
     // precisam respeitar a margem de segurança de 20 px.
     const minSafeLeft = 20 - visibleMinX;
     const canvasMaxSafeLeft = width - 20 - visibleMaxX;
-    const textColumnSafeLeft = exactLateral
-      ? 520 - visibleMaxX
-      : (layout === 'varejo' ? 525 - visibleMaxX : canvasMaxSafeLeft);
+    const textColumnSafeLeft = mascotCleanProduct
+      ? 640 - visibleMaxX
+      : (exactLateral
+        ? 520 - visibleMaxX
+        : (layout === 'varejo' ? 525 - visibleMaxX : canvasMaxSafeLeft));
     const maxSafeLeft = Math.min(canvasMaxSafeLeft, textColumnSafeLeft);
     const left = Math.max(minSafeLeft, Math.min(maxSafeLeft, centeredLeft));
-    const desiredTop = Math.round((exactLateral ? 430 : (layout === 'varejo' ? 430 : minProductTop)) + automaticOffsetY + Number(options.productOffsetY || 0));
-    const top = Math.max(exactLateral ? 405 : (layout === 'varejo' ? 390 : minProductTop), Math.min(productBottomLimit - productH, desiredTop));
+    const desiredTop = Math.round((mascotCleanProduct ? 385 : (exactLateral ? 430 : (layout === 'varejo' ? 430 : minProductTop))) + automaticOffsetY + Number(options.productOffsetY || 0));
+    const top = Math.max(mascotCleanProduct ? 350 : (exactLateral ? 405 : (layout === 'varejo' ? 390 : minProductTop)), Math.min(productBottomLimit - productH, desiredTop));
     options.compositionHints = {
       left,
       top,
@@ -1278,7 +1386,21 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   // A mascote entra depois do produto e permanece totalmente visível.
   if (headerMascotComposite) composites.push(headerMascotComposite);
 
-  if (options.showMascot === true || options.useMascot === true || options.mascote === true) {
+  if (currentLayout === 'mascote_lateral_clean') {
+    const cleanMascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
+    if (cleanMascotBuffer) {
+      const cleanMascot = await sharp(cleanMascotBuffer)
+        .rotate()
+        .ensureAlpha()
+        .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+        .resize(360, 760, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+      composites.push({ input: cleanMascot, top: 350, left: 700 });
+    }
+  }
+
+  if (currentLayout !== 'mascote_lateral_clean' && (options.showMascot === true || options.useMascot === true || options.mascote === true)) {
     const mascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
     if (mascotBuffer) {
       const mascotLayout = String(options.layoutVariant || '').toLowerCase() === 'azul_lateral_exato'
