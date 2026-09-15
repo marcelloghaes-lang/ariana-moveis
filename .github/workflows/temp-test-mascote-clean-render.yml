@@ -1,0 +1,33 @@
+name: Temp test mascote clean render
+on:
+  push:
+    paths:
+      - '.github/workflows/temp-test-mascote-clean-render.yml'
+jobs:
+  test-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias
+        working-directory: functions
+        run: npm ci --ignore-scripts=false
+      - name: Testar renderizacao
+        working-directory: functions
+        run: |
+          node --input-type=module <<'NODE'
+          import { generateProductPosterBuffer } from './poster-generator.js';
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="500"><rect width="700" height="500" fill="white"/><rect x="100" y="80" width="500" height="340" rx="30" fill="#dddddd"/><text x="350" y="270" text-anchor="middle" font-size="64">PRODUTO</text></svg>`;
+          const imageUrl = 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
+          const product = { name: 'Produto Teste Ariana', imageUrl, cashPrice: 799, fullPrice: 965.88, installmentCount: 12, installmentPrice: 80.49 };
+          const options = { variant: 'whatsapp', template: 'oferta', colorTheme: 'azul', layoutVariant: 'mascote_lateral_clean', headline: 'OFERTA IMPERDÍVEL', subtitle: 'Economize de verdade na Ariana Móveis', productName: product.name, imageUrl, cashPrice: 799, fullPrice: 965.88, installmentCount: 12, installmentPrice: 80.49, removeLightBackground: true, showMascot: false, whatsapp: '(31) 98514-7119', email: 'contato@arianamoveis.com.br', siteLabel: 'arianamoveis.com.br' };
+          try {
+            const out = await generateProductPosterBuffer(product, options);
+            console.log('RENDER_OK bytes=' + out.length);
+          } catch (error) {
+            console.error('RENDER_ERROR', error && error.stack ? error.stack : error);
+            process.exit(1);
+          }
+          NODE
