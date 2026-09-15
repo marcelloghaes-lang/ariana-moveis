@@ -10,6 +10,7 @@ import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
 import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
+import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
 
 const clean=(v='',m=180)=>String(v??'').trim().slice(0,m);
 const identity=req=>req.adminUser||req.admin||req.auth||req.user||{};
@@ -20,11 +21,19 @@ export default function createTelevendasRoutes(context={}){
 
   const operationalRequired=createErpOperationalRequired(context.adminRequired);
   const operationalContext={...context,adminRequired:operationalRequired};
+  const erpSettings=createErpSettingsService(context);
 
   // Endpoint usado pelo front para esconder/mostrar ações conforme a permissão do colaborador.
-  // Também devolve apenas a identidade básica do usuário autenticado para personalizar o ERP.
-  router.get('/erp/acesso',operationalRequired,(req,res)=>{
+  // Também devolve apenas a identidade básica do usuário autenticado e o padrão não sensível do PDV.
+  router.get('/erp/acesso',operationalRequired,async(req,res)=>{
     const user=identity(req);
+    let defaultPaymentMethod='pix';
+    try{
+      const settings=await erpSettings.get();
+      defaultPaymentMethod=clean(settings?.pdv?.defaultPaymentMethod||'pix',80)||'pix';
+    }catch(error){
+      console.warn('[erp/access] não foi possível carregar o padrão do PDV:',error?.message||error);
+    }
     return res.json({
       ok:true,
       access:erpAccessSummary(req),
@@ -33,7 +42,8 @@ export default function createTelevendasRoutes(context={}){
         name:clean(user.name||user.fullName||user.displayName||user.email||'Usuário',160),
         email:clean(user.email||'',180),
         role:clean(user.role||'',40)
-      }
+      },
+      pdv:{defaultPaymentMethod}
     });
   });
 
