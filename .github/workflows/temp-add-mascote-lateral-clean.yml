@@ -1,0 +1,42 @@
+name: Adicionar layout mascote lateral clean
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-add-mascote-lateral-clean.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aplicar novo layout sem alterar os demais
+        run: python3 .github/scripts/add_mascote_lateral_clean.py
+
+      - name: Validar alteração isolada
+        run: |
+          node --check functions/poster-generator.js
+          grep -Fq 'value="mascote_lateral_clean"' public/gerador_cartazes.html
+          grep -Fq '.layout-mascote-clean' public/css/gerador_cartazes.css
+          grep -Fq "layout === 'mascote_lateral_clean'" functions/poster-generator.js
+          grep -Fq 'À VISTA NO DINHEIRO OU PIX' functions/poster-generator.js
+          grep -Fq 'NO CARTÃO DE CRÉDITO' functions/poster-generator.js
+          grep -Fq 'VALOR PARCELADO: R$' functions/poster-generator.js
+          grep -Fq 'CREDIÁRIO PRÓPRIO' functions/poster-generator.js
+          grep -Fq "fit: 'inside'" functions/poster-generator.js
+
+      - name: Commit apenas do novo layout
+        run: |
+          git config user.name "Ariana Móveis Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/temp-add-mascote-lateral-clean.yml .github/scripts/add_mascote_lateral_clean.py
+          git add public/gerador_cartazes.html public/css/gerador_cartazes.css functions/poster-generator.js
+          git commit -m "feat: adiciona layout mascote lateral clean sem alterar os modelos existentes"
+          git push origin HEAD:main
