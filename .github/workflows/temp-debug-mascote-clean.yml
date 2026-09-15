@@ -1,0 +1,26 @@
+name: Temp debug mascote clean
+on:
+  push:
+    paths:
+      - '.github/workflows/temp-debug-mascote-clean.yml'
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect gerador
+        run: |
+          echo '--- HTML ---'
+          grep -n "mascote_lateral_clean\|Mascote lateral" public/gerador_cartazes.html || true
+          echo '--- JS ---'
+          grep -n "mascote_lateral_clean\|layoutVariant\|posters/preview\|posters/professional" public/js/gerador_cartazes.js || true
+          echo '--- backend route ---'
+          grep -n "posters/preview\|posters/professional\|mascote_lateral_clean" functions/routes/adminCoreRoutes.js || true
+          echo '--- generator ---'
+          grep -n "mascote_lateral_clean" functions/poster-generator.js || true
+          rm -f .github/workflows/temp-debug-mascote-clean.yml
+          git config user.name 'Ariana Móveis Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: remove debug temporario' || true
+          git push
