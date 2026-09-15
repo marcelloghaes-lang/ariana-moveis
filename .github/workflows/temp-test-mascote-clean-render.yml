@@ -13,7 +13,7 @@ jobs:
           node-version: '20'
       - name: Instalar dependencias
         working-directory: functions
-        run: npm ci --ignore-scripts=false
+        run: npm install --package-lock=false --no-audit --no-fund
       - name: Testar renderizacao
         working-directory: functions
         run: |
