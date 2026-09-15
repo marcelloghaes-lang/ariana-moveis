@@ -1,19 +1,29 @@
-name: Temp debug clean layout
+name: Repair mascote lateral clean
 on:
   push:
     branches: [main]
+permissions:
+  contents: write
 jobs:
-  test-clean-layout:
+  repair:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install only Sharp for isolated poster test
+      - name: Rebuild approved mascot asset
+        run: |
+          cat .tmp-mascote/chunk00.txt .tmp-mascote/chunk01.txt .tmp-mascote/chunk02.txt .tmp-mascote/chunk03.txt .tmp-mascote/chunk04.txt .tmp-mascote/chunk05.txt > functions/assets/mascote-lateral-clean.base64.txt
+          test "$(wc -c < functions/assets/mascote-lateral-clean.base64.txt)" = "41192"
+          test "$(sha256sum functions/assets/mascote-lateral-clean.base64.txt | cut -d' ' -f1)" = "17d66bdbd4b3a21a9be21ba0dcd0a098e49138913437477ff313ce31240c6c47"
+          base64 -d functions/assets/mascote-lateral-clean.base64.txt > /tmp/mascote-lateral-clean.webp
+          test "$(sha256sum /tmp/mascote-lateral-clean.webp | cut -d' ' -f1)" = "2ebcb6cd4db354d08431bf5f158bc9e9712f219cbe2aed281bda0aff330b8582"
+          file /tmp/mascote-lateral-clean.webp
+      - name: Install Sharp for isolated validation
         working-directory: functions
         run: npm install --no-save --package-lock=false --ignore-scripts=false sharp@0.34.3
-      - name: Generate clean-layout poster
+      - name: Validate the actual clean layout renderer
         working-directory: functions
         run: |
           node --input-type=module <<'NODE'
@@ -49,9 +59,14 @@ jobs:
           fs.writeFileSync('/tmp/mascote-lateral-clean-test.png', buffer);
           console.log('POSTER_OK bytes=' + buffer.length);
           NODE
-      - name: Upload generated test poster
-        uses: actions/upload-artifact@v4
-        with:
-          name: clean-layout-test
-          path: /tmp/mascote-lateral-clean-test.png
-          retention-days: 1
+      - name: Publish repair and remove temporary diagnostics
+        run: |
+          git checkout -- functions/package.json functions/package-lock.json 2>/dev/null || true
+          rm -rf .tmp-mascote
+          rm -f .github/workflows/temp-debug-clean-layout.yml
+          rm -f .github/workflows/temp-debug-mascote-clean-simple.yml
+          git config user.name "Ariana Móveis Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/assets/mascote-lateral-clean.base64.txt .tmp-mascote .github/workflows/temp-debug-clean-layout.yml .github/workflows/temp-debug-mascote-clean-simple.yml
+          git commit -m "fix: repara mascote e geração do layout lateral clean"
+          git push
