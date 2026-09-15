@@ -650,6 +650,17 @@ async function loadProfessionalMascotBuffer(options = {}) {
   return loadLocalImageBuffer(path.resolve(__dirname, '../public/assets/avatar-ariana2.png'));
 }
 
+async function loadMascoteLateralCleanBuffer() {
+  const encodedPath = path.resolve(__dirname, './assets/mascote-lateral-clean.base64.txt');
+  try {
+    if (fs.existsSync(encodedPath)) {
+      const encoded = fs.readFileSync(encodedPath, 'utf8').trim();
+      if (encoded) return Buffer.from(encoded, 'base64');
+    }
+  } catch (_error) {}
+  return loadProfessionalMascotBuffer({});
+}
+
 async function loadHeaderMascotBuffer(options = {}) {
   const headerMascotUrl = String(options.headerMascotUrl || '').trim();
   if (headerMascotUrl) {
@@ -1387,16 +1398,16 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   if (headerMascotComposite) composites.push(headerMascotComposite);
 
   if (currentLayout === 'mascote_lateral_clean') {
-    const cleanMascotBuffer = await loadProfessionalMascotBuffer(options).catch(() => null);
+    const cleanMascotBuffer = await loadMascoteLateralCleanBuffer().catch(() => null);
     if (cleanMascotBuffer) {
       const cleanMascot = await sharp(cleanMascotBuffer)
         .rotate()
         .ensureAlpha()
         .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
-        .resize(360, 760, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .resize(480, 760, { fit: 'contain', position: 'bottom', background: { r: 0, g: 0, b: 0, alpha: 0 }, withoutEnlargement: false })
         .png()
         .toBuffer();
-      composites.push({ input: cleanMascot, top: 350, left: 700 });
+      composites.push({ input: cleanMascot, top: 350, left: 580 });
     }
   }
 
