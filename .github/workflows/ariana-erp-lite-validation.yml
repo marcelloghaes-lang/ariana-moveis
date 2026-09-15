@@ -81,9 +81,10 @@ jobs:
           assert.deepEqual(rule('POST', '/erp/orders/abc/cancelar').any, ['orders:cancel']);
           assert.deepEqual(rule('POST', '/erp/financeiro/lancamentos/abc/quitar').any, ['payments:receive']);
           assert.equal(rule('POST', '/erp/migracao/sige/importar').mapped, false);
-          assert.equal(rule('POST', '/erp/fiscal/nfe/preflight').mapped, false);
+          assert.deepEqual(rule('POST', '/erp/fiscal/nfe/preflight').any, ['fiscal:nfe:emit']);
           assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:read']), true);
           assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:update']), false);
+          assert.equal(canAccess({admin:{role:'staff',permissions:['fiscal:nfe:emit']}},['fiscal:nfe:emit']), true);
           assert.equal(canAccess({admin:{role:'admin',permissions:[]}},['settings:update']), true);
           NODE
       - name: Extract and check ERP inline scripts
