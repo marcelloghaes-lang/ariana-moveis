@@ -3,7 +3,57 @@ on:
   push:
     branches: [main]
 jobs:
-  noop:
+  test-clean-layout:
     runs-on: ubuntu-latest
     steps:
-      - run: echo debug
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Install backend dependencies
+        working-directory: functions
+        run: npm ci --omit=dev
+      - name: Generate clean-layout poster
+        working-directory: functions
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'fs';
+          import { generateProductPosterBuffer } from './poster-generator.js';
+          const product = {
+            name: 'Teste Ariana',
+            imageUrl: 'https://raw.githubusercontent.com/marcelloghaes-lang/ariana-moveis/main/public/assets/avatar-ariana2.png',
+            cashPrice: 799,
+            fullPrice: 965.88,
+            installmentCount: 12,
+            installmentPrice: 80.49
+          };
+          const options = {
+            variant: 'whatsapp',
+            layoutVariant: 'mascote_lateral_clean',
+            template: 'oferta',
+            colorTheme: 'azul',
+            headline: 'OFERTA IMPERDÍVEL',
+            subtitle: 'Economize de verdade na Ariana Móveis',
+            productName: product.name,
+            cashPrice: 799,
+            fullPrice: 965.88,
+            installmentCount: 12,
+            installmentPrice: 80.49,
+            removeLightBackground: false,
+            whatsapp: '(31) 98514-7119',
+            email: 'contato@arianamoveis.com.br',
+            siteLabel: 'arianamoveis.com.br'
+          };
+          const buffer = await generateProductPosterBuffer(product, options);
+          if (!buffer?.length) throw new Error('buffer vazio');
+          fs.writeFileSync('/tmp/mascote-lateral-clean-test.png', buffer);
+          console.log('POSTER_OK bytes=' + buffer.length);
+          NODE
+      - name: Upload generated test poster
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-layout-test
+          path: /tmp/mascote-lateral-clean-test.png
+          retention-days: 1
