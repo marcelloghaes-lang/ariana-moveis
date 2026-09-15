@@ -16,15 +16,16 @@
   <script>
     (async function carregarFinanceiroAriana(){
       try{
-        const response=await fetch('/financeiro_recibos_legacy.html?v=20260915-erp1',{cache:'no-store'});
+        const response=await fetch('/financeiro_recibos_legacy.html?v=20260915-erp2',{cache:'no-store'});
         if(!response.ok)throw new Error('HTTP '+response.status);
         let html=await response.text();
-        const preload='<scr'+'ipt src="/financeiro_erp_preload.js?v=20260915-erp1"></scr'+'ipt>';
-        const bridge='<scr'+'ipt src="/financeiro_erp_bridge.js?v=20260915-erp1"></scr'+'ipt>';
+        const preload='<scr'+'ipt src="/financeiro_erp_preload.js?v=20260915-erp2"></scr'+'ipt>';
+        const bridge='<scr'+'ipt src="/financeiro_erp_bridge.js?v=20260915-erp2"></scr'+'ipt>';
+        const paymentPatch='<scr'+'ipt src="/financeiro_erp_payment_patch.js?v=20260915-erp2"></scr'+'ipt>';
         if(/<head[^>]*>/i.test(html))html=html.replace(/<head([^>]*)>/i,'<head$1>'+preload);
         else html=preload+html;
-        if(/<\/body>/i.test(html))html=html.replace(/<\/body>/i,bridge+'</body>');
-        else html+=bridge;
+        if(/<\/body>/i.test(html))html=html.replace(/<\/body>/i,bridge+paymentPatch+'</body>');
+        else html+=bridge+paymentPatch;
         document.open();
         document.write(html);
         document.close();
