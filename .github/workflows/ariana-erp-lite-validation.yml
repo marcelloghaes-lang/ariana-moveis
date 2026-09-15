@@ -43,6 +43,7 @@ jobs:
         run: |
           node --check functions/services/erp/erpService.js
           node --check functions/services/erp/erpFinanceService.js
+          node --check functions/services/erp/erpFinancePanelBridgeService.js
           node --check functions/services/erp/erpProductService.js
           node --check functions/services/erp/erpLedgerService.js
           node --check functions/services/erp/erpStockMovementService.js
@@ -61,6 +62,7 @@ jobs:
           node --check functions/services/erp/erpAccessControl.js
           node --check functions/services/erp/erpPdvRulesMiddleware.js
           node --check functions/routes/erp/erpManagementRoutes.js
+          node --check functions/routes/erp/erpFinancePanelBridgeRoutes.js
           node --check functions/routes/erp/erpParityAnalyticsRoutes.js
           node --check functions/routes/erp/erpSigeMigrationRoutes.js
           node --check functions/routes/erp/erpSigeMasterDataRoutes.js
@@ -80,6 +82,11 @@ jobs:
           assert.deepEqual(rule('POST', '/erp/orders').any, ['orders:update']);
           assert.deepEqual(rule('POST', '/erp/orders/abc/cancelar').any, ['orders:cancel']);
           assert.deepEqual(rule('POST', '/erp/financeiro/lancamentos/abc/quitar').any, ['payments:receive']);
+          assert.deepEqual(rule('GET', '/erp/finance-panel/clientes').any, ['customers:read','finance:read','payments:read']);
+          assert.deepEqual(rule('GET', '/erp/finance-panel/lancamentos').any, ['finance:read','payments:read']);
+          assert.deepEqual(rule('GET', '/erp/finance-panel/inadimplentes').any, ['finance:read','payments:read']);
+          assert.deepEqual(rule('GET', '/erp/finance-panel/dashboard').any, ['finance:read','payments:read']);
+          assert.deepEqual(rule('POST', '/erp/finance-panel/lancamentos/order123/2/pagamentos').any, ['payments:receive']);
           assert.equal(rule('POST', '/erp/migracao/sige/importar').mapped, false);
           assert.deepEqual(rule('POST', '/erp/fiscal/nfe/preflight').any, ['fiscal:nfe:emit']);
           assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:read']), true);
