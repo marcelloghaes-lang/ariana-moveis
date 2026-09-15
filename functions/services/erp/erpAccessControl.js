@@ -52,6 +52,10 @@ export function resolveErpRequirement(req={}){
   if(/^\/erp\/people\/[^/]+$/.test(path)&&read)return requirement(['customers:read'],'consultar clientes');
   if(/^\/erp\/people\/[^/]+$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['customers:update'],'alterar clientes');
 
+  if(path==='/erp/finance-panel/clientes'&&read)return requirement(['customers:read','finance:read','payments:read'],'consultar clientes no painel financeiro');
+  if(/^\/erp\/finance-panel\/(lancamentos|inadimplentes|dashboard)$/.test(path)&&read)return requirement(['finance:read','payments:read'],'consultar o painel financeiro');
+  if(/^\/erp\/finance-panel\/lancamentos\/[^/]+\/[^/]+\/pagamentos$/.test(path)&&method==='POST')return requirement(['payments:receive'],'registrar pagamentos pelo painel financeiro');
+
   if(/^\/erp\/orders\/[^/]+\/receivables\/[^/]+\/receive$/.test(path)&&method==='POST')return requirement(['payments:receive'],'receber parcelas');
   if(/^\/erp\/orders\/[^/]+\/receivables\/[^/]+$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['payments:receive'],'alterar recebíveis');
   if(/^\/erp\/orders\/[^/]+\/sige-fields$/.test(path)&&(method==='PUT'||method==='PATCH'))return requirement(['orders:update'],'alterar dados da venda');
