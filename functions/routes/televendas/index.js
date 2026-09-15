@@ -4,6 +4,7 @@ import createErpManagementRoutes from '../erp/erpManagementRoutes.js';
 import createErpSigeMigrationRoutes from '../erp/erpSigeMigrationRoutes.js';
 import createErpSigeMasterDataRoutes from '../erp/erpSigeMasterDataRoutes.js';
 import createErpPeopleRoutes from '../erp/erpPeopleRoutes.js';
+import createErpFinancePanelBridgeRoutes from '../erp/erpFinancePanelBridgeRoutes.js';
 import createErpSigeHistoryRoutes from '../erp/erpSigeHistoryRoutes.js';
 import createErpParityAnalyticsRoutes from '../erp/erpParityAnalyticsRoutes.js';
 import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.js';
@@ -56,6 +57,7 @@ export default function createTelevendasRoutes(context={}){
   router.use(createTelevendasRouter(operationalContext));
   router.use(createErpManagementRoutes(operationalContext));
   router.use(createErpPeopleRoutes(operationalContext));
+  router.use(createErpFinancePanelBridgeRoutes(operationalContext));
   router.use(createErpParityAnalyticsRoutes(operationalContext));
   router.use(createErpSigeSaleParityRoutes(operationalContext));
 
