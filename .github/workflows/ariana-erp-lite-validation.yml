@@ -8,6 +8,9 @@ on:
       - 'functions/routes/televendas/televendasRoutes.js'
       - 'functions/routes/televendas/index.js'
       - 'public/erp_*.html'
+      - 'public/financeiro_recibos.html'
+      - 'public/financeiro_recibos_legacy.html'
+      - 'public/financeiro_erp_*.js'
       - '.github/workflows/ariana-erp-lite-validation.yml'
   push:
     branches:
@@ -27,6 +30,9 @@ on:
       - 'functions/routes/televendas/televendasRoutes.js'
       - 'functions/routes/televendas/index.js'
       - 'public/erp_*.html'
+      - 'public/financeiro_recibos.html'
+      - 'public/financeiro_recibos_legacy.html'
+      - 'public/financeiro_erp_*.js'
       - '.github/workflows/ariana-erp-lite-validation.yml'
 
 jobs:
@@ -71,6 +77,8 @@ jobs:
           node --check functions/routes/erp/erpPeopleRoutes.js
           node --check functions/routes/televendas/televendasRoutes.js
           node --check functions/routes/televendas/index.js
+          node --check public/financeiro_erp_preload.js
+          node --check public/financeiro_erp_bridge.js
       - name: Validate ERP permission matrix
         run: |
           node --input-type=module <<'NODE'
@@ -102,19 +110,21 @@ jobs:
           import re
           out = Path('/tmp/erp-inline')
           out.mkdir(parents=True, exist_ok=True)
-          files = sorted(Path('public').glob('erp_*.html'))
-          if not files:
-              raise SystemExit('Nenhuma tela ERP encontrada.')
+          files = sorted(Path('public').glob('erp_*.html')) + [Path('public/financeiro_recibos.html')]
           generated = []
           for html in files:
+              if not html.exists():
+                  continue
               text = html.read_text(encoding='utf-8')
               scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script\s*>', text, flags=re.I | re.S)
               for index, script in enumerate(scripts, 1):
+                  if not script.strip():
+                      continue
                   target = out / f'{html.stem}-{index}.js'
                   target.write_text(script, encoding='utf-8')
                   generated.append(target)
           if not generated:
-              raise SystemExit('Nenhum script inline ERP encontrado.')
+              raise SystemExit('Nenhum script inline ERP/Financeiro encontrado.')
           print('\n'.join(str(x) for x in generated))
           PY
           for file in /tmp/erp-inline/*.js; do
