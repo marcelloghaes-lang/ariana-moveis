@@ -29,15 +29,26 @@ export default function registerCatalogHomeProductBannerRoutes(app, context = {}
     writeAuditLog
   } = context;
 
+  // The public catalog only needs the fields rendered on product cards. Some
+  // product documents contain large integration/media payloads; loading whole
+  // documents made the public endpoints time out as the catalog grew.
+  const PRODUCT_CARD_FIELDS = [
+    '_id', 'name', 'slug', 'category', 'categoryId', 'categoryName', 'brand', 'sku',
+    'price', 'oldPrice', 'pixPrice', 'installmentCount', 'image', 'imageUrl', 'imagem',
+    'mainImageUrl', 'mainImagePath', 'images', 'imageUrls', 'imagePaths', 'stock', 'active',
+    'isOffer', 'isHighlight', 'isBestSeller', 'isNewArrival', 'isRecommended', 'createdAt', 'updatedAt'
+  ].join(' ');
+
 app.get('/api/home/index-data', async (_req, res) => {
   try {
     const [categories, products, banners, paymentSettings] = await Promise.all([
-      Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }),
-      Product.find({ active: true }).sort({ createdAt: -1 }).limit(200),
-      Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 }),
+      Category.find({ active: true }).select('_id name slug parentId active sortOrder image updatedAt').sort({ sortOrder: 1, name: 1 }).lean(),
+      Product.find({ active: true }).select(PRODUCT_CARD_FIELDS).slice('images', 1).slice('imageUrls', 1).slice('imagePaths', 1).sort({ createdAt: -1 }).limit(200).lean(),
+      Banner.find({ active: true }).select('_id slot targetSlot title subtitle image href alt active status source sortOrder device createdAt updatedAt').sort({ sortOrder: 1, createdAt: -1 }).lean(),
       getPaymentsSettings()
     ]);
 
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     return res.json({
       ok: true,
       categories: categories.map(toJSON),
@@ -315,7 +326,20 @@ app.get('/api/products', async (req, res) => {
       query.$and.push({ $or: searchOr });
     }
 
-    const rows = await Product.find(query).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 500), 1000));
+    const requestedLimit = Number(req.query.limit || 500);
+    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 500, 500));
+    const requestedPage = Number(req.query.page || 1);
+    const page = Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1);
+    const rows = await Product.find(query)
+      .select(PRODUCT_CARD_FIELDS)
+      .slice('images', 1)
+      .slice('imageUrls', 1)
+      .slice('imagePaths', 1)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     return res.json(rows.map(normalizeProductForResponse));
   } catch (error) {
     console.error('[products] erro ao listar:', error);
