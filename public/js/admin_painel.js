@@ -24,6 +24,7 @@ let knownNotificationIds = new Set();
 let editingProductId = null;
 let productImagesCache = [];
 let pollers = [];
+let adminPublicThumbnailPromise = null;
 
 function escHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
@@ -275,6 +276,40 @@ function resolveAdminImageUrl(value){
   if(raw.startsWith('/')) return `${API_ORIGIN}${raw}`;
   return `${API_ORIGIN}/${raw.replace(/^\.?\//,'')}`;
 }
+function cloudinaryAdminThumbnailUrl(value){
+  const resolved=resolveAdminImageUrl(value);
+  if(resolved===PRODUCT_IMAGE_FALLBACK||!/^https?:\/\/res\.cloudinary\.com\//i.test(resolved)) return resolved;
+  if(!/\/image\/upload\//i.test(resolved)) return resolved;
+  return resolved.replace(/\/image\/upload\//i,'/image/upload/f_auto,q_auto,c_fill,w_112,h_112/');
+}
+function productImageCandidates(product={}){
+  const values=[
+    product.adminListImageUrl,
+    product.mainImageUrl,
+    product.imageUrl,
+    product.image,
+    product.imagem,
+    ...(Array.isArray(product.images)?product.images.map((img)=>typeof img==='string'?img:(img?.url||img?.imageUrl||img?.secure_url||img?.secureUrl||'')):[]),
+    ...(Array.isArray(product.imageUrls)?product.imageUrls:[])
+  ];
+  return Array.from(new Set(values.map((value)=>String(value||'').trim()).filter(Boolean)));
+}
+function adminProductThumbnail(product={}){
+  const candidates=productImageCandidates(product);
+  const original=candidates.find((value)=>/^https?:\/\//i.test(value))||candidates[0]||'';
+  const originalUrl=resolveAdminImageUrl(original);
+  return { src:cloudinaryAdminThumbnailUrl(originalUrl), original:originalUrl };
+}
+window.handleAdminProductThumbnailError=function(img){
+  const original=String(img?.dataset?.originalSrc||'').trim();
+  if(original&&original!==PRODUCT_IMAGE_FALLBACK&&img.src!==original){
+    img.dataset.originalSrc='';
+    img.src=original;
+    return;
+  }
+  img.onerror=null;
+  img.src=PRODUCT_IMAGE_FALLBACK;
+};
 function normalizeImageEntry(img){
   if(!img) return null;
   if(typeof img==='string'){const v=String(img).trim(); if(!v) return null; return {url:v,path:v,name:v.split('/').pop(),isMain:false};}
@@ -818,9 +853,39 @@ window.salvarConfigTelefones = async function(){
 async function loadTelefones(){ const data=await readSetting('contact',{}); document.getElementById('cfg-0800').value=data.tel0800||''; document.getElementById('cfg-4004').value=data.tel4004||''; }
 
 async function loadProducts(){
+  if(!adminPublicThumbnailPromise){
+    adminPublicThumbnailPromise=apiRequest('/products?limit=500')
+      .then((payload)=>Array.isArray(payload)?payload:(payload?.items||payload?.products||[]))
+      .catch((error)=>{adminPublicThumbnailPromise=null;console.warn('[admin/products] Falha ao preparar miniaturas públicas:',error?.message||error);return [];});
+  }
+  const publicThumbnailPromise=adminPublicThumbnailPromise;
   const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()});
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
   allProductsCache = rows.map(normalizeProduct);
+
+  // A listagem pública já entrega uma miniatura externa compacta por produto.
+  // Use-a como fonte de recuperação quando documentos antigos do admin possuem
+  // imagens inline pesadas, caminhos legados ou campos de mídia incompletos.
+  try{
+    const publicProducts=await publicThumbnailPromise;
+    const byId=new Map();
+    const bySku=new Map();
+    publicProducts.forEach((item)=>{
+      const id=String(item?.id||item?._id||'').trim();
+      const sku=String(item?.sku||'').trim().toLowerCase();
+      if(id) byId.set(id,item);
+      if(sku) bySku.set(sku,item);
+    });
+    allProductsCache=allProductsCache.map((product)=>{
+      const id=String(product.id||product._id||'').trim();
+      const sku=String(product.sku||'').trim().toLowerCase();
+      const publicProduct=byId.get(id)||(sku?bySku.get(sku):null);
+      const recovered=publicProduct&&(publicProduct.mainImageUrl||publicProduct.imageUrl||publicProduct.image||'');
+      return recovered?{...product,adminListImageUrl:recovered}:product;
+    });
+  }catch(error){
+    console.warn('[admin/products] Não foi possível carregar miniaturas públicas:',error?.message||error);
+  }
 }
 
 function productExportRows(products = []) {
@@ -1662,8 +1727,9 @@ function renderProductsTable(){
   return allProductsCache.map(p=>{
     const category=String(p.categoryName||p.category||p.categoria||'Sem categoria');
     const stockClass=Number(p.stock||0)>0?'bg-success-green/20 text-success-green':'bg-error-red/20 text-error-red';
+    const thumbnail=adminProductThumbnail(p);
     return `<tr class="align-middle hover:bg-gray-50 transition-colors border-t">
-      <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${resolveAdminImageUrl(p.mainImageUrl||p.imageUrl||p.image)}" alt="Imagem do Produto" onerror="this.onerror=null;this.src='${PRODUCT_IMAGE_FALLBACK}'"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
+      <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${escHtml(thumbnail.src)}" data-original-src="${escHtml(thumbnail.original)}" alt="Imagem do Produto" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="window.handleAdminProductThumbnailError(this)"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
       <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
       <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
       <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
