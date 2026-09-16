@@ -2250,9 +2250,21 @@ async function uploadProductImages(options={}){
       productImagesCache=[...productImagesCache,...uploaded];
       if(productImagesCache.length&&!productImagesCache.some(x=>x.isMain)) productImagesCache[0].isMain=true;
       await persistProductImages();
-      await loadProducts();
-      const refreshed=allProductsCache.find(x=>String(x.id||x._id)===productId);
-      if(refreshed) syncProductStateFromServer(refreshed);
+
+      // IMPORTANTE: /admin/products e uma listagem compacta e nao inclui o array
+      // completo de imagens. Nao sincronize o editor a partir dessa grade, pois
+      // isso apagaria visualmente (e no proximo PATCH, poderia sobrescrever) as
+      // imagens que acabaram de ser salvas. Releia o produto pela rota individual,
+      // que e a fonte completa para edicao.
+      const fresh=await apiRequest(`/admin/products/${encodeURIComponent(productId)}`,{headers:buildHeadersAuth()});
+      const normalizedFresh=normalizeProduct(fresh);
+      const freshIndex=allProductsCache.findIndex(x=>String(x.id||x._id)===productId);
+      if(freshIndex>=0){
+        allProductsCache[freshIndex]={...allProductsCache[freshIndex],...normalizedFresh};
+      }else{
+        allProductsCache.unshift(normalizedFresh);
+      }
+      syncProductStateFromServer(normalizedFresh);
       renderProductImages();
       if(input && !options.keepInput) input.value='';
       if(!options.silentSuccess) displayMessage('Imagens carregadas com sucesso!','success');
