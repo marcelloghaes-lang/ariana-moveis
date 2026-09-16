@@ -473,7 +473,10 @@ async function bootAuthed(targetView='dashboard'){
     localStorage.setItem('admin_permissions', JSON.stringify(me.permissions || []));
     applyAdminPermissionsToUI();
   }
-  await Promise.allSettled([loadCategories(), loadProducts(), loadOrders(), loadUsers(), loadNotifications(), loadTelefones()]);
+  // Boot rapido: nao bloqueie a abertura do painel carregando 500 produtos,
+  // 500 pedidos, usuarios e configuracoes que a tela inicial ainda nao precisa.
+  // Cada view ja carrega seus proprios dados quando aberta.
+  await loadNotifications().catch(()=>{});
   await window.changeView(targetView || currentView || 'dashboard', true);
   startPoller(async()=>{ if(currentView==='dashboard') await renderDashboardView(); await loadNotifications(); }, 20000);
 }
@@ -1700,7 +1703,9 @@ async function renderEnterpriseView(){
 }
 
 async function renderDashboardView(){
-  await Promise.allSettled([loadProducts(),loadOrders(),loadNotifications()]);
+  // Produtos e pedidos podem ser grandes. Carregue em paralelo apenas quando o
+  // dashboard realmente precisa deles; notificacoes ja possuem poller proprio.
+  await Promise.allSettled([loadProducts(),loadOrders()]);
   const revenue=allOrdersCache.reduce((s,o)=>s+Number(o.total||o.totalAmount||0),0);
   const pending=allOrdersCache.filter(o=>String(o.status||'').toLowerCase().includes('pend')).length;
   document.getElementById('dashboard-content').innerHTML=`
