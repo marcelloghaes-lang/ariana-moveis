@@ -36,17 +36,26 @@ export function drawTransport(c,d,y){
 
 export function drawProducts(c,d,y){
   const headingY=y+2.1;c.text(34.58,headingY,'DADOS DOS PRODUTOS/SERVIÇOS',6.38,false);
-  const tableY=headingY+6.82,xs=[32.46,63.95,284.83,310.79,326.97,343.14,358.46,384.85,413.79,442.73,469.11,495.50,521.89,543.17,564.45];
-  const heads=['COD\nPROD','DESCRIÇÃO DOS PRODUTOS','NCM/SH','CST','CFOP','UNID','QTD','VLR UNIT','VLR\nTOTAL','BC ICMS','VLR\nICMS','VLR IPI','ALIQ\nICMS','ALIQ\nIPI'];
+  const tableY=headingY+6.82,xs=[32.46,71.50,284.83,310.79,326.97,343.14,358.46,384.85,413.79,442.73,469.11,495.50,521.89,543.17,564.45];
+  const heads=['CÓD./SKU','DESCRIÇÃO DOS PRODUTOS','NCM/SH','CST','CFOP','UNID','QTD','VLR UNIT','VLR\nTOTAL','BC ICMS','VLR\nICMS','VLR IPI','ALIQ\nICMS','ALIQ\nIPI'];
   const headerH=16.17;c.rect(xs[0],tableY,xs.at(-1)-xs[0],headerH,.42);
   for(let i=1;i<xs.length-1;i++)c.line(xs[i],tableY,xs[i],tableY+headerH,.35);
   heads.forEach((h,i)=>{const ww=xs[i+1]-xs[i]-1.2,parts=h.split('\n'),size=c.fit(parts.join(' '),7.0,ww,4.0,true);parts.forEach((p,j)=>c.text(xs[i]+.6,tableY+1+j*6.1,p,size,true,'center',ww))});
-  let rowY=tableY+headerH,rowH=9.36;
+  let rowY=tableY+headerH,rowH=12.2;
   const issqnAnchor=689.57,available=Math.max(1,Math.floor((issqnAnchor-rowY-20)/rowH)),maxRows=Math.min(d.items.length,available);
   for(let r=0;r<maxRows;r++){
     const it=d.items[r],vals=[it.cProd,it.xProd,it.ncm,'',it.cfop,it.u,qty(it.q),money(it.vu),money(it.vt),money(it.vbc),money(it.vicms),money(it.vipi),it.picms||'',it.pipi||''];
     c.rect(xs[0],rowY,xs.at(-1)-xs[0],rowH,.35);for(let i=1;i<xs.length-1;i++)c.line(xs[i],rowY,xs[i],rowY+rowH,.28);
-    vals.forEach((val,i)=>{const ww=xs[i+1]-xs[i]-1.2,align=i===1?'left':(i>=6?'right':'center'),sz=c.fit(String(val??''),6.2,ww,3.2,false);c.text(xs[i]+.6,rowY+1.1,val,sz,false,align,ww)});rowY+=rowH;
+    const firstW=xs[1]-xs[0]-1.2,sku=String(it.sku||'').trim(),code=String(it.cProd||'').trim();
+    if(sku&&sku!==code){
+      const codeSize=c.fit(code,5.2,firstW,3.0,false),skuSize=c.fit(`SKU ${sku}`,4.8,firstW,3.0,true);
+      c.text(xs[0]+.6,rowY+.9,code,codeSize,false,'center',firstW);
+      c.text(xs[0]+.6,rowY+6.1,`SKU ${sku}`,skuSize,true,'center',firstW);
+    }else{
+      const shown=sku||code,shownSize=c.fit(shown,5.4,firstW,3.0,true);
+      c.text(xs[0]+.6,rowY+3.0,shown,shownSize,true,'center',firstW);
+    }
+    vals.slice(1).forEach((val,j)=>{const i=j+1,ww=xs[i+1]-xs[i]-1.2,align=i===1?'left':(i>=6?'right':'center'),sz=c.fit(String(val??''),6.2,ww,3.2,false);c.text(xs[i]+.6,rowY+2.4,val,sz,false,align,ww)});rowY+=rowH;
   }
   return rowY;
 }
