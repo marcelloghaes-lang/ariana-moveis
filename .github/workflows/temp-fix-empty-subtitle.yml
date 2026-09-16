@@ -1,0 +1,44 @@
+name: Fix empty poster subtitle
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-fix-empty-subtitle.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Respect intentionally empty support phrase
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('functions/poster-generator.js')
+          s = p.read_text()
+          old_subtitle = "  const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();"
+          new_subtitle = "  const subtitle = String(Object.prototype.hasOwnProperty.call(options, 'subtitle') ? (options.subtitle ?? '') : (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();"
+          old_lines = "  const subtitleLines = wrapText(subtitle, 50, 2);"
+          new_lines = "  const subtitleLines = subtitle ? wrapText(subtitle, 50, 2) : [''];"
+          if old_subtitle not in s:
+              raise SystemExit('Regra atual da frase de apoio não encontrada')
+          if old_lines not in s:
+              raise SystemExit('Composição atual da frase de apoio não encontrada')
+          s = s.replace(old_subtitle, new_subtitle, 1)
+          s = s.replace(old_lines, new_lines, 1)
+          p.write_text(s)
+          PY
+      - name: Validate isolated change
+        run: |
+          node --check functions/poster-generator.js
+          grep -Fq "Object.prototype.hasOwnProperty.call(options, 'subtitle')" functions/poster-generator.js
+          grep -Fq "const subtitleLines = subtitle ? wrapText(subtitle, 50, 2) : [''];" functions/poster-generator.js
+      - name: Publish and clean temporary workflow
+        run: |
+          rm -f .github/workflows/temp-fix-empty-subtitle.yml
+          git config user.name 'Ariana Móveis Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add functions/poster-generator.js .github/workflows/temp-fix-empty-subtitle.yml
+          git commit -m 'fix: respeita frase de apoio vazia nos cartazes'
+          git push
