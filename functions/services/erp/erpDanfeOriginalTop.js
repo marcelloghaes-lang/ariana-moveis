@@ -16,15 +16,22 @@ export function drawReceipt(c,d){
 export function drawHeader(c,d,hasLogo){
   const y=95.87;
   c.roundRect(35.44,y,218.75,85.97);c.roundRect(345.27,y,218.75,85.97);
-  if(hasLogo)c.image(42.0,y+4.0,198,55);
-  else{c.text(43,y+10,'ARIANA MÓVEIS',12,true,'left',190);c.text(43,y+26,'Sua casa merece o melhor.',6.5,true,'left',190)}
+  if(hasLogo){
+    const logoW=154,logoH=43,logoX=35.44+(218.75-logoW)/2;
+    c.image(logoX,y+4.5,logoW,logoH);
+  }else{
+    const brandA='ARIANA',brandB='MÓVEIS',aSize=13.2,mSize=5.8,gap=7;
+    const aW=c.width(brandA,aSize,true),mW=c.width(brandB,mSize,true),groupW=aW+gap+mW,brandX=35.44+(218.75-groupW)/2;
+    c.text(brandX,y+9,brandA,aSize,true,'left',aW+1);
+    c.text(brandX+aW+gap,y+16.1,brandB,mSize,true,'left',mW+1);
+  }
   const infoX=40.0;
-  c.text(infoX,y+61,d.issuer.name,c.fit(d.issuer.name,5.3,208,4.2,true),true,'left',208);
+  c.text(infoX,y+59.5,d.issuer.name,c.fit(d.issuer.name,4.8,208,4.0,true),true,'left',208);
   const addr=`${d.issuer.street} - ${d.issuer.city}/${d.issuer.uf} - CEP ${fmtCep(d.issuer.cep)}`;
-  c.text(infoX,y+69.5,addr,c.fit(addr,4.15,208,3.2),false,'left',208);
+  c.text(infoX,y+68.0,addr,c.fit(addr,4.15,208,3.2),false,'left',208);
   const issuerPhone=digits(d.issuer.doc)==='48126915000174'?'31985147119':d.issuer.phone;
   const issuerDocs=`CNPJ/CPF: ${fmtDoc(d.issuer.doc)}   IE: ${d.issuer.ie||''}   Fone: ${fmtPhone(issuerPhone)}`;
-  c.text(infoX,y+77.0,issuerDocs,c.fit(issuerDocs,3.95,208,3.0),false,'left',208);
+  c.text(infoX,y+76.0,issuerDocs,c.fit(issuerDocs,3.95,208,3.0),false,'left',208);
 
   const mx=254.19,mw=91.08;
   c.text(mx,y+1,'DANFE',10.2,true,'center',mw);
