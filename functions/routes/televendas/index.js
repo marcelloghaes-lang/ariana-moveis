@@ -9,6 +9,7 @@ import createErpSigeHistoryRoutes from '../erp/erpSigeHistoryRoutes.js';
 import createErpParityAnalyticsRoutes from '../erp/erpParityAnalyticsRoutes.js';
 import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.js';
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
+import createErpProductLookupRoutes from '../erp/erpProductLookupRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
 import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
@@ -51,6 +52,9 @@ export default function createTelevendasRoutes(context={}){
   // Regras de PDV são avaliadas no servidor antes das rotas operacionais.
   // Isso impede que uma tela antiga contorne revisão fiscal, inadimplência ou caixa obrigatório.
   router.use(createErpPdvRulesMiddleware(context,operationalRequired));
+
+  // Busca assistida vem antes da rota genérica para melhorar nome/SKU/EAN sem alterar o contrato /erp/products.
+  router.use(createErpProductLookupRoutes(operationalContext));
 
   // Rotas operacionais do Ariana ERP usam a matriz granular de permissões.
   // Rotas administrativas do Televendas continuam negadas por padrão para colaboradores.
