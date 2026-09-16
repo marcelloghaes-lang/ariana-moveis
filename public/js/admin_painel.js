@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 47097)
+Total output lines: 2617
+
 
 const CATEGORIAS_ARIANA = ["Ar Condicionado","Automotivo","Bebês & Infantil","Beleza e Saúde","Brinquedos","Camas & Cabeceiras","Colchões","Eletrodomésticos","Eletroportáteis","Esporte & Lazer","Ferramentas & Segurança","Freezers","Fritadeira elétrica","Games","Geladeiras & Refrigeradores","Informática","Malas","Móveis","Notebooks e Computadores","Perfumes","Pet Shop","Pneus","Quinzena do Consumidor!","Salas de Jantar","Saúde & Higiene","Smart Tv","Smartphones","Som e Áudio","Supermercado","Utilidades Domésticas","Ventiladores"];
 const PRODUCT_IMAGE_FALLBACK = 'https://placehold.co/400x400/EEEEEE/666666?text=SEM+IMAGEM';
@@ -24,6 +27,7 @@ let knownNotificationIds = new Set();
 let editingProductId = null;
 let productImagesCache = [];
 let pollers = [];
+let adminPublicThumbnailPromise = null;
 
 function escHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
@@ -275,6 +279,39 @@ function resolveAdminImageUrl(value){
   if(raw.startsWith('/')) return `${API_ORIGIN}${raw}`;
   return `${API_ORIGIN}/${raw.replace(/^\.?\//,'')}`;
 }
+function cloudinaryAdminThumbnailUrl(value){
+  const resolved=resolveAdminImageUrl(value);
+  if(resolved===PRODUCT_IMAGE_FALLBACK||!/^https?:\/\/res\.cloudinary\.com\//i.test(resolved)) return resolved;
+  if(!/\/image\/upload\//i.test(resolved)) return resolved;
+  return resolved.replace(/\/image\/upload\//i,'/image/upload/f_auto,q_auto,c_fill,w_112,h_112/');
+}
+function productImageCandidates(product={}){
+  const values=[
+    product.adminListImageUrl,
+    product.mainImageUrl,
+    product.imageUrl,
+    product.image,
+    product.imagem,
+    ...(Array.isArray(product.images)?product.images.map((img)=>typeof img==='string'?img:(img?.url||img?.imageUrl||img?.secure_url||img?.secureUrl||'')):[]),
+    ...(Array.isArray(product.imageUrls)?product.imageUrls:[])
+  ];
+  return Array.from(new Set(values.map((value)=>String(value||'').trim()).filter(Boolean)));
+}
+function adminProductThumbnail(product={}){
+  const original=productImageCandidates(product).find((value)=>/^https?:\/\//i.test(value))||productImageCandidates(product)[0]||'';
+  const originalUrl=resolveAdminImageUrl(original);
+  return { src:cloudinaryAdminThumbnailUrl(originalUrl), original:originalUrl };
+}
+window.handleAdminProductThumbnailError=function(img){
+  const original=String(img?.dataset?.originalSrc||'').trim();
+  if(original&&original!==PRODUCT_IMAGE_FALLBACK&&img.src!==original){
+    img.dataset.originalSrc='';
+    img.src=original;
+    return;
+  }
+  img.onerror=null;
+  img.src=PRODUCT_IMAGE_FALLBACK;
+};
 function normalizeImageEntry(img){
   if(!img) return null;
   if(typeof img==='string'){const v=String(img).trim(); if(!v) return null; return {url:v,path:v,name:v.split('/').pop(),isMain:false};}
@@ -818,9 +855,39 @@ window.salvarConfigTelefones = async function(){
 async function loadTelefones(){ const data=await readSetting('contact',{}); document.getElementById('cfg-0800').value=data.tel0800||''; document.getElementById('cfg-4004').value=data.tel4004||''; }
 
 async function loadProducts(){
+  if(!adminPublicThumbnailPromise){
+    adminPublicThumbnailPromise=apiRequest('/products?limit=500')
+      .then((payload)=>Array.isArray(payload)?payload:(payload?.items||payload?.products||[]))
+      .catch((error)=>{adminPublicThumbnailPromise=null;console.warn('[admin/products] Falha ao preparar miniaturas públicas:',error?.message||error);return [];});
+  }
+  const publicThumbnailPromise=adminPublicThumbnailPromise;
   const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()});
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
   allProductsCache = rows.map(normalizeProduct);
+
+  // A listagem pública já entrega uma miniatura externa compacta por produto.
+  // Use-a como fonte de recuperação quando documentos antigos do admin possuem
+  // imagens inline pesadas, caminhos legados ou campos de mídia incompletos.
+  try{
+    const publicProducts=await publicThumbnailPromise;
+    const byId=new Map();
+    const bySku=new Map();
+    publicProducts.forEach((item)=>{
+      const id=String(item?.id||item?._id||'').trim();
+      const sku=String(item?.sku||'').trim().toLowerCase();
+      if(id) byId.set(id,item);
+      if(sku) bySku.set(sku,item);
+    });
+    allProductsCache=allProductsCache.map((product)=>{
+      const id=String(product.id||product._id||'').trim();
+      const sku=String(product.sku||'').trim().toLowerCase();
+      const publicProduct=byId.get(id)||(sku?bySku.get(sku):null);
+      const recovered=publicProduct&&(publicProduct.mainImageUrl||publicProduct.imageUrl||publicProduct.image||'');
+      return recovered?{...product,adminListImageUrl:recovered}:product;
+    });
+  }catch(error){
+    console.warn('[admin/products] Não foi possível carregar miniaturas públicas:',error?.message||error);
+  }
 }
 
 function productExportRows(products = []) {
@@ -1115,751 +1182,7 @@ window.enterpriseSyncProductSample = async function(){
 
 window.enterpriseSaveWebhookSecret = function(){
   const el = document.getElementById('enterprise-webhook-secret');
-  const value = String(el?.value || '').trim();
-  if(!value){ displayMessage('Informe a chave ENTERPRISE_WEBHOOK_SECRET antes de salvar.', 'error'); return; }
-  localStorage.setItem('ENTERPRISE_WEBHOOK_SECRET', value);
-  displayMessage('Chave de teste salva neste navegador.', 'success');
-}
-
-window.enterpriseCopyText = async function(text){
-  try{
-    await navigator.clipboard.writeText(String(text || ''));
-    displayMessage('Copiado para a área de transferência.', 'success');
-  }catch(_e){
-    displayMessage('Não foi possível copiar automaticamente. Selecione e copie manualmente.', 'info');
-  }
-}
-
-window.enterpriseSaveManufacturer = async function(){
-  const manufacturer = String(document.getElementById('enterprise-form-manufacturer')?.value || '').trim().toLowerCase();
-  const endpoint = String(document.getElementById('enterprise-form-endpoint')?.value || '').trim();
-  const method = String(document.getElementById('enterprise-form-method')?.value || 'POST').trim().toUpperCase();
-  const enabled = document.getElementById('enterprise-form-enabled')?.checked !== false;
-  const authType = String(document.getElementById('enterprise-form-auth-type')?.value || '').trim();
-  const authToken = String(document.getElementById('enterprise-form-auth-token')?.value || '').trim();
-  if(!manufacturer){ displayMessage('Informe o nome do fabricante.', 'error'); return; }
-  try{
-    await apiRequest('/enterprise/manufacturers', {
-      method:'POST',
-      headers:buildHeadersAuth(),
-      body:JSON.stringify({ manufacturer, endpoint, method, enabled, authType, authToken })
-    });
-    displayMessage('Fabricante salvo com sucesso.', 'success');
-    await renderEnterpriseView();
-  }catch(error){
-    displayMessage(`Erro ao salvar fabricante: ${error.message}`, 'error');
-  }
-}
-
-window.enterpriseDispatchQueueItem = async function(queueId){
-  const id = String(queueId || '').trim();
-  if(!id) return;
-  if(!confirm(`Enviar agora a fila ${id}?`)) return;
-  try{
-    await apiRequest(`/enterprise/queue/${encodeURIComponent(id)}/dispatch`, { method:'POST', headers:buildHeadersAuth(), body:JSON.stringify({}) });
-    displayMessage('Envio manual executado.', 'success');
-    await renderEnterpriseView();
-  }catch(error){
-    displayMessage(`Erro ao enviar fila: ${error.message}`, 'error');
-  }
-}
-
-
-
-function enterpriseStatusText(status=''){
-  const map = {
-    pending: 'Aguardando análise',
-    in_review: 'Em análise',
-    sandbox: 'Sandbox liberado',
-    approved: 'Aprovado',
-    production: 'Produção liberada',
-    rejected: 'Reprovado'
-  };
-  const key = String(status || '').toLowerCase().trim();
-  return map[key] || status || 'Aguardando análise';
-}
-function enterpriseArrayText(value){
-  if(Array.isArray(value)) return value.filter(Boolean).join(', ');
-  if(typeof value === 'string') return value;
-  return '';
-}
-function enterpriseGetHomologationId(r){
-  return String(r?._id || r?.id || r?.requestId || '').trim();
-}
-function enterpriseFindHomologationRequest(requestId){
-  const id = String(requestId || '').trim();
-  return enterpriseHomologationRequestsCache.find((r) =>
-    String(r?._id || '') === id ||
-    String(r?.id || '') === id ||
-    String(r?.requestId || '') === id
-  ) || null;
-}
-function enterpriseDetailRow(label, value){
-  return `<div class="p-4 rounded-xl bg-gray-50 border border-gray-100"><div class="text-[11px] uppercase font-black text-gray-400 mb-1">${escHtml(label)}</div><div class="text-sm font-bold text-gray-800 break-words whitespace-pre-wrap">${escHtml(value || '—')}</div></div>`;
-}
-
-function enterpriseCredentialValue(value){
-  return String(value || '').trim();
-}
-function enterpriseCredentialBlock(label, value){
-  const v = enterpriseCredentialValue(value);
-  const safe = escHtml(v || 'Não gerado');
-  const copyArg = escHtml(v).replace(/'/g, '&#39;');
-  return `<div class="p-4 rounded-xl bg-slate-900 text-white border border-slate-700">
-    <div class="text-[11px] uppercase font-black text-slate-400 mb-2">${escHtml(label)}</div>
-    <div class="font-mono text-xs break-all bg-black/25 rounded-lg p-3 border border-white/10">${safe}</div>
-    ${v ? `<button type="button" onclick="window.enterpriseCopyText('${copyArg}')" class="mt-3 px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black hover:bg-slate-100"><i class="fas fa-copy mr-1"></i>Copiar</button>` : ''}
-  </div>`;
-}
-function enterpriseSandboxCredentials(request){
-  return request?.sandboxCredentials || request?.sandbox || request?.credentials?.sandbox || {};
-}
-window.enterpriseOpenHomologationDetails = function(requestId){
-  const r = enterpriseFindHomologationRequest(requestId);
-  if(!r){ displayMessage('Não encontrei os dados desta solicitação. Atualize o painel e tente novamente.', 'error'); return; }
-  currentHomologationRequestId = enterpriseGetHomologationId(r);
-  const modal = document.getElementById('homologation-detail-modal');
-  const content = document.getElementById('homologation-modal-content');
-  const subtitle = document.getElementById('homologation-modal-subtitle');
-  if(!modal || !content) return;
-  const protocol = r.requestId || r.protocol || r._id || '—';
-  if(subtitle) subtitle.textContent = `Protocolo ${protocol} • ${enterpriseStatusText(r.statusLabel || r.status || 'pending')}`;
-  const integrations = enterpriseArrayText(r.integrationTypes || r.integrations || r.modules || r.integrationType);
-  const status = enterpriseStatusText(r.statusLabel || r.status || 'pending');
-  const createdAt = formatDateTime(r.createdAt || r.requestedAt || r.created_at);
-  const updatedAt = formatDateTime(r.updatedAt || r.updated_at);
-  const history = Array.isArray(r.history || r.statusHistory) ? (r.history || r.statusHistory) : [];
-  content.innerHTML = `
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-      <div class="lg:col-span-2 p-5 rounded-2xl bg-blue-50 border border-blue-100">
-        <div class="text-xs uppercase font-black text-blue-500 mb-1">Protocolo</div>
-        <div class="text-2xl font-black text-blue-900">${escHtml(protocol)}</div>
-        <div class="text-sm text-blue-700 mt-2">Solicitação enviada em ${escHtml(createdAt)}.</div>
-      </div>
-      <div class="p-5 rounded-2xl bg-gray-50 border border-gray-100">
-        <div class="text-xs uppercase font-black text-gray-400 mb-1">Status atual</div>
-        <div>${enterpriseStatusBadge(status)}</div>
-        <div class="text-xs text-gray-500 mt-3">Atualizado em ${escHtml(updatedAt)}</div>
-      </div>
-    </div>
-
-    <h4 class="font-black text-gray-800 mb-3 text-lg">Dados da empresa</h4>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-      ${enterpriseDetailRow('Razão social / Empresa', r.companyName)}
-      ${enterpriseDetailRow('Nome fantasia', r.tradeName)}
-      ${enterpriseDetailRow('CNPJ', r.cnpj)}
-      ${enterpriseDetailRow('Site', r.website)}
-    </div>
-
-    <h4 class="font-black text-gray-800 mb-3 text-lg">Responsável</h4>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-      ${enterpriseDetailRow('Nome', r.responsibleName)}
-      ${enterpriseDetailRow('Cargo', r.responsibleRole)}
-      ${enterpriseDetailRow('E-mail', r.email)}
-      ${enterpriseDetailRow('Telefone / WhatsApp', r.phone)}
-    </div>
-
-    <h4 class="font-black text-gray-800 mb-3 text-lg">Integração</h4>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-      ${enterpriseDetailRow('ERP utilizado', r.erp)}
-      ${enterpriseDetailRow('Volume de produtos', r.productVolume)}
-      ${enterpriseDetailRow('Volume mensal de pedidos', r.orderVolume)}
-      <div class="md:col-span-3">${enterpriseDetailRow('Integrações desejadas', integrations)}</div>
-    </div>
-
-    <h4 class="font-black text-gray-800 mb-3 text-lg">Mensagem / observações</h4>
-    <div class="p-4 rounded-xl bg-gray-50 border border-gray-100 mb-5 text-sm text-gray-700 whitespace-pre-wrap">${escHtml(r.message || 'Nenhuma observação informada.')}</div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-      ${enterpriseDetailRow('Observação interna', r.adminNotes || r.notes)}
-      ${enterpriseDetailRow('Ambiente', r.environment || (String(r.status||'').toLowerCase()==='sandbox' ? 'Sandbox' : 'Aguardando liberação'))}
-    </div>
-
-    <h4 class="font-black text-gray-800 mb-3 text-lg">Credenciais Sandbox</h4>
-    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-5">
-      ${Object.keys(enterpriseSandboxCredentials(r)).length ? `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          ${enterpriseCredentialBlock('API Key de teste', enterpriseSandboxCredentials(r).apiKey)}
-          ${enterpriseCredentialBlock('Webhook Secret de teste', enterpriseSandboxCredentials(r).webhookSecret)}
-          ${enterpriseCredentialBlock('Client ID', enterpriseSandboxCredentials(r).clientId)}
-          ${enterpriseCredentialBlock('Base URL', enterpriseSandboxCredentials(r).baseUrl)}
-        </div>
-        <div class="mt-3 text-xs text-slate-500">Gerado em ${escHtml(formatDateTime(enterpriseSandboxCredentials(r).generatedAt))} por ${escHtml(enterpriseSandboxCredentials(r).generatedBy || 'admin')}. Essas credenciais são apenas para homologação, não liberam produção.</div>
-      ` : `
-        <div class="text-sm text-slate-600"><b>Nenhuma chave Sandbox gerada ainda.</b><br>Clique em <b>Sandbox</b> para gerar automaticamente API Key, Client ID e Webhook Secret de teste.</div>
-      `}
-    </div>
-
-    <h4 class="font-black text-gray-800 mb-3 text-lg">Histórico</h4>
-    <div class="rounded-xl border border-gray-100 overflow-hidden">
-      ${history.length ? history.map((h) => `<div class="p-3 border-b last:border-b-0 text-sm"><b>${escHtml(enterpriseStatusText(h.status || h.label || h.action))}</b><div class="text-xs text-gray-500">${escHtml(formatDateTime(h.date || h.createdAt || h.at))} ${h.by ? '• '+escHtml(h.by) : ''}</div>${h.note ? `<div class="text-gray-600 mt-1">${escHtml(h.note)}</div>` : ''}</div>`).join('') : '<div class="p-4 text-sm text-gray-500">Nenhum histórico detalhado registrado ainda.</div>'}
-    </div>
-  `;
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-}
-window.enterpriseCloseHomologationModal = function(){
-  const modal = document.getElementById('homologation-detail-modal');
-  if(modal){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
-}
-window.enterpriseSetHomologationStatusFromModal = async function(status){
-  if(!currentHomologationRequestId){ displayMessage('Nenhuma solicitação selecionada.', 'error'); return; }
-  await window.enterpriseSetHomologationStatus(currentHomologationRequestId, status);
-  const modal = document.getElementById('homologation-detail-modal');
-  if(modal && !modal.classList.contains('hidden')){
-    const refreshed = enterpriseFindHomologationRequest(currentHomologationRequestId);
-    if(refreshed) window.enterpriseOpenHomologationDetails(currentHomologationRequestId);
-  }
-}
-
-window.enterpriseRegenerateSandboxFromModal = async function(){
-  if(!currentHomologationRequestId){ displayMessage('Nenhuma solicitação selecionada.', 'error'); return; }
-  if(!confirm('Gerar uma NOVA chave Sandbox para esta solicitação? A chave anterior deixará de ser a recomendada para novos testes.')) return;
-  await window.enterpriseSetHomologationStatus(currentHomologationRequestId, 'sandbox', { regenerate: true });
-}
-window.enterprisePrintHomologationDetails = function(){
-  const r = enterpriseFindHomologationRequest(currentHomologationRequestId);
-  if(!r){ displayMessage('Abra uma solicitação antes de imprimir.', 'error'); return; }
-  const protocol = r.requestId || r.protocol || r._id || '—';
-  const integrations = enterpriseArrayText(r.integrationTypes || r.integrations || r.modules || r.integrationType);
-  const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Ficha de Homologação ${escHtml(protocol)}</title><style>body{font-family:Arial,sans-serif;color:#111827;margin:28px}h1{color:#0047ab;margin:0 0 6px}.muted{color:#64748b}.box{border:1px solid #dbe3ef;border-radius:12px;padding:14px;margin:12px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700}.value{font-size:14px;font-weight:700;white-space:pre-wrap}.footer{margin-top:28px;font-size:12px;color:#64748b;border-top:1px solid #e5e7eb;padding-top:12px}@media print{button{display:none}}</style></head><body><button onclick="window.print()" style="padding:10px 14px;background:#0047ab;color:#fff;border:0;border-radius:8px;font-weight:700;margin-bottom:18px">Imprimir / Salvar PDF</button><h1>Ariana Enterprise</h1><div class="muted">Ficha de Solicitação de Homologação</div><div class="box"><div class="label">Protocolo</div><div class="value">${escHtml(protocol)}</div></div><div class="grid"><div class="box"><div class="label">Empresa</div><div class="value">${escHtml(r.companyName||'—')}</div></div><div class="box"><div class="label">Nome fantasia</div><div class="value">${escHtml(r.tradeName||'—')}</div></div><div class="box"><div class="label">CNPJ</div><div class="value">${escHtml(r.cnpj||'—')}</div></div><div class="box"><div class="label">Site</div><div class="value">${escHtml(r.website||'—')}</div></div><div class="box"><div class="label">Responsável</div><div class="value">${escHtml(r.responsibleName||'—')}</div></div><div class="box"><div class="label">E-mail</div><div class="value">${escHtml(r.email||'—')}</div></div><div class="box"><div class="label">Telefone</div><div class="value">${escHtml(r.phone||'—')}</div></div><div class="box"><div class="label">ERP</div><div class="value">${escHtml(r.erp||'—')}</div></div><div class="box"><div class="label">Volume de produtos</div><div class="value">${escHtml(r.productVolume||'—')}</div></div><div class="box"><div class="label">Volume de pedidos</div><div class="value">${escHtml(r.orderVolume||'—')}</div></div></div><div class="box"><div class="label">Integrações desejadas</div><div class="value">${escHtml(integrations||'—')}</div></div><div class="box"><div class="label">Mensagem</div><div class="value">${escHtml(r.message||'—')}</div></div><div class="box"><div class="label">Status</div><div class="value">${escHtml(enterpriseStatusText(r.statusLabel||r.status||'pending'))}</div></div><div class="footer">Ariana Móveis • contato@arianamoveis.com.br • Gerado em ${escHtml(new Date().toLocaleString('pt-BR'))}</div><script>setTimeout(()=>window.print(),300)<\/script></body></html>`;
-  const win = window.open('', '_blank');
-  if(!win){ displayMessage('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.', 'error'); return; }
-  win.document.open(); win.document.write(html); win.document.close();
-}
-
-window.enterpriseSetHomologationStatus = async function(requestId, status, options = {}){
-  const id = String(requestId || '').trim();
-  const nextStatus = String(status || '').trim();
-
-  if(!id){
-    displayMessage('Solicitação inválida. Atualize a página e tente novamente.', 'error');
-    return;
-  }
-
-  const labels = {
-    pending: 'Aguardando análise',
-    in_review: 'Em análise',
-    sandbox: 'Sandbox liberado',
-    approved: 'Aprovado',
-    production: 'Produção liberada',
-    rejected: 'Reprovado'
-  };
-
-  const label = labels[nextStatus] || nextStatus || 'novo status';
-  const confirmMessages = {
-    in_review: 'Marcar esta solicitação como EM ANÁLISE?',
-    sandbox: 'Liberar esta solicitação para SANDBOX?',
-    approved: 'Aprovar esta solicitação?',
-    production: 'Liberar esta solicitação para PRODUÇÃO?',
-    rejected: 'Reprovar esta solicitação?'
-  };
-
-  const shouldConfirm = confirmMessages[nextStatus] || `Alterar status para ${label}?`;
-  if(!confirm(shouldConfirm)) return;
-
-  let adminNotes = '';
-  if(nextStatus === 'rejected'){
-    adminNotes = prompt('Informe o motivo da reprovação, se desejar:', '') || '';
-  }
-
-  try{
-    const updated = await apiRequest(`/enterprise/homologation-requests/${encodeURIComponent(id)}/status`, {
-      method: 'PATCH',
-      headers: buildHeadersAuth(),
-      body: JSON.stringify({ status: nextStatus, adminNotes, regenerate: options.regenerate === true })
-    });
-
-    const updatedRequest = updated?.request;
-    if(updatedRequest){
-      const idx = enterpriseHomologationRequestsCache.findIndex((r) => enterpriseGetHomologationId(r) === id || String(r.requestId||'') === id);
-      if(idx >= 0) enterpriseHomologationRequestsCache[idx] = updatedRequest;
-    }
-
-    displayMessage(`Solicitação atualizada para: ${label}.`, 'success');
-    await renderEnterpriseView();
-  }catch(error){
-    displayMessage(`Erro ao atualizar homologação: ${error.message}`, 'error');
-  }
-}
-
-
-
-function enterpriseBuildCertificateCode(){
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  const rand = Math.random().toString(36).slice(2,8).toUpperCase();
-  return `ARI-ENT-${y}${m}${day}-${rand}`;
-}
-function enterpriseSetCertificateButton(enabled){
-  const btn = document.getElementById('enterprise-sim-certificate-btn');
-  if(!btn) return;
-  btn.disabled = !enabled;
-  btn.classList.toggle('opacity-50', !enabled);
-  btn.classList.toggle('cursor-not-allowed', !enabled);
-}
-function enterpriseCreateSimulatorCertificate(seconds=''){
-  const adminEmail = localStorage.getItem('admin_email') || localStorage.getItem('admin_name') || 'admin';
-  enterpriseLastSimulatorCertificate = {
-    code: enterpriseBuildCertificateCode(),
-    companyName: 'Ariana Demo / Homologação Sandbox',
-    cnpj: 'Ambiente de teste',
-    environment: 'Sandbox',
-    status: 'Homologação aprovada',
-    generatedAt: new Date(),
-    generatedBy: adminEmail,
-    duration: seconds,
-    modules: ['Catálogo', 'Estoque', 'Preço', 'Pedidos', 'NF-e', 'XML', 'DANFE', 'Rastreio', 'Webhooks']
-  };
-  enterpriseSetCertificateButton(true);
-  return enterpriseLastSimulatorCertificate;
-}
-window.enterprisePrintSimulatorCertificate = function(){
-  const cert = enterpriseLastSimulatorCertificate || enterpriseCreateSimulatorCertificate('');
-  const date = cert.generatedAt ? new Date(cert.generatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
-  const modules = (cert.modules || []).map(m => `<span class="pill">✓ ${escHtml(m)}</span>`).join('');
-  const html = `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>Certificado de Homologação - Ariana Enterprise</title><style>
-    *{box-sizing:border-box} body{margin:0;background:#eef2ff;font-family:Arial,Helvetica,sans-serif;color:#0f172a;padding:28px}.sheet{max-width:980px;margin:0 auto;background:#fff;border:1px solid #dbeafe;border-radius:24px;overflow:hidden;box-shadow:0 18px 60px rgba(15,23,42,.16)}.hero{background:linear-gradient(135deg,#073b8e,#1d4ed8,#38bdf8);color:white;padding:42px 46px}.brand{font-size:15px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;opacity:.92}.title{font-size:42px;line-height:1.05;font-weight:900;margin:14px 0 8px}.subtitle{font-size:17px;opacity:.95}.content{padding:38px 46px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.box{border:1px solid #e5e7eb;background:#f8fafc;border-radius:16px;padding:18px}.label{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:900;letter-spacing:.04em;margin-bottom:8px}.value{font-size:19px;font-weight:900;color:#111827;word-break:break-word}.status{display:inline-block;background:#dcfce7;color:#166534;border:1px solid #86efac;padding:12px 18px;border-radius:999px;font-size:18px;font-weight:900}.modules{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.pill{display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:9px 12px;font-weight:800;font-size:13px}.footer{padding:22px 46px;background:#f8fafc;border-top:1px solid #e5e7eb;color:#64748b;font-size:12px;display:flex;justify-content:space-between;gap:16px}.code{font-family:monospace;font-weight:900;color:#0f172a}.actions{text-align:center;margin:22px 0}.actions button{background:#1d4ed8;color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:900;cursor:pointer}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;border:0}.actions{display:none}.hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}.pill,.status{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  </style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><section class="sheet"><div class="hero"><div class="brand">Ariana Enterprise</div><div class="title">Certificado de Homologação</div><div class="subtitle">Validação de integração Sandbox concluída com sucesso.</div></div><div class="content"><div class="grid"><div class="box"><div class="label">Empresa / Ambiente</div><div class="value">${escHtml(cert.companyName)}</div></div><div class="box"><div class="label">CNPJ</div><div class="value">${escHtml(cert.cnpj)}</div></div><div class="box"><div class="label">Ambiente</div><div class="value">${escHtml(cert.environment)}</div></div><div class="box"><div class="label">Status</div><div class="status">${escHtml(cert.status)}</div></div><div class="box"><div class="label">Código do certificado</div><div class="value code">${escHtml(cert.code)}</div></div><div class="box"><div class="label">Data da homologação</div><div class="value">${escHtml(date)}</div></div></div><div style="margin-top:24px" class="box"><div class="label">Módulos homologados</div><div class="modules">${modules}</div></div><div style="margin-top:24px" class="box"><div class="label">Resumo técnico</div><div class="value" style="font-size:15px;line-height:1.6;font-weight:700">Catálogo, estoque, preço, pedido, NF-e, XML, DANFE, rastreio e webhooks foram testados no simulador Enterprise. ${cert.duration ? `Tempo total: ${escHtml(cert.duration)}s.` : ''}</div></div></div><div class="footer"><div>Ariana Móveis • contato@arianamoveis.com.br</div><div>Gerado por ${escHtml(cert.generatedBy)}</div></div></section></body></html>`;
-  const win = window.open('', '_blank');
-  if(!win){ displayMessage('O navegador bloqueou a janela do certificado. Libere pop-ups para este site.', 'error'); return; }
-  win.document.open(); win.document.write(html); win.document.close(); setTimeout(()=>{ try{ win.focus(); }catch(_e){} }, 300);
-}
-
-function enterpriseSimulatorSetStep(step, status, message){
-  const row = document.getElementById(`enterprise-sim-step-${step}`);
-  if(!row) return;
-  const badge = row.querySelector('[data-sim-status]');
-  const msg = row.querySelector('[data-sim-message]');
-  const dot = row.querySelector('[data-sim-dot]');
-  const map = {
-    idle: ['Aguardando', 'bg-gray-100 text-gray-500', 'bg-gray-300'],
-    running: ['Executando...', 'bg-blue-100 text-blue-700', 'bg-blue-500'],
-    ok: ['OK', 'bg-green-100 text-green-700', 'bg-green-500'],
-    error: ['Erro', 'bg-red-100 text-red-700', 'bg-red-500']
-  };
-  const cfg = map[status] || map.idle;
-  if(badge){ badge.className = `px-2 py-1 rounded-full text-[11px] font-black ${cfg[1]}`; badge.textContent = cfg[0]; }
-  if(dot){ dot.className = `w-3 h-3 rounded-full ${cfg[2]}`; }
-  if(msg) msg.textContent = message || '';
-}
-function enterpriseSimulatorProgress(percent){
-  const bar = document.getElementById('enterprise-sim-progress-bar');
-  const text = document.getElementById('enterprise-sim-progress-text');
-  const p = Math.max(0, Math.min(100, Number(percent || 0)));
-  if(bar) bar.style.width = `${p}%`;
-  if(text) text.textContent = `${p}%`;
-}
-function enterpriseSimulatorLog(line, type='info'){
-  const box = document.getElementById('enterprise-sim-log');
-  if(!box) return;
-  const color = type === 'error' ? 'text-red-700' : type === 'ok' ? 'text-green-700' : 'text-gray-700';
-  const time = new Date().toLocaleTimeString('pt-BR');
-  box.innerHTML = `<div class="${color}"><b>${time}</b> • ${escHtml(line)}</div>` + box.innerHTML;
-}
-window.enterpriseRunSimulatorStep = async function(step){
-  const labels = { catalog:'Catálogo', stock_price:'Estoque e preço', order:'Pedido', invoice:'NF-e', tracking:'Rastreio' };
-  enterpriseSimulatorSetStep(step, 'running', 'Enviando teste...');
-  enterpriseSimulatorLog(`Iniciando teste: ${labels[step] || step}`);
-  try{
-    const data = await apiRequest(`/enterprise/simulator/${encodeURIComponent(step)}`, {
-      method:'POST',
-      headers:buildHeadersAuth(),
-      body:JSON.stringify({ manufacturer:'ariana_demo', sandbox:true })
-    });
-    enterpriseSimulatorSetStep(step, 'ok', data?.message || 'Teste concluído com sucesso.');
-    enterpriseSimulatorLog(`✅ ${labels[step] || step}: aprovado`, 'ok');
-    // Não recarrega a tela aqui; recarregar apagava o progresso e o log do simulador.
-    return data;
-  }catch(error){
-    enterpriseSimulatorSetStep(step, 'error', error.message || 'Falha no teste.');
-    enterpriseSimulatorLog(`❌ ${labels[step] || step}: ${error.message}`, 'error');
-    throw error;
-  }
-}
-window.enterpriseRunSimulatorAll = async function(){
-  const steps = ['catalog','stock_price','order','invoice','tracking'];
-  if(!confirm('Executar homologação completa de teste? Isso criará/atualizará produtos e pedido demo no ambiente Enterprise.')) return;
-  enterpriseSimulatorProgress(0);
-  enterpriseSimulatorLog('Homologação completa iniciada.');
-  const started = performance.now();
-  for(let i=0;i<steps.length;i++){
-    try{
-      await window.enterpriseRunSimulatorStep(steps[i]);
-      enterpriseSimulatorProgress(Math.round(((i+1)/steps.length)*100));
-    }catch(_e){
-      displayMessage('Homologação interrompida por erro. Veja o log do simulador.', 'error');
-      return;
-    }
-  }
-  const seconds = ((performance.now() - started) / 1000).toFixed(2).replace('.', ',');
-  enterpriseSimulatorLog(`🏁 Homologação completa aprovada em ${seconds}s.`, 'ok');
-  enterpriseCreateSimulatorCertificate(seconds);
-  displayMessage(`Homologação simulada aprovada em ${seconds}s. Agora você já pode gerar o certificado.`, 'success');
-  // Mantém o painel do simulador visível com os cards verdes, barra 100% e log final.
-}
-window.enterpriseResetSimulator = function(){
-  ['catalog','stock_price','order','invoice','tracking'].forEach(step => enterpriseSimulatorSetStep(step, 'idle', 'Aguardando execução.'));
-  enterpriseSimulatorProgress(0);
-  enterpriseLastSimulatorCertificate = null;
-  enterpriseSetCertificateButton(false);
-  const box = document.getElementById('enterprise-sim-log');
-  if(box) box.innerHTML = '<div class="text-gray-500">Nenhum teste executado ainda.</div>';
-}
-function enterpriseSimulatorCard(){
-  const steps = [
-    ['catalog','Catálogo','Cria/atualiza produtos demo via API Enterprise.'],
-    ['stock_price','Estoque e preço','Altera preço, estoque, disponibilidade e status.'],
-    ['order','Pedido','Cria um pedido Enterprise de homologação.'],
-    ['invoice','NF-e / XML / DANFE','Anexa dados fiscais ao pedido demo.'],
-    ['tracking','Rastreio','Atualiza transportadora, código e link de rastreamento.']
-  ];
-  return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-    <div class="p-5 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-      <div>
-        <h3 class="font-black text-gray-800 flex items-center gap-2"><i class="fas fa-vial-circle-check text-primary-blue"></i> Simulador de Homologação Enterprise</h3>
-        <p class="text-xs text-gray-500 mt-1">Execute testes de catálogo, estoque, preço, pedido, NF-e e rastreio sem depender de uma fábrica real.</p>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button type="button" onclick="window.enterpriseRunSimulatorAll()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-black shadow hover:opacity-90"><i class="fas fa-play mr-2"></i>Executar todos os testes</button>
-        <button type="button" onclick="window.enterpriseResetSimulator()" class="px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50"><i class="fas fa-rotate-left mr-2"></i>Limpar painel</button>
-        <button id="enterprise-sim-certificate-btn" type="button" onclick="window.enterprisePrintSimulatorCertificate()" disabled class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-black shadow hover:bg-secondary-light-blue opacity-50 cursor-not-allowed"><i class="fas fa-certificate mr-2"></i>Gerar certificado</button>
-      </div>
-    </div>
-    <div class="p-5">
-      <div class="mb-5">
-        <div class="flex items-center justify-between text-xs font-black text-gray-500 mb-2"><span>Progresso da homologação</span><span id="enterprise-sim-progress-text">0%</span></div>
-        <div class="h-3 rounded-full bg-gray-100 overflow-hidden"><div id="enterprise-sim-progress-bar" class="h-full bg-success-green transition-all duration-300" style="width:0%"></div></div>
-      </div>
-      <div class="grid grid-cols-1 xl:grid-cols-5 gap-3 mb-5">
-        ${steps.map(([id,title,desc]) => `<div id="enterprise-sim-step-${id}" class="p-4 rounded-2xl border border-gray-100 bg-gray-50">
-          <div class="flex items-center justify-between gap-2 mb-2"><span data-sim-dot class="w-3 h-3 rounded-full bg-gray-300"></span><span data-sim-status class="px-2 py-1 rounded-full text-[11px] font-black bg-gray-100 text-gray-500">Aguardando</span></div>
-          <div class="font-black text-gray-800 text-sm">${escHtml(title)}</div>
-          <div class="text-xs text-gray-500 mt-1 min-h-[34px]">${escHtml(desc)}</div>
-          <div data-sim-message class="text-[11px] text-gray-400 mt-2">Aguardando execução.</div>
-          <button type="button" onclick="window.enterpriseRunSimulatorStep('${id}')" class="mt-3 w-full px-3 py-2 rounded-xl bg-primary-blue text-white text-xs font-black hover:bg-secondary-light-blue">Testar</button>
-        </div>`).join('')}
-      </div>
-      <div class="rounded-2xl border border-gray-100 overflow-hidden">
-        <div class="px-4 py-3 bg-gray-50 border-b text-xs uppercase font-black text-gray-500">Log da execução</div>
-        <div id="enterprise-sim-log" class="p-4 text-xs space-y-1 max-h-40 overflow-y-auto bg-white"><div class="text-gray-500">Nenhum teste executado ainda.</div></div>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function renderEnterpriseView(){
-  const box = document.getElementById('enterprise-content');
-  if(!box) return;
-  box.innerHTML = `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"><div class="flex items-center gap-3 text-primary-blue font-bold"><i class="fas fa-spinner fa-spin"></i> Carregando integrações Enterprise...</div></div>`;
-
-  const [dashboard, logsData, queueData, catalogData, productsData, homologationRequestsData] = await Promise.all([
-    fetchEnterpriseData('/enterprise/dashboard', {}),
-    fetchEnterpriseData('/enterprise/logs?limit=12', {}),
-    fetchEnterpriseData('/enterprise/queue?limit=12', {}),
-    fetchEnterpriseData('/enterprise/catalog/summary', {}),
-    fetchEnterpriseData('/enterprise/products?limit=12', {}),
-    fetchEnterpriseData('/enterprise/homologation-requests?limit=20', {})
-  ]);
-
-  const orders = enterpriseRows(dashboard, ['latestOrders','orders','recentOrders']).slice(0, 10);
-  const manufacturers = enterpriseRows(dashboard, ['manufacturers','integrations']).slice(0, 30);
-  const logs = enterpriseRows(logsData, ['logs','items']).slice(0, 12);
-  const queue = enterpriseRows(queueData, ['queue','items']).slice(0, 12);
-  const catalogProducts = enterpriseRows(productsData, ['products','items']).slice(0, 12);
-  const catalogFallbackProducts = enterpriseRows(catalogData, ['lastProducts','products']).slice(0, 12);
-  const productsToShow = catalogProducts.length ? catalogProducts : catalogFallbackProducts;
-  const homologationRequests = enterpriseRows(homologationRequestsData, ['items','requests']).slice(0, 20);
-  enterpriseHomologationRequestsCache = homologationRequests;
-  window.enterpriseHomologationRequestsCache = enterpriseHomologationRequestsCache;
-  const homologationSummary = homologationRequestsData.summary || {};
-  const catalogManufacturers = enterpriseRows(catalogData, ['manufacturers']).slice(0, 20);
-  const catalogSummary = catalogData.summary || {};
-  const totalCatalogProducts = Number(catalogSummary.totalProducts || productsToShow.length || 0);
-  const activeCatalogProducts = Number(catalogSummary.activeProducts || productsToShow.filter(p=>p.active !== false).length || 0);
-  const outOfStockCatalogProducts = Number(catalogSummary.outOfStock || productsToShow.filter(p=>Number(p.stock||0)<=0).length || 0);
-  const summary = dashboard.summary || dashboard.metrics || dashboard || {};
-  const totalOrders = Number(summary.totalOrders ?? summary.ordersTotal ?? orders.length ?? 0);
-  const totalManufacturers = Number(summary.totalManufacturers ?? summary.manufacturersTotal ?? manufacturers.length ?? 0);
-  const pendingQueue = Number(summary.pendingQueue ?? summary.queuePending ?? queue.filter(q => String(q.status||'').toLowerCase().includes('pend')).length ?? 0);
-  const totalLogs = Number(summary.totalLogs ?? summary.logsTotal ?? logs.length ?? 0);
-  const pendingHomologations = Number(homologationSummary.pending || homologationRequests.filter(r => String(r.status||'').toLowerCase()==='pending').length || 0);
-  const erroredQueue = queue.filter(q => ['error','retrying','dead','failed'].some(s => String(q.status||'').toLowerCase().includes(s))).length;
-  const base = String(window.API_BASE || localStorage.getItem('API_BASE') || API_BASE || '').replace(/\/+$/, '');
-  const enterpriseKey = localStorage.getItem('ENTERPRISE_WEBHOOK_SECRET') || '';
-  const errorBlock = [dashboard?.error, logsData?.error, queueData?.error, catalogData?.error, productsData?.error].filter(Boolean).map(e=>`<div class="mb-2 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 font-bold">${escHtml(e)}</div>`).join('');
-
-  box.innerHTML = `
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div><h2 class="text-2xl font-black text-gray-800 flex items-center gap-2"><i class="fas fa-network-wired text-primary-blue"></i> Integrações Enterprise</h2><p class="text-gray-500 text-sm">Fabricantes e ERPs integrados por API, sem alterar sellers, checkout, pagamentos, logística ou etiquetas atuais.</p></div>
-      <div class="flex flex-wrap gap-2"><a href="enterprise_api_explorer.html" target="_blank" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-code mr-2"></i>API Explorer</a><button type="button" onclick="window.enterpriseSyncCatalogSample()" class="px-4 py-2 rounded-xl bg-success-green text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-cloud-arrow-down mr-2"></i>Catálogo teste</button><button type="button" onclick="window.enterpriseSyncProductSample()" class="px-4 py-2 rounded-xl bg-yellow-500 text-white text-sm font-bold shadow hover:opacity-90"><i class="fas fa-arrows-rotate mr-2"></i>Teste estoque/preço</button><button type="button" onclick="window.changeView('enterprise', true)" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold shadow hover:bg-secondary-light-blue"><i class="fas fa-rotate mr-2"></i>Atualizar</button></div>
-    </div>${errorBlock}
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fabricantes</div><div class="text-3xl font-black text-primary-blue mt-2">${totalManufacturers}</div><div class="text-xs text-gray-500 mt-1">Integrações configuradas</div></div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Pedidos Enterprise</div><div class="text-3xl font-black text-success-green mt-2">${totalOrders}</div><div class="text-xs text-gray-500 mt-1">Recebidos via API</div></div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Fila pendente</div><div class="text-3xl font-black text-yellow-500 mt-2">${pendingQueue}</div><div class="text-xs text-gray-500 mt-1">Envios/retentativas</div></div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Falhas na fila</div><div class="text-3xl font-black ${erroredQueue ? 'text-error-red' : 'text-success-green'} mt-2">${erroredQueue}</div><div class="text-xs text-gray-500 mt-1">Itens com erro/retry</div></div>
-      <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="text-xs uppercase font-bold text-gray-400">Catálogo</div><div class="text-3xl font-black text-gray-800 mt-2">${totalCatalogProducts}</div><div class="text-xs text-gray-500 mt-1">${activeCatalogProducts} ativos • ${outOfStockCatalogProducts} sem estoque</div></div>
-    </div>
-
-    ${enterpriseSimulatorCard()}
-
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-      <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fabricantes</h3><p class="text-xs text-gray-500">Status e endpoint configurado para cada parceiro</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Método</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Endpoint</th></tr></thead><tbody>${manufacturers.map(m=>`<tr class="border-t"><td class="px-4 py-3 text-sm font-bold">${escHtml(m.manufacturer||m.name||m.sellerId||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(m.enabled === false ? 'offline' : (m.status || 'online'))}</td><td class="px-4 py-3 text-xs font-bold text-gray-600">${escHtml(m.method||'POST')}</td><td class="px-4 py-3 text-xs text-gray-500 break-all">${escHtml(m.endpoint||m.apiUrl||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum fabricante configurado ainda.</td></tr>'}</tbody></table></div></div>
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"><h3 class="font-black text-gray-800 mb-1">Cadastrar fabricante</h3><p class="text-xs text-gray-500 mb-4">Use para criar/alterar endpoint de envio de pedidos.</p><div class="space-y-3"><input id="enterprise-form-manufacturer" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="fabricante: whirlpool, samsung..."><input id="enterprise-form-endpoint" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="https://api.fabricante.com/orders"><div class="grid grid-cols-2 gap-2"><select id="enterprise-form-method" class="border rounded-xl px-3 py-2 text-sm"><option>POST</option><option>PUT</option></select><select id="enterprise-form-auth-type" class="border rounded-xl px-3 py-2 text-sm"><option value="">Sem auth extra</option><option value="bearer">Bearer</option><option value="apiKey">API Key</option></select></div><input id="enterprise-form-auth-token" class="w-full border rounded-xl px-3 py-2 text-sm" placeholder="token/chave do fabricante"><label class="flex items-center gap-2 text-sm"><input id="enterprise-form-enabled" type="checkbox" checked> Ativo</label><button onclick="window.enterpriseSaveManufacturer()" class="w-full px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold">Salvar fabricante</button></div></div>
-    </div>
-
-
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-      <div class="p-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div><h3 class="font-black text-gray-800">Solicitações de homologação</h3><p class="text-xs text-gray-500">Pedidos enviados pelo formulário público Ariana Developers • Pendentes: ${pendingHomologations}</p></div>
-        <a href="solicitacao-homologacao.html" target="_blank" class="px-4 py-2 rounded-xl bg-primary-blue text-white text-sm font-bold"><i class="fas fa-arrow-up-right-from-square mr-2"></i>Ver formulário</a>
-      </div>
-      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Protocolo</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Empresa</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Contato</th><th class="px-4 py-3 text-xs uppercase text-gray-500">ERP</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${homologationRequests.map(r=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(r.requestId||r._id||'—')}</td><td class="px-4 py-3 text-sm"><div class="font-bold">${escHtml(r.companyName||'—')}</div><div class="text-xs text-gray-500">${escHtml(r.cnpj||'')}</div></td><td class="px-4 py-3 text-xs"><div>${escHtml(r.responsibleName||'—')}</div><div class="text-gray-500">${escHtml(r.email||'')}</div><div class="text-gray-500">${escHtml(r.phone||'')}</div></td><td class="px-4 py-3 text-sm">${escHtml(r.erp||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(r.statusLabel||r.status||'pending')}</td><td class="px-4 py-3"><div class="flex flex-wrap gap-2"><button onclick="window.enterpriseOpenHomologationDetails('${escHtml(r._id||r.id||r.requestId||'')}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Detalhes</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'in_review')" class="px-3 py-1 rounded-lg bg-yellow-500 text-white text-xs font-bold">Analisar</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'sandbox')" class="px-3 py-1 rounded-lg bg-success-green text-white text-xs font-bold">Sandbox</button><button onclick="window.enterpriseSetHomologationStatus('${escHtml(r._id||r.id||r.requestId||'')}', 'rejected')" class="px-3 py-1 rounded-lg bg-error-red text-white text-xs font-bold">Reprovar</button></div></td></tr>`).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">Nenhuma solicitação de homologação encontrada.</td></tr>'}</tbody></table></div>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Últimos pedidos Enterprise</h3><p class="text-xs text-gray-500">Pedidos recebidos por fabricantes/ERPs</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${orders.map(o=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(o.manufacturerDispatch?.externalOrderId||o.externalOrderId||o.id||o._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.manufacturer||o.sellerIds?.[0]||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(o.status_integracao||o.status||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum pedido Enterprise encontrado.</td></tr>'}</tbody></table></div></div>
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Fila Enterprise</h3><p class="text-xs text-gray-500">Pedidos e retentativas de envio para fabricantes</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Fila</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Tentativas</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${queue.map(q=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(q.queueId||q.id||q._id||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(q.manufacturer||'—')}</td><td class="px-4 py-3">${enterpriseStatusBadge(q.status||'—')}</td><td class="px-4 py-3 text-sm">${Number(q.attempts||0)}</td><td class="px-4 py-3"><button onclick="window.enterpriseDispatchQueueItem('${escHtml(q.queueId||q.id||q._id||'')}')" class="px-3 py-1 rounded-lg bg-primary-blue text-white text-xs font-bold">Enviar</button></td></tr>`).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">Fila vazia.</td></tr>'}</tbody></table></div></div>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Produtos sincronizados</h3><p class="text-xs text-gray-500">Produtos atualizados por API de fabricante</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">SKU</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Produto</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Preço</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Estoque</th></tr></thead><tbody>${productsToShow.map(p=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(p.sku||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(p.name||'—')}</td><td class="px-4 py-3 text-sm">${formatCurrency(p.price||0)}</td><td class="px-4 py-3 text-sm">${Number(p.stock||0)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum produto sincronizado ainda.</td></tr>'}</tbody></table></div></div>
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Logs recentes</h3><p class="text-xs text-gray-500">Eventos de integração</p></div><div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Evento</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Fabricante</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Mensagem</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Data</th></tr></thead><tbody>${logs.map(l=>`<tr class="border-t"><td class="px-4 py-3 text-xs font-bold">${escHtml(l.eventType||l.type||'—')}</td><td class="px-4 py-3 text-sm">${escHtml(l.manufacturer||'—')}</td><td class="px-4 py-3 text-xs text-gray-600">${escHtml(l.message||l.status||'—')}</td><td class="px-4 py-3 text-xs text-gray-500">${formatDateTime(l.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum log encontrado.</td></tr>'}</tbody></table></div></div>
-    </div>
-
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"><div class="p-5 border-b"><h3 class="font-black text-gray-800">Credenciais e endpoints API</h3><p class="text-xs text-gray-500">Documentação rápida para fabricantes. A chave real fica no Render como ENTERPRISE_WEBHOOK_SECRET.</p></div><div class="p-5 grid grid-cols-1 xl:grid-cols-2 gap-4 text-sm"><div class="space-y-3"><label class="block text-xs font-bold uppercase text-gray-500">Chave de teste neste navegador</label><div class="flex gap-2"><input id="enterprise-webhook-secret" type="password" class="flex-1 border rounded-xl px-3 py-2" value="${escHtml(enterpriseKey)}" placeholder="Cole ENTERPRISE_WEBHOOK_SECRET para testes externos"><button onclick="window.enterpriseSaveWebhookSecret()" class="px-4 py-2 rounded-xl bg-success-green text-white font-bold">Salvar</button></div><p class="text-xs text-gray-500">Essa chave não é exibida pelo backend; este campo só guarda no seu navegador para facilitar testes.</p></div><div class="space-y-2"><div class="font-bold text-gray-800">Endpoints principais</div>${['POST /enterprise/catalog/push','POST /enterprise/products/{sku}/sync','POST /enterprise/orders','POST /enterprise/orders/{orderId}/tracking','POST /enterprise/orders/{orderId}/invoice','GET /enterprise/queue'].map(e=>`<button class="block w-full text-left px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs font-mono" onclick="window.enterpriseCopyText('${escHtml(base + '/api/' + e.replace(/^[A-Z]+\s+\//,'').replace('{sku}','AD-GEL44TESTE').replace('{orderId}','WHIRLPOOL-TESTE-001'))}')">${escHtml(e)}</button>`).join('')}</div></div></div>
-  `;
-}
-
-async function renderDashboardView(){
-  await Promise.allSettled([loadProducts(),loadOrders(),loadNotifications()]);
-  const revenue=allOrdersCache.reduce((s,o)=>s+Number(o.total||o.totalAmount||0),0);
-  const pending=allOrdersCache.filter(o=>String(o.status||'').toLowerCase().includes('pend')).length;
-  document.getElementById('dashboard-content').innerHTML=`
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Total de Produtos</div><div class="text-3xl font-extrabold mt-2 text-primary-blue">${allProductsCache.length}</div></div>
-      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Pedidos Totais</div><div class="text-3xl font-extrabold mt-2 text-primary-blue">${allOrdersCache.length}</div></div>
-      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Faturamento</div><div class="text-3xl font-extrabold mt-2 text-success-green">${formatCurrency(revenue)}</div></div>
-      <div class="bg-white p-5 rounded-lg shadow-md"><div class="text-sm text-gray-500">Pedidos Pendentes</div><div class="text-3xl font-extrabold mt-2 text-error-red">${pending}</div></div>
-    </div>
-    <div class="bg-white mt-6 rounded-lg shadow-md overflow-hidden">
-      <div class="p-5 border-b flex items-center justify-between"><h2 class="text-lg font-semibold text-primary-blue">Últimos pedidos</h2><button class="text-sm text-primary-blue hover:underline" onclick="window.changeView('orders')">Ver todos</button></div>
-      <div class="overflow-x-auto"><table class="min-w-full"><thead><tr class="bg-gray-50 text-left"><th class="px-4 py-3 text-xs uppercase text-gray-500">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Cliente</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Total</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Status</th></tr></thead><tbody>${allOrdersCache.slice(0,10).map(o=>`<tr class="border-t" data-order-id="${escHtml(String(o.id||o._id||''))}"><td class="px-4 py-3 text-sm">${escHtml(String(o.id||o._id||''))}</td><td class="px-4 py-3 text-sm">${escHtml(o.customerName||o.nomeCliente||'—')}</td><td class="px-4 py-3 text-sm">${formatCurrency(o.total||0)}</td><td class="px-4 py-3 text-sm">${escHtml(o.status||'—')}</td></tr>`).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">Nenhum pedido.</td></tr>'}</tbody></table></div>
-    </div>`;
-}
-function productCategoryOptions(selected=''){ return `<option value="">Selecione</option>` + allCategoriesCache.map(c=>{const name=String(c.name||c.categoryName||'').trim(); return `<option value="${escHtml(name)}" ${name===selected?'selected':''}>${escHtml(name)}</option>`}).join(''); }
-function productFlagsMarkup(p={}){ return `
-  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isOffer" ${p.isOffer?'checked':''}><span>Oferta</span></label>
-  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isFavorite" ${p.isFavorite?'checked':''}><span>Favorito</span></label>
-  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isHighlight" ${p.isHighlight?'checked':''}><span>Destaque</span></label>
-  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isBestSeller" ${p.isBestSeller?'checked':''}><span>Mais vendido</span></label>
-  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isNewArrival" ${p.isNewArrival?'checked':''}><span>Lançamento</span></label>
-  <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isRecommended" ${p.isRecommended?'checked':''}><span>Recomendado</span></label>`; }
-function renderProductsTable(){
-  return allProductsCache.map(p=>{
-    const category=String(p.categoryName||p.category||p.categoria||'Sem categoria');
-    const stockClass=Number(p.stock||0)>0?'bg-success-green/20 text-success-green':'bg-error-red/20 text-error-red';
-    return `<tr class="align-middle hover:bg-gray-50 transition-colors border-t">
-      <td class="px-4 py-4 min-w-[320px]"><div class="flex items-center gap-3"><div class="flex-shrink-0 h-14 w-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50"><img class="h-full w-full object-cover" src="${resolveAdminImageUrl(p.mainImageUrl||p.imageUrl||p.image)}" alt="Imagem do Produto" onerror="this.onerror=null;this.src='${PRODUCT_IMAGE_FALLBACK}'"></div><div class="min-w-0 flex-1"><div class="text-sm font-semibold text-gray-900 leading-5 break-words">${escHtml(p.name||'Produto sem nome')}</div><div class="text-xs text-gray-500 mt-1 break-words">${escHtml(category)}</div></div></div></td>
-      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(p.price||0)}</td>
-      <td class="px-4 py-4 whitespace-nowrap"><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${stockClass}">${Number(p.stock||0)} em estoque</span></td>
-      <td class="px-4 py-4 text-sm text-gray-500">${p.isHighlight?'<span class="px-2 py-1 rounded-full bg-primary-blue/10 text-primary-blue text-xs font-semibold">Destaque</span>':''}</td>
-      <td class="px-4 py-4 whitespace-nowrap text-sm font-medium"><div class="flex items-center gap-2"><button class="px-3 py-1.5 rounded-md bg-primary-blue text-white text-xs font-semibold" onclick="window.editProduct('${escHtml(p.id)}')">Editar</button>${hasAdminPerm('posters:generate') ? `<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','square')">Poster</button><button class="px-3 py-1.5 rounded-md bg-secondary-light-blue text-white text-xs font-semibold" onclick="window.generateProductPoster('${escHtml(p.id)}','story')">Story</button>` : ''}${hasAdminPerm('products:delete') ? `<button class="px-3 py-1.5 rounded-md bg-error-red text-white text-xs font-semibold" onclick="window.deleteProduct('${escHtml(p.id)}')">Excluir</button>` : ''}</div></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="5" class="text-gray-500 py-8 text-center">Nenhum produto cadastrado.</td></tr>';
-}
-function renderProductImages(){
-  const box=document.getElementById('product-images-grid'); if(!box) return;
-  if(!productImagesCache.length){ box.innerHTML='<div class="col-span-full text-sm text-gray-500 py-8 text-center border rounded-lg">Nenhuma imagem adicionada.</div>'; return; }
-  box.innerHTML=productImagesCache.map(img=>{ const safeUrl=resolveAdminImageUrl(img.url); return `<div class="border border-gray-200 rounded-xl p-3 bg-white"><div class="aspect-square bg-gray-50 rounded-lg overflow-hidden border"><img src="${safeUrl}" alt="Imagem" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='${PRODUCT_IMAGE_FALLBACK}'"></div><div class="mt-2 text-xs text-gray-600 break-all">${escHtml(img.name||'imagem')}</div><div class="mt-3 flex flex-wrap gap-2"><button class="px-2 py-1 rounded text-xs ${img.isMain?'bg-success-green text-white':'bg-gray-100 text-gray-700'}" onclick="window.setMainImage('${encodeURIComponent(img.name||'')}')">${img.isMain?'Principal':'Tornar principal'}</button><button class="px-2 py-1 rounded text-xs bg-red-50 text-red-600" onclick="window.deleteImage('${encodeURIComponent(img.name||'')}')">Excluir</button></div></div>`; }).join('');
-}
-function resetProductForm(){
-  editingProductId=null; productImagesCache=[];
-  const form=document.getElementById('product-form'); if(form) form.reset();
-  const categorySel=document.getElementById('product-category'); if(categorySel) categorySel.innerHTML=productCategoryOptions('');
-  const idField=document.getElementById('product-id'); if(idField) idField.value='';
-  const fileInput=document.getElementById('product-images-input'); if(fileInput) fileInput.value='';
-  document.getElementById('product-submit-btn').innerHTML='Salvar Produto';
-  document.getElementById('product-form-title').textContent='Cadastrar / Editar Produto';
-  renderProductImages();
-}
-window.editProduct = function(id){
-  const p=allProductsCache.find(x=>String(x.id||x._id)===String(id)); if(!p) return;
-  editingProductId=String(p.id||p._id); document.getElementById('product-id').value=editingProductId;
-  document.getElementById('product-name').value=p.name||''; document.getElementById('product-category').innerHTML=productCategoryOptions(p.categoryName||p.category||'');
-  document.getElementById('product-price').value=Number(p.price||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
-  if(specsEl) {
-    let specValue = p.technicalSpecs || p.technicalSpecification || p.technicalSpecifications || p.specifications || p.specification || p.specs || p.fichaTecnica || p.ficha_tecnica || p.especificacaoTecnica || p.especificacoesTecnicas || p.especificacoes || p.technicalDetails || '';
-    if(!specValue && (p.attributes || p.atributos)){
-      const obj = p.attributes || p.atributos;
-      specValue = Object.entries(obj).map(([k,v]) => `${k}: ${v && typeof v === 'object' ? (v.value || v.valor || JSON.stringify(v)) : v}`).join('\n');
-    }
-    specsEl.value = specValue;
-  }
-  document.getElementById('product-weight').value=p.weight||1; document.getElementById('product-length').value=p.length||20; document.getElementById('product-height').value=p.height||10; document.getElementById('product-width').value=p.width||15;
-  ['Offer','Favorite','Highlight','BestSeller','NewArrival','Recommended'].forEach(k=>{const el=document.getElementById(`product-is${k}`); if(el) el.checked=!!p[`is${k}`]});
-  productImagesCache=(Array.isArray(p.images)?p.images:[]).map(normalizeImageEntry).filter(Boolean); if(!productImagesCache.length && p.imageUrl) productImagesCache=[{url:p.imageUrl,path:p.mainImagePath||p.imageUrl,name:'principal',isMain:true}];
-  document.getElementById('product-form-title').textContent=`Editar Produto: ${p.name||''}`; document.getElementById('product-submit-btn').innerHTML='Atualizar Produto'; renderProductImages(); window.scrollTo({top:0,behavior:'smooth'});
-}
-window.deleteProduct = async function(id){ if(!hasAdminPerm('products:delete')){ displayMessage('Você não tem permissão para excluir produtos.','error'); return; } if(!confirm('Excluir este produto?')) return; try{ await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()}); await loadProducts(); resetProductForm(); displayMessage('Produto excluído com sucesso!','success'); }catch(e){ displayMessage(e.message,'error'); } }
-function getMarketingCreativeSettings(){
-  const defaults = {
-    ctaText: 'COMPRE DIRETO DO SITE',
-    siteUrl: 'https://arianamoveis.com.br/',
-    siteLabel: 'arianamoveis.com.br',
-    footerLabel: 'arianamoveis.com.br',
-    mascotImageUrl: './ariana-mascote-sem-fundo.png',
-    useMascot: true
-  };
-  try {
-    return { ...defaults, ...(JSON.parse(localStorage.getItem('ariana_marketing_creative_settings') || '{}') || {}) };
-  } catch(_e) {
-    return defaults;
-  }
-}
-
-function buildPosterPayload(variant){
-  const cfg = getMarketingCreativeSettings();
-  return {
-    variant,
-    ctaText: cfg.ctaText,
-    ctaLabel: cfg.ctaText,
-    siteUrl: cfg.siteUrl,
-    siteLabel: cfg.siteLabel,
-    footerLabel: cfg.footerLabel,
-    whatsappLabel: cfg.siteLabel,
-    replaceWhatsappWithSite: true,
-    useMascot: !!cfg.useMascot,
-    mascotImageUrl: cfg.mascotImageUrl
-  };
-}
-
-window.saveMarketingCreativeSettings = function(){
-  const cfg = {
-    ctaText: document.getElementById('mk-cta-text')?.value?.trim() || 'COMPRE DIRETO DO SITE',
-    siteUrl: document.getElementById('mk-site-url')?.value?.trim() || 'https://arianamoveis.com.br/',
-    siteLabel: document.getElementById('mk-site-label')?.value?.trim() || 'arianamoveis.com.br',
-    footerLabel: document.getElementById('mk-footer-label')?.value?.trim() || 'arianamoveis.com.br',
-    mascotImageUrl: document.getElementById('mk-mascot-url')?.value?.trim() || './ariana-mascote-sem-fundo.png',
-    useMascot: document.getElementById('mk-use-mascot')?.checked !== false
-  };
-  localStorage.setItem('ariana_marketing_creative_settings', JSON.stringify(cfg));
-  displayMessage('Configuração dos cartazes salva neste painel.', 'success');
-  const preview = document.getElementById('mk-mascot-preview');
-  if(preview) preview.src = cfg.mascotImageUrl;
-}
-
-window.uploadMarketingMascot = async function(){
-  const input = document.getElementById('mk-mascot-file');
-  if(!input || !input.files || !input.files[0]) { displayMessage('Escolha a imagem PNG da mascote sem fundo.', 'error'); return; }
-  try{
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    fd.append('folder', 'marketing/mascote');
-    const data = await apiRequest('/admin/uploads', { method:'POST', headers: buildHeadersAuth(), body: fd });
-    const uploaded = Array.isArray(data?.files) ? data.files[0] : (data?.file || data);
-    const url = uploaded?.url || uploaded?.secure_url || uploaded?.imageUrl || data?.url;
-    if(!url) throw new Error('Upload concluído, mas a URL não retornou.');
-    document.getElementById('mk-mascot-url').value = url;
-    window.saveMarketingCreativeSettings();
-    displayMessage('Mascote enviada e salva para os cartazes.', 'success');
-  }catch(e){
-    displayMessage(`Erro ao enviar mascote: ${e.message}`, 'error');
-  }
-}
-
-window.generateProductPoster = async function(id, variant = 'square'){
-  if(!hasAdminPerm('posters:generate')){ displayMessage('Você não tem permissão para gerar posters.','error'); return; }
-  const productId = String(id || editingProductId || '').trim();
-  if(!productId){ displayMessage('Salve ou selecione um produto antes de gerar o cartaz.','error'); return; }
-  const label = variant === 'story' ? 'story' : 'poster';
-  try{
-    displayMessage(`Gerando ${label} automático...`, 'info');
-    const data = await apiRequest(`/admin/posters/product/${encodeURIComponent(productId)}`,{
-      method:'POST',
-      headers:buildHeadersAuth(),
-      body:JSON.stringify(buildPosterPayload(variant))
-    });
-    if(data && data.url){
-      window.open(data.url, '_blank');
-      displayMessage(`${label.charAt(0).toUpperCase()+label.slice(1)} gerado e salvo no Cloudinary!`, 'success');
-      await loadProducts().catch(()=>null);
-      if(currentView === 'products') await renderProductsView().catch(()=>null);
-    } else {
-      displayMessage(`${label} gerado, mas não recebi a URL.`, 'info');
-    }
-  }catch(e){
-    displayMessage(`Erro ao gerar ${label}: ${e.message}`, 'error');
-  }
-}
-
-async function runMarketingAction(endpoint, payload = {}, successMessage = 'Ação concluída com sucesso!'){
-  const data = await apiRequest(endpoint, {
-    method:'POST',
-    headers:buildHeadersAuth(),
-    body:JSON.stringify(payload)
-  });
-  displayMessage(successMessage,'success');
-  return data;
-}
-
-window.generateAllProductPosters = async function(variant = 'square'){
-  const label = variant === 'story' ? 'stories' : 'posters';
-  if(!confirm(`Gerar ${label} para todos os produtos ativos? Isso pode demorar se houver muitos produtos.`)) return;
-  try{
-    const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters');
-    const original=btn?btn.innerHTML:'';
-    if(btn){btn.disabled=true;btn.innerHTML='Gerando...';}
-    const data = await runMarketingAction('/admin/posters/bulk', { ...buildPosterPayload(variant), limit: 1000 }, `${label.charAt(0).toUpperCase()+label.slice(1)} gerados: ${label}.`);
-    displayMessage(`Concluído: ${data.success||0} sucesso(s), ${data.failed||0} falha(s).`,'info');
-    await loadProducts().catch(()=>null);
-    if(btn){btn.disabled=false;btn.innerHTML=original;}
-  }catch(e){ displayMessage(`Erro ao gerar ${label}: ${e.message}`,'error'); const btn=document.getElementById(variant==='story'?'btn-generate-all-stories':'btn-generate-all-posters'); if(btn) btn.disabled=false; }
-}
-
-window.generateBannerDrafts = async function(){
-  if(!confirm('Gerar prévias automáticas de TODOS os formatos do painel banner? Nada será publicado no site sem sua aprovação.')) return;
-  try{
-    const btn=document.getElementById('btn-generate-banner-drafts'); const original=btn?btn.innerHTML:'';
-    if(btn){btn.disabled=true;btn.innerHTML='Gerando prévias...';}
-    const data = await runMarketingAction('/admin/marketing/banner-drafts/generate', { ...getMarketingCreativeSettings(), replaceWhatsappWithSite: true }, 'Prévia(s) de banners gerada(s) como rascunho.');
-    displayMessage(`${data.count||0} rascunho(s) criado(s). Revise antes de publicar.`,'info');
-    await renderMarketingView();
-    if(btn){btn.disabled=false;btn.innerHTML=original;}
-  }catch(e){ displayMessage(`Erro ao gerar rascunhos: ${e.message}`,'error'); const btn=document.getElementById('btn-generate-banner-drafts'); if(btn) btn.disabled=false; }
-}
-
-window.generateEverythingDraftMode = async function(){
-  if(!confirm('Gerar posters, stories e todos os banners do painel em rascunho? Os banners NÃO serão publicados automaticamente.')) return;
-  try{
-    const btn=document.getElementById('btn-generate-everything'); const original=btn?btn.innerHTML:'';
-    if(btn){btn.disabled=true;btn.innerHTML='Gerando tudo...';}
-    const data = await runMarketingAction('/admin/marketing/generate-all-drafts', { ...getMarketingCreativeSettings(), replaceWhatsappWithSite: true, limit: 1000 }, 'Geração geral concluída.');
-    displayMessage(`Posters: ${data.postersSuccess||0} | Stories: ${data.storiesSuccess||0} | Banners rascunho: ${data.bannerDrafts||0}`,'success');
-    await loadProducts().catch(()=>null);
-    await renderMarketingView();
-    if(btn){btn.disabled=false;btn.innerHTML=original;}
-  }catch(e){ displayMessage(`Erro na geração geral: ${e.message}`,'error'); const btn=document.getElementById('btn-generate-everything'); if(btn) btn.disabled=false; }
-}
-
-async function loadBannerDrafts(){
-  const data = await apiRequest('/admin/marketing/banner-drafts',{headers:buildHeadersAuth()});
-  return Array.isArray(data?.drafts) ? data.drafts : [];
-}
-
-window.publishBannerDraft = async function(id){
-  if(!confirm('Publicar este banner no site agora?')) return;
-  try{
-    await runMarketingAction(`/admin/marketing/banner-drafts/${encodeURIComponent(id)}/publish`, {}, 'Banner publicado no site com sucesso.');
-    await renderMarketingView();
-  }catch(e){ displayMessage(`Erro ao publicar banner: ${e.message}`,'error'); }
-}
-
-window.deleteBannerDraft = async function(id){
-  if(!confirm('Excluir este rascunho de banner?')) return;
+  const…17097 tokens truncated…eturn;
   try{
     await apiRequest(`/admin/marketing/banner-drafts/${encodeURIComponent(id)}`,{method:'DELETE',headers:buildHeadersAuth()});
     displayMessage('Rascunho excluído.','success');
