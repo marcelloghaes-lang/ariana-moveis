@@ -1198,6 +1198,13 @@ function buildAdminQuery(modelName, req) {
   if (modelName === 'products') {
     if (req.query.where_category) q.category = String(req.query.where_category);
     if (req.query.where_sellerId) q.sellerId = String(req.query.where_sellerId);
+    if (['1', 'true', 'yes'].includes(String(req.query.storefrontOnly || '').trim().toLowerCase())) {
+      // Produtos criados exclusivamente pela migração do SIGE pertencem ao
+      // Ariana ERP e não possuem, necessariamente, categoria ou imagens para
+      // a vitrine. Mantê-los fora do cadastro da loja evita que ocupem o
+      // limite da listagem sem apagar ou alterar os registros históricos.
+      q['specs.sigeSourceId'] = { $exists: false };
+    }
   }
   if (modelName === 'orders' && req.query.where_status) q.status = String(req.query.where_status);
   if ((modelName === 'atendimentos' || modelName === 'tickets') && req.query.where_status) q.status = String(req.query.where_status);
