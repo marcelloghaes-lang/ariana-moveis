@@ -1752,8 +1752,18 @@ function resetProductForm(){
   document.getElementById('product-form-title').textContent='Cadastrar / Editar Produto';
   renderProductImages();
 }
-window.editProduct = function(id){
-  const p=allProductsCache.find(x=>String(x.id||x._id)===String(id)); if(!p) return;
+window.editProduct = async function(id){
+  let p=allProductsCache.find(x=>String(x.id||x._id)===String(id));
+  try{
+    const fresh=await apiRequest(`/admin/products/${encodeURIComponent(id)}`,{headers:buildHeadersAuth()});
+    const normalized=normalizeProduct(fresh);
+    const index=allProductsCache.findIndex(x=>String(x.id||x._id)===String(id));
+    if(index>=0) allProductsCache[index]=normalized;
+    p=normalized;
+  }catch(error){
+    console.warn('[admin/products] Falha ao carregar os dados completos do produto:',error?.message||error);
+  }
+  if(!p){ displayMessage('Não foi possível carregar este produto.','error'); return; }
   editingProductId=String(p.id||p._id); document.getElementById('product-id').value=editingProductId;
   document.getElementById('product-name').value=p.name||''; document.getElementById('product-category').innerHTML=productCategoryOptions(p.categoryName||p.category||'');
   document.getElementById('product-price').value=Number(p.price||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); document.getElementById('product-stock').value=Number(p.stock||0); document.getElementById('product-sku').value=p.sku||''; document.getElementById('product-description').value=p.description||''; const specsEl=document.getElementById('product-technical-specs'); 
@@ -2253,8 +2263,9 @@ async function uploadProductImages(options={}){
   }catch(e){displayMessage(`Erro no upload: ${e.message}`,'error'); throw e;}
 }
 async function renderProductsView(){
-  await Promise.allSettled([loadProducts(), loadCategories()]);
   const box=document.getElementById('products-content');
+  box.innerHTML='<div class="bg-white p-6 rounded-xl shadow-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando produtos...</div>';
+  await Promise.allSettled([loadProducts(), loadCategories()]);
   box.innerHTML=`
     ${getAdminRole() !== 'admin' ? '<div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900"><b>Acesso limitado:</b> você tem permissão somente nas funções liberadas para produtos/posters.</div>' : ''}
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
