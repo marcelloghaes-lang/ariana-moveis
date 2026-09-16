@@ -28,20 +28,48 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
   // Storefront lists render compact cards. Avoid loading complete product
   // documents (integration data, poster history and every image), which can
   // make the public catalog exceed the request timeout as inventory grows.
-  const PRODUCT_CARD_FIELDS = [
+  const PRODUCT_CARD_FIELD_NAMES = [
     '_id', 'name', 'slug', 'category', 'categoryId', 'categoryName', 'brand', 'sku',
     'sellerName', 'price', 'oldPrice', 'pixPrice', 'installmentCount',
-    'image', 'imageUrl', 'imagem', 'mainImageUrl', 'mainImagePath',
-    'images', 'imageUrls', 'imagePaths', 'stock', 'active',
+    'stock', 'active',
     'isOffer', 'isHighlight', 'isBestSeller', 'isNewArrival', 'isRecommended',
     'createdAt', 'updatedAt'
-  ].join(' ');
+  ];
+
+  const PRODUCT_CARD_PROJECTION = PRODUCT_CARD_FIELD_NAMES.reduce((projection, field) => {
+    projection[field] = 1;
+    return projection;
+  }, {});
+
+  // Older records may contain multi-megabyte data: URIs duplicated across the
+  // image fields. Select only the first external URL inside MongoDB so those
+  // blobs never travel to the API process or get duplicated in JSON.
+  PRODUCT_CARD_PROJECTION.imageUrl = {
+    $switch: {
+      branches: ['imageUrl', 'mainImageUrl', 'image', 'imagem'].map((field) => ({
+        case: {
+          $regexMatch: {
+            input: { $convert: { input: `$${field}`, to: 'string', onError: '', onNull: '' } },
+            regex: '^https?://',
+            options: 'i'
+          }
+        },
+        then: `$${field}`
+      })),
+      default: ''
+    }
+  };
 
   async function homeHandler(_req, res) {
     try {
       const [categories, products, banners, paymentSettings] = await Promise.all([
         Category.find({ active: true }).select('_id name slug parentId active sortOrder image updatedAt').sort({ sortOrder: 1, name: 1 }).lean(),
-        Product.find({ active: true, ...storefrontBaseFilter() }).select(PRODUCT_CARD_FIELDS).slice('images', 1).slice('imageUrls', 1).slice('imagePaths', 1).sort({ createdAt: -1 }).limit(200).lean(),
+        Product.aggregate([
+          { $match: { active: true, ...storefrontBaseFilter() } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 200 },
+          { $project: PRODUCT_CARD_PROJECTION }
+        ]),
         Banner.find({ active: true }).select('_id slot targetSlot title subtitle image href alt active status source sortOrder device createdAt updatedAt').sort({ sortOrder: 1, createdAt: -1 }).lean(),
         getPaymentsSettings()
       ]);
@@ -117,15 +145,13 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
       const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 500, 1), 500);
       const requestedPage = Number(req.query.page || 1);
       const page = Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1);
-      const rows = await Product.find(query)
-        .select(PRODUCT_CARD_FIELDS)
-        .slice('images', 1)
-        .slice('imageUrls', 1)
-        .slice('imagePaths', 1)
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
+      const rows = await Product.aggregate([
+        { $match: query },
+        { $sort: { createdAt: -1 } },
+        { $skip: (page - 1) * limit },
+        { $limit: limit },
+        { $project: PRODUCT_CARD_PROJECTION }
+      ]);
       res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
       return res.json(rows.map(normalizeProductForResponse));
     } catch (error) {
