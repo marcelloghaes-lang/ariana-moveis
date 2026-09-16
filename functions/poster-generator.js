@@ -1279,14 +1279,25 @@ async function generateProfessionalPosterBuffer(product = {}, options = {}) {
   }
 
   const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
-  // Usa sempre a imagem ORIGINAL como fonte. O recorte local conserva os pixels
-  // do produto e só torna transparente o fundo conectado às bordas.
-  const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
+  // Recupera o fluxo de recorte inteligente que já havia sido aprovado: para
+  // imagens originais do Cloudinary, tenta primeiro a remoção de fundo por IA.
+  // O recorte local fica somente como fallback para fontes que não têm essa
+  // transformação disponível, evitando deformar móveis e produtos claros.
+  const intelligentCutoutUrl = options.removeLightBackground !== false ? cloudinaryBackgroundRemovalUrl(imageUrl) : '';
+  let usedIntelligentCutout = false;
+  let rawImage = null;
+  if (intelligentCutoutUrl) {
+    rawImage = await loadImageBuffer(intelligentCutoutUrl).catch(() => null);
+    usedIntelligentCutout = Boolean(rawImage);
+  }
+  if (!rawImage) rawImage = await loadImageBuffer(imageUrl).catch(() => null);
   if (rawImage) {
-    const cutout = await removeEdgeConnectedLightBackground(
-      rawImage,
-      options.removeLightBackground !== false
-    ).catch(() => rawImage);
+    const cutout = usedIntelligentCutout
+      ? rawImage
+      : await removeEdgeConnectedLightBackground(
+          rawImage,
+          options.removeLightBackground !== false
+        ).catch(() => rawImage);
     // O serviço de recorte pode devolver um PNG transparente com uma grande
     // margem vazia. Se essa margem entrar no cálculo, o objeto real fica
     // pequeno. Normalizamos e retiramos apenas transparência externa antes de
