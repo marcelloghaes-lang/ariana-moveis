@@ -885,7 +885,7 @@ function professionalTextComposition({ product = {}, options = {}, layout = 'cla
   const productSize = professionalTextSize(productName, 38, 33, 27);
   const productGap = productSize >= 36 ? 42 : 36;
   const headlineLines = wrapText(headline, 40, 2);
-  const subtitleLines = wrapText(subtitle, 50, 2);
+  const subtitleLines = subtitle ? wrapText(subtitle, 50, 2) : [''];
   const headlineSize = professionalTextSize(headline, 46, 40, 34);
   const subtitleSize = professionalTextSize(subtitle, 28, 25, 22);
   const headlineGap = headlineSize + 7;
@@ -1002,7 +1002,7 @@ function professionalForegroundSvg({ product = {}, pricing, options = {} }) {
   const palette = professionalPalette(template, options.colorTheme);
   const adaptive = professionalAdaptiveText(options.colorTheme, layout);
   const headline = String(options.headline || (template === 'queima' ? 'QUEIMA DE ESTOQUE' : template === 'campanha' ? 'O MÊS COMEÇOU COM TUDO' : 'OFERTA IMPERDÍVEL')).trim();
-  const subtitle = String(options.subtitle || (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
+  const subtitle = String(Object.prototype.hasOwnProperty.call(options, 'subtitle') ? (options.subtitle ?? '') : (template === 'queima' ? 'Últimas unidades com preço especial' : 'Economize de verdade na Ariana Móveis')).trim();
   const productNameRaw = String(options.productName || product.name || product.title || 'Produto Ariana Móveis').trim();
   const productName = productNameRaw;
   const textPlan = professionalTextComposition({ product, options, layout, headline, subtitle, productName: productNameRaw, adaptive });
