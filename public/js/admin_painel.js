@@ -859,7 +859,7 @@ async function loadProducts(){
       .catch((error)=>{adminPublicThumbnailPromise=null;console.warn('[admin/products] Falha ao preparar miniaturas públicas:',error?.message||error);return [];});
   }
   const publicThumbnailPromise=adminPublicThumbnailPromise;
-  const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500',{headers:buildHeadersAuth()});
+  const data = await apiRequest('/admin/products?sortBy=updatedAt&sortDir=desc&limit=500&storefrontOnly=true',{headers:buildHeadersAuth()});
   const rows = Array.isArray(data)?data:(data.items||data.docs||data.results||[]);
   allProductsCache = rows.map(normalizeProduct);
 
