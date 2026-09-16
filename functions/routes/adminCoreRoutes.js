@@ -1212,6 +1212,69 @@ function buildAdminQuery(modelName, req) {
 }
 
 
+// A grade administrativa precisa dos dados comerciais do produto, mas nao das
+// imagens inline antigas, historico de posters e metadados de integracao. Alguns
+// documentos legados possuem varios megabytes nesses campos; carregar centenas
+// deles de uma vez bloqueia o boot inteiro do painel.
+const ADMIN_PRODUCT_LIST_FIELD_NAMES = [
+  '_id', 'name', 'slug', 'description',
+  'category', 'categoryId', 'categoryName', 'brand', 'sku',
+  'sellerId', 'sellerName',
+  'price', 'oldPrice', 'pixPrice', 'installmentCount',
+  'stock', 'active',
+  'specs', 'dimensions', 'logistics',
+  'weight', 'length', 'height', 'width',
+  'isOffer', 'isFavorite', 'isHighlight', 'isBestSeller',
+  'isNewArrival', 'isRecommended',
+  'createdAt', 'updatedAt'
+];
+
+const ADMIN_PRODUCT_LIST_PROJECTION = ADMIN_PRODUCT_LIST_FIELD_NAMES.reduce((projection, field) => {
+  projection[field] = 1;
+  return projection;
+}, {});
+
+// Somente URLs externas pequenas entram na listagem. A rota individual continua
+// sendo a fonte completa ao abrir um produto para edicao.
+ADMIN_PRODUCT_LIST_PROJECTION.imageUrl = {
+  $switch: {
+    branches: ['imageUrl', 'mainImageUrl', 'image', 'imagem'].map((field) => ({
+      case: {
+        $regexMatch: {
+          input: { $convert: { input: `${field}`, to: 'string', onError: '', onNull: '' } },
+          regex: '^https?://',
+          options: 'i'
+        }
+      },
+      then: `${field}`
+    })),
+    default: ''
+  }
+};
+
+app.get('/api/admin/products', adminRequired, async (req, res) => {
+  try {
+    const query = buildAdminQuery('products', req);
+    const requestedLimit = Number(req.query.limit || 500);
+    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 500, 1), 1000);
+    const requestedSort = String(req.query.sortBy || 'createdAt').trim();
+    const sortBy = /^[a-zA-Z0-9_.]+$/.test(requestedSort) ? requestedSort : 'createdAt';
+    const sortDir = String(req.query.sortDir || 'desc').toLowerCase() === 'asc' ? 1 : -1;
+
+    const rows = await Product.aggregate([
+      { $match: query },
+      { $sort: { [sortBy]: sortDir } },
+      { $limit: limit },
+      { $project: ADMIN_PRODUCT_LIST_PROJECTION }
+    ]);
+
+    return res.json(rows.map(normalizeProductForResponse));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'admin_products_list_failed' });
+  }
+});
+
+
 // ============================================================
 // EXPORTAÇÃO DE PRODUTOS - PDF / EXCEL PELO PAINEL ADMIN
 // Retorna todos os produtos cadastrados para relatórios internos.
