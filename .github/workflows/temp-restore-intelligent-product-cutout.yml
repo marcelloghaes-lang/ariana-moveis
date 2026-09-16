@@ -1,0 +1,72 @@
+name: Restore intelligent product cutout
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-restore-intelligent-product-cutout.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore proven intelligent cutout path
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('functions/poster-generator.js')
+          s = p.read_text()
+          old = """  const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
+  // Usa sempre a imagem ORIGINAL como fonte. O recorte local conserva os pixels
+  // do produto e só torna transparente o fundo conectado às bordas.
+  const rawImage = await loadImageBuffer(imageUrl).catch(() => null);
+  if (rawImage) {
+    const cutout = await removeEdgeConnectedLightBackground(
+      rawImage,
+      options.removeLightBackground !== false
+    ).catch(() => rawImage);
+"""
+          new = """  const imageUrl = String(options.imageUrl || options.productImageUrl || getMainImageUrl(product) || '').trim();
+  // Recupera o fluxo de recorte inteligente que já havia sido aprovado: para
+  // imagens originais do Cloudinary, tenta primeiro a remoção de fundo por IA.
+  // O recorte local fica somente como fallback para fontes que não têm essa
+  // transformação disponível, evitando deformar móveis e produtos claros.
+  const intelligentCutoutUrl = options.removeLightBackground !== false ? cloudinaryBackgroundRemovalUrl(imageUrl) : '';
+  let usedIntelligentCutout = false;
+  let rawImage = null;
+  if (intelligentCutoutUrl) {
+    rawImage = await loadImageBuffer(intelligentCutoutUrl).catch(() => null);
+    usedIntelligentCutout = Boolean(rawImage);
+  }
+  if (!rawImage) rawImage = await loadImageBuffer(imageUrl).catch(() => null);
+  if (rawImage) {
+    const cutout = usedIntelligentCutout
+      ? rawImage
+      : await removeEdgeConnectedLightBackground(
+          rawImage,
+          options.removeLightBackground !== false
+        ).catch(() => rawImage);
+"""
+          if old not in s:
+              raise SystemExit('Trecho alvo não encontrado; nenhuma alteração aplicada')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Validate poster generator syntax and regression guard
+        run: |
+          node --check functions/poster-generator.js
+          grep -q "const intelligentCutoutUrl" functions/poster-generator.js
+          grep -q "usedIntelligentCutout" functions/poster-generator.js
+          grep -q "cloudinaryBackgroundRemovalUrl(imageUrl)" functions/poster-generator.js
+      - name: Publish fix and clean temporary workflow
+        run: |
+          rm -f .github/workflows/temp-restore-intelligent-product-cutout.yml
+          git config user.name "Ariana Móveis Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/poster-generator.js .github/workflows/temp-restore-intelligent-product-cutout.yml
+          git commit -m "fix: restaura recorte inteligente dos produtos nos cartazes"
+          git push
