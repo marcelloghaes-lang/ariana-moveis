@@ -659,7 +659,9 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const totalProdutos = await Product.countDocuments({ sellerId: sid });
-    const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: { $ne: false } });
+    const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: true, $or: [{ approvalStatus: 'approved' }, { status: 'approved' }] });
+    const produtosEmRevisao = await Product.countDocuments({ sellerId: sid, $or: [{ approvalStatus: 'pending' }, { status: 'pending_review' }] });
+    const produtosReprovados = await Product.countDocuments({ sellerId: sid, $or: [{ approvalStatus: 'rejected' }, { status: 'rejected' }] });
     const orderQuery = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] };
     const orders = await Order.find(orderQuery).sort({ createdAt: -1 }).limit(20);
     const allSellerOrders = await Order.find(orderQuery).select('status statusLabel total items sellerIds createdAt');
@@ -687,7 +689,7 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
         }
       }
     }
-    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), totalProdutos, produtosAtivos, pedidosPendentes, totalPedidos: allSellerOrders.length, vendasTotal, recentOrders: orders.map((order) => sellerOrderForResponse(order, sid)) });
+    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), totalProdutos, produtosAtivos, produtosEmRevisao, produtosReprovados, pedidosPendentes, totalPedidos: allSellerOrders.length, vendasTotal, recentOrders: orders.map((order) => sellerOrderForResponse(order, sid)) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dashboard do seller' });
   }
@@ -820,6 +822,11 @@ app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) =>
     const allowed = extractSellerIdsFromOrder(before).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     const requestedStatus = String(req.body?.status || 'processing').trim().toLowerCase();
+    const currentStatus = String(before.status || before.statusLabel || '').trim().toLowerCase();
+    const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
+    if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({ ok: false, code: 'SELLER_ORDER_FINALIZED', error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser alterado pelo seller.' });
+    }
     const allowedSellerStatuses = new Set(['processing', 'preparando', 'shipped', 'enviado']);
     if (!allowedSellerStatuses.has(requestedStatus)) {
       return res.status(400).json({
@@ -849,6 +856,11 @@ app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => 
     const before = await Order.findById(oid);
     if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
     const beforeObj = toJSON(before);
+    const currentStatus = String(beforeObj.status || beforeObj.statusLabel || '').trim().toLowerCase();
+    const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
+    if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({ ok: false, code: 'SELLER_ORDER_FINALIZED', error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser enviado pelo seller.' });
+    }
     const sid = String(req.sellerId || '').trim();
     const allowed = extractSellerIdsFromOrder(beforeObj).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
