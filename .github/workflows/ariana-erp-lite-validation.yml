@@ -65,6 +65,8 @@ jobs:
           assert.deepEqual(rule('GET', '/erp/finance-panel/inadimplentes').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('GET', '/erp/finance-panel/dashboard').any, ['finance:read','payments:read']);
           assert.deepEqual(rule('POST', '/erp/finance-panel/lancamentos/order123/2/pagamentos').any, ['payments:receive']);
+          assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes').any, ['finance:read','payments:read','finance:reports','reports:read']);
+          assert.deepEqual(rule('GET', '/erp/relatorios/inadimplentes/pdf').any, ['finance:read','payments:read','finance:reports','reports:read']);
           assert.equal(rule('POST', '/erp/migracao/sige/importar').mapped, false);
           assert.deepEqual(rule('POST', '/erp/fiscal/nfe/preflight').any, ['fiscal:nfe:emit']);
           assert.equal(canAccess({admin:{role:'staff',permissions:['orders:read']}},['orders:read']), true);
