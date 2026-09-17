@@ -20,11 +20,6 @@ function overdue(row,reference=new Date()){
   const due=startOfDay(row?.dueAt),today=startOfDay(reference);
   return Boolean(openStatus(row?.status)&&due&&today&&due<today);
 }
-function daysLate(row,reference=new Date()){
-  if(!overdue(row,reference))return 0;
-  const due=startOfDay(row.dueAt),today=startOfDay(reference);
-  return Math.max(0,Math.floor((today-due)/86400000));
-}
 function customerKey(row={}){
   const document=digits(row.customerCpf);
   return document?`doc:${document}`:`name:${clean(row.customerName,180).toLowerCase()}`;
@@ -32,50 +27,14 @@ function customerKey(row={}){
 function panelCustomer(person={}){
   const address=person.address||{};
   return{
-    id:String(person.id||''),
-    nome:person.name||person.companyName||'',
-    cpf:person.document||'',
-    telefone:person.phone||'',
-    email:person.email||'',
-    contrato:'',
-    endereco:person.addressText||'',
-    cidade:address.city||'',
-    uf:address.stateCode||address.state||'',
-    fonte:'ariana_erp',
-    source:person.source||'',
-    sourceId:person.sourceId||'',
-    ativo:person.active!==false
+    id:String(person.id||''),nome:person.name||person.companyName||'',cpf:person.document||'',telefone:person.phone||'',email:person.email||'',contrato:'',endereco:person.addressText||'',cidade:address.city||'',uf:address.stateCode||address.state||'',fonte:'ariana_erp',source:person.source||'',sourceId:person.sourceId||'',ativo:person.active!==false
   };
 }
 function panelReceivable(row={},reference=new Date()){
   const isOverdue=overdue(row,reference),isPaid=String(row.status||'')==='recebido';
   const documentLabel=`${row.code||'VENDA'} • ${Number(row.number||1)}/${Number(row.installments||1)}`;
   return{
-    fonte:'ariana_erp',
-    source:'ariana_erp',
-    orderId:String(row.orderId||''),
-    receivableNumber:Number(row.number||1),
-    codigoVenda:row.code||'',
-    codigo:'',
-    documento:documentLabel,
-    cliente:row.customerName||'Consumidor',
-    nome:row.customerName||'Consumidor',
-    cpf:row.customerCpf||'',
-    telefone:row.customerPhone||'',
-    email:row.customerEmail||'',
-    descricao:`Venda ${row.code||''} • Parcela ${Number(row.number||1)}/${Number(row.installments||1)}`.trim(),
-    parcela:`${Number(row.number||1)}/${Number(row.installments||1)}`,
-    dataVencimento:row.dueAt||null,
-    dataRecebimento:row.receivedAt||null,
-    valor:money(row.value),
-    saldo:money(row.remaining),
-    totalRecebido:money(row.receivedAmount),
-    quitado:isPaid,
-    atrasado:isOverdue,
-    diasAtraso:daysLate(row,reference),
-    status:row.status||'pendente',
-    formaPagamento:row.method||'',
-    erp:{orderId:String(row.orderId||''),number:Number(row.number||1)}
+    fonte:'ariana_erp',source:'ariana_erp',orderId:String(row.orderId||''),receivableNumber:Number(row.number||1),codigoVenda:row.code||'',codigo:'',documento:documentLabel,cliente:row.customerName||'Consumidor',nome:row.customerName||'Consumidor',cpf:row.customerCpf||'',telefone:row.customerPhone||'',email:row.customerEmail||'',descricao:`Venda ${row.code||''} • Parcela ${Number(row.number||1)}/${Number(row.installments||1)}`.trim(),parcela:`${Number(row.number||1)}/${Number(row.installments||1)}`,dataVencimento:row.dueAt||null,dataRecebimento:row.receivedAt||null,valor:money(row.value),saldo:money(row.remaining),multa:money(row.lateFine),juros:money(row.lateInterest),encargos:money(row.lateCharges),saldoAtualizado:money(row.updatedRemaining??row.remaining),totalRecebido:money(row.receivedAmount),quitado:isPaid,atrasado:isOverdue,diasAtraso:Number(row.daysLate||0),status:row.status||'pendente',formaPagamento:row.method||'',erp:{orderId:String(row.orderId||''),number:Number(row.number||1)}
   };
 }
 function normalizeStatus(status=''){
@@ -107,19 +66,15 @@ export function createErpFinancePanelBridgeService(context={}){
     const financeQuery={q:query.q||query.search||''};
     if(requested==='atrasado')financeQuery.overdue='true';
     else if(requested&&!['todos','all'].includes(requested))financeQuery.status=normalizeStatus(requested);
-    if(query.from)financeQuery.from=query.from;
-    if(query.to)financeQuery.to=query.to;
-    const data=await finance.list(financeQuery);
-    const reference=parseReferenceDate(query.dataReferencia);
+    if(query.from)financeQuery.from=query.from;if(query.to)financeQuery.to=query.to;
+    const data=await finance.list(financeQuery),reference=parseReferenceDate(query.dataReferencia);
     let rows=(data.receivables||[]).map(row=>panelReceivable(row,reference));
-    const limit=Math.min(5000,Math.max(1,Number(query.limit||1000)));
-    rows=rows.slice(0,limit);
+    const limit=Math.min(5000,Math.max(1,Number(query.limit||1000)));rows=rows.slice(0,limit);
     return{lancamentos:rows,total:rows.length,summary:data.summary||{},source:'ariana_erp',historicalDataPreserved:true};
   }
 
   async function inadimplentes(query={}){
-    const data=await finance.list({q:query.q||query.search||'',overdue:'true'});
-    const reference=parseReferenceDate(query.dataReferencia);
+    const data=await finance.list({q:query.q||query.search||'',overdue:'true'}),reference=parseReferenceDate(query.dataReferencia);
     const limit=Math.min(5000,Math.max(1,Number(query.limit||1000)));
     const rows=(data.receivables||[]).map(row=>panelReceivable(row,reference)).filter(row=>row.atrasado).slice(0,limit);
     return{inadimplentes:rows,total:rows.length,summary:data.summary||{},source:'ariana_erp',historicalDataPreserved:true};
@@ -127,65 +82,18 @@ export function createErpFinancePanelBridgeService(context={}){
 
   async function dashboard(query={}){
     const reference=parseReferenceDate(query.dataReferencia),tomorrow=addDays(reference,1),weekEnd=addDays(reference,6);
-    const monthStart=new Date(reference.getFullYear(),reference.getMonth(),1),monthEnd=new Date(reference.getFullYear(),reference.getMonth()+1,0);
-    monthStart.setHours(0,0,0,0);monthEnd.setHours(23,59,59,999);
-    const data=await finance.list({});
-    const rows=data.receivables||[],open=rows.filter(row=>openStatus(row.status));
-    const overdueRows=open.filter(row=>overdue(row,reference));
-    const sumRemaining=list=>money(list.reduce((s,row)=>s+Number(row.remaining||0),0));
-    const uniqueCustomers=new Set(rows.map(customerKey).filter(Boolean));
-    const originalTotal=money(rows.reduce((s,row)=>s+Number(row.value||0),0));
-    const receivedTotal=money(rows.reduce((s,row)=>s+Number(row.receivedAmount||0),0));
-    const openPortfolio=sumRemaining(open),overdueTotal=sumRemaining(overdueRows);
-    const monthRows=open.filter(row=>row.dueAt&&inRange(row.dueAt,monthStart,monthEnd));
-    const defaultRate=openPortfolio>0?money((overdueTotal/openPortfolio)*100):0;
-    const kpis={
-      receivableTodayCents:cents(sumRemaining(open.filter(row=>sameDay(row.dueAt,reference)))),
-      receivableTomorrowCents:cents(sumRemaining(open.filter(row=>sameDay(row.dueAt,tomorrow)))),
-      receivableWeekCents:cents(sumRemaining(open.filter(row=>row.dueAt&&inRange(row.dueAt,reference,weekEnd)))),
-      receivableMonthCents:cents(sumRemaining(monthRows)),
-      openPortfolioCents:cents(openPortfolio),
-      overdueUpdatedCents:cents(overdueTotal),
-      accumulatedFineCents:0,
-      accumulatedInterestCents:0,
-      totalReceivedCents:cents(receivedTotal),
-      defaultRatePercent:defaultRate,
-      averageTicketCents:cents(uniqueCustomers.size?originalTotal/uniqueCustomers.size:0),
-      customers:uniqueCustomers.size,
-      openInstallments:open.length,
-      overdueInstallments:overdueRows.length
-    };
-    const byStatus={
-      aberto:open.filter(row=>String(row.status)==='pendente').length,
-      parcial:open.filter(row=>String(row.status)==='parcial').length,
-      quitado:rows.filter(row=>String(row.status)==='recebido').length,
-      vencido:overdueRows.length
-    };
-    return{
-      kpis,
-      source:'ariana_erp',
-      historicalDataPreserved:true,
-      referenceDate:reference.toISOString(),
-      summary:{...(data.summary||{}),originalTotal,receivedTotal,openPortfolio,overdueTotal},
-      byStatus,
-      note:'Multa e juros permanecem zerados neste resumo até serem registrados de forma oficial no recebimento do Ariana ERP.'
-    };
+    const monthStart=new Date(reference.getFullYear(),reference.getMonth(),1),monthEnd=new Date(reference.getFullYear(),reference.getMonth()+1,0);monthStart.setHours(0,0,0,0);monthEnd.setHours(23,59,59,999);
+    const data=await finance.list({}),rows=data.receivables||[],open=rows.filter(row=>openStatus(row.status)),overdueRows=open.filter(row=>overdue(row,reference));
+    const sumRemaining=list=>money(list.reduce((s,row)=>s+Number(row.remaining||0),0)),sumUpdated=list=>money(list.reduce((s,row)=>s+Number(row.updatedRemaining??row.remaining??0),0));
+    const uniqueCustomers=new Set(rows.map(customerKey).filter(Boolean)),originalTotal=money(rows.reduce((s,row)=>s+Number(row.value||0),0)),receivedTotal=money(rows.reduce((s,row)=>s+Number(row.receivedAmount||0),0)),openPortfolio=sumRemaining(open),overduePrincipal=sumRemaining(overdueRows),overdueUpdated=sumUpdated(overdueRows),monthRows=open.filter(row=>row.dueAt&&inRange(row.dueAt,monthStart,monthEnd)),defaultRate=openPortfolio>0?money((overduePrincipal/openPortfolio)*100):0;
+    const totalFine=money(overdueRows.reduce((s,r)=>s+Number(r.lateFine||0),0)),totalInterest=money(overdueRows.reduce((s,r)=>s+Number(r.lateInterest||0),0));
+    const kpis={receivableTodayCents:cents(sumRemaining(open.filter(row=>sameDay(row.dueAt,reference)))),receivableTomorrowCents:cents(sumRemaining(open.filter(row=>sameDay(row.dueAt,tomorrow)))),receivableWeekCents:cents(sumRemaining(open.filter(row=>row.dueAt&&inRange(row.dueAt,reference,weekEnd)))),receivableMonthCents:cents(sumRemaining(monthRows)),openPortfolioCents:cents(openPortfolio),overdueUpdatedCents:cents(overdueUpdated),accumulatedFineCents:cents(totalFine),accumulatedInterestCents:cents(totalInterest),totalReceivedCents:cents(receivedTotal),defaultRatePercent:defaultRate,averageTicketCents:cents(uniqueCustomers.size?originalTotal/uniqueCustomers.size:0),customers:uniqueCustomers.size,openInstallments:open.length,overdueInstallments:overdueRows.length};
+    const byStatus={aberto:open.filter(row=>String(row.status)==='pendente').length,parcial:open.filter(row=>String(row.status)==='parcial').length,quitado:rows.filter(row=>String(row.status)==='recebido').length,vencido:overdueRows.length};
+    return{kpis,source:'ariana_erp',historicalDataPreserved:true,referenceDate:reference.toISOString(),summary:{...(data.summary||{}),originalTotal,receivedTotal,openPortfolio,overduePrincipal,overdueUpdated,totalFine,totalInterest},byStatus,note:'Encargos de atraso calculados automaticamente: multa única de 2% e juros simples de 1% ao mês, proporcionais aos dias de atraso.'};
   }
 
   async function receber(orderId,number,payload={},actor={}){
-    const result=await finance.receive(orderId,number,{
-      amount:payload.amount??payload.valor,
-      value:payload.value??payload.valor,
-      settle:payload.settle===true||payload.quitar===true,
-      fine:payload.fine??payload.multa,
-      interest:payload.interest??payload.juros,
-      discount:payload.discount??payload.desconto,
-      paidAt:payload.paidAt||payload.dataPagamento,
-      method:payload.method||payload.formaPagamento,
-      bankAccountName:payload.bankAccountName||payload.contaBancaria||payload.banco,
-      document:payload.document||payload.documento,
-      note:payload.note||payload.observacao||payload.notes
-    },actor);
+    const result=await finance.receive(orderId,number,{amount:payload.amount??payload.valor,value:payload.value??payload.valor,settle:payload.settle===true||payload.quitar===true,discount:payload.discount??payload.desconto,paidAt:payload.paidAt||payload.dataPagamento,method:payload.method||payload.formaPagamento,bankAccountName:payload.bankAccountName||payload.contaBancaria||payload.banco,document:payload.document||payload.documento,note:payload.note||payload.observacao||payload.notes,autoLateCharge:payload.autoLateCharge!==false,waiveLateCharges:payload.waiveLateCharges===true},actor);
     return{...result,source:'ariana_erp'};
   }
 
