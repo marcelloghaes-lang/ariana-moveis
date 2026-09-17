@@ -52,6 +52,33 @@ app.post('/api/seller/partner-request', async (req, res) => {
   }
 });
 
+app.get('/api/seller/partner-requests/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ ok: false, error: 'Solicitação inválida' });
+    const filter = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ _id: id }, { sellerId: id }] }
+      : { sellerId: id };
+    const seller = await Seller.findOne(filter).select('_id sellerId status onboardingCompleted createdAt updatedAt').lean();
+    if (!seller) return res.status(404).json({ ok: false, error: 'Solicitação não encontrada' });
+    const status = normalizePartnerRequestStatus(seller.status || 'pending');
+    return res.json({
+      ok: true,
+      request: {
+        id: String(seller.sellerId || seller._id || ''),
+        sellerId: String(seller.sellerId || ''),
+        status: partnerRequestPublicStatus(status),
+        statusCode: status,
+        active: status === 'approved',
+        onboardingCompleted: seller.onboardingCompleted === true,
+        updatedAt: seller.updatedAt || null
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: 'Erro ao consultar situação da solicitação' });
+  }
+});
+
 app.get('/api/seller/partner-requests', adminRequired, async (req, res) => {
   try {
     const status = String(req.query.status || '').trim().toLowerCase();
