@@ -1277,6 +1277,107 @@ app.get('/api/admin/products', adminRequired, async (req, res) => {
 
 
 // ============================================================
+// REPASSES MANUAIS A SELLERS
+// A Ariana recebe do cliente e registra o repasse por seller no próprio pedido.
+// O seller nunca possui rota para marcar o próprio repasse como pago.
+// ============================================================
+app.get('/api/admin/seller-settlements', adminRequired, async (req, res) => {
+  try {
+    const sellerId = String(req.query.sellerId || '').trim();
+    const status = String(req.query.status || '').trim().toLowerCase();
+    const query = sellerId
+      ? { $or: [{ sellerIds: sellerId }, { 'items.sellerId': sellerId }] }
+      : { $or: [{ sellerIds: { $exists: true, $ne: [] } }, { 'items.sellerId': { $exists: true } }] };
+    const docs = await Order.find(query).sort({ createdAt: -1 }).limit(Math.min(Math.max(Number(req.query.limit || 500), 1), 1000));
+    const rows = [];
+    docs.forEach((doc) => {
+      const order = toJSON(doc) || {};
+      const settlements = order.sellerSettlements && typeof order.sellerSettlements === 'object' ? order.sellerSettlements : {};
+      const ids = sellerId ? [sellerId] : [...new Set(ensureArray(order.sellerIds).concat(ensureArray(order.items).map((i) => i?.sellerId)).map((v) => String(v || '').trim()).filter(Boolean))];
+      ids.forEach((sid) => {
+        const entry = settlements[sid] || {};
+        const currentStatus = String(entry.status || 'pending').toLowerCase();
+        if (status && currentStatus !== status) return;
+        rows.push({
+          orderId: String(order._id || order.id || ''),
+          sellerId: sid,
+          status: currentStatus,
+          amount: Number(entry.amount || 0),
+          paidAt: entry.paidAt || null,
+          paidBy: entry.paidBy || '',
+          reference: entry.reference || '',
+          note: entry.note || '',
+          createdAt: order.createdAt
+        });
+      });
+    });
+    return res.json({ ok: true, items: rows, total: rows.length, mode: 'manual_settlement' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'seller_settlements_list_failed' });
+  }
+});
+
+app.post('/api/admin/orders/:orderId/seller-settlements/:sellerId/paid', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.orderId);
+    const sid = String(req.params.sellerId || '').trim();
+    if (!oid || !sid) return res.status(400).json({ ok: false, error: 'Pedido ou seller inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const orderObj = toJSON(order) || {};
+    const belongs = ensureArray(orderObj.sellerIds).map(String).includes(sid) || ensureArray(orderObj.items).some((item) => String(item?.sellerId || '') === sid);
+    if (!belongs) return res.status(404).json({ ok: false, error: 'Seller não pertence a este pedido' });
+
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ ok: false, error: 'Informe o valor efetivamente repassado' });
+    const key = `sellerSettlements.${sid}`;
+    const entry = {
+      status: 'paid',
+      amount,
+      paidAt: now(),
+      paidBy: String(req.admin?.email || req.admin?.id || 'admin'),
+      reference: String(req.body?.reference || '').trim(),
+      note: String(req.body?.note || '').trim(),
+      mode: 'manual'
+    };
+    await Order.updateOne({ _id: oid }, { $set: { [key]: entry } });
+
+    await createSellerNotification?.({
+      sellerId: sid,
+      type: 'seller_settlement_paid',
+      title: 'Repasse realizado',
+      message: `A Ariana registrou o repasse do pedido #${String(oid).slice(-8).toUpperCase()}.`,
+      relatedId: String(oid),
+      severity: 'success',
+      metadata: { amount, reference: entry.reference }
+    }).catch(() => null);
+    await writeAuditLog({ scope: 'seller_settlements', eventType: 'seller_settlement_paid', status: 'success', metadata: { orderId: String(oid), sellerId: sid, amount, reference: entry.reference, actor: entry.paidBy } }).catch(() => null);
+    return res.json({ ok: true, settlement: entry });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'seller_settlement_paid_failed' });
+  }
+});
+
+app.post('/api/admin/orders/:orderId/seller-settlements/:sellerId/pending', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.orderId);
+    const sid = String(req.params.sellerId || '').trim();
+    if (!oid || !sid) return res.status(400).json({ ok: false, error: 'Pedido ou seller inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const orderObj = toJSON(order) || {};
+    const belongs = ensureArray(orderObj.sellerIds).map(String).includes(sid) || ensureArray(orderObj.items).some((item) => String(item?.sellerId || '') === sid);
+    if (!belongs) return res.status(404).json({ ok: false, error: 'Seller não pertence a este pedido' });
+    const key = `sellerSettlements.${sid}`;
+    await Order.updateOne({ _id: oid }, { $set: { [key]: { status: 'pending', amount: 0, paidAt: null, paidBy: '', reference: '', note: String(req.body?.note || '').trim(), mode: 'manual' } } });
+    await writeAuditLog({ scope: 'seller_settlements', eventType: 'seller_settlement_reopened', status: 'success', metadata: { orderId: String(oid), sellerId: sid, actor: req.admin?.email || req.admin?.id || 'admin' } }).catch(() => null);
+    return res.json({ ok: true, status: 'pending' });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'seller_settlement_pending_failed' });
+  }
+});
+
+// ============================================================
 // MODERAÇÃO DE PRODUTOS DE SELLERS
 // Produtos enviados/alterados pelo seller entram como pending_review e somente
 // a Ariana pode aprovar ou reprovar a publicação no marketplace.
