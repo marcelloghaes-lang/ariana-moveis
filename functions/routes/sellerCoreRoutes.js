@@ -955,7 +955,8 @@ app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
     const meta = seller.metadata || {};
     const profile = sellerProfile(seller, req.user);
     const bank = profile.bankAccount || {};
-    const commissionPercent = Number(meta.commissionPercent ?? meta.marketplaceCommissionPercent ?? 12) || 12;
+    const configuredCommission = meta.commissionPercent ?? meta.marketplaceCommissionPercent ?? seller.commissionPercent ?? seller.marketplaceCommissionPercent;
+    const commissionPercent = Number.isFinite(Number(configuredCommission)) ? Number(configuredCommission) : null;
     const hasBankData = Boolean(
       String(bank.pixKey || '').trim() ||
       (String(bank.bankCode || bank.bank || '').trim() &&
