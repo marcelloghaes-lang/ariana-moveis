@@ -60,6 +60,8 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     buildPublicFileUrl,
     escapeRegex,
     ensureArray,
+    buildProductBasePriceMapForOrders,
+    getSellerSettlementForOrder,
     now,
     mongoose,
     BUILD_ID
@@ -1290,6 +1292,9 @@ app.get('/api/admin/seller-settlements', adminRequired, async (req, res) => {
       : { $or: [{ sellerIds: { $exists: true, $ne: [] } }, { 'items.sellerId': { $exists: true } }] };
     const docs = await Order.find(query).sort({ createdAt: -1 }).limit(Math.min(Math.max(Number(req.query.limit || 500), 1), 1000));
     const rows = [];
+    const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function'
+      ? await buildProductBasePriceMapForOrders(docs)
+      : new Map();
     docs.forEach((doc) => {
       const order = toJSON(doc) || {};
       const settlements = order.sellerSettlements && typeof order.sellerSettlements === 'object' ? order.sellerSettlements : {};
@@ -1298,11 +1303,19 @@ app.get('/api/admin/seller-settlements', adminRequired, async (req, res) => {
         const entry = settlements[sid] || {};
         const currentStatus = String(entry.status || 'pending').toLowerCase();
         if (status && currentStatus !== status) return;
+        const calculated = typeof getSellerSettlementForOrder === 'function'
+          ? getSellerSettlementForOrder(order, sid, productBaseMap)
+          : { gross: 0, fee: 0, net: 0, commissionPercent: null };
+        const sellerDoc = null;
         rows.push({
           orderId: String(order._id || order.id || ''),
           sellerId: sid,
           status: currentStatus,
-          amount: Number(entry.amount || 0),
+          gross: Number(calculated.gross || 0),
+          commission: Number(calculated.fee || calculated.commission || 0),
+          commissionPercent: calculated.commissionPercent ?? null,
+          net: Number(calculated.net || 0),
+          amount: currentStatus === 'paid' ? Number(entry.amount || calculated.net || 0) : Number(calculated.net || 0),
           paidAt: entry.paidAt || null,
           paidBy: entry.paidBy || '',
           reference: entry.reference || '',
