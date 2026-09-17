@@ -719,6 +719,9 @@ app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
     const order = await Order.findById(oid);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const sid = String(req.sellerId || '').trim();
+    const allowed = extractSellerIdsFromOrder(order).includes(sid);
+    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     return res.json({ ok: true, order: toJSON(order) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' });
@@ -841,39 +844,54 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
   }
 });
 
+// Recebimentos do seller - operação atual sem split automático.
+// A Ariana recebe do cliente (Cielo no cartão; Mercado Pago no PIX/boleto)
+// e mantém o valor líquido do seller no extrato para repasse manual.
 app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
   try {
     const seller = req.seller || {};
     const meta = seller.metadata || {};
-    const settings = await getPaymentsSettings();
-    const recipientId = String(meta.pagarmeRecipientId || meta.pagarme_recipient_id || seller.pagarmeRecipientId || '').trim();
+    const profile = sellerProfile(seller, req.user);
+    const bank = profile.bankAccount || {};
+    const commissionPercent = Number(meta.commissionPercent ?? meta.marketplaceCommissionPercent ?? 12) || 12;
+    const hasBankData = Boolean(
+      String(bank.pixKey || '').trim() ||
+      (String(bank.bankCode || bank.bank || '').trim() &&
+       String(bank.agency || bank.branchNumber || '').trim() &&
+       String(bank.account || bank.accountNumber || '').trim())
+    );
+
     return res.json({
       ok: true,
-      gateway: 'pagarme',
-      splitRequired: true,
-      manualTransferEnabled: false,
-      commissionPercent: Number(meta.commissionPercent || settings.pagarme?.marketplaceFeePercent || 12),
-      pagarme: {
-        enabled: settings.pagarme?.enabled !== false,
-        connected: !!recipientId,
-        recipientId,
-        status: meta.pagarmeRecipientStatus || '',
-        bank: {
-          document: meta.document || seller.document || '',
-          legalName: meta.legalName || seller.storeName || seller.displayName || '',
-          bankCode: meta.bankCode || '',
-          branchNumber: meta.branchNumber || '',
-          branchCheckDigit: meta.branchCheckDigit || '',
-          accountNumber: meta.accountNumber || '',
-          accountCheckDigit: meta.accountCheckDigit || '',
-          accountType: meta.accountType || 'checking',
-          bankHolderName: meta.bankHolderName || meta.legalName || seller.storeName || seller.displayName || '',
-          bankHolderDocument: meta.bankHolderDocument || meta.document || seller.document || ''
-        }
+      mode: 'manual_settlement',
+      gateway: 'manual',
+      splitRequired: false,
+      manualTransferEnabled: true,
+      commissionPercent,
+      checkoutGateways: { card: 'cielo', pix: 'mercado_pago', boleto: 'mercado_pago' },
+      bank: {
+        configured: hasBankData,
+        bank: bank.bank || bank.bankName || '',
+        bankName: bank.bankName || bank.bank || '',
+        bankCode: bank.bankCode || '',
+        agency: bank.agency || bank.branchNumber || '',
+        branchNumber: bank.branchNumber || bank.agency || '',
+        agencyDigit: bank.agencyDigit || bank.branchCheckDigit || '',
+        branchCheckDigit: bank.branchCheckDigit || bank.agencyDigit || '',
+        account: bank.account || bank.accountNumber || '',
+        accountNumber: bank.accountNumber || bank.account || '',
+        accountDigit: bank.accountDigit || bank.accountCheckDigit || '',
+        accountCheckDigit: bank.accountCheckDigit || bank.accountDigit || '',
+        accountType: bank.accountType || 'checking',
+        pixKey: bank.pixKey || '',
+        holderName: bank.holderName || '',
+        holderDocument: bank.holderDocument || '',
+        legalName: profile.storeName || profile.displayName || profile.name || '',
+        document: profile.document || profile.cnpj || ''
       }
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar recebimento Pagar.me do seller' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar dados de recebimento do seller' });
   }
 });
 
@@ -881,50 +899,70 @@ app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
   try {
     const body = req.body || {};
     const meta = { ...(req.seller.metadata || {}) };
-    meta.paymentGateway = 'pagarme';
-    meta.marketplaceSplitRequired = true;
-    meta.manualTransferEnabled = false;
-    meta.pagarmeRecipientId = String(body.pagarmeRecipientId || body.pagarme_recipient_id || meta.pagarmeRecipientId || '').trim();
-    meta.document = cleanPhone(body.document || body.cpfCnpj || meta.document || req.seller.document || '');
-    meta.legalName = String(body.legalName || body.name || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
-    meta.bankCode = cleanPhone(body.bankCode || body.bank || meta.bankCode || '');
-    meta.branchNumber = cleanPhone(body.branchNumber || body.agency || meta.branchNumber || '');
-    meta.branchCheckDigit = cleanPhone(body.branchCheckDigit || body.agencyDigit || meta.branchCheckDigit || '');
-    meta.accountNumber = cleanPhone(body.accountNumber || body.conta || meta.accountNumber || '');
-    meta.accountCheckDigit = cleanPhone(body.accountCheckDigit || body.accountDigit || meta.accountCheckDigit || '');
-    meta.accountType = typeof normalizePagarmeAccountType === 'function' ? normalizePagarmeAccountType(body.accountType || meta.accountType || 'checking') : String(body.accountType || meta.accountType || 'checking');
-    meta.bankHolderName = String(body.bankHolderName || meta.bankHolderName || meta.legalName || req.seller.storeName || req.seller.displayName || '').trim();
-    meta.bankHolderDocument = cleanPhone(body.bankHolderDocument || meta.bankHolderDocument || meta.document || req.seller.document || '');
-    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') meta.commissionPercent = Number(body.commissionPercent) || 12;
-    const seller = await Seller.findByIdAndUpdate(req.seller._id, { $set: { metadata: meta } }, { new: true });
-    return res.json({ ok: true, seller: sellerProfile(seller, req.user) });
+    const current = sellerProfile(req.seller, req.user).bankAccount || {};
+    const bank = normalizeSellerBankFields({
+      ...current,
+      bank: body.bankName || body.bank || current.bank || current.bankName || '',
+      bankName: body.bankName || body.bank || current.bankName || current.bank || '',
+      bankCode: body.bankCode ?? current.bankCode,
+      agency: body.branchNumber ?? body.agency ?? current.agency,
+      agencyDigit: body.branchCheckDigit ?? body.agencyDigit ?? current.agencyDigit,
+      account: body.accountNumber ?? body.account ?? current.account,
+      accountDigit: body.accountCheckDigit ?? body.accountDigit ?? current.accountDigit,
+      accountType: body.accountType ?? current.accountType ?? 'checking',
+      pixKey: body.pixKey ?? current.pixKey ?? '',
+      holderName: body.bankHolderName ?? body.holderName ?? current.holderName ?? '',
+      holderDocument: body.bankHolderDocument ?? body.holderDocument ?? current.holderDocument ?? ''
+    });
+
+    meta.paymentGateway = 'manual';
+    meta.marketplaceSplitRequired = false;
+    meta.manualTransferEnabled = true;
+    meta.bankAccount = bank;
+    meta.bank = bank.bank || bank.bankName || '';
+    meta.bankName = bank.bankName || bank.bank || '';
+    meta.bankCode = bank.bankCode || '';
+    meta.bankAgency = bank.agency || '';
+    meta.branchNumber = bank.branchNumber || bank.agency || '';
+    meta.branchCheckDigit = bank.branchCheckDigit || bank.agencyDigit || '';
+    meta.accountNumber = bank.accountNumber || '';
+    meta.accountCheckDigit = bank.accountCheckDigit || '';
+    meta.accountType = bank.accountType || 'checking';
+    meta.pixKey = bank.pixKey || '';
+    meta.bankHolderName = bank.holderName || '';
+    meta.bankHolderDocument = bank.holderDocument || '';
+
+    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') {
+      meta.commissionPercent = Number(body.commissionPercent) || 12;
+    }
+
+    const seller = await Seller.findByIdAndUpdate(
+      req.seller._id,
+      { $set: { metadata: meta, bankAccount: bank } },
+      { new: true }
+    );
+
+    await writeAuditLog({
+      scope: 'seller_receivables',
+      eventType: 'seller_manual_settlement_bank_updated',
+      status: 'success',
+      metadata: { sellerId: seller.sellerId || String(seller._id), splitRequired: false }
+    }).catch(() => null);
+
+    return res.json({ ok: true, mode: 'manual_settlement', splitRequired: false, manualTransferEnabled: true, seller: sellerProfile(seller, req.user) });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar dados Pagar.me do seller' });
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar dados de recebimento do seller' });
   }
 });
 
-app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, async (req, res) => {
-  try {
-    const sellerDoc = req.seller;
-    const payload = buildPagarmeRecipientPayloadFromSeller(sellerDoc, req.body || {});
-    const response = await createPagarmeRecipient(payload);
-    const data = response.data || {};
-    if (response.status < 200 || response.status >= 300) return res.status(response.status).json({ ok: false, error: data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me', details: data });
-    const normalized = normalizePagarmeRecipientResponse(data);
-    if (!normalized.id) return res.status(500).json({ ok: false, error: 'Pagar.me não retornou Recipient ID.', details: data });
-    const meta = { ...(sellerDoc.metadata || {}), ...(req.body || {}) };
-    meta.paymentGateway = 'pagarme';
-    meta.marketplaceSplitRequired = true;
-    meta.manualTransferEnabled = false;
-    meta.pagarmeRecipientId = normalized.id;
-    meta.pagarmeRecipientStatus = normalized.status;
-    meta.pagarmeRecipientCreatedAt = new Date().toISOString();
-    const seller = await Seller.findByIdAndUpdate(sellerDoc._id, { $set: { metadata: meta } }, { new: true });
-    await writeAuditLog({ scope: 'payments', eventType: 'pagarme_recipient_created_by_seller', status: 'success', request: redact(payload), response: redact(data), metadata: { sellerId: seller.sellerId || String(seller._id) } });
-    return res.json({ ok: true, recipientId: normalized.id, recipient: normalized, seller: sellerProfile(seller, req.user) });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar Recipient Pagar.me', requiredFields: error.requiredFields || undefined });
-  }
+// Endpoint legado mantido para compatibilidade, mas Pagar.me não faz mais parte
+// da operação atual da Ariana. Não cria recipients nem chama gateway externo.
+app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, async (_req, res) => {
+  return res.status(410).json({
+    ok: false,
+    code: 'PAGARME_DISABLED',
+    error: 'Pagar.me está desativado. O seller opera com repasse manual, sem split automático.'
+  });
 });
 
 app.get('/api/seller/:sellerId', async (req, res) => {
