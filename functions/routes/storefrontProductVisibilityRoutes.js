@@ -22,6 +22,7 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
   }
 
   const storefrontBaseFilter = () => ({
+    active: true,
     'specs.sigeSourceId': { $exists: false }
   });
 
@@ -65,7 +66,7 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
       const [categories, products, banners, paymentSettings] = await Promise.all([
         Category.find({ active: true }).select('_id name slug parentId active sortOrder image updatedAt').sort({ sortOrder: 1, name: 1 }).lean(),
         Product.aggregate([
-          { $match: { active: true, ...storefrontBaseFilter() } },
+          { $match: storefrontBaseFilter() },
           { $sort: { createdAt: -1 } },
           { $limit: 200 },
           { $project: PRODUCT_CARD_PROJECTION }
@@ -84,10 +85,15 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
           mercadopago: {
             enabled: !!paymentSettings?.mercadopago?.enabled,
             publicKey: paymentSettings?.mercadopago?.publicKey || '',
-            splitEnabled: paymentSettings?.mercadopago?.splitEnabled !== false
+            pixEnabled: paymentSettings?.mercadopago?.pixEnabled !== false,
+            boletoEnabled: paymentSettings?.mercadopago?.boletoEnabled !== false,
+            splitEnabled: false
+          },
+          cielo: {
+            enabled: !!paymentSettings?.cielo?.enabled
           },
           pagarme: {
-            enabled: !!paymentSettings?.pagarme?.enabled
+            enabled: false
           }
         }
       });
@@ -105,7 +111,8 @@ export default function registerStorefrontProductVisibilityRoutes(app, context =
     try {
       const query = storefrontBaseFilter();
 
-      if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
+      // Endpoint público: nunca expõe produto inativo, pendente ou reprovado.
+      // Administração e Seller possuem rotas autenticadas próprias para esses estados.
       if (req.query.sellerId) query.sellerId = String(req.query.sellerId);
 
       if (req.query.category) {
