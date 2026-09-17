@@ -270,6 +270,22 @@ async function sellerAuthRequired(req, res, next) {
 
     if (!seller) return res.status(403).json({ ok: false, error: 'Seller não encontrado' });
 
+    const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
+    const blockedSellerStatuses = ['pending', 'pending_onboarding', 'pendente', 'aguardando_aprovacao', 'rejected', 'reprovado', 'blocked', 'bloqueado', 'suspended', 'suspenso', 'inactive', 'inativo'];
+    if (blockedSellerStatuses.includes(sellerStatus)) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_NOT_ACTIVE',
+        status: sellerStatus,
+        error: ['rejected','reprovado','blocked','bloqueado','suspended','suspenso','inactive','inativo'].includes(sellerStatus)
+          ? 'Acesso do seller indisponível. Entre em contato com a Ariana Móveis.'
+          : 'Cadastro do seller ainda está aguardando aprovação.'
+      });
+    }
+    if (user.isActive === false) {
+      return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' });
+    }
+
     if (!user.sellerId && seller.sellerId) {
       user.sellerId = seller.sellerId;
       if (String(user.role || '').toLowerCase() !== 'seller') user.role = 'seller';
@@ -394,6 +410,19 @@ app.post('/api/seller/auth/login', async (req, res) => {
 
     if (!seller) {
       return res.status(401).json({ ok: false, error: 'Seller não encontrado' });
+    }
+
+    const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
+    const pendingStatuses = ['pending', 'pending_onboarding', 'pendente', 'aguardando_aprovacao'];
+    const blockedStatuses = ['rejected', 'reprovado', 'blocked', 'bloqueado', 'suspended', 'suspenso', 'inactive', 'inativo'];
+    if (pendingStatuses.includes(sellerStatus)) {
+      return res.status(403).json({ ok: false, code: 'SELLER_PENDING_APPROVAL', error: 'Seu cadastro ainda está aguardando aprovação da Ariana Móveis.' });
+    }
+    if (blockedStatuses.includes(sellerStatus)) {
+      return res.status(403).json({ ok: false, code: 'SELLER_ACCESS_BLOCKED', error: 'Acesso do seller indisponível. Entre em contato com a Ariana Móveis.' });
+    }
+    if (user?.isActive === false) {
+      return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' });
     }
 
     if (!user) {
