@@ -52,6 +52,7 @@ export default function registerAdminCoreRoutes(app, context = {}) {
     toJSON,
     changedKeys,
     createAdminNotification,
+    createSellerNotification,
     createSellerOrderNotifications,
     waMaybeNotifyOrderStatusChange,
     waNotifyAdminOrderStatusChange,
@@ -1274,6 +1275,114 @@ app.get('/api/admin/products', adminRequired, async (req, res) => {
   }
 });
 
+
+// ============================================================
+// MODERAÇÃO DE PRODUTOS DE SELLERS
+// Produtos enviados/alterados pelo seller entram como pending_review e somente
+// a Ariana pode aprovar ou reprovar a publicação no marketplace.
+// ============================================================
+app.get('/api/admin/seller-products/review', adminRequired, async (req, res) => {
+  try {
+    const status = String(req.query.status || 'pending').trim().toLowerCase();
+    const query = {
+      sellerId: { $exists: true, $nin: ['', null] },
+      ...(status === 'all' ? {} : {
+        $or: status === 'approved'
+          ? [{ approvalStatus: 'approved' }, { status: 'approved' }]
+          : status === 'rejected'
+            ? [{ approvalStatus: 'rejected' }, { status: 'rejected' }]
+            : [{ approvalStatus: 'pending' }, { status: 'pending_review' }]
+      })
+    };
+    const limit = Math.min(Math.max(Number(req.query.limit || 200), 1), 500);
+    const rows = await Product.find(query).sort({ submittedAt: 1, updatedAt: 1 }).limit(limit);
+    return res.json({ ok: true, items: rows.map(normalizeProductForResponse), total: rows.length });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'seller_products_review_list_failed' });
+  }
+});
+
+app.post('/api/admin/seller-products/:id/approve', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const before = await Product.findById(oid);
+    if (!before || !String(before.sellerId || '').trim()) return res.status(404).json({ ok: false, error: 'Produto de seller não encontrado' });
+
+    const stock = Number(before.stock || 0);
+    const updated = await Product.findByIdAndUpdate(oid, {
+      $set: {
+        active: stock > 0,
+        status: 'approved',
+        approvalStatus: 'approved',
+        reviewedAt: now(),
+        reviewedBy: String(req.admin?.email || req.admin?.id || 'admin'),
+        reviewNote: String(req.body?.note || '').trim()
+      }
+    }, { new: true, runValidators: true });
+
+    await createSellerNotification?.({
+      sellerId: String(updated.sellerId),
+      type: 'seller_product_approved',
+      title: 'Produto aprovado',
+      message: `O produto ${updated.name || updated.sku || updated._id} foi aprovado pela Ariana Móveis.`,
+      relatedId: String(updated._id),
+      severity: 'success'
+    }).catch(() => null);
+
+    await writeAuditLog({
+      scope: 'seller_products',
+      eventType: 'seller_product_approved',
+      status: 'success',
+      metadata: { productId: String(updated._id), sellerId: String(updated.sellerId), actor: req.admin?.email || req.admin?.id || 'admin' }
+    }).catch(() => null);
+
+    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'seller_product_approve_failed' });
+  }
+});
+
+app.post('/api/admin/seller-products/:id/reject', adminRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const before = await Product.findById(oid);
+    if (!before || !String(before.sellerId || '').trim()) return res.status(404).json({ ok: false, error: 'Produto de seller não encontrado' });
+
+    const note = String(req.body?.note || req.body?.reason || '').trim();
+    const updated = await Product.findByIdAndUpdate(oid, {
+      $set: {
+        active: false,
+        status: 'rejected',
+        approvalStatus: 'rejected',
+        reviewedAt: now(),
+        reviewedBy: String(req.admin?.email || req.admin?.id || 'admin'),
+        reviewNote: note
+      }
+    }, { new: true, runValidators: true });
+
+    await createSellerNotification?.({
+      sellerId: String(updated.sellerId),
+      type: 'seller_product_rejected',
+      title: 'Produto precisa de ajustes',
+      message: note ? `${updated.name || updated.sku || 'Produto'}: ${note}` : `O produto ${updated.name || updated.sku || updated._id} não foi aprovado. Revise os dados e envie novamente.`,
+      relatedId: String(updated._id),
+      severity: 'warning'
+    }).catch(() => null);
+
+    await writeAuditLog({
+      scope: 'seller_products',
+      eventType: 'seller_product_rejected',
+      status: 'success',
+      metadata: { productId: String(updated._id), sellerId: String(updated.sellerId), actor: req.admin?.email || req.admin?.id || 'admin', note }
+    }).catch(() => null);
+
+    return res.json({ ok: true, product: normalizeProductForResponse(updated) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'seller_product_reject_failed' });
+  }
+});
 
 // ============================================================
 // EXPORTAÇÃO DE PRODUTOS - PDF / EXCEL PELO PAINEL ADMIN
