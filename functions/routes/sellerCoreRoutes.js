@@ -223,14 +223,16 @@ app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
 
     const orders = await Order.find({
-      sellerIds: sid,
-      $or: [
+      $and: [
+        { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] },
+        { $or: [
         { status: /devol/i },
         { status: /troca/i },
         { statusLabel: /devol/i },
         { statusLabel: /troca/i },
         { returnReason: { $exists: true, $ne: '' } },
         { reason: { $exists: true, $ne: '' } }
+        ] }
       ]
     }).sort({ updatedAt: -1, createdAt: -1 }).limit(100);
 
@@ -765,7 +767,18 @@ app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) =>
     const sid = String(req.sellerId || '').trim();
     const allowed = extractSellerIdsFromOrder(before).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    const order = await Order.findByIdAndUpdate(oid, { $set: { status: req.body?.status || 'processing', statusLabel: req.body?.statusLabel || req.body?.status || 'processing' } }, { new: true });
+    const requestedStatus = String(req.body?.status || 'processing').trim().toLowerCase();
+    const allowedSellerStatuses = new Set(['processing', 'preparando', 'shipped', 'enviado']);
+    if (!allowedSellerStatuses.has(requestedStatus)) {
+      return res.status(400).json({
+        ok: false,
+        code: 'SELLER_STATUS_NOT_ALLOWED',
+        error: 'O seller pode alterar o pedido apenas para Em preparação ou Enviado.'
+      });
+    }
+    const statusLabel = ['shipped', 'enviado'].includes(requestedStatus) ? 'Enviado' : 'Em preparação';
+    const normalizedStatus = ['shipped', 'enviado'].includes(requestedStatus) ? 'shipped' : 'processing';
+    const order = await Order.findByIdAndUpdate(oid, { $set: { status: normalizedStatus, statusLabel } }, { new: true });
     await createSellerOrderNotifications(order, { type: 'seller_order_updated', title: '📦 Pedido atualizado', message: `Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel || order.status || 'Atualizado'}`, severity: 'info', origin: 'seller_status_route' });
     await createAdminNotification({ type: 'seller_order_updated', title: 'Seller atualizou pedido', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} atualizou o pedido ${order._id} para ${order.statusLabel || order.status || 'Atualizado'}`, relatedId: String(order._id), severity: 'info', metadata: { sellerId: sid, origin: 'seller_status_route' } });
     const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route');
