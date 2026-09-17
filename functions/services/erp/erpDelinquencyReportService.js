@@ -47,15 +47,16 @@ function buildPdf(pageStreams){
 }
 function pdfFromReport(report){
  const pages=[];let p=null,y=0,pageNo=0;
- const newPage=()=>{if(p)pages.push(p.stream());p=new PdfPage();pageNo++;y=M;p.text(M,y,'ARIANA MÓVEIS',13,true);p.text(M+300,y,'RELATÓRIO DE INADIMPLENTES',12,true,CONTENT_W-300,'right');y+=18;p.text(M,y,`Período de vencimento: ${formatDate(report.period.from)} a ${formatDate(report.period.to)}`,8);p.text(M+310,y,`Gerado em ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:TZ}).format(new Date())}`,8,false,CONTENT_W-310,'right');y+=12;p.line(M,y,M+CONTENT_W,y,.7);y+=15};
+ const pushPage=()=>{if(!p)return;p.text(M,PAGE_H-20,`Página ${pageNo}`,7,false,CONTENT_W,'right');pages.push(p.stream())};
+ const newPage=()=>{if(p)pushPage();p=new PdfPage();pageNo++;y=M;p.text(M,y,'ARIANA MÓVEIS',13,true);p.text(M+300,y,'RELATÓRIO DE INADIMPLENTES',12,true,CONTENT_W-300,'right');y+=18;p.text(M,y,`Período de vencimento: ${formatDate(report.period.from)} a ${formatDate(report.period.to)}`,8);p.text(M+310,y,`Gerado em ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:TZ}).format(new Date())}`,8,false,CONTENT_W-310,'right');y+=12;p.line(M,y,M+CONTENT_W,y,.7);y+=15};
  const need=h=>{if(!p||y+h>PAGE_H-45)newPage()};newPage();
  p.text(M,y,`Clientes: ${report.summary.clients}`,9,true);p.text(M+130,y,`Títulos/parcelas: ${report.summary.entries}`,9,true);p.text(M+300,y,`Total vencido: ${brl(report.summary.totalOverdue)}`,10,true,CONTENT_W-300,'right');y+=18;
- for(const g of report.clients){need(42);p.rect(M,y,CONTENT_W,28,.7);p.text(M+6,y+10,g.name,10,true,260);p.text(M+275,y+10,formatDoc(g.document),8,false,120);p.text(M+405,y+10,`${g.count} parcela(s)`,8,true,70,'center');p.text(M+480,y+10,brl(g.totalOverdue),9,true,CONTENT_W-486,'right');y+=34;
+ for(const g of report.clients){need(42);p.rect(M,y,CONTENT_W,28,.7);p.text(M+6,y+10,g.name,10,true,238);p.text(M+250,y+10,formatDoc(g.document),8,false,110);p.text(M+365,y+10,`${g.count} parcela(s)`,8,true,68,'center');p.text(M+438,y+10,brl(g.totalOverdue),8.5,true,CONTENT_W-444,'right');y+=34;
    const headers=[['Venc.',55],['Referência',145],['Parcela',48],['Forma',75],['Dias',42],['Saldo',95]];let x=M;p.line(M,y,M+CONTENT_W,y,.4);for(const [h,w] of headers){p.text(x+2,y+10,h,7,true,w-4);x+=w}y+=14;
    for(const r of g.entries){need(18);x=M;const vals=[[formatDate(r.dueAt),55],[r.reference,145],[r.installment||'-',48],[r.paymentMethod||'-',75],[String(r.daysLate),42],[brl(r.outstanding),95]];for(let i=0;i<vals.length;i++){const [v,w]=vals[i];p.text(x+2,y+10,v,7,false,w-4,i===vals.length-1?'right':'left');x+=w}p.line(M,y+14,M+CONTENT_W,y+14,.2);y+=15}
    y+=8;
  }
- p.text(M,PAGE_H-20,`Página ${pageNo}`,7,false,CONTENT_W,'right');if(p)pages.push(p.stream());
+ if(p)pushPage();
  return buildPdf(pages)
 }
 
