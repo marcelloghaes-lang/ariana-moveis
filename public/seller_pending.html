@@ -259,9 +259,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       statusBadge.textContent = statusMap[status] || status;
       statusBadge.className = "text-lg font-bold text-[#2E6DA4]";
 
-      // Se você aprovar o vendedor no MongoDB Atlas, ele entra aqui automaticamente
+      // Cadastro aprovado: somente entra no painel se já existir sessão autenticada.
+      // Quem veio da solicitação de cadastro segue para o login após a Ariana provisionar as credenciais.
       if (status === 'aprovado' || requestData.active === true) {
-        window.location.href = 'seller_dashboard.html';
+        const token = localStorage.getItem('seller_token') || '';
+        window.location.href = token ? 'seller_dashboard.html' : 'seller_login.html';
       }
 
     } catch (e) {
