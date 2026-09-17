@@ -961,9 +961,8 @@ app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
     meta.bankHolderName = bank.holderName || '';
     meta.bankHolderDocument = bank.holderDocument || '';
 
-    if (body.commissionPercent !== undefined && body.commissionPercent !== null && body.commissionPercent !== '') {
-      meta.commissionPercent = Number(body.commissionPercent) || 12;
-    }
+    // A comissão é definida exclusivamente pela Ariana Móveis no administrativo.
+    // Nunca aceitar alteração de commissionPercent enviada pelo seller.
 
     const seller = await Seller.findByIdAndUpdate(
       req.seller._id,
@@ -994,16 +993,31 @@ app.post('/api/seller/payment-split/pagarme/recipient', sellerAuthRequired, asyn
   });
 });
 
+function publicSellerProfile(seller) {
+  const o = toJSON(seller) || {};
+  const meta = o.metadata && typeof o.metadata === 'object' ? o.metadata : {};
+  const status = String(o.status || meta.status || '').trim().toLowerCase();
+  return {
+    sellerId: String(o.sellerId || ''),
+    storeName: String(o.storeName || o.displayName || meta.storeName || meta.factoryName || '').trim(),
+    displayName: String(o.displayName || o.storeName || meta.factoryName || '').trim(),
+    description: String(meta.bio || meta.description || o.description || '').trim(),
+    city: String(o.city || meta.city || meta.cidade || '').trim(),
+    uf: String(o.uf || meta.uf || '').trim().toUpperCase().slice(0, 2),
+    active: !['rejected','reprovado','blocked','bloqueado','suspended','suspenso','inactive','inativo'].includes(status)
+  };
+}
+
 app.get('/api/seller/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
   if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
-  return res.json({ ok: true, seller: toJSON(seller) });
+  return res.json({ ok: true, seller: publicSellerProfile(seller) });
 });
 
 app.get('/api/sellers/:sellerId', async (req, res) => {
   const seller = await Seller.findOne({ sellerId: req.params.sellerId });
   if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
-  return res.json({ ok: true, seller: toJSON(seller) });
+  return res.json({ ok: true, seller: publicSellerProfile(seller) });
 });
 
 }
