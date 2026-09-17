@@ -349,6 +349,9 @@ async function loadReturns() {
             <i class="fas fa-comment-alt mr-2 text-primary-blue"></i>
             "${reasonOf(o)}"
           </div>
+          <div class="mt-4 space-y-2">
+            ${(Array.isArray(o.items)?o.items:[]).map(it=>`<div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100 bg-white"><div class="min-w-0"><div class="font-bold text-sm truncate">${it.name||it.productName||'Produto'}</div><div class="text-xs muted">Qtd. ${Number(it.qty??it.quantity??1)||1}</div></div><div class="text-sm font-black">${Number(it.totalPrice??((Number(it.unitPrice??it.price??0)||0)*(Number(it.qty??it.quantity??1)||1))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div></div>`).join('')}
+          </div>
         </div>
       `;
     }).join("");
