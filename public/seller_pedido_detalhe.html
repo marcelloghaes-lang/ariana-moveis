@@ -360,7 +360,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     }
 
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data?.message || `Erro HTTP ${response.status}`);
+    if (!response.ok) throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}`);
     return data;
   }
 </script>
@@ -451,7 +451,9 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         </div>
       </div>`).join('');
 
-    $('payment').textContent = data.paymentMethod || data.payment?.method || data.payment?.provider || '—';
+    // O seller não recebe detalhes internos do gateway/cartão da Ariana.
+    // Exibe somente a forma de pagamento pública quando ela vier sanitizada pela API.
+    $('payment').textContent = data.paymentMethod || data.paymentMethodLabel || 'Pagamento processado pela Ariana';
     $('tracking-view').textContent = data.trackingCode || data.shipping?.trackingCode || '—';
     $('buyer').textContent = data.customerName || 'Cliente';
     const a = data.shippingAddress || data.address || {};
