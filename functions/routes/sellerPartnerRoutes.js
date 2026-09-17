@@ -7,6 +7,8 @@
 export default function registerSellerPartnerRoutes(app, context = {}) {
   const {
     Seller,
+    User,
+    bcrypt,
     uid,
     adminRequired,
     sellerAuthRequired,
@@ -163,6 +165,41 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
     return res.json({ ok: true, request: s, seller: s, recipient, recipientError });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar status do seller' });
+  }
+});
+
+app.post('/api/seller/partner-requests/:id/credentials', adminRequired, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const password = String(req.body?.password || '');
+    if (password.length < 8) return res.status(400).json({ ok: false, error: 'A senha temporária deve ter pelo menos 8 caracteres.' });
+    const filter = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ _id: id }, { sellerId: id }] } : { sellerId: id };
+    const seller = await Seller.findOne(filter);
+    if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
+    const email = String(req.body?.email || seller.email || seller.metadata?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ ok: false, error: 'Seller sem e-mail cadastrado.' });
+    const sellerId = String(seller.sellerId || '').trim() || uid('seller');
+    const passwordHash = await bcrypt.hash(password, 10);
+    let user = await User.findOne({ $or: [{ email }, { sellerId }] });
+    if (user) {
+      user.email = email;
+      user.passwordHash = passwordHash;
+      user.role = 'seller';
+      user.sellerId = sellerId;
+      user.isActive = true;
+      await user.save();
+    } else {
+      user = await User.create({ name: seller.displayName || seller.storeName || email, email, passwordHash, phone: seller.phone || '', cpf: seller.document || '', role: 'seller', sellerId, isActive: true });
+    }
+    const metadata = { ...(seller.metadata || {}) };
+    delete metadata.password;
+    delete metadata.senha;
+    delete metadata.requestedTempPass;
+    await Seller.findByIdAndUpdate(seller._id, { $set: { sellerId, userId: user._id, metadata } });
+    await writeAuditLog({ scope: 'seller_credentials', eventType: 'seller_credentials_provisioned', status: 'success', metadata: { sellerId, admin: req.admin?.email || req.user?.email || 'admin' } }).catch(() => null);
+    return res.json({ ok: true, sellerId, email, credentialsProvisioned: true });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao provisionar credenciais do seller' });
   }
 });
 
