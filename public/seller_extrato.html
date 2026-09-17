@@ -375,16 +375,15 @@ function applySellerHeaderName() {
         const numeric = Number(raw.replace(/[^0-9.-]/g, ''));
         if (!Number.isFinite(numeric)) return 0;
 
-        // Corrige valores que vêm do Mongo/API em centavos: 1099 => 10,99 / 2198 => 21,98.
-        if (Number.isInteger(numeric) && Math.abs(numeric) >= 1000) return numeric / 100;
+        // A API Seller trabalha em reais. Não inferir centavos pelo tamanho do número:
+        // 1200 significa R$ 1.200,00, nunca R$ 12,00.
         return numeric;
       }
 
       const n = Number(value || 0);
       if (!Number.isFinite(n)) return 0;
 
-      // Corrige valores inteiros em centavos sem quebrar valores normais menores.
-      if (Number.isInteger(n) && Math.abs(n) >= 1000) return n / 100;
+      // Valores numéricos retornados pela API Seller já estão em reais.
       return n;
     }
 
