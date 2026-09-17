@@ -5,6 +5,7 @@ const clean=(v='',m=2000)=>String(v??'').trim().replace(/\s+/g,' ').slice(0,m);
 const digits=v=>String(v??'').replace(/\D/g,'');
 const money=v=>Math.round((Number(v||0)+Number.EPSILON)*100)/100;
 const arr=v=>Array.isArray(v)?v:[];
+const escRx=s=>String(s??'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const TEMPLATES=new Set(['visita','retorno']);
 
 function fail(message,statusCode=400,code='ERP_DELINQUENCY_CHARGE_ERROR'){const e=new Error(message);e.statusCode=statusCode;e.code=code;return e}
@@ -28,17 +29,28 @@ export function createErpDelinquencyChargeService(context={}){
   const Log=chargeLogModel();
 
   async function currentCustomer(base={}){
-    const Person=mongoose.models.ErpPerson;let person=null;const doc=digits(base.document),email=clean(base.email,320).toLowerCase();
+    const Person=mongoose.models.ErpPerson;let person=null;const doc=digits(base.document),email=clean(base.email,320).toLowerCase(),name=clean(base.name,220);
     if(Person&&doc)person=await Person.findOne({document:doc,active:{$ne:false}}).sort({updatedAt:-1}).lean();
     if(Person&&!person&&email)person=await Person.findOne({email,active:{$ne:false}}).sort({updatedAt:-1}).lean();
+    if(Person&&!person&&name){const rx=new RegExp(`^${escRx(name)}$`,'i');person=await Person.findOne({$or:[{name:rx},{companyName:rx}],active:{$ne:false}}).sort({updatedAt:-1}).lean()}
     let user=null;if(!person&&User){const query=doc?{cpf:doc,isActive:{$ne:false}}:(email?{email,isActive:{$ne:false}}:null);if(query)user=await User.findOne(query).select('name email phone cpf city uf').lean()}
     return{name:clean(person?.name||person?.companyName||user?.name||base.name,220),document:clean(person?.document||user?.cpf||base.document,60),email:clean(person?.email||user?.email||base.email,320),phone:clean(person?.phone||user?.phone||base.phone,80)};
   }
 
   function rowSummary(raw={},extra={}){const values=chargeValues(raw);return{installment:clean(extra.installment||raw.installmentNumber||raw.parcelNumber||raw.number||'',50),dueAt:raw.dueAt||null,reference:clean(extra.reference||raw.documentNumber||raw.description||raw.sourceId||'',180),...values}}
 
-  async function financialEntryContext(entryId){const Entry=mongoose.models.ErpFinancialEntry;if(!Entry)throw fail('Livro financeiro do ERP não está disponível.',503,'ERP_LEDGER_UNAVAILABLE');if(!mongoose.isValidObjectId(entryId))throw fail('Parcela financeira inválida.',404,'DELINQUENCY_TARGET_NOT_FOUND');const selected=await Entry.findById(entryId).lean();if(!selected||selected.direction!=='receivable')throw fail('Parcela financeira não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');const today=startToday();const base={direction:'receivable',status:{$nin:['paid','cancelled']},dueAt:{$lt:today}};let purchaseKey='';if(clean(selected.orderId,120)){base.orderId=clean(selected.orderId,120);purchaseKey=`order:${base.orderId}`}else if(clean(selected.documentNumber,120)){base.documentNumber=clean(selected.documentNumber,120);if(clean(selected.personDocument,60))base.personDocument=clean(selected.personDocument,60);purchaseKey=`document:${base.documentNumber}`}else{base._id=selected._id;purchaseKey=`entry:${String(selected._id)}`}
-    const rows=(await Entry.find(base).sort({dueAt:1}).lean()).filter(r=>outstanding(r)>0.009);const items=(rows.length?rows:[selected]).map(r=>rowSummary(r));const contact=await currentCustomer({name:selected.personName,document:selected.personDocument,email:selected.email||selected.personEmail,phone:selected.phone||selected.personPhone});return{targetId:`entry:${entryId}`,purchaseKey,orderId:clean(selected.orderId,120),reference:clean(selected.documentNumber||selected.description||String(selected._id),180),contact,items};
+  async function financialEntryContext(entryId){
+    const Entry=mongoose.models.ErpFinancialEntry;if(!Entry)throw fail('Livro financeiro do ERP não está disponível.',503,'ERP_LEDGER_UNAVAILABLE');if(!mongoose.isValidObjectId(entryId))throw fail('Parcela financeira inválida.',404,'DELINQUENCY_TARGET_NOT_FOUND');
+    const selected=await Entry.collection.findOne({_id:new mongoose.Types.ObjectId(entryId)});if(!selected||selected.direction!=='receivable')throw fail('Parcela financeira não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');
+    const today=startToday(),base={direction:'receivable',status:{$nin:['paid','cancelled']},dueAt:{$lt:today}},sourceSaleId=clean(selected?.migration?.sourceSaleId,180);let purchaseKey='';
+    if(clean(selected.orderId,120)){base.orderId=clean(selected.orderId,120);purchaseKey=`order:${base.orderId}`}
+    else if(sourceSaleId){base['migration.sourceSaleId']=sourceSaleId;purchaseKey=`sige:${sourceSaleId}`}
+    else if(clean(selected.documentNumber,120)){base.documentNumber=clean(selected.documentNumber,120);if(clean(selected.personDocument,60))base.personDocument=clean(selected.personDocument,60);purchaseKey=`document:${base.documentNumber}`}
+    else{base._id=selected._id;purchaseKey=`entry:${String(selected._id)}`}
+    const rows=(await Entry.collection.find(base).sort({dueAt:1}).toArray()).filter(r=>outstanding(r)>0.009),effective=rows.length?rows:[selected],reference=sourceSaleId?`Histórico SIGE • venda ref. ${sourceSaleId}`:clean(selected.documentNumber||selected.description||String(selected._id),180);
+    const items=effective.map((r,index)=>rowSummary(r,{installment:`${Number(r.installmentNumber||r.parcelNumber||index+1)}/${effective.length}`,reference}));
+    const contact=await currentCustomer({name:selected.personName,document:selected.personDocument,email:selected.email||selected.personEmail,phone:selected.phone||selected.personPhone});
+    return{targetId:`entry:${entryId}`,purchaseKey,orderId:clean(selected.orderId,120),reference,contact,items};
   }
 
   async function orderContext(orderId,number){if(!mongoose.isValidObjectId(orderId))throw fail('Venda do ERP inválida.',404,'DELINQUENCY_TARGET_NOT_FOUND');const order=await Order.findById(orderId).lean();if(!order||order.origin!=='erp_ariana')throw fail('Venda do Ariana ERP não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');const today=startToday(),erp=order.televendas?.erp||{},all=arr(erp.receivables),selected=all.find(r=>Number(r.number||1)===Number(number||1));if(!selected)throw fail('Parcela da venda não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');const rows=all.filter(r=>{const st=String(r.status||'').toLowerCase(),due=new Date(r.dueAt||0);return!['recebido','cancelado','estornado','paid'].includes(st)&&!Number.isNaN(due.getTime())&&due<today&&outstanding(r)>0.009});const items=rows.map(r=>rowSummary(r,{installment:`${Number(r.number||1)}/${Number(r.installments||1)}`,reference:clean(erp.code||String(order._id).slice(-8).toUpperCase(),180)}));const contact=await currentCustomer({name:order.customerName,document:order.customerCpf,email:order.customerEmail,phone:order.customerPhone});return{targetId:`order:${orderId}:${Number(number||1)}`,purchaseKey:`order:${orderId}`,orderId:String(order._id),reference:clean(erp.code||String(order._id).slice(-8).toUpperCase(),180),contact,items};
