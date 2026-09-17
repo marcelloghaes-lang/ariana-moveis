@@ -650,18 +650,29 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
     const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: { $ne: false } });
     const orderQuery = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] };
     const orders = await Order.find(orderQuery).sort({ createdAt: -1 }).limit(20);
-    const allSellerOrders = await Order.find(orderQuery).select('status total items sellerIds createdAt');
+    const allSellerOrders = await Order.find(orderQuery).select('status statusLabel total items sellerIds createdAt');
     const pendingStatuses = new Set(['pendente', 'pending', 'processing', 'preparando', 'novo', 'new']);
-    const approvedStatuses = new Set(['pago', 'approved', 'aprovado', 'paid', 'entregue', 'delivered', 'shipped']);
+    const approvedStatuses = ['pago', 'approved', 'aprovado', 'paid', 'pagamento_confirmado', 'pagamento confirmado', 'enviado', 'shipped', 'entregue', 'delivered'];
+    const productBaseMap = typeof buildProductBasePriceMapForOrders === 'function'
+      ? await buildProductBasePriceMapForOrders(allSellerOrders)
+      : new Map();
     let pedidosPendentes = 0;
     let vendasTotal = 0;
-    for (const order of allSellerOrders) {
-      const status = String(order.status || '').toLowerCase();
-      if (pendingStatuses.has(status)) pedidosPendentes += 1;
-      if (approvedStatuses.has(status)) {
-        const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || '') === sid);
-        const sellerTotal = sellerItems.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0);
-        vendasTotal += sellerTotal || Number(order.total || 0);
+    for (const orderDoc of allSellerOrders) {
+      const order = toJSON(orderDoc);
+      const statusText = String(order.statusLabel || order.status || '').toLowerCase();
+      if (pendingStatuses.has(String(order.status || '').toLowerCase())) pedidosPendentes += 1;
+      if (approvedStatuses.some((s) => statusText.includes(s))) {
+        // Nunca creditar o total inteiro de um pedido multivendedor a um único seller.
+        // O Dashboard usa a mesma base de liquidação do Extrato/Vendas.
+        const settlement = typeof getSellerSettlementForOrder === 'function'
+          ? getSellerSettlementForOrder(order, sid, productBaseMap)
+          : null;
+        if (settlement) vendasTotal += Number(settlement.gross || 0);
+        else {
+          const sellerItems = ensureArray(order.items).filter((item) => String(item?.sellerId || '') === sid);
+          vendasTotal += sellerItems.reduce((sum, item) => sum + Number(item.totalPrice || (Number(item.unitPrice || 0) * Number(item.qty || 1)) || 0), 0);
+        }
       }
     }
     return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), totalProdutos, produtosAtivos, pedidosPendentes, totalPedidos: allSellerOrders.length, vendasTotal, recentOrders: orders.map(toJSON) });
