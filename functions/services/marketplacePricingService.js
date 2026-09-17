@@ -100,8 +100,8 @@ export default function createMarketplacePricingService(context = {}) {
     const productBase = productBaseMap instanceof Map ? productBaseMap.get(productId) : null;
 
     // Regra principal: o preço cadastrado pelo seller no produto é a base real do repasse.
-    // Exemplo: seller cadastrou R$ 700,00. O site pode cobrar R$ 843/845 no cartão,
-    // mas o extrato do seller precisa partir de R$ 700,00, não do valor com acréscimo.
+    // Acréscimos de cartão/parcelamento e valores operacionais da Ariana não entram
+    // na base sobre a qual o seller recebe.
     if (productBase && Number(productBase.price || 0) > 0) {
       return roundMoney(Number(productBase.price || 0) * qty);
     }
@@ -110,13 +110,12 @@ export default function createMarketplacePricingService(context = {}) {
     if (explicitUnit > 0) return roundMoney(explicitUnit * qty);
 
     const explicitTotal = Number(item.sellerBaseTotal || item.sellerSubtotal || item.baseTotal || 0);
-    if (explicitTotal > 0 && explicitTotal < chargedTotal) return roundMoney(explicitTotal);
+    if (explicitTotal > 0 && explicitTotal <= chargedTotal) return roundMoney(explicitTotal);
 
     const markupTotal = Number(item.cardMarkupTotal || 0);
     if (markupTotal > 0 && chargedTotal > markupTotal) return roundMoney(chargedTotal - markupTotal);
 
-    // Fallback para pedidos antigos em que o método de pagamento veio como Mercado Pago/card
-    // e o pedido salvou somente o valor final cobrado ao cliente.
+    // Compatibilidade com pedidos antigos que salvaram somente o valor final cobrado.
     if (isCreditCardPayment(getOrderPaymentMethod(order))) return marketplacePriceToSellerBase(chargedTotal);
 
     return roundMoney(explicitTotal > 0 ? explicitTotal : chargedTotal);
@@ -130,6 +129,10 @@ export default function createMarketplacePricingService(context = {}) {
     const gross = roundMoney(rows.reduce((sum, it) => sum + getItemSellerBaseTotal(it, order, productBaseMap), 0));
     const cardFee = roundMoney(Math.max(0, chargedGross - gross));
     const commission = roundMoney(gross * (MARKETPLACE_COMMISSION_PERCENT / 100));
+
+    // A etiqueta/frete da Ariana é informativa para conciliação, mas não reduz o
+    // líquido do seller. Operação atual: Ariana recebe Cielo/MP e repassa manualmente
+    // ao seller o preço-base menos a comissão do marketplace.
     const labels = ensureArray(order.logisticsLabels || order.labels || []);
     let labelFee = 0;
     for (const label of labels) {
@@ -140,8 +143,20 @@ export default function createMarketplacePricingService(context = {}) {
     }
     if (!labelFee && order.etiqueta && (order.shipping?.usesArianaLogistics || order.etiqueta?.provider)) labelFee = Number(order.etiqueta.shippingCost || 0) || 0;
     labelFee = roundMoney(labelFee);
-    const net = roundMoney(gross - commission - labelFee);
-    return { chargedGross, gross, cardFee, commission, fee: commission, label: labelFee, net, commissionPercent: MARKETPLACE_COMMISSION_PERCENT };
+
+    const net = roundMoney(Math.max(0, gross - commission));
+    return {
+      chargedGross,
+      gross,
+      cardFee,
+      commission,
+      fee: commission,
+      label: labelFee,
+      labelDeductedFromSeller: false,
+      net,
+      commissionPercent: MARKETPLACE_COMMISSION_PERCENT,
+      settlementMode: 'manual'
+    };
   }
 
   return {
