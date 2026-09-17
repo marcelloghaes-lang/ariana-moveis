@@ -11,6 +11,7 @@ import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
 import createErpProductLookupRoutes from '../erp/erpProductLookupRoutes.js';
 import createErpDelinquencyReportRoutes from '../erp/erpDelinquencyReportRoutes.js';
+import createArianaDocumentsErpRoutes from '../erp/arianaDocumentsErpRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
 import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
@@ -49,6 +50,11 @@ export default function createTelevendasRoutes(context={}){
       pdv:{defaultPaymentMethod}
     });
   });
+
+  // Ariana Documentos usa o ERP como fonte direta para clientes, produtos e vendas.
+  // O bridge também assume, antes das rotas legadas, as duas buscas antigas usadas pelo gerador,
+  // preservando o contrato de resposta sem consultar a API externa do SIGE.
+  router.use(createArianaDocumentsErpRoutes(context));
 
   // Regras de PDV são avaliadas no servidor antes das rotas operacionais.
   // Isso impede que uma tela antiga contorne revisão fiscal, inadimplência ou caixa obrigatório.
