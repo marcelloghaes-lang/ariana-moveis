@@ -754,7 +754,27 @@ app.get('/api/seller/extrato', sellerAuthRequired, async (req, res) => {
       const st = typeof getSellerSettlementForOrder === 'function'
         ? getSellerSettlementForOrder(order, sid, productBaseMap)
         : { gross: Number(order.total || 0), chargedGross: Number(order.total || 0), fee: 0, commission: 0, label: '', net: Number(order.total || 0), commissionPercent: 0 };
-      return { id: String(order._id || order.id || ''), orderId: String(order._id || order.id || ''), createdAt: order.createdAt, status: order.status, statusLabel: order.statusLabel, gross: st.gross, chargedGross: st.chargedGross, fee: st.fee, commission: st.commission, label: st.label, net: st.net, commissionPercent: st.commissionPercent };
+      const settlement = order.sellerSettlements && typeof order.sellerSettlements === 'object' ? (order.sellerSettlements[sid] || {}) : {};
+      const settlementStatus = String(settlement.status || 'pending').toLowerCase();
+      return {
+        id: String(order._id || order.id || ''),
+        orderId: String(order._id || order.id || ''),
+        createdAt: order.createdAt,
+        status: order.status,
+        statusLabel: order.statusLabel,
+        gross: st.gross,
+        chargedGross: st.chargedGross,
+        fee: st.fee,
+        commission: st.commission,
+        label: st.label,
+        net: st.net,
+        commissionPercent: st.commissionPercent,
+        settlementStatus,
+        payoutStatus: settlementStatus,
+        paidAt: settlement.paidAt || null,
+        paidAmount: settlementStatus === 'paid' ? Number(settlement.amount || st.net || 0) : 0,
+        payoutReference: settlement.reference || ''
+      };
     }).filter(Boolean);
     return res.json(rows);
   } catch (error) {
