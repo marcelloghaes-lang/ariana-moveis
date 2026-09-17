@@ -2684,6 +2684,7 @@ registerSellerPartnerRoutes(app, {
   Seller,
   uid,
   adminRequired,
+  sellerAuthRequired,
   mongoose,
   now,
   escapeRegex,
