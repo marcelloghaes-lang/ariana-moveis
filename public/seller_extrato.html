@@ -308,11 +308,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bruto</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Comissão</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Etiqueta (informativa)</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Líquido</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Líquido</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Repasse</th>
               </tr>
             </thead>
             <tbody id="tb" class="bg-white divide-y divide-gray-200">
-              <tr><td colspan="5" class="px-6 py-6 text-center text-gray-500">Carregando dados do MongoDB...</td></tr>
+              <tr><td colspan="6" class="px-6 py-6 text-center text-gray-500">Carregando dados do MongoDB...</td></tr>
             </tbody>
           </table>
         </div>
@@ -418,6 +418,11 @@ function applySellerHeaderName() {
           const fee = normalizeCurrencyValue(item.fee ?? item.commission ?? item.comissao ?? 0);
           const label = normalizeCurrencyValue(item.label ?? item.labelCost ?? item.etiquetaAriana ?? 0);
           const net = normalizeCurrencyValue(item.net ?? item.liquid ?? item.liquido ?? (gross - fee));
+          const payoutStatus = String(item.settlementStatus || item.payoutStatus || 'pending').toLowerCase();
+          const payoutPaid = payoutStatus === 'paid';
+          const payoutText = payoutPaid ? 'Pago' : 'A receber';
+          const payoutClass = payoutPaid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+          const payoutDetail = payoutPaid && item.paidAt ? `<div class="text-[11px] text-gray-500 mt-1">${new Date(item.paidAt).toLocaleDateString('pt-BR')}</div>` : '';
 
           grossTotal += gross;
           feeTotal += fee;
@@ -431,6 +436,7 @@ function applySellerHeaderName() {
               <td data-label="Comissão" class="px-6 py-4 text-sm text-error-red text-right">-${money(fee)}</td>
               <td data-label="Etiqueta informativa" class="px-6 py-4 text-sm text-yellow-700 text-right">${money(label)}</td>
               <td data-label="Líquido" class="px-6 py-4 text-sm text-success-green text-right font-bold">${money(net)}</td>
+              <td data-label="Repasse" class="px-6 py-4 text-sm text-center"><span class="inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${payoutClass}">${payoutText}</span>${payoutDetail}</td>
             </tr>
           `);
         });
