@@ -3176,6 +3176,7 @@ registerAdminCoreRoutes(app, {
   ...context,
   BUILD_ID,
   writeAuditLog,
+  createSellerNotification,
   redactWhatsappSettings,
   waMaybeNotifyOrderStatusChange,
   waNotifyAdminOrderStatusChange,
