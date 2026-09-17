@@ -12,11 +12,18 @@ function bool(value, fallback = false) {
 }
 
 export function normalizeBrazilPhone(value = '') {
-  let phone = digits(value);
+  const raw = clean(value);
+  let phone = digits(raw);
 
   if (!phone) return '';
 
   phone = phone.replace(/^0+/, '');
+
+  // Quando o operador informou explicitamente "+<país>", o código internacional
+  // já faz parte do número e não deve receber o prefixo brasileiro 55.
+  if (raw.startsWith('+')) {
+    return phone;
+  }
 
   if (phone.startsWith('55') && phone.length >= 12) {
     return phone;
@@ -313,9 +320,14 @@ export async function sendCrediarioWhatsApp({
   caption = '',
   metadata = {}
 }) {
-  const normalizedPhone = normalizeBrazilPhone(phone);
+  const rawPhone = clean(phone);
+  const explicitInternational = rawPhone.startsWith('+');
+  const normalizedPhone = normalizeBrazilPhone(rawPhone);
+  const validPhone = explicitInternational
+    ? normalizedPhone.length >= 8 && normalizedPhone.length <= 15
+    : normalizedPhone.length >= 12 && normalizedPhone.length <= 15;
 
-  if (!normalizedPhone || normalizedPhone.length < 12) {
+  if (!normalizedPhone || !validPhone) {
     const error = new Error('Telefone/WhatsApp inválido.');
     error.code = 'CREDIARIO_WHATSAPP_INVALID_PHONE';
     error.status = 400;
