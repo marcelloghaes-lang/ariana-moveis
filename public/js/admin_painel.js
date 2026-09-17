@@ -1728,6 +1728,46 @@ function productFlagsMarkup(p={}){ return `
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isBestSeller" ${p.isBestSeller?'checked':''}><span>Mais vendido</span></label>
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isNewArrival" ${p.isNewArrival?'checked':''}><span>Lançamento</span></label>
   <label class="inline-flex items-center gap-2"><input type="checkbox" id="product-isRecommended" ${p.isRecommended?'checked':''}><span>Recomendado</span></label>`; }
+let sellerSettlementsCache = [];
+
+async function loadSellerSettlements(){
+  try{
+    const data=await apiRequest('/admin/seller-settlements?limit=500',{headers:buildHeadersAuth()});
+    sellerSettlementsCache=Array.isArray(data)?data:(data?.items||[]);
+  }catch(error){
+    sellerSettlementsCache=[];
+    console.warn('[admin/seller-settlements] Falha ao carregar repasses:',error?.message||error);
+  }
+}
+function sellerSettlementRows(){
+  if(!sellerSettlementsCache.length) return '<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">Nenhum repasse de seller encontrado.</td></tr>';
+  return sellerSettlementsCache.map((r)=>{
+    const paid=String(r.status||'pending').toLowerCase()==='paid';
+    const order=String(r.orderId||'');
+    const sid=String(r.sellerId||'');
+    return `<tr class="border-t"><td class="px-4 py-3 text-xs font-mono">#${escHtml(order.slice(-8).toUpperCase())}</td><td class="px-4 py-3 text-xs">${escHtml(sid)}</td><td class="px-4 py-3 text-sm text-right">${formatCurrency(r.gross||0)}</td><td class="px-4 py-3 text-sm text-right text-red-600">-${formatCurrency(r.commission||0)}</td><td class="px-4 py-3 text-sm text-right font-bold text-green-700">${formatCurrency(r.net||0)}</td><td class="px-4 py-3 text-center"><span class="px-2.5 py-1 rounded-full text-xs font-bold ${paid?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">${paid?'Pago':'A receber'}</span>${paid&&r.paidAt?`<div class="text-[11px] text-gray-500 mt-1">${escHtml(formatDateTime(r.paidAt))}</div>`:''}</td><td class="px-4 py-3"><div class="flex gap-2">${paid?`<button class="px-3 py-1.5 rounded-md bg-gray-600 text-white text-xs font-bold" onclick="window.reopenSellerSettlement('${escHtml(order)}','${escHtml(sid)}')">Reabrir</button>`:`<button class="px-3 py-1.5 rounded-md bg-success-green text-white text-xs font-bold" onclick="window.paySellerSettlement('${escHtml(order)}','${escHtml(sid)}',${Number(r.net||0)})">Registrar repasse</button>`}</div></td></tr>`;
+  }).join('');
+}
+window.paySellerSettlement=async function(orderId,sellerId,net){
+  const raw=prompt('Valor efetivamente repassado ao seller:',Number(net||0).toFixed(2).replace('.',','));
+  if(raw===null)return;
+  const amount=Number(String(raw).replace(/\./g,'').replace(',','.'));
+  if(!Number.isFinite(amount)||amount<0){displayMessage('Valor de repasse inválido.','error');return;}
+  const reference=prompt('Referência/comprovante do repasse (opcional):','');
+  if(reference===null)return;
+  try{
+    await apiRequest(`/admin/orders/${encodeURIComponent(orderId)}/seller-settlements/${encodeURIComponent(sellerId)}/paid`,{method:'POST',headers:buildHeadersAuth(),body:JSON.stringify({amount,reference:String(reference||'').trim()})});
+    displayMessage('Repasse registrado com sucesso.','success');await loadSellerSettlements();if(currentView==='products')await renderProductsView();
+  }catch(error){displayMessage(`Erro ao registrar repasse: ${error.message}`,'error');}
+};
+window.reopenSellerSettlement=async function(orderId,sellerId){
+  if(!confirm('Reabrir este repasse como A receber?'))return;
+  try{
+    await apiRequest(`/admin/orders/${encodeURIComponent(orderId)}/seller-settlements/${encodeURIComponent(sellerId)}/pending`,{method:'POST',headers:buildHeadersAuth(),body:JSON.stringify({})});
+    displayMessage('Repasse reaberto.','success');await loadSellerSettlements();if(currentView==='products')await renderProductsView();
+  }catch(error){displayMessage(`Erro ao reabrir repasse: ${error.message}`,'error');}
+};
+
 let sellerProductsReviewCache = [];
 
 async function loadSellerProductsReview(){
@@ -2334,9 +2374,13 @@ async function uploadProductImages(options={}){
 async function renderProductsView(){
   const box=document.getElementById('products-content');
   box.innerHTML='<div class="bg-white p-6 rounded-xl shadow-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando produtos...</div>';
-  await Promise.allSettled([loadProducts(), loadCategories(), loadSellerProductsReview()]);
+  await Promise.allSettled([loadProducts(), loadCategories(), loadSellerProductsReview(), loadSellerSettlements()]);
   box.innerHTML=`
     ${getAdminRole() !== 'admin' ? '<div class="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900"><b>Acesso limitado:</b> você tem permissão somente nas funções liberadas para produtos/posters.</div>' : ''}
+    <div class="bg-white p-5 rounded-lg shadow-md mb-6 overflow-hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4"><div><h2 class="text-xl font-bold text-text-dark">Repasses dos sellers</h2><p class="text-sm text-gray-500">Controle manual: a Ariana recebe do cliente e registra aqui o pagamento ao vendedor.</p></div><span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-bold">${sellerSettlementsCache.filter(r=>String(r.status||'pending').toLowerCase()!=='paid').length} a receber</span></div>
+      <div class="overflow-x-auto max-h-[420px]"><table class="min-w-full"><thead class="sticky top-0 bg-gray-50"><tr><th class="px-4 py-3 text-xs uppercase text-gray-500 text-left">Pedido</th><th class="px-4 py-3 text-xs uppercase text-gray-500 text-left">Seller</th><th class="px-4 py-3 text-xs uppercase text-gray-500 text-right">Bruto</th><th class="px-4 py-3 text-xs uppercase text-gray-500 text-right">Comissão</th><th class="px-4 py-3 text-xs uppercase text-gray-500 text-right">Líquido</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Situação</th><th class="px-4 py-3 text-xs uppercase text-gray-500">Ação</th></tr></thead><tbody>${sellerSettlementRows()}</tbody></table></div>
+    </div>
     <div class="bg-white p-5 rounded-lg shadow-md mb-6 overflow-hidden">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
         <div><h2 class="text-xl font-bold text-text-dark">Aprovação de produtos dos sellers</h2><p class="text-sm text-gray-500">Produtos novos ou alterados por vendedores ficam fora da vitrine até sua aprovação.</p></div>
