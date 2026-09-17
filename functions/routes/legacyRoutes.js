@@ -1,5 +1,6 @@
 import registerLegacyRuntimeRoutes from './legacyRuntimeRoutes.js';
 import registerStorefrontProductVisibilityRoutes from './storefrontProductVisibilityRoutes.js';
+import registerCurrentPaymentGuardRoutes from './currentPaymentGuardRoutes.js';
 
 // ============================================================
 // ROTAS LEGADAS - ARIANA MÓVEIS
@@ -163,6 +164,10 @@ export default function registerLegacyRoutes(app, context = {}) {
   // A migração SIGE usa o mesmo model Product para o ERP; produtos criados apenas
   // para o ERP possuem specs.sigeSourceId e não devem ocupar a home/catálogo público.
   registerStorefrontProductVisibilityRoutes(app, runtimeContext);
+
+  // Bloqueia primeiro os gateways que não fazem parte da operação vigente.
+  // O código histórico permanece preservado dentro das rotas legadas.
+  registerCurrentPaymentGuardRoutes(app, runtimeContext);
 
   const result = registerLegacyRuntimeRoutes(app, runtimeContext);
   prioritizeSpecificAdminRoutes(app);
