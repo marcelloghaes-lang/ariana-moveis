@@ -346,6 +346,16 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 
 <script>
 
+    function sellerOrderItems(order){ return Array.isArray(order?.items) ? order.items : []; }
+    function sellerOrderTotal(order){
+      return sellerOrderItems(order).reduce((sum,it)=>{
+        const qty=Number(it?.qty ?? it?.quantity ?? it?.quantidade ?? 1)||1;
+        const unit=Number(it?.unitPrice ?? it?.price ?? it?.preco ?? 0)||0;
+        const explicit=Number(it?.totalPrice ?? it?.total ?? NaN);
+        return sum+(Number.isFinite(explicit)?explicit:(unit*qty));
+      },0);
+    }
+
     async function loadOrders() {
       if (!ensureSellerSession()) return;
       applySellerHeaderName();
@@ -384,7 +394,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         $("kpi-orders").textContent = orders.length;
         $("kpi-pending").textContent = orders.filter(o => ['pending','pendente','aguardando_pagamento','aguardando'].includes(String(o.status || '').toLowerCase())).length;
         $("kpi-shipped").textContent = orders.filter(o => ['shipped','enviado','em_envio','despachado','transporte'].includes(String(o.status || '').toLowerCase())).length;
-        const totalRevenue = orders.reduce((acc, o) => acc + (o.total || 0), 0);
+        const totalRevenue = orders.reduce((acc, o) => acc + sellerOrderTotal(o), 0);
         $("kpi-revenue").textContent = totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         tbody.innerHTML = orders.map(o => `
@@ -396,7 +406,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             </td>
             <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${o.status || 'pendente'}</span></td>
             <td class="p-4 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
-            <td class="p-4 text-right font-black">${Number(o.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+            <td class="p-4 text-right font-black">${sellerOrderTotal(o).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
             <td class="p-4 text-right">
                 <a href="seller_pedido_detalhe.html?id=${o._id || o.id}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
             </td>
