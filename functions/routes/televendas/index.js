@@ -10,6 +10,7 @@ import createErpParityAnalyticsRoutes from '../erp/erpParityAnalyticsRoutes.js';
 import createErpSigeFiscalHistoryRoutes from '../erp/erpSigeFiscalHistoryRoutes.js';
 import createErpSigeSaleParityRoutes from '../erp/erpSigeSaleParityRoutes.js';
 import createErpProductLookupRoutes from '../erp/erpProductLookupRoutes.js';
+import createErpDelinquencyReportRoutes from '../erp/erpDelinquencyReportRoutes.js';
 import { createErpOperationalRequired, erpAccessSummary } from '../../services/erp/erpAccessControl.js';
 import { createErpPdvRulesMiddleware } from '../../services/erp/erpPdvRulesMiddleware.js';
 import { createErpSettingsService } from '../../services/erp/erpSettingsService.js';
@@ -64,6 +65,7 @@ export default function createTelevendasRoutes(context={}){
   router.use(createErpFinancePanelBridgeRoutes(operationalContext));
   router.use(createErpParityAnalyticsRoutes(operationalContext));
   router.use(createErpSigeSaleParityRoutes(operationalContext));
+  router.use(createErpDelinquencyReportRoutes(operationalContext));
 
   // Migrações SIGE e Fiscal/NF-e permanecem no adminRequired original.
   // Isso impede que uma permissão operacional abra rotas sensíveis.
