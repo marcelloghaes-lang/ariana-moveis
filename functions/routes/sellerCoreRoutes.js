@@ -273,7 +273,10 @@ app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
       ]
     }).sort({ updatedAt: -1, createdAt: -1 }).limit(100);
 
-    return res.json(orders.map(toJSON));
+    // Devoluções seguem a mesma regra de isolamento dos pedidos:
+    // o seller recebe somente os itens que pertencem a ele e nenhum detalhe
+    // interno de pagamento/gateway da Ariana.
+    return res.json(orders.map((order) => sellerOrderForResponse(order, sid)));
   } catch (error) {
     return res.status(500).json({
       ok: false,
@@ -923,9 +926,23 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     const oid = normalizeObjectId(id);
     const ownerQuery = sellerProductQuery(req);
     const idQuery = oid ? { _id: oid } : { $or: [{ sku: id }, { slug: id }, { id }] };
-    const deleted = await Product.findOneAndDelete({ $and: [idQuery, ownerQuery] });
-    if (!deleted) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
-    return res.json({ ok: true, deleted: true, id: String(deleted._id || '') });
+    const existing = await Product.findOne({ $and: [idQuery, ownerQuery] });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
+
+    // Não apagar fisicamente produto que já pode estar referenciado por pedido,
+    // devolução, NF-e ou auditoria. O seller apenas retira o anúncio da vitrine.
+    const archived = await Product.findOneAndUpdate(
+      { $and: [idQuery, ownerQuery] },
+      { $set: { active: false, status: 'archived', approvalStatus: 'archived', archivedAt: now(), archivedBy: 'seller' } },
+      { new: true }
+    );
+    await writeAuditLog({
+      scope: 'seller_products',
+      eventType: 'seller_product_archived',
+      status: 'success',
+      metadata: { sellerId: req.sellerId, productId: String(archived?._id || existing._id || '') }
+    }).catch(() => null);
+    return res.json({ ok: true, deleted: true, archived: true, id: String(archived?._id || existing._id || '') });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao excluir produto' });
   }
