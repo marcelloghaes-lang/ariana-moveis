@@ -55,7 +55,11 @@ function priority(entry,cstate={}){
   if(cstate.promiseLate)return 120;
   if(cstate.promiseToday)return 115;
   if(cstate.returnToday)return 110;
-  const d=Number(entry.daysLate||0);if(d>90)return100;if(d>60)return90;if(d>30)return80;return70;
+  const d=Number(entry.daysLate||0);
+  if(d>90)return 100;
+  if(d>60)return 90;
+  if(d>30)return 80;
+  return 70;
 }
 function matchesFilter(entry,cstate,filter='all'){
   if(!filter||filter==='all')return true;
@@ -89,13 +93,14 @@ export function createErpCollectionWorkflowService(context={}){
       if(!matchesFilter(row,state,filter))continue;
       const hay=[row.name,row.document,row.phone,row.email,row.reference].join(' ').toLocaleLowerCase('pt-BR');if(q&&!hay.includes(q))continue;
       const key=digits(row.document)?`doc:${digits(row.document)}`:`name:${clean(row.name,220).toLocaleLowerCase('pt-BR')}`;
-      const item={...row,faixa:band(row.daysLate),faixaLabel:bandLabel(band(row.daysLate)),case:c?{id:String(c._id),status:c.status,lastAction:c.lastAction,lastActionAt:c.lastActionAt,promiseDate:c.promiseDate,promiseAmount:money(c.promiseAmount),nextActionDate:c.nextActionDate,note:c.note,...state}:null,priority:priority(row,state)};
-      const group=clients.get(key)||{key,name:row.name||'Sem identificação',document:row.document||'',phone:row.phone||'',email:row.email||'',totalOverdue:0,maxDaysLate:0,priority:0,entries:[],alerts:{promiseToday:0,promiseLate:0,returnToday:0,whatsappInternalDue:0}};
-      group.totalOverdue+=Number(row.outstanding||0);group.maxDaysLate=Math.max(group.maxDaysLate,Number(row.daysLate||0));group.priority=Math.max(group.priority,item.priority);group.entries.push(item);if(state.promiseToday)group.alerts.promiseToday++;if(state.promiseLate)group.alerts.promiseLate++;if(state.returnToday)group.alerts.returnToday++;if(state.internalWhatsAppAlertDue)group.alerts.whatsappInternalDue++;clients.set(key,group);
+      const fineAmount=Math.max(0,money(row.fineAmount??row.fine??0)),interestAmount=Math.max(0,money(row.interestAmount??row.interest??0)),updatedAmount=money(Number(row.outstanding||0)+fineAmount+interestAmount);
+      const item={...row,originalValue:money(row.value),fineAmount,interestAmount,updatedAmount,chargesCalculated:false,faixa:band(row.daysLate),faixaLabel:bandLabel(band(row.daysLate)),case:c?{id:String(c._id),status:c.status,lastAction:c.lastAction,lastActionAt:c.lastActionAt,promiseDate:c.promiseDate,promiseAmount:money(c.promiseAmount),nextActionDate:c.nextActionDate,note:c.note,...state}:null,priority:priority(row,state)};
+      const group=clients.get(key)||{key,name:row.name||'Sem identificação',document:row.document||'',phone:row.phone||'',email:row.email||'',totalOverdue:0,totalUpdated:0,maxDaysLate:0,priority:0,entries:[],alerts:{promiseToday:0,promiseLate:0,returnToday:0,whatsappInternalDue:0}};
+      group.totalOverdue+=Number(row.outstanding||0);group.totalUpdated+=updatedAmount;group.maxDaysLate=Math.max(group.maxDaysLate,Number(row.daysLate||0));group.priority=Math.max(group.priority,item.priority);group.entries.push(item);if(state.promiseToday)group.alerts.promiseToday++;if(state.promiseLate)group.alerts.promiseLate++;if(state.returnToday)group.alerts.returnToday++;if(state.internalWhatsAppAlertDue)group.alerts.whatsappInternalDue++;clients.set(key,group);
     }
-    const rows=[...clients.values()].map(c=>({...c,totalOverdue:money(c.totalOverdue),entries:c.entries.sort((a,b)=>b.priority-a.priority||new Date(a.dueAt)-new Date(b.dueAt))})).sort((a,b)=>b.priority-a.priority||b.maxDaysLate-a.maxDaysLate||a.name.localeCompare(b.name,'pt-BR'));
+    const rows=[...clients.values()].map(c=>({...c,totalOverdue:money(c.totalOverdue),totalUpdated:money(c.totalUpdated),entries:c.entries.sort((a,b)=>b.priority-a.priority||new Date(a.dueAt)-new Date(b.dueAt))})).sort((a,b)=>b.priority-a.priority||b.maxDaysLate-a.maxDaysLate||a.name.localeCompare(b.name,'pt-BR'));
     const allEntries=rows.flatMap(c=>c.entries);
-    return{date:todayIso,filter,summary:{clients:rows.length,installments:allEntries.length,totalOverdue:money(rows.reduce((s,c)=>s+c.totalOverdue,0)),promisesToday:allEntries.filter(x=>x.case?.promiseToday).length,promisesLate:allEntries.filter(x=>x.case?.promiseLate).length,returnsToday:allEntries.filter(x=>x.case?.returnToday).length,whatsappInternalAlertsDue:allEntries.filter(x=>x.case?.internalWhatsAppAlertDue).length},clients:rows};
+    return{date:todayIso,filter,chargesNote:'Multa e juros só aparecem quando houver valor oficialmente registrado; o sistema não inventa taxa automática.',summary:{clients:rows.length,installments:allEntries.length,totalOverdue:money(rows.reduce((s,c)=>s+c.totalOverdue,0)),totalUpdated:money(rows.reduce((s,c)=>s+c.totalUpdated,0)),promisesToday:allEntries.filter(x=>x.case?.promiseToday).length,promisesLate:allEntries.filter(x=>x.case?.promiseLate).length,returnsToday:allEntries.filter(x=>x.case?.returnToday).length,whatsappInternalAlertsDue:allEntries.filter(x=>x.case?.internalWhatsAppAlertDue).length},clients:rows};
   }
 
   async function promessas(query={}){
@@ -113,14 +118,14 @@ export function createErpCollectionWorkflowService(context={}){
     const concluded=await Case.find({status:'concluida',updatedAt:{$gte:monthStart}}).sort({updatedAt:-1}).limit(1000).lean();
     const promises=await promessas({status:'ativas'});
     const bands={ate30:{clients:0,value:0},'31-60':{clients:0,value:0},'61-90':{clients:0,value:0},'90mais':{clients:0,value:0}};
-    for(const client of queue.clients){const b=band(client.maxDaysLate),x=bands[b];x.clients++;x.value=money(x.value+client.totalOverdue)}
-    return{date:queue.date,summary:{overdueClients:queue.summary.clients,overdueInstallments:queue.summary.installments,overdueAmount:queue.summary.totalOverdue,activePromises:promises.summary.total,promisesToday:promises.summary.today,promisesLate:promises.summary.late,concludedThisMonth:concluded.length},bands:Object.entries(bands).map(([key,x])=>({key,label:bandLabel(key),...x,value:money(x.value)})),recentConcluded:concluded.slice(0,50).map(c=>({id:String(c._id),targetId:c.targetId,clientName:c.clientName,clientDocument:c.clientDocument,lastActionAt:c.lastActionAt,openBalance:money(c.openBalance),note:c.note}))};
+    for(const client of queue.clients){const b=band(client.maxDaysLate),x=bands[b];x.clients++;x.value=money(x.value+client.totalUpdated)}
+    return{date:queue.date,summary:{overdueClients:queue.summary.clients,overdueInstallments:queue.summary.installments,overdueAmount:queue.summary.totalOverdue,updatedOverdueAmount:queue.summary.totalUpdated,activePromises:promises.summary.total,promisesToday:promises.summary.today,promisesLate:promises.summary.late,concludedThisMonth:concluded.length},bands:Object.entries(bands).map(([key,x])=>({key,label:bandLabel(key),...x,value:money(x.value)})),recentConcluded:concluded.slice(0,50).map(c=>({id:String(c._id),targetId:c.targetId,clientName:c.clientName,clientDocument:c.clientDocument,lastActionAt:c.lastActionAt,openBalance:money(c.openBalance),note:c.note}))};
   }
 
   async function registrarAcao(targetId,payload={},actor={}){
     const id=clean(targetId||payload.targetId,240);if(!id)throw fail('Parcela/título da cobrança não informado.',400,'COLLECTION_TARGET_REQUIRED');
     const action=clean(payload.action,40);if(!ACTIONS.has(action))throw fail('Ação de cobrança inválida.',400,'INVALID_COLLECTION_ACTION');
-    const {entries}=await openReport({q:''});const row=entries.find(x=>String(x.id||'')===id);let existing=await Case.findOne({targetId:id});
+    const {entries}=await openReport({q:''});const row=entries.find(x=>String(x.id||'')===id);const existing=await Case.findOne({targetId:id});
     if(!row&&!existing)throw fail('Título da cobrança não encontrado entre os recebíveis em aberto.',404,'COLLECTION_TARGET_NOT_FOUND');
     const snap=row?rowCaseSnapshot(row):{};
     const note=clean(payload.note||payload.observacao||'',1200),now=new Date(),by=actorName(actor),set={...snap,lastAction:action,lastActionAt:now,note};
@@ -139,7 +144,7 @@ export function createErpCollectionWorkflowService(context={}){
     }
     const history={action,at:now,by,note,promiseDate,promiseAmount,nextActionDate};
     const doc=await Case.findOneAndUpdate({targetId:id},{$set:set,$setOnInsert:{targetId:id},$push:{history}}, {new:true,upsert:true,setDefaultsOnInsert:true});
-    const out=doc.toObject();return{case:{...out,id:String(doc._id),promiseAmount:money(out.promiseAmount),originalValue:money(out.originalValue),openBalance:money(out.openBalance),...caseState(out)},alert:{visual:caseState(out).promiseToday,whatsappInternalDue:caseState(out).internalWhatsAppAlertDue,message:caseState(out).promiseToday?`Promessa de pagamento de ${out.clientName||'cliente'} vence hoje.`:''}};
+    const out=doc.toObject(),state=caseState(out);return{case:{...out,id:String(doc._id),promiseAmount:money(out.promiseAmount),originalValue:money(out.originalValue),openBalance:money(out.openBalance),...state},alert:{visual:state.promiseToday,whatsappInternalDue:state.internalWhatsAppAlertDue,message:state.promiseToday?`Promessa de pagamento de ${out.clientName||'cliente'} vence hoje.`:''}};
   }
 
   return{fila,promessas,recuperacao,registrarAcao};
