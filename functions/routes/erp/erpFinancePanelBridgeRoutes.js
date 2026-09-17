@@ -1,7 +1,7 @@
 import express from 'express';
 import { createErpFinancePanelBridgeService } from '../../services/erp/erpFinancePanelBridgeService.js';
 import { createErpCollectionWorkflowService } from '../../services/erp/erpCollectionWorkflowService.js';
-import { createErpCarneService } from '../../services/erp/erpCarneService.js';
+import { createErpCarneCoraService } from '../../services/erp/erpCarneCoraService.js';
 
 const actor=req=>req.adminUser||req.admin||req.auth||req.user||{};
 
@@ -10,7 +10,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
   if(!context.adminRequired)throw new Error('[erp-finance-panel] adminRequired não informado');
   const bridge=createErpFinancePanelBridgeService(context);
   const collections=createErpCollectionWorkflowService(context);
-  const carne=createErpCarneService(context);
+  const carne=createErpCarneCoraService(context);
   const handle=(action,status=200)=>async(req,res)=>{
     try{
       const result=await action(req);
