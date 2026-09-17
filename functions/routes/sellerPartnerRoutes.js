@@ -9,6 +9,7 @@ export default function registerSellerPartnerRoutes(app, context = {}) {
     Seller,
     uid,
     adminRequired,
+    sellerAuthRequired,
     mongoose,
     now,
     escapeRegex,
@@ -125,109 +126,38 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
       seller = await Seller.findByIdAndUpdate(seller._id, { $set: marketplaceSet }, { new: true });
     }
 
+    // Operação atual da Ariana: sem split automático e sem Pagar.me.
+    // A aprovação do seller apenas habilita o marketplace; os pagamentos dos
+    // clientes ficam na Ariana e o seller recebe por repasse manual.
     let recipient = null;
     let recipientError = null;
-
-    // Permite informar manualmente o Recipient ID já existente no Pagar.me.
-    // Use isso quando o seller já possui recipient criado e você só quer vincular no Mongo ao aprovar.
-    const manualRecipientId = String(
-      req.body?.recipientId ||
-      req.body?.pagarmeRecipientId ||
-      req.body?.pagarme_recipient_id ||
-      ''
-    ).trim();
-
-    if (active && manualRecipientId) {
+    if (active) {
       const meta = { ...(seller.metadata || {}) };
-      meta.paymentGateway = 'pagarme';
-      meta.marketplaceSplitRequired = true;
-      meta.manualTransferEnabled = false;
-      meta.pagarmeRecipientId = manualRecipientId;
-      meta.recipientId = manualRecipientId;
-      meta.pagarmeRecipientStatus = String(req.body?.recipientStatus || req.body?.pagarmeRecipientStatus || 'manual').trim();
-      meta.pagarmeRecipientManual = true;
-      meta.pagarmeRecipientManualAt = new Date().toISOString();
-      meta.pagarmeRecipientManualBy = req.admin?.email || req.user?.email || 'admin';
+      meta.paymentGateway = 'manual';
+      meta.marketplaceSplitRequired = false;
+      meta.manualTransferEnabled = true;
+      meta.checkoutGateways = { card: 'cielo', pix: 'mercado_pago', boleto: 'mercado_pago' };
       meta.pagarmeRecipientError = '';
       meta.pagarmeRecipientRequiredFields = [];
-
       seller = await Seller.findByIdAndUpdate(seller._id, { $set: { metadata: meta } }, { new: true });
-      recipient = { id: manualRecipientId, status: meta.pagarmeRecipientStatus, manual: true };
-
       await writeAuditLog({
-        scope: 'payments',
-        eventType: 'pagarme_recipient_manual_on_approval',
+        scope: 'seller_onboarding',
+        eventType: 'seller_approved_manual_settlement',
         status: 'success',
-        metadata: { sellerId: seller.sellerId || String(seller._id), recipientId: manualRecipientId, admin: req.admin?.email || '' }
-      });
-    }
-
-    // Ao aprovar o seller sem Recipient manual, tenta criar automaticamente o Recipient no Pagar.me.
-    // Se já existir recipient salvo no Mongo, não duplica.
-    if (active && !manualRecipientId && !String(seller.metadata?.pagarmeRecipientId || seller.metadata?.recipientId || '').trim()) {
-      try {
-        const payload = buildPagarmeRecipientPayloadFromSeller(seller, req.body || {});
-        const response = await createPagarmeRecipient(payload);
-        const data = response.data || {};
-
-        if (response.status < 200 || response.status >= 300) {
-          throw new Error(data?.message || data?.errors?.[0]?.message || 'Erro ao criar Recipient Pagar.me');
-        }
-
-        const normalized = normalizePagarmeRecipientResponse(data);
-        if (!normalized.id) throw new Error('Pagar.me não retornou Recipient ID.');
-
-        const meta = { ...(seller.metadata || {}) };
-        meta.paymentGateway = 'pagarme';
-        meta.marketplaceSplitRequired = true;
-        meta.manualTransferEnabled = false;
-        meta.pagarmeRecipientId = normalized.id;
-        meta.recipientId = normalized.id;
-        meta.pagarmeRecipientStatus = normalized.status || 'created';
-        meta.pagarmeRecipientCreatedAt = new Date().toISOString();
-        meta.pagarmeRecipientError = '';
-
-        seller = await Seller.findByIdAndUpdate(seller._id, { $set: { metadata: meta } }, { new: true });
-        recipient = normalized;
-
-        await writeAuditLog({
-          scope: 'payments',
-          eventType: 'pagarme_recipient_created_on_approval',
-          status: 'success',
-          request: redact(payload),
-          response: redact(data),
-          metadata: { sellerId: seller.sellerId || String(seller._id), admin: req.admin?.email || '' }
-        });
-      } catch (err) {
-        recipientError = err.message || 'Erro ao criar Recipient Pagar.me';
-        const meta = { ...(seller.metadata || {}) };
-        meta.pagarmeRecipientError = recipientError;
-        meta.pagarmeRecipientErrorAt = new Date().toISOString();
-        meta.pagarmeRecipientRequiredFields = err.requiredFields || [];
-        seller = await Seller.findByIdAndUpdate(seller._id, { $set: { metadata: meta } }, { new: true });
-
-        await writeAuditLog({
-          scope: 'payments',
-          eventType: 'pagarme_recipient_created_on_approval',
-          status: 'error',
-          message: recipientError,
-          metadata: { sellerId: seller.sellerId || String(seller._id), admin: req.admin?.email || '', requiredFields: err.requiredFields || [] }
-        });
-      }
+        metadata: { sellerId: seller.sellerId || String(seller._id), admin: req.admin?.email || '' }
+      }).catch(() => null);
     }
 
     const s = normalizePartnerRequestForResponse(seller);
     await createAdminNotification({
       type: 'partner_request_status_updated',
       title: status === 'approved' ? '✅ Seller aprovado' : status === 'rejected' ? '❌ Seller recusado' : '⏳ Seller pendente',
-      message: recipient?.id
-        ? `${s.storeName || s.factoryName || 'Seller'} foi aprovado e o Recipient Pagar.me foi criado.`
-        : recipientError
-          ? `${s.storeName || s.factoryName || 'Seller'} foi aprovado, mas o Recipient Pagar.me não foi criado: ${recipientError}`
-          : `${s.storeName || s.factoryName || 'Seller'} foi marcado como ${s.statusLabel}.`,
+      message: status === 'approved'
+        ? `${s.storeName || s.factoryName || 'Seller'} foi aprovado para operar com repasse manual.`
+        : `${s.storeName || s.factoryName || 'Seller'} foi marcado como ${s.statusLabel}.`,
       relatedId: s.id,
-      severity: status === 'approved' ? (recipientError ? 'warning' : 'success') : status === 'rejected' ? 'warning' : 'info',
-      metadata: { sellerId: s.sellerId, status, recipientId: recipient?.id || '', recipientError: recipientError || '' }
+      severity: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+      metadata: { sellerId: s.sellerId, status, settlementMode: active ? 'manual' : '' }
     });
 
     return res.json({ ok: true, request: s, seller: s, recipient, recipientError });
@@ -278,5 +208,19 @@ app.patch('/api/seller/partner-requests/:id/commission', adminRequired, async (r
   }
 });
 
-app.post('/api/seller/complete-onboarding', async (req, res) => { try { const sellerId = String(req.body?.sellerId || req.body?.partner_request_id || '').trim(); if (!sellerId) return res.status(400).json({ ok: false, error: 'sellerId é obrigatório' }); const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, status: 'approved', metadata: { ...(req.body || {}) } } }, { new: true }); if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' }); return res.json({ ok: true, seller: toJSON(seller) }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' }); } });
+app.post('/api/seller/complete-onboarding', sellerAuthRequired, async (req, res) => {
+  try {
+    const sellerId = String(req.sellerId || '').trim();
+    if (!sellerId) return res.status(403).json({ ok: false, error: 'Seller não autenticado' });
+    const current = await Seller.findOne({ sellerId });
+    if (!current) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
+    const metadata = { ...(current.metadata || {}) };
+    const allowed = ['bio','description','cepColeta','tipoLogistica','transpPropria','transportadoraNome','transportadoraTelefone','transportadoraPrazo','freteObs'];
+    for (const key of allowed) if (req.body?.[key] !== undefined) metadata[key] = req.body[key];
+    const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, metadata } }, { new: true });
+    return res.json({ ok: true, seller: toJSON(seller) });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' });
+  }
+});
 }
