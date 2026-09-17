@@ -154,6 +154,34 @@ function buildSellerProductPayload(req, existingDoc = null) {
   return payload;
 }
 
+function sellerOrderForResponse(orderDoc, sellerId) {
+  const sid = String(sellerId || '').trim();
+  const order = toJSON(orderDoc) || {};
+  const items = ensureArray(order.items).filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid);
+
+  // Um seller só recebe as linhas comerciais que pertencem a ele.
+  // Dados necessários para separação/entrega permanecem; detalhes internos do
+  // pagamento da Ariana e identificadores de outros sellers não são expostos.
+  const safe = {
+    ...order,
+    items,
+    sellerIds: sid ? [sid] : []
+  };
+
+  delete safe.payment;
+  delete safe.paymentDetails;
+  delete safe.gatewayResponse;
+  delete safe.gatewayPayload;
+  delete safe.split;
+  delete safe.splitSummary;
+  delete safe.marketplaceSplit;
+  delete safe.card;
+  delete safe.cardToken;
+  delete safe.paymentToken;
+
+  return safe;
+}
+
 function sellerProductOwnerValues(req) {
   return Array.from(new Set([
     req.sellerId,
@@ -675,7 +703,7 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
         }
       }
     }
-    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), totalProdutos, produtosAtivos, pedidosPendentes, totalPedidos: allSellerOrders.length, vendasTotal, recentOrders: orders.map(toJSON) });
+    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), totalProdutos, produtosAtivos, pedidosPendentes, totalPedidos: allSellerOrders.length, vendasTotal, recentOrders: orders.map((order) => sellerOrderForResponse(order, sid)) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dashboard do seller' });
   }
@@ -685,7 +713,7 @@ app.get('/api/seller/notifications', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const rows = await Notification.find({ audience: 'seller', sellerId: sid }).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 80), 200));
-    return res.json(rows.map(toJSON));
+    return res.json(rows.map((order) => sellerOrderForResponse(order, sid)));
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificações do seller' });
   }
@@ -773,7 +801,7 @@ app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
     const allowed = extractSellerIdsFromOrder(order).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    return res.json({ ok: true, order: toJSON(order) });
+    return res.json({ ok: true, order: sellerOrderForResponse(order, sid) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' });
   }
@@ -803,7 +831,7 @@ app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) =>
     await createAdminNotification({ type: 'seller_order_updated', title: 'Seller atualizou pedido', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} atualizou o pedido ${order._id} para ${order.statusLabel || order.status || 'Atualizado'}`, relatedId: String(order._id), severity: 'info', metadata: { sellerId: sid, origin: 'seller_status_route' } });
     const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route');
     const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route_admin');
-    return res.json({ ok: true, order: toJSON(order), whatsapp: customerWhatsapp, adminWhatsapp });
+    return res.json({ ok: true, order: sellerOrderForResponse(order, sid), whatsapp: customerWhatsapp, adminWhatsapp });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar status' });
   }
@@ -833,7 +861,7 @@ app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => 
     await createAdminNotification({ type: 'seller_order_shipped', title: 'Seller marcou pedido como enviado', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} marcou o pedido ${order._id} como enviado${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`, relatedId: String(order._id), severity: 'success', metadata: { sellerId: sid, origin: 'seller_ship_route' } });
     const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), beforeObj, afterObj, 'seller_ship_route');
     const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(order._id), beforeObj, afterObj, 'seller_ship_route_admin');
-    return res.json({ ok: true, order: afterObj, whatsapp: customerWhatsapp, adminWhatsapp });
+    return res.json({ ok: true, order: sellerOrderForResponse(order, sid), whatsapp: customerWhatsapp, adminWhatsapp });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar enviado' });
   }
