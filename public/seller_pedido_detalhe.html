@@ -395,9 +395,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     const box = $('seller-nfe-content');
     if (!card || !box || !orderId) return;
     try {
-      let data;
-      try { data = await apiFetch(`/seller/orders/${encodeURIComponent(orderId)}/nfe`); }
-      catch (_) { data = await apiFetch(`/orders/${encodeURIComponent(orderId)}/nfe`); }
+      const data = await apiFetch(`/seller/orders/${encodeURIComponent(orderId)}/nfe`);
       const inv = sellerInvoicePayload(data);
       const number = inv.number || inv.numero || inv.invoiceNumber || data.number || '';
       const key = inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || '';
@@ -499,35 +497,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
   window.onload = loadOrder;
 
   async function sendSellerNfe() {
-    const btn = $('btn-send-seller-nfe');
     const status = $('seller-nfe-status');
-    const orderId = new URLSearchParams(window.location.search).get('id') || window.currentOrderId || $('order-id')?.textContent?.replace('#','').trim();
-    if (!orderId) { showToast('Pedido não identificado para envio da NF-e.', 'error'); return; }
-    const fd = new FormData();
-    fd.append('numero', $('seller-nfe-numero')?.value || '');
-    fd.append('serie', $('seller-nfe-serie')?.value || '1');
-    fd.append('chave', $('seller-nfe-chave')?.value || '');
-    fd.append('cnpjEmitente', $('seller-nfe-cnpj')?.value || '');
-    const xml = $('seller-nfe-xml')?.files?.[0];
-    const danfe = $('seller-nfe-danfe')?.files?.[0];
-    if (xml) fd.append('xml', xml);
-    if (danfe) fd.append('danfe', danfe);
-    const old = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
-    try {
-      const res = await fetch(`${API_BASE}/seller/orders/${encodeURIComponent(orderId)}/nfe`, { method: 'POST', headers: authHeaders(), body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      if (status) status.textContent = 'NF-e enviada para conferência da Ariana.';
-      showToast('NF-e enviada com sucesso!', 'success');
-    } catch (e) {
-      if (status) status.textContent = e.message || 'Erro ao enviar NF-e.';
-      showToast(e.message || 'Erro ao enviar NF-e.', 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = old || '<i class="fas fa-file-upload"></i>Enviar NF-e para a Ariana'; }
-    }
+    if (status) status.textContent = 'Envio eletrônico de XML/DANFE em configuração no canal protegido do Seller.';
+    toast('Envio de NF-e temporariamente indisponível até a rota protegida ser concluída.', 'info');
   }
-  document.addEventListener('click', (ev) => {
+    document.addEventListener('click', (ev) => {
     if (ev.target && (ev.target.id === 'btn-send-seller-nfe' || ev.target.closest('#btn-send-seller-nfe'))) sendSellerNfe();
   });
 
