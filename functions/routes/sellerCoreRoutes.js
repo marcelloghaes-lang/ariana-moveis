@@ -815,6 +815,34 @@ app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar pedido' });
   }
 });
+app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
+  try {
+    const oid = normalizeObjectId(req.params.id);
+    if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+    const sid = String(req.sellerId || '').trim();
+    if (!extractSellerIdsFromOrder(order).includes(sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    const raw = toJSON(order) || {};
+    const docs = raw.sellerDocuments && typeof raw.sellerDocuments === 'object' ? (raw.sellerDocuments[sid] || {}) : {};
+    return res.json({
+      ok: true,
+      invoice: {
+        number: docs.number || '',
+        serie: docs.serie || '',
+        accessKey: docs.accessKey || '',
+        issuerDocument: docs.issuerDocument || '',
+        status: docs.status || (docs.number || docs.accessKey ? 'received' : 'pending'),
+        submittedAt: docs.submittedAt || null,
+        xmlUrl: docs.xmlUrl || '',
+        danfeUrl: docs.danfeUrl || ''
+      }
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || 'Erro ao consultar NF-e do seller' });
+  }
+});
+
 app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) => {
   try {
     const oid = normalizeObjectId(req.params.id);
