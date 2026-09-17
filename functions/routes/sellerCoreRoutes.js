@@ -465,18 +465,11 @@ app.post('/api/seller/auth/login', async (req, res) => {
     }
 
     if (!user) {
-      user = await User.create({
-        name: seller.displayName || seller.storeName || email,
-        email,
-        passwordHash: await bcrypt.hash(password, 10),
-        phone: seller.phone || '',
-        cpf: seller.document || '',
-        role: 'seller',
-        sellerId: seller.sellerId,
-        isActive: true
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_CREDENTIALS_NOT_PROVISIONED',
+        error: 'Seu cadastro existe, mas as credenciais de acesso ainda não foram provisionadas pela Ariana Móveis.'
       });
-      seller.userId = user._id;
-      await seller.save();
     }
 
     let valid = false;
@@ -494,15 +487,6 @@ app.post('/api/seller/auth/login', async (req, res) => {
         await user.save();
       }
     }
-
-    const temp = String(
-      seller?.metadata?.requestedTempPass ||
-      seller?.metadata?.password ||
-      seller?.metadata?.senha ||
-      ''
-    );
-
-    if (!valid && temp && temp === password) valid = true;
 
     if (!valid) {
       return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
