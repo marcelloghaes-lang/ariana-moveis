@@ -190,9 +190,18 @@ app.post('/api/seller/products', sellerAuthRequired, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Seller não identificado' });
     }
 
-    if (!payload.name || !payload.price) {
-      return res.status(400).json({ ok: false, error: 'Nome e preço são obrigatórios' });
+    if (!payload.name || !Number.isFinite(payload.price) || payload.price <= 0) {
+      return res.status(400).json({ ok: false, error: 'Nome e preço válido são obrigatórios' });
     }
+    if (!Number.isFinite(payload.stock) || payload.stock < 0) {
+      return res.status(400).json({ ok: false, error: 'Estoque inválido' });
+    }
+    // Seller novo não publica diretamente no marketplace: o produto entra para
+    // revisão da Ariana. Isso evita catálogo público sem moderação.
+    payload.active = false;
+    payload.status = 'pending_review';
+    payload.approvalStatus = 'pending';
+    payload.submittedAt = now();
 
     const created = await Product.create(payload);
     const product = normalizeProductForResponse(created);
@@ -878,6 +887,18 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     if (!existing) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
 
     const payload = buildSellerProductPayload(req, existing);
+    if (!payload.name || !Number.isFinite(payload.price) || payload.price <= 0) {
+      return res.status(400).json({ ok: false, error: 'Nome e preço válido são obrigatórios' });
+    }
+    if (!Number.isFinite(payload.stock) || payload.stock < 0) {
+      return res.status(400).json({ ok: false, error: 'Estoque inválido' });
+    }
+    // Alterações comerciais feitas pelo seller voltam para revisão. O seller
+    // não pode autoaprovar/reativar produto por payload manipulado.
+    payload.active = false;
+    payload.status = 'pending_review';
+    payload.approvalStatus = 'pending';
+    payload.submittedAt = now();
     const updated = await Product.findOneAndUpdate({ $and: [{ _id: oid }, ownerQuery] }, { $set: payload }, { new: true });
     const product = normalizeProductForResponse(updated);
     return res.json({ ok: true, product, item: product });
