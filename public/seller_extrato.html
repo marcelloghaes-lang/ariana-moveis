@@ -274,7 +274,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         <div class="extract-head flex items-center justify-between gap-4 flex-wrap mb-6">
           <div>
             <h2 class="extract-title text-2xl font-bold text-gray-800">Extrato</h2>
-            <p class="extract-subtitle text-sm text-gray-500 mt-1">Bruto base do seller, comissão, etiqueta Ariana e líquido final por pedido.</p>
+            <p class="extract-subtitle text-sm text-gray-500 mt-1">Bruto base do seller, comissão configurada pela Ariana, etiqueta informativa e líquido a receber por pedido.</p>
           </div>
           <button id="btn-refresh" class="bg-primary-blue text-white px-4 py-2 rounded-xl font-bold hover:opacity-95 transition">
             <i class="fas fa-rotate mr-2"></i>Atualizar
@@ -291,7 +291,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             <div id="kpi-fee" class="kpi-value text-2xl font-black text-error-red mt-2">R$ 0,00</div>
           </div>
           <div class="kpi-box bg-gray-50 rounded-2xl p-5 border border-gray-100">
-            <div class="text-xs font-bold text-gray-500 uppercase">Etiqueta Ariana</div>
+            <div class="text-xs font-bold text-gray-500 uppercase">Etiqueta Ariana (informativa)</div>
             <div id="kpi-label" class="kpi-value text-2xl font-black text-yellow-600 mt-2">R$ 0,00</div>
           </div>
           <div class="kpi-box bg-gray-50 rounded-2xl p-5 border border-gray-100">
@@ -307,7 +307,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pedido</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Bruto</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Comissão</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Etiqueta Ariana</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Etiqueta (informativa)</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Líquido</th>
               </tr>
             </thead>
@@ -417,7 +417,7 @@ function applySellerHeaderName() {
           const gross = normalizeCurrencyValue(item.gross ?? item.sellerBaseTotal ?? item.bruto ?? 0);
           const fee = normalizeCurrencyValue(item.fee ?? item.commission ?? item.comissao ?? 0);
           const label = normalizeCurrencyValue(item.label ?? item.labelCost ?? item.etiquetaAriana ?? 0);
-          const net = normalizeCurrencyValue(item.net ?? item.liquid ?? item.liquido ?? (gross - fee - label));
+          const net = normalizeCurrencyValue(item.net ?? item.liquid ?? item.liquido ?? (gross - fee));
 
           grossTotal += gross;
           feeTotal += fee;
@@ -429,7 +429,7 @@ function applySellerHeaderName() {
               <td data-label="Pedido" class="px-6 py-4 text-sm font-mono text-gray-900">#${String(item.id || item.orderId || '').substring(0,8).toUpperCase()}</td>
               <td data-label="Bruto" class="px-6 py-4 text-sm text-gray-900 text-right">${money(gross)}</td>
               <td data-label="Comissão" class="px-6 py-4 text-sm text-error-red text-right">-${money(fee)}</td>
-              <td data-label="Etiqueta Ariana" class="px-6 py-4 text-sm text-yellow-700 text-right">-${money(label)}</td>
+              <td data-label="Etiqueta informativa" class="px-6 py-4 text-sm text-yellow-700 text-right">${money(label)}</td>
               <td data-label="Líquido" class="px-6 py-4 text-sm text-success-green text-right font-bold">${money(net)}</td>
             </tr>
           `);
