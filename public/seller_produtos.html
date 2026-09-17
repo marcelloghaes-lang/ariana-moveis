@@ -332,45 +332,22 @@ function renderMobile(products){
 async function loadProducts(){
   if (!ensureSellerSession()) return; applySellerHeaderName();
   const tbody = $('lista-produtos-corpo'); const mobile = $('mobile-products-list');
-  tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-10">Sincronizando com MongoDB...</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center muted font-bold">Sincronizando com MongoDB...</div>';
+  tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-10">Carregando seus produtos...</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center muted font-bold">Carregando seus produtos...</div>';
   try{
     const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
     if (meRes.status === 401 || meRes.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
     const meData = await meRes.json().catch(() => ({})); const sellerMe = meData?.seller || meData?.user || meData || {};
     if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email || sellerMe.sellerId)) { localStorage.setItem('seller_profile', JSON.stringify(sellerMe)); applySellerHeaderName(); }
     const sellerId = getSellerDebugId(sellerMe);
-    const attempts = [`${API_BASE}/seller/products`, sellerId ? `${API_BASE}/products?sellerId=${encodeURIComponent(sellerId)}` : '', sellerId ? `${API_BASE}/products/seller/${encodeURIComponent(sellerId)}` : '', sellerId ? `${API_BASE}/seller/${encodeURIComponent(sellerId)}/products` : '', sellerId ? `${API_BASE}/sellers/${encodeURIComponent(sellerId)}/products` : ''].filter(Boolean);
-    let products = [], lastError = '';
-    for (const url of attempts){
-      const { response, data } = await fetchJson(url);
-      if (response.status === 401 || response.status === 403){ clearSellerSession(); window.location.href = 'seller_login.html'; return; }
-      if (!response.ok){ lastError = data?.error || data?.message || `Erro ${response.status}`; continue; }
-      const list = Array.isArray(data) ? data : (Array.isArray(data?.products) ? data.products : (data?.items || data?.docs || []));
-      if (list.length){ products = list; break; }
-    }
-
-    // Compatibilidade com produtos antigos que foram gravados com outro identificador do seller.
-    if (!products.length && sellerId) {
-      try {
-        const candidates = new Set([
-          sellerId,
-          sellerMe.sellerId,
-          sellerMe.id,
-          sellerMe._id,
-          sellerMe.email,
-          sellerMe.storeName,
-          sellerMe.displayName,
-          sellerMe.name
-        ].map(v => String(v || '').trim()).filter(Boolean));
-        const pub = await fetchJson(`${API_BASE}/products?limit=1000`);
-        const pubList = Array.isArray(pub.data) ? pub.data : (pub.data?.products || pub.data?.items || pub.data?.docs || []);
-        products = pubList.filter(p => [p.sellerId, p.seller_id, p.seller, p.sellerName, p.sellerEmail, p.manufacturer].some(v => candidates.has(String(v || '').trim())));
-      } catch(_e) {}
-    }
-
-    if (!products.length){ const html = emptyHtml(sellerId,lastError); tbody.innerHTML = `<tr><td colspan="5">${html}</td></tr>`; mobile.innerHTML = html; return; }
+    // Única fonte autorizada: o backend autenticado já resolve IDs legados do seller.
+    // Não consultar o catálogo público inteiro (era lento e ampliava a superfície de dados).
+    const { response, data } = await fetchJson(`${API_BASE}/seller/products`);
+    if (response.status === 401 || response.status === 403){ clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+    if (!response.ok) throw new Error(data?.error || data?.message || `Erro ${response.status}`);
+    const products = Array.isArray(data) ? data : (Array.isArray(data?.products) ? data.products : (data?.items || data?.docs || []));
+    if (!products.length){ const html = emptyHtml(sellerId,''); tbody.innerHTML = `<tr><td colspan="5">${html}</td></tr>`; mobile.innerHTML = html; return; }
     renderDesktop(products); renderMobile(products);
-  } catch(e){ console.error(e); tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-red-500 font-bold">Erro ao conectar com o servidor Render.</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center text-red-500 font-bold">Erro ao conectar com o servidor Render.</div>'; }
+  } catch(e){ console.error(e); tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-red-500 font-bold">Erro ao carregar seus produtos.</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center text-red-500 font-bold">Erro ao carregar seus produtos.</div>'; }
 }
 async function deleteProduct(id){
   if (!id) return alert('Produto sem ID.'); if (!confirm('Deseja excluir este produto?')) return;
