@@ -2682,6 +2682,8 @@ async function notifyNewPartnerRequest(seller = {}) {
 registerSellerPartnerRoutes(app, {
   ...context,
   Seller,
+  User,
+  bcrypt,
   uid,
   adminRequired,
   sellerAuthRequired,
