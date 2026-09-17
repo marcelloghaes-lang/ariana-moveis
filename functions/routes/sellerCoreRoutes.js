@@ -713,7 +713,7 @@ app.get('/api/seller/notifications', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const rows = await Notification.find({ audience: 'seller', sellerId: sid }).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit || 80), 200));
-    return res.json(rows.map((order) => sellerOrderForResponse(order, sid)));
+    return res.json(rows.map(toJSON));
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar notificações do seller' });
   }
@@ -787,7 +787,7 @@ app.get('/api/seller/orders', sellerAuthRequired, async (req, res) => {
   try {
     const sid = req.sellerId;
     const rows = await Order.find({ $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] }).sort({ createdAt: -1 }).limit(500);
-    return res.json(rows.map(toJSON));
+    return res.json(rows.map((order) => sellerOrderForResponse(order, sid)));
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao listar pedidos' });
   }
