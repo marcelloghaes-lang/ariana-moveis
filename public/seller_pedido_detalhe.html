@@ -285,11 +285,8 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     <div class="border-t border-soft pt-4">
       <label class="block text-xs font-black mb-2 uppercase muted">Atualizar status</label>
       <select id="status-select" class="input">
-        <option value="pending_payment">Aguardando Pagamento</option>
         <option value="processing">Em Preparação</option>
         <option value="shipped">Enviado</option>
-        <option value="delivered">Entregue</option>
-        <option value="cancelled">Cancelado</option>
       </select>
       <button id="btn-save-status" class="btn btn-primary w-full mt-3">Salvar status</button>
     </div>
@@ -486,7 +483,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       await apiFetch(`/seller/orders/${state.orderId}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
       toast('Status atualizado!', 'success');
       loadOrder();
-    } catch (e) { toast('Erro ao salvar status.', 'error'); }
+    } catch (e) { toast(e.message || 'Erro ao salvar status.', 'error'); }
   });
 
   $('btn-sair')?.addEventListener('click', (e) => {
