@@ -9,8 +9,7 @@ const digits = value => String(value ?? '').replace(/\D/g, '');
 const arr = value => Array.isArray(value) ? value : [];
 const money = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const emailIsValid = value => /^\S+@\S+\.\S+$/.test(clean(value, 320).toLowerCase());
-const escRx = value => String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\const money = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
-const escRx = value => String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');');
+const escRx = value => String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const VALID_VIAS = new Set(['primeira', 'segunda', 'atualizada']);
 
 function fail(message, statusCode = 400, code = 'ERP_CARNE_ERROR') {
