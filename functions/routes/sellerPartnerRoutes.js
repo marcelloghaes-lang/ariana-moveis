@@ -8,6 +8,8 @@ export default function registerSellerPartnerRoutes(app, context = {}) {
   const {
     Seller,
     User,
+    Product,
+    Notification,
     bcrypt,
     uid,
     adminRequired,
@@ -578,6 +580,257 @@ app.patch('/api/seller/partner-requests/:id/commission', adminRequired, async (r
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao alterar comissão do seller' });
+  }
+});
+
+
+function sellerProductReviewStatus(product = {}) {
+  const raw = toJSON(product) || product || {};
+  const approval = raw.specs?.sellerApproval;
+  if (approval && typeof approval === 'object' && approval.status) {
+    return String(approval.status).trim().toLowerCase();
+  }
+  return raw.active === true ? 'approved' : 'pending';
+}
+
+function sellerProductReviewResponse(product = {}, sellerMap = new Map()) {
+  const raw = toJSON(product) || {};
+  const sid = String(raw.sellerId || '').trim();
+  const seller = sellerMap.get(sid) || {};
+  const approval = raw.specs?.sellerApproval && typeof raw.specs.sellerApproval === 'object'
+    ? raw.specs.sellerApproval
+    : {};
+
+  return {
+    ...raw,
+    id: String(raw._id || raw.id || ''),
+    sellerId: sid,
+    sellerName: String(
+      raw.sellerName ||
+      seller.storeName ||
+      seller.displayName ||
+      sid
+    ).trim(),
+    reviewStatus: sellerProductReviewStatus(raw),
+    reviewReason: String(approval.reason || '').trim(),
+    reviewedAt: approval.reviewedAt || null,
+    reviewedBy: String(approval.reviewedBy || '').trim()
+  };
+}
+
+async function notifySellerProductReview(product = {}, status = '', reason = '') {
+  if (!Notification?.create) return null;
+  const raw = toJSON(product) || {};
+  const sid = String(raw.sellerId || '').trim();
+  if (!sid) return null;
+
+  const approved = status === 'approved';
+  const rejected = status === 'rejected';
+  const title = approved
+    ? '✅ Produto aprovado'
+    : rejected
+      ? '⚠️ Produto precisa de ajuste'
+      : '⏳ Produto em revisão';
+  const message = approved
+    ? `${raw.name || 'Produto'} foi aprovado e publicado no marketplace.`
+    : rejected
+      ? `${raw.name || 'Produto'} foi recusado na revisão${reason ? `: ${reason}` : '.'}`
+      : `${raw.name || 'Produto'} voltou para revisão da Ariana.`;
+
+  return Notification.create({
+    type: 'seller_product_review',
+    title,
+    message,
+    status: 'unread',
+    relatedId: String(raw._id || ''),
+    severity: approved ? 'success' : rejected ? 'warning' : 'info',
+    audience: 'seller',
+    sellerId: sid,
+    metadata: {
+      productId: String(raw._id || ''),
+      reviewStatus: status,
+      reason
+    }
+  }).catch(() => null);
+}
+
+app.get('/api/seller/product-reviews', adminRequired, async (req, res) => {
+  try {
+    if (!Product) {
+      return res.status(503).json({ ok: false, error: 'Catálogo indisponível.' });
+    }
+
+    const requestedStatus = String(req.query?.status || 'pending').trim().toLowerCase();
+    const status = ['pending', 'approved', 'rejected', 'archived', 'all'].includes(requestedStatus)
+      ? requestedStatus
+      : 'pending';
+    const limit = Math.min(500, Math.max(1, Number(req.query?.limit || 200)));
+
+    const sellerRows = await Seller.find({
+      sellerId: { $nin: [null, '', 'ArianaMoveis', 'ariana_moveis', 'ariana'] }
+    }).select('sellerId storeName displayName').lean();
+
+    const sellerMap = new Map(
+      sellerRows
+        .map((seller) => [String(seller.sellerId || '').trim(), seller])
+        .filter(([sellerId]) => sellerId)
+    );
+    const sellerIds = Array.from(sellerMap.keys());
+
+    if (!sellerIds.length) {
+      return res.json({ ok: true, items: [], products: [], total: 0, status });
+    }
+
+    const sellerScope = { sellerId: { $in: sellerIds } };
+    let query = sellerScope;
+
+    if (status === 'pending') {
+      query = {
+        $and: [
+          sellerScope,
+          { active: { $ne: true } },
+          {
+            $or: [
+              { 'specs.sellerApproval.status': 'pending' },
+              { 'specs.sellerApproval.status': { $exists: false } }
+            ]
+          }
+        ]
+      };
+    } else if (status === 'approved') {
+      query = { ...sellerScope, active: true };
+    } else if (status === 'rejected') {
+      query = {
+        ...sellerScope,
+        active: { $ne: true },
+        'specs.sellerApproval.status': 'rejected'
+      };
+    } else if (status === 'archived') {
+      query = {
+        ...sellerScope,
+        active: { $ne: true },
+        'specs.sellerApproval.status': 'archived'
+      };
+    }
+
+    const rows = await Product.find(query)
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(limit);
+
+    const products = rows.map((product) => sellerProductReviewResponse(product, sellerMap));
+    return res.json({
+      ok: true,
+      items: products,
+      products,
+      total: products.length,
+      status
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Erro ao carregar produtos em revisão.'
+    });
+  }
+});
+
+app.patch('/api/seller/product-reviews/:id/status', adminRequired, async (req, res) => {
+  try {
+    if (!Product) {
+      return res.status(503).json({ ok: false, error: 'Catálogo indisponível.' });
+    }
+
+    const id = String(req.params.id || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ ok: false, error: 'Produto inválido.' });
+    }
+
+    const status = String(req.body?.status || '').trim().toLowerCase();
+    if (!['approved', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Status de revisão inválido.'
+      });
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ ok: false, error: 'Produto não encontrado.' });
+    }
+
+    const sellerId = String(product.sellerId || '').trim();
+    const seller = sellerId
+      ? await Seller.findOne({ sellerId }).lean()
+      : null;
+
+    if (!seller) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_PRODUCT_REQUIRED',
+        error: 'Este produto não pertence a um seller cadastrado.'
+      });
+    }
+
+    const reason = String(req.body?.reason || req.body?.motivo || '').trim().slice(0, 1000);
+    const specs = product.specs && typeof product.specs === 'object'
+      ? { ...product.specs }
+      : {};
+    const previousApproval = specs.sellerApproval && typeof specs.sellerApproval === 'object'
+      ? { ...specs.sellerApproval }
+      : {};
+
+    specs.sellerApproval = {
+      ...previousApproval,
+      status,
+      reason: status === 'rejected' ? reason : '',
+      reviewedAt: now(),
+      reviewedBy: req.admin?.email || req.user?.email || 'admin',
+      sellerId
+    };
+
+    product.specs = specs;
+    product.active = status === 'approved';
+    product.markModified('specs');
+    await product.save();
+
+    await writeAuditLog({
+      scope: 'seller_product_review',
+      eventType: `seller_product_${status}`,
+      status: 'success',
+      metadata: {
+        sellerId,
+        productId: String(product._id),
+        productName: product.name || '',
+        reviewStatus: status,
+        reason,
+        admin: req.admin?.email || req.user?.email || 'admin'
+      }
+    }).catch(() => null);
+
+    await notifySellerProductReview(product, status, reason);
+
+    await createAdminNotification({
+      type: 'seller_product_review_updated',
+      title: status === 'approved'
+        ? 'Produto de seller aprovado'
+        : status === 'rejected'
+          ? 'Produto de seller recusado'
+          : 'Produto de seller devolvido para revisão',
+      message: `${product.name || 'Produto'} • ${seller.storeName || seller.displayName || sellerId}`,
+      relatedId: String(product._id),
+      severity: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+      metadata: { sellerId, status, reason }
+    }).catch(() => null);
+
+    const sellerMap = new Map([[sellerId, seller]]);
+    return res.json({
+      ok: true,
+      product: sellerProductReviewResponse(product, sellerMap)
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Erro ao revisar produto do seller.'
+    });
   }
 });
 
