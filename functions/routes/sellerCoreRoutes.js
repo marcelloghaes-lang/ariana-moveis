@@ -42,7 +42,9 @@ export default function registerSellerCoreRoutes(app, context = {}) {
     buildProductBasePriceMapForOrders,
     getSellerSettlementForOrder,
     upload,
-    uploadToCloudinary
+    uploadToCloudinary,
+    cloudinary,
+    fs
   } = context;
 
 
@@ -1104,7 +1106,13 @@ app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
     const sid = String(req.sellerId || '').trim();
     if (!sellerIdsForSellerRoute(order).includes(sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     const raw = toJSON(order) || {};
-    const docs = raw.sellerDocuments && typeof raw.sellerDocuments === 'object' ? (raw.sellerDocuments[sid] || {}) : {};
+    const fiscalSellerDocs = raw.fiscal?.sellerDocuments && typeof raw.fiscal.sellerDocuments === 'object'
+      ? raw.fiscal.sellerDocuments
+      : {};
+    const legacySellerDocs = raw.sellerDocuments && typeof raw.sellerDocuments === 'object'
+      ? raw.sellerDocuments
+      : {};
+    const docs = fiscalSellerDocs[sid] || legacySellerDocs[sid] || {};
     return res.json({
       ok: true,
       invoice: {
@@ -1122,6 +1130,195 @@ app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao consultar NF-e do seller' });
   }
 });
+
+
+function sellerFiscalSafePart(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 80) || 'seller';
+}
+
+function sellerFiscalFileIsValid(file, kind) {
+  if (!file) return false;
+  const name = String(file.originalname || '').toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase();
+
+  if (kind === 'xml') {
+    return name.endsWith('.xml') || mime.includes('xml');
+  }
+
+  if (kind === 'danfe') {
+    return name.endsWith('.pdf') || mime === 'application/pdf';
+  }
+
+  return false;
+}
+
+async function uploadSellerFiscalAsset(file, options = {}) {
+  if (!file?.path) throw new Error('Arquivo fiscal inválido.');
+  if (!cloudinary?.uploader?.upload) throw new Error('Cloudinary indisponível para documentos fiscais.');
+
+  const result = await cloudinary.uploader.upload(file.path, {
+    folder: options.folder,
+    public_id: options.publicId,
+    resource_type: 'raw',
+    overwrite: true,
+    invalidate: true
+  });
+
+  return {
+    url: String(result?.secure_url || result?.url || ''),
+    publicId: String(result?.public_id || ''),
+    bytes: Number(result?.bytes || 0),
+    format: String(result?.format || '')
+  };
+}
+
+if (upload?.fields && cloudinary?.uploader?.upload && fs) {
+  app.post(
+    '/api/seller/orders/:id/nfe',
+    sellerAuthRequired,
+    upload.fields([
+      { name: 'xml', maxCount: 1 },
+      { name: 'danfe', maxCount: 1 }
+    ]),
+    async (req, res) => {
+      const uploadedFiles = [
+        ...(Array.isArray(req.files?.xml) ? req.files.xml : []),
+        ...(Array.isArray(req.files?.danfe) ? req.files.danfe : [])
+      ];
+
+      try {
+        const oid = normalizeObjectId(req.params.id);
+        if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+        const order = await Order.findById(oid);
+        if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+        const sid = String(req.sellerId || '').trim();
+        if (!sellerIdsForSellerRoute(order).includes(sid)) {
+          return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+        }
+
+        const xmlFile = Array.isArray(req.files?.xml) ? req.files.xml[0] : null;
+        const danfeFile = Array.isArray(req.files?.danfe) ? req.files.danfe[0] : null;
+
+        if (!xmlFile && !danfeFile) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Envie pelo menos o XML da NF-e ou o DANFE em PDF.'
+          });
+        }
+
+        if (xmlFile && !sellerFiscalFileIsValid(xmlFile, 'xml')) {
+          return res.status(400).json({ ok: false, error: 'O arquivo XML da NF-e é inválido.' });
+        }
+        if (danfeFile && !sellerFiscalFileIsValid(danfeFile, 'danfe')) {
+          return res.status(400).json({ ok: false, error: 'O DANFE deve ser enviado em PDF.' });
+        }
+
+        const orderId = String(order._id);
+        const folder = `ariana_moveis/seller_nfe/${sellerFiscalSafePart(sid)}/${sellerFiscalSafePart(orderId)}`;
+        const fiscal = order.fiscal && typeof order.fiscal === 'object'
+          ? { ...order.fiscal }
+          : {};
+        const sellerDocuments = fiscal.sellerDocuments && typeof fiscal.sellerDocuments === 'object'
+          ? { ...fiscal.sellerDocuments }
+          : {};
+        const existing = sellerDocuments[sid] && typeof sellerDocuments[sid] === 'object'
+          ? { ...sellerDocuments[sid] }
+          : {};
+
+        let xmlAsset = null;
+        let danfeAsset = null;
+
+        if (xmlFile) {
+          xmlAsset = await uploadSellerFiscalAsset(xmlFile, {
+            folder,
+            publicId: `nfe-${sellerFiscalSafePart(orderId)}.xml`
+          });
+        }
+
+        if (danfeFile) {
+          danfeAsset = await uploadSellerFiscalAsset(danfeFile, {
+            folder,
+            publicId: `danfe-${sellerFiscalSafePart(orderId)}.pdf`
+          });
+        }
+
+        const docs = {
+          ...existing,
+          number: String(req.body?.number || req.body?.numero || existing.number || '').trim(),
+          serie: String(req.body?.serie || existing.serie || '').trim(),
+          accessKey: String(req.body?.accessKey || req.body?.chave || existing.accessKey || '').replace(/\D/g, '').slice(0, 44),
+          issuerDocument: String(req.body?.issuerDocument || req.body?.cnpj || existing.issuerDocument || '').replace(/\D/g, '').slice(0, 14),
+          status: 'received',
+          submittedAt: now(),
+          submittedBySellerId: sid,
+          xmlUrl: xmlAsset?.url || existing.xmlUrl || '',
+          xmlPublicId: xmlAsset?.publicId || existing.xmlPublicId || '',
+          danfeUrl: danfeAsset?.url || existing.danfeUrl || '',
+          danfePublicId: danfeAsset?.publicId || existing.danfePublicId || ''
+        };
+
+        sellerDocuments[sid] = docs;
+        fiscal.sellerDocuments = sellerDocuments;
+        order.fiscal = fiscal;
+        order.markModified('fiscal');
+        await order.save();
+
+        await writeAuditLog({
+          scope: 'seller_nfe',
+          eventType: 'seller_invoice_uploaded',
+          orderId,
+          status: 'success',
+          metadata: {
+            sellerId: sid,
+            number: docs.number,
+            serie: docs.serie,
+            hasXml: Boolean(docs.xmlUrl),
+            hasDanfe: Boolean(docs.danfeUrl)
+          }
+        }).catch(() => null);
+
+        await createAdminNotification({
+          type: 'seller_nfe_uploaded',
+          title: 'NF-e enviada pelo seller',
+          message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} enviou documentos fiscais do pedido ${orderId}.`,
+          relatedId: orderId,
+          severity: 'info',
+          metadata: { sellerId: sid, number: docs.number, serie: docs.serie }
+        }).catch(() => null);
+
+        return res.json({
+          ok: true,
+          invoice: {
+            number: docs.number,
+            serie: docs.serie,
+            accessKey: docs.accessKey,
+            issuerDocument: docs.issuerDocument,
+            status: docs.status,
+            submittedAt: docs.submittedAt,
+            xmlUrl: docs.xmlUrl,
+            danfeUrl: docs.danfeUrl
+          }
+        });
+      } catch (error) {
+        return res.status(500).json({
+          ok: false,
+          error: error.message || 'Erro ao enviar documentos fiscais do seller'
+        });
+      } finally {
+        for (const file of uploadedFiles) {
+          try {
+            if (file?.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          } catch (_) {}
+        }
+      }
+    }
+  );
+}
 
 app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) => {
   try {
