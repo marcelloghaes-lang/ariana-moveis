@@ -124,6 +124,22 @@
         </div>
         <div id="requests-list" class="space-y-4"><div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando sellers...</div></div></div>
       </div>
+
+      <div class="card p-4 md:p-5">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xl font-black">Produtos aguardando aprovação</h2>
+              <span id="product-review-count" class="pill bg-amber-100 text-amber-700">0 pendentes</span>
+            </div>
+            <p class="text-sm text-slate-500 font-semibold mt-1">Produtos enviados ou editados pelos sellers ficam fora da vitrine até a revisão da Ariana.</p>
+          </div>
+          <button id="product-review-refresh" class="btn btn-soft"><i class="fa-solid fa-rotate"></i> Atualizar produtos</button>
+        </div>
+        <div id="seller-product-reviews" class="space-y-4">
+          <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando produtos...</div></div>
+        </div>
+      </div>
     </section>
   </main>
 </div>
@@ -269,7 +285,101 @@ async function updateStatus(id,status){
   }
 }
 window.updateStatus=updateStatus;
-$('refresh-btn').addEventListener('click',loadRequests);$('search-btn').addEventListener('click',render);$('search-input').addEventListener('input',render);$('status-filter').addEventListener('change',render);$('logout-btn').addEventListener('click',e=>{e.preventDefault();localStorage.removeItem('admin_token');location.href='admin_painel.html'});loadRequests();
+
+function sellerReviewMoney(value){
+  return Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+
+function sellerReviewImage(product={}){
+  return String(
+    product.mainImageUrl ||
+    product.imageUrl ||
+    product.image ||
+    product.imagem ||
+    product.images?.find?.(img=>img?.isMain)?.url ||
+    product.images?.[0]?.url ||
+    ''
+  ).trim();
+}
+
+function renderSellerProductReviews(items=[]){
+  const box=$('seller-product-reviews');
+  const count=$('product-review-count');
+  if(count) count.textContent=`${items.length} pendente${items.length===1?'':'s'}`;
+  if(!box) return;
+
+  if(!items.length){
+    box.innerHTML='<div class="empty"><i class="fa-solid fa-circle-check text-green-600"></i><div>Nenhum produto de seller aguardando aprovação.</div></div>';
+    return;
+  }
+
+  box.innerHTML=items.map(product=>{
+    const id=String(product.id||product._id||'');
+    const image=sellerReviewImage(product);
+    return `<article class="border border-slate-200 rounded-2xl p-4 bg-white">
+      <div class="grid md:grid-cols-[96px_1fr_auto] gap-4 items-center">
+        <div class="w-24 h-24 rounded-2xl border bg-slate-50 overflow-hidden flex items-center justify-center">
+          ${image?`<img src="${esc(image)}" alt="" class="w-full h-full object-contain">`:'<i class="fa-solid fa-box text-3xl text-slate-300"></i>'}
+        </div>
+        <div class="min-w-0">
+          <div class="font-black text-lg text-slate-900 truncate">${esc(product.name||'Produto sem nome')}</div>
+          <div class="text-sm text-slate-500 font-semibold mt-1">Seller: ${esc(product.sellerName||product.sellerId||'—')}</div>
+          <div class="flex gap-2 flex-wrap mt-3">
+            <span class="pill bg-blue-50 text-blue-700">${esc(sellerReviewMoney(product.price))}</span>
+            <span class="pill bg-slate-100 text-slate-700">Estoque: ${esc(product.stock??0)}</span>
+            <span class="pill bg-amber-100 text-amber-700">Aguardando revisão</span>
+          </div>
+        </div>
+        <div class="flex md:flex-col gap-2">
+          <button class="btn btn-green flex-1" onclick="reviewSellerProduct('${esc(id)}','approved')"><i class="fa-solid fa-check"></i> Aprovar</button>
+          <button class="btn btn-red flex-1" onclick="reviewSellerProduct('${esc(id)}','rejected')"><i class="fa-solid fa-xmark"></i> Recusar</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+async function loadSellerProductReviews(){
+  const box=$('seller-product-reviews');
+  if(box) box.innerHTML='<div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando produtos...</div></div>';
+  try{
+    const res=await fetch(`${API_BASE}/seller/product-reviews?status=pending&limit=300`,{headers:headers()});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||data.message||'Erro ao carregar produtos em revisão');
+    renderSellerProductReviews(data.products||data.items||[]);
+  }catch(e){
+    if(box) box.innerHTML=`<div class="empty text-red-600"><i class="fa-solid fa-triangle-exclamation"></i><div>${esc(e.message)}</div></div>`;
+    toast(e.message,'error');
+  }
+}
+window.loadSellerProductReviews=loadSellerProductReviews;
+
+async function reviewSellerProduct(id,status){
+  let reason='';
+  if(status==='rejected'){
+    reason=String(prompt('Informe o motivo da recusa para o seller:')||'').trim();
+    if(!reason) return;
+  }else if(!confirm('Aprovar este produto e publicar na vitrine?')){
+    return;
+  }
+
+  try{
+    const res=await fetch(`${API_BASE}/seller/product-reviews/${encodeURIComponent(id)}/status`,{
+      method:'PATCH',
+      headers:headers({'Content-Type':'application/json'}),
+      body:JSON.stringify({status,reason})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||data.message||'Erro ao revisar produto');
+    toast(status==='approved'?'Produto aprovado e publicado.':'Produto recusado e devolvido ao seller.','success');
+    await loadSellerProductReviews();
+  }catch(e){
+    toast(e.message,'error');
+  }
+}
+window.reviewSellerProduct=reviewSellerProduct;
+
+$('refresh-btn').addEventListener('click',loadRequests);$('search-btn').addEventListener('click',render);$('search-input').addEventListener('input',render);$('status-filter').addEventListener('change',render);$('product-review-refresh')?.addEventListener('click',loadSellerProductReviews);$('logout-btn').addEventListener('click',e=>{e.preventDefault();localStorage.removeItem('admin_token');location.href='admin_painel.html'});loadRequests();loadSellerProductReviews();
 </script>
 </body>
 </html>
