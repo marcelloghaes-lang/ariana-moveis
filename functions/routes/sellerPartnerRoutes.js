@@ -508,28 +508,74 @@ app.patch('/api/seller/partner-requests/:id/commission', adminRequired, async (r
       ? { $or: [{ _id: id }, { sellerId: id }] }
       : { sellerId: id };
 
-    const seller = await Seller.findOneAndUpdate(filter, {
-      $set: {
-        'metadata.commissionPercent': commissionPercent,
-        'metadata.marketplaceCommissionPercent': commissionPercent,
-        'metadata.commissionUpdatedAt': now(),
-        'metadata.commissionUpdatedBy': req.admin?.email || req.user?.email || 'admin'
+    const updates = {
+      'metadata.commissionPercent': commissionPercent,
+      'metadata.marketplaceCommissionPercent': commissionPercent,
+      'metadata.commissionUpdatedAt': now(),
+      'metadata.commissionUpdatedBy': req.admin?.email || req.user?.email || 'admin'
+    };
+
+    const logisticsOwner = String(req.body?.logisticsOwner || '').trim().toLowerCase();
+    const shippingOwner = String(req.body?.shippingOwner || '').trim().toLowerCase();
+    const labelOwner = String(req.body?.labelOwner || '').trim().toLowerCase();
+    const useArianaLabel = req.body?.useArianaLabel;
+    const transferDeadlineRaw = req.body?.transferDeadlineDays;
+
+    if (logisticsOwner && ['seller', 'ariana', 'mixed'].includes(logisticsOwner)) {
+      updates['metadata.marketplaceLogisticsOwner'] = logisticsOwner;
+    }
+    if (shippingOwner && ['seller', 'ariana'].includes(shippingOwner)) {
+      updates['metadata.marketplaceShippingOwner'] = shippingOwner;
+    }
+    if (labelOwner && ['seller', 'ariana'].includes(labelOwner)) {
+      updates['metadata.marketplaceLabelOwner'] = labelOwner;
+    }
+    if (useArianaLabel !== undefined) {
+      updates['metadata.usesArianaLabel'] =
+        useArianaLabel === true || String(useArianaLabel).toLowerCase() === 'true';
+    }
+    if (
+      transferDeadlineRaw !== undefined &&
+      transferDeadlineRaw !== null &&
+      String(transferDeadlineRaw).trim() !== ''
+    ) {
+      const days = Number(String(transferDeadlineRaw).replace(',', '.'));
+      if (!Number.isFinite(days) || days < 0 || days > 90) {
+        return res.status(400).json({ ok: false, error: 'O prazo de repasse deve ficar entre 0 e 90 dias.' });
       }
-    }, { new: true });
+      updates['metadata.transferDeadlineDays'] = days;
+    }
+
+    const seller = await Seller.findOneAndUpdate(
+      filter,
+      { $set: updates },
+      { new: true }
+    );
 
     if (!seller) return res.status(404).json({ ok: false, error: 'Seller não encontrado' });
 
-    const s = normalizePartnerRequestForResponse(seller);
+    const s = safePartnerRequestForResponse(seller);
     await createAdminNotification({
-      type: 'seller_commission_updated',
-      title: '💰 Comissão do seller atualizada',
-      message: `${s.storeName || s.factoryName || s.displayName || 'Seller'} agora está com comissão de ${commissionPercent}%.`,
+      type: 'seller_marketplace_config_updated',
+      title: 'Configuração do seller atualizada',
+      message: `${s.storeName || s.factoryName || s.displayName || 'Seller'} está com comissão de ${commissionPercent}% e regras de operação atualizadas.`,
       relatedId: s.id,
       severity: 'info',
-      metadata: { sellerId: s.sellerId, commissionPercent }
+      metadata: {
+        sellerId: s.sellerId,
+        commissionPercent,
+        logisticsOwner: updates['metadata.marketplaceLogisticsOwner'] || '',
+        shippingOwner: updates['metadata.marketplaceShippingOwner'] || '',
+        labelOwner: updates['metadata.marketplaceLabelOwner'] || ''
+      }
     });
 
-    return res.json({ ok: true, seller: s, request: s, commissionPercent });
+    return res.json({
+      ok: true,
+      seller: s,
+      request: s,
+      commissionPercent
+    });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao alterar comissão do seller' });
   }
@@ -545,7 +591,7 @@ app.post('/api/seller/complete-onboarding', sellerAuthRequired, async (req, res)
     const allowed = ['bio','description','cepColeta','tipoLogistica','transpPropria','transportadoraNome','transportadoraTelefone','transportadoraPrazo','freteObs'];
     for (const key of allowed) if (req.body?.[key] !== undefined) metadata[key] = req.body[key];
     const seller = await Seller.findOneAndUpdate({ sellerId }, { $set: { onboardingCompleted: true, metadata } }, { new: true });
-    return res.json({ ok: true, seller: toJSON(seller) });
+    return res.json({ ok: true, seller: safePartnerRequestForResponse(seller) });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao completar onboarding' });
   }
