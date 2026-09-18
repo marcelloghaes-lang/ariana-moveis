@@ -222,7 +222,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
             <a href="seller_pedidos.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-shopping-cart"></i><span>Pedidos</span></a>
             <a href="seller_vendas.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-chart-line"></i><span>Vendas</span></a>
             <a href="seller_notificacoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-bell"></i><span>Notificações</span></a>
-            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Mercado Pago</span></a>
+            <a href="seller_mercadopago.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-credit-card"></i><span>Recebimentos</span></a>
             <a href="seller_configuracoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-cog"></i><span>Configurações</span></a>
             <a href="seller_devolucoes.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-exchange-alt"></i><span>Devoluções</span></a>
             <a href="seller_extrato.html" class="flex items-center space-x-2 py-2.5 px-4 rounded transition duration-200 hover:bg-dark-gray-bg text-white"><i class="fas fa-receipt"></i><span>Extrato</span></a>
@@ -390,6 +390,26 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
     return data.invoice || data.nfe || data.sigeInvoice || data.manufacturerDispatch?.invoice || data || {};
   }
 
+  function safeRemoteDocumentUrl(value = '') {
+    try {
+      const url = new URL(String(value || '').trim(), window.location.origin);
+      if (!['http:', 'https:'].includes(url.protocol)) return '';
+      return url.href;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function escapeSellerHtml(value = '') {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
+
   async function loadSellerOrderNfe(orderId) {
     const card = $('seller-nfe-card');
     const box = $('seller-nfe-content');
@@ -399,15 +419,17 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       const inv = sellerInvoicePayload(data);
       const number = inv.number || inv.numero || inv.invoiceNumber || data.number || '';
       const key = inv.accessKey || inv.chave || inv.chaveAcesso || inv.invoiceKey || '';
-      if (!number && !key && !inv.danfeUrl && !inv.xmlUrl) return;
+      const danfeUrl = safeRemoteDocumentUrl(inv.danfeUrl);
+      const xmlUrl = safeRemoteDocumentUrl(inv.xmlUrl);
+      if (!number && !key && !danfeUrl && !xmlUrl) return;
       card.classList.remove('hidden');
       box.innerHTML = `
         <div class="space-y-2">
-          <div><span class="muted">NF-e:</span> <b>${number || 'Disponível'}</b></div>
-          ${key ? `<div class="break-all"><span class="muted">Chave:</span> <b>${key}</b></div>` : ''}
+          <div><span class="muted">NF-e:</span> <b>${escapeSellerHtml(number || 'Disponível')}</b></div>
+          ${key ? `<div class="break-all"><span class="muted">Chave:</span> <b>${escapeSellerHtml(key)}</b></div>` : ''}
           <div class="grid grid-cols-1 gap-2 pt-2">
-            <button type="button" onclick="downloadSellerProtectedFile('/seller/orders/${encodeURIComponent(orderId)}/danfe','danfe-${number || orderId}.pdf')" class="btn btn-primary w-full"><i class="fas fa-file-pdf"></i>DANFE</button>
-            <button type="button" onclick="downloadSellerProtectedFile('/seller/orders/${encodeURIComponent(orderId)}/xml','nfe-${number || orderId}.xml')" class="btn btn-dark w-full"><i class="fas fa-file-code"></i>XML</button>
+            ${danfeUrl ? `<a href="${escapeSellerHtml(danfeUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary w-full"><i class="fas fa-file-pdf"></i>DANFE</a>` : ''}
+            ${xmlUrl ? `<a href="${escapeSellerHtml(xmlUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-dark w-full"><i class="fas fa-file-code"></i>XML</a>` : ''}
           </div>
         </div>`;
     } catch (e) {
@@ -498,8 +520,69 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 
   async function sendSellerNfe() {
     const status = $('seller-nfe-status');
-    if (status) status.textContent = 'Envio eletrônico de XML/DANFE em configuração no canal protegido do Seller.';
-    toast('Envio de NF-e temporariamente indisponível até a rota protegida ser concluída.', 'info');
+    const button = $('btn-send-seller-nfe');
+    const xml = $('seller-nfe-xml')?.files?.[0] || null;
+    const danfe = $('seller-nfe-danfe')?.files?.[0] || null;
+
+    if (!state.orderId) {
+      toast('Pedido não identificado.', 'error');
+      return;
+    }
+
+    if (!xml && !danfe) {
+      toast('Selecione o XML da NF-e ou o DANFE em PDF.', 'error');
+      return;
+    }
+
+    const form = new FormData();
+    form.append('number', $('seller-nfe-numero')?.value?.trim() || '');
+    form.append('serie', $('seller-nfe-serie')?.value?.trim() || '');
+    form.append('accessKey', $('seller-nfe-chave')?.value?.trim() || '');
+    form.append('issuerDocument', $('seller-nfe-cnpj')?.value?.trim() || '');
+    if (xml) form.append('xml', xml);
+    if (danfe) form.append('danfe', danfe);
+
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>Enviando...';
+    }
+    if (status) status.textContent = 'Enviando documentos fiscais...';
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/seller/orders/${encodeURIComponent(state.orderId)}/nfe`,
+        {
+          method: 'POST',
+          headers: authHeaders(),
+          body: form
+        }
+      );
+
+      if (response.status === 401 || response.status === 403) {
+        clearSellerSession();
+        window.location.href = 'seller_login.html';
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}`);
+      }
+
+      if ($('seller-nfe-xml')) $('seller-nfe-xml').value = '';
+      if ($('seller-nfe-danfe')) $('seller-nfe-danfe').value = '';
+      if (status) status.textContent = 'NF-e enviada e vinculada ao pedido com sucesso.';
+      toast('NF-e enviada com sucesso!', 'success');
+      await loadSellerOrderNfe(state.orderId);
+    } catch (error) {
+      if (status) status.textContent = error?.message || 'Não foi possível enviar a NF-e.';
+      toast(error?.message || 'Erro ao enviar a NF-e.', 'error');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-file-upload"></i>Enviar NF-e para a Ariana';
+      }
+    }
   }
     document.addEventListener('click', (ev) => {
     if (ev.target && (ev.target.id === 'btn-send-seller-nfe' || ev.target.closest('#btn-send-seller-nfe'))) sendSellerNfe();

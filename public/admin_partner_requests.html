@@ -124,20 +124,262 @@
         </div>
         <div id="requests-list" class="space-y-4"><div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando sellers...</div></div></div>
       </div>
+
+      <div class="card p-4 md:p-5">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xl font-black">Produtos aguardando aprovação</h2>
+              <span id="product-review-count" class="pill bg-amber-100 text-amber-700">0 pendentes</span>
+            </div>
+            <p class="text-sm text-slate-500 font-semibold mt-1">Produtos enviados ou editados pelos sellers ficam fora da vitrine até a revisão da Ariana.</p>
+          </div>
+          <button id="product-review-refresh" class="btn btn-soft"><i class="fa-solid fa-rotate"></i> Atualizar produtos</button>
+        </div>
+        <div id="seller-product-reviews" class="space-y-4">
+          <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando produtos...</div></div>
+        </div>
+      </div>
     </section>
   </main>
 </div>
 
 <script src="js/api-config.js"></script>
 <script>
-const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');const $=id=>document.getElementById(id);let allRequests=[];function token(){return localStorage.getItem('admin_token')||''}function headers(extra={}){const t=token();return t?{...extra,Authorization:'Bearer '+t}:{...extra}}function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function fmtDate(v){if(!v)return'—';const d=new Date(v);return isNaN(d)?String(v):d.toLocaleString('pt-BR')}function toast(msg,type='info'){const el=document.createElement('div');el.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-blue-700');el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3800)}function pick(obj,...keys){for(const k of keys){const v=k.split('.').reduce((a,p)=>a&&a[p],obj);if(v!==undefined&&v!==null&&String(v).trim()!=='')return v}return''}function normalizeStatus(s){const raw=String(s?.status||s?.metadata?.status||'pending').toLowerCase();if(['approved','aprovado','ativo','active'].includes(raw))return'approved';if(['rejected','recusado','recused','cancelled'].includes(raw))return'rejected';return'pending'}function statusPill(s){const st=normalizeStatus(s);if(st==='approved')return'<span class="pill bg-green-100 text-green-700"><i class="fa-solid fa-check"></i>Aprovado</span>';if(st==='rejected')return'<span class="pill bg-red-100 text-red-700"><i class="fa-solid fa-xmark"></i>Recusado</span>';return'<span class="pill bg-amber-100 text-amber-700"><i class="fa-solid fa-clock"></i>Pendente</span>'}function recipientStatus(s){const id=pick(s,'pagarmeRecipientId','recipientId','metadata.pagarmeRecipientId','metadata.pagarme_recipient_id','metadata.recipientId');const st=pick(s,'pagarmeRecipientStatus','metadata.pagarmeRecipientStatus','metadata.recipientStatus','metadata.pagarmeStatus');return{id:String(id||''),status:String(st||'')}}function field(label,value,icon=''){const v=value===true?'Sim':value===false?'Não':(String(value||'').trim()||'—');return`<div class="info-box"><div class="label">${icon?`<i class="${icon}"></i> `:''}${esc(label)}</div><div class="value mt-1">${esc(v)}</div></div>`}function moneySensitive(value){const raw=String(value||'').trim();if(!raw)return'—';if(raw.length<=4)return raw;return raw.slice(0,2)+'***'+raw.slice(-3)}function missingBankFields(s){const req=[['CPF/CNPJ seller',pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpfCnpj','metadata.cpf_cnpj')],['E-mail',pick(s,'email','metadata.email','metadata.contactEmail')],['Titular',pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name','storeName','displayName')],['CPF/CNPJ titular',pick(s,'metadata.bankHolderDocument','metadata.holderDocument','metadata.document','document')],['Banco',pick(s,'metadata.bankCode','metadata.bank','metadata.bankName')],['Agência',pick(s,'metadata.branchNumber','metadata.agency','metadata.agencia','metadata.bankAgency')],['Conta',pick(s,'metadata.accountNumber','metadata.conta','metadata.bankAccount','metadata.bankAccountNumber')],['Dígito conta',pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit')]];return req.filter(([,v])=>!String(v||'').trim()).map(([k])=>k)}
+const API_BASE=(window.API_BASE||localStorage.getItem('API_BASE')||'https://ariana-backend.onrender.com/api').replace(/\/+$/,'');const $=id=>document.getElementById(id);let allRequests=[];function token(){return localStorage.getItem('admin_token')||''}function headers(extra={}){const t=token();return t?{...extra,Authorization:'Bearer '+t}:{...extra}}function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function fmtDate(v){if(!v)return'—';const d=new Date(v);return isNaN(d)?String(v):d.toLocaleString('pt-BR')}function toast(msg,type='info'){const el=document.createElement('div');el.className='toast '+(type==='error'?'bg-red-600':type==='success'?'bg-green-600':'bg-blue-700');el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3800)}function pick(obj,...keys){for(const k of keys){const v=k.split('.').reduce((a,p)=>a&&a[p],obj);if(v!==undefined&&v!==null&&String(v).trim()!=='')return v}return''}function normalizeStatus(s){const raw=String(s?.status||s?.metadata?.status||'pending').toLowerCase();if(['approved','aprovado','ativo','active'].includes(raw))return'approved';if(['rejected','recusado','recused','cancelled'].includes(raw))return'rejected';return'pending'}function statusPill(s){const st=normalizeStatus(s);if(st==='approved')return'<span class="pill bg-green-100 text-green-700"><i class="fa-solid fa-check"></i>Aprovado</span>';if(st==='rejected')return'<span class="pill bg-red-100 text-red-700"><i class="fa-solid fa-xmark"></i>Recusado</span>';return'<span class="pill bg-amber-100 text-amber-700"><i class="fa-solid fa-clock"></i>Pendente</span>'}function field(label,value,icon=''){const v=value===true?'Sim':value===false?'Não':(String(value||'').trim()||'—');return`<div class="info-box"><div class="label">${icon?`<i class="${icon}"></i> `:''}${esc(label)}</div><div class="value mt-1">${esc(v)}</div></div>`}function moneySensitive(value){const raw=String(value||'').trim();if(!raw)return'—';if(raw.length<=4)return raw;return raw.slice(0,2)+'***'+raw.slice(-3)}function missingBankFields(s){const req=[['CPF/CNPJ seller',pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpfCnpj','metadata.cpf_cnpj')],['E-mail',pick(s,'email','metadata.email','metadata.contactEmail')],['Titular',pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name','storeName','displayName')],['CPF/CNPJ titular',pick(s,'metadata.bankHolderDocument','metadata.holderDocument','metadata.document','document')],['Banco',pick(s,'metadata.bankCode','metadata.bank','metadata.bankName')],['Agência',pick(s,'metadata.branchNumber','metadata.agency','metadata.agencia','metadata.bankAgency')],['Conta',pick(s,'metadata.accountNumber','metadata.conta','metadata.bankAccount','metadata.bankAccountNumber')],['Dígito conta',pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit')]];return req.filter(([,v])=>!String(v||'').trim()).map(([k])=>k)}
 function marketplacePayload(id){return{commissionPercent:($('commission-'+id)?.value||'').replace(',','.'),logisticsOwner:$('logistics-'+id)?.value||'',shippingOwner:$('shipping-'+id)?.value||'',labelOwner:$('label-'+id)?.value||'',useArianaLabel:$('use-label-'+id)?.checked||false,transferDeadlineDays:$('deadline-'+id)?.value||''}}
 function marketplaceConfigBox(s,id){const commission=pick(s,'metadata.commissionPercent','metadata.marketplaceCommissionPercent','commissionPercent')||'12';const logistics=pick(s,'metadata.marketplaceLogisticsOwner','metadata.logisticsOwner')||'seller';const shipping=pick(s,'metadata.marketplaceShippingOwner','metadata.shippingOwner')||'seller';const label=pick(s,'metadata.marketplaceLabelOwner','metadata.labelOwner')||'ariana';const uses=pick(s,'metadata.usesArianaLabel')===true||String(pick(s,'metadata.usesArianaLabel')).toLowerCase()==='true';const deadline=pick(s,'metadata.transferDeadlineDays')||'0';return`<section class="config-panel"><div class="flex items-center justify-between gap-3 flex-wrap mb-3"><h4 class="section-title mb-0"><i class="fa-solid fa-sliders"></i> Configuração Marketplace</h4><button class="btn btn-blue" onclick="updateCommission('${esc(id)}')"><i class="fa-solid fa-floppy-disk"></i> Salvar configuração</button></div><div class="config-grid"><div><div class="label mb-1">Comissão Ariana (%)</div><input id="commission-${esc(id)}" class="input bg-white" value="${esc(commission)}" inputmode="decimal"></div><div><div class="label mb-1">Logística</div><select id="logistics-${esc(id)}" class="input bg-white"><option value="seller" ${logistics==='seller'?'selected':''}>Seller</option><option value="ariana" ${logistics==='ariana'?'selected':''}>Ariana</option><option value="mixed" ${logistics==='mixed'?'selected':''}>Misto</option></select></div><div><div class="label mb-1">Frete recebido por</div><select id="shipping-${esc(id)}" class="input bg-white"><option value="seller" ${shipping==='seller'?'selected':''}>Seller</option><option value="ariana" ${shipping==='ariana'?'selected':''}>Ariana</option></select></div><div><div class="label mb-1">Etiqueta</div><select id="label-${esc(id)}" class="input bg-white"><option value="ariana" ${label==='ariana'?'selected':''}>Ariana</option><option value="seller" ${label==='seller'?'selected':''}>Seller</option></select></div><div><div class="label mb-1">Repasse após</div><input id="deadline-${esc(id)}" class="input bg-white" value="${esc(deadline)}" inputmode="numeric" placeholder="dias"></div></div><label class="mt-3 flex items-center gap-2 text-sm text-blue-950 font-extrabold"><input id="use-label-${esc(id)}" type="checkbox" ${uses?'checked':''}> Este seller pode usar etiqueta/logística Ariana</label></section>`}
-function renderRequest(s){const rec=recipientStatus(s);const missing=missingBankFields(s);const loja=pick(s,'storeName','factoryName','displayName','metadata.storeName','metadata.factoryName','metadata.shopName','metadata.name')||'Seller';const id=String(s.id||s._id||s.sellerId||'').trim();return`<article class="seller-card" data-id="${esc(id)}"><div class="seller-head"><div class="min-w-0"><div class="flex items-center gap-2 flex-wrap"><h3 class="text-xl md:text-2xl font-black truncate">${esc(loja)}</h3>${statusPill(s)}${rec.id?'<span class="pill bg-blue-100 text-blue-700"><i class="fa-solid fa-credit-card"></i>Recipient Pagar.me</span>':'<span class="pill bg-slate-100 text-slate-600"><i class="fa-regular fa-credit-card"></i>Sem Recipient</span>'}</div><p class="text-sm text-slate-500 mt-1 font-semibold">Seller ID: ${esc(s.sellerId||id||'—')} • Solicitação: ${esc(fmtDate(s.requestedAt||s.createdAt))}</p></div><div class="seller-actions"><button class="btn btn-soft" onclick="toggleDetails('${esc(id)}')"><i class="fa-solid fa-eye"></i> Detalhes</button><button class="btn btn-green" onclick="updateStatus('${esc(id)}','approved')"><i class="fa-solid fa-check"></i> Aprovar</button><button class="btn btn-red" onclick="updateStatus('${esc(id)}','rejected')"><i class="fa-solid fa-xmark"></i> Recusar</button></div></div><div class="summary-grid">${field('Responsável',pick(s,'ownerName','displayName','metadata.ownerName','metadata.name','metadata.responsavel'),'fa-solid fa-user-tie')}${field('CPF/CNPJ',pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpfCnpj'),'fa-solid fa-id-card')}${field('E-mail',pick(s,'email','metadata.email','metadata.contactEmail','metadata.companyEmail'),'fa-solid fa-envelope')}${field('Cidade / UF',[pick(s,'city','metadata.city','metadata.cidade'),pick(s,'uf','metadata.uf','metadata.estado')].filter(Boolean).join(' / '),'fa-solid fa-location-dot')}</div>${missing.length&&!rec.id?`<div class="alert bg-amber-50 border border-amber-200 text-amber-800"><b>Atenção:</b> faltam dados para criar Recipient Pagar.me: ${esc(missing.join(', '))}.</div>`:''}${!rec.id?`<div class="recipient-box"><div class="font-black text-blue-900 mb-2"><i class="fa-solid fa-credit-card"></i> Seller já tem Recipient ID?</div><div class="flex flex-col md:flex-row gap-2"><input id="recipient-${esc(id)}" class="input flex-1 bg-white" placeholder="Cole aqui o Recipient ID do Pagar.me. Ex: re_xxxxxxxxx" autocomplete="off"><button class="btn btn-green" onclick="saveRecipientAndApprove('${esc(id)}')"><i class="fa-solid fa-floppy-disk"></i> Salvar Recipient e aprovar</button></div></div>`:''}${marketplaceConfigBox(s,id)}<div id="details-${esc(id)}" class="details hidden space-y-5"><section><h4 class="section-title"><i class="fa-solid fa-building"></i> Cadastro do seller</h4><div class="details-grid">${field('Tipo de parceiro',pick(s,'metadata.sellerType','metadata.partnerType','metadata.companyType'))}${field('Razão social',pick(s,'metadata.razaoSocial','metadata.legalName','metadata.factoryName','storeName'))}${field('Marca / Nome fantasia',pick(s,'metadata.brandName','metadata.storeName','displayName'))}${field('Cargo',pick(s,'metadata.responsibleRole'))}${field('Telefone / WhatsApp',pick(s,'phone','metadata.phone','metadata.whatsapp'))}${field('Status atual',normalizeStatus(s))}</div></section><section><h4 class="section-title"><i class="fa-solid fa-truck-fast"></i> Endereço e logística</h4><div class="details-grid">${field('CEP',pick(s,'metadata.cep','metadata.pickupCep','metadata.cepColeta'))}${field('Endereço',pick(s,'metadata.address','metadata.endereco','metadata.logradouro'))}${field('Número',pick(s,'metadata.numero','metadata.number'))}${field('Bairro',pick(s,'metadata.bairro','metadata.district'))}${field('Modelo logística',pick(s,'metadata.logisticsMode'))}${field('Prazo postagem',pick(s,'metadata.shippingDeadline'))}${field('Transportadora',pick(s,'metadata.carrierName'))}${field('Usa etiqueta Ariana',pick(s,'metadata.usesArianaLabel'))}</div></section><section><h4 class="section-title"><i class="fa-solid fa-building-columns"></i> Dados bancários / recebimento</h4><div class="details-grid">${field('Banco',pick(s,'metadata.bankName','metadata.bankCode','metadata.bank','metadata.banco'))}${field('Agência',pick(s,'metadata.bankAgency','metadata.branchNumber','metadata.agency','metadata.agencia'))}${field('Dígito agência',pick(s,'metadata.branchCheckDigit','metadata.agencyDigit','metadata.agenciaDigito'))}${field('Conta',moneySensitive(pick(s,'metadata.bankAccount','metadata.accountNumber','metadata.bankAccountNumber','metadata.conta')))}${field('Dígito conta',pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit'))}${field('Tipo de conta',pick(s,'metadata.accountType','metadata.bankAccountType','metadata.tipoConta'))}${field('Titular da conta',pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name'))}${field('CPF/CNPJ titular',pick(s,'metadata.bankHolderDocument','metadata.holderDocument'))}</div></section><section><h4 class="section-title"><i class="fa-solid fa-money-bill-transfer"></i> Pagar.me / Split</h4><div class="details-grid">${field('Recipient ID',rec.id||'Não criado')}${field('Status Recipient',rec.status||'Não informado')}${field('Comissão configurada',pick(s,'metadata.commissionPercent','metadata.marketplaceCommissionPercent','commissionPercent')?pick(s,'metadata.commissionPercent','metadata.marketplaceCommissionPercent','commissionPercent')+'%':'Padrão do marketplace')}${field('Comissão alterada por',pick(s,'metadata.commissionUpdatedBy'))}${field('Comissão alterada em',fmtDate(pick(s,'metadata.commissionUpdatedAt')))}${field('Revisado por',pick(s,'metadata.reviewedBy'))}${field('Revisado em',fmtDate(pick(s,'metadata.reviewedAt')))}</div></section></div></article>`}
+function renderRequest(s){
+  const missing=missingBankFields(s);
+  const loja=pick(s,'storeName','factoryName','displayName','metadata.storeName','metadata.factoryName','metadata.shopName','metadata.name')||'Seller';
+  const id=String(s.id||s._id||s.sellerId||'').trim();
+  const commission=pick(s,'metadata.commissionPercent','metadata.marketplaceCommissionPercent','commissionPercent')||'12';
+  const deadline=pick(s,'metadata.transferDeadlineDays')||'0';
+  const bankStatus=missing.length?'Dados bancários pendentes':'Dados bancários completos';
+
+  return `<article class="seller-card" data-id="${esc(id)}">
+    <div class="seller-head">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <h3 class="text-xl md:text-2xl font-black truncate">${esc(loja)}</h3>
+          ${statusPill(s)}
+          <span class="pill bg-blue-100 text-blue-700"><i class="fa-solid fa-money-bill-transfer"></i>Repasse manual</span>
+        </div>
+        <p class="text-sm text-slate-500 mt-1 font-semibold">Seller ID: ${esc(s.sellerId||id||'—')} • Solicitação: ${esc(fmtDate(s.requestedAt||s.createdAt))}</p>
+      </div>
+      <div class="seller-actions">
+        <button class="btn btn-soft" onclick="toggleDetails('${esc(id)}')"><i class="fa-solid fa-eye"></i> Detalhes</button>
+        <button class="btn btn-green" onclick="updateStatus('${esc(id)}','approved')"><i class="fa-solid fa-check"></i> Aprovar</button>
+        <button class="btn btn-red" onclick="updateStatus('${esc(id)}','rejected')"><i class="fa-solid fa-xmark"></i> Recusar</button>
+      </div>
+    </div>
+    <div class="summary-grid">
+      ${field('Responsável',pick(s,'ownerName','displayName','metadata.ownerName','metadata.name','metadata.responsavel'),'fa-solid fa-user-tie')}
+      ${field('CPF/CNPJ',pick(s,'document','cnpj','metadata.document','metadata.cnpj','metadata.cpfCnpj'),'fa-solid fa-id-card')}
+      ${field('E-mail',pick(s,'email','metadata.email','metadata.contactEmail','metadata.companyEmail'),'fa-solid fa-envelope')}
+      ${field('Cidade / UF',[pick(s,'city','metadata.city','metadata.cidade'),pick(s,'uf','metadata.uf','metadata.estado')].filter(Boolean).join(' / '),'fa-solid fa-location-dot')}
+    </div>
+    ${missing.length?`<div class="alert bg-amber-50 border border-amber-200 text-amber-800"><b>Atenção:</b> faltam dados bancários para o repasse: ${esc(missing.join(', '))}.</div>`:''}
+    ${marketplaceConfigBox(s,id)}
+    <div id="details-${esc(id)}" class="details hidden space-y-5">
+      <section>
+        <h4 class="section-title"><i class="fa-solid fa-building"></i> Cadastro do seller</h4>
+        <div class="details-grid">
+          ${field('Tipo de parceiro',pick(s,'metadata.sellerType','metadata.partnerType','metadata.companyType'))}
+          ${field('Razão social',pick(s,'metadata.razaoSocial','metadata.legalName','metadata.factoryName','storeName'))}
+          ${field('Marca / Nome fantasia',pick(s,'metadata.brandName','metadata.storeName','displayName'))}
+          ${field('Cargo',pick(s,'metadata.responsibleRole'))}
+          ${field('Telefone / WhatsApp',pick(s,'phone','metadata.phone','metadata.whatsapp'))}
+          ${field('Status atual',normalizeStatus(s))}
+        </div>
+      </section>
+      <section>
+        <h4 class="section-title"><i class="fa-solid fa-truck-fast"></i> Endereço e logística</h4>
+        <div class="details-grid">
+          ${field('CEP',pick(s,'metadata.cep','metadata.pickupCep','metadata.cepColeta'))}
+          ${field('Endereço',pick(s,'metadata.address','metadata.endereco','metadata.logradouro'))}
+          ${field('Número',pick(s,'metadata.numero','metadata.number'))}
+          ${field('Bairro',pick(s,'metadata.bairro','metadata.district'))}
+          ${field('Modelo logística',pick(s,'metadata.logisticsMode'))}
+          ${field('Prazo postagem',pick(s,'metadata.shippingDeadline'))}
+          ${field('Transportadora',pick(s,'metadata.carrierName'))}
+          ${field('Usa etiqueta Ariana',pick(s,'metadata.usesArianaLabel'))}
+        </div>
+      </section>
+      <section>
+        <h4 class="section-title"><i class="fa-solid fa-building-columns"></i> Dados bancários / recebimento</h4>
+        <div class="details-grid">
+          ${field('Banco',pick(s,'metadata.bankName','metadata.bankCode','metadata.bank','metadata.banco'))}
+          ${field('Agência',pick(s,'metadata.bankAgency','metadata.branchNumber','metadata.agency','metadata.agencia'))}
+          ${field('Dígito agência',pick(s,'metadata.branchCheckDigit','metadata.agencyDigit','metadata.agenciaDigito'))}
+          ${field('Conta',moneySensitive(pick(s,'metadata.bankAccount','metadata.accountNumber','metadata.bankAccountNumber','metadata.conta')))}
+          ${field('Dígito conta',pick(s,'metadata.accountCheckDigit','metadata.contaDigito','metadata.accountDigit'))}
+          ${field('Tipo de conta',pick(s,'metadata.accountType','metadata.bankAccountType','metadata.tipoConta'))}
+          ${field('Titular da conta',pick(s,'metadata.bankHolderName','metadata.holderName','metadata.legalName','metadata.name'))}
+          ${field('CPF/CNPJ titular',pick(s,'metadata.bankHolderDocument','metadata.holderDocument'))}
+        </div>
+      </section>
+      <section>
+        <h4 class="section-title"><i class="fa-solid fa-money-bill-transfer"></i> Recebimento e repasse</h4>
+        <div class="details-grid">
+          ${field('Modelo de recebimento','Repasse manual pela Ariana')}
+          ${field('Situação bancária',bankStatus)}
+          ${field('Comissão configurada',commission+'%')}
+          ${field('Prazo de repasse',deadline+' dia(s)')}
+          ${field('Comissão alterada por',pick(s,'metadata.commissionUpdatedBy'))}
+          ${field('Comissão alterada em',fmtDate(pick(s,'metadata.commissionUpdatedAt')))}
+          ${field('Revisado por',pick(s,'metadata.reviewedBy'))}
+          ${field('Revisado em',fmtDate(pick(s,'metadata.reviewedAt')))}
+        </div>
+      </section>
+    </div>
+  </article>`;
+}
 function toggleDetails(id){const el=$('details-'+id);if(el)el.classList.toggle('hidden')}window.toggleDetails=toggleDetails;function render(){const q=String($('search-input').value||'').toLowerCase().trim();const status=$('status-filter').value;const filtered=allRequests.filter(s=>{const st=normalizeStatus(s);const text=JSON.stringify(s).toLowerCase();return(!q||text.includes(q))&&(status==='all'||st===status)});$('requests-list').innerHTML=filtered.length?filtered.map(renderRequest).join(''):'<div class="empty"><i class="fa-regular fa-folder-open"></i><div>Nenhuma solicitação encontrada.</div></div>';$('metric-total').textContent=allRequests.length;$('metric-pending').textContent=allRequests.filter(s=>normalizeStatus(s)==='pending').length;$('metric-approved').textContent=allRequests.filter(s=>normalizeStatus(s)==='approved').length;$('metric-rejected').textContent=allRequests.filter(s=>normalizeStatus(s)==='rejected').length}
 async function loadRequests(){if(!token()){location.href='admin_painel.html';return}$('requests-list').innerHTML='<div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando sellers...</div></div>';try{const res=await fetch(`${API_BASE}/seller/partner-requests?limit=1000`,{headers:headers()});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||data.message||'Erro ao carregar sellers');allRequests=Array.isArray(data)?data:(data.requests||data.items||data.results||[]);render()}catch(e){$('requests-list').innerHTML=`<div class="empty text-red-600"><i class="fa-solid fa-triangle-exclamation"></i><div>${esc(e.message)}</div></div>`;toast(e.message,'error')}}
-async function updateCommission(id){const p=marketplacePayload(id);const commissionPercent=Number(p.commissionPercent);if(!Number.isFinite(commissionPercent)||commissionPercent<0||commissionPercent>50){toast('Informe uma comissão válida entre 0% e 50%.','error');return}try{const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/commission`,{method:'PATCH',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({commissionPercent})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||data.message||'Erro ao alterar comissão');toast('Configuração salva com sucesso.','success');await loadRequests()}catch(e){toast(e.message,'error')}}window.updateCommission=updateCommission;
-async function updateStatus(id,status,extra={}){const item=allRequests.find(s=>String(s.id||s._id||s.sellerId)===String(id));if(status==='approved'&&!extra.recipientId&&!extra.pagarmeRecipientId){const missing=missingBankFields(item||{});if(missing.length&&!confirm('Este seller ainda tem dados bancários incompletos para Pagar.me:\n\n'+missing.join(', ')+'\n\nDeseja aprovar mesmo assim?'))return}try{const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({status,...marketplacePayload(id),...extra})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||data.message||'Erro ao atualizar seller');const rid=data?.recipient?.id||extra.recipientId||extra.pagarmeRecipientId||'';toast(status==='approved'?(rid?'Recipient salvo e seller aprovado com sucesso.':'Seller aprovado com sucesso.'):'Seller recusado com sucesso.','success');await loadRequests()}catch(e){toast(e.message,'error')}}window.updateStatus=updateStatus;async function saveRecipientAndApprove(id){const recipientId=String($('recipient-'+id)?.value||'').trim();if(!recipientId){toast('Informe o Recipient ID antes de salvar.','error');return}if(!/^re_/i.test(recipientId)&&!confirm('Esse Recipient ID não começa com re_. Deseja salvar mesmo assim?'))return;if(!confirm('Salvar este Recipient ID no seller e aprovar o cadastro?'))return;await updateStatus(id,'approved',{recipientId,pagarmeRecipientId:recipientId,recipientStatus:'manual'})}window.saveRecipientAndApprove=saveRecipientAndApprove;$('refresh-btn').addEventListener('click',loadRequests);$('search-btn').addEventListener('click',render);$('search-input').addEventListener('input',render);$('status-filter').addEventListener('change',render);$('logout-btn').addEventListener('click',e=>{e.preventDefault();localStorage.removeItem('admin_token');location.href='admin_painel.html'});loadRequests();
+async function updateCommission(id){
+  const p=marketplacePayload(id);
+  const commissionPercent=Number(p.commissionPercent);
+  if(!Number.isFinite(commissionPercent)||commissionPercent<0||commissionPercent>50){
+    toast('Informe uma comissão válida entre 0% e 50%.','error');
+    return;
+  }
+  try{
+    const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/commission`,{
+      method:'PATCH',
+      headers:headers({'Content-Type':'application/json'}),
+      body:JSON.stringify(p)
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.error||data.message||'Erro ao salvar configuração');
+    toast('Configuração do seller salva com sucesso.','success');
+    await loadRequests();
+  }catch(e){
+    toast(e.message,'error');
+  }
+}
+window.updateCommission=updateCommission;
+async function updateStatus(id,status){
+  const item=allRequests.find(s=>String(s.id||s._id||s.sellerId)===String(id));
+  if(status==='approved'){
+    const missing=missingBankFields(item||{});
+    if(missing.length&&!confirm(
+      'Este seller ainda tem dados bancários incompletos para o repasse:\n\n'+
+      missing.join(', ')+
+      '\n\nO seller poderá ser aprovado, mas o repasse ficará pendente até os dados serem corrigidos. Deseja continuar?'
+    ))return;
+  }
+
+  try{
+    const res=await fetch(`${API_BASE}/seller/partner-requests/${encodeURIComponent(id)}/status`,{
+      method:'PATCH',
+      headers:headers({'Content-Type':'application/json'}),
+      body:JSON.stringify({status,...marketplacePayload(id)})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.error||data.message||'Erro ao atualizar seller');
+    toast(status==='approved'?'Seller aprovado e acesso liberado com sucesso.':'Seller recusado com sucesso.','success');
+    await loadRequests();
+  }catch(e){
+    toast(e.message,'error');
+  }
+}
+window.updateStatus=updateStatus;
+
+function sellerReviewMoney(value){
+  return Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+
+function sellerReviewImage(product={}){
+  return String(
+    product.mainImageUrl ||
+    product.imageUrl ||
+    product.image ||
+    product.imagem ||
+    product.images?.find?.(img=>img?.isMain)?.url ||
+    product.images?.[0]?.url ||
+    ''
+  ).trim();
+}
+
+function renderSellerProductReviews(items=[]){
+  const box=$('seller-product-reviews');
+  const count=$('product-review-count');
+  if(count) count.textContent=`${items.length} pendente${items.length===1?'':'s'}`;
+  if(!box) return;
+
+  if(!items.length){
+    box.innerHTML='<div class="empty"><i class="fa-solid fa-circle-check text-green-600"></i><div>Nenhum produto de seller aguardando aprovação.</div></div>';
+    return;
+  }
+
+  box.innerHTML=items.map(product=>{
+    const id=String(product.id||product._id||'');
+    const image=sellerReviewImage(product);
+    return `<article class="border border-slate-200 rounded-2xl p-4 bg-white">
+      <div class="grid md:grid-cols-[96px_1fr_auto] gap-4 items-center">
+        <div class="w-24 h-24 rounded-2xl border bg-slate-50 overflow-hidden flex items-center justify-center">
+          ${image?`<img src="${esc(image)}" alt="" class="w-full h-full object-contain">`:'<i class="fa-solid fa-box text-3xl text-slate-300"></i>'}
+        </div>
+        <div class="min-w-0">
+          <div class="font-black text-lg text-slate-900 truncate">${esc(product.name||'Produto sem nome')}</div>
+          <div class="text-sm text-slate-500 font-semibold mt-1">Seller: ${esc(product.sellerName||product.sellerId||'—')}</div>
+          <div class="flex gap-2 flex-wrap mt-3">
+            <span class="pill bg-blue-50 text-blue-700">${esc(sellerReviewMoney(product.price))}</span>
+            <span class="pill bg-slate-100 text-slate-700">Estoque: ${esc(product.stock??0)}</span>
+            <span class="pill bg-amber-100 text-amber-700">Aguardando revisão</span>
+          </div>
+        </div>
+        <div class="flex md:flex-col gap-2">
+          <button class="btn btn-green flex-1" onclick="reviewSellerProduct('${esc(id)}','approved')"><i class="fa-solid fa-check"></i> Aprovar</button>
+          <button class="btn btn-red flex-1" onclick="reviewSellerProduct('${esc(id)}','rejected')"><i class="fa-solid fa-xmark"></i> Recusar</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+async function loadSellerProductReviews(){
+  const box=$('seller-product-reviews');
+  if(box) box.innerHTML='<div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><div>Carregando produtos...</div></div>';
+  try{
+    const res=await fetch(`${API_BASE}/seller/product-reviews?status=pending&limit=300`,{headers:headers()});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||data.message||'Erro ao carregar produtos em revisão');
+    renderSellerProductReviews(data.products||data.items||[]);
+  }catch(e){
+    if(box) box.innerHTML=`<div class="empty text-red-600"><i class="fa-solid fa-triangle-exclamation"></i><div>${esc(e.message)}</div></div>`;
+    toast(e.message,'error');
+  }
+}
+window.loadSellerProductReviews=loadSellerProductReviews;
+
+async function reviewSellerProduct(id,status){
+  let reason='';
+  if(status==='rejected'){
+    reason=String(prompt('Informe o motivo da recusa para o seller:')||'').trim();
+    if(!reason) return;
+  }else if(!confirm('Aprovar este produto e publicar na vitrine?')){
+    return;
+  }
+
+  try{
+    const res=await fetch(`${API_BASE}/seller/product-reviews/${encodeURIComponent(id)}/status`,{
+      method:'PATCH',
+      headers:headers({'Content-Type':'application/json'}),
+      body:JSON.stringify({status,reason})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||data.message||'Erro ao revisar produto');
+    toast(status==='approved'?'Produto aprovado e publicado.':'Produto recusado e devolvido ao seller.','success');
+    await loadSellerProductReviews();
+  }catch(e){
+    toast(e.message,'error');
+  }
+}
+window.reviewSellerProduct=reviewSellerProduct;
+
+$('refresh-btn').addEventListener('click',loadRequests);$('search-btn').addEventListener('click',render);$('search-input').addEventListener('input',render);$('status-filter').addEventListener('change',render);$('product-review-refresh')?.addEventListener('click',loadSellerProductReviews);$('logout-btn').addEventListener('click',e=>{e.preventDefault();localStorage.removeItem('admin_token');location.href='admin_painel.html'});loadRequests();loadSellerProductReviews();
 </script>
 </body>
 </html>
