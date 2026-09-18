@@ -104,9 +104,37 @@ function normalizeSellerProductImages(body = {}, existing = {}) {
   return images;
 }
 
+function normalizeSellerProductForResponse(doc = {}) {
+  const product = normalizeProductForResponse(doc) || {};
+  const specs = product.specs && typeof product.specs === 'object' ? product.specs : {};
+  const catalog = specs.sellerCatalog && typeof specs.sellerCatalog === 'object' ? specs.sellerCatalog : {};
+  const approval = specs.sellerApproval && typeof specs.sellerApproval === 'object' ? specs.sellerApproval : {};
+  const approvalStatus = String(
+    approval.status ||
+    (product.active === true ? 'approved' : 'pending')
+  ).trim().toLowerCase();
+
+  return {
+    ...product,
+    categorySlug: String(product.categorySlug || catalog.categorySlug || '').trim(),
+    subcategory: String(product.subcategory || catalog.subcategory || '').trim(),
+    subcategoryName: String(product.subcategoryName || catalog.subcategoryName || catalog.subcategory || '').trim(),
+    subcategoryId: String(product.subcategoryId || catalog.subcategoryId || '').trim(),
+    subcategorySlug: String(product.subcategorySlug || catalog.subcategorySlug || '').trim(),
+    approvalStatus,
+    status: product.active === true
+      ? 'approved'
+      : approvalStatus === 'archived'
+        ? 'archived'
+        : approvalStatus === 'rejected'
+          ? 'rejected'
+          : 'pending_review'
+  };
+}
+
 function buildSellerProductPayload(req, existingDoc = null) {
   const body = req.body || {};
-  const existing = existingDoc ? normalizeProductForResponse(existingDoc) : {};
+  const existing = existingDoc ? normalizeSellerProductForResponse(existingDoc) : {};
   const basePayload = productPayloadFromBody(body, existingDoc);
   const images = normalizeSellerProductImages(body, existing);
   const mainImage = images.find((img) => img.isMain) || images[0] || null;
@@ -144,6 +172,29 @@ function buildSellerProductPayload(req, existingDoc = null) {
     specs: body.specs ?? body.especificacoes ?? body.technicalSpecs ?? basePayload.specs ?? existing.specs ?? {},
     updatedAt: now()
   };
+
+  const originalSpecs = payload.specs && typeof payload.specs === 'object'
+    ? payload.specs
+    : {};
+  payload.specs = {
+    ...originalSpecs,
+    sellerCatalog: {
+      categoryId: String(body.categoryId ?? existing.categoryId ?? '').trim(),
+      categoryName: String(body.categoryName ?? body.category ?? body.categoria ?? existing.categoryName ?? existing.category ?? '').trim(),
+      categorySlug: String(body.categorySlug ?? existing.categorySlug ?? '').trim(),
+      subcategory: String(body.subcategory ?? body.subcategoria ?? existing.subcategory ?? '').trim(),
+      subcategoryName: String(body.subcategoryName ?? body.subcategory ?? existing.subcategoryName ?? '').trim(),
+      subcategoryId: String(body.subcategoryId ?? existing.subcategoryId ?? '').trim(),
+      subcategorySlug: String(body.subcategorySlug ?? existing.subcategorySlug ?? '').trim()
+    }
+  };
+
+  // Flags editoriais pertencem à Ariana. O seller nunca pode se autodeclarar
+  // oferta, destaque, mais vendido ou recomendado por manipulação do payload.
+  const editorialFlags = ['isOffer', 'isFavorite', 'isHighlight', 'isBestSeller', 'isNewArrival', 'isRecommended'];
+  for (const flag of editorialFlags) {
+    payload[flag] = existingDoc ? existing[flag] === true : false;
+  }
 
   // Proteção final: nunca permitir Base64/Buffer/arquivo bruto no Mongo.
   ['image', 'imageUrl', 'imagem', 'mainImageUrl', 'mainImagePath'].forEach((key) => {
@@ -390,7 +441,7 @@ app.post('/api/seller/products', sellerAuthRequired, async (req, res) => {
     };
 
     const created = await Product.create(payload);
-    const product = normalizeProductForResponse(created);
+    const product = normalizeSellerProductForResponse(created);
 
     return res.status(201).json({
       ok: true,
@@ -1534,7 +1585,7 @@ app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
     if (req.query.active !== undefined) query.active = String(req.query.active) !== 'false';
 
     const rows = await Product.find(query).sort({ createdAt: -1, updatedAt: -1 });
-    const products = rows.map(normalizeProductForResponse);
+    const products = rows.map(normalizeSellerProductForResponse);
     return res.json({ ok: true, items: products, products });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar produtos do seller' });
@@ -1553,7 +1604,7 @@ app.get('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     if (!row) row = await Product.findOne({ $and: [idQuery, ownerQuery] });
 
     if (!row) return res.status(404).json({ ok: false, error: 'Produto não encontrado para este seller' });
-    const product = normalizeProductForResponse(row);
+    const product = normalizeSellerProductForResponse(row);
     return res.json({ ok: true, product, item: product, ...product });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar produto do seller' });
@@ -1628,7 +1679,7 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
       { $set: payload },
       { new: true }
     );
-    const product = normalizeProductForResponse(updated);
+    const product = normalizeSellerProductForResponse(updated);
     return res.json({ ok: true, product, item: product });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao salvar produto' });
