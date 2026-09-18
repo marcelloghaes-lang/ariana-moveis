@@ -24,6 +24,11 @@ export default function createErpDelinquencyReportRoutes(context={}){
     return res.json({ok:true,preview});
   }));
 
+  router.post('/erp/relatorios/inadimplentes/cobranca/:targetId/contato',context.adminRequired,handle(async(req,res)=>{
+    const result=await charge.saveContact(req.params.targetId,req.body||{},identity(req));
+    return res.json({ok:true,...result});
+  }));
+
   router.post('/erp/relatorios/inadimplentes/cobranca/:targetId/enviar',context.adminRequired,handle(async(req,res)=>{
     const result=await charge.send(req.params.targetId,req.body||{},identity(req));
     return res.status(201).json({ok:true,...result});
