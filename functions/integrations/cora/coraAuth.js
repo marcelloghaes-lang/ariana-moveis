@@ -9,10 +9,18 @@ let tokenCache = {
   expiresAt: 0
 };
 
+function certificateValue(cfg) {
+  return cfg.certPem || fs.readFileSync(cfg.certPath);
+}
+
+function privateKeyValue(cfg) {
+  return cfg.keyPem || fs.readFileSync(cfg.keyPath);
+}
+
 function makeHttpsAgent(cfg) {
   return new https.Agent({
-    cert: fs.readFileSync(cfg.certPath),
-    key: fs.readFileSync(cfg.keyPath),
+    cert: certificateValue(cfg),
+    key: privateKeyValue(cfg),
     rejectUnauthorized: true,
     keepAlive: true
   });
