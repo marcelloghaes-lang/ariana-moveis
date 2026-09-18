@@ -188,25 +188,21 @@ function sellerProductOwnerValues(req) {
     req.user?.sellerId,
     req.seller?.sellerId,
     req.seller?._id ? String(req.seller._id) : '',
-    req.user?._id ? String(req.user._id) : '',
-    req.seller?.email,
-    req.user?.email,
-    req.seller?.storeName,
-    req.seller?.displayName
+    req.user?._id ? String(req.user._id) : ''
   ].map((value) => String(value || '').trim()).filter(Boolean)));
 }
 
 function sellerProductQuery(req, extra = {}) {
   const values = sellerProductOwnerValues(req);
   const sellerOr = [];
+
   for (const value of values) {
     sellerOr.push({ sellerId: value });
-    sellerOr.push({ seller_id: value });
-    sellerOr.push({ seller: value });
-    sellerOr.push({ sellerName: value });
-    sellerOr.push({ sellerEmail: value });
-    sellerOr.push({ manufacturer: value });
   }
+
+  const sellerEmail = String(req.seller?.email || req.user?.email || '').trim().toLowerCase();
+  if (sellerEmail) sellerOr.push({ sellerEmail });
+
   return { ...(sellerOr.length ? { $or: sellerOr } : {}), ...(extra || {}) };
 }
 
@@ -297,20 +293,49 @@ async function sellerAuthRequired(req, res, next) {
     if (!user) return res.status(401).json({ ok: false, error: 'Usuário inválido' });
 
     const userEmail = String(user.email || '').trim().toLowerCase();
+    const userRole = String(user.role || '').trim().toLowerCase();
     const sid = String(user.sellerId || dec.sellerId || '').trim();
 
-    let seller = sid ? await Seller.findOne({ sellerId: sid }) : null;
-    if (!seller && user._id) seller = await Seller.findOne({ userId: user._id });
-    if (!seller && userEmail) {
-      seller = await Seller.findOne({
+    let seller = null;
+    let linkType = '';
+
+    if (sid) {
+      seller = await Seller.findOne({ sellerId: sid });
+      if (seller) linkType = 'seller_id';
+    }
+
+    if (!seller && user._id) {
+      seller = await Seller.findOne({ userId: user._id });
+      if (seller) linkType = 'user_id';
+    }
+
+    if (!seller && userRole === 'seller' && userEmail) {
+      const legacySeller = await Seller.findOne({
         $or: [
           { email: userEmail },
           { 'metadata.email': userEmail }
         ]
       });
+
+      if (
+        legacySeller &&
+        (
+          !legacySeller.userId ||
+          String(legacySeller.userId) === String(user._id)
+        )
+      ) {
+        seller = legacySeller;
+        linkType = 'legacy_seller_email';
+      }
     }
 
-    if (!seller) return res.status(403).json({ ok: false, error: 'Seller não encontrado' });
+    if (!seller) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCOUNT_NOT_LINKED',
+        error: 'Esta conta não está vinculada a um seller.'
+      });
+    }
 
     const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
     const blockedSellerStatuses = ['pending', 'pending_onboarding', 'pendente', 'aguardando_aprovacao', 'rejected', 'reprovado', 'blocked', 'bloqueado', 'suspended', 'suspenso', 'inactive', 'inativo'];
@@ -324,19 +349,38 @@ async function sellerAuthRequired(req, res, next) {
           : 'Cadastro do seller ainda está aguardando aprovação.'
       });
     }
+
     if (user.isActive === false) {
       return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' });
     }
 
-    if (!user.sellerId && seller.sellerId) {
-      user.sellerId = seller.sellerId;
-      if (String(user.role || '').toLowerCase() !== 'seller') user.role = 'seller';
-      await user.save().catch(() => null);
+    const directLink =
+      String(user.sellerId || '').trim() === String(seller.sellerId || '').trim() ||
+      String(seller.userId || '') === String(user._id || '') ||
+      linkType === 'legacy_seller_email';
+
+    if (!directLink) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCOUNT_LINK_MISMATCH',
+        error: 'A conta autenticada não corresponde a este seller.'
+      });
     }
+
+    let userChanged = false;
+    if (String(user.role || '').toLowerCase() !== 'seller') {
+      user.role = 'seller';
+      userChanged = true;
+    }
+    if (String(user.sellerId || '').trim() !== String(seller.sellerId || '').trim()) {
+      user.sellerId = seller.sellerId;
+      userChanged = true;
+    }
+    if (userChanged) await user.save();
 
     if (!seller.userId && user._id) {
       seller.userId = user._id;
-      await seller.save().catch(() => null);
+      await seller.save();
     }
 
     req.user = user;
@@ -380,9 +424,71 @@ function normalizeSellerBankFields(raw = {}) {
   };
 }
 
+function sanitizeSellerMetadataForResponse(value = {}, depth = 0) {
+  if (depth > 6) return null;
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSellerMetadataForResponse(item, depth + 1));
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    const normalizedKey = String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const sensitive =
+      normalizedKey === 'password' ||
+      normalizedKey === 'senha' ||
+      normalizedKey === 'requestedtemppass' ||
+      normalizedKey === 'confirmpassword' ||
+      normalizedKey === 'passwordhash' ||
+      normalizedKey === 'resetpasswordtokenhash' ||
+      normalizedKey === 'resettoken' ||
+      normalizedKey === 'authtoken' ||
+      normalizedKey === 'accesstoken' ||
+      normalizedKey === 'refreshtoken' ||
+      normalizedKey === 'jwt' ||
+      normalizedKey === 'apikey' ||
+      normalizedKey.includes('secret') ||
+      normalizedKey.includes('privatekey');
+
+    if (sensitive) continue;
+    out[key] = sanitizeSellerMetadataForResponse(item, depth + 1);
+  }
+  return out;
+}
+
+function sellerUserForResponse(user) {
+  const o = toJSON(user) || {};
+  return {
+    _id: o._id,
+    id: String(o._id || o.id || ''),
+    name: String(o.name || ''),
+    email: String(o.email || ''),
+    phone: String(o.phone || ''),
+    cpf: String(o.cpf || ''),
+    role: String(o.role || ''),
+    sellerId: String(o.sellerId || ''),
+    city: String(o.city || ''),
+    uf: String(o.uf || ''),
+    isActive: o.isActive !== false,
+    emailVerified: o.emailVerified === true,
+    authProvider: String(o.authProvider || 'password'),
+    mustChangePassword: o.mustChangePassword === true,
+    createdAt: o.createdAt || null,
+    updatedAt: o.updatedAt || null
+  };
+}
+
+function isApprovedSellerStatus(value = '') {
+  return ['approved', 'aprovado', 'active', 'ativo'].includes(
+    String(value || '').trim().toLowerCase()
+  );
+}
+
 function sellerProfile(s, u) {
   const o = toJSON(s) || {};
-  const meta = o.metadata && typeof o.metadata === 'object' ? o.metadata : {};
+  const meta = sanitizeSellerMetadataForResponse(
+    o.metadata && typeof o.metadata === 'object' ? o.metadata : {}
+  );
   const rootBank = o.bankAccount && typeof o.bankAccount === 'object' ? o.bankAccount : {};
   const bankFromMeta = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
   const legacyMetaBankAccount = meta.bankAccount && typeof meta.bankAccount !== 'object' ? String(meta.bankAccount) : '';
@@ -423,7 +529,7 @@ function sellerProfile(s, u) {
     transportadoraTelefone: String(meta.transportadoraTelefone || meta.carrierPhone || '').trim(),
     transportadoraPrazo: String(meta.transportadoraPrazo || meta.carrierDeadline || '').trim(),
     freteObs: String(meta.freteObs || meta.shippingNotes || '').trim(),
-    active: !['bloqueado', 'reprovado', 'blocked', 'rejected'].includes(status)
+    active: isApprovedSellerStatus(status)
   };
 }
 
@@ -438,10 +544,12 @@ app.post('/api/seller/auth/login', async (req, res) => {
 
     let user = await User.findOne({ email });
     let seller = null;
+    const userRole = String(user?.role || '').trim().toLowerCase();
 
     if (user?.sellerId) seller = await Seller.findOne({ sellerId: user.sellerId });
     if (!seller && user?._id) seller = await Seller.findOne({ userId: user._id });
-    if (!seller) {
+
+    if (!seller && (!user || userRole === 'seller')) {
       seller = await Seller.findOne({
         $or: [
           { email },
@@ -495,6 +603,18 @@ app.post('/api/seller/auth/login', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
     }
 
+    const directAccountLink =
+      String(user.sellerId || '').trim() === String(seller.sellerId || '').trim() ||
+      String(seller.userId || '') === String(user._id || '');
+
+    if (String(user.role || '').toLowerCase() !== 'seller' && !directAccountLink) {
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCOUNT_LINK_MISMATCH',
+        error: 'Este e-mail pertence a uma conta que não está vinculada ao seller.'
+      });
+    }
+
     if (String(user.role || '').toLowerCase() !== 'seller' || !user.sellerId) {
       user.role = 'seller';
       user.sellerId = seller.sellerId || user.sellerId || uid('seller');
@@ -509,18 +629,18 @@ app.post('/api/seller/auth/login', async (req, res) => {
       ok: true,
       token: signToken(user),
       seller: sellerProfile(seller, user),
-      user: toJSON(user)
+      user: sellerUserForResponse(user)
     });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro no login seller' });
   }
 });
 
-app.get('/api/seller/auth/me', sellerAuthRequired, (req, res) => res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: toJSON(req.user) }));
+app.get('/api/seller/auth/me', sellerAuthRequired, (req, res) => res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: sellerUserForResponse(req.user) }));
 
 app.get('/api/seller/profile', sellerAuthRequired, async (req, res) => {
   try {
-    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: toJSON(req.user) });
+    return res.json({ ok: true, seller: sellerProfile(req.seller, req.user), user: sellerUserForResponse(req.user) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao carregar dados cadastrais do seller' });
   }
@@ -647,7 +767,7 @@ async function saveSellerProfileSettings(req, res) {
     const seller = await Seller.findOneAndUpdate({ sellerId: req.sellerId }, { $set: sellerUpdates }, { new: true });
     const user = Object.keys(userUpdates).length ? await User.findByIdAndUpdate(req.user._id, { $set: userUpdates }, { new: true }) : req.user;
 
-    return res.json({ ok: true, lockedLegalData: sellerApproved, seller: sellerProfile(seller, user), user: toJSON(user) });
+    return res.json({ ok: true, lockedLegalData: sellerApproved, seller: sellerProfile(seller, user), user: sellerUserForResponse(user) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao salvar dados cadastrais do seller' });
   }
@@ -1139,7 +1259,7 @@ function publicSellerProfile(seller) {
     description: String(meta.bio || meta.description || o.description || '').trim(),
     city: String(o.city || meta.city || meta.cidade || '').trim(),
     uf: String(o.uf || meta.uf || '').trim().toUpperCase().slice(0, 2),
-    active: !['rejected','reprovado','blocked','bloqueado','suspended','suspenso','inactive','inativo'].includes(status)
+    active: isApprovedSellerStatus(status)
   };
 }
 
