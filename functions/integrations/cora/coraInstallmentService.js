@@ -56,14 +56,14 @@ function normalizeDocument(document = '') {
 
 function normalizeAddress(input = {}) {
   const address = {
-    street: clean(input.street || input.logradouro, 120),
-    number: clean(input.number || input.numero || 'S/N', 20),
-    district: clean(input.district || input.bairro, 80),
-    city: clean(input.city || input.cidade, 80),
-    state: clean(input.state || input.uf, 2).toUpperCase(),
+    street: clean(input.street || input.logradouro || input.addressLine || input.address_line, 120),
+    number: clean(input.number || input.numero || input.addressNumber || input.address_number || 'S/N', 20),
+    district: clean(input.district || input.neighborhood || input.bairro, 80),
+    city: clean(input.city || input.cidade || input.municipio || input.municipality, 80),
+    state: clean(input.state || input.stateCode || input.state_code || input.uf, 2).toUpperCase(),
     complement: clean(input.complement || input.complemento || '', 80),
     country: clean(input.country || input.pais || 'BR', 2).toUpperCase(),
-    zip_code: digits(input.zip_code || input.zipCode || input.cep).slice(0, 8)
+    zip_code: digits(input.zip_code || input.zipCode || input.postalCode || input.postal_code || input.cep).slice(0, 8)
   };
 
   const missing = Object.entries(address)
