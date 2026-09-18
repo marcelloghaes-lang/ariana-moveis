@@ -772,20 +772,7 @@ app.post('/api/seller/auth/login', async (req, res) => {
     }
 
     if (!seller) {
-      return res.status(401).json({ ok: false, error: 'Seller não encontrado' });
-    }
-
-    const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
-    const pendingStatuses = ['pending', 'pending_onboarding', 'pendente', 'aguardando_aprovacao'];
-    const blockedStatuses = ['rejected', 'reprovado', 'blocked', 'bloqueado', 'suspended', 'suspenso', 'inactive', 'inativo'];
-    if (pendingStatuses.includes(sellerStatus)) {
-      return res.status(403).json({ ok: false, code: 'SELLER_PENDING_APPROVAL', error: 'Seu cadastro ainda está aguardando aprovação da Ariana Móveis.' });
-    }
-    if (blockedStatuses.includes(sellerStatus)) {
-      return res.status(403).json({ ok: false, code: 'SELLER_ACCESS_BLOCKED', error: 'Acesso do seller indisponível. Entre em contato com a Ariana Móveis.' });
-    }
-    if (user?.isActive === false) {
-      return res.status(403).json({ ok: false, code: 'SELLER_USER_INACTIVE', error: 'Usuário do seller está inativo.' });
+      return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
     }
 
     if (!user) {
@@ -796,8 +783,16 @@ app.post('/api/seller/auth/login', async (req, res) => {
       });
     }
 
-    let valid = false;
+    const lockUntil = user.lockedUntil ? new Date(user.lockedUntil) : null;
+    if (lockUntil && Number.isFinite(lockUntil.getTime()) && lockUntil.getTime() > Date.now()) {
+      return res.status(429).json({
+        ok: false,
+        code: 'SELLER_LOGIN_TEMPORARILY_LOCKED',
+        error: 'Muitas tentativas de acesso. Aguarde alguns minutos antes de tentar novamente.'
+      });
+    }
 
+    let valid = false;
     if (user.passwordHash) {
       try {
         valid = await bcrypt.compare(password, String(user.passwordHash || ''));
@@ -805,15 +800,65 @@ app.post('/api/seller/auth/login', async (req, res) => {
         valid = false;
       }
 
+      // Migração única de credenciais muito antigas que ainda estavam em texto puro.
       if (!valid && String(user.passwordHash || '') === password) {
         valid = true;
         user.passwordHash = await bcrypt.hash(password, 10);
-        await user.save();
       }
     }
 
     if (!valid) {
-      return res.status(401).json({ ok: false, error: 'Credenciais inválidas' });
+      const attempts = Math.max(0, Number(user.failedLoginAttempts || 0)) + 1;
+      user.failedLoginAttempts = attempts;
+
+      if (attempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+        user.failedLoginAttempts = 0;
+      }
+
+      await user.save().catch(() => null);
+
+      return res.status(attempts >= 5 ? 429 : 401).json({
+        ok: false,
+        code: attempts >= 5 ? 'SELLER_LOGIN_TEMPORARILY_LOCKED' : 'SELLER_INVALID_CREDENTIALS',
+        error: attempts >= 5
+          ? 'Muitas tentativas de acesso. Aguarde 15 minutos antes de tentar novamente.'
+          : 'Credenciais inválidas'
+      });
+    }
+
+    user.failedLoginAttempts = 0;
+    user.lockedUntil = null;
+
+    const sellerStatus = String(seller.status || seller.metadata?.status || '').trim().toLowerCase();
+    const pendingStatuses = ['pending', 'pending_onboarding', 'pendente', 'aguardando_aprovacao'];
+    const blockedStatuses = ['rejected', 'reprovado', 'blocked', 'bloqueado', 'suspended', 'suspenso', 'inactive', 'inativo'];
+
+    if (pendingStatuses.includes(sellerStatus)) {
+      await user.save().catch(() => null);
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_PENDING_APPROVAL',
+        error: 'Seu cadastro ainda está aguardando aprovação da Ariana Móveis.'
+      });
+    }
+
+    if (blockedStatuses.includes(sellerStatus)) {
+      await user.save().catch(() => null);
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_ACCESS_BLOCKED',
+        error: 'Acesso do seller indisponível. Entre em contato com a Ariana Móveis.'
+      });
+    }
+
+    if (user.isActive === false) {
+      await user.save().catch(() => null);
+      return res.status(403).json({
+        ok: false,
+        code: 'SELLER_USER_INACTIVE',
+        error: 'Usuário do seller está inativo.'
+      });
     }
 
     const directAccountLink =
@@ -831,11 +876,20 @@ app.post('/api/seller/auth/login', async (req, res) => {
     if (String(user.role || '').toLowerCase() !== 'seller' || !user.sellerId) {
       user.role = 'seller';
       user.sellerId = seller.sellerId || user.sellerId || uid('seller');
-      await user.save();
     }
+
+    user.lastLoginAt = now();
+    user.lastLoginIp = String(req.ip || req.headers['x-forwarded-for'] || '').split(',')[0].trim().slice(0, 120);
+    user.lastLoginUserAgent = String(req.headers['user-agent'] || '').slice(0, 1000);
+    await user.save();
 
     if (!seller.sellerId) seller.sellerId = user.sellerId || uid('seller');
     if (!seller.userId) seller.userId = user._id;
+
+    // Remove definitivamente restos de senhas/tokens que possam existir em
+    // cadastros antigos antes da correção de onboarding.
+    seller.metadata = sanitizeSellerMetadataForResponse(seller.metadata || {});
+    seller.markModified('metadata');
     await seller.save();
 
     return res.json({
