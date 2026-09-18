@@ -249,7 +249,7 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Enviando...';
 
       try {
-        const res = await fetch(`${API_BASE}/seller/auth/forgot-password`, {
+        const res = await fetch(`${API_BASE}/auth/forgot-password`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email })
