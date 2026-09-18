@@ -28,26 +28,172 @@ export default function registerSellerPartnerRoutes(app, context = {}) {
     createAdminNotification
   } = context;
 
+const SELLER_METADATA_SENSITIVE_KEYS = new Set([
+  'password',
+  'senha',
+  'requestedtemppass',
+  'confirmpassword',
+  'passwordconfirmation',
+  'passwordhash',
+  'resetpasswordtokenhash',
+  'resettoken',
+  'authtoken',
+  'jwt',
+  'accesstoken',
+  'refreshtoken',
+  'apikey',
+  'privatekey'
+]);
+
+function sanitizeSellerMetadata(value = {}, depth = 0) {
+  if (depth > 6) return null;
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSellerMetadata(item, depth + 1));
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    const normalizedKey = String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (
+      SELLER_METADATA_SENSITIVE_KEYS.has(normalizedKey) ||
+      normalizedKey.includes('secret') ||
+      normalizedKey.includes('privatekey')
+    ) {
+      continue;
+    }
+    out[key] = sanitizeSellerMetadata(item, depth + 1);
+  }
+  return out;
+}
+
+function safePartnerRequestForResponse(doc = {}) {
+  const normalized = normalizePartnerRequestForResponse(doc) || {};
+  return {
+    ...normalized,
+    metadata: sanitizeSellerMetadata(normalized.metadata || {})
+  };
+}
+
+function sellerRequestEmail(body = {}, seller = {}) {
+  return String(
+    body.email ||
+    body.contactEmail ||
+    body.companyEmail ||
+    seller.email ||
+    seller.metadata?.email ||
+    ''
+  ).trim().toLowerCase();
+}
+
+function sellerStatusIsApproved(value = '') {
+  return normalizePartnerRequestStatus(value) === 'approved';
+}
+
 app.post('/api/seller/partner-request', async (req, res) => {
+  let createdSeller = null;
+  let createdUser = null;
+
   try {
     const body = req.body || {};
+    const email = sellerRequestEmail(body);
+    const password = String(
+      body.requestedTempPass ||
+      body.password ||
+      body.senha ||
+      ''
+    );
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ ok: false, error: 'Informe um e-mail válido para o acesso do seller.' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ ok: false, error: 'A senha do seller deve ter pelo menos 8 caracteres.' });
+    }
+
+    const existingSeller = await Seller.findOne({
+      $or: [
+        { email },
+        { 'metadata.email': email },
+        { 'metadata.contactEmail': email }
+      ]
+    }).lean();
+
+    if (existingSeller) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_REQUEST_EXISTS',
+        error: 'Já existe uma solicitação ou conta de seller vinculada a este e-mail.'
+      });
+    }
+
+    const existingUser = await User.findOne({ email }).lean();
+    if (existingUser) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_EMAIL_ALREADY_IN_USE',
+        error: 'Este e-mail já está vinculado a uma conta. Use outro e-mail ou entre em contato com a Ariana Móveis.'
+      });
+    }
+
     const sellerId = uid('seller');
-    const seller = await Seller.create({
+    const cleanMetadata = sanitizeSellerMetadata(body);
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    createdSeller = await Seller.create({
       sellerId,
       displayName: body.name || body.displayName || body.ownerName || '',
       storeName: body.storeName || body.factoryName || body.razaoSocial || body.legalName || body.shopName || body.name || '',
-      email: body.email || body.contactEmail || '',
+      email,
       phone: body.phone || body.whatsapp || '',
       document: body.document || body.cnpj || body.cpf || body.cpfCnpj || body.cpf_cnpj || '',
       status: 'pending',
       onboardingCompleted: false,
-      metadata: body
+      metadata: cleanMetadata
     });
 
-    const notification = await notifyNewPartnerRequest(seller).catch((error) => ({ ok: false, error: error.message || String(error) }));
+    createdUser = await User.create({
+      name: createdSeller.displayName || createdSeller.storeName || email,
+      email,
+      passwordHash,
+      phone: createdSeller.phone || '',
+      cpf: createdSeller.document || '',
+      role: 'seller',
+      sellerId,
+      isActive: false,
+      authProvider: 'password'
+    });
 
-    return res.json({ ok: true, id: seller.sellerId, sellerId: seller.sellerId, seller: normalizePartnerRequestForResponse(seller), notification });
+    createdSeller.userId = createdUser._id;
+    await createdSeller.save();
+
+    const notification = await notifyNewPartnerRequest(createdSeller)
+      .catch((error) => ({ ok: false, error: error.message || String(error) }));
+
+    return res.status(201).json({
+      ok: true,
+      id: createdSeller.sellerId,
+      sellerId: createdSeller.sellerId,
+      seller: safePartnerRequestForResponse(createdSeller),
+      notification
+    });
   } catch (error) {
+    if (createdUser?._id) {
+      await User.deleteOne({ _id: createdUser._id }).catch(() => null);
+    }
+    if (createdSeller?._id) {
+      await Seller.deleteOne({ _id: createdSeller._id }).catch(() => null);
+    }
+
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_DUPLICATE',
+        error: 'Já existe uma conta ou solicitação com estes dados.'
+      });
+    }
+
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar solicitação de parceiro' });
   }
 });
@@ -94,7 +240,7 @@ app.get('/api/seller/partner-requests', adminRequired, async (req, res) => {
       ];
     }
     const rows = await Seller.find(filter).sort({ createdAt: -1 }).limit(limit);
-    const requests = rows.map(normalizePartnerRequestForResponse);
+    const requests = rows.map(safePartnerRequestForResponse);
     return res.json({ ok: true, requests, items: requests, total: requests.length });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao listar solicitações de seller' });
@@ -177,7 +323,87 @@ app.patch('/api/seller/partner-requests/:id/status', adminRequired, async (req, 
       }).catch(() => null);
     }
 
-    const s = normalizePartnerRequestForResponse(seller);
+    const currentMeta = seller.metadata && typeof seller.metadata === 'object'
+      ? { ...seller.metadata }
+      : {};
+    const legacyPassword = String(
+      currentMeta.requestedTempPass ||
+      currentMeta.password ||
+      currentMeta.senha ||
+      ''
+    );
+    const sellerId = String(seller.sellerId || '').trim();
+    const email = sellerRequestEmail({}, seller);
+
+    let linkedUser = null;
+    if (seller.userId) {
+      linkedUser = await User.findById(seller.userId).catch(() => null);
+    }
+    if (!linkedUser && sellerId) {
+      linkedUser = await User.findOne({ sellerId }).catch(() => null);
+    }
+    if (!linkedUser && email) {
+      const emailUser = await User.findOne({ email }).catch(() => null);
+      if (
+        emailUser &&
+        (
+          String(emailUser.role || '').toLowerCase() === 'seller' ||
+          String(emailUser.sellerId || '').trim() === sellerId
+        )
+      ) {
+        linkedUser = emailUser;
+      }
+    }
+
+    // Migração segura das solicitações antigas: utiliza a senha legada apenas
+    // para gerar o hash e a remove imediatamente do cadastro do seller.
+    if (!linkedUser && active && email && legacyPassword.length >= 6) {
+      const emailConflict = await User.findOne({ email }).catch(() => null);
+      if (!emailConflict) {
+        linkedUser = await User.create({
+          name: seller.displayName || seller.storeName || email,
+          email,
+          passwordHash: await bcrypt.hash(legacyPassword, 10),
+          phone: seller.phone || '',
+          cpf: seller.document || '',
+          role: 'seller',
+          sellerId,
+          isActive: true,
+          authProvider: 'password'
+        });
+      }
+    }
+
+    if (linkedUser) {
+      const directLink =
+        String(linkedUser.sellerId || '').trim() === sellerId ||
+        String(seller.userId || '') === String(linkedUser._id || '');
+
+      if (directLink || String(linkedUser.role || '').toLowerCase() === 'seller') {
+        linkedUser.role = 'seller';
+        linkedUser.sellerId = sellerId;
+        linkedUser.isActive = active;
+        await linkedUser.save();
+
+        if (String(seller.userId || '') !== String(linkedUser._id || '')) {
+          seller.userId = linkedUser._id;
+        }
+      }
+    }
+
+    const cleanMetadata = sanitizeSellerMetadata(seller.metadata || {});
+    seller = await Seller.findByIdAndUpdate(
+      seller._id,
+      {
+        $set: {
+          metadata: cleanMetadata,
+          ...(seller.userId ? { userId: seller.userId } : {})
+        }
+      },
+      { new: true }
+    );
+
+    const s = safePartnerRequestForResponse(seller);
     await createAdminNotification({
       type: 'partner_request_status_updated',
       title: status === 'approved' ? '✅ Seller aprovado' : status === 'rejected' ? '❌ Seller recusado' : '⏳ Seller pendente',
@@ -207,22 +433,59 @@ app.post('/api/seller/partner-requests/:id/credentials', adminRequired, async (r
     if (!email) return res.status(400).json({ ok: false, error: 'Seller sem e-mail cadastrado.' });
     const sellerId = String(seller.sellerId || '').trim() || uid('seller');
     const passwordHash = await bcrypt.hash(password, 10);
-    let user = await User.findOne({ $or: [{ email }, { sellerId }] });
+
+    let user = seller.userId
+      ? await User.findById(seller.userId).catch(() => null)
+      : null;
+
+    if (!user) {
+      user = await User.findOne({ sellerId }).catch(() => null);
+    }
+
+    if (!user) {
+      const emailUser = await User.findOne({ email }).catch(() => null);
+      if (
+        emailUser &&
+        String(emailUser.role || '').toLowerCase() !== 'seller' &&
+        String(emailUser.sellerId || '').trim() !== sellerId
+      ) {
+        return res.status(409).json({
+          ok: false,
+          code: 'SELLER_EMAIL_ACCOUNT_CONFLICT',
+          error: 'Este e-mail pertence a outra conta e não pode ser convertido automaticamente em seller.'
+        });
+      }
+      user = emailUser;
+    }
+
+    const sellerActive = sellerStatusIsApproved(seller.status || seller.metadata?.status || '');
+
     if (user) {
       user.email = email;
       user.passwordHash = passwordHash;
       user.role = 'seller';
       user.sellerId = sellerId;
-      user.isActive = true;
+      user.isActive = sellerActive;
       await user.save();
     } else {
-      user = await User.create({ name: seller.displayName || seller.storeName || email, email, passwordHash, phone: seller.phone || '', cpf: seller.document || '', role: 'seller', sellerId, isActive: true });
+      user = await User.create({
+        name: seller.displayName || seller.storeName || email,
+        email,
+        passwordHash,
+        phone: seller.phone || '',
+        cpf: seller.document || '',
+        role: 'seller',
+        sellerId,
+        isActive: sellerActive,
+        authProvider: 'password'
+      });
     }
-    const metadata = { ...(seller.metadata || {}) };
-    delete metadata.password;
-    delete metadata.senha;
-    delete metadata.requestedTempPass;
-    await Seller.findByIdAndUpdate(seller._id, { $set: { sellerId, userId: user._id, metadata } });
+
+    const metadata = sanitizeSellerMetadata(seller.metadata || {});
+    await Seller.findByIdAndUpdate(
+      seller._id,
+      { $set: { sellerId, userId: user._id, metadata } }
+    );
     await writeAuditLog({ scope: 'seller_credentials', eventType: 'seller_credentials_provisioned', status: 'success', metadata: { sellerId, admin: req.admin?.email || req.user?.email || 'admin' } }).catch(() => null);
     return res.json({ ok: true, sellerId, email, credentialsProvisioned: true });
   } catch (error) {
