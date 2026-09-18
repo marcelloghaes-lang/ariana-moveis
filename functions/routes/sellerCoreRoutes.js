@@ -11,6 +11,7 @@ export default function registerSellerCoreRoutes(app, context = {}) {
     Product,
     Order,
     Notification,
+    Ticket,
     JWT_SECRET,
     mongoose,
     jwt,
@@ -463,6 +464,97 @@ if (typeof uploadToCloudinary === 'function' && upload?.single) {
   app.post('/api/seller/uploads', sellerAuthRequired, upload.single('file'), uploadToCloudinary);
   app.post('/api/seller/products/upload', sellerAuthRequired, upload.single('file'), uploadToCloudinary);
 }
+
+
+async function sellerSupportTicketsForRequest(req) {
+  if (!Ticket) return [];
+  const sid = String(req.sellerId || '').trim();
+  if (!sid) return [];
+
+  const directFilter = {
+    $or: [
+      { 'metadata.sellerId': sid },
+      { 'metadata.seller_id': sid },
+      { 'metadata.sellerIds': sid },
+      { 'metadata.sellerIds': { $in: [sid] } }
+    ]
+  };
+
+  const directTickets = await Ticket.find(directFilter).sort({ createdAt: -1 }).limit(250);
+  const seen = new Map(directTickets.map((doc) => [String(doc._id), doc]));
+
+  const orderDocs = await Order.find({
+    $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { 'items.seller_id': sid }]
+  })
+    .select('_id id orderNumber numeroPedido orderId')
+    .limit(1000);
+
+  const refs = new Set();
+  for (const orderDoc of orderDocs) {
+    const order = toJSON(orderDoc) || {};
+    [
+      order._id,
+      order.id,
+      order.orderNumber,
+      order.numeroPedido,
+      order.orderId
+    ].forEach((value) => {
+      const clean = String(value || '').trim();
+      if (clean) refs.add(clean);
+    });
+  }
+
+  if (refs.size) {
+    const relatedTickets = await Ticket.find({ orderId: { $in: Array.from(refs) } })
+      .sort({ createdAt: -1 })
+      .limit(250);
+    for (const doc of relatedTickets) seen.set(String(doc._id), doc);
+  }
+
+  return Array.from(seen.values())
+    .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+    .slice(0, 250);
+}
+
+app.get('/api/seller/support', sellerAuthRequired, async (req, res) => {
+  try {
+    const docs = await sellerSupportTicketsForRequest(req);
+    const items = docs.map((doc) => {
+      const item = toJSON(doc) || {};
+      return {
+        ...item,
+        pedido: item.pedido || item.orderId || '',
+        orderId: item.orderId || item.pedido || ''
+      };
+    });
+    return res.json(items);
+  } catch (error) {
+    console.error('Erro ao carregar atendimentos do seller:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar atendimentos do seller' });
+  }
+});
+
+app.patch('/api/seller/support/:id/read', sellerAuthRequired, async (req, res) => {
+  try {
+    const ticketId = normalizeObjectId(req.params.id);
+    if (!ticketId) return res.status(400).json({ ok: false, error: 'Chamado inválido' });
+
+    const docs = await sellerSupportTicketsForRequest(req);
+    const allowed = docs.some((doc) => String(doc?._id || '') === String(ticketId));
+    if (!allowed) return res.status(404).json({ ok: false, error: 'Chamado não encontrado' });
+
+    const ticket = await Ticket.findByIdAndUpdate(
+      ticketId,
+      { $set: { status: 'Lido', 'metadata.sellerReadAt': now() } },
+      { new: true }
+    );
+
+    return res.json({ ok: true, ticket: toJSON(ticket) });
+  } catch (error) {
+    console.error('Erro ao atualizar atendimento do seller:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar atendimento do seller' });
+  }
+});
 
 app.get('/api/seller/returns', sellerAuthRequired, async (req, res) => {
   try {
