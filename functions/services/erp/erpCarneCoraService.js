@@ -5,8 +5,10 @@ import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../../int
 import { getCoraConfig } from '../../integrations/cora/coraConfig.js';
 
 const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
+const digits = value => String(value ?? '').replace(/\D/g, '');
 const arr = value => Array.isArray(value) ? value : [];
 const money = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+const emailIsValid = value => /^\S+@\S+\.\S+$/.test(clean(value, 320).toLowerCase());
 
 function fail(message, statusCode = 500, code = 'ERP_CARNE_CORA_ERROR') {
   const error = new Error(message);
@@ -206,6 +208,7 @@ async function fetchCoraPdf(url) {
 }
 
 export function createErpCarneCoraService(context = {}) {
+  const { Order } = context;
   const base = createErpCarneService(context);
   const CoraCharge = getCoraChargeModel(mongoose);
   const CoraAuditLog = getCoraAuditModel(mongoose);
@@ -384,6 +387,37 @@ export function createErpCarneCoraService(context = {}) {
   }
 
 
+  async function saveContact(targetId, payload = {}, actor = {}) {
+    const id = clean(targetId, 300);
+    if (!id.startsWith('order:')) {
+      throw fail('O e-mail pode ser atualizado por esta tela somente em vendas do Ariana ERP.', 409, 'ERP_CARNE_CORA_CONTACT_ORDER_REQUIRED');
+    }
+    if (!Order) throw fail('Modelo de vendas do Ariana ERP não está disponível.', 503, 'ERP_CARNE_CORA_ORDER_MODEL_UNAVAILABLE');
+    const orderId = id.split(':')[1];
+    if (!mongoose.isValidObjectId(orderId)) throw fail('Venda inválida para atualização de contato.', 404, 'ERP_CARNE_CORA_ORDER_INVALID');
+    const email = clean(payload.email, 320).toLowerCase();
+    if (!emailIsValid(email)) throw fail('Informe um e-mail válido do cliente para emitir o carnê Cora.', 400, 'ERP_CARNE_CORA_EMAIL_INVALID');
+
+    const order = await Order.findById(orderId).lean();
+    if (!order || order.origin !== 'erp_ariana') throw fail('Venda do Ariana ERP não encontrada.', 404, 'ERP_CARNE_CORA_ORDER_NOT_FOUND');
+    await Order.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(orderId), origin: 'erp_ariana' },
+      { $set: { customerEmail: email, updatedAt: new Date() } }
+    );
+
+    const Person = mongoose.models.ErpPerson;
+    const document = digits(order.customerCpf || order.customerDocument || '');
+    if (Person && document) {
+      await Person.updateOne(
+        { document, active: { $ne: false } },
+        { $set: { email, updatedAt: new Date() } }
+      ).catch(error => console.warn('[erp-carne-cora][contato]', error?.message || error));
+    }
+
+    const refreshed = await preview(targetId, payload.via || 'primeira');
+    return { saved: true, email, updatedBy: actorName(actor), ...refreshed };
+  }
+
   async function emit(targetId, payload = {}, actor = {}) {
     const baseData = await base.preview(targetId, 'primeira');
     if (!clean(baseData.orderId, 160)) {
@@ -511,7 +545,7 @@ export function createErpCarneCoraService(context = {}) {
     }
   }
 
-  return { preview, pdf, send, emit };
+  return { preview, pdf, send, emit, saveContact };
 }
 
 export default createErpCarneCoraService;
