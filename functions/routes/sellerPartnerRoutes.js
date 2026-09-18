@@ -92,6 +92,57 @@ function sellerStatusIsApproved(value = '') {
   return normalizePartnerRequestStatus(value) === 'approved';
 }
 
+async function approvedSellerRequired(req, res, next) {
+  return sellerAuthRequired(req, res, async () => {
+    try {
+      const sellerId = String(req.sellerId || req.user?.sellerId || '').trim();
+      if (!sellerId) {
+        return res.status(403).json({ ok: false, error: 'Seller não autenticado.' });
+      }
+
+      const seller = await Seller.findOne({ sellerId });
+      if (!seller) {
+        return res.status(403).json({ ok: false, error: 'Seller não encontrado.' });
+      }
+
+      if (!sellerStatusIsApproved(seller.status || seller.metadata?.status || '')) {
+        return res.status(403).json({
+          ok: false,
+          code: 'SELLER_NOT_ACTIVE',
+          error: 'O cadastro do seller ainda não está ativo.'
+        });
+      }
+
+      if (req.user?.isActive === false) {
+        return res.status(403).json({
+          ok: false,
+          code: 'SELLER_USER_INACTIVE',
+          error: 'Usuário do seller está inativo.'
+        });
+      }
+
+      const linkedUserId = String(seller.userId || '').trim();
+      const authenticatedUserId = String(req.user?._id || '').trim();
+      if (linkedUserId && authenticatedUserId && linkedUserId !== authenticatedUserId) {
+        return res.status(403).json({
+          ok: false,
+          code: 'SELLER_ACCOUNT_LINK_MISMATCH',
+          error: 'A conta autenticada não corresponde a este seller.'
+        });
+      }
+
+      req.seller = seller;
+      req.sellerId = String(seller.sellerId || '');
+      return next();
+    } catch (error) {
+      return res.status(500).json({
+        ok: false,
+        error: error.message || 'Erro ao validar acesso do seller.'
+      });
+    }
+  });
+}
+
 app.post('/api/seller/partner-request', async (req, res) => {
   let createdSeller = null;
   let createdUser = null;
@@ -834,7 +885,7 @@ app.patch('/api/seller/product-reviews/:id/status', adminRequired, async (req, r
   }
 });
 
-app.post('/api/seller/complete-onboarding', sellerAuthRequired, async (req, res) => {
+app.post('/api/seller/complete-onboarding', approvedSellerRequired, async (req, res) => {
   try {
     const sellerId = String(req.sellerId || '').trim();
     if (!sellerId) return res.status(403).json({ ok: false, error: 'Seller não autenticado' });
