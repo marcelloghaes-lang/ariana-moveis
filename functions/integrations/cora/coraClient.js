@@ -5,8 +5,16 @@ import crypto from 'crypto';
 import { assertCoraConfigured } from './coraConfig.js';
 import { clearCoraTokenCache, getCoraAccessToken } from './coraAuth.js';
 
+function certificateValue(cfg) {
+  return cfg.certPem || fs.readFileSync(cfg.certPath);
+}
+
+function privateKeyValue(cfg) {
+  return cfg.keyPem || fs.readFileSync(cfg.keyPath);
+}
+
 function buildAgent(cfg) {
-  return new https.Agent({ cert: fs.readFileSync(cfg.certPath), key: fs.readFileSync(cfg.keyPath), rejectUnauthorized: true, keepAlive: true });
+  return new https.Agent({ cert: certificateValue(cfg), key: privateKeyValue(cfg), rejectUnauthorized: true, keepAlive: true });
 }
 function providerMessage(data, status) {
   if (typeof data === 'string' && data.trim()) return data.trim();
