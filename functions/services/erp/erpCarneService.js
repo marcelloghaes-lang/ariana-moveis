@@ -341,7 +341,7 @@ export function createErpCarneService(context = {}) {
     const receivables = arr(erp.receivables);
     if (!receivables.length) throw fail('Esta compra não possui parcelas de crediário para gerar carnê.', 409, 'ERP_CARNE_NO_INSTALLMENTS');
     const reference = clean(erp.code || order.orderCode || order.code || String(order._id).slice(-8).toUpperCase(), 180);
-    const contact = await currentCustomer({ name: order.customerName, document: order.customerCpf, email: order.customerEmail, phone: order.customerPhone, address: order.address });
+    const contact = await currentCustomer({ name: order.customerName, document: order.customerCpf, email: order.customerEmail, phone: order.customerPhone, address: order.shippingAddress || order.address });
     const itemDescription = arr(order.items).map(item => `${Number(item.qty || 1)}x ${clean(item.name || item.title || 'Produto', 160)}`).join(' • ');
     const items = buildItems(receivables, reference);
     return {
