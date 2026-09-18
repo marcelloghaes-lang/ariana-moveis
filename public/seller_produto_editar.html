@@ -564,13 +564,7 @@ function normalizeCategoryRows(raw) {
   return { categories, subcategories };
 }
 async function fetchCategoriesFromBackend() {
-  const endpoints = [
-    '/categories',
-    '/admin/categories',
-    '/seller/categories',
-    '/seller/product-categories',
-    '/seller/products/categories'
-  ];
+  const endpoints = ['/categories'];
 
   let lastError = null;
   for (const endpoint of endpoints) {
