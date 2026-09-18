@@ -99,6 +99,7 @@ export function resolveErpRequirement(req={}){
   if(path==='/erp/relatorios/financeiro'&&read)return requirement(['finance:reports','reports:read'],'consultar relatórios financeiros');
   if(path==='/erp/relatorios/inadimplentes'&&read)return requirement(['finance:read','payments:read','finance:reports','reports:read'],'consultar inadimplentes');
   if(/^\/erp\/relatorios\/inadimplentes\/cobranca\/[^/]+\/preview$/.test(path)&&read)return requirement(['finance:read','payments:read'],'preparar cobrança de cliente inadimplente');
+  if(/^\/erp\/relatorios\/inadimplentes\/cobranca\/[^/]+\/contato$/.test(path)&&method==='POST')return requirement(['customers:update','payments:receive'],'atualizar o WhatsApp do cliente durante a cobrança');
   if(/^\/erp\/relatorios\/inadimplentes\/cobranca\/[^/]+\/enviar$/.test(path)&&method==='POST')return requirement(['payments:receive','finance:read'],'enviar cobrança de cliente inadimplente');
   if(path==='/erp/relatorios/inadimplentes/pdf'&&read)return requirement(['finance:read','payments:read','finance:reports','reports:read'],'baixar relatório de inadimplentes');
   if(path==='/erp/relatorios/vendas'&&read)return requirement(['reports:read','orders:read'],'consultar relatórios de vendas');
