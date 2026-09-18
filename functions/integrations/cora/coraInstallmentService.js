@@ -16,6 +16,18 @@ function toCents(value) {
   return Math.round((number + Number.EPSILON) * 100);
 }
 
+function moneyToCents(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  return Math.round((number + Number.EPSILON) * 100);
+}
+
+function normalizeExplicitCents(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 0;
+  return Math.round(number);
+}
+
 function isoDate(value) {
   const raw = clean(value, 20);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
@@ -136,7 +148,10 @@ export function buildCoraInstallmentPayload(input = {}) {
     throw error;
   }
 
-  const totalAmount = toCents(input.totalAmount ?? input.amount ?? input.total);
+  const explicitTotalCents = input.totalAmountCents ?? input.amountCents ?? input.totalCents;
+  const totalAmount = explicitTotalCents !== undefined && explicitTotalCents !== null && explicitTotalCents !== ''
+    ? normalizeExplicitCents(explicitTotalCents)
+    : moneyToCents(input.totalAmount ?? input.amount ?? input.total);
   if (totalAmount < 500 * installments) {
     const error = new Error('O valor total é inválido ou resulta em parcela inferior a R$ 5,00.');
     error.code = 'CORA_INVALID_AMOUNT';
