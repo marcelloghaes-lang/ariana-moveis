@@ -154,30 +154,185 @@ function buildSellerProductPayload(req, existingDoc = null) {
   return payload;
 }
 
+function sellerIdsForSellerRoute(orderDoc = {}) {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const ids = new Set();
+
+  ensureArray(order.sellerIds).forEach((value) => {
+    const id = String(value || '').trim();
+    if (id) ids.add(id);
+  });
+
+  ensureArray(order.items).forEach((item) => {
+    const id = String(item?.sellerId || item?.seller_id || '').trim();
+    if (id) ids.add(id);
+  });
+
+  return Array.from(ids);
+}
+
+function sellerItemsForOrder(orderDoc = {}, sellerId = '') {
+  const sid = String(sellerId || '').trim();
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const items = ensureArray(order.items);
+  const taggedItems = items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim());
+  const ownItems = taggedItems.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid);
+
+  if (ownItems.length) return ownItems;
+
+  // Compatibilidade com pedidos antigos de um único seller que não gravavam
+  // sellerId em cada item.
+  const sellerIds = sellerIdsForSellerRoute(order);
+  if (!taggedItems.length && sellerIds.length === 1 && sellerIds[0] === sid) {
+    return items;
+  }
+
+  return [];
+}
+
+function sellerItemGross(item = {}) {
+  const qty = Math.max(1, Number(item.qty ?? item.quantity ?? item.quantidade ?? 1) || 1);
+  const explicitTotal = item.sellerBaseTotal ?? item.seller_base_total ?? item.totalPrice ?? item.total;
+  if (explicitTotal !== undefined && explicitTotal !== null && explicitTotal !== '') {
+    return Number(explicitTotal || 0);
+  }
+  const unit = Number(item.sellerBaseUnitPrice ?? item.seller_base_unit_price ?? item.unitPrice ?? item.price ?? 0) || 0;
+  return unit * qty;
+}
+
+function sellerFulfillmentForOrder(orderDoc = {}, sellerId = '') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sid = String(sellerId || '').trim();
+  const sellerMap = order.shipping && typeof order.shipping === 'object'
+    ? order.shipping.sellers
+    : null;
+  const value = sellerMap && typeof sellerMap === 'object' ? sellerMap[sid] : null;
+  return value && typeof value === 'object' ? value : {};
+}
+
+function isShippedSellerStatus(value = '') {
+  const status = String(value || '').trim().toLowerCase();
+  return ['shipped', 'enviado', 'delivered', 'entregue'].includes(status);
+}
+
+function applySellerFulfillment(orderDoc, sellerId, update = {}) {
+  const sid = String(sellerId || '').trim();
+  const order = orderDoc;
+  const sellerIds = sellerIdsForSellerRoute(order);
+  const isMultiSeller = sellerIds.length > 1;
+  const shipping = order.shipping && typeof order.shipping === 'object'
+    ? { ...order.shipping }
+    : {};
+  const sellers = shipping.sellers && typeof shipping.sellers === 'object'
+    ? { ...shipping.sellers }
+    : {};
+  const current = sellers[sid] && typeof sellers[sid] === 'object'
+    ? { ...sellers[sid] }
+    : {};
+
+  sellers[sid] = {
+    ...current,
+    ...update,
+    sellerId: sid,
+    updatedAt: now()
+  };
+
+  shipping.sellers = sellers;
+
+  if (!isMultiSeller) {
+    if (update.carrier !== undefined) shipping.carrier = update.carrier;
+    if (update.trackingCode !== undefined) shipping.trackingCode = update.trackingCode;
+    if (update.shippedAt !== undefined) shipping.shippedAt = update.shippedAt;
+  }
+
+  order.shipping = shipping;
+
+  const allShipped = sellerIds.length > 0 && sellerIds.every((id) => {
+    const own = sellers[id] || {};
+    return isShippedSellerStatus(own.status || own.statusLabel);
+  });
+  const anyShipped = sellerIds.some((id) => {
+    const own = sellers[id] || {};
+    return isShippedSellerStatus(own.status || own.statusLabel);
+  });
+
+  if (allShipped) {
+    order.status = 'shipped';
+    order.statusLabel = 'Enviado';
+  } else if (anyShipped) {
+    order.status = 'processing';
+    order.statusLabel = 'Envio parcial';
+  } else if (String(update.status || '').toLowerCase() === 'processing') {
+    order.status = 'processing';
+    order.statusLabel = 'Em preparação';
+  }
+
+  if (!isMultiSeller && update.trackingCode) {
+    order.trackingCode = update.trackingCode;
+  }
+
+  return { sellerIds, isMultiSeller, allShipped, anyShipped };
+}
+
 function sellerOrderForResponse(orderDoc, sellerId) {
   const sid = String(sellerId || '').trim();
   const order = toJSON(orderDoc) || {};
-  const items = ensureArray(order.items).filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid);
+  const items = sellerItemsForOrder(order, sid);
+  const sellerIds = sellerIdsForSellerRoute(order);
+  const fulfillment = sellerFulfillmentForOrder(order, sid);
+  const sellerGross = Math.max(0, items.reduce((sum, item) => sum + sellerItemGross(item), 0));
+  const isMultiSeller = sellerIds.length > 1;
 
-  // Um seller só recebe as linhas comerciais que pertencem a ele.
-  // Dados necessários para separação/entrega permanecem; detalhes internos do
-  // pagamento da Ariana e identificadores de outros sellers não são expostos.
+  const safeShipping = order.shipping && typeof order.shipping === 'object'
+    ? { ...order.shipping }
+    : {};
+  delete safeShipping.sellers;
+
+  if (fulfillment.carrier) safeShipping.carrier = fulfillment.carrier;
+  if (fulfillment.trackingCode) safeShipping.trackingCode = fulfillment.trackingCode;
+  if (fulfillment.shippedAt) safeShipping.shippedAt = fulfillment.shippedAt;
+
   const safe = {
     ...order,
     items,
-    sellerIds: sid ? [sid] : []
+    sellerIds: sid ? [sid] : [],
+    sellerOrderPartial: isMultiSeller,
+    sellerGross,
+    subtotal: isMultiSeller ? sellerGross : Number(order.subtotal || sellerGross),
+    total: isMultiSeller ? sellerGross : Number(order.total || sellerGross),
+    shippingCost: isMultiSeller ? 0 : Number(order.shippingCost || 0),
+    status: fulfillment.status || order.status,
+    statusLabel: fulfillment.statusLabel || order.statusLabel,
+    trackingCode: fulfillment.trackingCode || (!isMultiSeller ? order.trackingCode : ''),
+    shipping: safeShipping,
+    sellerFulfillment: fulfillment
   };
 
-  delete safe.payment;
-  delete safe.paymentDetails;
-  delete safe.gatewayResponse;
-  delete safe.gatewayPayload;
-  delete safe.split;
-  delete safe.splitSummary;
-  delete safe.marketplaceSplit;
-  delete safe.card;
-  delete safe.cardToken;
-  delete safe.paymentToken;
+  // Dados internos da Ariana e documentos de outros participantes não são
+  // expostos no endpoint geral do seller. NF-e própria usa rota dedicada.
+  [
+    'payment',
+    'paymentDetails',
+    'gatewayResponse',
+    'gatewayPayload',
+    'split',
+    'splitSummary',
+    'marketplaceSplit',
+    'card',
+    'cardToken',
+    'paymentToken',
+    'manufacturerDispatch',
+    'status_integracao',
+    'whatsappNotification',
+    'chatMeta',
+    'sige',
+    'nfe',
+    'notaFiscal',
+    'fiscal',
+    'sellerInvoices',
+    'enterpriseInvoices',
+    'sellerDocuments'
+  ].forEach((key) => delete safe[key]);
 
   return safe;
 }
@@ -223,9 +378,14 @@ app.post('/api/seller/products', sellerAuthRequired, async (req, res) => {
     // Seller novo não publica diretamente no marketplace: o produto entra para
     // revisão da Ariana. Isso evita catálogo público sem moderação.
     payload.active = false;
-    payload.status = 'pending_review';
-    payload.approvalStatus = 'pending';
-    payload.submittedAt = now();
+    payload.specs = {
+      ...(payload.specs && typeof payload.specs === 'object' ? payload.specs : {}),
+      sellerApproval: {
+        status: 'pending',
+        submittedAt: now(),
+        sellerId: payload.sellerId
+      }
+    };
 
     const created = await Product.create(payload);
     const product = normalizeProductForResponse(created);
@@ -782,9 +942,9 @@ app.get('/api/seller/dashboard', sellerAuthRequired, async (req, res) => {
   try {
     const sid = String(req.sellerId || '').trim();
     const totalProdutos = await Product.countDocuments({ sellerId: sid });
-    const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: true, $or: [{ approvalStatus: 'approved' }, { status: 'approved' }] });
-    const produtosEmRevisao = await Product.countDocuments({ sellerId: sid, $or: [{ approvalStatus: 'pending' }, { status: 'pending_review' }] });
-    const produtosReprovados = await Product.countDocuments({ sellerId: sid, $or: [{ approvalStatus: 'rejected' }, { status: 'rejected' }] });
+    const produtosAtivos = await Product.countDocuments({ sellerId: sid, active: true });
+    const produtosEmRevisao = await Product.countDocuments({ sellerId: sid, active: false, 'specs.sellerApproval.status': 'pending' });
+    const produtosReprovados = await Product.countDocuments({ sellerId: sid, active: false, 'specs.sellerApproval.status': 'rejected' });
     const orderQuery = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }] };
     const orders = await Order.find(orderQuery).sort({ createdAt: -1 }).limit(20);
     const allSellerOrders = await Order.find(orderQuery).select('status statusLabel total items sellerIds createdAt');
@@ -928,7 +1088,7 @@ app.get('/api/seller/orders/:id', sellerAuthRequired, async (req, res) => {
     const order = await Order.findById(oid);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
     const sid = String(req.sellerId || '').trim();
-    const allowed = extractSellerIdsFromOrder(order).includes(sid);
+    const allowed = sellerIdsForSellerRoute(order).includes(sid);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     return res.json({ ok: true, order: sellerOrderForResponse(order, sid) });
   } catch (e) {
@@ -942,7 +1102,7 @@ app.get('/api/seller/orders/:id/nfe', sellerAuthRequired, async (req, res) => {
     const order = await Order.findById(oid);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
     const sid = String(req.sellerId || '').trim();
-    if (!extractSellerIdsFromOrder(order).includes(sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    if (!sellerIdsForSellerRoute(order).includes(sid)) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     const raw = toJSON(order) || {};
     const docs = raw.sellerDocuments && typeof raw.sellerDocuments === 'object' ? (raw.sellerDocuments[sid] || {}) : {};
     return res.json({
@@ -967,17 +1127,39 @@ app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) =>
   try {
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
-    const before = await Order.findById(oid);
-    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    const beforeObj = toJSON(order);
     const sid = String(req.sellerId || '').trim();
-    const allowed = extractSellerIdsFromOrder(before).includes(sid);
-    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    const requestedStatus = String(req.body?.status || 'processing').trim().toLowerCase();
-    const currentStatus = String(before.status || before.statusLabel || '').trim().toLowerCase();
-    const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
-    if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
-      return res.status(409).json({ ok: false, code: 'SELLER_ORDER_FINALIZED', error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser alterado pelo seller.' });
+    const sellerIds = sellerIdsForSellerRoute(beforeObj);
+
+    if (!sellerIds.includes(sid)) {
+      return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
     }
+
+    const requestedStatus = String(req.body?.status || 'processing').trim().toLowerCase();
+    const currentStatus = String(beforeObj.status || beforeObj.statusLabel || '').trim().toLowerCase();
+    const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
+
+    if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_FINALIZED',
+        error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser alterado pelo seller.'
+      });
+    }
+
+    const fulfillableStatuses = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','processing','preparando','shipped','enviado'];
+    if (!fulfillableStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_NOT_PAID',
+        error: 'O seller só pode preparar ou enviar pedidos com pagamento confirmado.'
+      });
+    }
+
     const allowedSellerStatuses = new Set(['processing', 'preparando', 'shipped', 'enviado']);
     if (!allowedSellerStatuses.has(requestedStatus)) {
       return res.status(400).json({
@@ -986,14 +1168,64 @@ app.put('/api/seller/orders/:id/status', sellerAuthRequired, async (req, res) =>
         error: 'O seller pode alterar o pedido apenas para Em preparação ou Enviado.'
       });
     }
-    const statusLabel = ['shipped', 'enviado'].includes(requestedStatus) ? 'Enviado' : 'Em preparação';
-    const normalizedStatus = ['shipped', 'enviado'].includes(requestedStatus) ? 'shipped' : 'processing';
-    const order = await Order.findByIdAndUpdate(oid, { $set: { status: normalizedStatus, statusLabel } }, { new: true });
-    await createSellerOrderNotifications(order, { type: 'seller_order_updated', title: '📦 Pedido atualizado', message: `Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado para ${order.statusLabel || order.status || 'Atualizado'}`, severity: 'info', origin: 'seller_status_route' });
-    await createAdminNotification({ type: 'seller_order_updated', title: 'Seller atualizou pedido', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} atualizou o pedido ${order._id} para ${order.statusLabel || order.status || 'Atualizado'}`, relatedId: String(order._id), severity: 'info', metadata: { sellerId: sid, origin: 'seller_status_route' } });
-    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route');
-    const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(order._id), toJSON(before), toJSON(order), 'seller_status_route_admin');
-    return res.json({ ok: true, order: sellerOrderForResponse(order, sid), whatsapp: customerWhatsapp, adminWhatsapp });
+
+    const shipped = ['shipped', 'enviado'].includes(requestedStatus);
+    const normalizedStatus = shipped ? 'shipped' : 'processing';
+    const statusLabel = shipped ? 'Enviado' : 'Em preparação';
+
+    applySellerFulfillment(order, sid, {
+      status: normalizedStatus,
+      statusLabel,
+      ...(shipped ? { shippedAt: now() } : {})
+    });
+
+    order.trackingHistory = ensureArray(order.trackingHistory);
+    order.trackingHistory.push({
+      sellerId: sid,
+      status: normalizedStatus,
+      label: `Seller: ${statusLabel}`,
+      date: now()
+    });
+
+    await order.save();
+
+    await createSellerOrderNotifications(order, {
+      type: 'seller_order_updated',
+      title: '📦 Pedido atualizado',
+      message: `Pedido #${String(order._id).slice(-8).toUpperCase()} atualizado pelo seller para ${statusLabel}`,
+      severity: 'info',
+      origin: 'seller_status_route'
+    });
+
+    await createAdminNotification({
+      type: 'seller_order_updated',
+      title: 'Seller atualizou pedido',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} atualizou a parte dele no pedido ${order._id} para ${statusLabel}`,
+      relatedId: String(order._id),
+      severity: 'info',
+      metadata: { sellerId: sid, origin: 'seller_status_route' }
+    });
+
+    const afterObj = toJSON(order);
+    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_status_route'
+    );
+    const adminWhatsapp = await waNotifyAdminOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_status_route_admin'
+    );
+
+    return res.json({
+      ok: true,
+      order: sellerOrderForResponse(order, sid),
+      whatsapp: customerWhatsapp,
+      adminWhatsapp
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao atualizar status' });
   }
@@ -1002,38 +1234,101 @@ app.post('/api/seller/orders/:id/ship', sellerAuthRequired, async (req, res) => 
   try {
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
     const trackingCode = String(req.body?.trackingCode || req.body?.tracking || '').trim();
     const carrier = String(req.body?.carrier || '').trim();
-    const before = await Order.findById(oid);
-    if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
-    const beforeObj = toJSON(before);
+
+    const order = await Order.findById(oid);
+    if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
+
+    const beforeObj = toJSON(order);
     const currentStatus = String(beforeObj.status || beforeObj.statusLabel || '').trim().toLowerCase();
     const blockedOrderStatuses = ['cancelled','canceled','cancelado','refunded','reembolsado','estornado','delivered','entregue'];
+
     if (blockedOrderStatuses.some((status) => currentStatus.includes(status))) {
-      return res.status(409).json({ ok: false, code: 'SELLER_ORDER_FINALIZED', error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser enviado pelo seller.' });
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_FINALIZED',
+        error: 'Este pedido já está cancelado, reembolsado ou finalizado e não pode ser enviado pelo seller.'
+      });
     }
+
+    const fulfillableStatuses = ['pago','paid','approved','aprovado','pagamento_confirmado','pagamento confirmado','processing','preparando','shipped','enviado'];
+    if (!fulfillableStatuses.some((status) => currentStatus.includes(status))) {
+      return res.status(409).json({
+        ok: false,
+        code: 'SELLER_ORDER_NOT_PAID',
+        error: 'O seller só pode enviar pedidos com pagamento confirmado.'
+      });
+    }
+
     const sid = String(req.sellerId || '').trim();
-    const allowed = extractSellerIdsFromOrder(beforeObj).includes(sid);
-    if (!allowed) return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
-    const order = before;
-    order.status = 'shipped';
-    order.statusLabel = 'Enviado';
-    order.trackingCode = trackingCode || order.trackingCode;
-    order.shipping = { ...(order.shipping || {}), carrier, trackingCode: trackingCode || order.trackingCode, shippedAt: now() };
+    const sellerIds = sellerIdsForSellerRoute(beforeObj);
+    if (!sellerIds.includes(sid)) {
+      return res.status(403).json({ ok: false, error: 'Sem permissão para este pedido' });
+    }
+
+    applySellerFulfillment(order, sid, {
+      status: 'shipped',
+      statusLabel: 'Enviado',
+      carrier,
+      trackingCode,
+      shippedAt: now()
+    });
+
     order.trackingHistory = ensureArray(order.trackingHistory);
-    order.trackingHistory.push({ status: 'shipped', label: 'Pedido enviado pelo seller', carrier, trackingCode, date: now() });
+    order.trackingHistory.push({
+      sellerId: sid,
+      status: 'shipped',
+      label: 'Pedido enviado pelo seller',
+      carrier,
+      trackingCode,
+      date: now()
+    });
+
     await order.save();
     const afterObj = toJSON(order);
-    await createSellerOrderNotifications(order, { type: 'seller_order_shipped', title: 'Pedido marcado como enviado', message: `Pedido #${String(order._id).slice(-8).toUpperCase()} marcado como enviado${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`, severity: 'success', origin: 'seller_ship_route' });
-    await createAdminNotification({ type: 'seller_order_shipped', title: 'Seller marcou pedido como enviado', message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} marcou o pedido ${order._id} como enviado${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`, relatedId: String(order._id), severity: 'success', metadata: { sellerId: sid, origin: 'seller_ship_route' } });
-    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(String(order._id), beforeObj, afterObj, 'seller_ship_route');
-    const adminWhatsapp = await waNotifyAdminOrderStatusChange(String(order._id), beforeObj, afterObj, 'seller_ship_route_admin');
-    return res.json({ ok: true, order: sellerOrderForResponse(order, sid), whatsapp: customerWhatsapp, adminWhatsapp });
+
+    await createSellerOrderNotifications(order, {
+      type: 'seller_order_shipped',
+      title: 'Pedido marcado como enviado',
+      message: `Pedido #${String(order._id).slice(-8).toUpperCase()} enviado pelo seller${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`,
+      severity: 'success',
+      origin: 'seller_ship_route'
+    });
+
+    await createAdminNotification({
+      type: 'seller_order_shipped',
+      title: 'Seller marcou pedido como enviado',
+      message: `Seller ${req.seller?.storeName || req.seller?.displayName || sid} marcou a parte dele no pedido ${order._id} como enviada${trackingCode ? ` - Rastreio: ${trackingCode}` : ''}`,
+      relatedId: String(order._id),
+      severity: 'success',
+      metadata: { sellerId: sid, origin: 'seller_ship_route' }
+    });
+
+    const customerWhatsapp = await waMaybeNotifyOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_ship_route'
+    );
+    const adminWhatsapp = await waNotifyAdminOrderStatusChange(
+      String(order._id),
+      beforeObj,
+      afterObj,
+      'seller_ship_route_admin'
+    );
+
+    return res.json({
+      ok: true,
+      order: sellerOrderForResponse(order, sid),
+      whatsapp: customerWhatsapp,
+      adminWhatsapp
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || 'Erro ao marcar enviado' });
   }
 });
-
 // ===== ROTAS DE PRODUTOS DO SELLER - DEVEM VIR ANTES DE /api/seller/:sellerId =====
 app.get('/api/seller/products', sellerAuthRequired, async (req, res) => {
   try {
@@ -1081,7 +1376,14 @@ app.delete('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     // devolução, NF-e ou auditoria. O seller apenas retira o anúncio da vitrine.
     const archived = await Product.findOneAndUpdate(
       { $and: [idQuery, ownerQuery] },
-      { $set: { active: false, status: 'archived', approvalStatus: 'archived', archivedAt: now(), archivedBy: 'seller' } },
+      {
+        $set: {
+          active: false,
+          'specs.sellerApproval.status': 'archived',
+          'specs.sellerApproval.archivedAt': now(),
+          'specs.sellerApproval.archivedBy': 'seller'
+        }
+      },
       { new: true }
     );
     await writeAuditLog({
@@ -1116,10 +1418,19 @@ app.put('/api/seller/products/:id', sellerAuthRequired, async (req, res) => {
     // Alterações comerciais feitas pelo seller voltam para revisão. O seller
     // não pode autoaprovar/reativar produto por payload manipulado.
     payload.active = false;
-    payload.status = 'pending_review';
-    payload.approvalStatus = 'pending';
-    payload.submittedAt = now();
-    const updated = await Product.findOneAndUpdate({ $and: [{ _id: oid }, ownerQuery] }, { $set: payload }, { new: true });
+    payload.specs = {
+      ...(payload.specs && typeof payload.specs === 'object' ? payload.specs : {}),
+      sellerApproval: {
+        status: 'pending',
+        submittedAt: now(),
+        sellerId: req.sellerId
+      }
+    };
+    const updated = await Product.findOneAndUpdate(
+      { $and: [{ _id: oid }, ownerQuery] },
+      { $set: payload },
+      { new: true }
+    );
     const product = normalizeProductForResponse(updated);
     return res.json({ ok: true, product, item: product });
   } catch (error) {
