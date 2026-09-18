@@ -21,6 +21,7 @@ function buildDirectInput(body = {}) {
   return {
     code: body.code || body.internalReference || body.reference,
     totalAmount: body.totalAmount ?? body.amount ?? body.total,
+    totalAmountCents: body.totalAmountCents ?? body.amountCents ?? body.totalCents,
     installments: body.installments ?? body.parcelas,
     firstDueDate: body.firstDueDate ?? body.primeiroVencimento,
     dueDates: body.dueDates ?? body.vencimentos,
@@ -478,7 +479,7 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
       return res.status(409).json({ ok: false, error: `O carnê está com status ${charge.status} e não precisa de nova tentativa.`, charge });
     }
     try {
-      const input = buildDirectInput({ ...json(charge.requestPayload), customer: charge.requestPayload?.customer, totalAmount: charge.totalAmountCents, installments: charge.installments, code: charge.code, dueDates: charge.requestPayload?.installment?.due_date?.dates, dayOfMonth: charge.requestPayload?.installment?.due_date?.day_of_month, serviceName: charge.requestPayload?.service?.name, description: charge.requestPayload?.service?.description, paymentTerms: charge.requestPayload?.payment_terms });
+      const input = buildDirectInput({ ...json(charge.requestPayload), customer: charge.requestPayload?.customer, totalAmountCents: charge.totalAmountCents, installments: charge.installments, code: charge.code, dueDates: charge.requestPayload?.installment?.due_date?.dates, dayOfMonth: charge.requestPayload?.installment?.due_date?.day_of_month, serviceName: charge.requestPayload?.service?.name, description: charge.requestPayload?.service?.description, paymentTerms: charge.requestPayload?.payment_terms });
       const result = await executeEmission(charge, input, 'RETRY_SAME_IDEMPOTENCY_KEY');
       return res.json(result);
     } catch (error) {
