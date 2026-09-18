@@ -8,6 +8,7 @@ const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s
 const digits = value => String(value ?? '').replace(/\D/g, '');
 const arr = value => Array.isArray(value) ? value : [];
 const money = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+const emailIsValid = value => /^\S+@\S+\.\S+$/.test(clean(value, 320).toLowerCase());
 const escRx = value => String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const VALID_VIAS = new Set(['primeira', 'segunda', 'atualizada']);
 
@@ -273,7 +274,7 @@ export function createErpCarneService(context = {}) {
     return {
       name: clean(person?.name || person?.companyName || user?.name || base.name, 220),
       document: clean(person?.document || user?.cpf || base.document, 60),
-      email: clean(person?.email || user?.email || base.email, 320),
+      email: [base.email, person?.email, user?.email].map(value => clean(value, 320).toLowerCase()).find(emailIsValid) || clean(base.email || person?.email || user?.email, 320).toLowerCase(),
       phone: clean(person?.phone || user?.phone || base.phone, 80),
       address
     };
@@ -397,11 +398,13 @@ export function createErpCarneService(context = {}) {
     doc.on('data', chunk => chunks.push(chunk));
     const done = new Promise((resolve, reject) => { doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject); });
     const pageW = doc.page.width;
+    const pageH = doc.page.height;
     const margin = 24;
+    const gap = 8;
+    const stripsPerPage = 3;
     const stripX = margin;
     const stripW = pageW - margin * 2;
-    const stripH = 185;
-    const gap = 8;
+    const stripH = Math.floor((pageH - (margin * 2) - (gap * (stripsPerPage - 1))) / stripsPerPage);
     const stubW = 128;
     let y = margin;
 
