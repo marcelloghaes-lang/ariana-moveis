@@ -34,7 +34,15 @@ export function createErpDelinquencyChargeService(context={}){
     const Person=mongoose.models.ErpPerson;if(!Person)return null;let person=null;const doc=digits(base.document),email=clean(base.email,320).toLowerCase(),name=clean(base.name,220);
     if(doc)person=await Person.findOne({document:doc,active:{$ne:false}}).sort({updatedAt:-1}).lean();
     if(!person&&email)person=await Person.findOne({email,active:{$ne:false}}).sort({updatedAt:-1}).lean();
-    if(!person&&name){const rx=new RegExp('^'+escRx(name)+'
+    if(!person&&name){const rx=new RegExp('^'+escRx(name)+'$','i');person=await Person.findOne({$or:[{name:rx},{companyName:rx}],active:{$ne:false}}).sort({updatedAt:-1}).lean()}
+    return person;
+  }
+
+  async function currentCustomer(base={}){
+    const person=await findCurrentPerson(base),doc=digits(base.document),email=clean(base.email,320).toLowerCase();
+    let user=null;if(!person&&User){const query=doc?{cpf:doc,isActive:{$ne:false}}:(email?{email,isActive:{$ne:false}}:null);if(query)user=await User.findOne(query).select('name email phone cpf city uf').lean()}
+    return{name:clean(person?.name||person?.companyName||user?.name||base.name,220),document:clean(person?.document||user?.cpf||base.document,60),email:clean(person?.email||user?.email||base.email,320),phone:clean(person?.phone||user?.phone||base.phone,80)};
+  }
 
   function rowSummary(raw={},extra={}){const values=chargeValues(raw);return{installment:clean(extra.installment||raw.installmentNumber||raw.parcelNumber||raw.number||'',50),dueAt:raw.dueAt||null,reference:clean(extra.reference||raw.documentNumber||raw.description||raw.sourceId||'',180),...values}}
 
@@ -96,52 +104,6 @@ export function createErpDelinquencyChargeService(context={}){
   }
 
   return{preview,saveContact,send};
-}
-
-export default createErpDelinquencyChargeService;
-,'i');person=await Person.findOne({$or:[{name:rx},{companyName:rx}],active:{$ne:false}}).sort({updatedAt:-1}).lean()}
-    return person;
-  }
-
-  async function currentCustomer(base={}){
-    const person=await findCurrentPerson(base),doc=digits(base.document),email=clean(base.email,320).toLowerCase();
-    let user=null;if(!person&&User){const query=doc?{cpf:doc,isActive:{$ne:false}}:(email?{email,isActive:{$ne:false}}:null);if(query)user=await User.findOne(query).select('name email phone cpf city uf').lean()}
-    return{name:clean(person?.name||person?.companyName||user?.name||base.name,220),document:clean(person?.document||user?.cpf||base.document,60),email:clean(person?.email||user?.email||base.email,320),phone:clean(person?.phone||user?.phone||base.phone,80)};
-  }
-
-  function rowSummary(raw={},extra={}){const values=chargeValues(raw);return{installment:clean(extra.installment||raw.installmentNumber||raw.parcelNumber||raw.number||'',50),dueAt:raw.dueAt||null,reference:clean(extra.reference||raw.documentNumber||raw.description||raw.sourceId||'',180),...values}}
-
-  async function financialEntryContext(entryId){
-    const Entry=mongoose.models.ErpFinancialEntry;if(!Entry)throw fail('Livro financeiro do ERP não está disponível.',503,'ERP_LEDGER_UNAVAILABLE');if(!mongoose.isValidObjectId(entryId))throw fail('Parcela financeira inválida.',404,'DELINQUENCY_TARGET_NOT_FOUND');
-    const selected=await Entry.collection.findOne({_id:new mongoose.Types.ObjectId(entryId)});if(!selected||selected.direction!=='receivable')throw fail('Parcela financeira não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');
-    const today=startToday(),base={direction:'receivable',status:{$nin:['paid','cancelled']},dueAt:{$lt:today}},sourceSaleId=clean(selected?.migration?.sourceSaleId,180);let purchaseKey='';
-    if(clean(selected.orderId,120)){base.orderId=clean(selected.orderId,120);purchaseKey=`order:${base.orderId}`}
-    else if(sourceSaleId){base['migration.sourceSaleId']=sourceSaleId;purchaseKey=`sige:${sourceSaleId}`}
-    else if(clean(selected.documentNumber,120)){base.documentNumber=clean(selected.documentNumber,120);if(clean(selected.personDocument,60))base.personDocument=clean(selected.personDocument,60);purchaseKey=`document:${base.documentNumber}`}
-    else{base._id=selected._id;purchaseKey=`entry:${String(selected._id)}`}
-    const rows=(await Entry.collection.find(base).sort({dueAt:1}).toArray()).filter(r=>outstanding(r)>0.009),effective=rows.length?rows:[selected],reference=sourceSaleId?`Histórico SIGE • venda ref. ${sourceSaleId}`:clean(selected.documentNumber||selected.description||String(selected._id),180);
-    const items=effective.map((r,index)=>rowSummary(r,{installment:`${Number(r.installmentNumber||r.parcelNumber||index+1)}/${effective.length}`,reference}));
-    const contact=await currentCustomer({name:selected.personName,document:selected.personDocument,email:selected.email||selected.personEmail,phone:selected.phone||selected.personPhone});
-    return{targetId:`entry:${entryId}`,purchaseKey,orderId:clean(selected.orderId,120),reference,contact,items};
-  }
-
-  async function orderContext(orderId,number){if(!mongoose.isValidObjectId(orderId))throw fail('Venda do ERP inválida.',404,'DELINQUENCY_TARGET_NOT_FOUND');const order=await Order.findById(orderId).lean();if(!order||order.origin!=='erp_ariana')throw fail('Venda do Ariana ERP não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');const today=startToday(),erp=order.televendas?.erp||{},all=arr(erp.receivables),selected=all.find(r=>Number(r.number||1)===Number(number||1));if(!selected)throw fail('Parcela da venda não encontrada.',404,'DELINQUENCY_TARGET_NOT_FOUND');const rows=all.filter(r=>{const st=String(r.status||'').toLowerCase(),due=new Date(r.dueAt||0);return!['recebido','cancelado','estornado','paid'].includes(st)&&!Number.isNaN(due.getTime())&&due<today&&outstanding(r)>0.009});const items=rows.map(r=>rowSummary(r,{installment:`${Number(r.number||1)}/${Number(r.installments||1)}`,reference:clean(erp.code||String(order._id).slice(-8).toUpperCase(),180)}));const contact=await currentCustomer({name:order.customerName,document:order.customerCpf,email:order.customerEmail,phone:order.customerPhone});return{targetId:`order:${orderId}:${Number(number||1)}`,purchaseKey:`order:${orderId}`,orderId:String(order._id),reference:clean(erp.code||String(order._id).slice(-8).toUpperCase(),180),contact,items};
-  }
-
-  async function contextFor(targetId){const id=clean(targetId,260);if(id.startsWith('entry:'))return financialEntryContext(id.slice(6));if(id.startsWith('order:')){const parts=id.split(':');return orderContext(parts[1],parts[2])}throw fail('Parcela/título de cobrança inválido.',404,'DELINQUENCY_TARGET_NOT_FOUND')}
-
-  async function build(targetId,template='visita'){
-    const selected=TEMPLATES.has(clean(template,30))?clean(template,30):'visita',ctx=await contextFor(targetId);if(!ctx.items.length)throw fail('Esta compra não possui parcelas vencidas em aberto.',409,'NO_OVERDUE_INSTALLMENTS');const totals={principal:money(ctx.items.reduce((s,x)=>s+x.principal,0)),fine:money(ctx.items.reduce((s,x)=>s+x.fine,0)),interest:money(ctx.items.reduce((s,x)=>s+x.interest,0)),correction:money(ctx.items.reduce((s,x)=>s+x.correction,0)),updated:money(ctx.items.reduce((s,x)=>s+x.updated,0))};const phoneInfo=validRecipientPhone(ctx.contact.phone);if(!phoneInfo.valid)throw fail('O cliente não possui um WhatsApp válido no cadastro atual do Ariana ERP.',409,'CUSTOMER_WHATSAPP_INVALID');const message=messageFor(selected,ctx.contact.name,totals.updated,totals);return{...ctx,template:selected,phone:phoneInfo.normalized,totals,message,chargesNote:'O valor atualizado usa somente multa, juros e correção que estejam registrados nos dados financeiros da compra; nenhuma taxa é criada automaticamente.'};
-  }
-
-  async function preview(targetId,template='visita'){const data=await build(targetId,template);const cfg=evolutionConfig();return{...data,sender:{phone:cfg.senderPhone,instance:cfg.instance},templates:{visita:messageFor('visita',data.contact.name,data.totals.updated,data.totals),retorno:messageFor('retorno',data.contact.name,data.totals.updated,data.totals)}}}
-
-  async function send(targetId,payload={},actor={}){
-    const template=TEMPLATES.has(clean(payload.template,30))?clean(payload.template,30):'visita';const data=await build(targetId,template),who=actorName(actor),cfg=evolutionConfig();const baseLog={targetId:data.targetId,purchaseKey:data.purchaseKey,orderId:data.orderId,reference:data.reference,clientName:data.contact.name,clientDocument:data.contact.document,clientPhone:data.phone,template,installments:data.items.length,principalAmount:data.totals.principal,fineAmount:data.totals.fine,interestAmount:data.totals.interest,correctionAmount:data.totals.correction,totalUpdated:data.totals.updated,message:data.message,senderPhone:cfg.senderPhone,evolutionInstance:cfg.instance,sentBy:who};
-    try{const sent=await sendEvolution(data.phone,data.message);const now=new Date();const log=await Log.create({...baseLog,status:'SENT',providerMessageId:sent.messageId||'',sentAt:now});return{status:'SENT',sentAt:now,messageId:sent.messageId||'',provider:sent.provider,sender:{phone:sent.senderPhone,instance:sent.instance},charge:{targetId:data.targetId,purchaseKey:data.purchaseKey,orderId:data.orderId,reference:data.reference,contact:data.contact,phone:data.phone,items:data.items,totals:data.totals,message:data.message},logId:String(log._id)}}catch(error){await Log.create({...baseLog,status:'FAILED',error:clean(error?.message||error,1000)}).catch(()=>{});throw error}
-  }
-
-  return{preview,send};
 }
 
 export default createErpDelinquencyChargeService;
