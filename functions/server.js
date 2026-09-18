@@ -2975,6 +2975,7 @@ app.use('/api', createTelevendasRoutes({
   redact,
   createAdminNotification,
   createSellerOrderNotifications,
+  getWhatsappSettings,
   FRONTEND_URL,
   onTelevendasPaymentApproved: async (order) => {
     const orderId = String(order?._id || order?.id || '').trim();
