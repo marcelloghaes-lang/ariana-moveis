@@ -1757,6 +1757,29 @@ function resetProductForm(){
   document.getElementById('product-form-title').textContent='Cadastrar / Editar Produto';
   renderProductImages();
 }
+function cleanTechnicalSpecsForEditor(value){
+  if(value===null||value===undefined)return'';
+  if(typeof value==='object'){
+    value=Object.entries(value).map(([k,v])=>`${k}: ${v&&typeof v==='object'?(v.value||v.valor||JSON.stringify(v)):v}`).join('\n');
+  }
+  let text=String(value)
+    .replace(/\\r\\n|\\n|\\r/g,'\n')
+    .replace(/\\text\s*\{([^{}]*)\}/gi,' $1')
+    .replace(/\\mathrm\s*\{([^{}]*)\}/gi,' $1')
+    .replace(/\\(?:,|;|!)/g,' ')
+    .replace(/\\times/gi,' × ')
+    .replace(/\\cdot/gi,' · ')
+    .replace(/\\(?:left|right)/gi,'')
+    .replace(/\$/g,'')
+    .replace(/[{}]/g,'')
+    .replace(/([^\n])(?=(?:Peso(?:\s+(?:do Produto|com Embalagem))?|Comprimento|Altura|Largura|Profundidade|Capacidade|Voltagem|Potência|Potencia|Garantia|Material|Cor|Modelo|Marca|Dimensões|Dimensoes|Consumo|Frequência|Frequencia)\s*:)/gi,'$1\n')
+    .replace(/[ \t]+\n/g,'\n')
+    .replace(/\n[ \t]+/g,'\n')
+    .replace(/[ \t]{2,}/g,' ')
+    .replace(/\n{3,}/g,'\n\n')
+    .trim();
+  return text;
+}
 window.editProduct = async function(id){
   let p=allProductsCache.find(x=>String(x.id||x._id)===String(id));
   try{
@@ -1778,7 +1801,7 @@ window.editProduct = async function(id){
       const obj = p.attributes || p.atributos;
       specValue = Object.entries(obj).map(([k,v]) => `${k}: ${v && typeof v === 'object' ? (v.value || v.valor || JSON.stringify(v)) : v}`).join('\n');
     }
-    specsEl.value = specValue;
+    specsEl.value = cleanTechnicalSpecsForEditor(specValue);
   }
   document.getElementById('product-weight').value=p.weight||1; document.getElementById('product-length').value=p.length||20; document.getElementById('product-height').value=p.height||10; document.getElementById('product-width').value=p.width||15;
   ['Offer','Favorite','Highlight','BestSeller','NewArrival','Recommended'].forEach(k=>{const el=document.getElementById(`product-is${k}`); if(el) el.checked=!!p[`is${k}`]});
