@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import { createErpCarneService } from './erpCarneService.js';
-import { getCoraChargeModel } from '../../integrations/cora/coraChargeModel.js';
+import { getCoraChargeModel, getCoraAuditModel } from '../../integrations/cora/coraChargeModel.js';
+import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../../integrations/cora/coraInstallmentService.js';
+import { getCoraConfig } from '../../integrations/cora/coraConfig.js';
 
 const clean = (value = '', max = 2000) => String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
 const arr = value => Array.isArray(value) ? value : [];
@@ -28,6 +30,31 @@ function safeFile(value = '') {
 
 function brl(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function isoDay(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function statusFromInvoices(invoices = []) {
+  if (!Array.isArray(invoices) || !invoices.length) return 'OPEN';
+  const statuses = invoices.map(item => clean(item?.status || '', 40).toUpperCase());
+  if (statuses.every(status => ['PAID', 'SETTLED'].includes(status))) return 'PAID';
+  if (statuses.some(status => ['PAID', 'SETTLED'].includes(status))) return 'PARTIALLY_PAID';
+  if (statuses.every(status => ['CANCELLED', 'CANCELED'].includes(status))) return 'CANCELLED';
+  return 'OPEN';
+}
+
+function safeCoraError(error = {}) {
+  return {
+    message: clean(error?.message || 'Falha na emissão Cora.', 1000),
+    code: clean(error?.code || 'CORA_EMISSION_ERROR', 120),
+    status: Number(error?.providerStatus || error?.statusCode || 0) || null,
+    providerData: error?.providerData || null
+  };
 }
 
 function normalizePhone(value = '') {
@@ -181,7 +208,28 @@ async function fetchCoraPdf(url) {
 export function createErpCarneCoraService(context = {}) {
   const base = createErpCarneService(context);
   const CoraCharge = getCoraChargeModel(mongoose);
+  const CoraAuditLog = getCoraAuditModel(mongoose);
   const Log = mongoose.models.ErpCarneLog;
+
+  async function saveCoraTrace(chargeId, action, trace = {}) {
+    if (!CoraAuditLog) return;
+    await CoraAuditLog.create({
+      chargeId: String(chargeId || ''),
+      action,
+      method: trace.method || '',
+      url: trace.url || '',
+      status: trace.status ?? null,
+      durationMs: Number(trace.durationMs || 0),
+      requestId: trace.requestId || '',
+      traceId: trace.traceId || '',
+      idempotencyKey: trace.idempotencyKey || '',
+      requestHeaders: trace.requestHeaders || {},
+      requestBody: trace.requestBody ?? null,
+      responseHeaders: trace.responseHeaders || {},
+      responseBody: trace.responseBody ?? null,
+      error: trace.networkError ? { message: trace.networkError } : null
+    });
+  }
 
   async function findLinkedCharge(data = {}) {
     const clauses = [];
@@ -335,7 +383,135 @@ export function createErpCarneCoraService(context = {}) {
     };
   }
 
-  return { preview, pdf, send };
+
+  async function emit(targetId, payload = {}, actor = {}) {
+    const baseData = await base.preview(targetId, 'primeira');
+    if (!clean(baseData.orderId, 160)) {
+      throw fail('A emissão bancária Cora está disponível para vendas do Ariana ERP vinculadas a uma compra.', 409, 'ERP_CARNE_CORA_ORDER_REQUIRED');
+    }
+
+    const existing = await findLinkedCharge(baseData);
+    if (existing) {
+      const data = mergeProvider(baseData, providerView(existing));
+      return { reused: true, created: false, ...data };
+    }
+
+    const items = arr(baseData.items).slice().sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+    if (items.length < 2 || items.length > 24) {
+      throw fail('O carnê Cora deve possuir entre 2 e 24 parcelas.', 409, 'ERP_CARNE_CORA_INSTALLMENTS_INVALID');
+    }
+
+    const dueDates = items.map(item => isoDay(item.dueAt));
+    if (dueDates.some(value => !value)) {
+      throw fail('Todas as parcelas precisam ter vencimento definido antes da emissão Cora.', 409, 'ERP_CARNE_CORA_DUE_DATE_REQUIRED');
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (dueDates.some(value => value < today)) {
+      throw fail('Há parcela com vencimento anterior a hoje. A Cora não permite criar um novo carnê com vencimentos retroativos.', 409, 'ERP_CARNE_CORA_PAST_DUE');
+    }
+
+    const totalAmount = money(items.reduce((sum, item) => sum + Number(item.original || 0), 0));
+    if (totalAmount <= 0) throw fail('O valor da compra é inválido para emissão Cora.', 409, 'ERP_CARNE_CORA_AMOUNT_INVALID');
+
+    const contact = baseData.contact || {};
+    const input = {
+      code: clean(baseData.reference || `ARIANA-${baseData.orderId}`, 120),
+      totalAmount,
+      installments: items.length,
+      dueDates,
+      customer: {
+        name: clean(contact.name, 60),
+        email: clean(contact.email, 60),
+        document: clean(contact.document, 30),
+        address: contact.address || {}
+      },
+      serviceName: 'Compra Ariana Móveis',
+      description: clean(baseData.description || `Carnê da compra ${baseData.reference}`, 100),
+      paymentTerms: {
+        finePercent: 2,
+        interestMonthlyPercent: 1
+      }
+    };
+
+    const requestPayload = buildCoraInstallmentPayload(input);
+    const cfg = getCoraConfig();
+    const idempotencyKey = `erp-carne:${baseData.orderId}:cora:v1`;
+    let charge = await CoraCharge.findOne({ idempotencyKey }).sort({ createdAt: -1 });
+
+    if (charge && isChargeUsable(charge)) {
+      const data = mergeProvider(baseData, providerView(charge.toObject ? charge.toObject() : charge));
+      return { reused: true, created: false, ...data };
+    }
+
+    if (!charge) {
+      charge = await CoraCharge.create({
+        orderId: clean(baseData.orderId, 160),
+        source: 'ERP_CARNE',
+        internalReference: clean(baseData.reference, 180),
+        code: requestPayload.code,
+        environment: cfg.environment,
+        idempotencyKey,
+        status: 'PROCESSING',
+        totalAmountCents: requestPayload.service.amount,
+        installments: requestPayload.installment.number_of,
+        customer: requestPayload.customer,
+        requestPayload,
+        createdBy: actorName(actor)
+      });
+    } else {
+      charge.source = 'ERP_CARNE';
+      charge.internalReference = clean(baseData.reference, 180);
+      charge.code = requestPayload.code;
+      charge.environment = cfg.environment;
+      charge.status = 'PROCESSING';
+      charge.totalAmountCents = requestPayload.service.amount;
+      charge.installments = requestPayload.installment.number_of;
+      charge.customer = requestPayload.customer;
+      charge.requestPayload = requestPayload;
+      charge.error = null;
+      charge.nextCheckAt = null;
+      await charge.save();
+    }
+
+    charge.attempts = Number(charge.attempts || 0) + 1;
+    charge.lastAttemptAt = new Date();
+    await charge.save();
+
+    try {
+      const result = await issueCoraInstallmentBook(input, {
+        idempotencyKey,
+        onTrace: trace => saveCoraTrace(charge._id, 'ERP_CARNE_ISSUE', trace)
+      });
+      const response = result.response || {};
+      charge.status = statusFromInvoices(response.result || []);
+      charge.documentUrl = clean(response.document_url || response.documentUrl || '', 1200);
+      charge.invoices = Array.isArray(response.result) ? response.result : [];
+      charge.providerResponse = response;
+      charge.providerRequestId = result?.trace?.requestId || '';
+      charge.providerTraceId = result?.trace?.traceId || '';
+      charge.error = null;
+      charge.nextCheckAt = null;
+      charge.resolvedAt = new Date();
+      await charge.save();
+
+      const refreshed = await preview(targetId, payload.via || 'primeira');
+      return { created: true, reused: false, ...refreshed };
+    } catch (error) {
+      const uncertain = Number(error?.providerStatus || 0) === 504 || error?.code === 'CORA_NETWORK_ERROR';
+      charge.status = uncertain ? 'PENDING_CONFIRMATION' : 'FAILED';
+      charge.error = safeCoraError(error);
+      charge.providerRequestId = error?.trace?.requestId || '';
+      charge.providerTraceId = error?.trace?.traceId || '';
+      charge.nextCheckAt = uncertain ? new Date(Date.now() + Number(process.env.CORA_PENDING_RETRY_MS || 5 * 60 * 1000)) : null;
+      await charge.save();
+      if (uncertain) {
+        throw fail('A Cora não confirmou a emissão. A mesma chave foi preservada e a cobrança ficou aguardando confirmação; não emita novamente.', 202, 'ERP_CARNE_CORA_PENDING_CONFIRMATION');
+      }
+      throw error;
+    }
+  }
+
+  return { preview, pdf, send, emit };
 }
 
 export default createErpCarneCoraService;
