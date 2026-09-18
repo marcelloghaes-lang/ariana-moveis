@@ -55,6 +55,7 @@ export default function createErpFinancePanelBridgeRoutes(context={}){
     }
   });
   router.post('/erp/finance-panel/carne/enviar',context.adminRequired,handle(req=>carne.send(req.body?.targetId||'',req.body||{},actor(req)),201));
+  router.post('/erp/finance-panel/carne/contato',context.adminRequired,handle(req=>carne.saveContact(req.body?.targetId||'',req.body||{},actor(req))));
   router.post('/erp/finance-panel/carne/cora/emitir',context.adminRequired,handle(req=>carne.emit(req.body?.targetId||'',req.body||{},actor(req)),201));
 
   return router;
