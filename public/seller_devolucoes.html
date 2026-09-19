@@ -303,6 +303,9 @@ function resolveReturns(payload) {
   if (Array.isArray(payload)) return payload;
   return payload.items || payload.results || payload.docs || payload.returns || payload.orders || [];
 }
+function escapeSellerHtml(value = "") {
+  return String(value ?? "").replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
 function orderIdOf(order) {
   return String(order._id || order.id || order.orderId || order.pedidoId || "");
 }
@@ -341,23 +344,23 @@ async function loadReturns() {
               <div class="muted text-xs mt-1 font-bold italic">${date ? new Date(date).toLocaleString("pt-BR") : ""}</div>
             </div>
             <div class="flex items-center gap-2">
-              <span class="pill bg-amber-100 text-amber-700 uppercase font-black text-[10px]">${o.statusLabel || o.status || "Aguardando análise"}</span>
-              ${oid ? `<a href="seller_pedido_detalhe.html?id=${oid}" class="btn btn-light !py-2 !px-3 shadow-sm hover:bg-gray-50"><i class="fas fa-eye text-primary-blue"></i></a>` : ""}
+              <span class="pill bg-amber-100 text-amber-700 uppercase font-black text-[10px]">${escapeSellerHtml(o.statusLabel || o.status || "Aguardando análise")}</span>
+              ${oid ? `<a href="seller_pedido_detalhe.html?id=${encodeURIComponent(oid)}" class="btn btn-light !py-2 !px-3 shadow-sm hover:bg-gray-50"><i class="fas fa-eye text-primary-blue"></i></a>` : ""}
             </div>
           </div>
           <div class="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-700 italic">
             <i class="fas fa-comment-alt mr-2 text-primary-blue"></i>
-            "${reasonOf(o)}"
+            "${escapeSellerHtml(reasonOf(o))}"
           </div>
           <div class="mt-4 space-y-2">
-            ${(Array.isArray(o.items)?o.items:[]).map(it=>`<div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100 bg-white"><div class="min-w-0"><div class="font-bold text-sm truncate">${it.name||it.productName||'Produto'}</div><div class="text-xs muted">Qtd. ${Number(it.qty??it.quantity??1)||1}</div></div><div class="text-sm font-black">${Number(it.totalPrice??((Number(it.unitPrice??it.price??0)||0)*(Number(it.qty??it.quantity??1)||1))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div></div>`).join('')}
+            ${(Array.isArray(o.items)?o.items:[]).map(it=>`<div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100 bg-white"><div class="min-w-0"><div class="font-bold text-sm truncate">${escapeSellerHtml(it.name||it.productName||'Produto')}</div><div class="text-xs muted">Qtd. ${Number(it.qty??it.quantity??1)||1}</div></div><div class="text-sm font-black">${Number(it.totalPrice??((Number(it.unitPrice??it.price??0)||0)*(Number(it.qty??it.quantity??1)||1))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div></div>`).join('')}
           </div>
         </div>
       `;
     }).join("");
   } catch (e) {
     console.error("Erro ao carregar devoluções:", e);
-    list.innerHTML = `<div class="card p-10 text-center text-red-500 font-bold">${e.message || "Erro de conexão com o servidor."}</div>`;
+    list.innerHTML = `<div class="card p-10 text-center text-red-500 font-bold">${escapeSellerHtml(e.message || "Erro de conexão com o servidor.")}</div>`;
   }
 }
 document.addEventListener("DOMContentLoaded", () => {
