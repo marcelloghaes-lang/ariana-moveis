@@ -902,10 +902,20 @@
         cartItems = [];
       }
 
-      // Se o item antigo não trouxe a foto no localStorage, recupera a imagem pelo cadastro do produto.
-      await hydrateCartProductImages();
-
       if (container) container.innerHTML = '';
+
+      // Exibe o carrinho imediatamente com os dados já salvos no dispositivo.
+      renderCart();
+
+      // Imagens faltantes e padrões de frete são enriquecidos em segundo plano.
+      // Eles não precisam bloquear a abertura do carrinho.
+      Promise.allSettled([
+        hydrateCartProductImages().then(() => renderCart()),
+        enrichCartWithShippingDefaults()
+      ]).then(() => {
+        try { recalculateTotals(); } catch (_) {}
+      });
+
       const couponInput = document.getElementById('coupon-code');
       const couponButton = document.getElementById('btn-aplicar-cupom');
       try { if (couponInput) couponInput.value = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || ''); } catch (_) {}
@@ -930,8 +940,6 @@
       if (couponButton) couponButton.addEventListener('click', applyCoupon);
       if (couponInput) couponInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } });
 
-      renderCart();
-      try { await enrichCartWithShippingDefaults(); } catch (_) {}
     }
 
     function saveCartItems(updateHeader = true) {
