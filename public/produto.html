@@ -1854,8 +1854,13 @@ function addToCart(action = 'add') {
 
             writeCartArray(cart);
             cartItems = cart;
-            // Qualquer inclusão/alteração no carrinho exige uma nova revisão da garantia.
-            try { localStorage.removeItem('ariana_warranty_reviewed_cart_sig'); } catch (_) {}
+            // Garantia estendida está temporariamente desativada até existir
+            // parceria formal com seguradora. Remove resíduos antigos para que
+            // nenhum adicional local seja levado ao fluxo de compra.
+            try {
+                localStorage.removeItem('ariana_extended_warranty');
+                localStorage.removeItem('ariana_warranty_reviewed_cart_sig');
+            } catch (_) {}
             updateCartCounter();
 
             if (typeof window.loadCartCounter === 'function') {
@@ -1864,7 +1869,7 @@ function addToCart(action = 'add') {
             }
 
             if (action === 'buy_now') {
-                window.location.href = 'garantia_estendida.html';
+                window.location.href = 'carrinho.html';
                 return;
             }
 
