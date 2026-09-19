@@ -2878,7 +2878,12 @@ app.post('/api/seller/logistica/etiquetas/manual', sellerAuthRequired, async (re
       whatsapp = await waMaybeNotifyOrderStatusChange(orderId, before, toJSON(after), 'seller_logistica_label_manual').catch((error) => ({ ok: false, error: error.message || String(error) }));
     }
 
-    return res.json({ ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), whatsapp });
+    return res.json({
+      ok: true,
+      etiqueta: sellerLogisticsLabelForResponse(label),
+      order: sellerLogisticsOrderForResponse(after, sid, sellerLogisticsLabelForResponse(label)),
+      whatsapp
+    });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar etiqueta do seller.' });
   }
