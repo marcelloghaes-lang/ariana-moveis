@@ -1468,7 +1468,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         const pill = (tag || (isPrimary ? "Endereço principal" : "")).trim();
 
         return `
-          <div class="addr-card" data-addr-id="${a.id}">
+          <div class="addr-card ${isGuanhaesAddress(n) && !['urban','rural'].includes(n.areaType) ? 'opacity-70' : ''}" data-addr-id="${a.id}" data-needs-area="${isGuanhaesAddress(n) && !['urban','rural'].includes(n.areaType) ? '1' : '0'}">
             <div class="flex items-start gap-4">
               <div class="mt-1 w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0">
                 <span class="w-2.5 h-2.5 rounded-full bg-transparent dot"></span>
@@ -1481,8 +1481,9 @@ async function quoteShippingForSelectedAddress(addrObj) {
                 </div>
                 <p class="mt-2 font-bold text-gray-900">${line1 || "—"}</p>
                 <p class="text-sm text-gray-500">${line2 || "—"}</p>
-                ${n.areaType ? `<p class="text-xs font-bold mt-1 ${n.areaType === 'rural' ? 'text-amber-700' : 'text-green-700'}">${n.areaType === 'rural' ? 'Zona rural' : 'Área urbana'}</p>` : ''}
-                <p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>
+                ${isGuanhaesAddress(n) && !['urban','rural'].includes(n.areaType)
+                  ? '<p class="text-xs text-amber-700 font-semibold mt-2">Atualize este endereço em Minha Conta antes de usar.</p>'
+                  : '<p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>'}
               </div>
 
               <div class="check-icon text-gray-200">
@@ -1500,88 +1501,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
       return city === 'GUANHAES' || n.cep === '39740000';
     }
 
-    function requestGuanhaesAreaType(addr = {}) {
-      return new Promise((resolve) => {
-        const current = document.getElementById('guanhaes-area-modal');
-        if (current) current.remove();
-
-        const overlay = document.createElement('div');
-        overlay.id = 'guanhaes-area-modal';
-        overlay.className = 'fixed inset-0 z-[9999] bg-black/55 flex items-center justify-center p-4';
-        overlay.innerHTML = `
-          <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
-            <div class="w-12 h-12 rounded-full bg-blue-50 text-primary-blue flex items-center justify-center text-xl mb-4">
-              <i class="fas fa-truck"></i>
-            </div>
-            <h3 class="text-xl font-black text-gray-900">Este endereço é urbano ou rural?</h3>
-            <p class="text-sm text-gray-600 mt-2">
-              Guanhães usa o mesmo CEP na área urbana e em várias localidades rurais. Precisamos desta informação para calcular o frete correto.
-            </p>
-            <div class="mt-5 space-y-3">
-              <button type="button" data-area="urban" class="w-full rounded-xl bg-primary-blue text-white py-3 px-4 font-black text-left">
-                Área urbana de Guanhães
-                <span class="block text-xs font-medium opacity-90 mt-1">Frete grátis quando a Ariana Logística se aplica.</span>
-              </button>
-              <button type="button" data-area="rural" class="w-full rounded-xl border-2 border-primary-blue text-primary-blue py-3 px-4 font-black text-left">
-                Zona rural / fazenda / sítio / povoado
-                <span class="block text-xs font-medium text-gray-600 mt-1">Até 50 km: R$ 89,00 pela Ariana Logística.</span>
-              </button>
-            </div>
-          </div>`;
-
-        const finish = (value) => {
-          overlay.remove();
-          resolve(value);
-        };
-        overlay.querySelectorAll('[data-area]').forEach((button) => {
-          button.addEventListener('click', () => finish(button.dataset.area || ''));
-        });
-        document.body.appendChild(overlay);
-      });
-    }
-
-    async function persistAddressAreaType(addr, areaType) {
-      const id = String(addr?.id || addr?._id || '').trim();
-      const normalizedType = areaType === 'rural' ? 'rural' : 'urban';
-      if (!id || id.startsWith('address_')) return null;
-
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/addresses/${encodeURIComponent(id)}`, {
-          method: 'PATCH',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ areaType: normalizedType, isRural: normalizedType === 'rural' })
-        });
-        if (!res.ok) return null;
-        const data = await res.json().catch(() => ({}));
-        return data?.address || data?.item || data?.data || null;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    async function ensureAddressAreaType(addr) {
-      let normalized = normalizeAddress(addr);
-      if (!isGuanhaesAddress(normalized) || normalized.areaType === 'urban' || normalized.areaType === 'rural') {
-        return normalized;
-      }
-
-      const areaType = await requestGuanhaesAreaType(normalized);
-      normalized = { ...normalized, areaType, isRural: areaType === 'rural' };
-
-      const original = addressesCache.find((a) => String(a.id || a._id || '') === String(normalized.id || ''));
-      if (original) {
-        original.areaType = areaType;
-        original.isRural = areaType === 'rural';
-      }
-      await persistAddressAreaType(original || addr, areaType);
-      return normalized;
-    }
-
     async function setAddr(el, addrId) {
       const addr = addressesCache.find((a) => String(a.id) === String(addrId));
       if (!addr) return;
 
-      selectedAddrObj = await ensureAddressAreaType(addr);
+      selectedAddrObj = normalizeAddress(addr);
       selectedAddrText = `${[selectedAddrObj.street, selectedAddrObj.number].filter(Boolean).join(", ")} - ${[selectedAddrObj.city, selectedAddrObj.state].filter(Boolean).join("/")}`.trim();
       persistCheckoutAddress({ ...(addr || {}), id: addr.id || addr._id || addrId });
 
@@ -1820,15 +1744,6 @@ async function quoteShippingForSelectedAddress(addrObj) {
       if (!Array.isArray(cart) || cart.length === 0) {
         alert("Carrinho vazio.");
         return;
-      }
-      if (!shippingQuote && selectedAddrObj) {
-        try {
-          selectedAddrObj = await ensureAddressAreaType(selectedAddrObj);
-          await quoteShippingForSelectedAddress(selectedAddrObj);
-          updateTotalsUI();
-        } catch (e) {
-          console.error('[checkout] tentativa final de frete falhou:', e);
-        }
       }
       if (!shippingQuote) {
         alert("Não foi possível calcular o frete deste endereço. Confira o endereço e tente novamente.");
@@ -2078,6 +1993,10 @@ async function quoteShippingForSelectedAddress(addrObj) {
         if (!card) return;
         const id = card.getAttribute('data-addr-id');
         if (!id) return;
+        if (card.getAttribute('data-needs-area') === '1') {
+          window.location.href = 'minha_conta.html?tab=address&from=checkout';
+          return;
+        }
         await setAddr(card, id);
       });
 
