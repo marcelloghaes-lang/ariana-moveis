@@ -2925,8 +2925,8 @@ app.post('/api/coupons/validate', async (req, res, next) => {
   }
 });
 
-registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order });
-registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order });
+registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order, Product });
+registerCrediarioAnalysisRoutes(app, { adminRequired, authRequired, mongoose, Order, Product });
 registerCrediarioConversationRoutes(app, { mongoose, adminRequired });
 registerAdminUserRoutes(app, { User, AdminAuditLog, AdminSession, AdminLoginEvent, adminRequired, bcrypt, mongoose, isSuperAdminEmail });
 
