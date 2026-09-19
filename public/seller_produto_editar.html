@@ -260,6 +260,9 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       </div>
 
       <form id="product-form" class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+        <div id="product-load-state" class="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900">
+          <i class="fas fa-spinner fa-spin mr-2"></i>Carregando dados do produto...
+        </div>
         <div class="product-section">
           <h2 class="text-xl font-black text-slate-900 mb-2">Imagens do produto</h2>
           <p class="text-gray-600 mb-4">Para trocar as imagens, escolha novos arquivos. Se não escolher, as imagens atuais serão mantidas.</p>
@@ -335,17 +338,20 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
   </div>
 
 <script>
-const API_BASE =
-  window.API_BASE ||
-  localStorage.getItem('API_BASE') ||
-  'https://ariana-backend.onrender.com/api';
+const IS_LOCAL_HOST = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+const PRODUCTION_API_BASE = 'https://ariana-backend.onrender.com/api';
+const LOCAL_API_OVERRIDE = IS_LOCAL_HOST ? String(localStorage.getItem('API_BASE') || '').trim() : '';
+const API_BASE = IS_LOCAL_HOST && LOCAL_API_OVERRIDE ? LOCAL_API_OVERRIDE : PRODUCTION_API_BASE;
 
-// Para testar backend local manualmente, use no Console:
-// localStorage.setItem('API_BASE', 'http://localhost:3000/api')
+// Em produção, nunca reutilizar um endereço de API salvo durante testes locais.
 window.API_BASE = API_BASE;
 try {
-  localStorage.setItem('API_BASE', API_BASE);
-  localStorage.setItem('API_BASE_URL', API_BASE);
+  if (IS_LOCAL_HOST) {
+    localStorage.setItem('API_BASE_URL', API_BASE);
+  } else {
+    localStorage.removeItem('API_BASE');
+    localStorage.removeItem('API_BASE_URL');
+  }
 } catch(_e) {}
 
 const $ = (id) => document.getElementById(id);
@@ -723,6 +729,11 @@ function generateSku() {
 async function loadProduct() {
   if (!ensureSellerSession()) return;
   applySellerHeaderName();
+  const loadState = $('product-load-state');
+  if (loadState) {
+    loadState.className = 'rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900';
+    loadState.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Carregando dados do produto...';
+  }
 
   // Carrega as categorias SEM depender de um produto selecionado.
   // Antes, quando a tela era aberta direto sem ?id=..., a função retornava antes
@@ -731,6 +742,10 @@ async function loadProduct() {
   syncCategoryFields();
 
   if (!productId) {
+    if (loadState) {
+      loadState.className = 'rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900';
+      loadState.textContent = 'Nenhum produto foi informado para edição.';
+    }
     showToast('Escolha um produto em Meus Produtos para editar. As categorias já foram carregadas.', 'info');
     return;
   }
@@ -764,8 +779,16 @@ async function loadProduct() {
     $('p-height').value = p.height ?? p.altura ?? '';
     $('p-active').checked = p.active !== false;
     renderPreviewFromProduct(p);
+    if (loadState) {
+      loadState.className = 'hidden';
+      loadState.textContent = '';
+    }
   } catch (e) {
     console.error(e);
+    if (loadState) {
+      loadState.className = 'rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800';
+      loadState.textContent = 'Não foi possível carregar os dados deste produto: ' + (e.message || 'erro desconhecido');
+    }
     showToast(e.message || 'Falha ao carregar produto.', 'error');
   }
 }
@@ -897,7 +920,7 @@ $('file-input')?.addEventListener('change', () => {
 $('product-form')?.addEventListener('submit', saveProduct);
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
 $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
-window.onload = loadProduct;
+window.addEventListener('load', loadProduct, { once: true });
 </script>
 <script src="js/product-card.js" defer></script>
 <script src="./product-card.js"></script>
