@@ -1328,32 +1328,29 @@ async function calculateShipping(body = {}) {
   }
 
   const hasPhoneFlatDelivery = isPhoneProduct;
-  const arianaFreeKm = Math.max(0, Number(arianaRule.localFreeKm ?? arianaRule.freeRadiusKm ?? 7) || 7);
-  const legacyCepFree =
-    arianaRule.freeLocalEnabled === true &&
-    destinationCep &&
-    cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
+  const normalizedDestinationCity = normalizeShippingText(location.city || '');
+  const isGuanhaesDestination =
+    normalizedDestinationCity === 'GUANHAES' ||
+    normalizedDestinationCity === 'GUANHAES MG' ||
+    (destinationCep && destinationCep === normalizeCepValue(arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000'));
+
   const hasArianaFree =
     !hasPhoneFlatDelivery &&
     usesArianaLocalRule &&
     arianaRule.enabled !== false &&
-    (
-      (hasKnownDistance && Number(distanceKm) <= arianaFreeKm) ||
-      legacyCepFree
-    );
+    isGuanhaesDestination;
 
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
-      service: 'ariana_entrega_gratis_ate_7km',
+      service: 'ariana_entrega_gratis_guanhaes',
       label: arianaRule.label || 'Ariana Entrega',
       price: 0,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: `Ariana Logística grátis de 0 até ${arianaFreeKm} km.`,
+      details: 'Frete grátis para entregas dentro de Guanhães.',
       metadata: {
-        rule: 'ariana_logistica_gratis_ate_7km',
-        maxKm: arianaFreeKm,
-        distanceKm: hasKnownDistance ? Number(distanceKm) : null,
+        rule: 'ariana_logistica_guanhaes_gratis',
+        destinationCity: location.city || 'Guanhães',
         destinationCep
       },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
@@ -1376,7 +1373,7 @@ async function calculateShipping(body = {}) {
     }))
     .filter((tier) =>
       Number.isFinite(tier.maxKm) &&
-      tier.maxKm > arianaFreeKm &&
+      tier.maxKm > 0 &&
       Number.isFinite(tier.price) &&
       tier.price > 0
     )
@@ -1397,11 +1394,11 @@ async function calculateShipping(body = {}) {
     Number(distanceKm || 0) <= arianaMaxLocalKm
   ) {
     const resolvedDistance = Math.max(0, Number(distanceKm));
-    const tierIndex = arianaTiers.findIndex((tier) => resolvedDistance > arianaFreeKm && resolvedDistance <= tier.maxKm);
+    const tierIndex = arianaTiers.findIndex((tier) => !isGuanhaesDestination && resolvedDistance <= tier.maxKm);
     const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;
 
     if (selectedTier) {
-      const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : arianaFreeKm;
+      const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : 0;
       hasArianaDistanceDelivery = true;
       options.push(buildManualShippingOption({
         service: `ariana_entrega_ate_${selectedTier.maxKm}km`,
@@ -1411,12 +1408,12 @@ async function calculateShipping(body = {}) {
         provider: 'configured',
         details: previousMaxKm > 0
           ? `Entrega Ariana Logística acima de ${previousMaxKm} km até ${selectedTier.maxKm} km.`
-          : `Entrega Ariana Logística acima de ${arianaFreeKm} km até ${selectedTier.maxKm} km.`,
+          : `Entrega Ariana Logística para destinos fora de Guanhães até ${selectedTier.maxKm} km.`,
         metadata: {
           rule: 'ariana_logistica_tabela_oficial',
           tier: tierIndex + 1,
           minKmExclusive: previousMaxKm,
-          freeUntilKm: arianaFreeKm,
+          freeCity: 'Guanhães',
           maxKm: selectedTier.maxKm,
           distanceKm: resolvedDistance,
           destinationCep
@@ -1814,7 +1811,7 @@ async function calculateShipping(body = {}) {
       destinationCep: destinationCep || null,
       locationSource: location.source,
       distanceKm: hasKnownDistance ? Number(distanceKm) : null,
-      arianaFreeKm,
+      freeCity: 'Guanhães',
       weightKg,
       maxDimensionCm
     },
