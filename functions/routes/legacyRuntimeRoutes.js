@@ -1205,7 +1205,13 @@ async function calculateShipping(body = {}) {
   }
 
   const hasPhoneFlatDelivery = isPhoneProduct;
-  const hasArianaFree = !hasPhoneFlatDelivery && usesArianaLocalRule && arianaRule.enabled !== false && destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
+  const hasArianaFree =
+    !hasPhoneFlatDelivery &&
+    arianaRule.freeLocalEnabled === true &&
+    usesArianaLocalRule &&
+    arianaRule.enabled !== false &&
+    destinationCep &&
+    cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
       service: 'ariana_free_local',
@@ -1219,38 +1225,69 @@ async function calculateShipping(body = {}) {
     }));
   }
 
-  const arianaTier1Km = Number(arianaRule.localMaxKmTier1 || 30);
-  const arianaTier1Price = Number(arianaRule.localPriceTier1 || 80);
-  const arianaTier2Km = Number(arianaRule.localMaxKmTier2 || 70);
-  const arianaTier2Price = Number(arianaRule.localPriceTier2 || 120);
+  const configuredArianaTiers = Array.isArray(arianaRule.tiers) && arianaRule.tiers.length
+    ? arianaRule.tiers
+    : [
+        { maxKm: Number(arianaRule.localMaxKmTier1 || 50), price: Number(arianaRule.localPriceTier1 || 89) },
+        { maxKm: Number(arianaRule.localMaxKmTier2 || 120), price: Number(arianaRule.localPriceTier2 || 159) },
+        { maxKm: Number(arianaRule.localMaxKmTier3 || 200), price: Number(arianaRule.localPriceTier3 || 211) },
+        { maxKm: Number(arianaRule.localMaxKmTier4 || 260), price: Number(arianaRule.localPriceTier4 || 259) }
+      ];
+
+  const arianaTiers = configuredArianaTiers
+    .map((tier) => ({
+      maxKm: Number(tier?.maxKm || 0),
+      price: Number(tier?.price || 0)
+    }))
+    .filter((tier) => Number.isFinite(tier.maxKm) && tier.maxKm > 0 && Number.isFinite(tier.price) && tier.price >= 0)
+    .sort((a, b) => a.maxKm - b.maxKm);
+
+  const arianaTier2Km = Number(arianaTiers[1]?.maxKm || arianaTiers[0]?.maxKm || 120);
+  const arianaMaxLocalKm = Number(arianaTiers[arianaTiers.length - 1]?.maxKm || 260);
+  const normalizedDestinationCity = normalizeShippingText(location.city || '');
+  const sameArianaCity = normalizedDestinationCity === 'GUANHAES';
+  const hasUsableArianaDistance =
+    Number(distanceKm || 0) > 0 ||
+    destinationCep === arianaLocalOriginCep ||
+    sameArianaCity;
+
   let hasArianaDistanceDelivery = false;
 
-  if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > 0 && Number(distanceKm || 0) <= arianaTier1Km) {
-    hasArianaDistanceDelivery = true;
-    options.push(buildManualShippingOption({
-      service: 'ariana_entrega_ate_30km',
-      label: arianaRule.label || 'Ariana Móveis',
-      price: arianaTier1Price,
-      prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
-      details: `Entrega Ariana Móveis até ${arianaTier1Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
-      metadata: { rule: 'ariana_entrega_ate_30km', distanceKm, destinationCep },
-      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
-    }));
-  }
+  if (
+    usesArianaLocalRule &&
+    arianaRule.enabled !== false &&
+    !hasPhoneFlatDelivery &&
+    !hasArianaFree &&
+    hasUsableArianaDistance &&
+    Number(distanceKm || 0) <= arianaMaxLocalKm
+  ) {
+    const resolvedDistance = Math.max(0, Number(distanceKm || 0));
+    const tierIndex = arianaTiers.findIndex((tier) => resolvedDistance <= tier.maxKm);
+    const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;
 
-  if (usesArianaLocalRule && arianaRule.enabled !== false && !hasPhoneFlatDelivery && !hasArianaFree && Number(distanceKm || 0) > arianaTier1Km && Number(distanceKm || 0) <= arianaTier2Km) {
-    hasArianaDistanceDelivery = true;
-    options.push(buildManualShippingOption({
-      service: 'ariana_entrega_30_50km',
-      label: arianaRule.label || 'Ariana Móveis',
-      price: arianaTier2Price,
-      prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
-      details: `Entrega Ariana Logística acima de ${arianaTier1Km} km até ${arianaTier2Km} km a partir do CEP ${arianaRule.localOriginCep || arianaRule.freeCepStart || '39740-000'}.`,
-      metadata: { rule: 'ariana_entrega_30_120km', distanceKm, destinationCep },
-      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
-    }));
+    if (selectedTier) {
+      const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : 0;
+      hasArianaDistanceDelivery = true;
+      options.push(buildManualShippingOption({
+        service: `ariana_entrega_ate_${selectedTier.maxKm}km`,
+        label: arianaRule.label || 'Ariana Entrega',
+        price: selectedTier.price,
+        prazo: arianaRule.prazo || '1 a 3 dias úteis',
+        provider: 'configured',
+        details: previousMaxKm > 0
+          ? `Entrega Ariana Logística acima de ${previousMaxKm} km até ${selectedTier.maxKm} km.`
+          : `Entrega Ariana Logística de 0 até ${selectedTier.maxKm} km.`,
+        metadata: {
+          rule: 'ariana_logistica_tabela_oficial',
+          tier: tierIndex + 1,
+          minKmExclusive: previousMaxKm,
+          maxKm: selectedTier.maxKm,
+          distanceKm: resolvedDistance,
+          destinationCep
+        },
+        deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+      }));
+    }
   }
 
   if (false && usesArianaLogistics && !usesArianaLocalRule && !hasPhoneFlatDelivery && snRule.enabled !== false && !hasArianaFree && distanceKm > 0 && distanceKm <= Number(snRule.maxKmTier1 || 40)) {
@@ -1280,7 +1317,7 @@ async function calculateShipping(body = {}) {
   let rodocapAvailable = false;
   let rodocapEligibleByDistance = false;
   let rodocapCityAllowed = false;
-  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || rodocapRule.minKmExclusive || arianaTier2Km || 70);
+  const rodocapMinKmExclusive = Number(process.env.RODOCAP_MIN_KM_EXCLUSIVE || rodocapRule.minKmExclusive || arianaMaxLocalKm || 260);
   const rodocapEnvFlag = String(process.env.RODOCAP_ENABLED || '').trim().toLowerCase();
   const rodocapEnabled =
     rodocapEnvFlag === 'true' ||
