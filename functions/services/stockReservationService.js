@@ -93,6 +93,173 @@ export function isTerminalUnpaidPaymentStatus(status = '') {
   ].includes(String(status || '').trim().toLowerCase());
 }
 
+export async function ensureStockReservationForPaymentAttempt({
+  Order,
+  Product,
+  orderId,
+  paymentMethod = '',
+  reason = 'payment_attempt'
+} = {}) {
+  if (!Order || !Product || !orderId) {
+    return { ok: false, skipped: true, reason: 'missing_dependency_or_order' };
+  }
+
+  const current = await Order.findById(orderId).lean().catch(() => null);
+  if (!current) {
+    const error = new Error('Pedido não encontrado para reservar estoque.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (isPaidOrder(current)) {
+    return { ok: true, skipped: true, reason: 'payment_already_confirmed' };
+  }
+
+  const reservation = current.stockReservation || null;
+  if (!reservation || !reservation.status) {
+    // Compatibilidade: pedidos antigos já tiveram a baixa feita pelo fluxo anterior.
+    return { ok: true, skipped: true, reason: 'legacy_order_without_reservation' };
+  }
+
+  const status = String(reservation.status || '').trim().toLowerCase();
+  const method = normalizeMethod(paymentMethod || reservation.paymentMethod || current?.payment?.method || '');
+  const minutes = getStockReservationMinutes(method);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + minutes * 60 * 1000);
+
+  if (status === 'reserved') {
+    await Order.updateOne(
+      { _id: orderId, 'stockReservation.status': 'reserved' },
+      {
+        $set: {
+          'stockReservation.expiresAt': expiresAt,
+          'stockReservation.paymentMethod': method,
+          'stockReservation.lastPaymentAttemptAt': now,
+          'stockReservation.lastPaymentAttemptReason': String(reason || 'payment_attempt')
+        }
+      }
+    );
+    return { ok: true, reserved: true, renewed: true, orderId: String(orderId), expiresAt };
+  }
+
+  if (status === 'committed') {
+    return { ok: true, skipped: true, reason: 'reservation_committed', orderId: String(orderId) };
+  }
+
+  if (status === 'releasing' || status === 'reserving') {
+    const error = new Error('A reserva de estoque está sendo atualizada. Tente o pagamento novamente em alguns segundos.');
+    error.statusCode = 409;
+    error.code = 'STOCK_RESERVATION_BUSY';
+    throw error;
+  }
+
+  if (status !== 'released') {
+    return { ok: true, skipped: true, reason: `reservation_${status}`, orderId: String(orderId) };
+  }
+
+  const claimed = await Order.findOneAndUpdate(
+    { _id: orderId, 'stockReservation.status': 'released' },
+    {
+      $set: {
+        'stockReservation.status': 'reserving',
+        'stockReservation.reReserveStartedAt': now,
+        'stockReservation.lastPaymentAttemptAt': now,
+        'stockReservation.lastPaymentAttemptReason': String(reason || 'payment_attempt'),
+        'stockReservation.lastReleaseError': ''
+      }
+    },
+    { new: true }
+  );
+
+  if (!claimed) {
+    const error = new Error('A reserva de estoque mudou durante a tentativa de pagamento. Tente novamente.');
+    error.statusCode = 409;
+    error.code = 'STOCK_RESERVATION_CHANGED';
+    throw error;
+  }
+
+  const rows = (Array.isArray(claimed?.stockReservation?.items) ? claimed.stockReservation.items : [])
+    .map((row) => ({
+      productId: String(row?.productId || '').trim(),
+      qty: Math.max(1, Number(row?.qty || 1) || 1)
+    }))
+    .filter((row) => row.productId);
+
+  const reservedAgain = [];
+
+  try {
+    for (const row of rows) {
+      const product = await Product.findOneAndUpdate(
+        { _id: row.productId, active: { $ne: false }, stock: { $gte: row.qty } },
+        { $inc: { stock: -row.qty }, $set: { updatedAt: new Date() } },
+        { new: true }
+      );
+
+      if (!product) {
+        const availableProduct = await Product.findById(row.productId).select('name stock active').lean().catch(() => null);
+        const error = new Error(
+          availableProduct
+            ? `${availableProduct.name || 'Produto'} não possui estoque suficiente para uma nova tentativa de pagamento.`
+            : 'Produto não encontrado para renovar a reserva de estoque.'
+        );
+        error.statusCode = 409;
+        error.code = 'INSUFFICIENT_STOCK';
+        error.productId = row.productId;
+        error.availableStock = Number(availableProduct?.stock || 0);
+        throw error;
+      }
+
+      reservedAgain.push(row);
+    }
+
+    await Order.updateOne(
+      { _id: orderId, 'stockReservation.status': 'reserving' },
+      {
+        $set: {
+          'stockReservation.status': 'reserved',
+          'stockReservation.paymentMethod': method,
+          'stockReservation.reservedAt': now,
+          'stockReservation.expiresAt': expiresAt,
+          'stockReservation.reReservedAt': now,
+          'stockReservation.reReserveReason': String(reason || 'payment_attempt'),
+          'stockReservation.lastReleaseError': ''
+        }
+      }
+    );
+
+    return {
+      ok: true,
+      reserved: true,
+      reReserved: true,
+      orderId: String(orderId),
+      items: reservedAgain.length,
+      expiresAt
+    };
+  } catch (error) {
+    for (const row of reservedAgain.reverse()) {
+      try {
+        await Product.findByIdAndUpdate(
+          row.productId,
+          { $inc: { stock: row.qty }, $set: { updatedAt: new Date() } }
+        );
+      } catch (_) {}
+    }
+
+    await Order.updateOne(
+      { _id: orderId, 'stockReservation.status': 'reserving' },
+      {
+        $set: {
+          'stockReservation.status': 'released',
+          'stockReservation.reReserveStartedAt': null,
+          'stockReservation.lastReleaseError': String(error?.message || error || 'stock_rereserve_failed')
+        }
+      }
+    ).catch(() => null);
+
+    throw error;
+  }
+}
+
 export async function commitStockReservation({ Order, orderId, reason = 'payment_approved' } = {}) {
   if (!Order || !orderId) return { ok: false, skipped: true, reason: 'missing_dependency_or_order' };
 
