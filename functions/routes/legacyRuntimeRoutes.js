@@ -854,50 +854,58 @@ const geoCache = new Map();
 async function getDistanceKm(originCep, destinationCep) {
   const origin = normalizeCepValue(originCep);
   const destination = normalizeCepValue(destinationCep);
-  if (!origin || !destination || origin === destination) return 0;
+  if (!origin || !destination) return null;
+  if (origin === destination) return 0;
+
   const cacheKey = `${origin}:${destination}`;
   if (geoCache.has(cacheKey)) return geoCache.get(cacheKey);
-  const originInfo = await lookupCepInfo(origin);
-  const destInfo = await lookupCepInfo(destination);
-  if (!originInfo?.city || !destInfo?.city) {
-    geoCache.set(cacheKey, 0);
-    return 0;
-  }
-  const query = `${destInfo.city}, ${destInfo.state || ''}, Brazil`;
-  try {
-    const url = 'https://nominatim.openstreetmap.org/search';
-    const resp = await axios.get(url, {
-      params: { q: query, format: 'jsonv2', limit: 1 },
-      timeout: 10000,
-      headers: { 'User-Agent': 'ArianaMoveis/1.0 (shipping distance lookup)' }
-    });
-    const lat = Number(resp.data?.[0]?.lat);
-    const lon = Number(resp.data?.[0]?.lon);
-    const originMap = {
-      'GUANHAES|MG': { lat: -18.7752, lon: -42.9325 },
-      'GUANHÃƒES|MG': { lat: -18.7752, lon: -42.9325 }
-    };
-    const originKey = `${(originInfo.city || '').toUpperCase()}|${(originInfo.state || '').toUpperCase()}`;
-    const originCoords = originMap[originKey] || { lat: -18.7752, lon: -42.9325 };
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      geoCache.set(cacheKey, 0);
-      return 0;
+
+  const geocodeCep = async (cep) => {
+    const info = await lookupCepInfo(cep);
+    if (!info?.city) return null;
+
+    const queries = [
+      [info.street, info.neighborhood, info.city, info.state, cep, 'Brasil'].filter(Boolean).join(', '),
+      [cep, info.city, info.state, 'Brasil'].filter(Boolean).join(', '),
+      [info.city, info.state, 'Brasil'].filter(Boolean).join(', ')
+    ].filter(Boolean);
+
+    for (const query of queries) {
+      try {
+        const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+          params: { q: query, format: 'jsonv2', limit: 1, countrycodes: 'br' },
+          timeout: 10000,
+          headers: { 'User-Agent': 'ArianaMoveis/1.0 (shipping distance lookup)' }
+        });
+        const lat = Number(response.data?.[0]?.lat);
+        const lon = Number(response.data?.[0]?.lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+      } catch (_) {}
     }
-    const toRad = (deg) => (deg * Math.PI) / 180;
-    const R = 6371;
-    const dLat = toRad(lat - originCoords.lat);
-    const dLon = toRad(lon - originCoords.lon);
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(originCoords.lat)) * Math.cos(toRad(lat)) *
-      Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const km = Number((R * c).toFixed(1));
-    geoCache.set(cacheKey, km);
-    return km;
-  } catch (_error) {
-    geoCache.set(cacheKey, 0);
-    return 0;
+    return null;
+  };
+
+  const [originCoords, destinationCoords] = await Promise.all([
+    geocodeCep(origin),
+    geocodeCep(destination)
+  ]);
+
+  if (!originCoords || !destinationCoords) {
+    geoCache.set(cacheKey, null);
+    return null;
   }
+
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(destinationCoords.lat - originCoords.lat);
+  const dLon = toRad(destinationCoords.lon - originCoords.lon);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(originCoords.lat)) * Math.cos(toRad(destinationCoords.lat)) *
+    Math.sin(dLon / 2) ** 2;
+  const arc = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const km = Number((R * arc).toFixed(1));
+  geoCache.set(cacheKey, km);
+  return km;
 }
 function calculateOwnDelivery(km, tiers = []) { const sorted = [...tiers].sort((a, b) => Number(a.maxKm || 0) - Number(b.maxKm || 0)); for (const tier of sorted) { if (Number(km || 0) <= Number(tier.maxKm || 0)) return { available: true, price: Number(tier.price || 0), service: 'own_delivery' }; } return { available: false }; }
 function normalizeShippingText(value = '') { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toUpperCase(); }
@@ -1071,7 +1079,7 @@ function bodyHasPhoneProduct(body = {}) {
   const text = normalizeShippingText(parts.filter(Boolean).join(' '));
   return /SMARTPHONE|CELULAR|IPHONE|GALAXY|MOTOROLA|MOTO\s*G|XIAOMI|REDMI|SAMSUNG/.test(text);
 }
-async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
+async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, street: data.logradouro || '', complement: data.complemento || '', city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
 async function resolveDestinationLocation(body = {}) { const cep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const explicitCity = body.cidade || body.city || body.destinationCity || body.shippingAddress?.cidade || body.shippingAddress?.city || ''; const explicitState = body.uf || body.state || body.destinationState || body.shippingAddress?.uf || body.shippingAddress?.state || ''; if (explicitCity) return { cep, city: String(explicitCity).trim(), state: String(explicitState || '').trim(), source: 'request' }; const viaCep = await lookupCepInfo(cep); if (viaCep) return { ...viaCep, source: 'viacep' }; return { cep, city: '', state: '', source: cep ? 'cep_only' : 'unknown' }; }
 function isRodocapCityAllowed(city = '', rodocapRule = {}) {
   const normalizedCity = normalizeShippingText(city);
@@ -1294,7 +1302,11 @@ async function calculateShipping(body = {}) {
   }
 
   const inferredDistanceKm = await getDistanceKm(originCep, destinationCep);
-  const distanceKm = Number(body.distanceKm || body.km || inferredDistanceKm || 0);
+  const requestDistanceRaw = body.distanceKm ?? body.km;
+  const requestDistance = Number(requestDistanceRaw);
+  const hasRequestDistance = requestDistanceRaw !== undefined && requestDistanceRaw !== null && requestDistanceRaw !== '' && Number.isFinite(requestDistance) && requestDistance >= 0;
+  const distanceKm = hasRequestDistance ? requestDistance : inferredDistanceKm;
+  const hasKnownDistance = distanceKm !== null && distanceKm !== undefined && Number.isFinite(Number(distanceKm));
 
   // Regra especial de celular pertence à operação própria da Ariana e não pode vazar para seller.
   const isPhoneProduct = usesArianaLocalRule && arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
@@ -1316,22 +1328,34 @@ async function calculateShipping(body = {}) {
   }
 
   const hasPhoneFlatDelivery = isPhoneProduct;
-  const hasArianaFree =
-    !hasPhoneFlatDelivery &&
+  const arianaFreeKm = Math.max(0, Number(arianaRule.localFreeKm ?? arianaRule.freeRadiusKm ?? 7) || 7);
+  const legacyCepFree =
     arianaRule.freeLocalEnabled === true &&
-    usesArianaLocalRule &&
-    arianaRule.enabled !== false &&
     destinationCep &&
     cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
+  const hasArianaFree =
+    !hasPhoneFlatDelivery &&
+    usesArianaLocalRule &&
+    arianaRule.enabled !== false &&
+    (
+      (hasKnownDistance && Number(distanceKm) <= arianaFreeKm) ||
+      legacyCepFree
+    );
+
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
-      service: 'ariana_free_local',
-      label: arianaRule.label || 'Ariana Móveis',
+      service: 'ariana_entrega_gratis_ate_7km',
+      label: arianaRule.label || 'Ariana Entrega',
       price: 0,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: `Frete grátis para o CEP ${arianaRule.freeCepStart}.`,
-      metadata: { rule: 'ariana_free_local', cep: destinationCep },
+      details: `Ariana Logística grátis de 0 até ${arianaFreeKm} km.`,
+      metadata: {
+        rule: 'ariana_logistica_gratis_ate_7km',
+        maxKm: arianaFreeKm,
+        distanceKm: hasKnownDistance ? Number(distanceKm) : null,
+        destinationCep
+      },
       deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
     }));
   }
@@ -1350,17 +1374,17 @@ async function calculateShipping(body = {}) {
       maxKm: Number(tier?.maxKm || 0),
       price: Number(tier?.price || 0)
     }))
-    .filter((tier) => Number.isFinite(tier.maxKm) && tier.maxKm > 0 && Number.isFinite(tier.price) && tier.price >= 0)
+    .filter((tier) =>
+      Number.isFinite(tier.maxKm) &&
+      tier.maxKm > arianaFreeKm &&
+      Number.isFinite(tier.price) &&
+      tier.price > 0
+    )
     .sort((a, b) => a.maxKm - b.maxKm);
 
   const arianaTier2Km = Number(arianaTiers[1]?.maxKm || arianaTiers[0]?.maxKm || 120);
   const arianaMaxLocalKm = Number(arianaTiers[arianaTiers.length - 1]?.maxKm || 260);
-  const normalizedDestinationCity = normalizeShippingText(location.city || '');
-  const sameArianaCity = normalizedDestinationCity === 'GUANHAES';
-  const hasUsableArianaDistance =
-    Number(distanceKm || 0) > 0 ||
-    destinationCep === arianaLocalOriginCep ||
-    sameArianaCity;
+  const hasUsableArianaDistance = hasKnownDistance;
 
   let hasArianaDistanceDelivery = false;
 
@@ -1372,12 +1396,12 @@ async function calculateShipping(body = {}) {
     hasUsableArianaDistance &&
     Number(distanceKm || 0) <= arianaMaxLocalKm
   ) {
-    const resolvedDistance = Math.max(0, Number(distanceKm || 0));
-    const tierIndex = arianaTiers.findIndex((tier) => resolvedDistance <= tier.maxKm);
+    const resolvedDistance = Math.max(0, Number(distanceKm));
+    const tierIndex = arianaTiers.findIndex((tier) => resolvedDistance > arianaFreeKm && resolvedDistance <= tier.maxKm);
     const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;
 
     if (selectedTier) {
-      const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : 0;
+      const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : arianaFreeKm;
       hasArianaDistanceDelivery = true;
       options.push(buildManualShippingOption({
         service: `ariana_entrega_ate_${selectedTier.maxKm}km`,
@@ -1387,11 +1411,12 @@ async function calculateShipping(body = {}) {
         provider: 'configured',
         details: previousMaxKm > 0
           ? `Entrega Ariana Logística acima de ${previousMaxKm} km até ${selectedTier.maxKm} km.`
-          : `Entrega Ariana Logística de 0 até ${selectedTier.maxKm} km.`,
+          : `Entrega Ariana Logística acima de ${arianaFreeKm} km até ${selectedTier.maxKm} km.`,
         metadata: {
           rule: 'ariana_logistica_tabela_oficial',
           tier: tierIndex + 1,
           minKmExclusive: previousMaxKm,
+          freeUntilKm: arianaFreeKm,
           maxKm: selectedTier.maxKm,
           distanceKm: resolvedDistance,
           destinationCep
@@ -1788,7 +1813,8 @@ async function calculateShipping(body = {}) {
       destinationState: location.state || null,
       destinationCep: destinationCep || null,
       locationSource: location.source,
-      distanceKm,
+      distanceKm: hasKnownDistance ? Number(distanceKm) : null,
+      arianaFreeKm,
       weightKg,
       maxDimensionCm
     },
