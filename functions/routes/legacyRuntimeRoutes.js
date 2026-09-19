@@ -1081,6 +1081,43 @@ function bodyHasPhoneProduct(body = {}) {
 }
 async function lookupCepInfo(cep = '') { const normalizedCep = normalizeCepValue(cep); if (!normalizedCep) return null; if (viaCepCache.has(normalizedCep)) return viaCepCache.get(normalizedCep); try { const url = `https://viacep.com.br/ws/${normalizedCep}/json/`; const response = await axios.get(url, { timeout: 10000 }); const data = response.data || {}; if (data.erro) { viaCepCache.set(normalizedCep, null); return null; } const parsed = { cep: normalizedCep, street: data.logradouro || '', complement: data.complemento || '', city: data.localidade || '', state: data.uf || '', neighborhood: data.bairro || '' }; viaCepCache.set(normalizedCep, parsed); return parsed; } catch (_error) { return null; } }
 async function resolveDestinationLocation(body = {}) { const cep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || ''); const explicitCity = body.cidade || body.city || body.destinationCity || body.shippingAddress?.cidade || body.shippingAddress?.city || ''; const explicitState = body.uf || body.state || body.destinationState || body.shippingAddress?.uf || body.shippingAddress?.state || ''; if (explicitCity) return { cep, city: String(explicitCity).trim(), state: String(explicitState || '').trim(), source: 'request' }; const viaCep = await lookupCepInfo(cep); if (viaCep) return { ...viaCep, source: 'viacep' }; return { cep, city: '', state: '', source: cep ? 'cep_only' : 'unknown' }; }
+
+function classifyDestinationAccess(body = {}, location = {}) {
+  const address = body.shippingAddress && typeof body.shippingAddress === 'object'
+    ? body.shippingAddress
+    : (body.address && typeof body.address === 'object' ? body.address : {});
+
+  const explicitArea = normalizeShippingText(
+    body.areaType ||
+    body.deliveryZone ||
+    body.tipoArea ||
+    address.areaType ||
+    address.deliveryZone ||
+    address.tipoArea ||
+    address.zona ||
+    ''
+  );
+
+  if (explicitArea.includes('RURAL')) return { type: 'rural', source: 'explicit' };
+  if (explicitArea.includes('URBAN')) return { type: 'urban', source: 'explicit' };
+  if (body.isRural === true || address.isRural === true) return { type: 'rural', source: 'explicit_boolean' };
+  if (body.isRural === false || address.isRural === false) return { type: 'urban', source: 'explicit_boolean' };
+
+  const street = String(address.logradouro || address.street || address.rua || body.logradouro || body.street || body.rua || location.street || '').trim();
+  const neighborhood = String(address.bairro || address.neighborhood || body.bairro || body.neighborhood || location.neighborhood || '').trim();
+  const complement = String(address.complemento || address.complement || body.complemento || body.complement || '').trim();
+  const reference = String(address.reference || address.referencia || body.reference || body.referencia || '').trim();
+  const full = normalizeShippingText([street, neighborhood, complement, reference].filter(Boolean).join(' '));
+
+  const ruralPattern = /ZONA RURAL|AREA RURAL|FAZENDA|SITIO|CHACARA|POVOADO|COMUNIDADE|CORREGO|ESTRADA RURAL|RODOVIA|KM\s*\d|DISTRITO RURAL|VILA RURAL/;
+  if (ruralPattern.test(full)) return { type: 'rural', source: 'address_text' };
+
+  // Endereço completo com rua e bairro, sem marcador rural, é tratado como urbano.
+  if (street && neighborhood) return { type: 'urban', source: 'complete_address' };
+
+  return { type: 'unknown', source: 'insufficient_address' };
+}
+
 function isRodocapCityAllowed(city = '', rodocapRule = {}) {
   const normalizedCity = normalizeShippingText(city);
   const allowedFromRule = Array.isArray(rodocapRule.allowedCities) ? rodocapRule.allowedCities : [];
