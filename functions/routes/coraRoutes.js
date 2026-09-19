@@ -4,6 +4,7 @@ import { getCoraAccessToken, getCoraTokenCacheStatus } from '../integrations/cor
 import { buildCoraInstallmentPayload, issueCoraInstallmentBook } from '../integrations/cora/coraInstallmentService.js';
 import { getCoraAuditModel, getCoraChargeModel } from '../integrations/cora/coraChargeModel.js';
 import { calculateCrediarioPlan, moneyToCents, centsToMoney, CREDIARIO_DIVISORS } from '../services/crediarioEngine.js';
+import { commitStockReservation, ensureStockReservationForPaymentAttempt } from '../services/stockReservationService.js';
 
 function safeError(error) {
   return {
@@ -82,7 +83,7 @@ function buildDueDates(firstDueDate, count) {
   });
 }
 
-export default function registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order } = {}) {
+export default function registerCoraRoutes(app, { adminRequired, authRequired, mongoose, Order, Product } = {}) {
   if (!app) throw new Error('registerCoraRoutes: app é obrigatório.');
   if (typeof adminRequired !== 'function') throw new Error('registerCoraRoutes: adminRequired é obrigatório.');
   const paymentRequired = typeof authRequired === 'function' ? authRequired : adminRequired;
@@ -340,6 +341,14 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
       if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
       if (!customerCanAccessOrder(order, req)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao usuário autenticado.' });
 
+      await ensureStockReservationForPaymentAttempt({
+        Order,
+        Product,
+        orderId,
+        paymentMethod: 'crediario_ariana',
+        reason: 'cora_carne_emission_attempt'
+      });
+
       const installmentCount = Number(req.body?.installments ?? req.body?.parcelas ?? order.crediario?.installments ?? 1);
       const baseAmountCents = resolveCrediarioBaseCents(order, req.body || {});
       const plan = calculateCrediarioPlan({ baseAmountCents, installmentCount });
@@ -371,6 +380,13 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
 
       if (duplicate && req.body?.forceNew !== true) {
         await updateOrderCora(orderId, duplicate);
+        await commitStockReservation({
+          Order,
+          orderId,
+          reason: 'cora_existing_carne_reused'
+        }).catch((error) => {
+          console.error('[stock-reservation] Cora carnê reutilizado:', error?.message || error);
+        });
         return res.status(200).json({ ok: true, reused: true, carne: duplicate, charge: duplicate });
       }
 
@@ -407,6 +423,13 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
       });
       const result = await executeEmission(charge, input, 'CHECKOUT_ISSUE_INSTALLMENT_BOOK');
       const updatedOrder = await updateOrderCora(orderId, result.charge);
+      await commitStockReservation({
+        Order,
+        orderId,
+        reason: 'cora_carne_issued'
+      }).catch((error) => {
+        console.error('[stock-reservation] Cora carnê emitido:', error?.message || error);
+      });
       return res.status(201).json({ ok: true, carne: result.charge, charge: result.charge, order: updatedOrder });
     } catch (error) {
       const uncertain = Number(error?.providerStatus || 0) === 504 || error?.code === 'CORA_NETWORK_ERROR';
