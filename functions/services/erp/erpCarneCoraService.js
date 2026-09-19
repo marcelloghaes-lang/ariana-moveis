@@ -469,9 +469,21 @@ export function createErpCarneCoraService(context = {}) {
 
     const requestPayload = buildCoraInstallmentPayload(input);
     const cfg = getCoraConfig();
-    const idempotencyKey = `erp-carne:${baseData.orderId}:cora:v1`;
-    let charge = await CoraCharge.findOne({ idempotencyKey }).sort({ createdAt: -1 });
-
+    // A Cora exige que o header Idempotency-Key seja um UUID válido.
+    // Mantemos o UUID persistido no registro da cobrança para que novas tentativas
+    // da mesma emissão sejam idempotentes sem reutilizar uma chave textual inválida.
+    const crypto = await import('crypto');
+    const legacyIdempotencyKey = `erp-carne:${baseData.orderId}:cora:v1`;
+    let charge = await CoraCharge.findOne({
+      $or: [
+        { orderId: clean(baseData.orderId, 160), kind: 'INSTALLMENT_BOOK' },
+        { idempotencyKey: legacyIdempotencyKey }
+      ]
+    }).sort({ createdAt: -1 });
+    const storedKey = clean(charge?.idempotencyKey, 120);
+    const idempotencyKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storedKey)
+      ? storedKey
+      : crypto.randomUUID();
     if (charge && isChargeUsable(charge)) {
       const data = mergeProvider(baseData, providerView(charge.toObject ? charge.toObject() : charge));
       return { reused: true, created: false, ...data };
@@ -493,6 +505,7 @@ export function createErpCarneCoraService(context = {}) {
         createdBy: actorName(actor)
       });
     } else {
+      charge.idempotencyKey = idempotencyKey;
       charge.source = 'ERP_CARNE';
       charge.internalReference = clean(baseData.reference, 180);
       charge.code = requestPayload.code;
