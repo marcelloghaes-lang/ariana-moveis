@@ -847,6 +847,46 @@ async function loadAddresses() {
   }
 }
 
+let editingAddressId = '';
+
+window.openAddressModal = function(addr) {
+  addr = addr || null;
+  const modal = document.getElementById('modal-endereco');
+  const form = document.getElementById('form-address');
+  const title = document.getElementById('address-modal-title');
+  const areaSelect = document.getElementById('address-area-type');
+
+  editingAddressId = addr ? String(addr.id || addr._id || '') : '';
+  if (title) title.textContent = editingAddressId ? 'Editar Endereço' : 'Novo Endereço';
+
+  if (!addr) {
+    if (form) form.reset();
+    if (areaSelect) areaSelect.value = '';
+    const note = document.getElementById('address-rural-note');
+    if (note) note.classList.add('hidden');
+  } else {
+    const n = normalizeAddress(addr);
+    document.getElementById('address-label').value = n.name || '';
+    document.getElementById('address-cep').value = n.cep ? formatCEP(n.cep) : '';
+    document.getElementById('address-street').value = n.logradouro || '';
+    document.getElementById('address-number').value = n.numero || '';
+    document.getElementById('address-complement').value = n.complemento || '';
+    document.getElementById('address-neighborhood').value = n.bairro || '';
+    document.getElementById('address-city').value = n.cidade || '';
+    document.getElementById('address-state').value = n.uf || '';
+    if (areaSelect) areaSelect.value = n.areaType === 'rural' ? 'rural' : (n.areaType === 'urban' ? 'urban' : '');
+    const note = document.getElementById('address-rural-note');
+    if (note) note.classList.toggle('hidden', !areaSelect || areaSelect.value !== 'rural');
+  }
+
+  if (modal) modal.classList.remove('hidden');
+};
+
+window.editAddress = function(id) {
+  const addr = currentAddresses.find(function(a) { return String(a._id || a.id || '') === String(id); });
+  if (!addr) return;
+  window.openAddressModal(addr);
+};
 window.chooseAddressForCheckout = function(id) {
   const addr = currentAddresses.find(a => String(a._id || a.id || '') === String(id));
   if (!addr) return;
@@ -1044,17 +1084,23 @@ async function saveAddress(e) {
   try {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SALVANDO...'; }
     const userId = getCurrentUserId();
-    const saved = await requestWithFallback([
-      { path: '/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } },
-      userId ? { path: `/users/${encodeURIComponent(userId)}/addresses`, options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } } : null,
-      { path: '/me/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } }
-    ].filter(Boolean));
+    const saved = editingAddressId
+      ? await requestWithFallback([
+          { path: '/addresses/' + encodeURIComponent(editingAddressId), options: { method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } },
+          userId ? { path: '/users/' + encodeURIComponent(userId) + '/addresses/' + encodeURIComponent(editingAddressId), options: { method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } } : null
+        ].filter(Boolean))
+      : await requestWithFallback([
+          { path: '/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } },
+          userId ? { path: '/users/' + encodeURIComponent(userId) + '/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } } : null,
+          { path: '/me/addresses', options: { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newAddr) } }
+        ].filter(Boolean));
 
     const addrSaved = normalizeAddress(saved?.item || saved?.address || saved?.data || saved || newAddr);
     saveCheckoutAddressSelection(addrSaved);
     syncHeaderCityUFFromAddress(addrSaved);
     document.getElementById('modal-endereco').classList.add('hidden');
     form?.reset();
+    editingAddressId = '';
     displayMessage('Endereço salvo!');
     await loadAddresses();
     if (getCheckoutMode()) setTimeout(() => { window.location.href = 'checkout.html'; }, 300);
@@ -1081,6 +1127,14 @@ function bindEvents() {
 
   document.getElementById('form-edit-profile').onsubmit = saveProfile;
   document.getElementById('form-address').onsubmit = saveAddress;
+
+  const areaSelect = document.getElementById('address-area-type');
+  if (areaSelect) {
+    areaSelect.addEventListener('change', function() {
+      const note = document.getElementById('address-rural-note');
+      if (note) note.classList.toggle('hidden', areaSelect.value !== 'rural');
+    });
+  }
 
   const cpfInput = document.getElementById('profile-cpf');
   if (cpfInput) {
