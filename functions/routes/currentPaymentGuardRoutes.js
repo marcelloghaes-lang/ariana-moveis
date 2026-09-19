@@ -20,6 +20,18 @@ export default function registerCurrentPaymentGuardRoutes(app, context = {}) {
     error: 'Pagar.me está desativado na operação atual da Ariana Móveis. Cartão é processado pela Cielo; PIX e boleto pelo Mercado Pago; sellers recebem por repasse manual, sem split automático.'
   });
 
+  const mercadoPagoCardDisabled = (_req, res) => res.status(410).json({
+    ok: false,
+    provider: 'mercadopago',
+    code: 'MERCADOPAGO_CARD_DISABLED',
+    error: 'Cartão pelo Mercado Pago está desativado na operação atual. Use a Cielo para cartão.'
+  });
+
+  // Cartão atual é exclusivamente Cielo. Mantemos os endpoints históricos do
+  // Mercado Pago no código, mas impedimos uso acidental/externo antes das rotas legadas.
+  app.post('/api/payments/mp/credit', mercadoPagoCardDisabled);
+  app.post('/api/payments/mp/card', mercadoPagoCardDisabled);
+
   // Endpoints públicos legados: permanecem existentes no código histórico,
   // porém ficam bloqueados antes do registrador legado alcançar o gateway.
   app.post('/api/payments/pagarme/pix', pagarmeDisabled);
