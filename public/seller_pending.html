@@ -221,10 +221,14 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 
   // Mapeamento de status que vêm do seu MongoDB Atlas
   const statusMap = {
+    'pending': 'Em análise',
+    'pendente': 'Em análise',
     'pending_onboarding': 'Onboarding pendente',
     'pending_analysis': 'Em análise técnica',
     'em_analise': 'Em análise técnica',
+    'approved': 'Conta Aprovada!',
     'aprovado': 'Conta Aprovada!',
+    'rejected': 'Solicitação Recusada',
     'reprovado': 'Solicitação Recusada',
     'bloqueado': 'Conta Bloqueada'
   };
