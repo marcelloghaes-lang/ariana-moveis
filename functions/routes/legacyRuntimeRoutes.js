@@ -1251,13 +1251,50 @@ async function calculateShipping(body = {}) {
   const isSNDigital = sellerCtx.isSNDigital;
 
   // Para seller em logística marketplace, o CEP de coleta cadastrado é a origem.
-  // Para produto da Ariana, usa a origem oficial da Ariana.
+  // Nunca usa o CEP da Ariana como fallback para seller externo.
+  const sellerMarketplaceMode = hasExternalSeller && String(sellerProfile?.type || 'marketplace') === 'marketplace';
   const originCep = usesArianaLocalRule
     ? (arianaLocalOriginCep || configuredOriginCep)
-    : (sellerOriginCep || configuredOriginCep);
+    : (hasExternalSeller ? sellerOriginCep : configuredOriginCep);
+  const options = [];
+
+  if (sellerMarketplaceMode && !originCep) {
+    const unavailable = {
+      service: 'seller_origin_cep_missing',
+      label: 'Frete indisponível',
+      name: 'Frete indisponível',
+      unavailable: true,
+      provider: 'seller',
+      error: 'O vendedor precisa cadastrar um CEP de coleta válido antes de vender com a logística do marketplace.',
+      metadata: {
+        rule: 'seller_marketplace_requires_pickup_cep',
+        sellerId: sellerProfile?.sellerId || sellerIds[0] || null
+      }
+    };
+    return {
+      ok: true,
+      options: [unavailable],
+      quotes: [],
+      cheapest: null,
+      bestQuote: null,
+      montagemCost: 0,
+      context: {
+        sellerDetected: sellerCtx.raw || null,
+        sellerId: sellerProfile?.sellerId || sellerIds[0] || null,
+        sellerShippingType: sellerProfile?.type || 'marketplace',
+        sellerOriginCep: null,
+        isAriana: false,
+        usesArianaLocalRule: false,
+        usesArianaLogistics: false,
+        destinationCity: location.city || null,
+        destinationState: location.state || null,
+        destinationCep: destinationCep || null
+      }
+    };
+  }
+
   const inferredDistanceKm = await getDistanceKm(originCep, destinationCep);
   const distanceKm = Number(body.distanceKm || body.km || inferredDistanceKm || 0);
-  const options = [];
 
   // Regra especial de celular pertence à operação própria da Ariana e não pode vazar para seller.
   const isPhoneProduct = usesArianaLocalRule && arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
