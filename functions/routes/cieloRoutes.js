@@ -1,7 +1,10 @@
+import { syncStockReservationForPayment } from '../services/stockReservationService.js';
+
 /* eslint-disable */
 export default function registerCieloRoutes(app, context = {}) {
   const {
     Order,
+    Product,
     axios,
     adminRequired,
     writeAuditLog,
@@ -652,6 +655,16 @@ export default function registerCieloRoutes(app, context = {}) {
 
       const updatedOrder = await updateOrderFromCielo(orderId, cieloData);
 
+      await syncStockReservationForPayment({
+        Order,
+        Product,
+        orderId,
+        paymentStatus: mapped.code,
+        reasonPrefix: 'cielo_card'
+      }).catch((error) => {
+        console.error('[stock-reservation] Cielo:', error?.message || error);
+      });
+
       if (typeof writeAuditLog === "function") {
         await writeAuditLog({
           scope: "payments",
@@ -727,6 +740,18 @@ export default function registerCieloRoutes(app, context = {}) {
       const updatedOrder = orderId
         ? await updateOrderFromCielo(orderId, { Payment: payment })
         : null;
+
+      if (orderId) {
+        await syncStockReservationForPayment({
+          Order,
+          Product,
+          orderId,
+          paymentStatus: mapped.code,
+          reasonPrefix: 'cielo_capture'
+        }).catch((error) => {
+          console.error('[stock-reservation] Cielo capture:', error?.message || error);
+        });
+      }
 
       return res.json({
         ok: true,
