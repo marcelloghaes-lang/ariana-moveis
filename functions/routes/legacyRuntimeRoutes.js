@@ -1472,7 +1472,7 @@ async function calculateShipping(body = {}) {
 
   const arianaTier2Km = Number(arianaTiers[1]?.maxKm || arianaTiers[0]?.maxKm || 120);
   const arianaMaxLocalKm = Number(arianaTiers[arianaTiers.length - 1]?.maxKm || 260);
-  const hasUsableArianaDistance = hasKnownDistance;
+  const hasUsableArianaDistance = hasKnownDistance || isRuralGuanhaes;
 
   let hasArianaDistanceDelivery = false;
 
@@ -1481,36 +1481,49 @@ async function calculateShipping(body = {}) {
     arianaRule.enabled !== false &&
     !hasPhoneFlatDelivery &&
     !hasArianaFree &&
-    hasUsableArianaDistance &&
-    Number(distanceKm || 0) <= arianaMaxLocalKm
+    hasUsableArianaDistance
   ) {
-    const resolvedDistance = Math.max(0, Number(distanceKm));
-    const tierIndex = arianaTiers.findIndex((tier) => !isGuanhaesDestination && resolvedDistance <= tier.maxKm);
-    const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;
+    // Guanhães usa um único CEP. Quando o endereço é rural e o CEP não permite
+    // medir a distância, aplica a primeira faixa (até 50 km = R$ 89).
+    // Se uma distância real/administrativa maior for informada, respeita a faixa correspondente.
+    const rawDistance = hasKnownDistance ? Math.max(0, Number(distanceKm)) : 0;
+    const resolvedDistance = isRuralGuanhaes && rawDistance <= 0 ? 50 : rawDistance;
 
-    if (selectedTier) {
-      const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : 0;
-      hasArianaDistanceDelivery = true;
-      options.push(buildManualShippingOption({
-        service: `ariana_entrega_ate_${selectedTier.maxKm}km`,
-        label: arianaRule.label || 'Ariana Entrega',
-        price: selectedTier.price,
-        prazo: arianaRule.prazo || '1 a 3 dias úteis',
-        provider: 'configured',
-        details: previousMaxKm > 0
-          ? `Entrega Ariana Logística acima de ${previousMaxKm} km até ${selectedTier.maxKm} km.`
-          : `Entrega Ariana Logística para destinos fora de Guanhães até ${selectedTier.maxKm} km.`,
-        metadata: {
-          rule: 'ariana_logistica_tabela_oficial',
-          tier: tierIndex + 1,
-          minKmExclusive: previousMaxKm,
-          freeCity: 'Guanhães',
-          maxKm: selectedTier.maxKm,
-          distanceKm: resolvedDistance,
-          destinationCep
-        },
-        deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
-      }));
+    if (resolvedDistance <= arianaMaxLocalKm) {
+      const tierIndex = arianaTiers.findIndex((tier) =>
+        (isRuralGuanhaes || !isGuanhaesDestination) &&
+        resolvedDistance <= tier.maxKm
+      );
+      const selectedTier = tierIndex >= 0 ? arianaTiers[tierIndex] : null;
+
+      if (selectedTier) {
+        const previousMaxKm = tierIndex > 0 ? arianaTiers[tierIndex - 1].maxKm : 0;
+        hasArianaDistanceDelivery = true;
+        options.push(buildManualShippingOption({
+          service: isRuralGuanhaes && tierIndex === 0
+            ? 'ariana_rural_guanhaes_ate_50km'
+            : `ariana_entrega_ate_${selectedTier.maxKm}km`,
+          label: arianaRule.label || 'Ariana Entrega',
+          price: selectedTier.price,
+          prazo: arianaRule.prazo || '1 a 3 dias úteis',
+          provider: 'configured',
+          details: isRuralGuanhaes && tierIndex === 0
+            ? 'Zona rural de Guanhães até 50 km: R$ 89,00.'
+            : previousMaxKm > 0
+              ? `Entrega Ariana Logística acima de ${previousMaxKm} km até ${selectedTier.maxKm} km.`
+              : `Entrega Ariana Logística até ${selectedTier.maxKm} km.`,
+          metadata: {
+            rule: isRuralGuanhaes ? 'ariana_logistica_rural_guanhaes' : 'ariana_logistica_tabela_oficial',
+            tier: tierIndex + 1,
+            minKmExclusive: previousMaxKm,
+            maxKm: selectedTier.maxKm,
+            distanceKm: resolvedDistance,
+            destinationArea: destinationAccess.type,
+            destinationCep
+          },
+          deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+        }));
+      }
     }
   }
 
