@@ -380,13 +380,16 @@ export default function registerCoraRoutes(app, { adminRequired, authRequired, m
 
       if (duplicate && req.body?.forceNew !== true) {
         await updateOrderCora(orderId, duplicate);
-        await commitStockReservation({
-          Order,
-          orderId,
-          reason: 'cora_existing_carne_reused'
-        }).catch((error) => {
-          console.error('[stock-reservation] Cora carnê reutilizado:', error?.message || error);
-        });
+        const duplicateStatus = String(duplicate.status || '').trim().toUpperCase();
+        if (['OPEN', 'PARTIALLY_PAID', 'PAID'].includes(duplicateStatus)) {
+          await commitStockReservation({
+            Order,
+            orderId,
+            reason: 'cora_existing_carne_reused'
+          }).catch((error) => {
+            console.error('[stock-reservation] Cora carnê reutilizado:', error?.message || error);
+          });
+        }
         return res.status(200).json({ ok: true, reused: true, carne: duplicate, charge: duplicate });
       }
 
