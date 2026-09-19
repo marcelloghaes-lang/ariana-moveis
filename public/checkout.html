@@ -1127,8 +1127,9 @@ async function quoteShippingForSelectedAddress(addrObj) {
 
       // O desconto do meio de pagamento é a diferença exata entre o preço cheio e o preço-base.
       const paymentDiscountValue = isDiscountMethod ? Math.max(0, fullProducts - baseProducts) : 0;
+      const couponBase = products;
       const subtotalBeforeCoupon = products + shippingFinal;
-      const coupon = getAppliedCoupon(subtotalBeforeCoupon);
+      const coupon = getAppliedCoupon(couponBase);
       const grand = Math.max(0, subtotalBeforeCoupon - coupon.value);
       const discountValue = paymentDiscountValue + coupon.value;
       const discountPercent = isDiscountMethod ? getDiscountPercentFor(method) : 0;
@@ -1182,6 +1183,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         paymentDiscountValue,
         couponCode: coupon.code || '',
         couponDiscount: coupon.value || 0,
+        couponBase,
         subtotalBeforeCoupon,
         grandTotal: grand,
         paymentMethod: method
@@ -1789,7 +1791,13 @@ async function quoteShippingForSelectedAddress(addrObj) {
         selectedPayCode = paySelected;
         selectedPay = paySelected === 'pix' ? 'Pix' : (paySelected === 'boleto' ? 'Boleto' : (paySelected === 'crediario_ariana' ? 'Crediário Ariana' : 'Cartão de Crédito'));
         updatePayMethodClasses();
-        const totalsComputed = updateTotalsUI();
+
+        let totalsComputed = updateTotalsUI();
+        const activeCouponCode = normalizeCouponCode(localStorage.getItem('ariana_applied_coupon') || '');
+        if (activeCouponCode) {
+          await validateCouponRemote(activeCouponCode, totalsComputed.couponBase ?? totalsComputed.products ?? 0);
+          totalsComputed = updateTotalsUI();
+        }
 
         const desc = totalsComputed.discountPercent || getDiscountPercentFor(paySelected);
         let valorFinal = totalsComputed.grandTotal;
@@ -2017,7 +2025,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         const msg = document.getElementById('coupon-message');
         if (msg) { msg.textContent = code ? 'Validando cupom...' : 'Cupom removido.'; msg.className = 'text-xs mt-2 text-gray-500'; }
         const preview = updateTotalsUI();
-        await validateCouponRemote(code, preview?.subtotalBeforeCoupon ?? preview?.grandTotal ?? computeCartTotal());
+        await validateCouponRemote(code, preview?.couponBase ?? preview?.products ?? computeCartTotal());
         updateTotalsUI();
       });
 
