@@ -1299,14 +1299,9 @@
       if (normalized === "crediario_ariana") return getCrediarioPurchaseAmount();
 
       const totals = orderData?.totals || {};
-      const grand = Number(totals.grandTotal || 0) || 0;
-      const original = Number(totals.grandTotalOriginal || totals.totalOriginal || 0) || 0;
-      const discount = Number(totals.discountValue || 0) || 0;
-
-      if (normalized === "card") {
-        if (original > 0 && (discount > 0 || original > grand)) return original;
-        return grand;
-      }
+      const grand = Number(totals.grandTotal || orderData?.total || 0) || 0;
+      // O pedido já foi fechado pelo backend para uma forma de pagamento específica.
+      // A tela nunca reconstrói o valor a cobrar; mostra exatamente o total autoritativo salvo.
       return grand;
     }
 
@@ -1351,13 +1346,18 @@
         : (grand > 0 ? grand + Math.max(0, discount) : total);
       if (originalEl) originalEl.innerText = fmt.format(original);
 
-      const applied = String(orderData?.totals?.discountApplied || "");
+      const couponDiscount = Number(orderData?.totals?.couponDiscount || 0) || 0;
+      const paymentDiscount = Number(orderData?.totals?.paymentDiscountValue || 0) || 0;
+      const visibleDiscount = normalized === "card"
+        ? couponDiscount
+        : Math.max(0, couponDiscount + paymentDiscount);
       const box = document.getElementById("order-summary");
-      if (box && normalized !== "card" && discount > 0 && original > 0) {
+      if (box && visibleDiscount > 0 && original > 0) {
         const info = document.createElement("div");
         info.id = "summary-discount-info";
         info.className = "mt-3 text-sm text-green-600 font-bold text-right";
-        info.innerHTML = `Desconto aplicado ${applied ? `(${applied})` : ``}: - ${fmt.format(discount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
+        const label = normalized === "card" && couponDiscount > 0 ? "Cupom aplicado" : "Desconto aplicado";
+        info.innerHTML = `${label}: - ${fmt.format(visibleDiscount)}<br><span class="text-slate-400 font-medium">De ${fmt.format(original)} por</span>`;
         box.insertBefore(info, totalEl?.parentElement || null);
       }
     }
