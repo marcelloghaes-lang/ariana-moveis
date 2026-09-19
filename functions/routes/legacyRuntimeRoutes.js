@@ -1101,7 +1101,6 @@ function classifyDestinationAccess(body = {}, location = {}) {
   if (explicitArea.includes('RURAL')) return { type: 'rural', source: 'explicit' };
   if (explicitArea.includes('URBAN')) return { type: 'urban', source: 'explicit' };
   if (body.isRural === true || address.isRural === true) return { type: 'rural', source: 'explicit_boolean' };
-  if (body.isRural === false || address.isRural === false) return { type: 'urban', source: 'explicit_boolean' };
 
   const street = String(address.logradouro || address.street || address.rua || body.logradouro || body.street || body.rua || location.street || '').trim();
   const neighborhood = String(address.bairro || address.neighborhood || body.bairro || body.neighborhood || location.neighborhood || '').trim();
