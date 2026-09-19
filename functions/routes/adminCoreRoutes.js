@@ -1,3 +1,5 @@
+import { releaseStockReservation, syncStockReservationForPayment } from '../services/stockReservationService.js';
+
 // ============================================================
 // ROTAS ADMIN CORE / UPLOAD / POSTERS / CRUD GENÉRICO
 // Extraído de legacyRoutes.js na Etapa 16.
@@ -1603,6 +1605,17 @@ app.patch('/api/admin/:collection/:id', adminRequired, async (req, res, next) =>
 
     if (key === 'orders') {
       const afterObj = toJSON(doc);
+
+      await syncStockReservationForPayment({
+        Order,
+        Product,
+        orderId: afterObj.id || afterObj._id,
+        paymentStatus: afterObj.status || afterObj.paymentStatus || afterObj.payment?.status || '',
+        reasonPrefix: 'admin_order_status'
+      }).catch((error) => {
+        console.error('[stock-reservation] Admin order status:', error?.message || error);
+      });
+
       const changed = changedKeys(beforeObj, afterObj);
       const statusChanged = String(beforeObj.status || '') !== String(afterObj.status || '') || String(beforeObj.statusLabel || '') !== String(afterObj.statusLabel || '');
       const trackingChanged = String(beforeObj.trackingCode || '') !== String(afterObj.trackingCode || '');
@@ -1663,6 +1676,18 @@ app.delete('/api/admin/:collection/:id', adminRequired, async (req, res, next) =
     if (key === 'settings') { await Setting.deleteOne({ key: req.params.id }); return res.json({ ok: true }); }
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    if (key === 'orders') {
+      await releaseStockReservation({
+        Order,
+        Product,
+        orderId: oid,
+        reason: 'admin_order_deleted'
+      }).catch((error) => {
+        console.error('[stock-reservation] Admin delete order:', error?.message || error);
+      });
+    }
+
     await Model.findByIdAndDelete(oid);
     return res.json({ ok: true });
   } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'admin_delete_failed' }); }
