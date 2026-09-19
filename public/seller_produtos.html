@@ -314,7 +314,7 @@ function renderDesktop(products){
       <td><span class="sku-pill">${escapeHtml(p.sku || '-')}</span></td>
       <td><span class="font-black">${escapeHtml(p.stock ?? p.estoque ?? 0)}</span></td>
       <td class="price-main">${money(price)}</td>
-      <td><div class="actions-wrap"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
+      <td><div class="actions-wrap"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}&v=20260919-2" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
     </tr>`;
   }).join('');
 }
