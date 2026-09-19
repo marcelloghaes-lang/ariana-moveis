@@ -466,6 +466,28 @@ if (typeof uploadToCloudinary === 'function' && upload?.single) {
 }
 
 
+function sellerSupportTicketForResponse(doc = {}) {
+  const item = toJSON(doc) || doc || {};
+  const orderId = String(item.orderId || item.pedido || '').trim();
+  return {
+    _id: item._id ? String(item._id) : '',
+    id: String(item._id || item.id || ''),
+    protocolo: String(item.protocolo || ''),
+    orderId,
+    pedido: orderId,
+    tipo: String(item.tipo || 'Suporte'),
+    assunto: String(item.assunto || ''),
+    mensagem: String(item.mensagem || item.message || ''),
+    status: String(item.status || 'Novo'),
+    origem: String(item.origem || ''),
+    nome: String(item.nome || item.name || ''),
+    email: String(item.email || ''),
+    telefone: String(item.telefone || item.phone || ''),
+    createdAt: item.createdAt || null,
+    updatedAt: item.updatedAt || null
+  };
+}
+
 async function sellerSupportTicketsForRequest(req) {
   if (!Ticket) return [];
   const sid = String(req.sellerId || '').trim();
@@ -519,15 +541,7 @@ async function sellerSupportTicketsForRequest(req) {
 app.get('/api/seller/support', sellerAuthRequired, async (req, res) => {
   try {
     const docs = await sellerSupportTicketsForRequest(req);
-    const items = docs.map((doc) => {
-      const item = toJSON(doc) || {};
-      return {
-        ...item,
-        pedido: item.pedido || item.orderId || '',
-        orderId: item.orderId || item.pedido || ''
-      };
-    });
-    return res.json(items);
+    return res.json(docs.map(sellerSupportTicketForResponse));
   } catch (error) {
     console.error('Erro ao carregar atendimentos do seller:', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao carregar atendimentos do seller' });
@@ -549,7 +563,7 @@ app.patch('/api/seller/support/:id/read', sellerAuthRequired, async (req, res) =
       { new: true }
     );
 
-    return res.json({ ok: true, ticket: toJSON(ticket) });
+    return res.json({ ok: true, ticket: sellerSupportTicketForResponse(ticket) });
   } catch (error) {
     console.error('Erro ao atualizar atendimento do seller:', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar atendimento do seller' });

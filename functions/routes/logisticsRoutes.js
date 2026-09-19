@@ -863,15 +863,15 @@ function buildLogisticsShipmentPayload(orderDoc = {}, body = {}, provider = '') 
       heightCm: Number(body.heightCm || body.alturaCm || order.heightCm || 0)
     },
     sender: {
-      name: process.env.LOJA_REMETENTE_NOME || 'Ariana Móveis',
-      phone: process.env.LOJA_REMETENTE_TELEFONE || '',
-      document: process.env.LOJA_REMETENTE_DOCUMENTO || process.env.CORREIOS_CNPJ || '',
-      cep: normalizeCepValue(process.env.LOJA_ORIGEM_CEP || ''),
-      address: process.env.LOJA_REMETENTE_ENDERECO || '',
-      number: process.env.LOJA_REMETENTE_NUMERO || '',
-      district: process.env.LOJA_REMETENTE_BAIRRO || '',
-      city: process.env.LOJA_REMETENTE_CIDADE || 'Guanhães',
-      state: process.env.LOJA_REMETENTE_UF || 'MG'
+      name: String(body?.sender?.name || process.env.LOJA_REMETENTE_NOME || 'Ariana Móveis').trim(),
+      phone: String(body?.sender?.phone || process.env.LOJA_REMETENTE_TELEFONE || '').trim(),
+      document: String(body?.sender?.document || process.env.LOJA_REMETENTE_DOCUMENTO || process.env.CORREIOS_CNPJ || '').trim(),
+      cep: normalizeCepValue(body?.sender?.cep || process.env.LOJA_ORIGEM_CEP || ''),
+      address: String(body?.sender?.address || process.env.LOJA_REMETENTE_ENDERECO || '').trim(),
+      number: String(body?.sender?.number || process.env.LOJA_REMETENTE_NUMERO || '').trim(),
+      district: String(body?.sender?.district || process.env.LOJA_REMETENTE_BAIRRO || '').trim(),
+      city: String(body?.sender?.city || process.env.LOJA_REMETENTE_CIDADE || 'Guanhães').trim(),
+      state: String(body?.sender?.state || process.env.LOJA_REMETENTE_UF || 'MG').trim()
     },
     recipient: {
   name: address.name || order.customerName || 'Cliente',
@@ -2473,6 +2473,258 @@ function sellerCanAccessOrder(orderDoc = {}, sellerId = '') {
   return extractSellerIdsFromOrder(orderDoc).includes(sid);
 }
 
+function sellerSenderForLogistics(req = {}) {
+  const seller = req.seller || {};
+  const meta = seller.metadata && typeof seller.metadata === 'object' ? seller.metadata : {};
+  return {
+    name: String(seller.storeName || seller.displayName || meta.storeName || meta.factoryName || '').trim(),
+    phone: String(seller.phone || meta.phone || meta.whatsapp || '').trim(),
+    document: String(seller.document || meta.document || meta.cnpj || '').replace(/\D/g, ''),
+    cep: String(meta.cepColeta || meta.pickupCep || meta.cep_coleta || meta.cep || '').replace(/\D/g, ''),
+    address: String(meta.address || meta.endereco || meta.street || '').trim(),
+    number: String(meta.number || meta.numero || '').trim(),
+    district: String(meta.district || meta.bairro || '').trim(),
+    city: String(meta.city || meta.cidade || '').trim(),
+    state: String(meta.uf || meta.estado || '').trim().toUpperCase().slice(0, 2)
+  };
+}
+
+function sellerLogisticsItems(orderDoc = {}, sellerId = '') {
+  const sid = String(sellerId || '').trim();
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const items = ensureArray(order.items);
+  const tagged = items.filter((item) => String(item?.sellerId || item?.seller_id || '').trim());
+  const own = tagged.filter((item) => String(item?.sellerId || item?.seller_id || '').trim() === sid);
+  if (own.length) return own;
+
+  const ids = extractSellerIdsFromOrder(order);
+  if (!tagged.length && ids.length === 1 && ids[0] === sid) return items;
+  return [];
+}
+
+function sellerLogisticsGross(items = []) {
+  return ensureArray(items).reduce((sum, item) => {
+    const qty = Math.max(1, Number(item?.qty ?? item?.quantity ?? 1) || 1);
+    const explicit = item?.sellerBaseTotal ?? item?.seller_base_total ?? item?.totalPrice ?? item?.total;
+    if (explicit !== undefined && explicit !== null && explicit !== '') {
+      return sum + Math.max(0, Number(explicit || 0));
+    }
+    const unit = Number(item?.sellerBaseUnitPrice ?? item?.seller_base_unit_price ?? item?.unitPrice ?? item?.price ?? 0) || 0;
+    return sum + Math.max(0, unit * qty);
+  }, 0);
+}
+
+function sellerLogisticsFulfillment(orderDoc = {}, sellerId = '') {
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sid = String(sellerId || '').trim();
+  const sellers = order?.shipping?.sellers && typeof order.shipping.sellers === 'object'
+    ? order.shipping.sellers
+    : {};
+  const own = sellers[sid];
+  return own && typeof own === 'object' ? own : {};
+}
+
+function sellerLogisticsLabelForResponse(labelDoc = null) {
+  if (!labelDoc) return null;
+  const label = normalizeLogisticsLabel(labelDoc) || {};
+  return {
+    id: String(label._id || label.id || ''),
+    _id: String(label._id || label.id || ''),
+    orderId: String(label.orderId || ''),
+    provider: String(label.provider || ''),
+    service: String(label.service || ''),
+    status: String(label.status || ''),
+    trackingCode: String(label.trackingCode || ''),
+    shippingCost: Number(label.shippingCost || 0),
+    volumes: Math.max(1, Number(label.volumes || 1)),
+    weightKg: Number(label.weightKg || 0),
+    heightCm: Number(label.heightCm || 0),
+    widthCm: Number(label.widthCm || 0),
+    lengthCm: Number(label.lengthCm || 0),
+    notes: String(label.notes || ''),
+    labelType: String(label.labelType || ''),
+    labelUrl: String(label.labelUrl || ''),
+    createdAt: label.createdAt || null,
+    updatedAt: label.updatedAt || null
+  };
+}
+
+function sellerProviderResultForResponse(providerResult = {}) {
+  if (!providerResult || typeof providerResult !== 'object') return {};
+  return {
+    ok: providerResult.ok !== false,
+    preparedOnly: providerResult.preparedOnly === true,
+    providerFallback: providerResult.providerFallback === true,
+    message: String(providerResult.message || ''),
+    trackingCode: String(providerResult.trackingCode || ''),
+    labelUrl: String(providerResult.labelUrl || ''),
+    hasOfficialLabel: providerResult.hasOfficialLabel === true,
+    rotuloPending: providerResult.rotuloPending === true || providerResult?.rotulo?.pending === true,
+    rotulo: providerResult.rotulo && typeof providerResult.rotulo === 'object'
+      ? {
+          ok: providerResult.rotulo.ok !== false,
+          pending: providerResult.rotulo.pending === true,
+          ready: providerResult.rotulo.ready === true,
+          message: String(providerResult.rotulo.message || ''),
+          idRecibo: String(providerResult.rotulo.idRecibo || '')
+        }
+      : undefined
+  };
+}
+
+function sellerLogisticsActionResultForResponse(result = {}, sellerId = '') {
+  const safe = result && typeof result === 'object' ? { ...result } : {};
+  if (safe.etiqueta) safe.etiqueta = sellerLogisticsLabelForResponse(safe.etiqueta);
+  if (safe.order) safe.order = sellerLogisticsOrderForResponse(safe.order, sellerId, safe.etiqueta || null);
+  if (safe.providerResult) safe.providerResult = sellerProviderResultForResponse(safe.providerResult);
+
+  // Respostas de diagnóstico do provedor ficam no backend/auditoria. O seller
+  // recebe somente estado operacional necessário para continuar o fluxo.
+  delete safe.raw;
+  delete safe.payload;
+  delete safe.request;
+  delete safe.response;
+  delete safe.consultaPrepostagem;
+
+  if (safe.rotulo && typeof safe.rotulo === 'object') {
+    safe.rotulo = {
+      ok: safe.rotulo.ok !== false,
+      pending: safe.rotulo.pending === true,
+      ready: safe.rotulo.ready === true,
+      message: String(safe.rotulo.message || ''),
+      idRecibo: String(safe.rotulo.idRecibo || '')
+    };
+  }
+
+  return safe;
+}
+
+function sellerLogisticsOrderForResponse(orderDoc = {}, sellerId = '', label = null) {
+  const sid = String(sellerId || '').trim();
+  const order = toJSON(orderDoc) || orderDoc || {};
+  const sellerIds = extractSellerIdsFromOrder(order);
+  const items = sellerLogisticsItems(order, sid);
+  const fulfillment = sellerLogisticsFulfillment(order, sid);
+  const partial = sellerIds.length > 1;
+  const gross = sellerLogisticsGross(items);
+  const address = getOrderAddress(order);
+
+  const shipping = order.shipping && typeof order.shipping === 'object'
+    ? { ...order.shipping }
+    : {};
+  delete shipping.sellers;
+
+  [
+    'provider','service','carrier','trackingCode','shippedAt','labelId','labelStatus',
+    'labelType','labelUrl','shippingCost','status','statusLabel','updatedAt'
+  ].forEach((key) => {
+    if (fulfillment[key] !== undefined && fulfillment[key] !== null && fulfillment[key] !== '') {
+      shipping[key] = fulfillment[key];
+    }
+  });
+
+  return {
+    id: String(order._id || order.id || ''),
+    _id: String(order._id || order.id || ''),
+    shortId: String(order._id || order.id || '').slice(-8).toUpperCase(),
+    createdAt: order.createdAt || null,
+    updatedAt: order.updatedAt || null,
+    customerName: String(order.customerName || address.name || ''),
+    customerPhone: String(order.customerPhone || address.phone || ''),
+    address,
+    shippingAddress: address,
+    items,
+    itemsSummary: orderItemsSummary({ items }),
+    sellerIds: sid ? [sid] : [],
+    sellerOrderPartial: partial,
+    subtotal: gross,
+    total: gross,
+    shippingCost: partial
+      ? Number(fulfillment.shippingCost || 0)
+      : Number(order.shippingCost || fulfillment.shippingCost || 0),
+    status: String(fulfillment.status || order.status || ''),
+    statusLabel: String(fulfillment.statusLabel || order.statusLabel || ''),
+    trackingCode: String(fulfillment.trackingCode || (!partial ? order.trackingCode : '') || ''),
+    shipping,
+    logisticsProvider: inferLogisticsProvider({ shipping }),
+    etiqueta: label || null
+  };
+}
+
+function requireSellerSingleOrderForLabel(orderDoc = {}, sellerId = '', res) {
+  const sid = String(sellerId || '').trim();
+  const ids = extractSellerIdsFromOrder(orderDoc);
+  if (!ids.includes(sid)) {
+    res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
+    return false;
+  }
+  if (ids.length > 1) {
+    res.status(409).json({
+      ok: false,
+      code: 'SELLER_MULTI_ORDER_LABEL_ISOLATION',
+      error: 'Este pedido possui itens de mais de um seller. Para preservar o isolamento entre vendedores, use a ação Marcar como enviado no pedido; a etiqueta integrada fica disponível apenas para pedidos de um único seller.'
+    });
+    return false;
+  }
+  return true;
+}
+
+function normalizeSellerLogisticsStatus(value = '') {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return { status: '', statusLabel: '' };
+  if (['enviado', 'shipped'].includes(status)) return { status: 'shipped', statusLabel: 'Enviado' };
+  if (['preparando_envio', 'preparando', 'processing'].includes(status)) return { status: 'processing', statusLabel: 'Em preparação' };
+  return null;
+}
+
+async function updateSellerTrackingOnly(orderDoc, sellerId, patch = {}) {
+  const order = orderDoc;
+  const sid = String(sellerId || '').trim();
+  const ids = extractSellerIdsFromOrder(order);
+  const partial = ids.length > 1;
+  const shipping = order.shipping && typeof order.shipping === 'object' ? { ...order.shipping } : {};
+  const sellers = shipping.sellers && typeof shipping.sellers === 'object' ? { ...shipping.sellers } : {};
+  const current = sellers[sid] && typeof sellers[sid] === 'object' ? { ...sellers[sid] } : {};
+
+  sellers[sid] = {
+    ...current,
+    ...patch,
+    sellerId: sid,
+    updatedAt: new Date().toISOString()
+  };
+  shipping.sellers = sellers;
+
+  if (!partial) {
+    if (patch.trackingCode !== undefined) {
+      order.trackingCode = patch.trackingCode;
+      shipping.trackingCode = patch.trackingCode;
+    }
+    if (patch.status !== undefined) order.status = patch.status;
+    if (patch.statusLabel !== undefined) order.statusLabel = patch.statusLabel;
+  } else {
+    const allShipped = ids.length > 0 && ids.every((id) => {
+      const st = String(sellers[id]?.status || '').toLowerCase();
+      return ['shipped', 'enviado', 'delivered', 'entregue'].includes(st);
+    });
+    const anyProgress = ids.some((id) => {
+      const st = String(sellers[id]?.status || '').toLowerCase();
+      return ['processing', 'preparando', 'preparando_envio', 'shipped', 'enviado', 'delivered', 'entregue'].includes(st);
+    });
+    if (allShipped) {
+      order.status = 'shipped';
+      order.statusLabel = 'Enviado';
+    } else if (anyProgress) {
+      order.status = 'processing';
+      order.statusLabel = 'Envio parcial';
+    }
+  }
+
+  order.shipping = shipping;
+  if (typeof order.markModified === 'function') order.markModified('shipping');
+  await order.save();
+  return order;
+}
+
 app.get('/api/seller/logistica/provedores', sellerAuthRequired, async (_req, res) => {
   const settings = await getShippingSettings().catch(() => ({}));
   return res.json({
@@ -2498,7 +2750,6 @@ app.get('/api/seller/logistica/pedidos', sellerAuthRequired, async (req, res) =>
     const sellerFilter = { $or: [{ sellerIds: sid }, { 'items.sellerId': sid }, { manufacturer: sid }] };
     const filter = { $and: [sellerFilter] };
 
-    if (status) filter.$and.push({ status });
     if (q) {
       const rx = new RegExp(escapeRegex(q), 'i');
       const qFilter = {
@@ -2515,7 +2766,16 @@ app.get('/api/seller/logistica/pedidos', sellerAuthRequired, async (req, res) =>
       filter.$and.push(qFilter);
     }
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+    let orders = await Order.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+    if (status) {
+      const wanted = String(status || '').trim().toLowerCase();
+      orders = orders.filter((order) => {
+        const own = sellerLogisticsFulfillment(order, sid);
+        const current = String(own.status || own.statusLabel || order.status || order.statusLabel || '').trim().toLowerCase();
+        return current === wanted || current.includes(wanted);
+      });
+    }
+
     const orderIds = orders.map(o => String(o._id));
     const labels = await LogisticsLabel.find({ orderId: { $in: orderIds } }).sort({ updatedAt: -1 }).lean();
     const byOrder = new Map();
@@ -2525,17 +2785,10 @@ app.get('/api/seller/logistica/pedidos', sellerAuthRequired, async (req, res) =>
       ok: true,
       sellerMode: true,
       pedidos: orders.map((order) => {
-        const obj = toJSON(order);
-        const address = getOrderAddress(obj);
-        return {
-          ...obj,
-          id: String(obj._id || obj.id || ''),
-          shortId: String(obj._id || obj.id || '').slice(-8).toUpperCase(),
-          logisticsProvider: inferLogisticsProvider(obj),
-          address,
-          itemsSummary: orderItemsSummary(obj),
-          etiqueta: byOrder.get(String(obj._id || obj.id || '')) || null
-        };
+        const id = String(order._id || order.id || '');
+        const partial = extractSellerIdsFromOrder(order).length > 1;
+        const label = partial ? null : sellerLogisticsLabelForResponse(byOrder.get(id) || null);
+        return sellerLogisticsOrderForResponse(order, sid, label);
       })
     });
   } catch (error) {
@@ -2551,7 +2804,7 @@ app.post('/api/seller/logistica/etiquetas/manual', sellerAuthRequired, async (re
 
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
-    if (!sellerCanAccessOrder(order, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
+    if (!requireSellerSingleOrderForLabel(order, sid, res)) return;
 
     const before = toJSON(order);
     const provider = String(req.body?.provider || inferLogisticsProvider(before) || 'manual').trim();
@@ -2596,8 +2849,16 @@ app.post('/api/seller/logistica/etiquetas/manual', sellerAuthRequired, async (re
       }
     };
     if (String(req.body?.markStatus || '').trim()) {
-      updateOrder.status = String(req.body.markStatus).trim();
-      updateOrder.statusLabel = String(req.body.markStatusLabel || req.body.markStatus).trim();
+      const sellerStatus = normalizeSellerLogisticsStatus(req.body.markStatus);
+      if (sellerStatus === null) {
+        return res.status(400).json({
+          ok: false,
+          code: 'SELLER_STATUS_NOT_ALLOWED',
+          error: 'O seller pode alterar o pedido apenas para Em preparação ou Enviado.'
+        });
+      }
+      updateOrder.status = sellerStatus.status;
+      updateOrder.statusLabel = sellerStatus.statusLabel;
     }
 
     const after = await Order.findByIdAndUpdate(orderId, { $set: updateOrder }, { new: true });
@@ -2617,7 +2878,12 @@ app.post('/api/seller/logistica/etiquetas/manual', sellerAuthRequired, async (re
       whatsapp = await waMaybeNotifyOrderStatusChange(orderId, before, toJSON(after), 'seller_logistica_label_manual').catch((error) => ({ ok: false, error: error.message || String(error) }));
     }
 
-    return res.json({ ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), whatsapp });
+    return res.json({
+      ok: true,
+      etiqueta: sellerLogisticsLabelForResponse(label),
+      order: sellerLogisticsOrderForResponse(after, sid, sellerLogisticsLabelForResponse(label)),
+      whatsapp
+    });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar etiqueta do seller.' });
   }
@@ -2631,7 +2897,7 @@ app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired
     if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para pré-postagem Correios.' });
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
-    if (!sellerCanAccessOrder(order, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
+    if (!requireSellerSingleOrderForLabel(order, sid, res)) return;
 
     const reused = await reuseExistingCorreiosLabel({
       order,
@@ -2639,7 +2905,7 @@ app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired
     });
     if (reused) return res.json(reused);
 
-    const providerResult = await callCorreiosPrepostagem(order, req.body || {});
+    const providerResult = await callCorreiosPrepostagem(order, { ...(req.body || {}), sender: sellerSenderForLogistics(req) });
     const result = await saveProviderLogisticsResult({
       order,
       body: req.body || {},
@@ -2657,7 +2923,7 @@ app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired
       severity: 'info',
       metadata: { sellerId: sid, preparedOnly: providerResult.preparedOnly === true }
     }).catch(() => null);
-    return res.json(result);
+    return res.json(sellerLogisticsActionResultForResponse(result, sid));
   } catch (error) {
     console.error('[seller logistica correios preparar]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Correios do seller.' });
@@ -2673,11 +2939,11 @@ app.post('/api/seller/logistica/etiquetas/correios/:orderId/rotulo', sellerAuthR
     if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido.' });
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
-    if (!sellerCanAccessOrder(order, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
+    if (!requireSellerSingleOrderForLabel(order, sid, res)) return;
     const label = await LogisticsLabel.findOne({ orderId }).sort({ updatedAt: -1 });
     if (!label) return res.status(404).json({ ok: false, error: 'Etiqueta pendente não encontrada.' });
     const result = await resolvePendingCorreiosLabel({ order, label, actor: req.seller?.email || req.sellerId || 'seller' });
-    return res.json(result);
+    return res.json(sellerLogisticsActionResultForResponse(result, sid));
   } catch (error) {
     console.error('[seller logistica correios consultar rotulo]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar rótulo oficial dos Correios.' });
@@ -2732,8 +2998,8 @@ app.post('/api/seller/logistica/etiquetas/frenet/preparar', sellerAuthRequired, 
     if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para emissão Frenet.' });
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
-    if (!sellerCanAccessOrder(order, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
-    const providerResult = await callFrenetOrder(order, req.body || {});
+    if (!requireSellerSingleOrderForLabel(order, sid, res)) return;
+    const providerResult = await callFrenetOrder(order, { ...(req.body || {}), sender: sellerSenderForLogistics(req) });
     const result = await saveProviderLogisticsResult({
       order,
       body: req.body || {},
@@ -2751,7 +3017,7 @@ app.post('/api/seller/logistica/etiquetas/frenet/preparar', sellerAuthRequired, 
       severity: 'info',
       metadata: { sellerId: sid, preparedOnly: providerResult.preparedOnly === true }
     }).catch(() => null);
-    return res.json(result);
+    return res.json(sellerLogisticsActionResultForResponse(result, sid));
   } catch (error) {
     console.error('[seller logistica frenet preparar]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Frenet do seller.' });
@@ -2766,6 +3032,9 @@ app.get('/api/seller/logistica/etiquetas/:orderId/html', sellerAuthRequired, asy
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).send('Pedido não encontrado.');
     if (!sellerCanAccessOrder(order, sid)) return res.status(403).send('Este pedido não pertence ao seller logado.');
+    if (extractSellerIdsFromOrder(order).length > 1) {
+      return res.status(409).send('Etiqueta integrada indisponível para pedido multivendedor. Use o envio individual do seller.');
+    }
 
     const label = await LogisticsLabel.findOne({ orderId }).sort({ updatedAt: -1 });
     if (!label) return res.status(404).send('Etiqueta não encontrada para este pedido.');
@@ -2784,13 +3053,30 @@ app.patch('/api/seller/logistica/rastreio/:orderId', sellerAuthRequired, async (
     if (!before) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
     if (!sellerCanAccessOrder(before, sid)) return res.status(403).json({ ok: false, error: 'Este pedido não pertence ao seller logado.' });
 
+    const requested = normalizeSellerLogisticsStatus(req.body?.status || '');
+    if (requested === null) {
+      return res.status(400).json({
+        ok: false,
+        code: 'SELLER_STATUS_NOT_ALLOWED',
+        error: 'O seller pode atualizar o envio apenas para Em preparação ou Enviado.'
+      });
+    }
+
+    const currentOwn = sellerLogisticsFulfillment(before, sid);
     const patch = {
       trackingCode: String(req.body?.trackingCode || '').trim(),
-      status: String(req.body?.status || before.status || '').trim(),
-      statusLabel: String(req.body?.statusLabel || req.body?.status || before.statusLabel || '').trim()
+      status: requested?.status || currentOwn.status || 'processing',
+      statusLabel: requested?.statusLabel || currentOwn.statusLabel || 'Em preparação'
     };
-    const after = await Order.findByIdAndUpdate(orderId, { $set: patch }, { new: true });
-    await LogisticsLabel.findOneAndUpdate({ orderId }, { $set: { trackingCode: patch.trackingCode, status: patch.status || 'atualizada', updatedBy: req.seller?.email || req.sellerId || 'seller' } }, { new: true }).catch(() => null);
+
+    const after = await updateSellerTrackingOnly(before, sid, patch);
+    if (extractSellerIdsFromOrder(before).length <= 1) {
+      await LogisticsLabel.findOneAndUpdate(
+        { orderId },
+        { $set: { trackingCode: patch.trackingCode, status: patch.status || 'atualizada', updatedBy: req.seller?.email || req.sellerId || 'seller' } },
+        { new: true }
+      ).catch(() => null);
+    }
 
     await createAdminNotification({
       type: 'seller_logistica_rastreio',
@@ -2804,7 +3090,7 @@ app.patch('/api/seller/logistica/rastreio/:orderId', sellerAuthRequired, async (
     const whatsapp = req.body?.notifyCustomer === true
       ? await waMaybeNotifyOrderStatusChange(orderId, toJSON(before), toJSON(after), 'seller_logistica_tracking_patch').catch((error) => ({ ok: false, error: error.message || String(error) }))
       : { skipped: true, reason: 'notifyCustomer_false' };
-    return res.json({ ok: true, order: toJSON(after), whatsapp });
+    return res.json({ ok: true, order: sellerLogisticsOrderForResponse(after, sid, null), whatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar rastreio do seller.' });
   }

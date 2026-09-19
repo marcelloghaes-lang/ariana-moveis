@@ -205,8 +205,8 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         <div class="mx-auto w-18 h-18 rounded-full bg-blue-50 text-primary-blue flex items-center justify-center" style="width:72px;height:72px;">
           <i class="fas fa-hourglass-half text-3xl"></i>
         </div>
-        <h1 class="mt-7 text-3xl sm:text-4xl font-black tracking-tight text-slate-950">Sua solicitação está em análise</h1>
-        <p class="mt-4 text-slate-600 leading-relaxed text-lg">
+        <h1 id="status-title" class="mt-7 text-3xl sm:text-4xl font-black tracking-tight text-slate-950">Consultando sua solicitação...</h1>
+        <p id="status-description" class="mt-4 text-slate-600 leading-relaxed text-lg">
           A equipe Ariana Móveis está avaliando o cadastro enviado. Quando houver atualização, entraremos em contato pelos dados informados no formulário.
         </p>
       </div>
@@ -214,6 +214,11 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
       <div id="protocol-box" class="hidden mt-8 rounded-2xl bg-blue-50 border border-blue-100 p-4 text-sm text-slate-700 text-center">
         <span class="font-black text-primary-blue">Protocolo:</span>
         <span id="protocol-value" class="font-mono break-all"></span>
+      </div>
+
+      <div id="status-live-box" class="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-center">
+        <span class="block text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Status atual</span>
+        <strong id="status-live" class="text-lg text-primary-blue">Consultando...</strong>
       </div>
 
       <div class="mt-9 rounded-3xl border border-slate-200 overflow-hidden">
@@ -252,16 +257,68 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
   </main>
 
   <script>
-    (function(){
+    (async function(){
+      const API_BASE = ['127.0.0.1','localhost'].includes(location.hostname)
+        ? 'http://localhost:3000/api'
+        : 'https://ariana-backend.onrender.com/api';
       const params = new URLSearchParams(window.location.search);
       const rid = params.get('rid') || localStorage.getItem('partner_request_id') || '';
       const box = document.getElementById('protocol-box');
       const value = document.getElementById('protocol-value');
+      const live = document.getElementById('status-live');
+      const liveBox = document.getElementById('status-live-box');
+      const title = document.getElementById('status-title');
+      const description = document.getElementById('status-description');
+      const loginLink = document.querySelector('a[href="seller_login.html"]');
 
-      if (rid) {
-        localStorage.setItem('partner_request_id', rid);
-        if (box) box.classList.remove('hidden');
-        if (value) value.textContent = rid;
+      if (!rid) {
+        if (live) live.textContent = 'Protocolo não encontrado';
+        if (liveBox) liveBox.className = 'mt-5 rounded-2xl border border-red-100 bg-red-50 p-4 text-center';
+        if (title) title.textContent = 'Não encontramos sua solicitação';
+        if (description) description.textContent = 'Abra novamente o link recebido após o cadastro ou informe o protocolo salvo no dispositivo.';
+        return;
+      }
+
+      localStorage.setItem('partner_request_id', rid);
+      if (box) box.classList.remove('hidden');
+      if (value) value.textContent = rid;
+
+      try {
+        const response = await fetch(API_BASE + '/seller/partner-requests/' + encodeURIComponent(rid), {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || data.message || 'Não foi possível consultar a solicitação.');
+
+        const request = data.request || data;
+        const status = String(request.statusCode || request.status || 'pending').toLowerCase();
+
+        if (status === 'approved' || status === 'aprovado' || request.active === true) {
+          if (live) { live.textContent = 'Cadastro aprovado'; live.className = 'text-lg text-green-700'; }
+          if (liveBox) liveBox.className = 'mt-5 rounded-2xl border border-green-200 bg-green-50 p-4 text-center';
+          if (title) title.textContent = 'Seu cadastro foi aprovado!';
+          if (description) description.textContent = 'Sua conta seller está liberada. Entre com o e-mail e a senha cadastrados para acessar o painel.';
+          if (loginLink) loginLink.innerHTML = '<i class="fas fa-sign-in-alt"></i> Entrar no painel seller';
+          return;
+        }
+
+        if (status === 'rejected' || status === 'reprovado') {
+          if (live) { live.textContent = 'Solicitação não aprovada'; live.className = 'text-lg text-red-700'; }
+          if (liveBox) liveBox.className = 'mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-center';
+          if (title) title.textContent = 'Sua solicitação precisa de revisão';
+          if (description) description.textContent = 'A solicitação não foi aprovada neste momento. Entre em contato com a Ariana Móveis para confirmar o motivo e os próximos passos.';
+          return;
+        }
+
+        if (live) live.textContent = 'Em análise pela Ariana Móveis';
+        if (title) title.textContent = 'Sua solicitação está em análise';
+        if (description) description.textContent = 'A equipe Ariana Móveis está avaliando o cadastro enviado. Esta página consulta o status diretamente no sistema.';
+      } catch (error) {
+        if (live) { live.textContent = 'Não foi possível consultar agora'; live.className = 'text-lg text-amber-700'; }
+        if (liveBox) liveBox.className = 'mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center';
+        if (title) title.textContent = 'Consulta temporariamente indisponível';
+        if (description) description.textContent = error.message || 'Tente atualizar a página novamente.';
       }
     })();
   </script>
