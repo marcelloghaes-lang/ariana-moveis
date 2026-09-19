@@ -532,15 +532,18 @@ export default function registerOrderSupportRoutes(app, context = {}) {
       const shippingResolved = await calculateAuthoritativeShipping(body, items, sellerBaseSubtotal);
       const shippingCost = roundMoney(shippingResolved.price);
       const montagemCost = 0;
-      const beforeCoupon = roundMoney(subtotal + shippingCost + montagemCost);
+
+      // Cupom comercial incide somente sobre os produtos.
+      // Frete é uma cobrança logística separada e não recebe desconto percentual comum.
+      const couponBase = subtotal;
       const couponResult = await calculateAuthoritativeCoupon({
         body,
         items,
-        baseTotal: beforeCoupon,
+        baseTotal: couponBase,
         userId: req.user?._id || null,
         user: req.user || null
       });
-      const total = roundMoney(Math.max(0, beforeCoupon - Number(couponResult.discount || 0)));
+      const total = roundMoney(Math.max(0, subtotal - Number(couponResult.discount || 0)) + shippingCost + montagemCost);
 
       const declaredTotal = Number(body.total ?? body.totals?.grandTotal ?? 0);
       if (Number.isFinite(declaredTotal) && declaredTotal > 0 && Math.abs(roundMoney(declaredTotal) - total) > 0.05) {
