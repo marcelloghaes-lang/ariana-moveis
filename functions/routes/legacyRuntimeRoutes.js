@@ -226,7 +226,7 @@ export default function registerLegacyRuntimeRoutes(app, context = {}) {
   };
 
 
-registerOrderSupportRoutes(app, context);
+registerOrderSupportRoutes(app, { ...context, calculateShipping, getShippingSettings });
 registerAdminSigeCrediarioBotRoutes(app, context);
 registerAdminAtendimentoRoutes(app, context);
 
