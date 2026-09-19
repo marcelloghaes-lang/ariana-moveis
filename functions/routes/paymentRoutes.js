@@ -1,4 +1,4 @@
-import { syncStockReservationForPayment } from '../services/stockReservationService.js';
+import { ensureStockReservationForPaymentAttempt, syncStockReservationForPayment } from '../services/stockReservationService.js';
 
 // ============================================================
 // ROTAS DE PAGAMENTOS - MERCADO PAGO / PAGAR.ME / WEBHOOKS
@@ -48,7 +48,15 @@ export default function registerPaymentRoutes(app, context = {}) {
   } = context;
 
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || process.env.MP_PUBLIC_KEY || '' }); });
-app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {}; const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) {
+app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {};
+  await ensureStockReservationForPaymentAttempt({
+    Order,
+    Product,
+    orderId: body.orderId || body.order_id || null,
+    paymentMethod: 'pix',
+    reason: 'mercadopago_pix_attempt'
+  });
+  const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) {
   const mpNormalized = normalizeMercadoPagoPaymentResponse(response.data);
 
   if (body.orderId) {
@@ -86,11 +94,18 @@ app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.bo
   }
 
   return res.status(response.status).json(mpNormalized);
-} return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar PIX', details: response.data }); } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar PIX no Mercado Pago' }); } });
+} return res.status(response.status).json({ ok: false, error: response.data?.message || response.data?.cause?.[0]?.description || 'Erro ao criar PIX', details: response.data }); } catch (error) { return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao criar PIX no Mercado Pago', code: error.code || undefined, availableStock: error.availableStock ?? undefined }); } });
 
 app.post('/api/payments/mp/credit', async (req, res) => {
   try {
     const body = req.body || {};
+    await ensureStockReservationForPaymentAttempt({
+      Order,
+      Product,
+      orderId: body.orderId || body.order_id || null,
+      paymentMethod: 'card',
+      reason: 'mercadopago_card_attempt'
+    });
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
       token: body.token,
@@ -186,6 +201,13 @@ app.post('/api/payments/mp/credit', async (req, res) => {
 app.post('/api/payments/mp/card', async (req, res) => {
   try {
     const body = req.body || {};
+    await ensureStockReservationForPaymentAttempt({
+      Order,
+      Product,
+      orderId: body.orderId || body.order_id || null,
+      paymentMethod: 'card',
+      reason: 'mercadopago_card_attempt'
+    });
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
       token: body.token,
@@ -245,7 +267,7 @@ app.post('/api/payments/mp/card', async (req, res) => {
       order: updatedOrder ? toJSON(updatedOrder) : null
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago' });
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao criar pagamento cartão no Mercado Pago', code: error.code || undefined, availableStock: error.availableStock ?? undefined });
   }
 });
 
@@ -256,6 +278,13 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
   try {
     const body = req.body || {};
     const orderId = body.orderId || body.order_id || null;
+    await ensureStockReservationForPaymentAttempt({
+      Order,
+      Product,
+      orderId,
+      paymentMethod: 'boleto',
+      reason: 'mercadopago_boleto_attempt'
+    });
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
       description: body.description || `Pedido Ariana Móveis`,
@@ -318,7 +347,7 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
       details: mpData
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'Erro ao criar boleto no Mercado Pago' });
+    return res.status(error.statusCode || 500).json({ ok: false, error: error.message || 'Erro ao criar boleto no Mercado Pago', code: error.code || undefined, availableStock: error.availableStock ?? undefined });
   }
 });
 
