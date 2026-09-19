@@ -1014,7 +1014,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
       try {
         const res = await fetch(`${String(API_BASE).replace(/\/+$/, '')}/coupons/validate`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          headers: { ...getAuthHeaders(), Accept: 'application/json' },
           body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
