@@ -57,7 +57,6 @@
         <div id="frete" style="margin-top:13px;font-size:14px">
           <span id="frete-text">A calcular</span>
           <div id="frete-options" style="margin-top:12px;display:none"></div>
-          <p style="margin-top:8px;font-size:12px;color:#667085"><strong>Guanhães:</strong> frete grátis na área urbana. Zona rural até 50 km: R$ 89,00.</p>
         </div>
       </div>
     </section>
@@ -662,6 +661,29 @@
 
       if (!data?.ok && !Array.isArray(data?.quotes) && !data?.quote) {
         throw new Error(data?.detail || data?.error || data?.message || 'Frete indisponível.');
+      }
+
+      if (data?.context?.usesArianaLocalRule && data?.context?.destinationArea === 'unknown') {
+        shippingState = {
+          status: 'pending_address',
+          price: 0,
+          effectivePrice: 0,
+          explicitFree: false,
+          service: 'ariana_entrega',
+          raw: data,
+          cep,
+          name: 'Ariana Entrega',
+          carrier: 'Ariana Móveis',
+          endpoint: usedEndpoint,
+          selectedOption: null,
+          options: []
+        };
+        renderShippingOptions([]);
+        const freteText = document.getElementById('frete-text');
+        const freteSummary = document.getElementById('frete-summary');
+        if (freteText) freteText.textContent = 'Ariana Entrega — valor confirmado no checkout';
+        if (freteSummary) freteSummary.textContent = 'No checkout';
+        return { raw: data, best: null, cep, endpoint: usedEndpoint, requiresAddressConfirmation: true };
       }
 
       const options = extractShippingOptionsFromResponse(data);
@@ -1322,8 +1344,12 @@
 
           try {
             await enrichCartWithShippingDefaults();
-            await quoteCorreios(cep);
-            window.displayMessage('Frete calculado.', 'success', 'message-box');
+            const shippingResult = await quoteCorreios(cep);
+            if (shippingResult?.requiresAddressConfirmation) {
+              window.displayMessage('Ariana Entrega será confirmada no checkout.', 'success', 'message-box');
+            } else {
+              window.displayMessage('Frete calculado.', 'success', 'message-box');
+            }
           } catch (e) {
             console.error('[cart] frete erro:', e);
             shippingState = { status: 'error', price: 0, effectivePrice: 0, explicitFree: false, service: null, raw: String(e), cep };
