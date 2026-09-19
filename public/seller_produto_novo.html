@@ -271,11 +271,22 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 <input class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600" id="p-categorySlug" placeholder="Slug da categoria" readonly="" type="text"/>
 <input class="w-full p-4 border rounded-xl bg-gray-50 text-gray-600" id="p-subcategorySlug" placeholder="Slug da subcategoria" readonly="" type="text"/>
 </div>
+<section class="product-section">
+<h2 class="text-xl font-black text-slate-900 mb-2">Preço e estoque</h2>
+<p class="text-gray-600 mb-4">Informe o preço de venda do seller e a quantidade disponível para venda.</p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<input class="w-full p-4 border rounded-xl" id="p-stock" min="0" placeholder="Estoque" required="" type="number"/>
-<input class="w-full p-4 border rounded-xl" id="p-price" inputmode="decimal" placeholder="Preço. Ex: 10,99" required="" type="text"/>
+<div>
+<label class="block text-sm font-bold text-slate-800 mb-2" for="p-stock">Estoque disponível</label>
+<input class="w-full p-4 border rounded-xl" id="p-stock" min="0" step="1" placeholder="Ex: 10" required="" type="number"/>
+<p class="text-xs text-gray-500 mt-2">Produto com estoque 0 fica indisponível para novas compras.</p>
 </div>
-<p class="text-xs text-gray-500 -mt-4">Use vírgula normalmente. Exemplo: 10,99 será salvo como R$ 10,99.</p>
+<div>
+<label class="block text-sm font-bold text-slate-800 mb-2" for="p-price">Preço do produto</label>
+<input class="w-full p-4 border rounded-xl" id="p-price" inputmode="decimal" placeholder="Ex: 10,99" required="" type="text"/>
+<p class="text-xs text-gray-500 mt-2">Use vírgula normalmente. Exemplo: 10,99 será salvo como R$ 10,99.</p>
+</div>
+</div>
+</section>
 <section class="product-section">
 <h2 class="text-xl font-black text-slate-900 mb-2">Dimensões e Peso para Frete</h2>
 <p class="text-gray-600 mb-4">Informe as medidas da embalagem de envio (em cm) e o peso real (em kg).</p>
@@ -286,12 +297,26 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 <div><label class="block text-sm font-semibold text-gray-700 mb-1" for="p-height">Altura (cm)</label><input class="w-full p-4 border rounded-xl" id="p-height" min="1" step="1" type="number" value="10"/></div>
 </div>
 </section>
-<textarea class="w-full p-4 border rounded-xl min-h-[120px]" id="p-desc" placeholder="Descrição" required=""></textarea>
+<section class="product-section">
+<h2 class="text-xl font-black text-slate-900 mb-2">Descrição do produto</h2>
+<p class="text-gray-600 mb-4">Apresente os principais benefícios e informações comerciais do produto.</p>
+<textarea class="w-full p-4 border rounded-xl min-h-[120px]" id="p-desc" placeholder="Descrição comercial do produto" required=""></textarea>
+</section>
+<section class="product-section">
+<h2 class="text-xl font-black text-slate-900 mb-2">Especificação técnica</h2>
+<p class="text-gray-600 mb-4">Informe os dados técnicos em linhas separadas. Ex.: Marca: Samsung, Voltagem: 127V, Garantia: 12 meses.</p>
+<textarea class="w-full p-4 border rounded-xl min-h-[160px]" id="p-specs" placeholder="Marca:&#10;Modelo:&#10;Cor:&#10;Voltagem:&#10;Material:&#10;Garantia:"></textarea>
+</section>
 <button class="bg-primary-blue text-white py-4 rounded-xl font-black w-full" id="btn-submit" type="submit">Publicar produto</button>
 </form>
 </main>
 </div>
 <script>
+const editProductId = new URLSearchParams(window.location.search).get("id");
+if (editProductId) {
+  window.location.replace("seller_produto_editar.html?id=" + encodeURIComponent(editProductId) + "&v=20260919-2");
+}
+
 const API_BASE =
   window.API_BASE ||
   localStorage.getItem("API_BASE") ||
@@ -411,6 +436,23 @@ function escAttr(value) {
   return escHtml(value).replace(/`/g, '&#96;');
 }
 function syncCategoryFields() { const categorySelect = $("p-category"); const subcategorySelect = $("p-subcategory"); const selectedCategory = categorySelect?.selectedOptions?.[0]; const selectedSubcategory = subcategorySelect?.selectedOptions?.[0]; if ($("p-categorySlug")) $("p-categorySlug").value = selectedCategory?.dataset?.slug || slugify(categorySelect?.value || ""); if ($("p-subcategorySlug")) $("p-subcategorySlug").value = selectedSubcategory?.dataset?.slug || slugify(subcategorySelect?.value || ""); }
+function specsTextToObject(text = "") {
+  const raw = String(text || "").trim();
+  if (!raw) return {};
+  const out = { texto: raw };
+  raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line, index) => {
+    const parts = line.split(/[:：]/);
+    if (parts.length >= 2) {
+      const key = parts.shift().trim();
+      const value = parts.join(":").trim();
+      if (key) out[key] = value;
+    } else {
+      out[`item_${index + 1}`] = line;
+    }
+  });
+  return out;
+}
+
 function generateSku() { const base = slugify($("p-name")?.value || "produto").replace(/-/g, "").slice(0, 8).toUpperCase() || "PRODUTO"; $("p-sku").value = `${base}-${Date.now().toString().slice(-6)}`; }
 
 function extractUploadedImageUrl(data = {}) {
@@ -509,6 +551,7 @@ $("product-form")?.addEventListener("submit", async (e) => {
     const height = parseInteger($("p-height").value) || 10;
     const category = $("p-category").value.trim();
     const description = $("p-desc").value.trim();
+    const specsText = $("p-specs")?.value?.trim() || "";
 
     if (!name) throw new Error("Informe o nome do produto.");
     if (price <= 0) throw new Error("Informe um preço válido. Exemplo: 10,99");
@@ -554,6 +597,11 @@ $("product-form")?.addEventListener("submit", async (e) => {
       subcategorySlug: $("p-subcategorySlug").value || slugify($("p-subcategory").value),
       description,
       descricao: description,
+      specs: specsTextToObject(specsText),
+      technicalSpecs: specsText,
+      especificacaoTecnica: specsText,
+      specsText,
+      especificacoes: specsText,
       imageUrl: mainImageUrl,
       mainImageUrl,
       image: mainImageUrl,
