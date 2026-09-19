@@ -1,3 +1,5 @@
+import { syncStockReservationForPayment } from '../services/stockReservationService.js';
+
 // ============================================================
 // ROTAS DE PAGAMENTOS - MERCADO PAGO / PAGAR.ME / WEBHOOKS
 // Extraído de legacyRoutes.js na Etapa 13.
@@ -8,6 +10,7 @@ export default function registerPaymentRoutes(app, context = {}) {
   const {
     APP_BASE_URL,
     Order,
+    Product,
     PaymentEvent,
     adminRequired,
     getPaymentsSettings,
@@ -70,6 +73,16 @@ app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.bo
     } catch (e) {
       console.error("Erro ao salvar PIX no pedido:", e.message || e);
     }
+
+    await syncStockReservationForPayment({
+      Order,
+      Product,
+      orderId: body.orderId,
+      paymentStatus: mpNormalized.status,
+      reasonPrefix: 'mercadopago_pix'
+    }).catch((error) => {
+      console.error('[stock-reservation] Mercado Pago PIX:', error?.message || error);
+    });
   }
 
   return res.status(response.status).json(mpNormalized);
@@ -122,6 +135,16 @@ app.post('/api/payments/mp/credit', async (req, res) => {
       installments: Number(body.installments || 1),
       paymentMethodId: body.payment_method_id || mpData?.payment_method_id || '',
       issuerId: body.issuer_id || mpData?.issuer_id || ''
+    });
+
+    await syncStockReservationForPayment({
+      Order,
+      Product,
+      orderId: body.orderId,
+      paymentStatus: mpData?.status,
+      reasonPrefix: 'mercadopago_card'
+    }).catch((error) => {
+      console.error('[stock-reservation] Mercado Pago card:', error?.message || error);
     });
 
     await writeAuditLog({
@@ -187,6 +210,16 @@ app.post('/api/payments/mp/card', async (req, res) => {
       issuerId: body.issuer_id || mpData?.issuer_id || ''
     });
 
+    await syncStockReservationForPayment({
+      Order,
+      Product,
+      orderId: body.orderId,
+      paymentStatus: mpData?.status,
+      reasonPrefix: 'mercadopago_card'
+    }).catch((error) => {
+      console.error('[stock-reservation] Mercado Pago card:', error?.message || error);
+    });
+
     await writeAuditLog({
       scope: 'payments',
       eventType: 'mercadopago_card_created',
@@ -244,6 +277,16 @@ app.post('/api/payments/mp/boleto', async (req, res) => {
       orderUpdate = await updateOrderPaymentFromMercadoPago(orderId, 'boleto', mpData, {
         ticketUrl: normalized?.ticketUrl || normalized?.ticket_url || '',
         paymentMethodId: mpData?.payment_method_id || 'bolbradesco'
+      });
+
+      await syncStockReservationForPayment({
+        Order,
+        Product,
+        orderId,
+        paymentStatus: mpData?.status,
+        reasonPrefix: 'mercadopago_boleto'
+      }).catch((error) => {
+        console.error('[stock-reservation] Mercado Pago boleto:', error?.message || error);
       });
 
       // Boleto criado ainda não é venda concluída. Só notifica quando o webhook confirmar pagamento aprovado.
@@ -306,6 +349,16 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
         ticketUrl: normalized?.ticketUrl || normalized?.ticket_url || '',
         qrCode: normalized?.qrCode || normalized?.qr_code || '',
         paymentMethodId: mpData?.payment_method_id || ''
+      });
+
+      await syncStockReservationForPayment({
+        Order,
+        Product,
+        orderId,
+        paymentStatus: mpData?.status,
+        reasonPrefix: 'mercadopago_webhook'
+      }).catch((error) => {
+        console.error('[stock-reservation] Mercado Pago webhook:', error?.message || error);
       });
     }
 
