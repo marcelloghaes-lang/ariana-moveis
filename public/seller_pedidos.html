@@ -346,6 +346,9 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
 
 <script>
 
+    function escapeSellerOrderHtml(value = '') {
+      return String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
     function sellerOrderItems(order){ return Array.isArray(order?.items) ? order.items : []; }
     function sellerOrderTotal(order){
       return sellerOrderItems(order).reduce((sum,it)=>{
@@ -398,17 +401,17 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
         $("kpi-revenue").textContent = totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
         tbody.innerHTML = orders.map(o => `
-          <tr class="hover:bg-gray-50 transition" data-status="${String(o.status || o.statusLabel || '').toLowerCase()}">
-            <td class="p-4 font-black text-dark-bg">#${String(o._id || o.id || '').substring(0,8).toUpperCase()}</td>
+          <tr class="hover:bg-gray-50 transition" data-status="${escapeSellerOrderHtml(String(o.status || o.statusLabel || '').toLowerCase())}">
+            <td class="p-4 font-black text-dark-bg">#${escapeSellerOrderHtml(String(o._id || o.id || '').substring(0,8).toUpperCase())}</td>
             <td class="p-4">
-                <div class="font-bold">${o.customerName || 'Cliente'}</div>
-                <div class="text-[10px] text-gray-400">${o.customerEmail || ''}</div>
+                <div class="font-bold">${escapeSellerOrderHtml(o.customerName || 'Cliente')}</div>
+                <div class="text-[10px] text-gray-400">${escapeSellerOrderHtml(o.customerEmail || '')}</div>
             </td>
-            <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${o.status || 'pendente'}</span></td>
+            <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-gray-100">${escapeSellerOrderHtml(o.status || 'pendente')}</span></td>
             <td class="p-4 text-gray-500">${new Date(o.createdAt).toLocaleDateString('pt-BR')}</td>
             <td class="p-4 text-right font-black">${sellerOrderTotal(o).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
             <td class="p-4 text-right">
-                <a href="seller_pedido_detalhe.html?id=${o._id || o.id}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
+                <a href="seller_pedido_detalhe.html?id=${encodeURIComponent(o._id || o.id || '')}" class="text-primary-blue font-bold text-xs hover:underline">Ver Detalhes</a>
             </td>
           </tr>
         `).join('');
