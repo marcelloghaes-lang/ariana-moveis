@@ -12,6 +12,10 @@
   <meta property="og:description" content="Móveis, eletrodomésticos, eletrônicos e utilidades com entrega para todo o Brasil.">
   <meta name="robots" content="index,follow,max-image-preview:large">
 
+  <link rel="preconnect" href="https://ariana-backend.onrender.com" crossorigin>
+  <link rel="dns-prefetch" href="//ariana-backend.onrender.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -839,10 +843,18 @@ const normalizeListResponse = (data) => {
 let __homeIndexDataPromise = null;
 const getHomeIndexData = () => {
   if (!__homeIndexDataPromise) {
-    __homeIndexDataPromise = apiRequest('/home/index-data').catch((error) => {
-      __homeIndexDataPromise = null;
-      throw error;
-    });
+    __homeIndexDataPromise = apiRequest('/home/index-data')
+      .then((data) => {
+        window.__HOME_INDEX_DATA__ = data || {};
+        if (Array.isArray(data?.categories)) window.__CATEGORIES_CACHE__ = data.categories;
+        if (Array.isArray(data?.banners)) window.__HEADER_BANNERS_CACHE__ = data.banners;
+        if (Array.isArray(data?.products)) window.__HOME_PRODUCTS_CACHE__ = data.products;
+        return data;
+      })
+      .catch((error) => {
+        __homeIndexDataPromise = null;
+        throw error;
+      });
   }
   return __homeIndexDataPromise;
 };
@@ -1297,6 +1309,11 @@ const loadAllBanners = async () => {
     const image = banner.imageUrl || banner.image || banner.url || banner.src || '';
     if (linkEl) linkEl.href = href;
     if (imgEl && image) {
+      if (slotKey === 'index_main') {
+        imgEl.loading = 'eager';
+        imgEl.fetchPriority = 'high';
+        imgEl.decoding = 'async';
+      }
       imgEl.src = image;
       imgEl.alt = String(banner.alt || slot.placeholderText || imgEl.alt || 'Banner Ariana Móveis');
     }
@@ -1304,16 +1321,16 @@ const loadAllBanners = async () => {
 
   try {
     const merged = [];
-    const [directResult, homeResult] = await Promise.allSettled([
-      apiRequest('/banners'),
-      getHomeIndexData()
-    ]);
-    if (directResult.status === 'fulfilled') {
-      merged.push(...normalizeListResponse(directResult.value));
-    }
-    if (homeResult.status === 'fulfilled') {
-      const home = homeResult.value;
+    try {
+      const home = await getHomeIndexData();
       merged.push(...normalizeListResponse(home && home.banners ? home.banners : []));
+    } catch (_) {}
+
+    // Fallback somente quando o índice da home não trouxe banners.
+    if (!merged.length) {
+      try {
+        merged.push(...normalizeListResponse(await apiRequest('/banners')));
+      } catch (_) {}
     }
 
     Object.keys(bannerSlots).forEach((slotKey) => {
