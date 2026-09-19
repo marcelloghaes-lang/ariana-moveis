@@ -121,7 +121,7 @@
 
       <button class="btn-choice" data-method="crediario_ariana" type="button">
         <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">🏦</div>
-        <div class="flex-1"><div class="font-bold">Crediário Ariana</div><div class="text-xs text-slate-500">Carnê Cora em até 15 parcelas</div></div>
+        <div class="flex-1"><div class="font-bold">Crediário Ariana</div><div class="text-xs text-slate-500">Crediário próprio Ariana Móveis em até 15 parcelas</div></div>
         <div class="radio-indicator w-5 h-5 border-2 rounded-full border-slate-300"></div>
       </button>
 
@@ -1185,18 +1185,17 @@
       try {
         const data = await apiFetch("/me");
         currentUser = normalizeProfile(data);
+        customerProfile = currentUser || {};
       } catch (_) {
         currentUser = null;
+        customerProfile = {};
       }
     }
 
     async function loadProfile() {
-      try {
-        const data = await apiFetch("/me");
-        customerProfile = normalizeProfile(data);
-      } catch (_) {
-        customerProfile = {};
-      }
+      if (customerProfile && Object.keys(customerProfile).length) return customerProfile;
+      await loadCurrentUser();
+      return customerProfile;
     }
 
     async function loadOrder() {
@@ -1588,9 +1587,11 @@
           }
         });
 
-        await loadCurrentUser();
-        await loadProfile();
-        await loadOrder();
+        // Pedido e perfil são independentes: carregam juntos.
+        await Promise.all([
+          loadCurrentUser(),
+          loadOrder()
+        ]);
         const openedByMethod = await tryAutoOpenMethod();
         if (!openedByMethod) {
           setAlert("error", "A forma de pagamento não foi recebida. Voltando ao checkout para você selecionar novamente...");
