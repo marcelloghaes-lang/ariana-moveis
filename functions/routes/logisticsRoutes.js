@@ -2284,7 +2284,7 @@ app.patch('/api/admin/logistica/rastreio/:orderId', adminRequired, async (req, r
     const whatsapp = req.body?.notifyCustomer === true
       ? await waMaybeNotifyOrderStatusChange(orderId, toJSON(before), toJSON(after), 'logistica_tracking_patch').catch((error) => ({ ok: false, error: error.message || String(error) }))
       : { skipped: true, reason: 'notifyCustomer_false' };
-    return res.json({ ok: true, order: sellerLogisticsOrderForResponse(after, sid, null), whatsapp });
+    return res.json({ ok: true, order: toJSON(after), whatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar rastreio.' });
   }
@@ -2365,7 +2365,7 @@ app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, asyn
     });
     if (reused) return res.json(reused);
 
-    const providerResult = await callCorreiosPrepostagem(order, { ...(req.body || {}), sender: sellerSenderForLogistics(req) });
+    const providerResult = await callCorreiosPrepostagem(order, req.body || {});
     const result = await saveProviderLogisticsResult({
       order,
       body: req.body || {},
@@ -2446,7 +2446,7 @@ app.post('/api/admin/logistica/etiquetas/frenet/preparar', adminRequired, async 
     if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'Pedido inválido para emissão Frenet.' });
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
-    const providerResult = await callFrenetOrder(order, { ...(req.body || {}), sender: sellerSenderForLogistics(req) });
+    const providerResult = await callFrenetOrder(order, req.body || {});
     const result = await saveProviderLogisticsResult({
       order,
       body: req.body || {},
@@ -2825,7 +2825,7 @@ app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired
     });
     if (reused) return res.json(reused);
 
-    const providerResult = await callCorreiosPrepostagem(order, req.body || {});
+    const providerResult = await callCorreiosPrepostagem(order, { ...(req.body || {}), sender: sellerSenderForLogistics(req) });
     const result = await saveProviderLogisticsResult({
       order,
       body: req.body || {},
@@ -2919,7 +2919,7 @@ app.post('/api/seller/logistica/etiquetas/frenet/preparar', sellerAuthRequired, 
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ ok: false, error: 'Pedido não encontrado.' });
     if (!requireSellerSingleOrderForLabel(order, sid, res)) return;
-    const providerResult = await callFrenetOrder(order, req.body || {});
+    const providerResult = await callFrenetOrder(order, { ...(req.body || {}), sender: sellerSenderForLogistics(req) });
     const result = await saveProviderLogisticsResult({
       order,
       body: req.body || {},
@@ -3010,7 +3010,7 @@ app.patch('/api/seller/logistica/rastreio/:orderId', sellerAuthRequired, async (
     const whatsapp = req.body?.notifyCustomer === true
       ? await waMaybeNotifyOrderStatusChange(orderId, toJSON(before), toJSON(after), 'seller_logistica_tracking_patch').catch((error) => ({ ok: false, error: error.message || String(error) }))
       : { skipped: true, reason: 'notifyCustomer_false' };
-    return res.json({ ok: true, order: toJSON(after), whatsapp });
+    return res.json({ ok: true, order: sellerLogisticsOrderForResponse(after, sid, null), whatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao atualizar rastreio do seller.' });
   }
