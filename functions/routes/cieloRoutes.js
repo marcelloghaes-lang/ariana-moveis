@@ -525,6 +525,13 @@ export default function registerCieloRoutes(app, context = {}) {
         "payment.merchantOrderId": String(cieloData?.MerchantOrderId || ""),
         "payment.sentOrderId": String(cieloData?.Payment?.SentOrderId || cieloData?.SentOrderId || ""),
         "payment.updatedAt": updatedAt,
+        paymentStatus: mapped.captured
+          ? "approved"
+          : mapped.approved
+            ? "authorized"
+            : mapped.code === "denied"
+              ? "rejected"
+              : mapped.code || "pending",
         status: mapped.captured
           ? "pago"
           : mapped.approved
