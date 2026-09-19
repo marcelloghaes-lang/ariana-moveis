@@ -291,15 +291,22 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     };
   }
 
-  async function calculateAuthoritativeCoupon({ body = {}, items = [], baseTotal = 0, userId = null } = {}) {
+  async function calculateAuthoritativeCoupon({ body = {}, items = [], baseTotal = 0, userId = null, user = null } = {}) {
     const code = normalizeCouponCode(body?.totals?.couponCode || body?.couponCode || body?.coupon?.code || body?.coupon || '');
     if (!code) return { code: '', discount: 0, coupon: null };
 
     const paidQuery = paidOrderQuery();
 
     if (code === 'PRIMEIRACOMPRA05') {
-      const hasPreviousPurchase = userId
-        ? await Order.exists({ userId, ...paidQuery })
+      const firstPurchaseIdentities = [];
+      if (userId) firstPurchaseIdentities.push({ userId });
+      const email = String(user?.email || '').trim().toLowerCase();
+      const cpf = onlyDigits(user?.cpf || '');
+      if (email) firstPurchaseIdentities.push({ customerEmail: email });
+      if (cpf) firstPurchaseIdentities.push({ customerCpf: cpf });
+
+      const hasPreviousPurchase = firstPurchaseIdentities.length
+        ? await Order.exists({ $and: [{ $or: firstPurchaseIdentities }, paidQuery] })
         : null;
 
       if (hasPreviousPurchase) {
@@ -518,7 +525,8 @@ export default function registerOrderSupportRoutes(app, context = {}) {
         body,
         items,
         baseTotal: beforeCoupon,
-        userId: req.user?._id || null
+        userId: req.user?._id || null,
+        user: req.user || null
       });
       const total = roundMoney(Math.max(0, beforeCoupon - Number(couponResult.discount || 0)));
 
