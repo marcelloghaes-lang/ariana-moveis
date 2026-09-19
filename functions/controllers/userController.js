@@ -5,7 +5,7 @@ export function createUserController({ User, toJSON, changedKeys, writeAuditLog 
 
   async function updateMe(req, res) {
     try {
-      const allowed = ['name', 'cpf', 'phone', 'city', 'uf'];
+      const allowed = ['name', 'cpf', 'phone', 'birthdate', 'city', 'uf'];
       const patch = {};
       for (const key of allowed) if (req.body[key] !== undefined) patch[key] = req.body[key];
       const before = toJSON(req.user);
