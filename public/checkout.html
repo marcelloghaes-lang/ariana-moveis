@@ -1445,7 +1445,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
         addr = addressesCache.find((a) => !!(a.isDefault || a.default || a.isPrimary || a.primary || a.principal || a.main)) || addressesCache[0];
       }
       const el = document.querySelector(`.addr-card[data-addr-id="${String(addr?.id || addr?._id || '')}"]`);
-      if (el && addr) setAddr(el, String(addr.id || addr._id || ''));
+      if (el && addr) {
+        const normalized = normalizeAddress(addr);
+        const needsUpdate = isGuanhaesAddress(normalized) && !['urban','rural'].includes(normalized.areaType);
+        if (!needsUpdate) setAddr(el, String(addr.id || addr._id || ''));
+      }
     }
 
     function renderAddressSelect() {
