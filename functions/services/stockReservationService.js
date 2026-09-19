@@ -26,10 +26,10 @@ export function getStockReservationMinutes(method = '') {
     return positiveMinutes(process.env.STOCK_RESERVATION_PIX_MINUTES, 90);
   }
   if (normalized === 'boleto') {
-    return positiveMinutes(process.env.STOCK_RESERVATION_BOLETO_MINUTES, 4320);
+    return positiveMinutes(process.env.STOCK_RESERVATION_BOLETO_MINUTES, 5760);
   }
   if (normalized === 'crediario_ariana') {
-    return positiveMinutes(process.env.STOCK_RESERVATION_CREDIARIO_MINUTES, 1440);
+    return positiveMinutes(process.env.STOCK_RESERVATION_CREDIARIO_MINUTES, 10080);
   }
   return positiveMinutes(process.env.STOCK_RESERVATION_DEFAULT_MINUTES, 120);
 }
