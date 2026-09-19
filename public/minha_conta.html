@@ -890,6 +890,14 @@ window.editAddress = function(id) {
 window.chooseAddressForCheckout = function(id) {
   const addr = currentAddresses.find(a => String(a._id || a.id || '') === String(id));
   if (!addr) return;
+  const normalized = normalizeAddress(addr);
+  const city = String(normalized.cidade || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const isGuanhaes = city === 'GUANHAES' || onlyDigits(normalized.cep) === '39740000';
+  if (isGuanhaes && !['urban','rural'].includes(normalized.areaType)) {
+    window.openAddressModal(addr);
+    displayMessage('Informe se este endereço é área urbana ou zona rural.', 'info');
+    return;
+  }
   saveCheckoutAddressSelection(addr);
   syncHeaderCityUFFromAddress(addr);
   displayMessage('Endereço selecionado para o checkout.', 'success');
@@ -1076,7 +1084,8 @@ async function saveAddress(e) {
     isRural: document.getElementById('address-area-type').value === 'rural'
   });
 
-  if (newAddr.cep.length !== 8) return displayMessage('Informe um CEP válido com 8 números.', 'error');
+  if (!['urban','rural'].includes(newAddr.areaType)) return displayMessage('Selecione área urbana ou zona rural.', 'error');
+    if (newAddr.cep.length !== 8) return displayMessage('Informe um CEP válido com 8 números.', 'error');
   if (!newAddr.logradouro || !newAddr.numero || !newAddr.bairro || !newAddr.cidade || newAddr.uf.length !== 2) {
     return displayMessage('Preencha rua, número, bairro, cidade e UF.', 'error');
   }
