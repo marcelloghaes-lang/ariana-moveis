@@ -15,6 +15,8 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     Ticket,
     User,
     authRequired,
+    calculateShipping,
+    getShippingSettings,
     ensureArray,
     mongoose,
     normalizeObjectId,
@@ -27,7 +29,38 @@ export default function registerOrderSupportRoutes(app, context = {}) {
   function onlyDigits(value = '') { return String(value || '').replace(/\D/g, ''); }
   function getMarketplaceFactor() { const p = Math.min(90, Math.max(0, Number(MARKETPLACE_CARD_DISCOUNT_PERCENT || 17))); return roundMoney((100 - p) / 100) || 0.83; }
   function sellerBaseToMarketplacePrice(basePrice = 0) { const base = Number(basePrice || 0); if (!base) return 0; return roundMoney(base / getMarketplaceFactor()); }
-  function isCreditCardPayment(method = '') { const m = String(method || '').toLowerCase(); return m.includes('card') || m.includes('cartao') || m.includes('cartão') || m.includes('credit'); }
+  function normalizePaymentMethod(method = '') {
+    const m = String(method || '').trim().toLowerCase();
+    if (m === 'pix' || m.includes('pix')) return 'pix';
+    if (m === 'boleto' || m.includes('boleto')) return 'boleto';
+    if (m.includes('crediario') || m.includes('crediário') || m.includes('cora')) return 'crediario_ariana';
+    if (m.includes('card') || m.includes('cartao') || m.includes('cartão') || m.includes('credit')) return 'card';
+    return '';
+  }
+  function isCreditCardPayment(method = '') { return normalizePaymentMethod(method) === 'card'; }
+  function usesFullMarketplacePrice(method = '') {
+    const m = normalizePaymentMethod(method);
+    return m === 'card' || m === 'crediario_ariana';
+  }
+  function firstPositive(...values) {
+    for (const value of values) {
+      const n = Number(value || 0);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 0;
+  }
+  function normalizeCouponCode(value = '') {
+    return String(value || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9_-]+/g, '').slice(0, 40);
+  }
+  function paidOrderQuery() {
+    return {
+      $or: [
+        { paymentStatus: { $in: ['approved', 'paid', 'pago', 'captured', 'authorized', 'payment_approved'] } },
+        { 'payment.status': { $in: ['approved', 'paid', 'pago', 'captured', 'authorized', 'payment_approved'] } },
+        { status: { $in: ['approved', 'paid', 'pago', 'payment_approved', 'processing', 'preparing', 'shipped', 'delivered', 'concluido', 'concluído'] } }
+      ]
+    };
+  }
   function getProductSellerBasePrice(product = {}) {
     const candidates = [
       product.sellerBasePrice,
@@ -49,13 +82,14 @@ export default function registerOrderSupportRoutes(app, context = {}) {
 
   function normalizeOrderItemsForCheckout(body = {}) {
     const method = String(body?.payment?.method || body?.paymentMethod || body?.totals?.paymentMethod || '').toLowerCase();
+    const fullPrice = usesFullMarketplacePrice(method);
     const credit = isCreditCardPayment(method);
     return ensureArray(body.items).map((item) => {
       const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
       const rawBase = Number(item.sellerBaseUnitPrice || item.sellerBasePrice || item.basePrice || item.pixPrice || item.price || item.preco || 0) || 0;
       const baseUnit = roundMoney(rawBase);
       const cardUnit = sellerBaseToMarketplacePrice(baseUnit);
-      const unitPrice = credit ? cardUnit : baseUnit;
+      const unitPrice = fullPrice ? cardUnit : baseUnit;
       const sellerBaseTotal = roundMoney(baseUnit * qty);
       const totalPrice = roundMoney(unitPrice * qty);
       return {
@@ -77,6 +111,7 @@ export default function registerOrderSupportRoutes(app, context = {}) {
 
   async function forceOrderItemsSellerBaseFromProducts(items = [], body = {}) {
     const method = String(body?.payment?.method || body?.paymentMethod || body?.totals?.paymentMethod || '').toLowerCase();
+    const fullPrice = usesFullMarketplacePrice(method);
     const credit = isCreditCardPayment(method);
     const ids = Array.from(new Set(
       ensureArray(items)
@@ -87,7 +122,7 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     if (!ids.length) return items;
 
     const products = await Product.find({ _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } })
-      .select('_id name sku sellerId image imageUrl mainImageUrl price preco pixPrice sellerBasePrice sellerBaseUnitPrice basePrice precoBaseSeller precoSeller')
+      .select('_id name sku sellerId sellerName category categoryName brand image imageUrl mainImageUrl price preco pixPrice sellerBasePrice sellerBaseUnitPrice basePrice precoBaseSeller precoSeller active dimensions logistics weight length height width')
       .lean();
 
     const productMap = new Map(products.map((p) => [String(p._id), p]));
@@ -96,19 +131,39 @@ export default function registerOrderSupportRoutes(app, context = {}) {
       const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
       const productId = String(item.productId || item._id || item.id || '').trim();
       const product = productMap.get(productId);
-      if (!product) continue;
+      if (!product || product.active === false) {
+        const err = new Error(`Produto indisponível no catálogo: ${item.name || productId || 'sem identificação'}`);
+        err.statusCode = 409;
+        err.code = 'PRODUCT_UNAVAILABLE';
+        err.productId = productId || undefined;
+        throw err;
+      }
 
       const baseUnit = getProductSellerBasePrice(product);
-      if (baseUnit <= 0) continue;
+      if (baseUnit <= 0) {
+        const err = new Error(`Produto sem preço válido: ${product.name || item.name || productId}`);
+        err.statusCode = 409;
+        err.code = 'INVALID_PRODUCT_PRICE';
+        err.productId = productId || undefined;
+        throw err;
+      }
 
-      const chargedUnit = credit ? sellerBaseToMarketplacePrice(baseUnit) : baseUnit;
+      const chargedUnit = fullPrice ? sellerBaseToMarketplacePrice(baseUnit) : baseUnit;
       const sellerBaseTotal = roundMoney(baseUnit * qty);
       const totalPrice = roundMoney(chargedUnit * qty);
 
       item.name = item.name || product.name || '';
       item.sku = item.sku || product.sku || '';
-      item.sellerId = item.sellerId || product.sellerId || '';
+      item.sellerId = String(product.sellerId || item.sellerId || '').trim();
+      item.sellerName = product.sellerName || item.sellerName || (String(item.sellerId || '').toLowerCase() === 'admin' ? 'Ariana Móveis' : '');
+      item.category = product.categoryName || product.category || item.category || '';
+      item.brand = product.brand || item.brand || '';
       item.image = item.image || product.imageUrl || product.image || product.mainImageUrl || '';
+      item.weightKg = firstPositive(product.logistics?.weightKg, product.logistics?.weight, product.dimensions?.weightKg, product.dimensions?.weight, product.weight);
+      item.lengthCm = firstPositive(product.logistics?.lengthCm, product.logistics?.length, product.dimensions?.lengthCm, product.dimensions?.length, product.length);
+      item.widthCm = firstPositive(product.logistics?.widthCm, product.logistics?.width, product.dimensions?.widthCm, product.dimensions?.width, product.width);
+      item.heightCm = firstPositive(product.logistics?.heightCm, product.logistics?.height, product.dimensions?.heightCm, product.dimensions?.height, product.height);
+      item.originCep = String(product.logistics?.originCep || product.logistics?.cepOrigem || '').replace(/\D/g, '').slice(0, 8);
 
       // Regra principal do marketplace:
       // O seller recebe sobre o preço original/base do produto cadastrado no MongoDB.
@@ -123,6 +178,256 @@ export default function registerOrderSupportRoutes(app, context = {}) {
 
     return items;
   }
+
+  async function calculateAuthoritativeShipping(body = {}, items = [], sellerBaseSubtotal = 0) {
+    if (typeof calculateShipping !== 'function') {
+      const err = new Error('Cálculo de frete indisponível no servidor.');
+      err.statusCode = 503;
+      err.code = 'SHIPPING_CALCULATOR_UNAVAILABLE';
+      throw err;
+    }
+
+    const address = body.shippingAddress || body.address || {};
+    const cep = onlyDigits(address.cep || address.zip || body.cepDestino || body.cep || '').slice(0, 8);
+    if (cep.length !== 8) {
+      const err = new Error('CEP de entrega inválido.');
+      err.statusCode = 400;
+      err.code = 'INVALID_SHIPPING_CEP';
+      throw err;
+    }
+
+    const shippingItems = ensureArray(items).map((item) => ({
+      id: item.productId,
+      productId: item.productId,
+      name: item.name || '',
+      sku: item.sku || '',
+      sellerId: item.sellerId || '',
+      sellerName: item.sellerName || '',
+      category: item.category || '',
+      brand: item.brand || '',
+      quantity: Math.max(1, Number(item.qty || 1) || 1),
+      qty: Math.max(1, Number(item.qty || 1) || 1),
+      unitPrice: Number(item.sellerBaseUnitPrice || 0),
+      totalPrice: Number(item.sellerBaseTotal || 0),
+      pesoKg: Number(item.weightKg || 0),
+      weightKg: Number(item.weightKg || 0),
+      comprimentoCm: Number(item.lengthCm || 0),
+      lengthCm: Number(item.lengthCm || 0),
+      larguraCm: Number(item.widthCm || 0),
+      widthCm: Number(item.widthCm || 0),
+      alturaCm: Number(item.heightCm || 0),
+      heightCm: Number(item.heightCm || 0),
+      originCep: item.originCep || ''
+    }));
+
+    const payload = {
+      cepDestino: cep,
+      destinationCep: cep,
+      cep,
+      cidade: address.cidade || address.city || '',
+      city: address.cidade || address.city || '',
+      uf: address.uf || address.state || '',
+      state: address.uf || address.state || '',
+      shippingAddress: {
+        cep,
+        cidade: address.cidade || address.city || '',
+        city: address.cidade || address.city || '',
+        uf: address.uf || address.state || '',
+        state: address.uf || address.state || ''
+      },
+      subtotal: roundMoney(sellerBaseSubtotal),
+      total: roundMoney(sellerBaseSubtotal),
+      invoiceValue: roundMoney(sellerBaseSubtotal),
+      valorNota: roundMoney(sellerBaseSubtotal),
+      items: shippingItems
+    };
+
+    const result = await calculateShipping(payload);
+    const source = Array.isArray(result?.options) && result.options.length
+      ? result.options
+      : (Array.isArray(result?.quotes) ? result.quotes : []);
+    const available = source.filter((q) => q && q.unavailable !== true && Number.isFinite(Number(q.price)) && Number(q.price) >= 0);
+
+    if (!available.length) {
+      const err = new Error(
+        result?.options?.find?.((q) => q?.unavailable)?.error ||
+        'Não há modalidade de frete disponível para este endereço.'
+      );
+      err.statusCode = 409;
+      err.code = 'SHIPPING_UNAVAILABLE';
+      throw err;
+    }
+
+    const requestedService = String(body.shipping?.service || body.shipping?.name || '').trim().toLowerCase();
+    let selected = null;
+    if (requestedService) {
+      selected = available.find((q) => {
+        const service = String(q.service || '').trim().toLowerCase();
+        const name = String(q.name || q.label || '').trim().toLowerCase();
+        return service === requestedService || name === requestedService;
+      }) || null;
+      if (!selected) {
+        const err = new Error('A modalidade de frete selecionada mudou. Recalcule o frete antes de finalizar.');
+        err.statusCode = 409;
+        err.code = 'SHIPPING_OPTION_CHANGED';
+        throw err;
+      }
+    }
+
+    selected = selected || result?.bestQuote || result?.cheapest || available[0];
+    let price = roundMoney(Number(selected?.price || 0));
+
+    if (typeof getShippingSettings === 'function') {
+      const settings = await getShippingSettings();
+      const freeAbove = Number(settings?.freeShippingAbove ?? settings?.freteGratisAcima ?? 0) || 0;
+      if (freeAbove > 0 && Number(sellerBaseSubtotal || 0) >= freeAbove) price = 0;
+    }
+
+    return {
+      price,
+      quote: selected,
+      calculation: result,
+      cep
+    };
+  }
+
+  async function calculateAuthoritativeCoupon({ body = {}, items = [], baseTotal = 0, userId = null } = {}) {
+    const code = normalizeCouponCode(body?.totals?.couponCode || body?.couponCode || body?.coupon?.code || body?.coupon || '');
+    if (!code) return { code: '', discount: 0, coupon: null };
+
+    const paidQuery = paidOrderQuery();
+
+    if (code === 'PRIMEIRACOMPRA05') {
+      const hasPreviousPurchase = userId
+        ? await Order.exists({ userId, ...paidQuery })
+        : null;
+
+      if (hasPreviousPurchase) {
+        const err = new Error('O cupom PRIMEIRACOMPRA05 é exclusivo para a primeira compra.');
+        err.statusCode = 409;
+        err.code = 'FIRST_PURCHASE_COUPON_NOT_ELIGIBLE';
+        throw err;
+      }
+
+      const discount = roundMoney(Number(baseTotal || 0) * 0.05);
+      return {
+        code,
+        discount,
+        coupon: { code, type: 'percent', value: 5, firstPurchaseOnly: true }
+      };
+    }
+
+    const Coupon = mongoose.models.Coupon;
+    if (!Coupon) {
+      const err = new Error('Serviço de cupons indisponível no momento.');
+      err.statusCode = 503;
+      err.code = 'COUPON_SERVICE_UNAVAILABLE';
+      throw err;
+    }
+
+    const coupon = await Coupon.findOne({ code }).lean();
+    if (!coupon) {
+      const err = new Error('Cupom não encontrado.');
+      err.statusCode = 400;
+      err.code = 'COUPON_NOT_FOUND';
+      throw err;
+    }
+
+    const nowDate = new Date();
+    if (coupon.active === false) {
+      const err = new Error('Cupom inativo.');
+      err.statusCode = 400;
+      err.code = 'COUPON_INACTIVE';
+      throw err;
+    }
+    if (coupon.startsAt && new Date(coupon.startsAt) > nowDate) {
+      const err = new Error('Cupom ainda não está disponível.');
+      err.statusCode = 400;
+      err.code = 'COUPON_NOT_STARTED';
+      throw err;
+    }
+    if (coupon.endsAt && new Date(coupon.endsAt) < nowDate) {
+      const err = new Error('Cupom expirado.');
+      err.statusCode = 400;
+      err.code = 'COUPON_EXPIRED';
+      throw err;
+    }
+
+    const minSubtotal = roundMoney(coupon.minSubtotal || 0);
+    if (minSubtotal > 0 && Number(baseTotal || 0) < minSubtotal) {
+      const err = new Error(`Valor mínimo para este cupom é R$ ${minSubtotal.toFixed(2).replace('.', ',')}.`);
+      err.statusCode = 400;
+      err.code = 'COUPON_MIN_SUBTOTAL';
+      throw err;
+    }
+
+    const sellerIds = Array.from(new Set(items.map((item) => String(item.sellerId || '').trim()).filter(Boolean)));
+    const allowed = ensureArray(coupon.allowedSellerIds).map((v) => String(v || '').trim()).filter(Boolean);
+    const excluded = ensureArray(coupon.excludedSellerIds).map((v) => String(v || '').trim()).filter(Boolean);
+    if (allowed.length && sellerIds.length && !sellerIds.some((id) => allowed.includes(id))) {
+      const err = new Error('Cupom não disponível para os produtos deste carrinho.');
+      err.statusCode = 400;
+      err.code = 'COUPON_SELLER_NOT_ALLOWED';
+      throw err;
+    }
+    if (excluded.length && sellerIds.some((id) => excluded.includes(id))) {
+      const err = new Error('Cupom não disponível para um dos produtos deste carrinho.');
+      err.statusCode = 400;
+      err.code = 'COUPON_SELLER_EXCLUDED';
+      throw err;
+    }
+
+    const usageLimit = Math.max(0, Number(coupon.usageLimit || 0) || 0);
+    if (usageLimit > 0) {
+      const paidUses = await Order.countDocuments({ couponCode: code, ...paidQuery });
+      if (Math.max(Number(coupon.usedCount || 0), paidUses) >= usageLimit) {
+        const err = new Error('Limite de uso do cupom atingido.');
+        err.statusCode = 409;
+        err.code = 'COUPON_USAGE_LIMIT';
+        throw err;
+      }
+    }
+
+    const perCustomerLimit = Math.max(0, Number(coupon.perCustomerLimit || 0) || 0);
+    if (perCustomerLimit > 0 && userId) {
+      const customerUses = await Order.countDocuments({ userId, couponCode: code, ...paidQuery });
+      if (customerUses >= perCustomerLimit) {
+        const err = new Error('Limite de uso deste cupom por cliente atingido.');
+        err.statusCode = 409;
+        err.code = 'COUPON_CUSTOMER_LIMIT';
+        throw err;
+      }
+    }
+
+    let discount = String(coupon.type || 'percent').toLowerCase() === 'fixed'
+      ? roundMoney(coupon.value || 0)
+      : roundMoney(Number(baseTotal || 0) * (Number(coupon.value || 0) / 100));
+
+    const maxDiscount = roundMoney(coupon.maxDiscount || 0);
+    if (maxDiscount > 0) discount = Math.min(discount, maxDiscount);
+    discount = roundMoney(Math.max(0, Math.min(Number(baseTotal || 0), discount)));
+
+    if (discount <= 0) {
+      const err = new Error('Cupom sem desconto aplicável.');
+      err.statusCode = 400;
+      err.code = 'COUPON_NO_DISCOUNT';
+      throw err;
+    }
+
+    return {
+      code,
+      discount,
+      coupon: {
+        id: String(coupon._id || ''),
+        code,
+        type: coupon.type || 'percent',
+        value: Number(coupon.value || 0),
+        maxDiscount,
+        minSubtotal
+      }
+    };
+  }
+
   async function reserveStockForOrderItems(items = []) {
     const reserved = [];
     try {
@@ -176,53 +481,131 @@ export default function registerOrderSupportRoutes(app, context = {}) {
     }
   }
 
-  app.post('/api/orders', async (req, res) => {
+  app.post('/api/orders', authRequired, async (req, res) => {
     let reservedStock = [];
     try {
       const body = req.body || {};
+      const requestedMethod = body.payment?.method || body.paymentMethod || body.totals?.paymentMethod || '';
+      const paymentMethod = normalizePaymentMethod(requestedMethod);
+      if (!paymentMethod) {
+        return res.status(400).json({ ok: false, error: 'Forma de pagamento inválida.', code: 'INVALID_PAYMENT_METHOD' });
+      }
+
+      body.payment = { ...(body.payment || {}), method: paymentMethod };
+      body.paymentMethod = paymentMethod;
+      body.totals = { ...(body.totals || {}), paymentMethod };
+
       const items = normalizeOrderItemsForCheckout(body);
 
       if (!items.length) {
         return res.status(400).json({ ok: false, error: 'Carrinho vazio. Adicione ao menos um produto para finalizar a compra.' });
       }
 
-      reservedStock = await reserveStockForOrderItems(items);
       await forceOrderItemsSellerBaseFromProducts(items, body);
 
-      const subtotal = items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-      const shippingCost = Number(body.shippingCost || body.shipping?.price || 0);
-      const montagemCost = Number(body.montagemCost || 0);
-      const total = Number(body.total || (subtotal + shippingCost + montagemCost));
-      const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean)));
+      const subtotal = roundMoney(items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0));
+      const sellerBaseSubtotal = roundMoney(items.reduce((sum, item) => sum + Number(item.sellerBaseTotal || 0), 0));
+      const fullProductsSubtotal = roundMoney(items.reduce((sum, item) => {
+        const fullUnit = sellerBaseToMarketplacePrice(Number(item.sellerBaseUnitPrice || 0));
+        return sum + (fullUnit * Math.max(1, Number(item.qty || 1) || 1));
+      }, 0));
 
-      const shipping = body.shipping || {};
-      if (shipping && !shipping.prazo && (shipping.deadlineDays || shipping.deliveryTime || shipping.prazoEntrega)) {
-        shipping.prazo = shipping.deliveryTime || shipping.prazoEntrega || `${shipping.deadlineDays} dia(s) úteis`;
+      const shippingResolved = await calculateAuthoritativeShipping(body, items, sellerBaseSubtotal);
+      const shippingCost = roundMoney(shippingResolved.price);
+      const montagemCost = 0;
+      const beforeCoupon = roundMoney(subtotal + shippingCost + montagemCost);
+      const couponResult = await calculateAuthoritativeCoupon({
+        body,
+        items,
+        baseTotal: beforeCoupon,
+        userId: req.user?._id || null
+      });
+      const total = roundMoney(Math.max(0, beforeCoupon - Number(couponResult.discount || 0)));
+
+      const declaredTotal = Number(body.total ?? body.totals?.grandTotal ?? 0);
+      if (Number.isFinite(declaredTotal) && declaredTotal > 0 && Math.abs(roundMoney(declaredTotal) - total) > 0.05) {
+        const err = new Error('Os valores do checkout foram atualizados. Revise o total e tente finalizar novamente.');
+        err.statusCode = 409;
+        err.code = 'CHECKOUT_PRICING_CHANGED';
+        err.pricing = {
+          products: subtotal,
+          shipping: shippingCost,
+          couponCode: couponResult.code,
+          couponDiscount: couponResult.discount,
+          total
+        };
+        throw err;
       }
 
+      reservedStock = await reserveStockForOrderItems(items);
+      const sellerIds = Array.from(new Set(items.map(item => item.sellerId).filter(Boolean)));
+
+      const freshQuote = shippingResolved.quote || {};
+      const shipping = {
+        ...(body.shipping || {}),
+        provider: freshQuote.provider || body.shipping?.provider || '',
+        service: freshQuote.service || body.shipping?.service || '',
+        name: freshQuote.name || freshQuote.label || body.shipping?.name || '',
+        price: shippingCost,
+        quotedPrice: roundMoney(Number(freshQuote.price || shippingCost)),
+        cepDestino: shippingResolved.cep,
+        deadlineDays: freshQuote.deadlineDays ?? body.shipping?.deadlineDays ?? null,
+        prazo: freshQuote.prazo || freshQuote.deliveryTime || body.shipping?.prazo || body.shipping?.deliveryTime || ''
+      };
+      if (!shipping.prazo && shipping.deadlineDays) shipping.prazo = `${shipping.deadlineDays} dia(s) úteis`;
+
+      const payment = {
+        ...(body.payment || {}),
+        method: paymentMethod,
+        gateway: paymentMethod === 'card' ? 'cielo' : (paymentMethod === 'crediario_ariana' ? 'cora' : 'mercadopago')
+      };
+      const paymentDiscountValue = (paymentMethod === 'pix' || paymentMethod === 'boleto')
+        ? roundMoney(Math.max(0, fullProductsSubtotal - sellerBaseSubtotal))
+        : 0;
+      const totals = {
+        products: subtotal,
+        productsBase: sellerBaseSubtotal,
+        productsFull: fullProductsSubtotal,
+        shipping: shippingCost,
+        grandTotalOriginal: roundMoney(fullProductsSubtotal + shippingCost),
+        paymentDiscountValue,
+        couponCode: couponResult.code || '',
+        couponDiscount: roundMoney(couponResult.discount || 0),
+        discountValue: roundMoney(paymentDiscountValue + Number(couponResult.discount || 0)),
+        grandTotal: total,
+        paymentMethod
+      };
+
       const order = await Order.create({
-        userId: normalizeObjectId(body.userId) || null,
+        userId: req.user?._id || null,
         sellerIds,
-        customerName: body.customerName || body.customer?.name || '',
-        customerEmail: body.customerEmail || body.customer?.email || '',
-        customerPhone: body.customerPhone || body.customer?.phone || '',
-        customerCpf: onlyDigits(body.customerCpf || body.cpf || body.customer?.cpf),
-        status: body.status || 'pendente',
-        statusLabel: body.statusLabel || body.status || 'pendente',
+        customerName: req.user?.name || body.customerName || body.customer?.name || '',
+        customerEmail: req.user?.email || body.customerEmail || body.customer?.email || '',
+        customerPhone: req.user?.phone || body.customerPhone || body.customer?.phone || '',
+        customerCpf: onlyDigits(req.user?.cpf || body.customerCpf || body.cpf || body.customer?.cpf),
+        status: 'pending_payment',
+        statusLabel: 'Aguardando pagamento',
+        paymentStatus: paymentMethod === 'crediario_ariana' ? 'AWAITING_PAYMENT' : 'pending',
         items,
         subtotal,
         shippingCost,
         montagemCost,
         total,
-        payment: body.payment || {},
-        stockReservation: buildStockReservation(
-          reservedStock,
-          body.payment?.method || body.paymentMethod || body.totals?.paymentMethod || ''
-        ),
-        shippingAddress: body.shippingAddress || {},
+        totals,
+        couponCode: couponResult.code || '',
+        coupon: couponResult.coupon || null,
+        discountTotal: roundMoney(paymentDiscountValue + Number(couponResult.discount || 0)),
+        pricingIntegrity: {
+          source: 'server',
+          verifiedAt: now(),
+          declaredTotal: Number.isFinite(declaredTotal) ? roundMoney(declaredTotal) : null
+        },
+        payment,
+        stockReservation: buildStockReservation(reservedStock, paymentMethod),
+        shippingAddress: body.shippingAddress || body.address || {},
         shipping,
         notes: body.notes || '',
-        manufacturer: body.manufacturer || sellerIds[0] || ''
+        manufacturer: sellerIds[0] || ''
       });
 
       // Pedido criado no checkout ainda NÃƒO é venda concluída.
@@ -241,7 +624,8 @@ export default function registerOrderSupportRoutes(app, context = {}) {
         error: error.message || 'Erro ao criar pedido',
         code: error.code || undefined,
         productId: error.productId || undefined,
-        availableStock: error.availableStock ?? undefined
+        availableStock: error.availableStock ?? undefined,
+        pricing: error.pricing || undefined
       });
     }
   });
