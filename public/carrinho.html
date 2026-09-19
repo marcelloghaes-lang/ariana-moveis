@@ -825,6 +825,11 @@
     }
 
     window.checkOutOrLogin = function() {
+      try {
+        localStorage.removeItem('ariana_extended_warranty');
+        localStorage.removeItem('ariana_warranty_reviewed_cart_sig');
+      } catch (_) {}
+
       if (cartItems.length === 0) {
         window.displayMessage('Seu carrinho está vazio. Adicione itens antes de finalizar a compra.', 'error', 'message-box');
         return;
