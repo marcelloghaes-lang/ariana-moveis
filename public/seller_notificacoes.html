@@ -581,12 +581,12 @@ tbody td:first-child{border-left:1px solid #edf2f7!important;border-radius:16px 
               <i class="fas ${n.type === 'paid' ? 'fa-check-circle' : n.type === 'shipped' ? 'fa-truck' : 'fa-bell'}"></i>
             </div>
             <div>
-              <div class="font-black text-dark-bg">${n.title}</div>
-              <div class="text-sm text-gray-600 mt-1">${n.message || ''}</div>
-              <div class="muted text-xs font-bold mt-1">Pedido #${shortOrder} · ${n.date}</div>
+              <div class="font-black text-dark-bg">${escapeHtml(n.title)}</div>
+              <div class="text-sm text-gray-600 mt-1">${escapeHtml(n.message || '')}</div>
+              <div class="muted text-xs font-bold mt-1">Pedido #${escapeHtml(shortOrder)} · ${escapeHtml(n.date)}</div>
             </div>
           </div>
-          <span class="pill ${statusClass(n.status)} uppercase font-black text-[10px]">${n.status || (n.readStatus === 'read' ? 'lida' : 'nova')}</span>
+          <span class="pill ${statusClass(n.status)} uppercase font-black text-[10px]">${escapeHtml(n.status || (n.readStatus === 'read' ? 'lida' : 'nova'))}</span>
         </div>
       </a>`;
     }).join('');
