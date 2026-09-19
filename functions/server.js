@@ -3379,6 +3379,7 @@ registerCieloRoutes(app, {
   Product,
   axios,
   adminRequired,
+  authRequired,
   writeAuditLog: async () => null,
   redact,
   toJSON,
