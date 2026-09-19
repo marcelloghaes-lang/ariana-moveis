@@ -7,11 +7,53 @@ export default function registerCieloRoutes(app, context = {}) {
     Product,
     axios,
     adminRequired,
+    authRequired,
     writeAuditLog,
     redact,
     toJSON,
     now
   } = context;
+
+  function normalizeStoredPaymentMethod(value = '') {
+    const method = String(value || '').trim().toLowerCase();
+    if (method.includes('pix')) return 'pix';
+    if (method.includes('boleto')) return 'boleto';
+    if (method.includes('crediario') || method.includes('crediário') || method.includes('cora')) return 'crediario_ariana';
+    if (method.includes('card') || method.includes('cartao') || method.includes('cartão') || method.includes('credit')) return 'card';
+    return '';
+  }
+
+  function assertCardOrderAccess(req, order) {
+    const authenticatedUserId = String(req.user?._id || req.auth?.id || '').trim();
+    const orderUserId = String(order?.userId || '').trim();
+    if (orderUserId && (!authenticatedUserId || authenticatedUserId !== orderUserId)) {
+      const error = new Error('Este pedido pertence a outra conta.');
+      error.statusCode = 403;
+      error.code = 'ORDER_OWNER_MISMATCH';
+      throw error;
+    }
+
+    const storedMethod = normalizeStoredPaymentMethod(
+      order?.payment?.method ||
+      order?.paymentMethod ||
+      order?.totals?.paymentMethod ||
+      ''
+    );
+    if (storedMethod !== 'card') {
+      const error = new Error('A forma de pagamento deste pedido não é cartão.');
+      error.statusCode = 409;
+      error.code = 'PAYMENT_METHOD_MISMATCH';
+      throw error;
+    }
+
+    const amount = Number(order?.total || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const error = new Error('O pedido não possui total válido para cobrança.');
+      error.statusCode = 409;
+      error.code = 'INVALID_ORDER_TOTAL';
+      throw error;
+    }
+  }
 
   function env(name, required = false, fallback = undefined) {
     const value = process.env[name] ?? fallback;
@@ -529,7 +571,7 @@ export default function registerCieloRoutes(app, context = {}) {
     });
   });
 
-  app.post("/api/payments/cielo/sop/access-token", async (req, res) => {
+  app.post("/api/payments/cielo/sop/access-token", authRequired, async (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store");
 
@@ -562,6 +604,8 @@ export default function registerCieloRoutes(app, context = {}) {
           details: null
         });
       }
+
+      assertCardOrderAccess(req, order);
 
       if (paymentAlreadyInProgressOrPaid(order)) {
         return res.status(409).json({
@@ -600,7 +644,7 @@ export default function registerCieloRoutes(app, context = {}) {
     }
   });
 
-  app.post("/api/payments/cielo/credit", async (req, res) => {
+  app.post("/api/payments/cielo/credit", authRequired, async (req, res) => {
     try {
       const body = req.body || {};
       const requestedOrderId =
@@ -635,6 +679,8 @@ export default function registerCieloRoutes(app, context = {}) {
           details: null
         });
       }
+
+      assertCardOrderAccess(req, order);
 
       if (paymentAlreadyInProgressOrPaid(order)) {
         return res.status(409).json({
