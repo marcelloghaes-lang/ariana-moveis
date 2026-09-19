@@ -34,6 +34,7 @@ import registerCrediarioConversationRoutes from './routes/crediarioConversationR
 import registerAdminUserRoutes from './routes/adminUserRoutes.js';
 import createTelevendasRoutes from './routes/televendas/index.js';
 import registerCieloRoutes from './routes/cieloRoutes.js';
+import { releaseExpiredStockReservations } from './services/stockReservationService.js';
 import initModels from './models/index.js';
 
 
@@ -1308,6 +1309,38 @@ const {
   CrediarioRecibo,
   CrediarioCobrancaLog
 } = initModels({ mongoose, DEFAULT_CURRENCY, MAX_DISPATCH_ATTEMPTS, now });
+
+const STOCK_RESERVATION_SWEEP_INTERVAL_MS = Math.max(
+  60 * 1000,
+  Number(process.env.STOCK_RESERVATION_SWEEP_INTERVAL_MS || 5 * 60 * 1000) || 5 * 60 * 1000
+);
+
+async function runStockReservationSweep() {
+  if (mongoose.connection.readyState !== 1) return;
+  try {
+    const result = await releaseExpiredStockReservations({
+      Order,
+      Product,
+      limit: Number(process.env.STOCK_RESERVATION_SWEEP_BATCH || 100) || 100,
+      logger: console
+    });
+
+    if (result?.checked > 0 || result?.failed > 0) {
+      console.log('[stock-reservation] Varredura concluída:', result);
+    }
+  } catch (error) {
+    console.error('[stock-reservation] Falha na varredura:', error?.message || error);
+  }
+}
+
+const stockReservationInitialTimer = setTimeout(runStockReservationSweep, 30 * 1000);
+stockReservationInitialTimer.unref?.();
+
+const stockReservationInterval = setInterval(
+  runStockReservationSweep,
+  STOCK_RESERVATION_SWEEP_INTERVAL_MS
+);
+stockReservationInterval.unref?.();
 
 
 async function createAdminNotification(data = {}) {
@@ -3343,6 +3376,7 @@ app.get('/api/settings/shipping', async (_req, res) => {
 
 registerCieloRoutes(app, {
   Order,
+  Product,
   axios,
   adminRequired,
   writeAuditLog: async () => null,
