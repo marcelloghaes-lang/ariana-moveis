@@ -1345,48 +1345,102 @@ async function calculateShipping(body = {}) {
   const distanceKm = hasRequestDistance ? requestDistance : inferredDistanceKm;
   const hasKnownDistance = distanceKm !== null && distanceKm !== undefined && Number.isFinite(Number(distanceKm));
 
-  // Regra especial de celular pertence à operação própria da Ariana e não pode vazar para seller.
-  const isPhoneProduct = usesArianaLocalRule && arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
-
-  if (isPhoneProduct) {
-    const phoneLocalFree = destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
-    options.push(buildManualShippingOption({
-      service: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo',
-      label: phoneLocalFree ? 'Frete grátis celular' : 'Frete fixo celular',
-      price: phoneLocalFree ? 0 : Number(arianaRule.phoneFlatPrice || 19.90),
-      prazo: arianaRule.prazo || '1 a 3 dias úteis',
-      provider: 'configured',
-      details: phoneLocalFree
-        ? `Frete grátis para celulares no CEP ${arianaRule.freeCepStart || '39740-000'}.`
-        : 'Frete fixo para celulares para qualquer destino.',
-      metadata: { rule: phoneLocalFree ? 'celular_free_local' : 'celular_frete_fixo', destinationCep },
-      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
-    }));
-  }
-
-  const hasPhoneFlatDelivery = isPhoneProduct;
   const normalizedDestinationCity = normalizeShippingText(location.city || '');
   const isGuanhaesDestination =
     normalizedDestinationCity === 'GUANHAES' ||
     normalizedDestinationCity === 'GUANHAES MG' ||
     (destinationCep && destinationCep === normalizeCepValue(arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000'));
 
+  const destinationAccess = classifyDestinationAccess(body, location);
+  const isRuralGuanhaes = isGuanhaesDestination && destinationAccess.type === 'rural';
+  const isUrbanGuanhaes = isGuanhaesDestination && destinationAccess.type === 'urban';
+  const needsGuanhaesAreaConfirmation =
+    usesArianaLocalRule &&
+    arianaRule.enabled !== false &&
+    isGuanhaesDestination &&
+    destinationAccess.type === 'unknown';
+
+  if (needsGuanhaesAreaConfirmation) {
+    const message = 'Em Guanhães, o frete é grátis somente na área urbana. Zona rural até 50 km custa R$ 89,00. Informe no endereço se a entrega é urbana ou rural para calcular corretamente.';
+    const unavailable = {
+      service: 'guanhaes_area_confirmation_required',
+      label: 'Confirme área urbana ou zona rural',
+      name: 'Confirme área urbana ou zona rural',
+      unavailable: true,
+      provider: 'ariana',
+      error: message,
+      metadata: {
+        rule: 'guanhaes_requires_area_type',
+        destinationCep,
+        destinationCity: location.city || 'Guanhães'
+      }
+    };
+    return {
+      ok: true,
+      options: [unavailable],
+      quotes: [],
+      errors: [{ code: 'GUANHAES_AREA_REQUIRED', message }],
+      cheapest: null,
+      bestQuote: null,
+      montagemCost: 0,
+      context: {
+        sellerDetected: sellerCtx.raw || null,
+        sellerId: sellerProfile?.sellerId || sellerIds[0] || null,
+        sellerShippingType: sellerProfile?.type || (hasExternalSeller ? 'marketplace' : 'ariana'),
+        isAriana,
+        usesArianaLocalRule,
+        usesArianaLogistics,
+        destinationCity: location.city || null,
+        destinationState: location.state || null,
+        destinationCep,
+        destinationArea: 'unknown'
+      }
+    };
+  }
+
+  // Celular mantém a regra especial fora da zona rural de Guanhães.
+  // Na zona rural de Guanhães vale a tabela normal da Ariana Logística (R$ 89 até 50 km).
+  const isPhoneProduct = usesArianaLocalRule && arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
+  const phoneRuleApplies = isPhoneProduct && !isRuralGuanhaes;
+
+  if (phoneRuleApplies) {
+    const phoneLocalFree = isUrbanGuanhaes;
+    options.push(buildManualShippingOption({
+      service: phoneLocalFree ? 'celular_free_urbano_guanhaes' : 'celular_frete_fixo',
+      label: phoneLocalFree ? 'Frete grátis - área urbana de Guanhães' : 'Frete fixo celular',
+      price: phoneLocalFree ? 0 : Number(arianaRule.phoneFlatPrice || 19.90),
+      prazo: arianaRule.prazo || '1 a 3 dias úteis',
+      provider: 'configured',
+      details: phoneLocalFree
+        ? 'Frete grátis somente para a área urbana de Guanhães.'
+        : 'Frete fixo para celular fora da área urbana de Guanhães.',
+      metadata: {
+        rule: phoneLocalFree ? 'celular_free_urbano_guanhaes' : 'celular_frete_fixo',
+        destinationArea: destinationAccess.type,
+        destinationCep
+      },
+      deadlineDays: parsePrazoToDeadlineDays(arianaRule.prazo || '1 a 3 dias úteis')
+    }));
+  }
+
+  const hasPhoneFlatDelivery = phoneRuleApplies;
   const hasArianaFree =
     !hasPhoneFlatDelivery &&
     usesArianaLocalRule &&
     arianaRule.enabled !== false &&
-    isGuanhaesDestination;
+    isUrbanGuanhaes;
 
   if (hasArianaFree) {
     options.push(buildManualShippingOption({
-      service: 'ariana_entrega_gratis_guanhaes',
+      service: 'ariana_entrega_gratis_urbano_guanhaes',
       label: arianaRule.label || 'Ariana Entrega',
       price: 0,
       prazo: arianaRule.prazo || '1 a 3 dias úteis',
       provider: 'configured',
-      details: 'Frete grátis para entregas dentro de Guanhães.',
+      details: 'Frete grátis somente para a área urbana de Guanhães.',
       metadata: {
-        rule: 'ariana_logistica_guanhaes_gratis',
+        rule: 'ariana_logistica_urbano_guanhaes_gratis',
+        destinationArea: 'urban',
         destinationCity: location.city || 'Guanhães',
         destinationCep
       },
