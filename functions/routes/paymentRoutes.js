@@ -108,10 +108,61 @@ export default function registerPaymentRoutes(app, context = {}) {
     return { order, orderId: String(order._id), amount: Math.round((amount + Number.EPSILON) * 100) / 100 };
   }
 
+  function buildProviderBodyFromOrder(body = {}, paymentContext = {}) {
+    const order = paymentContext.order || {};
+    const orderId = paymentContext.orderId || String(order._id || '');
+    const fullName = String(order.customerName || order.customer?.name || 'Cliente Ariana').trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = parts.shift() || 'Cliente';
+    const lastName = parts.join(' ') || 'Ariana';
+    const email = String(order.customerEmail || order.customer?.email || '').trim().toLowerCase();
+    const cpf = String(order.customerCpf || order.customer?.cpf || '').replace(/\D/g, '');
+    const phone = String(order.customerPhone || order.customer?.phone || '').replace(/\D/g, '');
+    const address = order.shippingAddress && typeof order.shippingAddress === 'object'
+      ? order.shippingAddress
+      : {};
+
+    return {
+      ...body,
+      orderId,
+      order_id: orderId,
+      email,
+      cpf,
+      document: cpf,
+      phone,
+      firstName,
+      first_name: firstName,
+      lastName,
+      last_name: lastName,
+      address,
+      shippingAddress: address,
+      receiver_address: address,
+      customer: {
+        ...(body.customer || {}),
+        name: fullName,
+        email,
+        cpf,
+        document: cpf,
+        phone,
+        address
+      },
+      payer: {
+        ...(body.payer || {}),
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        identification: cpf ? { type: 'CPF', number: cpf } : undefined,
+        address
+      }
+    };
+  }
+
+
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || process.env.MP_PUBLIC_KEY || '' }); });
 app.post('/api/payments/mp/pix', authRequired, async (req, res) => { try { const body = req.body || {};
   const paymentContext = await loadAuthorizedOrderForPayment(req, body, 'pix');
   const orderId = paymentContext.orderId;
+  const providerBody = buildProviderBodyFromOrder(body, paymentContext);
   await ensureStockReservationForPaymentAttempt({
     Order,
     Product,
@@ -119,7 +170,7 @@ app.post('/api/payments/mp/pix', authRequired, async (req, res) => { try { const
     paymentMethod: 'pix',
     reason: 'mercadopago_pix_attempt'
   });
-  const payload = { transaction_amount: parsePaymentAmount(paymentContext.amount), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId }, external_reference: orderId, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey, authoritativeAmount: true } }); if (response.status >= 200 && response.status < 300) {
+  const payload = { transaction_amount: parsePaymentAmount(paymentContext.amount), description: `Pedido Ariana Móveis ${orderId.slice(-8).toUpperCase()}`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(providerBody), metadata: { orderId }, external_reference: orderId, notification_url: `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey, authoritativeAmount: true } }); if (response.status >= 200 && response.status < 300) {
   const mpNormalized = normalizeMercadoPagoPaymentResponse(response.data);
 
   if (orderId) {
@@ -342,6 +393,7 @@ app.post('/api/payments/mp/boleto', authRequired, async (req, res) => {
     const body = req.body || {};
     const paymentContext = await loadAuthorizedOrderForPayment(req, body, 'boleto');
     const orderId = paymentContext.orderId;
+    const providerBody = buildProviderBodyFromOrder(body, paymentContext);
     await ensureStockReservationForPaymentAttempt({
       Order,
       Product,
@@ -351,12 +403,12 @@ app.post('/api/payments/mp/boleto', authRequired, async (req, res) => {
     });
     const payload = {
       transaction_amount: Number(body.amount || body.total || 0),
-      description: body.description || `Pedido Ariana Móveis`,
+      description: `Pedido Ariana Móveis ${orderId.slice(-8).toUpperCase()}`,
       payment_method_id: 'bolbradesco',
-      payer: buildMercadoPagoPayer(body),
+      payer: buildMercadoPagoPayer(providerBody),
       metadata: { orderId },
-      external_reference: orderId ? String(orderId) : undefined,
-      notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
+      external_reference: orderId,
+      notification_url: `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago`
     };
 
     const { response, idempotencyKey } = await createMercadoPagoPayment(payload);
