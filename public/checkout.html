@@ -279,7 +279,7 @@
                 <div class="pay-method-body">
                   <div>
                     <div class="pay-title">Crediário Ariana</div>
-                    <div class="pay-desc">Carnê Cora em até 15 parcelas</div>
+                    <div class="pay-desc">Crediário próprio Ariana Móveis em até 15 parcelas</div>
                   </div>
                 </div>
               </label>
@@ -412,6 +412,7 @@
     let addressesCache = [];
     let settingsShipping = null;
     let settingsPayments = null;
+    let settingsLoadPromise = null;
     let shippingQuote = null;
 
     let cart = (() => {
@@ -738,26 +739,40 @@ const computeCartTotal = () =>
 
     async function loadSettings() {
       if (settingsShipping && settingsPayments) return { shipping: settingsShipping, payments: settingsPayments };
+      if (settingsLoadPromise) return settingsLoadPromise;
 
-      settingsShipping = normalizeShippingDefaults({});
-      settingsPayments = {};
+      settingsLoadPromise = (async () => {
+        settingsShipping = normalizeShippingDefaults({});
+        settingsPayments = {};
+
+        const paymentTask = (async () => {
+          try {
+            if (typeof window.getPaymentSettings === 'function') {
+              settingsPayments = await window.getPaymentSettings(false);
+            }
+          } catch (_) {}
+        })();
+
+        const shippingTask = (async () => {
+          try {
+            const res = await fetch(`${getApiBaseUrl()}/settings/shipping`, { headers: { "Content-Type": "application/json" } });
+            if (res.ok) {
+              const data = await res.json();
+              const payload = data?.item || data?.shipping || data || {};
+              settingsShipping = normalizeShippingDefaults(payload);
+            }
+          } catch (_) {}
+        })();
+
+        await Promise.allSettled([paymentTask, shippingTask]);
+        return { shipping: settingsShipping, payments: settingsPayments };
+      })();
 
       try {
-        if (typeof window.getPaymentSettings === 'function') {
-          settingsPayments = await window.getPaymentSettings(false);
-        }
-      } catch (_) {}
-
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/settings/shipping`, { headers: { "Content-Type": "application/json" } });
-        if (res.ok) {
-          const data = await res.json();
-          const payload = data?.item || data?.shipping || data || {};
-          settingsShipping = normalizeShippingDefaults(payload);
-        }
-      } catch (_) {}
-
-      return { shipping: settingsShipping, payments: settingsPayments };
+        return await settingsLoadPromise;
+      } finally {
+        settingsLoadPromise = null;
+      }
     }
 
     async function enrichCartShipping() {
@@ -1466,6 +1481,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
                 </div>
                 <p class="mt-2 font-bold text-gray-900">${line1 || "—"}</p>
                 <p class="text-sm text-gray-500">${line2 || "—"}</p>
+                ${n.areaType ? `<p class="text-xs font-bold mt-1 ${n.areaType === 'rural' ? 'text-amber-700' : 'text-green-700'}">${n.areaType === 'rural' ? 'Zona rural' : 'Área urbana'}</p>` : ''}
                 <p class="text-xs text-gray-400 mt-2">Clique para selecionar</p>
               </div>
 
@@ -1478,11 +1494,95 @@ async function quoteShippingForSelectedAddress(addrObj) {
       }).join("");
     }
 
+    function isGuanhaesAddress(addr = {}) {
+      const n = normalizeAddress(addr);
+      const city = String(n.city || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+      return city === 'GUANHAES' || n.cep === '39740000';
+    }
+
+    function requestGuanhaesAreaType(addr = {}) {
+      return new Promise((resolve) => {
+        const current = document.getElementById('guanhaes-area-modal');
+        if (current) current.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'guanhaes-area-modal';
+        overlay.className = 'fixed inset-0 z-[9999] bg-black/55 flex items-center justify-center p-4';
+        overlay.innerHTML = `
+          <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
+            <div class="w-12 h-12 rounded-full bg-blue-50 text-primary-blue flex items-center justify-center text-xl mb-4">
+              <i class="fas fa-truck"></i>
+            </div>
+            <h3 class="text-xl font-black text-gray-900">Este endereço é urbano ou rural?</h3>
+            <p class="text-sm text-gray-600 mt-2">
+              Guanhães usa o mesmo CEP na área urbana e em várias localidades rurais. Precisamos desta informação para calcular o frete correto.
+            </p>
+            <div class="mt-5 space-y-3">
+              <button type="button" data-area="urban" class="w-full rounded-xl bg-primary-blue text-white py-3 px-4 font-black text-left">
+                Área urbana de Guanhães
+                <span class="block text-xs font-medium opacity-90 mt-1">Frete grátis quando a Ariana Logística se aplica.</span>
+              </button>
+              <button type="button" data-area="rural" class="w-full rounded-xl border-2 border-primary-blue text-primary-blue py-3 px-4 font-black text-left">
+                Zona rural / fazenda / sítio / povoado
+                <span class="block text-xs font-medium text-gray-600 mt-1">Até 50 km: R$ 89,00 pela Ariana Logística.</span>
+              </button>
+            </div>
+          </div>`;
+
+        const finish = (value) => {
+          overlay.remove();
+          resolve(value);
+        };
+        overlay.querySelectorAll('[data-area]').forEach((button) => {
+          button.addEventListener('click', () => finish(button.dataset.area || ''));
+        });
+        document.body.appendChild(overlay);
+      });
+    }
+
+    async function persistAddressAreaType(addr, areaType) {
+      const id = String(addr?.id || addr?._id || '').trim();
+      const normalizedType = areaType === 'rural' ? 'rural' : 'urban';
+      if (!id || id.startsWith('address_')) return null;
+
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/addresses/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ areaType: normalizedType, isRural: normalizedType === 'rural' })
+        });
+        if (!res.ok) return null;
+        const data = await res.json().catch(() => ({}));
+        return data?.address || data?.item || data?.data || null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function ensureAddressAreaType(addr) {
+      let normalized = normalizeAddress(addr);
+      if (!isGuanhaesAddress(normalized) || normalized.areaType === 'urban' || normalized.areaType === 'rural') {
+        return normalized;
+      }
+
+      const areaType = await requestGuanhaesAreaType(normalized);
+      normalized = { ...normalized, areaType, isRural: areaType === 'rural' };
+
+      const original = addressesCache.find((a) => String(a.id || a._id || '') === String(normalized.id || ''));
+      if (original) {
+        original.areaType = areaType;
+        original.isRural = areaType === 'rural';
+      }
+      await persistAddressAreaType(original || addr, areaType);
+      renderAddressSelect();
+      return normalized;
+    }
+
     async function setAddr(el, addrId) {
       const addr = addressesCache.find((a) => String(a.id) === String(addrId));
       if (!addr) return;
 
-      selectedAddrObj = normalizeAddress(addr);
+      selectedAddrObj = await ensureAddressAreaType(addr);
       selectedAddrText = `${[selectedAddrObj.street, selectedAddrObj.number].filter(Boolean).join(", ")} - ${[selectedAddrObj.city, selectedAddrObj.state].filter(Boolean).join("/")}`.trim();
       persistCheckoutAddress({ ...(addr || {}), id: addr.id || addr._id || addrId });
 
@@ -1722,8 +1822,17 @@ async function quoteShippingForSelectedAddress(addrObj) {
         alert("Carrinho vazio.");
         return;
       }
+      if (!shippingQuote && selectedAddrObj) {
+        try {
+          selectedAddrObj = await ensureAddressAreaType(selectedAddrObj);
+          await quoteShippingForSelectedAddress(selectedAddrObj);
+          updateTotalsUI();
+        } catch (e) {
+          console.error('[checkout] tentativa final de frete falhou:', e);
+        }
+      }
       if (!shippingQuote) {
-        alert("Não foi possível confirmar o frete deste endereço. Selecione o endereço novamente para recalcular antes de finalizar.");
+        alert("Não foi possível calcular o frete deste endereço. Confira o endereço e tente novamente.");
         goToStep(1);
         return;
       }
@@ -2021,11 +2130,21 @@ async function quoteShippingForSelectedAddress(addrObj) {
       const ok = await bootAuthAndProfile();
       if (!ok) return;
 
-      await loadSettings();
-      await loadAddresses();
-      await hydrateCheckoutProductImages();
+      // Mostra imediatamente o carrinho salvo no dispositivo.
       renderCart();
+
+      // Configurações e endereços são independentes e podem carregar em paralelo.
+      await Promise.allSettled([
+        loadSettings(),
+        loadAddresses()
+      ]);
+
       await applyPaymentSettingsUI();
+
+      // Imagens ausentes são enriquecidas em segundo plano e não bloqueiam a tela.
+      hydrateCheckoutProductImages()
+        .then(() => renderCart())
+        .catch(() => null);
 
       console.log("Tela carregada com API ativa.");
     })();
