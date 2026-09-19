@@ -13,6 +13,7 @@ export default function registerPaymentRoutes(app, context = {}) {
     Product,
     PaymentEvent,
     adminRequired,
+    authRequired,
     getPaymentsSettings,
     getShippingSettings,
     getWhatsappSettings,
@@ -47,21 +48,83 @@ export default function registerPaymentRoutes(app, context = {}) {
     toJSON
   } = context;
 
+  function normalizeCheckoutPaymentMethod(value = '') {
+    const method = String(value || '').trim().toLowerCase();
+    if (method.includes('pix')) return 'pix';
+    if (method.includes('boleto')) return 'boleto';
+    if (method.includes('crediario') || method.includes('crediário') || method.includes('cora')) return 'crediario_ariana';
+    if (method.includes('card') || method.includes('cartao') || method.includes('cartão') || method.includes('credit')) return 'card';
+    return '';
+  }
+
+  async function loadAuthorizedOrderForPayment(req, body = {}, expectedMethod = '') {
+    const rawOrderId = body.orderId || body.order_id || '';
+    const oid = typeof normalizeObjectId === 'function' ? normalizeObjectId(rawOrderId) : rawOrderId;
+    if (!oid) {
+      const error = new Error('Pedido inválido para pagamento.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ORDER_ID';
+      throw error;
+    }
+
+    const order = await Order.findById(oid);
+    if (!order) {
+      const error = new Error('Pedido não encontrado.');
+      error.statusCode = 404;
+      error.code = 'ORDER_NOT_FOUND';
+      throw error;
+    }
+
+    const authenticatedUserId = String(req.user?._id || req.auth?.id || '').trim();
+    const orderUserId = String(order.userId || '').trim();
+    if (orderUserId && (!authenticatedUserId || orderUserId !== authenticatedUserId)) {
+      const error = new Error('Este pedido pertence a outra conta.');
+      error.statusCode = 403;
+      error.code = 'ORDER_OWNER_MISMATCH';
+      throw error;
+    }
+
+    const storedMethod = normalizeCheckoutPaymentMethod(
+      order.payment?.method ||
+      order.paymentMethod ||
+      order.totals?.paymentMethod ||
+      ''
+    );
+    if (storedMethod !== expectedMethod) {
+      const error = new Error('A forma de pagamento deste pedido não corresponde à cobrança solicitada.');
+      error.statusCode = 409;
+      error.code = 'PAYMENT_METHOD_MISMATCH';
+      throw error;
+    }
+
+    const amount = Number(order.total || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const error = new Error('O pedido não possui total válido para cobrança.');
+      error.statusCode = 409;
+      error.code = 'INVALID_ORDER_TOTAL';
+      throw error;
+    }
+
+    return { order, orderId: String(order._id), amount: Math.round((amount + Number.EPSILON) * 100) / 100 };
+  }
+
 app.get('/api/payments/mp/public-key', async (_req, res) => { const settings = await getPaymentsSettings(); return res.json({ ok: true, publicKey: settings.mercadopago?.publicKey || process.env.MP_PUBLIC_KEY || '' }); });
-app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.body || {};
+app.post('/api/payments/mp/pix', authRequired, async (req, res) => { try { const body = req.body || {};
+  const paymentContext = await loadAuthorizedOrderForPayment(req, body, 'pix');
+  const orderId = paymentContext.orderId;
   await ensureStockReservationForPaymentAttempt({
     Order,
     Product,
-    orderId: body.orderId || body.order_id || null,
+    orderId,
     paymentMethod: 'pix',
     reason: 'mercadopago_pix_attempt'
   });
-  const payload = { transaction_amount: parsePaymentAmount(body.amount || body.total || body.transaction_amount || 0), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId: body.orderId || null }, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId: body.orderId || null, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey } }); if (response.status >= 200 && response.status < 300) {
+  const payload = { transaction_amount: parsePaymentAmount(paymentContext.amount), description: body.description || `Pedido Ariana Móveis`, payment_method_id: 'pix', payer: buildMercadoPagoPayer(body), metadata: { orderId }, external_reference: orderId, notification_url: body.notification_url || `${APP_BASE_URL || 'http://localhost:3000'}/api/webhooks/mercadopago` }; const { response, idempotencyKey } = await createMercadoPagoPayment(payload); await writeAuditLog({ scope: 'payments', eventType: 'mercadopago_pix_created', orderId, status: response.status >= 200 && response.status < 300 ? 'success' : 'error', statusCode: response.status, request: payload, response: response.data, metadata: { provider: 'mercadopago', idempotencyKey, authoritativeAmount: true } }); if (response.status >= 200 && response.status < 300) {
   const mpNormalized = normalizeMercadoPagoPaymentResponse(response.data);
 
-  if (body.orderId) {
+  if (orderId) {
     try {
-      await Order.findByIdAndUpdate(body.orderId, {
+      await Order.findByIdAndUpdate(orderId, {
         $set: {
           "payment.provider": "mercadopago",
           "payment.method": "pix",
@@ -85,7 +148,7 @@ app.post('/api/payments/mp/pix', async (req, res) => { try { const body = req.bo
     await syncStockReservationForPayment({
       Order,
       Product,
-      orderId: body.orderId,
+      orderId,
       paymentStatus: mpNormalized.status,
       reasonPrefix: 'mercadopago_pix'
     }).catch((error) => {
@@ -107,7 +170,7 @@ app.post('/api/payments/mp/credit', async (req, res) => {
       reason: 'mercadopago_card_attempt'
     });
     const payload = {
-      transaction_amount: Number(body.amount || body.total || 0),
+      transaction_amount: paymentContext.amount,
       token: body.token,
       description: body.description || `Pedido Ariana Móveis`,
       installments: Number(body.installments || 1),
@@ -274,10 +337,11 @@ app.post('/api/payments/mp/card', async (req, res) => {
 // Funções Mercado Pago de consulta, resolução de pedido e atualização do pedido
 // foram extraídas para o context durante a refatoração. Mantemos aqui apenas as rotas.
 
-app.post('/api/payments/mp/boleto', async (req, res) => {
+app.post('/api/payments/mp/boleto', authRequired, async (req, res) => {
   try {
     const body = req.body || {};
-    const orderId = body.orderId || body.order_id || null;
+    const paymentContext = await loadAuthorizedOrderForPayment(req, body, 'boleto');
+    const orderId = paymentContext.orderId;
     await ensureStockReservationForPaymentAttempt({
       Order,
       Product,
