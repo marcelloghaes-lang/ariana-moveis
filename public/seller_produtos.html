@@ -301,7 +301,43 @@ function productIdOf(p){ return p.id || p._id || p.sku || ''; }
 function getSellerDebugId(sellerMe = {}){
   return String(sellerMe.sellerId || sellerMe.seller_id || sellerMe.id || sellerMe._id || getSellerProfile().sellerId || getSellerProfile().id || getSellerProfile()._id || '').trim();
 }
-async function fetchJson(url){ const response = await fetch(url, { headers: authHeaders() }); const data = await response.json().catch(() => null); return { response, data }; }
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('O servidor demorou para responder. Tente novamente.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function fetchJson(url){
+  const response = await fetchWithTimeout(url, { headers: authHeaders() });
+  const data = await response.json().catch(() => null);
+  return { response, data };
+}
+async function refreshSellerIdentity(){
+  try{
+    const meRes = await fetchWithTimeout(`${API_BASE}/seller/auth/me`, { headers: authHeaders() }, 8000);
+    if (meRes.status === 401 || meRes.status === 403) {
+      clearSellerSession();
+      window.location.href = 'seller_login.html';
+      return null;
+    }
+    const meData = await meRes.json().catch(() => ({}));
+    const sellerMe = meData?.seller || meData?.user || meData || {};
+    if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email || sellerMe.sellerId)) {
+      localStorage.setItem('seller_profile', JSON.stringify(sellerMe));
+      applySellerHeaderName();
+    }
+    return sellerMe;
+  } catch (error) {
+    console.warn('Não foi possível atualizar o perfil do seller agora:', error);
+    return null;
+  }
+}
 function emptyHtml(sellerId='', lastError=''){
   return `<div class="card p-8 text-center text-gray-400 font-bold">Nenhum produto encontrado ainda para este seller.<br><span style="font-size:12px;font-weight:600;color:#64748b">Seller detectado: ${escapeHtml(sellerId || 'não identificado')}${lastError ? ' — ' + escapeHtml(lastError) : ''}</span></div>`;
 }
@@ -330,31 +366,58 @@ function renderMobile(products){
   }).join('');
 }
 async function loadProducts(){
-  if (!ensureSellerSession()) return; applySellerHeaderName();
-  const tbody = $('lista-produtos-corpo'); const mobile = $('mobile-products-list');
-  tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-10">Carregando seus produtos...</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center muted font-bold">Carregando seus produtos...</div>';
+  if (!ensureSellerSession()) return;
+  applySellerHeaderName();
+  const tbody = $('lista-produtos-corpo');
+  const mobile = $('mobile-products-list');
+  tbody.innerHTML = '<tr><td colspan="5" class="text-center muted py-10">Carregando seus produtos...</td></tr>';
+  mobile.innerHTML = '<div class="card p-8 text-center muted font-bold">Carregando seus produtos...</div>';
+
+  // O catálogo é a informação principal desta página. Não bloquear a listagem
+  // esperando /auth/me, fontes, ícones ou qualquer recurso auxiliar.
+  const profileAtStart = getSellerProfile();
+  const sellerIdAtStart = getSellerDebugId(profileAtStart);
+  refreshSellerIdentity();
+
   try{
-    const meRes = await fetch(`${API_BASE}/seller/auth/me`, { headers: authHeaders() });
-    if (meRes.status === 401 || meRes.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
-    const meData = await meRes.json().catch(() => ({})); const sellerMe = meData?.seller || meData?.user || meData || {};
-    if (sellerMe && (sellerMe._id || sellerMe.id || sellerMe.email || sellerMe.sellerId)) { localStorage.setItem('seller_profile', JSON.stringify(sellerMe)); applySellerHeaderName(); }
-    const sellerId = getSellerDebugId(sellerMe);
-    // Única fonte autorizada: o backend autenticado já resolve IDs legados do seller.
-    // Não consultar o catálogo público inteiro (era lento e ampliava a superfície de dados).
     const { response, data } = await fetchJson(`${API_BASE}/seller/products`);
-    if (response.status === 401 || response.status === 403){ clearSellerSession(); window.location.href = 'seller_login.html'; return; }
+    if (response.status === 401 || response.status === 403){
+      clearSellerSession();
+      window.location.href = 'seller_login.html';
+      return;
+    }
     if (!response.ok) throw new Error(data?.error || data?.message || `Erro ${response.status}`);
-    const products = Array.isArray(data) ? data : (Array.isArray(data?.products) ? data.products : (data?.items || data?.docs || []));
-    if (!products.length){ const html = emptyHtml(sellerId,''); tbody.innerHTML = `<tr><td colspan="5">${html}</td></tr>`; mobile.innerHTML = html; return; }
-    renderDesktop(products); renderMobile(products);
-  } catch(e){ console.error(e); tbody.innerHTML = '<tr><td colspan="5" class="py-12 text-center text-red-500 font-bold">Erro ao carregar seus produtos.</td></tr>'; mobile.innerHTML = '<div class="card p-8 text-center text-red-500 font-bold">Erro ao carregar seus produtos.</div>'; }
+
+    const products = Array.isArray(data)
+      ? data
+      : (Array.isArray(data?.products) ? data.products : (Array.isArray(data?.items) ? data.items : (data?.docs || [])));
+
+    if (!products.length){
+      const html = emptyHtml(sellerIdAtStart,'');
+      tbody.innerHTML = `<tr><td colspan="5">${html}</td></tr>`;
+      mobile.innerHTML = html;
+      return;
+    }
+
+    renderDesktop(products);
+    renderMobile(products);
+  } catch(e){
+    console.error(e);
+    const message = escapeHtml(e?.message || 'Erro ao carregar seus produtos.');
+    tbody.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-red-600 font-bold">Não foi possível carregar seus produtos.<br><span style="font-size:12px;font-weight:600">${message}</span><br><button type="button" onclick="loadProducts()" style="margin-top:12px;padding:10px 16px;border-radius:12px;background:#0047AB;color:#fff;font-weight:900">Tentar novamente</button></td></tr>`;
+    mobile.innerHTML = `<div class="card p-8 text-center text-red-600 font-bold">Não foi possível carregar seus produtos.<br><span style="font-size:12px;font-weight:600">${message}</span><br><button type="button" onclick="loadProducts()" style="margin-top:12px;padding:10px 16px;border-radius:12px;background:#0047AB;color:#fff;font-weight:900">Tentar novamente</button></div>`;
+  }
 }
 async function deleteProduct(id){
   if (!id) return alert('Produto sem ID.'); if (!confirm('Deseja excluir este produto?')) return;
   try { const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(id)}`, { method:'DELETE', headers:authHeaders() }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data?.error || data?.message || 'Erro ao excluir produto.'); await loadProducts(); }
   catch(error){ alert(error.message || 'Erro ao excluir produto.'); }
 }
-window.onload = loadProducts;
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadProducts, { once: true });
+} else {
+  loadProducts();
+}
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
 $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
 </script>
