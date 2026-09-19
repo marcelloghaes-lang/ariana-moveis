@@ -1784,10 +1784,13 @@ async function quoteShippingForSelectedAddress(addrObj) {
           return;
         }
 
+        const shippingIdentity = `${shippingQuote?.provider || ''} ${shippingQuote?.service || ''} ${shippingQuote?.name || ''}`.toLowerCase();
+        const isArianaLogistics = shippingIdentity.includes('ariana');
+        const isArianaManagedShipping = isArianaLogistics || shippingIdentity.includes('correios');
         const shippingToSave = shippingQuote ? {
-          provider: String(shippingQuote.provider || "correios"),
-          responsibility: String((shippingQuote.provider || '').toLowerCase()).includes('correios') ? "ariana" : "seller",
-          usesArianaLogistics: String(shippingQuote.provider || '').toLowerCase().includes('correios'),
+          provider: String(shippingQuote.provider || "shipping"),
+          responsibility: isArianaManagedShipping ? "ariana" : "seller",
+          usesArianaLogistics: isArianaLogistics,
           cepOrigem: String(settingsShipping?.originCep || ""),
           cepDestino: shippingQuote.cepDestino,
           service: shippingQuote.service,
