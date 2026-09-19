@@ -21,6 +21,33 @@ try {
 const HEADER_API_BASE = window.API_BASE;
 const HEADER_API_ORIGIN = window.API_ORIGIN;
 
+const HEADER_CACHE_TTL_MS = 5 * 60 * 1000;
+const HEADER_CACHE_PREFIX = 'ariana_header_cache_v1:';
+
+function __headerReadSessionCache(key) {
+  try {
+    const raw = sessionStorage.getItem(HEADER_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.savedAt || (Date.now() - Number(parsed.savedAt)) > HEADER_CACHE_TTL_MS) {
+      sessionStorage.removeItem(HEADER_CACHE_PREFIX + key);
+      return null;
+    }
+    return parsed.value ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function __headerWriteSessionCache(key, value) {
+  try {
+    sessionStorage.setItem(HEADER_CACHE_PREFIX + key, JSON.stringify({
+      savedAt: Date.now(),
+      value
+    }));
+  } catch (_) {}
+}
+
 // =========================================================
 // SEO / GOOGLE SEARCH CONSOLE - URL CANÔNICA ARIANA MÓVEIS
 // Resolve aviso: "Cópia sem página canônica selecionada pelo usuário"
@@ -305,6 +332,16 @@ function __headerBannerMatchesSlot(item, slotName) {
 }
 
 async function __headerFetchBannerCandidates() {
+  if (Array.isArray(window.__HEADER_BANNERS_CACHE__) && window.__HEADER_BANNERS_CACHE__.length) {
+    return window.__HEADER_BANNERS_CACHE__;
+  }
+
+  const cached = __headerReadSessionCache('banners');
+  if (Array.isArray(cached) && cached.length) {
+    window.__HEADER_BANNERS_CACHE__ = cached;
+    return cached;
+  }
+
   const urls = [
     `${HEADER_API_BASE}/banners?slot=header_category_banner`,
     `${HEADER_API_BASE}/banners`,
@@ -313,13 +350,21 @@ async function __headerFetchBannerCandidates() {
 
   for (const url of urls) {
     try {
-      const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!res.ok) continue;
       const data = await res.json();
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.items)) return data.items;
-      if (Array.isArray(data?.banners)) return data.banners;
-      if (data && typeof data === 'object') return [data.data || data.banner || data];
+      const list = Array.isArray(data)
+        ? data
+        : (Array.isArray(data?.items)
+          ? data.items
+          : (Array.isArray(data?.banners)
+            ? data.banners
+            : (data && typeof data === 'object' ? [data.data || data.banner || data] : [])));
+      if (list.length) {
+        window.__HEADER_BANNERS_CACHE__ = list;
+        __headerWriteSessionCache('banners', list);
+        return list;
+      }
     } catch (_) {}
   }
   return [];
@@ -459,6 +504,15 @@ async function carregarCategoriasHeader() {
   `;
 
   let categories = Array.isArray(window.__CATEGORIES_CACHE__) ? window.__CATEGORIES_CACHE__ : null;
+
+  if (!categories) {
+    const cachedCategories = __headerReadSessionCache('categories');
+    if (Array.isArray(cachedCategories) && cachedCategories.length) {
+      categories = cachedCategories;
+      window.__CATEGORIES_CACHE__ = cachedCategories;
+    }
+  }
+
   if (categories) updateQuickCategoryLinks(categories);
 
   if (!categories) {
@@ -472,6 +526,7 @@ async function carregarCategoriasHeader() {
         ? data
         : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.categories) ? data.categories : []));
       window.__CATEGORIES_CACHE__ = categories;
+      if (categories.length) __headerWriteSessionCache('categories', categories);
       updateQuickCategoryLinks(categories);
     } catch (err) {
       console.error('[header] erro ao carregar categorias (Mongo):', err);
