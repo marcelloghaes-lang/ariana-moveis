@@ -1,3 +1,5 @@
+import { buildStockReservation } from '../services/stockReservationService.js';
+
 // ============================================================
 // ROTAS DE PEDIDOS, TICKETS, CONTATO E DENÚNCIAS
 // Extraído de legacyRoutes.js na divisão de rotas - Etapa 6.
@@ -213,6 +215,10 @@ export default function registerOrderSupportRoutes(app, context = {}) {
         montagemCost,
         total,
         payment: body.payment || {},
+        stockReservation: buildStockReservation(
+          reservedStock,
+          body.payment?.method || body.paymentMethod || body.totals?.paymentMethod || ''
+        ),
         shippingAddress: body.shippingAddress || {},
         shipping,
         notes: body.notes || '',
