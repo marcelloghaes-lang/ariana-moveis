@@ -260,7 +260,17 @@ export async function syncStockReservationForPayment({
   if (!orderId) return { ok: false, skipped: true, reason: 'order_id_missing' };
 
   const status = String(paymentStatus || '').trim().toLowerCase();
-  if (['approved', 'paid', 'authorized', 'captured', 'paymentconfirmed', 'payment_confirmed'].includes(status)) {
+  if ([
+    'approved',
+    'paid',
+    'pago',
+    'authorized',
+    'captured',
+    'paymentconfirmed',
+    'payment_confirmed',
+    'pagamento_aprovado',
+    'pagamento_autorizado'
+  ].includes(status)) {
     return commitStockReservation({
       Order,
       orderId,
