@@ -170,13 +170,24 @@ function buildSellerProductPayload(req, existingDoc = null) {
     length: Number(body.length ?? body.comprimento ?? basePayload.length ?? existing.length ?? 0),
     width: Number(body.width ?? body.largura ?? basePayload.width ?? existing.width ?? 0),
     height: Number(body.height ?? body.altura ?? basePayload.height ?? existing.height ?? 0),
-    specs: body.specs ?? body.especificacoes ?? body.technicalSpecs ?? basePayload.specs ?? existing.specs ?? {},
+    specs: body.specs ?? body.especificacoes ?? body.technicalSpecs ?? body.especificacaoTecnica ?? body.specsText ?? basePayload.specs ?? existing.specs ?? {},
     updatedAt: now()
   };
 
-  const originalSpecs = payload.specs && typeof payload.specs === 'object'
-    ? payload.specs
-    : {};
+  const rawSpecs = payload.specs;
+  const technicalSpecsText = String(
+    body.technicalSpecs ??
+    body.especificacaoTecnica ??
+    body.specsText ??
+    (typeof body.especificacoes === 'string' ? body.especificacoes : '') ??
+    ''
+  ).trim();
+  const originalSpecs = rawSpecs && typeof rawSpecs === 'object' && !Array.isArray(rawSpecs)
+    ? { ...rawSpecs }
+    : (String(rawSpecs || '').trim() ? { texto: String(rawSpecs || '').trim() } : {});
+  if (technicalSpecsText && !String(originalSpecs.texto || '').trim()) {
+    originalSpecs.texto = technicalSpecsText;
+  }
   payload.specs = {
     ...originalSpecs,
     sellerCatalog: {

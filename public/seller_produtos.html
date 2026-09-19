@@ -314,7 +314,7 @@ function renderDesktop(products){
       <td><span class="sku-pill">${escapeHtml(p.sku || '-')}</span></td>
       <td><span class="font-black">${escapeHtml(p.stock ?? p.estoque ?? 0)}</span></td>
       <td class="price-main">${money(price)}</td>
-      <td><div class="actions-wrap"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
+      <td><div class="actions-wrap"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}&v=20260919-2" class="action-btn edit"><i class="fas fa-pen"></i><span>Editar</span></a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i><span>Excluir</span></button></div></td>
     </tr>`;
   }).join('');
 }
@@ -325,7 +325,7 @@ function renderMobile(products){
     return `<article class="mobile-product-card">
       <div class="mobile-card-top"><div class="mobile-thumb">${img ? `<img src="${escapeHtml(img)}" alt="">` : `<i class="fas fa-image text-gray-300"></i>`}</div><div class="min-w-0"><div class="mobile-product-name">${escapeHtml(p.name || p.nome || '-')}</div><div class="mobile-product-cat">${escapeHtml(p.category || p.categoryName || p.categoria || 'Produto')}</div></div></div>
       <div class="mobile-meta"><div class="meta-box"><div class="meta-label">SKU</div><div class="meta-value">${escapeHtml(p.sku || '-')}</div></div><div class="meta-box"><div class="meta-label">Estoque</div><div class="meta-value">${escapeHtml(p.stock ?? p.estoque ?? 0)}</div></div><div class="meta-box" style="grid-column:1/-1"><div class="meta-label">Preço base seller</div><div class="meta-value">${money(price)}</div></div></div>
-      <div class="mobile-actions"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}" class="action-btn edit"><i class="fas fa-pen"></i>Editar</a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i>Excluir</button></div>
+      <div class="mobile-actions"><a href="seller_produto_editar.html?id=${encodeURIComponent(id)}&v=20260919-2" class="action-btn edit"><i class="fas fa-pen"></i>Editar</a><button onclick="deleteProduct('${String(id).replace(/'/g, "\\'")}')" class="action-btn delete"><i class="fas fa-trash"></i>Excluir</button></div>
     </article>`;
   }).join('');
 }
