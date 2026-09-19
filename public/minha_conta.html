@@ -829,6 +829,7 @@ async function loadAddresses() {
         <p class="text-sm text-gray-500">${addr.bairro ? addr.bairro + ' • ' : ''}${cityUF}${addr.cep ? ' • CEP ' + formatCEP(addr.cep) : ''}</p>
         ${isPrimary ? `<span class="inline-block mt-3 text-xs font-black px-2 py-1 rounded-full bg-blue-100 text-primary-blue">Principal</span>` : ''}
         <div class="mt-4 flex flex-wrap gap-2">
+          <button type="button" onclick="event.stopPropagation(); window.editAddress('${id}')" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 font-bold text-xs">Editar</button>
           <button type="button" onclick="event.stopPropagation(); window.chooseAddressForCheckout('${id}')" class="px-3 py-2 rounded-lg border border-primary-blue text-primary-blue font-bold text-xs">Usar no checkout</button>
           <button type="button" ${isPrimary ? 'disabled' : ''} onclick="event.stopPropagation(); window.makePrimaryAddress('${id}')" class="px-3 py-2 rounded-lg border font-bold text-xs ${isPrimary ? 'opacity-60 cursor-not-allowed' : ''}">${isPrimary ? 'Endereço principal' : 'Definir principal'}</button>
         </div>
