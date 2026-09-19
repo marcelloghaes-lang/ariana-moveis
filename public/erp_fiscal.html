@@ -17,7 +17,15 @@
     .row{display:grid;grid-template-columns:220px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid #edf0f5}.row:last-child{border:0}.detail{white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px}.note{font-size:12px;color:var(--muted);margin-top:8px}
     .loading{padding:14px;background:#eef5ff;border:1px solid #c9daf4;border-radius:10px;color:#254b7d;margin-top:10px}
     @media(max-width:760px){.wrap{padding:12px}.metrics,.filters{grid-template-columns:1fr}.row{grid-template-columns:1fr}.table{overflow:visible}table{min-width:0}thead{display:none}tbody,tr,td{display:block;width:100%}tr{border:1px solid var(--line);border-radius:14px;padding:12px;margin:0 0 12px;background:#fff}td{border:0;padding:6px 0;display:grid;grid-template-columns:105px 1fr;gap:8px;word-break:break-word}td::before{content:attr(data-label);font-size:11px;font-weight:900;color:var(--muted);text-transform:uppercase}.actions-cell{display:block}.actions-cell::before{display:block;margin-bottom:8px}.actions{gap:8px}.mini{min-height:42px;font-size:12px;flex:1 1 44%}header a{margin-right:10px}}
-  </style>
+  
+/* Ariana ERP — padrão operacional azul/dourado */
+:root{--ariana-blue:#0047ab;--ariana-blue-dark:#00377f;--ariana-yellow:#f4c400}
+body{background:#f2f6fb}
+header,.top{background:linear-gradient(90deg,var(--ariana-blue-dark),var(--ariana-blue))!important;color:#fff!important;border-bottom:0!important;box-shadow:0 4px 16px rgba(0,40,100,.16)}
+header h1,.top h1{color:#fff!important}header small,.top small{color:#dceaff!important}header a,.top a{color:#fff!important}header a:hover,.top a:hover{color:var(--ariana-yellow)!important}
+.card,.box,.hero,.tablebox,.panel{border-radius:8px!important;box-shadow:0 8px 22px rgba(0,49,118,.08)!important}
+.btn{border-radius:6px!important}input:focus,select:focus,textarea:focus{outline:none;border-color:#6c9ddd!important;box-shadow:0 0 0 3px rgba(0,71,171,.09)}
+</style>
 </head>
 <body>
 <header><div><h1>Fiscal / NF-e</h1><small>Histórico fiscal próprio da Ariana</small></div><div><a href="erp_configuracao_fiscal.html">Configuração Fiscal</a><a href="erp_migracao_sige_fiscal.html">Migração fiscal</a><a href="erp_ariana.html">← Central ERP</a></div></header>
