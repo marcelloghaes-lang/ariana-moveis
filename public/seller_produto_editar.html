@@ -355,6 +355,18 @@ try {
 } catch(_e) {}
 
 const $ = (id) => document.getElementById(id);
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('O servidor demorou para responder. Tente novamente.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 const productId = new URLSearchParams(window.location.search).get('id');
 let currentProduct = null;
 let loadedCategories = [];
@@ -575,7 +587,7 @@ async function fetchCategoriesFromBackend() {
   let lastError = null;
   for (const endpoint of endpoints) {
     try {
-      const res = await fetch(`${API_BASE}${endpoint}`, { headers: authHeaders() });
+      const res = await fetchWithTimeout(`${API_BASE}${endpoint}`, { headers: authHeaders() }, 8000);
       const raw = await res.json().catch(() => ({}));
       if (!res.ok || raw.ok === false) {
         lastError = new Error(raw.error || raw.message || `Erro ${res.status} em ${endpoint}`);
@@ -729,35 +741,46 @@ function generateSku() {
 async function loadProduct() {
   if (!ensureSellerSession()) return;
   applySellerHeaderName();
+
   const loadState = $('product-load-state');
   if (loadState) {
     loadState.className = 'rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900';
     loadState.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Carregando dados do produto...';
   }
 
-  // Carrega as categorias SEM depender de um produto selecionado.
-  // Antes, quando a tela era aberta direto sem ?id=..., a função retornava antes
-  // de preencher o select, deixando apenas "Selecione uma Categoria".
-  await loadCategories();
-  syncCategoryFields();
-
   if (!productId) {
     if (loadState) {
       loadState.className = 'rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900';
       loadState.textContent = 'Nenhum produto foi informado para edição.';
     }
-    showToast('Escolha um produto em Meus Produtos para editar. As categorias já foram carregadas.', 'info');
+    showToast('Escolha um produto em Meus Produtos para editar.', 'info');
+    loadCategories().catch(() => null);
     return;
   }
+
+  // Categorias são auxiliares: começam em paralelo, mas nunca impedem o produto
+  // de aparecer no formulário.
+  const categoriesPromise = loadCategories().catch((error) => {
+    console.warn('Falha ao carregar categorias no editor:', error);
+    return null;
+  });
+
   try {
-    const res = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`, { headers: authHeaders() });
+    const res = await fetchWithTimeout(
+      `${API_BASE}/seller/products/${encodeURIComponent(productId)}`,
+      { headers: authHeaders(), cache: 'no-store' },
+      12000
+    );
+
     if (res.status === 401 || res.status === 403) {
       clearSellerSession();
       window.location.href = 'seller_login.html';
       return;
     }
+
     const raw = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(raw.error || raw.message || 'Produto não encontrado.');
+
     const p = raw.product || raw.item || raw;
     currentProduct = p || {};
 
@@ -767,10 +790,6 @@ async function loadProduct() {
     $('p-sku').value = p.sku || '';
     $('p-price').value = p.price ?? p.preco ?? 0;
     $('p-stock').value = p.stock ?? p.estoque ?? 0;
-    setSelectByValue('p-category', p.category || p.categoria || p.categoryName || '');
-    loadSubcategoriesForSelected();
-    setSelectByValue('p-subcategory', p.subcategory || p.subcategoria || p.subcategoryName || '');
-    syncCategoryFields();
     $('p-desc').value = p.description || p.descricao || '';
     $('p-specs').value = parseSpecsToText(p.specs || p.especificacoes || p.technicalSpecs || p.specifications || '');
     $('p-weight').value = p.weight ?? p.pesoKg ?? p.peso ?? '';
@@ -779,19 +798,31 @@ async function loadProduct() {
     $('p-height').value = p.height ?? p.altura ?? '';
     $('p-active').checked = p.active !== false;
     renderPreviewFromProduct(p);
+
+    // Os dados principais já estão na tela; não manter spinner por causa
+    // das categorias.
     if (loadState) {
       loadState.className = 'hidden';
       loadState.textContent = '';
     }
+
+    await categoriesPromise;
+    setSelectByValue('p-category', p.category || p.categoria || p.categoryName || '');
+    loadSubcategoriesForSelected();
+    setSelectByValue('p-subcategory', p.subcategory || p.subcategoria || p.subcategoryName || '');
+    syncCategoryFields();
   } catch (e) {
     console.error(e);
     if (loadState) {
       loadState.className = 'rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800';
-      loadState.textContent = 'Não foi possível carregar os dados deste produto: ' + (e.message || 'erro desconhecido');
+      loadState.innerHTML = 'Não foi possível carregar os dados deste produto: ' +
+        String(e?.message || 'erro desconhecido').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) +
+        '<br><button type="button" onclick="loadProduct()" style="margin-top:10px;padding:8px 12px;border-radius:10px;background:#0047AB;color:white;font-weight:900">Tentar novamente</button>';
     }
     showToast(e.message || 'Falha ao carregar produto.', 'error');
   }
 }
+
 async function buildImagesPayload() {
   const files = Array.from($('file-input')?.files || []);
 
@@ -920,7 +951,11 @@ $('file-input')?.addEventListener('change', () => {
 $('product-form')?.addEventListener('submit', saveProduct);
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
 $('btn-sair')?.addEventListener('click', (e) => { e.preventDefault(); clearSellerSession(); window.location.href = 'seller_login.html'; });
-window.addEventListener('load', loadProduct, { once: true });
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadProduct, { once: true });
+} else {
+  loadProduct();
+}
 </script>
 <script src="js/product-card.js" defer></script>
 <script src="./product-card.js"></script>
