@@ -1,4 +1,4 @@
-import { syncStockReservationForPayment } from '../services/stockReservationService.js';
+import { ensureStockReservationForPaymentAttempt, syncStockReservationForPayment } from '../services/stockReservationService.js';
 
 /* eslint-disable */
 export default function registerCieloRoutes(app, context = {}) {
@@ -585,7 +585,7 @@ export default function registerCieloRoutes(app, context = {}) {
         expiresIn: token.expiresIn
       });
     } catch (error) {
-      return res.status(error.status || 500).json({
+      return res.status(error.status || error.statusCode || 500).json({
         ok: false,
         provider: "cielo",
         stage: "payments/cielo/sop/access-token",
@@ -646,6 +646,14 @@ export default function registerCieloRoutes(app, context = {}) {
           details: null
         });
       }
+
+      await ensureStockReservationForPaymentAttempt({
+        Order,
+        Product,
+        orderId: requestedOrderId,
+        paymentMethod: 'card',
+        reason: 'cielo_card_attempt'
+      });
 
       const { orderId, merchantOrderId, payload, safeAudit } = buildCreditPayload(body, order);
       const response = await cieloRequest("post", "/1/sales/", payload);
