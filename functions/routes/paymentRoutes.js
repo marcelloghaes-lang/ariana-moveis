@@ -9,6 +9,7 @@ import { ensureStockReservationForPaymentAttempt, syncStockReservationForPayment
 export default function registerPaymentRoutes(app, context = {}) {
   const {
     APP_BASE_URL,
+    axios,
     Order,
     Product,
     PaymentEvent,
@@ -47,6 +48,70 @@ export default function registerPaymentRoutes(app, context = {}) {
     normalizeObjectId,
     toJSON
   } = context;
+
+  async function fetchMercadoPagoPaymentById(paymentId) {
+    const id = String(paymentId || '').trim();
+    if (!id) return null;
+
+    if (typeof getMercadoPagoPaymentById === 'function') {
+      return getMercadoPagoPaymentById(id);
+    }
+
+    const settings = await getPaymentsSettings();
+    const accessToken = settings?.mercadopago?.accessToken || process.env.MP_ACCESS_TOKEN || '';
+    if (!accessToken) {
+      const error = new Error('Mercado Pago access token não configurado.');
+      error.statusCode = 503;
+      error.code = 'MP_ACCESS_TOKEN_MISSING';
+      throw error;
+    }
+    if (!axios || typeof axios.get !== 'function') {
+      const error = new Error('Cliente HTTP do Mercado Pago indisponível.');
+      error.statusCode = 503;
+      error.code = 'MP_HTTP_CLIENT_UNAVAILABLE';
+      throw error;
+    }
+
+    const response = await axios.get(
+      `https://api.mercadopago.com/v1/payments/${encodeURIComponent(id)}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        timeout: 30000,
+        validateStatus: () => true
+      }
+    );
+
+    if (response.status < 200 || response.status >= 300) {
+      const error = new Error(response.data?.message || `Mercado Pago retornou HTTP ${response.status} ao consultar pagamento.`);
+      error.statusCode = response.status >= 400 && response.status < 600 ? response.status : 502;
+      error.code = 'MP_PAYMENT_LOOKUP_FAILED';
+      error.details = response.data || null;
+      throw error;
+    }
+
+    return response.data || null;
+  }
+
+  function resolveMercadoPagoOrderId(mpData = {}, fallback = '') {
+    if (typeof resolveOrderIdFromMpPayment === 'function') {
+      const resolved = resolveOrderIdFromMpPayment(mpData, fallback);
+      if (resolved) return String(resolved);
+    }
+
+    const candidates = [
+      mpData?.metadata?.orderId,
+      mpData?.metadata?.order_id,
+      mpData?.external_reference,
+      mpData?.additional_info?.items?.[0]?.orderId,
+      fallback
+    ];
+
+    for (const value of candidates) {
+      const text = String(value || '').trim();
+      if (text) return text;
+    }
+    return '';
+  }
 
   function normalizeCheckoutPaymentMethod(value = '') {
     const method = String(value || '').trim().toLowerCase();
@@ -471,8 +536,8 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
   try {
     const payload = req.body || {};
     const paymentId = payload.data?.id ? String(payload.data.id) : (payload.id ? String(payload.id) : '');
-    const mpData = paymentId ? await getMercadoPagoPaymentById(paymentId) : null;
-    const orderId = resolveOrderIdFromMpPayment(mpData || {}, payload.orderId || payload.external_reference || '');
+    const mpData = paymentId ? await fetchMercadoPagoPaymentById(paymentId) : null;
+    const orderId = resolveMercadoPagoOrderId(mpData || {}, payload.orderId || payload.external_reference || '');
 
     const event = await PaymentEvent.create({
       provider: 'mercadopago',
