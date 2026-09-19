@@ -1360,11 +1360,11 @@ async function calculateShipping(body = {}) {
     destinationAccess.type === 'unknown';
 
   if (needsGuanhaesAreaConfirmation) {
-    const message = 'Em Guanhães, o frete é grátis somente na área urbana. Zona rural até 50 km custa R$ 89,00. Informe no endereço se a entrega é urbana ou rural para calcular corretamente.';
+    const message = 'O valor da entrega será confirmado no checkout após a seleção do endereço.';
     const unavailable = {
-      service: 'guanhaes_area_confirmation_required',
-      label: 'Confirme área urbana ou zona rural',
-      name: 'Confirme área urbana ou zona rural',
+      service: 'ariana_entrega_address_required',
+      label: 'Ariana Entrega',
+      name: 'Ariana Entrega',
       unavailable: true,
       provider: 'ariana',
       error: message,
