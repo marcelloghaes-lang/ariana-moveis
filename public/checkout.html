@@ -999,10 +999,14 @@ async function quoteShippingForSelectedAddress(addrObj) {
         storeCouponResult(null);
         return { code: '', valid: false, value: 0, message: '' };
       }
+      const checkedMethod = document.querySelector('input[name="pay"]:checked')?.value;
+      const paymentMethod = String(selectedPayCode || checkedMethod || 'pix').toLowerCase();
       const payload = {
         code: cleanCode,
         subtotal: Number(baseValue || 0),
         total: Number(baseValue || 0),
+        shippingCost: Number(shippingQuote?.effectivePrice ?? shippingQuote?.price ?? 0) || 0,
+        paymentMethod,
         items: cart.map((item) => ({
           productId: item.id || item.productId || item._id || '',
           sellerId: item.sellerId || '',
@@ -1142,6 +1146,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         paymentDiscountValue,
         couponCode: coupon.code || '',
         couponDiscount: coupon.value || 0,
+        subtotalBeforeCoupon,
         grandTotal: grand,
         paymentMethod: method
       };
@@ -1301,11 +1306,16 @@ async function quoteShippingForSelectedAddress(addrObj) {
   });
   if (!res.ok) {
     let msg = "Erro ao salvar";
+    let data = null;
     try {
-      const j = await res.json();
-      msg = j?.error || j?.message || msg;
+      data = await res.json();
+      msg = data?.error || data?.message || msg;
     } catch (_) {}
-    throw new Error(msg);
+    const error = new Error(msg);
+    error.status = res.status;
+    error.code = data?.code || "";
+    error.data = data;
+    throw error;
   }
   return res.json();
 }
@@ -1691,6 +1701,11 @@ async function quoteShippingForSelectedAddress(addrObj) {
         alert("Carrinho vazio.");
         return;
       }
+      if (!shippingQuote) {
+        alert("Não foi possível confirmar o frete deste endereço. Selecione o endereço novamente para recalcular antes de finalizar.");
+        goToStep(1);
+        return;
+      }
 
       const authUser = user;
       if (!authUser) {
@@ -1735,7 +1750,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
           // Antes da análise, o cliente vê somente o valor da compra.
           // As condições (quantidade de parcelas, divisor, total financiado e vencimentos)
           // são definidas pela Ariana Móveis somente depois da aprovação.
-          const creditBase = Number(totalsComputed.grandTotalOriginal || totalsComputed.grandTotal || 0);
+          const creditBase = Number(totalsComputed.grandTotal || 0);
           const creditBaseCents = Math.round(Math.max(0, creditBase) * 100);
           crediarioSimulation = {
             baseAmount: creditBaseCents / 100,
@@ -1907,7 +1922,19 @@ async function quoteShippingForSelectedAddress(addrObj) {
         window.location.href = `pagamento.html?orderId=${encodeURIComponent(orderId)}&method=${encodeURIComponent(selectedPayCode || 'pix')}`;
       } catch (e) {
         console.error(e);
-        alert(e?.message || "Erro ao finalizar pedido.");
+        if (e?.code === "CHECKOUT_PRICING_CHANGED") {
+          try {
+            const pricing = e?.data?.pricing || {};
+            if (shippingQuote && Number.isFinite(Number(pricing.shipping))) {
+              shippingQuote.price = Number(pricing.shipping);
+              shippingQuote.effectivePrice = Number(pricing.shipping);
+            }
+            updateTotalsUI();
+          } catch (_) {}
+          alert(e?.message || "Os valores foram atualizados. Confira o total e tente novamente.");
+        } else {
+          alert(e?.message || "Erro ao finalizar pedido.");
+        }
       } finally {
         setLoadingButton(btn, false);
       }
@@ -1935,7 +1962,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
         const msg = document.getElementById('coupon-message');
         if (msg) { msg.textContent = code ? 'Validando cupom...' : 'Cupom removido.'; msg.className = 'text-xs mt-2 text-gray-500'; }
         const preview = updateTotalsUI();
-        await validateCouponRemote(code, preview?.grandTotalOriginal || computeCartTotal());
+        await validateCouponRemote(code, preview?.subtotalBeforeCoupon ?? preview?.grandTotal ?? computeCartTotal());
         updateTotalsUI();
       });
 
