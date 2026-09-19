@@ -697,7 +697,7 @@ function parseSpecsToText(specs) {
   if (typeof specs === 'object' && typeof specs.texto === 'string' && specs.texto.trim()) return specs.texto.trim();
   if (typeof specs === 'object' && typeof specs.text === 'string' && specs.text.trim()) return specs.text.trim();
   if (Array.isArray(specs)) return specs.map((item) => typeof item === 'string' ? item : `${item.name || item.label || ''}: ${item.value || ''}`.replace(/^: /, '')).join('\n');
-  if (typeof specs === 'object') return Object.entries(specs).filter(([k]) => !['texto','text'].includes(k)).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
+  if (typeof specs === 'object') return Object.entries(specs).filter(([k]) => !['texto','text','sellerApproval','sellerCatalog'].includes(k)).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
   return String(specs || '');
 }
 function specsTextToObject(text = '') {
@@ -892,7 +892,7 @@ $('file-input')?.addEventListener('change', () => {
     renderPreviewFromProduct(currentProduct || {});
     return;
   }
-  box.innerHTML = files.map((file, index) => `<div class="image-card"><img class="preview-img" src="${URL.createObjectURL(file)}" alt="Nova imagem do produto"><div class="image-label">${index === 0 ? 'Principal • ' : ''}${file.name}</div></div>`).join('');
+  box.innerHTML = files.map((file, index) => `<div class="image-card"><img class="preview-img" src="${URL.createObjectURL(file)}" alt="Nova imagem do produto"><div class="image-label">${index === 0 ? 'Principal • ' : ''}${String(file.name || "").replace(/[&<>"\']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\'":"&#39;"}[m]))}</div></div>`).join('');
 });
 $('product-form')?.addEventListener('submit', saveProduct);
 $('sidebar-toggle')?.addEventListener('click', () => $('sidebar').classList.toggle('-translate-x-full'));
