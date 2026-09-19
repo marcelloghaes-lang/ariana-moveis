@@ -2212,12 +2212,7 @@ app.post('/api/admin/logistica/etiquetas/manual', adminRequired, async (req, res
       whatsapp = await waMaybeNotifyOrderStatusChange(orderId, before, toJSON(after), 'logistica_label_manual').catch((error) => ({ ok: false, error: error.message || String(error) }));
     }
 
-    return res.json({
-      ok: true,
-      etiqueta: sellerLogisticsLabelForResponse(label),
-      order: sellerLogisticsOrderForResponse(after, sid, sellerLogisticsLabelForResponse(label)),
-      whatsapp
-    });
+    return res.json({ ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), whatsapp });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar etiqueta manual.' });
   }
@@ -2368,7 +2363,7 @@ app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, asyn
       order,
       actor: req.admin?.email || req.auth?.email || 'admin'
     });
-    if (reused) return res.json(sellerLogisticsActionResultForResponse(reused, sid));
+    if (reused) return res.json(reused);
 
     const providerResult = await callCorreiosPrepostagem(order, req.body || {});
     const result = await saveProviderLogisticsResult({
