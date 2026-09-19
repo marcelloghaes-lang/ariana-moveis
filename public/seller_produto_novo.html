@@ -461,6 +461,9 @@ async function uploadSellerImageFile(file, index = 0) {
   throw lastError || new Error('Não foi possível enviar a imagem para o backend.');
 }
 
+function escapeSellerPreview(value = '') {
+  return String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
 function renderPreview(files) {
   let box = $('image-preview-box');
   if (!box) {
@@ -474,7 +477,7 @@ function renderPreview(files) {
     const url = URL.createObjectURL(file);
     const card = document.createElement('div');
     card.className = 'border rounded-xl overflow-hidden bg-slate-50';
-    card.innerHTML = `<img src="${url}" alt="Prévia da imagem"><div class="p-2">${index === 0 ? 'Principal • ' : ''}${file.name}</div>`;
+    card.innerHTML = `<img src="${url}" alt="Prévia da imagem"><div class="p-2">${index === 0 ? 'Principal • ' : ''}${escapeSellerPreview(file.name)}</div>`;
     box.appendChild(card);
   });
 }
