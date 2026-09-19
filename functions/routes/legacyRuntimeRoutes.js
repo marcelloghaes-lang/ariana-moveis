@@ -1376,6 +1376,8 @@ async function calculateShipping(body = {}) {
     };
     return {
       ok: true,
+      error: message,
+      message,
       options: [unavailable],
       quotes: [],
       errors: [{ code: 'GUANHAES_AREA_REQUIRED', message }],
@@ -1912,6 +1914,8 @@ async function calculateShipping(body = {}) {
       destinationCity: location.city || null,
       destinationState: location.state || null,
       destinationCep: destinationCep || null,
+      destinationArea: destinationAccess.type,
+      destinationAreaSource: destinationAccess.source,
       locationSource: location.source,
       distanceKm: hasKnownDistance ? Number(distanceKm) : null,
       freeCity: 'Guanhães',
