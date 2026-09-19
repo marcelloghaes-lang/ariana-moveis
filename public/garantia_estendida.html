@@ -6,13 +6,45 @@
 </style></head><body>
 <header class="ar-header"><div class="ar-header-inner"><a class="ar-logo" href="index.html">ARIANA MÓVEIS</a><div class="ar-secure">🔒 Ambiente seguro</div></div></header>
 <main class="warranty-page">
-  <div class="warranty-top"><div><h1 class="ar-title" style="margin-bottom:8px">Muito mais proteção para o seu produto!</h1><p class="ar-card-subtitle" style="margin:0">Escolha uma proteção adicional ou continue sem contratar.</p></div><div class="warranty-product"><img id="product-image" class="warranty-thumb" alt="Produto"><div><strong id="product-name">Produto do carrinho</strong><div id="product-detail" class="ar-row-desc"></div></div></div></div>
+  <div class="warranty-top"><div><h1 class="ar-title" style="margin-bottom:8px">Serviços adicionais</h1><p class="ar-card-subtitle" style="margin:0">Nenhum serviço adicional está sendo comercializado no momento.</p></div><div class="warranty-product"><img id="product-image" class="warranty-thumb" alt="Produto"><div><strong id="product-name">Produto do carrinho</strong><div id="product-detail" class="ar-row-desc"></div></div></div></div>
   <section class="warranty-grid">
-    <article class="warranty-option" id="extended-card"><div class="warranty-icon">🛡️</div><h2>Garantia Estendida</h2><p>Proteção adicional após o término da garantia do fabricante, conforme termos e condições do seguro.</p><label class="warranty-plan"><input type="radio" name="protection" value="extended"><span><b>36 meses</b><br><small>Proteção adicional</small></span><span class="warranty-price" id="extended-price">R$ 0,00</span></label></article>
-    <article class="warranty-option" id="install-card"><div class="warranty-icon">🛠️</div><h2>Serviço de instalação</h2><p>Conte com profissionais especializados para uma instalação segura, eficiente e sem complicações.</p><label class="warranty-plan"><input type="radio" name="protection" value="installation"><span><b>Instalação</b><br><small>Serviço especializado</small></span><span class="warranty-price" id="install-price">R$ 0,00</span></label></article>
+    <article class="warranty-option" id="extended-card"><div class="warranty-icon">🛡️</div><h2>Garantia Estendida</h2><p>Temporariamente indisponível. A Ariana Móveis só disponibilizará este seguro quando houver parceria formal com seguradora e condições específicas para o produto.</p><div class="warranty-plan"><span><b>Indisponível no momento</b><br><small>Nenhuma cobrança será adicionada ao pedido.</small></span></div></article>
+    <article class="warranty-option" id="install-card"><div class="warranty-icon">🛠️</div><h2>Serviço de instalação</h2><p>Este serviço só será exibido quando existir uma modalidade de instalação realmente disponível para a categoria e para a região de entrega.</p><div class="warranty-plan"><span><b>Não disponível para contratação</b><br><small>Nenhum valor será incluído automaticamente.</small></span></div></article>
   </section>
-  <div class="warranty-footer"><a class="skip" href="carrinho.html" id="skip">Agora não</a><button class="continue" id="continue" type="button">Continuar</button></div>
+  <div class="warranty-footer"><a class="continue" href="carrinho.html" id="continue">Continuar para o carrinho</a></div>
 </main>
 <script>
-(function(){const keys=['ariana_moveis_cart','arianaMoveisCart','cart','carrinho','cartItems','shoppingCart'];let cart=[];for(const k of keys){try{const v=JSON.parse(localStorage.getItem(k)||'null');if(Array.isArray(v)&&v.length){cart=v;break}}catch(e){}}const item=cart[cart.length-1]||cart[0]||{};const name=item.name||item.nome||item.title||'Produto do carrinho';const image=item.image||item.imagem||item.imageUrl||item.images?.[0]||'';const price=Number(item.price||item.preco||item.unitPrice||0);document.getElementById('product-name').textContent=name;if(image)document.getElementById('product-image').src=image;else document.getElementById('product-image').style.display='none';document.getElementById('product-detail').textContent=price?price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'';const ext=Math.max(29.9,price*.08),inst=Math.max(24.9,price*.035);document.getElementById('extended-price').textContent=ext.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});document.getElementById('install-price').textContent=inst.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});document.querySelectorAll('input[name=protection]').forEach(r=>r.addEventListener('change',()=>{document.querySelectorAll('.warranty-option').forEach(c=>c.classList.remove('selected'));r.closest('.warranty-option').classList.add('selected')}));function cartSignature(){return cart.map((it)=>{const id=String(it?.id||it?._id||it?.productId||it?.produtoId||it?.name||it?.nome||'produto');const q=parseInt(it?.quantity||1,10)||1;return `${id}:${q}`}).sort().join('|')}function markWarrantyReviewed(){const sig=cartSignature();if(sig)localStorage.setItem('ariana_warranty_reviewed_cart_sig',sig)}document.getElementById('skip').addEventListener('click',(event)=>{event.preventDefault();localStorage.removeItem('ariana_extended_warranty');markWarrantyReviewed();location.href='carrinho.html'});document.getElementById('continue').addEventListener('click',()=>{const r=document.querySelector('input[name=protection]:checked');if(r){localStorage.setItem('ariana_extended_warranty',JSON.stringify({type:r.value,price:r.value==='extended'?ext:inst,productName:name,createdAt:new Date().toISOString()}))}else localStorage.removeItem('ariana_extended_warranty');markWarrantyReviewed();location.href='carrinho.html'})})();
+(function(){
+  try {
+    localStorage.removeItem('ariana_extended_warranty');
+    localStorage.removeItem('ariana_warranty_reviewed_cart_sig');
+  } catch (_) {}
+
+  const keys=['ariana_moveis_cart','arianaMoveisCart','cart','carrinho','cartItems','shoppingCart'];
+  let cart=[];
+  for(const k of keys){
+    try{
+      const v=JSON.parse(localStorage.getItem(k)||'null');
+      if(Array.isArray(v)&&v.length){cart=v;break}
+    }catch(_){}
+  }
+
+  const item=cart[cart.length-1]||cart[0]||{};
+  const name=item.name||item.nome||item.title||'Produto do carrinho';
+  const image=item.image||item.imagem||item.imageUrl||item.images?.[0]||'';
+  const price=Number(item.price||item.preco||item.unitPrice||0);
+
+  const nameEl=document.getElementById('product-name');
+  const imageEl=document.getElementById('product-image');
+  const detailEl=document.getElementById('product-detail');
+
+  if(nameEl) nameEl.textContent=name;
+  if(imageEl){
+    if(image) imageEl.src=image;
+    else imageEl.style.display='none';
+  }
+  if(detailEl) detailEl.textContent=price
+    ? price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+    : '';
+})();
 </script></body></html>
