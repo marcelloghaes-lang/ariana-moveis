@@ -593,6 +593,8 @@ const computeCartTotal = () =>
         city: pick(a.city, a.cidade),
         state: normalizeUF(pick(a.state, a.uf, a.federal_unit)),
         cep: normalizeCep(pick(a.cep, a.zip, a.zip_code, a.postal_code)),
+        areaType: String(pick(a.areaType, a.tipoArea, a.isRural === true ? 'rural' : '') || '').toLowerCase(),
+        isRural: a.isRural === true || String(pick(a.areaType, a.tipoArea, '') || '').toLowerCase() === 'rural',
         nickname: pick(a.nickname, a.name, a.label)
       };
     };
@@ -826,7 +828,7 @@ function normalizeCheckoutShippingOption(q, raw = null) {
   };
 }
 
-async function quoteShippingForCep(cepDestino) {
+async function quoteShippingForCep(cepDestino, addressObj = null) {
   await loadSettings();
   await enrichCartShipping();
 
@@ -835,10 +837,28 @@ async function quoteShippingForCep(cepDestino) {
   // Não usa o total cheio do cartão como valor declarado do frete.
   // Usa exatamente a mesma base enviada pela tela de detalhes do produto.
   const subtotal = computeShippingDeclaredTotal();
+  const normalizedDeliveryAddress = addressObj ? normalizeAddress(addressObj) : null;
   const payload = {
     cepDestino: cleanCep,
     destinationCep: cleanCep,
     cep: cleanCep,
+    cidade: normalizedDeliveryAddress?.city || '',
+    city: normalizedDeliveryAddress?.city || '',
+    uf: normalizedDeliveryAddress?.state || '',
+    state: normalizedDeliveryAddress?.state || '',
+    areaType: normalizedDeliveryAddress?.areaType || '',
+    isRural: normalizedDeliveryAddress?.isRural === true,
+    shippingAddress: normalizedDeliveryAddress ? {
+      cep: cleanCep,
+      logradouro: normalizedDeliveryAddress.street || '',
+      numero: normalizedDeliveryAddress.number || '',
+      complemento: normalizedDeliveryAddress.complement || '',
+      bairro: normalizedDeliveryAddress.neighborhood || '',
+      cidade: normalizedDeliveryAddress.city || '',
+      uf: normalizedDeliveryAddress.state || '',
+      areaType: normalizedDeliveryAddress.areaType || '',
+      isRural: normalizedDeliveryAddress.isRural === true
+    } : undefined,
     subtotal,
     total: subtotal,
     invoiceValue: subtotal,
@@ -957,7 +977,7 @@ async function quoteShippingForSelectedAddress(addrObj) {
   // antes da nova regra de prioridade: Ariana Entrega -> Correios -> Rodocap -> Frenet.
   try { localStorage.removeItem('ariana_selected_shipping'); } catch (_) {}
 
-  return quoteShippingForCep(cep);
+  return quoteShippingForCep(cep, addrObj);
 }
 
     function normalizeCouponCode(value) {
