@@ -1071,9 +1071,18 @@
       };
 
       try {
+        const couponToken =
+          localStorage.getItem('token') ||
+          localStorage.getItem('authToken') ||
+          localStorage.getItem('userToken') ||
+          '';
         const res = await fetch(`${String(API_BASE).replace(/\/+$/, '')}/coupons/validate`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(couponToken ? { Authorization: `Bearer ${couponToken}` } : {})
+          },
           body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
