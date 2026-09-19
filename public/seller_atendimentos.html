@@ -275,6 +275,15 @@ function applySellerHeaderName() {
 
 <script>
 
+function escapeSellerHtml(value = "") {
+    return String(value ?? "").replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function sellerMailto(email = "", pedido = "") {
+    const clean = String(email || "").replace(/[\r\n]/g, "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return "#";
+    return "mailto:" + encodeURIComponent(clean) + "?subject=" + encodeURIComponent("Resposta Ariana Móveis - Pedido " + String(pedido || ""));
+}
+
 async function carregarAtendimentos() {
     if (!ensureSellerSession()) return;
     applySellerHeaderName();
@@ -305,15 +314,15 @@ async function carregarAtendimentos() {
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="text-xs font-bold text-gray-400 italic">${new Date(d.createdAt || d.data).toLocaleString('pt-BR')}</span>
-                            <span class="text-xs font-bold px-2 py-1 rounded ${d.status === 'Novo' ? 'status-novo' : 'status-respondido'}">${d.status}</span>
+                            <span class="text-xs font-bold px-2 py-1 rounded ${d.status === 'Novo' ? 'status-novo' : 'status-respondido'}">${escapeSellerHtml(d.status)}</span>
                         </div>
-                        <h3 class="font-bold text-gray-800">${d.nome} <span class="text-gray-400 font-normal text-sm">(${d.email})</span></h3>
-                        <p class="text-sm text-gray-500 mt-1"><strong>Pedido:</strong> ${d.pedido || 'Não informado'}</p>
-                        <div class="mt-3 p-3 bg-gray-50 rounded-lg text-gray-700 text-sm border-l-4 border-primary-blue italic">"${d.mensagem}"</div>
+                        <h3 class="font-bold text-gray-800">${escapeSellerHtml(d.nome)} <span class="text-gray-400 font-normal text-sm">(${escapeSellerHtml(d.email)})</span></h3>
+                        <p class="text-sm text-gray-500 mt-1"><strong>Pedido:</strong> ${escapeSellerHtml(d.pedido || 'Não informado')}</p>
+                        <div class="mt-3 p-3 bg-gray-50 rounded-lg text-gray-700 text-sm border-l-4 border-primary-blue italic">"${escapeSellerHtml(d.mensagem)}"</div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <a href="mailto:${d.email}?subject=Resposta Ariana Móveis - Pedido ${d.pedido || ''}" 
-                           onclick="marcarComoLido('${d._id}')"
+                        <a href="${escapeSellerHtml(sellerMailto(d.email, d.pedido))}" 
+                           onclick="marcarComoLido('${String(d._id || d.id || '').replace(/'/g, "\\'")}')"
                            class="bg-primary-blue text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-dark-bg transition-all">
                             <i class="fas fa-reply mr-2"></i> Responder
                         </a>
