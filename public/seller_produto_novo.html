@@ -317,16 +317,18 @@ if (editProductId) {
   window.location.replace("seller_produto_editar.html?id=" + encodeURIComponent(editProductId) + "&v=20260919-2");
 }
 
-const API_BASE =
-  window.API_BASE ||
-  localStorage.getItem("API_BASE") ||
-  "https://ariana-backend.onrender.com/api";
+const IS_LOCAL_HOST = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+const PRODUCTION_API_BASE = "https://ariana-backend.onrender.com/api";
+const LOCAL_API_OVERRIDE = IS_LOCAL_HOST ? String(localStorage.getItem("API_BASE") || "").trim() : "";
+const API_BASE = IS_LOCAL_HOST && LOCAL_API_OVERRIDE ? LOCAL_API_OVERRIDE : PRODUCTION_API_BASE;
 
-// IMPORTANTE:
-// Antes esta tela forçava http://localhost:3000/api quando era aberta em 127.0.0.1:5500.
-// Se o backend local não estivesse rodando, o produto nunca era salvo.
-// Agora ela usa o backend de produção por padrão. Para testar local, rode no Console:
-// localStorage.setItem("API_BASE", "http://localhost:3000/api")
+// Em produção, nunca reutilizar um endereço de API salvo durante testes locais.
+try {
+  if (!IS_LOCAL_HOST) {
+    localStorage.removeItem("API_BASE");
+    localStorage.removeItem("API_BASE_URL");
+  }
+} catch(_e) {}
 const $ = (id) => document.getElementById(id);
 
 function getSellerToken() { return localStorage.getItem("seller_token") || localStorage.getItem("sellerToken") || localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("jwt") || ""; }
