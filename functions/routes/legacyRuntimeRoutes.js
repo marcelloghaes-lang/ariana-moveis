@@ -3141,6 +3141,7 @@ async function updateOrderPaymentFromMercadoPago(orderId, method, mpData = {}, e
     const patch = {
       status: approved ? 'pago' : 'pending_payment',
       statusLabel: approved ? 'Pagamento aprovado' : 'Aguardando confirmação do pagamento',
+      paymentStatus: approved ? 'approved' : (status || 'pending'),
       payment: {
         provider: 'mercadopago',
         method,
