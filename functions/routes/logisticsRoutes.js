@@ -2212,7 +2212,12 @@ app.post('/api/admin/logistica/etiquetas/manual', adminRequired, async (req, res
       whatsapp = await waMaybeNotifyOrderStatusChange(orderId, before, toJSON(after), 'logistica_label_manual').catch((error) => ({ ok: false, error: error.message || String(error) }));
     }
 
-    return res.json({ ok: true, etiqueta: normalizeLogisticsLabel(label), order: toJSON(after), whatsapp });
+    return res.json({
+      ok: true,
+      etiqueta: sellerLogisticsLabelForResponse(label),
+      order: sellerLogisticsOrderForResponse(after, sid, sellerLogisticsLabelForResponse(label)),
+      whatsapp
+    });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao gerar etiqueta manual.' });
   }
@@ -2363,7 +2368,7 @@ app.post('/api/admin/logistica/etiquetas/correios/preparar', adminRequired, asyn
       order,
       actor: req.admin?.email || req.auth?.email || 'admin'
     });
-    if (reused) return res.json(reused);
+    if (reused) return res.json(sellerLogisticsActionResultForResponse(reused, sid));
 
     const providerResult = await callCorreiosPrepostagem(order, req.body || {});
     const result = await saveProviderLogisticsResult({
@@ -2522,6 +2527,81 @@ function sellerLogisticsFulfillment(orderDoc = {}, sellerId = '') {
     : {};
   const own = sellers[sid];
   return own && typeof own === 'object' ? own : {};
+}
+
+function sellerLogisticsLabelForResponse(labelDoc = null) {
+  if (!labelDoc) return null;
+  const label = normalizeLogisticsLabel(labelDoc) || {};
+  return {
+    id: String(label._id || label.id || ''),
+    _id: String(label._id || label.id || ''),
+    orderId: String(label.orderId || ''),
+    provider: String(label.provider || ''),
+    service: String(label.service || ''),
+    status: String(label.status || ''),
+    trackingCode: String(label.trackingCode || ''),
+    shippingCost: Number(label.shippingCost || 0),
+    volumes: Math.max(1, Number(label.volumes || 1)),
+    weightKg: Number(label.weightKg || 0),
+    heightCm: Number(label.heightCm || 0),
+    widthCm: Number(label.widthCm || 0),
+    lengthCm: Number(label.lengthCm || 0),
+    notes: String(label.notes || ''),
+    labelType: String(label.labelType || ''),
+    labelUrl: String(label.labelUrl || ''),
+    createdAt: label.createdAt || null,
+    updatedAt: label.updatedAt || null
+  };
+}
+
+function sellerProviderResultForResponse(providerResult = {}) {
+  if (!providerResult || typeof providerResult !== 'object') return {};
+  return {
+    ok: providerResult.ok !== false,
+    preparedOnly: providerResult.preparedOnly === true,
+    providerFallback: providerResult.providerFallback === true,
+    message: String(providerResult.message || ''),
+    trackingCode: String(providerResult.trackingCode || ''),
+    labelUrl: String(providerResult.labelUrl || ''),
+    hasOfficialLabel: providerResult.hasOfficialLabel === true,
+    rotuloPending: providerResult.rotuloPending === true || providerResult?.rotulo?.pending === true,
+    rotulo: providerResult.rotulo && typeof providerResult.rotulo === 'object'
+      ? {
+          ok: providerResult.rotulo.ok !== false,
+          pending: providerResult.rotulo.pending === true,
+          ready: providerResult.rotulo.ready === true,
+          message: String(providerResult.rotulo.message || ''),
+          idRecibo: String(providerResult.rotulo.idRecibo || '')
+        }
+      : undefined
+  };
+}
+
+function sellerLogisticsActionResultForResponse(result = {}, sellerId = '') {
+  const safe = result && typeof result === 'object' ? { ...result } : {};
+  if (safe.etiqueta) safe.etiqueta = sellerLogisticsLabelForResponse(safe.etiqueta);
+  if (safe.order) safe.order = sellerLogisticsOrderForResponse(safe.order, sellerId, safe.etiqueta || null);
+  if (safe.providerResult) safe.providerResult = sellerProviderResultForResponse(safe.providerResult);
+
+  // Respostas de diagnóstico do provedor ficam no backend/auditoria. O seller
+  // recebe somente estado operacional necessário para continuar o fluxo.
+  delete safe.raw;
+  delete safe.payload;
+  delete safe.request;
+  delete safe.response;
+  delete safe.consultaPrepostagem;
+
+  if (safe.rotulo && typeof safe.rotulo === 'object') {
+    safe.rotulo = {
+      ok: safe.rotulo.ok !== false,
+      pending: safe.rotulo.pending === true,
+      ready: safe.rotulo.ready === true,
+      message: String(safe.rotulo.message || ''),
+      idRecibo: String(safe.rotulo.idRecibo || '')
+    };
+  }
+
+  return safe;
 }
 
 function sellerLogisticsOrderForResponse(orderDoc = {}, sellerId = '', label = null) {
@@ -2712,7 +2792,7 @@ app.get('/api/seller/logistica/pedidos', sellerAuthRequired, async (req, res) =>
       pedidos: orders.map((order) => {
         const id = String(order._id || order.id || '');
         const partial = extractSellerIdsFromOrder(order).length > 1;
-        const label = partial ? null : (byOrder.get(id) || null);
+        const label = partial ? null : sellerLogisticsLabelForResponse(byOrder.get(id) || null);
         return sellerLogisticsOrderForResponse(order, sid, label);
       })
     });
@@ -2843,7 +2923,7 @@ app.post('/api/seller/logistica/etiquetas/correios/preparar', sellerAuthRequired
       severity: 'info',
       metadata: { sellerId: sid, preparedOnly: providerResult.preparedOnly === true }
     }).catch(() => null);
-    return res.json(result);
+    return res.json(sellerLogisticsActionResultForResponse(result, sid));
   } catch (error) {
     console.error('[seller logistica correios preparar]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Correios do seller.' });
@@ -2863,7 +2943,7 @@ app.post('/api/seller/logistica/etiquetas/correios/:orderId/rotulo', sellerAuthR
     const label = await LogisticsLabel.findOne({ orderId }).sort({ updatedAt: -1 });
     if (!label) return res.status(404).json({ ok: false, error: 'Etiqueta pendente não encontrada.' });
     const result = await resolvePendingCorreiosLabel({ order, label, actor: req.seller?.email || req.sellerId || 'seller' });
-    return res.json(result);
+    return res.json(sellerLogisticsActionResultForResponse(result, sid));
   } catch (error) {
     console.error('[seller logistica correios consultar rotulo]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao consultar rótulo oficial dos Correios.' });
@@ -2937,7 +3017,7 @@ app.post('/api/seller/logistica/etiquetas/frenet/preparar', sellerAuthRequired, 
       severity: 'info',
       metadata: { sellerId: sid, preparedOnly: providerResult.preparedOnly === true }
     }).catch(() => null);
-    return res.json(result);
+    return res.json(sellerLogisticsActionResultForResponse(result, sid));
   } catch (error) {
     console.error('[seller logistica frenet preparar]', error);
     return res.status(500).json({ ok: false, error: error.message || 'Erro ao preparar Frenet do seller.' });
