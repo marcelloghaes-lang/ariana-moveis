@@ -531,17 +531,22 @@ app.post('/api/admin/banners', adminRequired, async (req, res) => {
   }
 });
 app.get('/api/addresses', authRequired, async (req, res) => res.json((await Address.find({ userId: req.user._id }).sort({ isDefault: -1, createdAt: -1 })).map(toJSON)));
-app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
+app.post('/api/addresses', authRequired, async (req, res) => { const body = req.body || {}; if (body.isDefault) await Address.updateMany({ userId: req.user._id }, { $set: { isDefault: false } }); const areaTypeRaw = String(body.areaType || body.tipoArea || '').trim().toLowerCase(); const areaType = areaTypeRaw === 'rural' ? 'rural' : (areaTypeRaw === 'urban' ? 'urban' : ''); const doc = await Address.create({ userId: req.user._id, name: body.name || '', phone: body.phone || '', cep: body.cep || '', logradouro: body.logradouro || '', numero: body.numero || '', bairro: body.bairro || '', cidade: body.cidade || '', uf: body.uf || '', complemento: body.complemento || '', reference: body.reference || '', areaType, isRural: areaType === 'rural', isDefault: body.isDefault === true }); return res.json({ ok: true, address: toJSON(doc) }); });
 app.patch('/api/addresses/:id', authRequired, async (req, res) => {
   try {
     const oid = normalizeObjectId(req.params.id);
     if (!oid) return res.status(400).json({ ok: false, error: 'ID inválido' });
 
     const body = req.body || {};
-    const allowedFields = ['name', 'phone', 'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'complemento', 'reference'];
+    const allowedFields = ['name', 'phone', 'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'complemento', 'reference', 'areaType', 'isRural'];
     const patch = {};
     for (const key of allowedFields) {
       if (body[key] !== undefined) patch[key] = body[key];
+    }
+    if (body.areaType !== undefined || body.tipoArea !== undefined || body.isRural !== undefined) {
+      const areaRaw = String(body.areaType ?? body.tipoArea ?? (body.isRural === true ? 'rural' : body.isRural === false ? 'urban' : '')).trim().toLowerCase();
+      patch.areaType = areaRaw === 'rural' ? 'rural' : (areaRaw === 'urban' ? 'urban' : '');
+      patch.isRural = patch.areaType === 'rural';
     }
 
     const wantsDefault =
