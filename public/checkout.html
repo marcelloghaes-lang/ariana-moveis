@@ -594,7 +594,8 @@ const computeCartTotal = () =>
         state: normalizeUF(pick(a.state, a.uf, a.federal_unit)),
         cep: normalizeCep(pick(a.cep, a.zip, a.zip_code, a.postal_code)),
         areaType: String(pick(a.areaType, a.tipoArea, a.isRural === true ? 'rural' : '') || '').toLowerCase(),
-        isRural: a.isRural === true || String(pick(a.areaType, a.tipoArea, '') || '').toLowerCase() === 'rural',
+        isRural: String(pick(a.areaType, a.tipoArea, a.isRural === true ? 'rural' : '') || '').toLowerCase() === 'rural' ? true :
+          (String(pick(a.areaType, a.tipoArea, '') || '').toLowerCase() === 'urban' ? false : null),
         nickname: pick(a.nickname, a.name, a.label)
       };
     };
@@ -847,7 +848,7 @@ async function quoteShippingForCep(cepDestino, addressObj = null) {
     uf: normalizedDeliveryAddress?.state || '',
     state: normalizedDeliveryAddress?.state || '',
     areaType: normalizedDeliveryAddress?.areaType || '',
-    isRural: normalizedDeliveryAddress?.isRural === true,
+    isRural: normalizedDeliveryAddress?.areaType ? normalizedDeliveryAddress.isRural === true : undefined,
     shippingAddress: normalizedDeliveryAddress ? {
       cep: cleanCep,
       logradouro: normalizedDeliveryAddress.street || '',
@@ -857,7 +858,7 @@ async function quoteShippingForCep(cepDestino, addressObj = null) {
       cidade: normalizedDeliveryAddress.city || '',
       uf: normalizedDeliveryAddress.state || '',
       areaType: normalizedDeliveryAddress.areaType || '',
-      isRural: normalizedDeliveryAddress.isRural === true
+      isRural: normalizedDeliveryAddress.areaType ? normalizedDeliveryAddress.isRural === true : undefined
     } : undefined,
     subtotal,
     total: subtotal,
