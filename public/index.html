@@ -1707,9 +1707,9 @@ const loadProducts = async () => {
       if (!products.length) throw new Error('Produtos ausentes no índice da home.');
     } catch (_) {
       try {
-        products = normalizeListResponse(await apiRequest('/seller/products'));
-      } catch (_) {
         products = normalizeListResponse(await apiRequest('/products'));
+      } catch (_) {
+        products = normalizeListResponse(await apiRequest('/seller/products'));
       }
     }
 
