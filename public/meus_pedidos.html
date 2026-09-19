@@ -209,24 +209,27 @@
             const addressSpan = document.querySelector('#client-address-display span');
             if (!addressSpan) return;
 
-            if (user && (user.id || user._id || user.uid)) {
+            if (user && (user.id || user._id || user.uid || user.email)) {
                 try {
-                    const me = await apiFetch('/auth/me');
-                    const addr = me?.address || me?.endereco || me?.user?.address || me?.user?.endereco;
+                    const payload = await apiFetch('/addresses');
+                    const addresses = Array.isArray(payload)
+                        ? payload
+                        : (payload?.addresses || payload?.items || payload?.data || []);
 
+                    const addr = addresses.find((item) => item?.isDefault === true) || addresses[0] || null;
                     if (addr) {
-                        const street = addr.street || addr.rua || '';
-                        const number = addr.number || addr.numero || '';
-                        const city = addr.city || addr.cidade || '';
-                        const state = addr.state || addr.uf || '';
+                        const street = addr.logradouro || addr.street || addr.rua || '';
+                        const number = addr.numero || addr.number || '';
+                        const city = addr.cidade || addr.city || '';
+                        const state = addr.uf || addr.state || '';
                         const text = [
                             street,
-                            number ? `${number}` : '',
-                            city ? `- ${city}` : '',
+                            number ? `, ${number}` : '',
+                            city ? ` - ${city}` : '',
                             state ? `/${state}` : ''
                         ]
                             .filter(Boolean)
-                            .join(' ')
+                            .join('')
                             .replace(/\s+-\s+/g, ' - ')
                             .replace(/\s+\//g, '/');
 
@@ -236,11 +239,11 @@
                         }
                     }
                 } catch (e) {
-                    console.error('Erro ao carregar endereço do cliente:', e);
+                    console.warn('Não foi possível carregar o endereço do cliente:', e);
                 }
             }
 
-            addressSpan.textContent = "Rua Olegário de Andrade, 54A - Guanhães/MG";
+            addressSpan.textContent = "Endereço de entrega não cadastrado";
         }
 
         window.updateClientHeaderUI = (user) => {
