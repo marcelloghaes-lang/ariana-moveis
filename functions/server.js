@@ -2848,8 +2848,7 @@ app.post('/api/coupons/validate', async (req, res, next) => {
       } catch (_) {}
     }
 
-    const identities = couponCustomerQuery(req, req.body || {});
-    if (!identities.length) {
+    if (!authenticatedUser) {
       return res.status(401).json({
         ok: false,
         valid: false,
@@ -2859,30 +2858,27 @@ app.post('/api/coupons/validate', async (req, res, next) => {
       });
     }
 
-    const alreadyUsed = await Order.exists({
+    const identities = couponCustomerQuery(req, req.body || {});
+    const alreadyPurchased = await Order.exists({
       $and: [
         { $or: identities },
         {
           $or: [
-            { 'totals.couponCode': code },
-            { couponCode: code },
-            { coupon: code },
-            { 'coupon.code': code }
+            { paymentStatus: { $in: ['approved', 'paid', 'pago', 'captured', 'authorized', 'payment_approved'] } },
+            { 'payment.status': { $in: ['approved', 'paid', 'pago', 'captured', 'authorized', 'payment_approved'] } },
+            { status: { $in: ['approved', 'paid', 'pago', 'payment_approved', 'processing', 'preparing', 'shipped', 'delivered', 'concluido', 'concluído'] } }
           ]
-        },
-        {
-          status: { $nin: ['cancelled', 'canceled', 'cancelado', 'failed', 'rejected'] }
         }
       ]
     });
 
-    if (alreadyUsed) {
+    if (alreadyPurchased) {
       return res.status(409).json({
         ok: false,
         valid: false,
         code,
         discountValue: 0,
-        message: 'Este cupom já foi utilizado nesta conta.'
+        message: 'Este cupom é exclusivo para a primeira compra.'
       });
     }
 
