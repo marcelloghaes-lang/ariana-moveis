@@ -232,6 +232,15 @@
                 <input type="text" id="address-state" placeholder="UF" required maxlength="2" class="border p-3 rounded uppercase">
               </div>
 
+              <div>
+                <label for="address-area-type" class="block text-xs font-black text-gray-600 mb-2">ÁREA DE ENTREGA</label>
+                <select id="address-area-type" required class="w-full border p-3 rounded bg-white">
+                  <option value="urban">Área urbana</option>
+                  <option value="rural">Zona rural / fazenda / sítio / povoado</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Em Guanhães, o frete grátis vale somente para a área urbana. Zona rural segue a tabela da Ariana Logística.</p>
+              </div>
+
               <div class="flex gap-4 pt-2">
                 <button type="submit" class="flex-1 bg-primary-blue text-white font-bold py-3 rounded-lg">SALVAR</button>
                 <button type="button" onclick="document.getElementById('modal-endereco').classList.add('hidden')" class="px-6 py-3 border rounded-lg">CANCELAR</button>
@@ -593,6 +602,8 @@ function normalizeAddress(addr = {}) {
     bairro: addr.bairro || addr.neighborhood || addr.district || '',
     cidade: addr.cidade || addr.city || addr.localidade || addr.municipio || '',
     uf: normalizeUF(addr.uf || addr.UF || addr.state || addr.estado || ''),
+    areaType: String(addr.areaType || addr.tipoArea || (addr.isRural === true ? 'rural' : '') || '').toLowerCase(),
+    isRural: addr.isRural === true || String(addr.areaType || addr.tipoArea || '').toLowerCase() === 'rural',
     isDefault: !!(addr.isDefault || addr.default || addr.isPrimary || addr.primary || addr.principal || addr.main)
   };
 }
@@ -1018,7 +1029,9 @@ async function saveAddress(e) {
     complemento: document.getElementById('address-complement').value.trim(),
     bairro: document.getElementById('address-neighborhood').value.trim(),
     cidade: document.getElementById('address-city').value.trim(),
-    uf: normalizeUF(document.getElementById('address-state').value)
+    uf: normalizeUF(document.getElementById('address-state').value),
+    areaType: document.getElementById('address-area-type').value,
+    isRural: document.getElementById('address-area-type').value === 'rural'
   });
 
   if (newAddr.cep.length !== 8) return displayMessage('Informe um CEP válido com 8 números.', 'error');
