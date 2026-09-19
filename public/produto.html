@@ -955,9 +955,9 @@ async function loadPaymentsSettingsForProduct() {
             }
 
             try {
-                let response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
+                let response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
                 if (!response.ok) {
-                    response = await fetch(`${API_BASE}/products/${encodeURIComponent(productId)}`);
+                    response = await fetch(`${API_BASE}/seller/products/${encodeURIComponent(productId)}`);
                 }
                 if (!response.ok) {
                     throw new Error(`Produto não encontrado (${response.status})`);
