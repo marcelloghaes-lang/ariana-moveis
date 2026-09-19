@@ -800,7 +800,7 @@ const SERVICE_NAMES = { '03298': 'PAC', '03328': 'SEDEX', '03220': 'SEDEX Hoje',
 let correiosTokenCache = { token: null, exp: 0 };
 function correiosCfg(settings = null) { const cfg = settings && settings.correios ? settings.correios : {}; return { user: envFirst('CORREIOS_USER'), pass: envFirst('CORREIOS_PASS'), cartao: envFirst('CORREIOS_CARTAO'), contrato: envFirst('CORREIOS_CONTRATO'), dr: envFirst('CORREIOS_DR') || '0', originCep: normalizeDigits(cfg.origemCep || envFirst('LOJA_ORIGEM_CEP')), services: (Array.isArray(cfg.servicos) && cfg.servicos.length ? cfg.servicos : parseServices(envFirst('CORREIOS_SERVICOS'))), pesoKgPadrao: Number(cfg.pesoKgPadrao || 1), alturaCmPadrao: Number(cfg.alturaCmPadrao || 10), larguraCmPadrao: Number(cfg.larguraCmPadrao || 15), comprimentoCmPadrao: Number(cfg.comprimentoCmPadrao || 20), valorDeclaradoPadrao: Number(cfg.valorDeclaradoPadrao || 0), tokenUrl: 'https://api.correios.com.br/token/v1/autentica/cartaopostagem', precoUrl: 'https://api.correios.com.br/preco/v1/nacional' }; }
 async function getCorreiosToken(settings = null) { const cfg = correiosCfg(settings); const nowTs = Date.now(); if (correiosTokenCache.token && correiosTokenCache.exp > nowTs) return correiosTokenCache.token; const user = String(cfg.user || '').trim(); const pass = String(cfg.pass || '').trim(); if (!user || !pass) throw new Error('Correios: CORREIOS_USER/CORREIOS_PASS ausentes.'); if (!cfg.cartao) throw new Error('Correios: CORREIOS_CARTAO ausente.'); const auth = Buffer.from(`${user}:${pass}`).toString('base64'); const body = { numero: cfg.cartao, contrato: cfg.contrato || undefined, dr: cfg.dr ? Number(cfg.dr) : undefined }; const r = await axios.post(cfg.tokenUrl, body, { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const expiresIn = Number(r.data?.expires_in || 3000); const token = r.data?.token; if (!token) throw new Error('Correios: token não retornou.'); correiosTokenCache.token = token; correiosTokenCache.exp = nowTs + Math.max(60, expiresIn - 60) * 1000; return token; }
-async function quoteCorreios(body = {}, settings = null) { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
+async function quoteCorreios(body = {}, settings = null, originCepOverride = '') { const shippingSettings = settings || await getShippingSettings(); const cfg = correiosCfg(shippingSettings); const token = await getCorreiosToken(shippingSettings); const cepOrigem = normalizeDigits(originCepOverride || cfg.originCep); const cepDestino = normalizeDigits(body.cepDestino || body.cep || body.destinationCep || ''); if (cepOrigem.length !== 8) throw new Error('LOJA_ORIGEM_CEP inválido (8 dígitos)'); if (cepDestino.length !== 8) throw new Error('cepDestino inválido (8 dígitos)'); const pesoKgNum = Number(body.pesoKg || body.weightKg || body.weight || cfg.pesoKgPadrao || 0); const psObjeto = toGrams(pesoKgNum); if (!psObjeto) throw new Error('pesoKg inválido (ex: 0.3, 1, 2.5)'); if (pesoKgNum > Number((shippingSettings.carriers?.correios || {}).maxWeightKg || 30)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_WEIGHT', message: 'Correios: limite máximo excedido.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum } }; } let comprimento = positiveIntOrNull(body.comprimento || body.comprimentoCm || body.length || cfg.comprimentoCmPadrao); let largura = positiveIntOrNull(body.largura || body.larguraCm || body.width || cfg.larguraCmPadrao); let altura = positiveIntOrNull(body.altura || body.alturaCm || body.height || cfg.alturaCmPadrao); const hasDims = !!(comprimento && largura && altura); const maxSide = Math.max(Number(comprimento || 0), Number(largura || 0), Number(altura || 0)); if (hasDims && maxSide > Number((shippingSettings.carriers?.correios || {}).maxDimensionCm || 100)) { return { ok: true, quotes: [], errors: [{ code: 'CORREIOS_LIMIT_SIZE', message: 'Correios: maior lado acima do limite configurado.' }], bestQuote: null, meta: { cepOrigem, cepDestino, pesoKg: pesoKgNum, dimensionsUsed: { comprimento: Number(comprimento), largura: Number(largura), altura: Number(altura) } } }; } const tpObjeto = hasDims ? '2' : '1'; const parametrosProduto = (cfg.services || []).map((coProduto, idx) => { const item = { coProduto: String(coProduto), nuRequisicao: String(idx + 1).padStart(4, '0'), cepOrigem, cepDestino, psObjeto, tpObjeto, nuUnidade: '' }; if (cfg.contrato) item.nuContrato = String(cfg.contrato); const drNum = Number(cfg.dr); if (Number.isFinite(drNum) && drNum > 0) item.nuDR = drNum; if (tpObjeto === '2') { item.comprimento = comprimento; item.largura = largura; item.altura = altura; } if (Number(cfg.valorDeclaradoPadrao || 0) > 0) item.vlDeclarado = Number(cfg.valorDeclaradoPadrao || 0); return item; }); const r = await axios.post(cfg.precoUrl, { idLote: String(Date.now()), parametrosProduto }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 20000 }); const rawList = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.itens) ? r.data.itens : Array.isArray(r.data?.resultado) ? r.data.resultado : Array.isArray(r.data?.parametrosProduto) ? r.data.parametrosProduto : (r.data ? [r.data] : []); const quotes = []; const errors = []; for (const item of rawList) { const coProduto = String(item?.coProduto || ''); const txErro = item?.txErro ? String(item.txErro) : ''; if (txErro) { errors.push({ service: coProduto, name: SERVICE_NAMES[coProduto] || coProduto, message: txErro, raw: item }); continue; } const resolvedDeadlineDays = pickDeadline(item);
             const resolvedPrazo = resolvedDeadlineDays
         ? `${resolvedDeadlineDays} dia(s) úteis`
         : ((coProduto === '03298')
@@ -967,6 +967,59 @@ function getSellerContext(body = {}) {
   };
 }
 
+
+function getShippingSellerIds(body = {}) {
+  const ids = [];
+  const push = (value) => {
+    const id = String(value || '').trim();
+    if (id && !ids.includes(id)) ids.push(id);
+  };
+  push(body.sellerId);
+  for (const item of (Array.isArray(body.items) ? body.items : [])) push(item?.sellerId);
+  return ids;
+}
+
+function isArianaShippingSellerId(value = '') {
+  const id = normalizeShippingText(value);
+  return !id || id === 'ADMIN' || id === 'ARIANA' || id === 'ARIANAMOVEIS' || id === 'ARIANA MOVEIS' || id === 'ARIANA MOVEIS LTDA';
+}
+
+async function resolveSellerShippingProfile(body = {}) {
+  if (!Seller) return null;
+  const sellerIds = getShippingSellerIds(body).filter((id) => !isArianaShippingSellerId(id));
+  if (sellerIds.length !== 1) return null;
+
+  const sellerId = sellerIds[0];
+  let seller = null;
+  try {
+    seller = await Seller.findOne({ sellerId }).lean();
+    if (!seller && mongoose?.Types?.ObjectId?.isValid?.(sellerId)) {
+      seller = await Seller.findById(sellerId).lean();
+    }
+  } catch (_) {
+    seller = null;
+  }
+  if (!seller) return { sellerId, found: false, originCep: '', type: 'marketplace', ownCarrier: false };
+
+  const meta = seller.metadata && typeof seller.metadata === 'object' ? seller.metadata : {};
+  const type = String(
+    meta.tipoLogistica ||
+    meta.shippingType ||
+    (meta.transpPropria === true || meta.ownCarrier === true ? 'propria' : 'marketplace')
+  ).trim().toLowerCase() || 'marketplace';
+
+  return {
+    sellerId: String(seller.sellerId || seller._id || sellerId),
+    sellerName: String(seller.storeName || seller.displayName || meta.factoryName || '').trim(),
+    found: true,
+    originCep: normalizeCepValue(meta.cepColeta || meta.pickupCep || meta.cep_coleta || ''),
+    type,
+    ownCarrier: meta.transpPropria === true || meta.ownCarrier === true || meta.transportadoraPropria === true || type === 'propria',
+    carrierName: String(meta.transportadoraNome || meta.carrierName || '').trim(),
+    carrierDeadline: String(meta.transportadoraPrazo || meta.carrierDeadline || '').trim()
+  };
+}
+
 function getShippingOriginCepFromBody(body = {}) {
   const direct = normalizeCepValue(
     body.originCep ||
@@ -1101,14 +1154,14 @@ function normalizeFrenetQuote(row = {}) {
   };
 }
 
-async function quoteFrenet(body = {}, settings = null) {
+async function quoteFrenet(body = {}, settings = null, originCepOverride = '') {
   const shippingSettings = settings || await getShippingSettings();
   const cfg = shippingSettings?.carriers?.frenet || {};
   const token = String(cfg.token || process.env.FRENET_TOKEN || process.env.FRENET_API_TOKEN || '').trim();
   if (!cfg.enabled) return { ok: true, quotes: [], skipped: true, reason: 'frenet_disabled' };
   if (!token) throw new Error('FRENET_TOKEN não configurado.');
 
-  const sellerCep = normalizeCepValue(cfg.origemCep || process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || shippingSettings?.correios?.origemCep || '');
+  const sellerCep = normalizeCepValue(originCepOverride || cfg.origemCep || process.env.FRENET_ORIGIN_CEP || process.env.LOJA_ORIGEM_CEP || shippingSettings?.correios?.origemCep || '');
   const recipientCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
   if (!sellerCep) throw new Error('CEP de origem da Frenet não configurado.');
   if (!recipientCep) throw new Error('CEP de destino inválido para cotação Frenet.');
@@ -1171,22 +1224,43 @@ async function calculateShipping(body = {}) {
   const productPrice = Number(body.productPrice || body.price || body.valorNota || body.invoiceValue || body.subtotal || 0);
   const destinationCep = normalizeCepValue(body.cepDestino || body.cep || body.destinationCep || body.shippingAddress?.cep || '');
   const sellerCtx = getSellerContext(body);
+  const sellerProfile = await resolveSellerShippingProfile(body);
   const location = await resolveDestinationLocation(body);
   const configuredOriginCep = normalizeCepValue(settings?.correios?.origemCep || process.env.LOJA_ORIGEM_CEP || arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000');
-  const sellerOriginCep = getShippingOriginCepFromBody(body);
+  const requestOriginCep = getShippingOriginCepFromBody(body);
+  const sellerOriginCep = sellerProfile?.originCep || requestOriginCep;
   const arianaLocalOriginCep = normalizeCepValue(arianaRule.localOriginCep || arianaRule.freeCepStart || '39740000');
-  const originCep = sellerOriginCep || configuredOriginCep;
-  const inferredDistanceKm = await getDistanceKm(arianaLocalOriginCep || originCep, destinationCep);
+
+  const sellerIds = getShippingSellerIds(body);
+  const hasExternalSeller = sellerIds.some((id) => !isArianaShippingSellerId(id));
+  const allSellerRefsAreAriana = sellerIds.length > 0 && sellerIds.every((id) => isArianaShippingSellerId(id));
+  const isAriana =
+    body.shippingRule === 'ariana' ||
+    body.isArianaOrder === true ||
+    (!hasExternalSeller && (allSellerRefsAreAriana || sellerCtx.isAriana));
+
+  // Regra crítica: "enabled" significa apenas que a tabela Ariana existe.
+  // Ela NÃO autoriza aplicar a tabela da Ariana a produtos de sellers.
+  const explicitArianaLogistics =
+    body.shippingRule === 'ariana_local' ||
+    body.useArianaLocalRule === true ||
+    body.useArianaLogistics === true ||
+    body.enableArianaLogistics === true;
+  const usesArianaLocalRule = arianaRule.enabled !== false && (isAriana || explicitArianaLogistics);
+  const usesArianaLogistics = usesArianaLocalRule;
+  const isSNDigital = sellerCtx.isSNDigital;
+
+  // Para seller em logística marketplace, o CEP de coleta cadastrado é a origem.
+  // Para produto da Ariana, usa a origem oficial da Ariana.
+  const originCep = usesArianaLocalRule
+    ? (arianaLocalOriginCep || configuredOriginCep)
+    : (sellerOriginCep || configuredOriginCep);
+  const inferredDistanceKm = await getDistanceKm(originCep, destinationCep);
   const distanceKm = Number(body.distanceKm || body.km || inferredDistanceKm || 0);
   const options = [];
-  const isAriana = body.shippingRule === 'ariana' || body.isArianaOrder === true || sellerCtx.isAriana;
-  const isLocalSellerOrigin = Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep);
-  // Ariana Logística é a logística local oficial do marketplace.
-  // Ela também cobre a regra antiga chamada SN Digital; para evitar duplicidade, mostramos apenas Ariana Logística.
-  const usesArianaLocalRule = arianaRule.enabled !== false || isAriana || isLocalSellerOrigin || body.shippingRule === 'ariana_local' || body.useArianaLocalRule === true;
-  const isSNDigital = false;
-  const usesArianaLogistics = arianaRule.enabled !== false || usesArianaLocalRule || body.useArianaLogistics === true || body.enableArianaLogistics === true || businessRules?.rodocap?.appliesToArianaLogistics === true;
-  const isPhoneProduct = arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
+
+  // Regra especial de celular pertence à operação própria da Ariana e não pode vazar para seller.
+  const isPhoneProduct = usesArianaLocalRule && arianaRule.phoneFlatEnabled !== false && bodyHasPhoneProduct(body);
 
   if (isPhoneProduct) {
     const phoneLocalFree = destinationCep && cepInRange(destinationCep, arianaRule.freeCepStart, arianaRule.freeCepEnd);
@@ -1417,7 +1491,7 @@ async function calculateShipping(body = {}) {
 
   if (frenetAllowed) {
     try {
-      const quoted = await quoteFrenet(body, settings);
+      const quoted = await quoteFrenet(body, settings, originCep);
       if (Array.isArray(quoted.quotes)) {
         options.push(...quoted.quotes.map((q) => ({
           service: q.service,
@@ -1463,7 +1537,7 @@ async function calculateShipping(body = {}) {
   if (correiosAllowed) {
     correiosAttempted = true;
     try {
-      const quoted = await quoteCorreios(body, settings);
+      const quoted = await quoteCorreios(body, settings, originCep);
       const validCorreiosQuotes = Array.isArray(quoted.quotes)
         ? quoted.quotes
           .map(q => ({
@@ -1592,7 +1666,7 @@ async function calculateShipping(body = {}) {
   }
 
   const ownDelivery = settings.carriers?.ownDelivery || {};
-  if (!hasPhoneFlatDelivery && !hasArianaFree && !usesArianaLocalRule && !isSNDigital && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
+  if (!hasPhoneFlatDelivery && !hasArianaFree && usesArianaLocalRule && isAriana && ownDelivery.enabled && Number(distanceKm || 0) > 0) {
     const own = calculateOwnDelivery(distanceKm, ownDelivery.tiers || []);
     if (own.available) options.push(buildManualShippingOption({ service: 'own_delivery', label: 'Entrega Própria', price: own.price, prazo: '1 a 3 dias úteis', provider: 'configured' }));
   }
@@ -1660,8 +1734,11 @@ async function calculateShipping(body = {}) {
     montagemCost,
     context: {
       sellerDetected: sellerCtx.raw || null,
+      sellerId: sellerProfile?.sellerId || sellerIds[0] || null,
+      sellerShippingType: sellerProfile?.type || (hasExternalSeller ? 'marketplace' : 'ariana'),
+      sellerOriginCep: sellerProfile?.originCep || null,
       isAriana,
-      isLocalSellerOrigin,
+      isLocalSellerOrigin: Boolean(arianaLocalOriginCep && sellerOriginCep && sellerOriginCep === arianaLocalOriginCep),
       usesArianaLocalRule,
       isPhoneProduct,
       isSNDigital,
