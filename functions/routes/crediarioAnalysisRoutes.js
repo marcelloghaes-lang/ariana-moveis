@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { calculateArianaScore, suggestCreditDecision } from '../services/crediarioScoreEngine.js';
 import { getCrediarioWhatsAppConfig, sendCrediarioWhatsApp } from '../services/crediarioWhatsAppService.js';
+import { ensureStockReservationForPaymentAttempt, releaseStockReservation } from '../services/stockReservationService.js';
 
 const ANALYSIS_STATUSES = [
   'PENDENTE_ANALISE',
@@ -232,7 +233,7 @@ function getModels(mongoose) {
   return { Analysis, Profile, CollectionLog, Renegotiation };
 }
 
-export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, authRequired, adminRequired } = {}) {
+export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired } = {}) {
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
 
@@ -920,6 +921,27 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     };
     await updateOrder(analysis.orderId, orderFields);
 
+    if (nextStatus === 'REPROVADO' || nextStatus === 'CANCELADO') {
+      await releaseStockReservation({
+        Order,
+        Product,
+        orderId: analysis.orderId,
+        reason: nextStatus === 'REPROVADO' ? 'crediario_credit_rejected' : 'crediario_cancelled'
+      }).catch((error) => {
+        console.error('[stock-reservation] Crediário status:', error?.message || error);
+      });
+    } else if (nextStatus === 'APROVADO') {
+      await ensureStockReservationForPaymentAttempt({
+        Order,
+        Product,
+        orderId: analysis.orderId,
+        paymentMethod: 'crediario_ariana',
+        reason: 'crediario_credit_approved'
+      }).catch((error) => {
+        console.error('[stock-reservation] Crediário aprovação:', error?.message || error);
+      });
+    }
+
     const doc = digits(analysis.customer?.document);
     if (doc) {
       let profile = await Profile.findOne({ document: doc });
@@ -1101,6 +1123,15 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       analysis.history.push({ action: 'SIGNATURE_REQUESTED', fromStatus: previous, toStatus: analysis.status, actorId: String(req.admin?.id || req.auth?.id || ''), actorName: text(req.admin?.name || 'Administrador', 120), metadata: { envelopeId: analysis.signature.envelopeId, expiresAt: analysis.signature.expiresAt, documents: docs.map(({type,title,hash}) => ({type,title,hash})) } });
       await analysis.save();
       await updateOrder(analysis.orderId, { 'crediario.analysisStatus': analysis.status, 'crediario.signatureStatus': 'PENDING', 'crediario.signatureEnvelopeId': analysis.signature.envelopeId, paymentStatus: 'AWAITING_SIGNATURE', status: 'awaiting_signature', statusLabel: 'Aguardando assinatura eletrônica' });
+      await ensureStockReservationForPaymentAttempt({
+        Order,
+        Product,
+        orderId: analysis.orderId,
+        paymentMethod: 'crediario_ariana',
+        reason: 'crediario_signature_requested'
+      }).catch((error) => {
+        console.error('[stock-reservation] Crediário assinatura:', error?.message || error);
+      });
       return res.status(201).json({ ok: true, signature: { ...analysis.signature.toObject?.() || analysis.signature, tokenHash: undefined, token: rawToken, signingUrl: analysis.signature.signingUrl } });
     } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Falha ao preparar assinatura.' }); }
   });
@@ -1119,6 +1150,14 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     analysis.history.push({ action: 'SIGNATURE_CANCELLED', fromStatus: analysis.status, toStatus: analysis.status, actorId: String(req.admin?.id || req.auth?.id || ''), actorName: text(req.admin?.name || 'Administrador', 120), note: text(req.body?.reason, 1000) });
     await analysis.save();
     await updateOrder(analysis.orderId, { 'crediario.signatureStatus': 'CANCELLED' });
+    await releaseStockReservation({
+      Order,
+      Product,
+      orderId: analysis.orderId,
+      reason: 'crediario_signature_cancelled'
+    }).catch((error) => {
+      console.error('[stock-reservation] Cancelamento assinatura crediário:', error?.message || error);
+    });
     return res.json({ ok: true, signature: analysis.signature });
   });
 
@@ -1150,6 +1189,15 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
       analysis.history.push({ action: 'DOCUMENTS_SIGNED', fromStatus: previous, toStatus: 'ASSINADO', actorId: String(req.user?._id || req.auth?.id || ''), actorName: signerName, metadata: { evidenceId, envelopeId: analysis.signature.envelopeId, signedAt: analysis.signature.signedAt } });
       await analysis.save();
       await updateOrder(analysis.orderId, { 'crediario.analysisStatus': 'ASSINADO', 'crediario.signatureStatus': 'SIGNED', 'crediario.signatureEvidenceId': evidenceId, 'crediario.signedAt': analysis.signature.signedAt, paymentStatus: 'SIGNED_PENDING_ISSUANCE', status: 'awaiting_cora_issuance', statusLabel: 'Contrato assinado — aguardando emissão do carnê' });
+      await ensureStockReservationForPaymentAttempt({
+        Order,
+        Product,
+        orderId: analysis.orderId,
+        paymentMethod: 'crediario_ariana',
+        reason: 'crediario_contract_signed'
+      }).catch((error) => {
+        console.error('[stock-reservation] Contrato crediário assinado:', error?.message || error);
+      });
       return res.json({ ok: true, signature: { status: 'SIGNED', signedAt: analysis.signature.signedAt, evidenceId, envelopeId: analysis.signature.envelopeId }, nextStep: 'ISSUE_CORA_CARNE' });
     } catch (error) { return res.status(500).json({ ok: false, error: error.message || 'Falha ao registrar assinatura.' }); }
   });
