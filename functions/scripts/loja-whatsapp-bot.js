@@ -319,6 +319,8 @@ function conversation(phone) {
       lastVisualCategory: '',
       lastVisualCategoryAt: 0,
       awaitingSimilarOptions: false,
+      pendingAlternativeCategory: '',
+      pendingAlternativeUntil: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -1460,6 +1462,7 @@ async function showProducts(phone, conv, query, originalText) {
     const askedIphone = normalize(query) === 'celular' && /\biphone\b/.test(normalize(originalText));
 
     if (tvInches) {
+      setAlternativeOffer(conv, 'tv');
       await sendText(
         phone,
         `No momento não encontrei *TV de ${tvInches} polegadas* disponível em estoque no catálogo da Ariana Móveis. Se quiser, posso te mostrar outros tamanhos disponíveis 😊`
@@ -1468,6 +1471,7 @@ async function showProducts(phone, conv, query, originalText) {
     }
 
     if (askedIphone) {
+      setAlternativeOffer(conv, 'celular');
       await sendText(
         phone,
         'No momento não encontrei *iPhone* disponível em estoque no catálogo da Ariana Móveis. Se quiser, posso te mostrar outros celulares disponíveis 😊'
@@ -1479,6 +1483,7 @@ async function showProducts(phone, conv, query, originalText) {
     return;
   }
 
+  clearAlternativeOffer(conv);
   conv.allProductResults = products;
   conv.productResultOffset = 0;
   conv.lastProductQuery = query;
@@ -1551,6 +1556,47 @@ function asksContextualSend(text) {
     .trim();
 
   return /^(manda( ai)?|pode mandar|manda pra mim|manda para mim|mostra( ai)?|pode mostrar|quero ver|quero sim|sim pode mandar|sim manda)$/.test(n);
+}
+
+function setAlternativeOffer(conv, category = '') {
+  conv.pendingAlternativeCategory = String(category || '').trim();
+  conv.pendingAlternativeUntil = conv.pendingAlternativeCategory
+    ? Date.now() + 30 * 60 * 1000
+    : 0;
+  saveStateSoon();
+}
+
+function clearAlternativeOffer(conv) {
+  conv.pendingAlternativeCategory = '';
+  conv.pendingAlternativeUntil = 0;
+  saveStateSoon();
+}
+
+function asksAcceptedAlternative(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    /^(quero sim|sim|sim quero|pode|pode sim|pode mandar|pode mostrar|quero ver|manda|manda ai|me mostra|mostra ai)$/.test(n) ||
+    /^(pode )?(me )?(enviar|mandar|mostrar) (as )?(fotos|opcoes|produtos|modelos)( pra mim)?$/.test(n)
+  );
+}
+
+function asksLastShownProduct(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/\bultima parcela\b|\bultimo pagamento\b|\bultimo boleto\b/.test(n)) return false;
+
+  return (
+    /\b(esse|essa)\s+(ultimo|ultima)\b/.test(n) ||
+    /\b(ultimo|ultima)\s+(ai|produto|modelo|aparelho)\b/.test(n) ||
+    /\b(o|a)\s+(ultimo|ultima)\s+(produto|modelo|aparelho|ai)\b/.test(n)
+  );
 }
 
 async function showSimilarProductsFromVisual(phone, conv, category) {
@@ -2002,6 +2048,21 @@ async function handleMessage({ phone, text, pushName = '' }) {
     saveStateSoon();
   }
 
+  if (conv.pendingAlternativeUntil && Date.now() >= Number(conv.pendingAlternativeUntil)) {
+    clearAlternativeOffer(conv);
+  }
+
+  if (
+    conv.pendingAlternativeCategory &&
+    Number(conv.pendingAlternativeUntil || 0) > Date.now() &&
+    asksAcceptedAlternative(text)
+  ) {
+    const alternativeCategory = String(conv.pendingAlternativeCategory || '').trim();
+    clearAlternativeOffer(conv);
+    await showProducts(phone, conv, alternativeCategory, alternativeCategory);
+    return;
+  }
+
   const emojiIntent = emojiOnlyIntent(text);
   if (emojiIntent === 'positive') {
     return;
@@ -2235,6 +2296,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
       product = conv.lastProducts[ord];
       conv.selectedProduct = product;
       saveStateSoon();
+    } else if (
+      asksLastShownProduct(text) &&
+      Array.isArray(conv.lastProducts) &&
+      conv.lastProducts.length
+    ) {
+      product = conv.lastProducts[conv.lastProducts.length - 1];
+      conv.selectedProduct = product;
+      saveStateSoon();
     } else {
       product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     }
@@ -2287,6 +2356,13 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
   if (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) {
     conv.selectedProduct = conv.lastProducts[ord];
+    saveStateSoon();
+    await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
+    return;
+  }
+
+  if (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) {
+    conv.selectedProduct = conv.lastProducts[conv.lastProducts.length - 1];
     saveStateSoon();
     await sendText(phone, `Perfeito 😊 Você escolheu *${conv.selectedProduct.name}*. O que você gostaria de saber dele: cartão, PIX, carnê, entrega ou quer comprar?`);
     return;
@@ -2670,6 +2746,10 @@ export const __test = {
   asksToWriteOnCredit,
   asksMoreProducts,
   asksCreditQuote,
+  asksAcceptedAlternative,
+  asksLastShownProduct,
+  setAlternativeOffer,
+  clearAlternativeOffer,
   parseInstallments,
   creditDivisor,
   creditPlan,
