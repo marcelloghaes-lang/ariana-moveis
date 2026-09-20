@@ -413,9 +413,75 @@ test('contextos de clientes diferentes permanecem isolados', () => {
   assert.equal(bot.conversation('5533922222222').selectedProduct.id, 'B');
 });
 
-test('intenções financeiras e atendimento humano continuam reconhecidas', () => {
+test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => {
+  for (const value of [
+    'Oi Marcelo tudo bem? Tô precisando falar com você',
+    'Quero falar com o Marcelo',
+    'Marcelo está aí?',
+    'Teria como me ligar aqui?',
+    'Pode me ligar quando puder?',
+    'Preciso falar com você'
+  ]) {
+    assert.equal(bot.asksMarceloOrCallback(value), true, value);
+  }
+});
+
+test('pedido pelo Marcelo registra retorno sem desligar o atendimento automático', async () => {
+  const phone = '5533955555555';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Oi Marcelo tudo bem? Tô precisando falar com você',
+    pushName: 'Cliente Indicado'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Marcelo está em outro atendimento/i);
+  assert.match(sentTexts[0].text, /fotos de produtos, preços e condições de pagamento/i);
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.marceloCallbackRequested, true);
+  assert.equal(Boolean(conv.humanUntil && conv.humanUntil > Date.now()), false);
+
+  assert.equal(backendEvents.length, 1);
+  assert.match(backendEvents[0].status, /Aguardando retorno do Marcelo/i);
+
+  catalogRows = [product('sf1', 'Sofá Retrátil 3 Lugares', { category: 'Sofá' })];
+  await bot.handleMessage({ phone, text: 'Quero olhar sofá', pushName: 'Cliente Indicado' });
+
+  assert.ok(sentMedia.length >= 1 || sentTexts.length >= 2, 'bot deve continuar atendendo enquanto Marcelo não retorna');
+});
+
+test('indicação e elogios da loja recebem resposta acolhedora', async () => {
+  const examples = [
+    'Uma amiga minha me indicou, disse que vocês vendem no carnê',
+    'Peguei seu número com uma amiga que compra aí',
+    'Me falaram muito bem de vocês e disseram que têm ótimos preços',
+    'Disseram que vocês têm ótimos produtos',
+    'Uma cliente disse que vocês são muito bons de mexer'
+  ];
+
+  for (const value of examples) {
+    assert.equal(bot.isReferralOrPraise(value), true, value);
+  }
+
+  const phone = '5533944444444';
+  await bot.handleMessage({
+    phone,
+    text: 'Uma amiga minha me indicou pra vocês, disse que vocês vendem no carnê e têm ótimos preços',
+    pushName: 'Cliente'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /felizes pela indicação/i);
+  assert.match(sentTexts[0].text, /crediário próprio no carnê/i);
+  assert.match(sentTexts[0].text, /O que você está procurando/i);
+});
+
+test('intenções financeiras e atendimento humano genérico continuam reconhecidas', () => {
   assert.equal(bot.asksFinance('Qual o valor da minha notinha?'), true);
   assert.equal(bot.asksFinance('Quanto tenho que te passar esse mês?'), true);
-  assert.equal(bot.wantsHuman('Quero falar com o Marcelo'), true);
   assert.equal(bot.wantsHuman('Quero um atendente'), true);
+  assert.equal(bot.wantsHuman('Quero falar com uma pessoa'), true);
+  assert.equal(bot.wantsHuman('Quero falar com o Marcelo'), false);
 });
