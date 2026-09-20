@@ -373,6 +373,72 @@ test('pesquisa junta aliases sem repetir produtos', async () => {
   assert.ok(requestLog.filter((r) => r.href.includes('/api/products?')).length > 2);
 });
 
+test('primeiro produto em 10 vezes no boleto seleciona e calcula na mesma resposta', async () => {
+  const phone = '5533977777701';
+  const first = bot.compactProduct(product('cred-ord-1', 'Guarda Roupa Primeiro', {
+    category: 'Guarda Roupa',
+    price: 1000,
+    pixPrice: 700
+  }));
+  const second = bot.compactProduct(product('cred-ord-2', 'Guarda Roupa Segundo', {
+    category: 'Guarda Roupa',
+    price: 1200,
+    pixPrice: 840
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Qual o valor do primeiro parcelado em 10 vezes no boleto',
+    pushName: 'Cliente Crediário'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Guarda Roupa Primeiro/);
+  assert.match(sentTexts[0].text, /10x de R\$ 100,00/);
+  assert.match(sentTexts[0].text, /total de R\$ 1\.000,00/);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'cred-ord-1');
+  assert.equal(bot.conversation(phone).lastCreditPlan.count, 10);
+});
+
+test('erro "beto" em contexto de parcela reaproveita o último plano do boleto', async () => {
+  const phone = '5533977777702';
+  const first = bot.compactProduct(product('cred-beto-1', 'Guarda Roupa Teste', {
+    category: 'Guarda Roupa',
+    price: 1000,
+    pixPrice: 700
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first],
+    selectedProduct: first,
+    lastIntent: 'produto',
+    lastCreditPlan: {
+      productId: 'cred-beto-1',
+      count: 10,
+      divisor: 0.70,
+      total: 1000,
+      installment: 100
+    }
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Valor da parcela no beto',
+    pushName: 'Cliente Crediário'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Guarda Roupa Teste/);
+  assert.match(sentTexts[0].text, /10x de R\$ 100,00/);
+  assert.doesNotMatch(sentTexts[0].text, /Me conta o que você está procurando/i);
+});
+
 test('paginação mostra 4 por vez e continua sem repetir', async () => {
   catalogRows = Array.from({ length: 9 }, (_, i) => product('cx' + (i + 1), 'Caixa de Som Modelo ' + (i + 1), { category: 'Áudio' }));
 
