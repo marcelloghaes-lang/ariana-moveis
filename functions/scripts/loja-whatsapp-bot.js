@@ -27,7 +27,7 @@ const CATEGORY_TERMS = [
   ['cama', ['cama', 'camas', 'box', 'colchao', 'colchoes']],
   ['celular', ['celular', 'celulares', 'smartphone', 'smartphones', 'iphone']],
   ['tv', ['tv', 'televisao', 'televisor', 'smart tv']],
-  ['guarda-roupa', ['guarda roupa', 'guarda-roupa', 'roupeiro']],
+  ['guarda-roupa', ['guarda roupa', 'guarda-roupa', 'guarda roupas', 'roupeiro', 'roupeiros']],
   ['máquina de lavar', ['maquina de lavar', 'lavadora', 'lava roupas']],
   ['air fryer', ['air fryer', 'fritadeira eletrica', 'fritadeira']],
   ['micro-ondas', ['microondas', 'micro-ondas']],
@@ -40,6 +40,7 @@ const CATEGORY_TERMS = [
   ['rack', ['rack', 'racks']],
   ['painel', ['painel', 'paineis']],
   ['armário', ['armario', 'armarios']],
+  ['cozinha completa', ['cozinha completa', 'cozinhas completas']],
   ['cômoda', ['comoda', 'comodas']],
   ['notebook', ['notebook', 'notebooks']],
   ['computador', ['computador', 'computadores', 'pc']],
@@ -417,6 +418,27 @@ function matchesRequestedProductType(product = {}, query = '') {
 
   if (requested === 'frigobar') {
     return /\bfrigobar\b/.test(haystack);
+  }
+
+  if (requested === 'guarda-roupa' || requested === 'roupeiro') {
+    return /guarda[ -]?roupa|roupeiro/.test(haystack);
+  }
+
+  if (requested === 'armario') {
+    return !/cozinha completa/.test(haystack) &&
+      !/guarda[ -]?roupa|roupeiro/.test(haystack);
+  }
+
+  if (requested === 'cozinha completa') {
+    return /cozinha completa/.test(haystack);
+  }
+
+  if (requested === 'maquina de lavar') {
+    return !/tanquinho|semi ?automatica/.test(haystack);
+  }
+
+  if (requested === 'tanquinho') {
+    return /tanquinho|semi ?automatica/.test(haystack);
   }
 
   return true;
