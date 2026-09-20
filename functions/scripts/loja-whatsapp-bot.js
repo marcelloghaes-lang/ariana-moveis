@@ -2254,13 +2254,13 @@ async function handlePending(phone, text, conv) {
       saveStateSoon();
       await sendText(phone, financialReply(data));
     } catch (error) {
-      await sendText(phone, 'Não consegui confirmar os dados desse carnê. Vou deixar para o Financeiro verificar com você.');
+      await sendText(phone, 'Não consegui confirmar suas parcelas no financeiro agora. Vou deixar para o Financeiro verificar com você.');
       conv.pendingAction = '';
       conv.humanUntil = Date.now() + HUMAN_TTL_MS;
       saveStateSoon();
       await syncTicket(phone, {
-        status: 'Financeiro - conferir carnê',
-        message: 'Cliente solicitou valor da notinha/carnê e a consulta automática não confirmou a identidade.'
+        status: 'Financeiro - conferir contas a receber',
+        message: 'Cliente solicitou valor da notinha/parcelas e a consulta automática no Contas a Receber não confirmou os dados.'
       });
     }
     return true;
