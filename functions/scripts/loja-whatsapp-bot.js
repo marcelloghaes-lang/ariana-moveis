@@ -255,8 +255,14 @@ function detectCategory(text) {
 }
 
 function isGreeting(text) {
-  const n = normalize(text);
-  return /^(oi|ola|oie|bom dia|boa tarde|boa noite|tudo bem|oi tudo bem|ola tudo bem)[!.?, ]*$/.test(n);
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/^(oi|ola|oie|bom dia|boa tarde|boa noite|tudo bem)$/.test(n)) return true;
+
+  return /^(oi|ola|oie)?\s*(bom dia|boa tarde|boa noite)?\s*(tudo bem|td bem|como vai)?\s*$/.test(n);
 }
 
 function wantsHuman(text) {
@@ -789,7 +795,13 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (isGreeting(text)) {
-    await sendText(phone, 'Olá! 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?');
+    const nGreeting = normalize(text);
+    let saudacao = 'Olá';
+    if (nGreeting.includes('bom dia')) saudacao = 'Bom dia';
+    else if (nGreeting.includes('boa tarde')) saudacao = 'Boa tarde';
+    else if (nGreeting.includes('boa noite')) saudacao = 'Boa noite';
+
+    await sendText(phone, `${saudacao}! 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`);
     return;
   }
 
