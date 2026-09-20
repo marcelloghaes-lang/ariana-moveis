@@ -1471,6 +1471,8 @@ function matchesRequestedProductConstraints(product = {}, query = '', originalTe
 
 async function searchProducts(query, originalText = '') {
   const terms = categoryAliases(query);
+  let successfulTerms = 0;
+
   const resultSets = await Promise.all(
     terms.map(async (term) => {
       let lastError = null;
@@ -1479,6 +1481,7 @@ async function searchProducts(query, originalText = '') {
         try {
           const q = encodeURIComponent(term);
           const data = await backend(`/api/products?q=${q}&limit=100`);
+          successfulTerms += 1;
           return Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
         } catch (error) {
           lastError = error;
@@ -1492,6 +1495,12 @@ async function searchProducts(query, originalText = '') {
       return [];
     })
   );
+
+  if (terms.length && successfulTerms === 0) {
+    const error = new Error('catalog_unavailable');
+    error.code = 'catalog_unavailable';
+    throw error;
+  }
 
   const rows = resultSets.flat();
   let products = rows
