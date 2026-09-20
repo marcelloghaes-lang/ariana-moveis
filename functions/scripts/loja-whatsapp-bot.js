@@ -1775,6 +1775,14 @@ function extractIncoming(payload = {}) {
           ? 'audio'
           : '';
 
+  const mimeType = String(
+    message?.imageMessage?.mimetype ||
+    message?.documentMessage?.mimetype ||
+    message?.videoMessage?.mimetype ||
+    message?.audioMessage?.mimetype ||
+    ''
+  ).trim();
+
   return {
     remoteJid,
     phone: digits(remoteJid.split('@')[0]),
@@ -1783,7 +1791,9 @@ function extractIncoming(payload = {}) {
     pushName,
     text,
     mediaType,
+    mimeType,
     hasMedia: Boolean(mediaType),
+    rawMessageInfo: data,
     isGroup: remoteJid.endsWith('@g.us'),
     isStatus: remoteJid.includes('status@broadcast')
   };
@@ -1873,23 +1883,33 @@ async function handleWebhook(payload) {
     saveStateSoon();
   }
 
-  if (!incoming.text) {
-    const conv = conversation(incoming.phone);
+  const conv = conversation(incoming.phone);
 
-    if (conv.humanUntil && Date.now() < Number(conv.humanUntil)) return { ignored: 'human_mode' };
-    if (conv.manualHumanUntil && Date.now() < Number(conv.manualHumanUntil)) return { ignored: 'manual_human_mode' };
+  if (conv.humanUntil && Date.now() < Number(conv.humanUntil)) {
+    return { ignored: 'human_mode' };
+  }
 
-    if (incoming.hasMedia && isPixContext(conv) && ['image', 'document'].includes(incoming.mediaType)) {
-      await acknowledgePixProof(
-        incoming.phone,
-        conv,
-        'Cliente enviou imagem/documento após receber informações de PIX.',
-        incoming.pushName
-      );
-      return { ok: true, media: true, pixProof: true };
+  if (conv.manualHumanUntil && Date.now() < Number(conv.manualHumanUntil)) {
+    return { ignored: 'manual_human_mode' };
+  }
+
+  if (incoming.hasMedia && ['image', 'document'].includes(incoming.mediaType)) {
+    const vision = await handleVisionMedia(incoming, conv);
+    if (vision?.handled) {
+      return {
+        ok: true,
+        media: true,
+        vision: vision.kind || 'handled',
+        confidence: Number(vision.confidence || 0)
+      };
     }
+  }
 
-    await sendText(incoming.phone, 'Recebi seu arquivo/foto 😊 Me diga em uma frase o que você gostaria de saber sobre ele. Se precisar, eu encaminho para o atendimento humano.');
+  if (!incoming.text) {
+    await sendText(
+      incoming.phone,
+      'Recebi seu arquivo/foto 😊 Me diga em uma frase o que você gostaria de saber sobre ele. Se precisar, eu encaminho para o atendimento humano.'
+    );
     return { ok: true, media: true };
   }
 
@@ -1916,6 +1936,8 @@ const server = http.createServer((req, res) => {
       backend: BACKEND_URL,
       evolutionConfigured: Boolean(EVOLUTION_API_KEY),
       botTokenConfigured: Boolean(LOJA_BOT_API_TOKEN),
+      visionConfigured: Boolean(VISION_API_KEY),
+      visionModel: VISION_MODEL,
       legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL),
       manualHumanPauseMinutes: Math.round(MANUAL_HUMAN_PAUSE_MS / 60000)
     });
