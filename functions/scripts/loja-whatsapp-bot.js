@@ -850,26 +850,34 @@ async function handleMessage({ phone, text, pushName = '' }) {
     saveStateSoon();
   }
 
-  if (asksToWriteOnCredit(text) && isCreditContext(conv, text)) {
+  {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
-    conv.pendingAction = '';
-    conv.creditOrderWaitingMarcelo = true;
-    markCreditContext(conv);
-    saveStateSoon();
-
-    await sendText(
-      phone,
-      'Sim, claro 😊 Assim que o Marcelo retornar de outro atendimento, ele vai terminar seu pedido.'
+    const implicitCreditByProduct = Boolean(
+      product &&
+      conv.lastIntent === 'produto' &&
+      asksToWriteOnCredit(text)
     );
 
-    await syncTicket(phone, {
-      status: 'Aguardando Marcelo - finalizar pedido no carnê',
-      message: product
-        ? `Cliente pediu para anotar no carnê: ${product.name}`
-        : 'Cliente pediu para anotar a compra no carnê.',
-      name: pushName
-    });
-    return;
+    if (asksToWriteOnCredit(text) && (isCreditContext(conv, text) || implicitCreditByProduct)) {
+      conv.pendingAction = '';
+      conv.creditOrderWaitingMarcelo = true;
+      markCreditContext(conv);
+      saveStateSoon();
+
+      await sendText(
+        phone,
+        'Sim, claro 😊 Assim que o Marcelo retornar de outro atendimento, ele vai terminar seu pedido.'
+      );
+
+      await syncTicket(phone, {
+        status: 'Aguardando Marcelo - finalizar pedido no carnê',
+        message: product
+          ? `Cliente pediu para anotar no carnê: ${product.name}`
+          : 'Cliente pediu para anotar a compra no carnê.',
+        name: pushName
+      });
+      return;
+    }
   }
 
   if (await handlePending(phone, text, conv)) return;
