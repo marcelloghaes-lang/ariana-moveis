@@ -19,6 +19,11 @@ const PIX_BANK = 'BTG';
 const PIX_HOLDER = 'Marcelo Nunes Silva';
 const STATE_FILE = String(process.env.LOJA_BOT_STATE_FILE || '/root/loja-bot-state.json');
 const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12)) * 60 * 60 * 1000;
+const LEGACY_WEBHOOK_URL = String(process.env.LOJA_LEGACY_WEBHOOK_URL || '').trim();
+const LEGACY_WEBHOOK_BY_EVENTS = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.LOJA_LEGACY_WEBHOOK_BY_EVENTS || '').trim().toLowerCase()
+);
+const LEGACY_WEBHOOK_HEADERS_B64 = String(process.env.LOJA_LEGACY_WEBHOOK_HEADERS_B64 || '').trim();
 
 const CATEGORY_TERMS = [
   ['sofá', ['sofa', 'sofas']],
@@ -846,6 +851,57 @@ function extractIncoming(payload = {}) {
   };
 }
 
+function legacyHeaders() {
+  if (!LEGACY_WEBHOOK_HEADERS_B64) return {};
+  try {
+    const parsed = JSON.parse(Buffer.from(LEGACY_WEBHOOK_HEADERS_B64, 'base64').toString('utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function eventPath(payload = {}) {
+  return normalize(payload?.event || payload?.type || '')
+    .replace(/\./g, '-')
+    .replace(/_/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+async function forwardLegacyWebhook(payload = {}) {
+  if (!LEGACY_WEBHOOK_URL) return { skipped: true };
+  if (/\/loja-bot(?:\/|$)/i.test(LEGACY_WEBHOOK_URL)) return { skipped: true, reason: 'self' };
+
+  let target = LEGACY_WEBHOOK_URL;
+  if (LEGACY_WEBHOOK_BY_EVENTS) {
+    const suffix = eventPath(payload);
+    if (suffix) target = `${target.replace(/\/$/, '')}/${suffix}`;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(target, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...legacyHeaders()
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      console.warn('[loja-bot] webhook anterior respondeu', response.status, target);
+    }
+    return { ok: response.ok, status: response.status };
+  } catch (error) {
+    console.warn('[loja-bot] falha ao encaminhar webhook anterior:', error.message || error);
+    return { ok: false, error: error.message || String(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function handleWebhook(payload) {
   const event = normalize(payload?.event || payload?.type || '');
   if (event && !event.includes('messages') && !event.includes('message')) return { ignored: 'event' };
@@ -890,7 +946,8 @@ const server = http.createServer((req, res) => {
       port: PORT,
       backend: BACKEND_URL,
       evolutionConfigured: Boolean(EVOLUTION_API_KEY),
-      botTokenConfigured: Boolean(BOT_API_TOKEN)
+      botTokenConfigured: Boolean(BOT_API_TOKEN),
+      legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL)
     });
   }
 
@@ -907,8 +964,14 @@ const server = http.createServer((req, res) => {
     catch { return sendJson(res, 400, { ok: false, error: 'invalid_json' }); }
 
     sendJson(res, 200, { ok: true, received: true });
-    handleWebhook(payload).catch((error) => {
-      console.error('[loja-bot] webhook:', error?.stack || error?.message || error);
+    Promise.allSettled([
+      handleWebhook(payload),
+      forwardLegacyWebhook(payload)
+    ]).then((results) => {
+      const botResult = results[0];
+      if (botResult?.status === 'rejected') {
+        console.error('[loja-bot] webhook:', botResult.reason?.stack || botResult.reason?.message || botResult.reason);
+      }
     });
   });
 });
