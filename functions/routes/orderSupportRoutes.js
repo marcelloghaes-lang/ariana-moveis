@@ -1,4 +1,5 @@
 import { buildStockReservation } from '../services/stockReservationService.js';
+import { createAdminNotification } from '../services/notificationService.js';
 
 // ============================================================
 // ROTAS DE PEDIDOS, TICKETS, CONTATO E DENÚNCIAS
@@ -631,9 +632,31 @@ export default function registerOrderSupportRoutes(app, context = {}) {
         manufacturer: sellerIds[0] || ''
       });
 
-      // Pedido criado no checkout ainda NÃƒO é venda concluída.
-      // Não notifica admin/seller/WhatsApp e não envia ao fabricante antes do pagamento aprovado.
-      // A notificação de "Nova venda recebida" fica centralizada no helper notifySaleAfterPaymentApproved().
+      // Pedido normal só vira "nova venda" depois do pagamento aprovado.
+      // Exceção operacional: Crediário Ariana precisa chegar ao Admin antes da aprovação,
+      // porque a equipe precisa analisar o crédito. Isso é alerta de pedido recebido,
+      // não confirmação de venda concluída.
+      if (paymentMethod === 'crediario_ariana') {
+        const orderId = String(order._id || '');
+        const shortId = orderId ? orderId.slice(-8).toUpperCase() : '---';
+        const customerName = String(order.customerName || 'Cliente').trim();
+        await createAdminNotification({
+          type: 'crediario_order_received',
+          title: 'Novo pedido no Crediário Ariana',
+          message: `Pedido #${shortId} de ${customerName} no valor de R$ ${Number(order.total || 0).toFixed(2).replace('.', ',')} aguardando análise de crédito.`,
+          relatedId: orderId,
+          severity: 'warning',
+          audience: 'admin',
+          metadata: {
+            orderId,
+            paymentMethod: 'crediario_ariana',
+            status: order.status,
+            total: Number(order.total || 0),
+            action: 'open_credit_analysis'
+          }
+        });
+      }
+
       return res.json({ ok: true, order: toJSON(order), adminWhatsapp: { skipped: true, reason: 'waiting_payment_approval' } });
     } catch (error) {
       if (reservedStock.length && error?.code !== 'INSUFFICIENT_STOCK') {
