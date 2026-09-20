@@ -149,6 +149,7 @@ function conversation(phone) {
       humanUntil: 0,
       customerName: '',
       creditContextUntil: 0,
+      creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
   }
@@ -783,7 +784,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   if (asksToWriteOnCredit(text) && isCreditContext(conv, text)) {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     conv.pendingAction = '';
-    conv.humanUntil = Date.now() + HUMAN_TTL_MS;
+    conv.creditOrderWaitingMarcelo = true;
     markCreditContext(conv);
     saveStateSoon();
 
