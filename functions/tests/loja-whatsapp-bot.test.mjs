@@ -763,6 +763,131 @@ test('cliente pergunta se vende produto e envia print: visão consulta catálogo
   assert.equal(bot.conversation(phone).lastIntent, 'produto');
 });
 
+
+test('pedido de produtos parecidos após imagem usa a categoria visual e envia fotos', async () => {
+  const phone = '5533923333345';
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.96,
+    product_name: 'Guarda-Roupa Casal 6 Portas 4 Gavetas',
+    brand: 'MadeiraMadeira',
+    model: '',
+    category_hint: 'guarda-roupa',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Guarda-roupa casal'
+  };
+
+  catalogRows = [];
+
+  await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'VISUAL-WARDROBE-1'
+      },
+      pushName: 'Cliente',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg',
+          caption: 'Você tem desse aqui?'
+        }
+      }
+    }
+  });
+
+  assert.match(sentTexts.at(-1).text, /posso te mostrar/i);
+  assert.match(sentTexts.at(-1).text, /guarda-roupa/i);
+  assert.equal(bot.conversation(phone).awaitingSimilarOptions, true);
+
+  const textCountBefore = sentTexts.length;
+  catalogRows = [
+    product('gr-visual-1', 'Guarda-Roupa Casal 6 Portas', {
+      category: 'Guarda-Roupa',
+      stock: 4
+    }),
+    product('gr-visual-2', 'Guarda-Roupa Casal 8 Portas', {
+      category: 'Guarda-Roupa',
+      stock: 3
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Me manda fotos do que você tem aí parecido com esse',
+    pushName: 'Cliente'
+  });
+
+  const newTexts = sentTexts.slice(textCountBefore).map((item) => item.text || '').join('\n');
+  assert.match(newTexts, /Vou te mostrar algumas opções de \*guarda-roupa\*/i);
+  assert.doesNotMatch(newTexts, /Pela imagem, parece ser/i);
+  assert.ok(sentMedia.some((item) => /Guarda-Roupa Casal 6 Portas/i.test(item.caption || '')));
+  assert.ok(sentMedia.some((item) => /Guarda-Roupa Casal 8 Portas/i.test(item.caption || '')));
+  assert.equal(bot.conversation(phone).awaitingSimilarOptions, false);
+});
+
+test('"manda aí" continua o pedido de similares quando o bot acabou de oferecer opções', async () => {
+  const phone = '5533923333346';
+
+  visionClassification = {
+    kind: 'product',
+    confidence: 0.95,
+    product_name: 'Guarda-Roupa Casal 6 Portas 4 Gavetas',
+    brand: 'MadeiraMadeira',
+    model: '',
+    category_hint: 'guarda-roupa',
+    payment_method: 'unknown',
+    payment_recipient_name: '',
+    summary: 'Guarda-roupa casal'
+  };
+
+  catalogRows = [];
+
+  await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'VISUAL-WARDROBE-2'
+      },
+      pushName: 'Cliente',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg',
+          caption: 'Você tem desse aqui?'
+        }
+      }
+    }
+  });
+
+  assert.equal(bot.conversation(phone).awaitingSimilarOptions, true);
+
+  catalogRows = [
+    product('gr-visual-3', 'Guarda-Roupa Casal 6 Portas Espelho', {
+      category: 'Guarda-Roupa',
+      stock: 2
+    })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Manda ai',
+    pushName: 'Cliente'
+  });
+
+  assert.ok(sentMedia.some((item) => /Guarda-Roupa Casal 6 Portas Espelho/i.test(item.caption || '')));
+  assert.equal(bot.conversation(phone).awaitingSimilarOptions, false);
+  assert.equal(
+    sentTexts.some((item) => /Me conta o que você está procurando/i.test(item.text || '')),
+    false,
+    '"manda ai" não pode cair no fallback genérico'
+  );
+});
+
 test('imagem incerta em contexto PIX não é assumida como comprovante', async () => {
   const phone = '5533913333333';
 
