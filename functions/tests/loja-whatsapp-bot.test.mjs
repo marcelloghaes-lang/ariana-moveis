@@ -1973,6 +1973,23 @@ test('consulta financeira usa Contas a Receber do Ariana ERP e responde parcela 
           juros: 0,
           valorAtualizado: 150
         }
+      },
+      {
+        parcelaLabel: '4/10',
+        dataVencimento: new Date(now.getFullYear(), now.getMonth() + 1, 20).toISOString(),
+        status: 'pendente',
+        quitado: false,
+        vencida: false,
+        emAberto: true,
+        valorParcela: 300,
+        valorPago: 0,
+        saldoParcela: 300,
+        atualizacaoFinanceira: {
+          diasAtraso: 0,
+          multa: 0,
+          juros: 0,
+          valorAtualizado: 300
+        }
       }
     ]
   };
@@ -1988,6 +2005,8 @@ test('consulta financeira usa Contas a Receber do Ariana ERP e responde parcela 
   );
   assert.ok(financeCall, 'deve consultar o Contas a Receber do ERP');
   assert.match(sentTexts.at(-1).text, /parcelas no financeiro da Ariana Móveis/i);
+  assert.match(sentTexts.at(-1).text, /total em aberto/i);
+  assert.match(sentTexts.at(-1).text, /R\$\s*450,00/i);
   assert.match(sentTexts.at(-1).text, /Neste mês você tem/i);
   assert.match(sentTexts.at(-1).text, /R\$\s*150,00/i);
   assert.doesNotMatch(sentTexts.at(-1).text, /carnê consultado/i);
@@ -2036,6 +2055,40 @@ test('consulta financeira sem vínculo seguro por telefone continua pedindo CPF'
   assert.equal(calls.length, 2);
   const cpfBody = JSON.parse(calls[1].options.body);
   assert.equal(cpfBody.cpf, '05292442682');
+});
+
+test('quando perguntam quem está falando o atendente se apresenta como Gustavo', async () => {
+  const phone = '5533988888830';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Com quem eu estou falando?',
+    pushName: 'Cliente Identidade'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Aqui é o Gustavo/i);
+  assert.match(sentTexts[0].text, /Ariana Móveis/i);
+});
+
+test('perguntas sobre Emilly ou Luana informam que não trabalham mais na loja', async () => {
+  const cases = [
+    ['Cadê a Emilly?', /A Emilly não trabalha mais aqui/i],
+    ['É a Luana?', /A Luana não trabalha mais aqui/i],
+    ['É a Emily ou Luana?', /A Emilly e a Luana não trabalham mais aqui/i]
+  ];
+
+  for (let i = 0; i < cases.length; i += 1) {
+    const [message, expected] = cases[i];
+    const phone = '553398888884' + i;
+    await bot.handleMessage({
+      phone,
+      text: message,
+      pushName: 'Cliente Funcionária'
+    });
+    assert.match(sentTexts.at(-1).text, expected);
+    assert.match(sentTexts.at(-1).text, /Gustavo/i);
+  }
 });
 
 test('intenções financeiras e atendimento humano genérico continuam reconhecidas', () => {
