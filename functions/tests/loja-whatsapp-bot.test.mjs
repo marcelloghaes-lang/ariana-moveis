@@ -537,6 +537,71 @@ test('"esse último aí" seleciona o último produto antes de calcular o boleto'
   assert.equal(bot.conversation(phone).selectedProduct.id, 'last-2');
 });
 
+test('"qual o valor desse último aí no boleto" usa o último produto e não pede foto', async () => {
+  const phone = '5533977777734';
+
+  const first = bot.compactProduct(product('last-boleto-1', 'Smartphone Samsung A06', {
+    category: 'Celulares',
+    pixPrice: 699,
+    price: 839
+  }));
+  const last = bot.compactProduct(product('last-boleto-2', 'Smartphone Samsung Galaxy A17', {
+    category: 'Celulares',
+    pixPrice: 1191.01,
+    price: 1430
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, last],
+    selectedProduct: null,
+    lastIntent: 'produto',
+    pendingImageIntent: '',
+    pendingImageIntentUntil: 0
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Qual o valor desse último aí no boleto',
+    pushName: 'Cliente Último Boleto'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smartphone Samsung Galaxy A17/i);
+  assert.match(sentTexts[0].text, /crediário próprio/i);
+  assert.match(sentTexts[0].text, /Em quantas vezes/i);
+  assert.doesNotMatch(sentTexts[0].text, /foto ou o print/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'last-boleto-2');
+});
+
+test('"mansa foto por favor" continua oferta de outros tamanhos de TV', async () => {
+  const phone = '5533977777735';
+
+  catalogRows = [
+    product('typo-tv-32', 'Smart TV 32 LG Full HD', { category: 'TVs' }),
+    product('typo-tv-43', 'Smart TV 43 Samsung 4K', { category: 'TVs' })
+  ];
+
+  const conv = bot.conversation(phone);
+  await bot.showProducts(phone, conv, 'tv', 'Boa noite vocês tem tv ai de 65 polegadas?');
+
+  assert.equal(sentMedia.length, 0);
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, 'tv');
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Mansa foto por favor',
+    pushName: 'Cliente TV'
+  });
+
+  assert.equal(sentMedia.length, 2);
+  assert.match(sentMedia[0].caption || '', /Smart TV 32/i);
+  assert.match(sentMedia[1].caption || '', /Smart TV 43/i);
+  assert.doesNotMatch(sentTexts.at(-1)?.text || '', /Me conta o que você está procurando/i);
+});
+
 test('produto sem foto real não gera card cinza de link preview', async () => {
   const phone = '5533977777733';
 
