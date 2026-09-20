@@ -22,6 +22,9 @@ process.env.LOJA_BOT_API_TOKEN = 'test-loja-token';
 process.env.LOJA_EVOLUTION_INSTANCE = 'ariana loja';
 process.env.LOJA_VISION_OPENAI_API_KEY = 'test-vision-key';
 process.env.LOJA_VISION_MODEL = 'gpt-5.6-luna';
+process.env.LOJA_AUDIO_TRANSCRIBE_MODEL = 'gpt-4o-mini-transcribe';
+process.env.LOJA_AUDIO_MAX_SECONDS = '600';
+process.env.LOJA_AUDIO_USD_PER_MINUTE = '0.003';
 
 copyFileSync(sourcePath, modulePath);
 const imported = await import(pathToFileURL(modulePath).href + '?v=' + Date.now());
@@ -34,6 +37,7 @@ let sentMedia = [];
 let backendEvents = [];
 let requestLog = [];
 let messageSeq = 0;
+let audioTranscriptionText = 'Olá';
 let visionClassification = {
   kind: 'unknown',
   confidence: 0.2,
@@ -128,6 +132,12 @@ function installFetchMock() {
       });
     }
 
+    if (href === 'https://api.openai.com/v1/audio/transcriptions') {
+      return jsonResponse({
+        text: audioTranscriptionText
+      });
+    }
+
     return jsonResponse({ error: 'mock_not_found', href }, 404);
   };
 }
@@ -140,6 +150,7 @@ beforeEach(() => {
   backendEvents = [];
   requestLog = [];
   messageSeq = 0;
+  audioTranscriptionText = 'Olá';
   visionClassification = {
     kind: 'unknown',
     confidence: 0.2,
