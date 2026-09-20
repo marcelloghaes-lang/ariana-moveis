@@ -14,6 +14,7 @@ const PIX_BANK = 'BTG';
 const PIX_HOLDER = 'Marcelo Nunes Silva';
 const STATE_FILE = String(process.env.LOJA_BOT_STATE_FILE || '/root/loja-bot-state.json');
 const HUMAN_TTL_MS = Math.max(1, Number(process.env.LOJA_HUMAN_TTL_HOURS || 12)) * 60 * 60 * 1000;
+const MANUAL_HUMAN_PAUSE_MS = Math.max(1, Number(process.env.LOJA_MANUAL_HUMAN_PAUSE_MINUTES || 60)) * 60 * 1000;
 const LEGACY_WEBHOOK_URL = String(process.env.LOJA_LEGACY_WEBHOOK_URL || '').trim();
 const LEGACY_WEBHOOK_BY_EVENTS = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.LOJA_LEGACY_WEBHOOK_BY_EVENTS || '').trim().toLowerCase()
@@ -98,10 +99,17 @@ function loadState() {
     const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
     return {
       conversations: parsed?.conversations || {},
-      processed: parsed?.processed || {}
+      processed: parsed?.processed || {},
+      botOutbound: parsed?.botOutbound || {},
+      botOutboundFingerprints: parsed?.botOutboundFingerprints || {}
     };
   } catch {
-    return { conversations: {}, processed: {} };
+    return {
+      conversations: {},
+      processed: {},
+      botOutbound: {},
+      botOutboundFingerprints: {}
+    };
   }
 }
 
@@ -127,6 +135,12 @@ function cleanupState() {
   for (const [id, at] of Object.entries(state.processed)) {
     if (now - Number(at || 0) > 24 * 60 * 60 * 1000) delete state.processed[id];
   }
+  for (const [id, at] of Object.entries(state.botOutbound || {})) {
+    if (now - Number(at || 0) > 24 * 60 * 60 * 1000) delete state.botOutbound[id];
+  }
+  for (const [key, at] of Object.entries(state.botOutboundFingerprints || {})) {
+    if (now - Number(at || 0) > 10 * 60 * 1000) delete state.botOutboundFingerprints[key];
+  }
   for (const [phone, conv] of Object.entries(state.conversations)) {
     const lastAt = Number(conv?.lastAt || 0);
     if (lastAt && now - lastAt > 7 * 24 * 60 * 60 * 1000) delete state.conversations[phone];
@@ -147,6 +161,7 @@ function conversation(phone) {
       selectedProduct: null,
       pendingAction: '',
       humanUntil: 0,
+      manualHumanUntil: 0,
       customerName: '',
       creditContextUntil: 0,
       creditOrderWaitingMarcelo: false,
@@ -228,11 +243,53 @@ async function evolution(path, body) {
   return readJson(response);
 }
 
+function outboundMessageId(result = {}) {
+  return String(
+    result?.key?.id ||
+    result?.messageId ||
+    result?.id ||
+    result?.data?.key?.id ||
+    result?.data?.messageId ||
+    ''
+  ).trim();
+}
+
+function outboundFingerprint(phone, text) {
+  return `${digits(phone)}|${normalize(text).slice(0, 300)}`;
+}
+
+function rememberBotOutbound(phone, text, result = null) {
+  state.botOutbound = state.botOutbound || {};
+  state.botOutboundFingerprints = state.botOutboundFingerprints || {};
+
+  const id = outboundMessageId(result || {});
+  if (id) state.botOutbound[id] = Date.now();
+
+  const fingerprint = outboundFingerprint(phone, text);
+  if (fingerprint) state.botOutboundFingerprints[fingerprint] = Date.now();
+  saveStateSoon();
+}
+
+function isKnownBotOutbound(incoming = {}) {
+  state.botOutbound = state.botOutbound || {};
+  state.botOutboundFingerprints = state.botOutboundFingerprints || {};
+
+  if (incoming.id && state.botOutbound[incoming.id]) return true;
+
+  const fingerprint = outboundFingerprint(incoming.phone, incoming.text || '');
+  const at = Number(state.botOutboundFingerprints[fingerprint] || 0);
+  return Boolean(at && Date.now() - at < 2 * 60 * 1000);
+}
+
 async function sendText(phone, text) {
-  return evolution(`/message/sendText/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
+  const bodyText = String(text || '').trim();
+  rememberBotOutbound(phone, bodyText);
+  const result = await evolution(`/message/sendText/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
     number: digits(phone),
-    text: String(text || '').trim()
+    text: bodyText
   });
+  rememberBotOutbound(phone, bodyText, result);
+  return result;
 }
 
 async function sendImage(phone, imageUrl, caption) {
@@ -240,12 +297,16 @@ async function sendImage(phone, imageUrl, caption) {
     return sendText(phone, caption);
   }
   try {
-    return await evolution(`/message/sendMedia/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
+    const captionText = String(caption || '').trim();
+    rememberBotOutbound(phone, captionText);
+    const result = await evolution(`/message/sendMedia/${encodeURIComponent(EVOLUTION_INSTANCE)}`, {
       number: digits(phone),
       mediatype: 'image',
       media: imageUrl,
-      caption: String(caption || '').trim()
+      caption: captionText
     });
+    rememberBotOutbound(phone, captionText, result);
+    return result;
   } catch (error) {
     console.warn('[loja-bot] imagem falhou, enviando texto:', error.message || error);
     return sendText(phone, caption);
@@ -781,6 +842,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
     return;
   }
 
+  if (conv.manualHumanUntil && Date.now() < Number(conv.manualHumanUntil)) {
+    return;
+  }
+  if (conv.manualHumanUntil && Date.now() >= Number(conv.manualHumanUntil)) {
+    conv.manualHumanUntil = 0;
+    saveStateSoon();
+  }
+
   if (asksToWriteOnCredit(text) && isCreditContext(conv, text)) {
     const product = conv.selectedProduct || (conv.lastProducts.length === 1 ? conv.lastProducts[0] : null);
     conv.pendingAction = '';
@@ -1085,8 +1154,26 @@ async function handleWebhook(payload) {
   if (event && !event.includes('messages') && !event.includes('message')) return { ignored: 'event' };
 
   const incoming = extractIncoming(payload);
-  if (!incoming.phone || incoming.fromMe || incoming.isGroup || incoming.isStatus) {
+  if (!incoming.phone || incoming.isGroup || incoming.isStatus) {
     return { ignored: 'source' };
+  }
+
+  if (incoming.fromMe) {
+    if (isKnownBotOutbound(incoming)) {
+      return { ignored: 'bot_outbound' };
+    }
+
+    const conv = conversation(incoming.phone);
+    conv.humanUntil = 0;
+    conv.manualHumanUntil = Date.now() + MANUAL_HUMAN_PAUSE_MS;
+    conv.lastAt = Date.now();
+    saveStateSoon();
+
+    return {
+      ok: true,
+      humanPause: true,
+      pauseMinutes: Math.round(MANUAL_HUMAN_PAUSE_MS / 60000)
+    };
   }
 
   if (incoming.id && state.processed[incoming.id]) return { ignored: 'duplicate' };
@@ -1125,7 +1212,8 @@ const server = http.createServer((req, res) => {
       backend: BACKEND_URL,
       evolutionConfigured: Boolean(EVOLUTION_API_KEY),
       botTokenConfigured: Boolean(LOJA_BOT_API_TOKEN),
-      legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL)
+      legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL),
+      manualHumanPauseMinutes: Math.round(MANUAL_HUMAN_PAUSE_MS / 60000)
     });
   }
 
