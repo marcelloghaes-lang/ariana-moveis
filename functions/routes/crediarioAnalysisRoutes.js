@@ -3,6 +3,7 @@ import { calculateArianaScore, suggestCreditDecision } from '../services/crediar
 import { getCrediarioWhatsAppConfig, sendCrediarioWhatsApp } from '../services/crediarioWhatsAppService.js';
 import { ensureStockReservationForPaymentAttempt, releaseStockReservation } from '../services/stockReservationService.js';
 import { createAdminNotification } from '../services/notificationService.js';
+import { sendCreditAnalysisWhatsappAlert } from '../services/adminWhatsappAlertService.js';
 
 const ANALYSIS_STATUSES = [
   'PENDENTE_ANALISE',
@@ -234,7 +235,7 @@ function getModels(mongoose) {
   return { Analysis, Profile, CollectionLog, Renegotiation };
 }
 
-export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired } = {}) {
+export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, Product, authRequired, adminRequired, waSendTextMessage } = {}) {
   if (!app || !mongoose || !Order) throw new Error('Crediário análise: dependências obrigatórias ausentes.');
   const { Analysis, Profile, CollectionLog, Renegotiation } = getModels(mongoose);
 
@@ -617,6 +618,16 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
             action: 'open_credit_analysis'
           }
         });
+        if (!existing.adminWhatsapp?.firstSentAt) {
+          sendCreditAnalysisWhatsappAlert({
+            mongoose,
+            waSendTextMessage,
+            analysis: existing,
+            reminder: false
+          }).catch((error) => {
+            console.error('[admin-whatsapp] análise de crédito existente:', error?.message || error);
+          });
+        }
         return res.status(200).json({ ok: true, reused: true, analysis: existing });
       }
 
@@ -705,6 +716,15 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
           baseAmountCents,
           action: 'open_credit_analysis'
         }
+      });
+
+      sendCreditAnalysisWhatsappAlert({
+        mongoose,
+        waSendTextMessage,
+        analysis,
+        reminder: false
+      }).catch((error) => {
+        console.error('[admin-whatsapp] nova análise de crédito:', error?.message || error);
       });
 
       let whatsapp = null;
