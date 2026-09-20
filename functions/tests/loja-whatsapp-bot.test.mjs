@@ -119,7 +119,12 @@ function installFetchMock() {
 
     if (href === 'https://api.openai.com/v1/responses') {
       return jsonResponse({
-        output_text: JSON.stringify(visionClassification)
+        output_text: JSON.stringify(visionClassification),
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 100,
+          total_tokens: 1100
+        }
       });
     }
 
@@ -522,6 +527,71 @@ test('texto dizendo que pagou pede o comprovante em vez de confirmar baixa', asy
   assert.equal(sentTexts.length, 1);
   assert.match(sentTexts[0].text, /Pode enviar o comprovante/i);
   assert.equal(backendEvents.length, 0);
+});
+
+
+test('orçamento mensal da visão contabiliza uso real em reais', () => {
+  const initial = bot.visionBudgetStatus();
+  assert.equal(initial.limitBrl, 30);
+  assert.equal(initial.stopAtBrl, 29.5);
+  assert.equal(initial.blocked, false);
+
+  const after = bot.recordVisionUsage({
+    input_tokens: 1_000_000,
+    output_tokens: 0
+  });
+
+  // US$ 0,20 de entrada x câmbio conservador R$ 6,00/US$ = R$ 1,20.
+  assert.equal(after.usedBrl, 1.2);
+  assert.equal(after.requests, 1);
+  assert.equal(after.inputTokens, 1_000_000);
+  assert.equal(after.outputTokens, 0);
+});
+
+test('visão bloqueia novas chamadas antes de ultrapassar R$ 30 no mês', async () => {
+  const phone = '5533923333399';
+
+  bot.patchTestVisionBudget({
+    estimatedBrl: 29.50,
+    requests: 99,
+    inputTokens: 0,
+    outputTokens: 0
+  });
+
+  const status = bot.visionBudgetStatus();
+  assert.equal(status.limitBrl, 30);
+  assert.equal(status.stopAtBrl, 29.5);
+  assert.equal(status.blocked, true);
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'VISION-BUDGET-BLOCK-1'
+      },
+      pushName: 'Cliente',
+      message: {
+        imageMessage: {
+          mimetype: 'image/jpeg'
+        }
+      }
+    }
+  });
+
+  assert.equal(result.vision, 'vision_budget_blocked');
+  assert.match(sentTexts.at(-1).text, /análise automática de imagens está temporariamente indisponível/i);
+  assert.equal(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/responses'),
+    false,
+    'não pode chamar a API da OpenAI quando o limite mensal estiver bloqueado'
+  );
+  assert.equal(
+    requestLog.some((item) => item.href.startsWith('https://evolution.test/chat/getBase64FromMediaMessage/')),
+    false,
+    'não precisa baixar a mídia quando a análise visual já está bloqueada'
+  );
 });
 
 test('imagem reconhecida como comprovante PIX é registrada para análise', async () => {
