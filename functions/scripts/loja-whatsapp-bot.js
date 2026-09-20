@@ -357,13 +357,14 @@ function isGreeting(text) {
 
 function asksMarceloOrCallback(text) {
   const n = normalize(text);
+  const marcelo = '(?:marcelo|macelo|marcello)';
 
   return (
-    /(falar|conversar).{0,20}(com )?(o )?marcelo/.test(n) ||
-    /marcelo.{0,45}(esta ai|ta ai|pode falar|preciso falar|quero falar|precisando falar)/.test(n) ||
-    /(preciso|precisando|precisava|queria|quero|gostaria).{0,25}falar.{0,20}(com )?(voce|marcelo)/.test(n) ||
-    /(pode|poderia|teria como|consegue|conseguiria).{0,25}(me )?(ligar|retornar|telefonar)/.test(n) ||
-    /(me liga|me ligue|liga pra mim|liga para mim|retorna pra mim|retorna para mim)/.test(n)
+    new RegExp('(falar|conversar).{0,20}(com )?(o )?' + marcelo).test(n) ||
+    new RegExp(marcelo + '.{0,50}(esta ai|ta ai|pode falar|preciso falar|quero falar|precisando falar|me liga|me ligue)').test(n) ||
+    new RegExp('(preciso|precisando|precisava|queria|quero|gostaria|to precisando|estou precisando).{0,30}falar.{0,20}(com )?(voce|' + marcelo + ')').test(n) ||
+    /(pode|poderia|teria|teria como|consegue|conseguiria).{0,30}(me|mim)?\s*(ligar|retornar|telefonar)/.test(n) ||
+    /(me|mim)\s+(liga|ligue|retorna|retorne)|liga(r)?\s+(aqui|pra mim|para mim)|retorna(r)?\s+(aqui|pra mim|para mim)/.test(n)
   );
 }
 
