@@ -90,6 +90,21 @@ try {
     } else {
       warn('Visão de imagens', 'chave da API de visão ainda não configurada');
     }
+
+    const visionBudget = local.body?.visionBudget || {};
+    if (Number(visionBudget.limitBrl) === 30 && Number(visionBudget.stopAtBrl) === 29.5) {
+      const used = Number(visionBudget.usedBrl || 0).toFixed(2);
+      if (visionBudget.blocked === true) {
+        warn('Limite mensal da visão', `bloqueado em R$ ${used} / R$ 30,00`);
+      } else {
+        ok('Limite mensal da visão', `R$ ${used} usados / R$ 30,00`);
+      }
+    } else {
+      warn(
+        'Limite mensal da visão',
+        'esperado R$ 30,00 com margem preventiva em R$ 29,50'
+      );
+    }
   }
 } catch (error) {
   fail('Health local 8093', error.message);
