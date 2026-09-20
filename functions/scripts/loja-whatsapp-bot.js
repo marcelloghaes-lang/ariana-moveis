@@ -892,6 +892,22 @@ function detectCategory(text) {
   return '';
 }
 
+function greetingFromText(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!n) return '';
+
+  if (/^(?:(?:oi+|oie+|ola+)\s+)?bom dia\b/.test(n)) return 'Bom dia';
+  if (/^(?:(?:oi+|oie+|ola+)\s+)?boa tarde\b/.test(n)) return 'Boa tarde';
+  if (/^(?:(?:oi+|oie+|ola+)\s+)?boa noite\b/.test(n)) return 'Boa noite';
+  if (/^(?:oi+|oie+|ola+)\b/.test(n)) return 'Olá';
+
+  return '';
+}
+
 function isGreeting(text) {
   const n = normalize(text)
     .replace(/[!?.,;:]+/g, ' ')
@@ -2284,6 +2300,14 @@ async function handleMessage({ phone, text, pushName = '' }) {
 
   const category = detectCategory(text);
   if (category) {
+    const greeting = greetingFromText(text);
+    if (greeting) {
+      await sendText(
+        phone,
+        `${greeting}! 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Vou verificar as opções disponíveis para você.`
+      );
+    }
+
     await showProducts(phone, conv, category, text);
     return;
   }
@@ -2307,12 +2331,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
   }
 
   if (isGreeting(text)) {
-    const nGreeting = normalize(text);
-    let saudacao = 'Olá';
-    if (nGreeting.includes('bom dia')) saudacao = 'Bom dia';
-    else if (nGreeting.includes('boa tarde')) saudacao = 'Boa tarde';
-    else if (nGreeting.includes('boa noite')) saudacao = 'Boa noite';
-
+    const saudacao = greetingFromText(text) || 'Olá';
     await sendText(phone, `${saudacao}! 😊 Tudo bem? Seja bem-vindo à Ariana Móveis. Como posso te ajudar hoje?`);
     return;
   }
@@ -2616,6 +2635,7 @@ export const __test = {
   digits,
   categoryAliases,
   detectCategory,
+  greetingFromText,
   isGreeting,
   asksPresencePing,
   asksMarceloOrCallback,
