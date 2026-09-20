@@ -416,10 +416,13 @@ test('contextos de clientes diferentes permanecem isolados', () => {
 test('pedido para falar com Marcelo ou receber ligação é reconhecido', () => {
   for (const value of [
     'Oi Marcelo tudo bem? Tô precisando falar com você',
+    'Oi macelo tudo bem teria mim ligar aqui',
     'Quero falar com o Marcelo',
     'Marcelo está aí?',
     'Teria como me ligar aqui?',
+    'Teria mim ligar aqui?',
     'Pode me ligar quando puder?',
+    'Liga aqui pra mim',
     'Preciso falar com você'
   ]) {
     assert.equal(bot.asksMarceloOrCallback(value), true, value);
