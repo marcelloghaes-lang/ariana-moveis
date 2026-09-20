@@ -1317,7 +1317,65 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[loja-bot] Ariana Loja ouvindo em 127.0.0.1:${PORT}`);
-  console.log(`[loja-bot] Instância Evolution: ${EVOLUTION_INSTANCE}`);
-});
+function resetTestState() {
+  state.conversations = {};
+  state.processed = {};
+  state.botOutbound = {};
+  state.botOutboundFingerprints = {};
+}
+
+function patchTestConversation(phone, patch = {}) {
+  const conv = conversation(phone);
+  Object.assign(conv, patch || {});
+  return conv;
+}
+
+export const __test = {
+  CATEGORY_TERMS,
+  normalize,
+  digits,
+  categoryAliases,
+  detectCategory,
+  isGreeting,
+  wantsHuman,
+  asksPaymentMethods,
+  asksPixKey,
+  asksCardQuote,
+  asksPixPrice,
+  asksProductLink,
+  asksDelivery,
+  asksFinance,
+  asksHowToBuyCredit,
+  asksToWriteOnCredit,
+  asksMoreProducts,
+  asksCreditQuote,
+  parseInstallments,
+  creditDivisor,
+  creditPlan,
+  ordinalIndex,
+  productCashPrice,
+  productFullPrice,
+  productLink,
+  compactProduct,
+  matchesRequestedProductType,
+  searchProducts,
+  showProducts,
+  showMoreProducts,
+  deliveryReply,
+  paymentMethodsReply,
+  financialReply,
+  handleMessage,
+  handleWebhook,
+  conversation,
+  resetTestState,
+  patchTestConversation,
+  manualHumanPauseMs: MANUAL_HUMAN_PAUSE_MS,
+  humanTtlMs: HUMAN_TTL_MS
+};
+
+if (process.env.LOJA_BOT_TEST_MODE !== '1') {
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`[loja-bot] Ariana Loja ouvindo em 127.0.0.1:${PORT}`);
+    console.log(`[loja-bot] Instância Evolution: ${EVOLUTION_INSTANCE}`);
+  });
+}
