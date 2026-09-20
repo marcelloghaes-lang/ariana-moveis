@@ -1148,11 +1148,35 @@ function asksDelivery(text) {
 function asksFinance(text) {
   const n = normalize(text);
   return (
-    /minha notinha|minha nota ai|minha conta ai|minha prestacao|meu carnezinho|valor da minha nota/.test(n) ||
-    /quantos?\s+(?:que\s+)?(?:eu\s+)?tenho que (?:te )?passar/.test(n) ||
+    /minha notinha|minhas notinhas|minha nota ai|minha conta ai|minha prestacao|meu carnezinho|valor da minha nota/.test(n) ||
+    /quantos?\s+(?:que\s+)?(?:eu\s+)?tenho que (?:te )?(?:passar|mandar|enviar)/.test(n) ||
+    /qual\s+(?:e\s+)?o?\s*valor.{0,30}(?:tenho que|pra|para).{0,20}(?:te )?(?:mandar|passar|pagar)/.test(n) ||
+    /(?:preciso|tenho)\s+(?:te\s+)?(?:mandar|passar|pagar)\s+quantos?/.test(n) ||
+    /esqueci.{0,30}(?:valor|quanto).{0,35}(?:mandar|passar|pagar)/.test(n) ||
     /quanto\s+(?:que\s+)?(?:eu\s+)?tenho que pagar/.test(n) ||
-    /quanto vence|quanto que eu te devo|quanto eu te devo/.test(n)
+    /quanto vence|quanto que eu te devo|quanto eu te devo/.test(n) ||
+    /soma(?:r)?\s+(?:pra|para)\s+mim.{0,35}(?:notinha|notinhas|conta|parcelas|o que eu te devo)/.test(n) ||
+    /soma(?:r)?\s+tudo.{0,30}(?:devo|notinha|notinhas|conta|parcelas)/.test(n) ||
+    /quantos?\s+(?:que\s+)?ta dando.{0,25}(?:minha|as minhas)\s+(?:notinha|notinhas|conta|parcelas)/.test(n)
   );
+}
+
+function asksPaymentExceptionForMarcelo(text) {
+  const n = normalize(text);
+
+  const partialPayment =
+    /(?:esse|este) mes.{0,45}(?:vou|consigo|posso).{0,25}(?:mandar|passar|pagar|enviar).{0,25}(?:so|somente|apenas)/.test(n) ||
+    /(?:so|somente|apenas).{0,20}(?:consigo|vou|posso).{0,25}(?:mandar|passar|pagar|enviar)/.test(n) ||
+    /(?:vou|consigo|posso).{0,25}(?:mandar|passar|pagar|enviar).{0,25}(?:so|somente|apenas)/.test(n);
+
+  const hardship =
+    /pagamento.{0,20}(?:foi|veio|ta|esta).{0,15}(?:pouco|baixo|menor)/.test(n) ||
+    /recebi.{0,20}(?:pouco|menos)|nao recebi/.test(n) ||
+    /imprevisto|aperto|apertado|dificuldade financeira/.test(n) ||
+    /medic|remedio|medicamento|hospital|consulta|saude|doenca|doente/.test(n) ||
+    /precisei gastar|tive que gastar|gastei.{0,30}(?:muito|com)/.test(n);
+
+  return partialPayment && hardship;
 }
 
 function asksHowToBuyCredit(text) {
@@ -2372,6 +2396,29 @@ async function handleMessage({ phone, text, pushName = '' }) {
     }
   }
 
+  if (asksPaymentExceptionForMarcelo(text)) {
+    conv.pendingAction = '';
+    conv.marceloCallbackRequested = true;
+    conv.marceloCallbackRequestedAt = Date.now();
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      'Ok 😊 Assim que o Marcelo chegar, eu peço para ele retornar para você por aqui.'
+    );
+
+    await syncTicket(phone, {
+      status: 'Aguardando retorno do Marcelo',
+      message: `Cliente informou que pretende pagar valor parcial neste mês e explicou dificuldade/imprevisto: ${String(text || '').trim()}`,
+      name: pushName,
+      metadata: {
+        assunto: 'negociacao_pagamento_parcial',
+        exigeConfirmacaoMarcelo: true
+      }
+    });
+    return;
+  }
+
   if (await handlePending(phone, text, conv)) return;
 
   if (asksMarceloOrCallback(text)) {
@@ -3129,6 +3176,7 @@ export const __test = {
   asksProductLink,
   asksDelivery,
   asksFinance,
+  asksPaymentExceptionForMarcelo,
   asksHowToBuyCredit,
   asksToWriteOnCredit,
   asksMoreProducts,
