@@ -1088,9 +1088,12 @@ async function saveSellerProfileSettings(req, res) {
       }
     }
     if (body.cep !== undefined || body.postalCode !== undefined || body.zipCode !== undefined) {
-      const cep = String(body.cep ?? body.postalCode ?? body.zipCode ?? '').replace(/\D/g, '').slice(0, 8);
-      metadata.cep = cep;
-      metadata.postalCode = cep;
+      const currentCep = metadata.cep || metadata.postalCode || metadata.zipCode || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentCep)) {
+        const cep = String(body.cep ?? body.postalCode ?? body.zipCode ?? '').replace(/\D/g, '').slice(0, 8);
+        metadata.cep = cep;
+        metadata.postalCode = cep;
+      }
     }
     if (body.address !== undefined || body.endereco !== undefined || body.streetAddress !== undefined) {
       const currentAddress = metadata.address || metadata.endereco || metadata.streetAddress || '';
