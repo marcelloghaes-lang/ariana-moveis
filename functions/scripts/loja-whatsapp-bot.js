@@ -321,6 +321,8 @@ function conversation(phone) {
       awaitingSimilarOptions: false,
       pendingAlternativeCategory: '',
       pendingAlternativeUntil: 0,
+      pendingCreditProductId: '',
+      pendingCreditUntil: 0,
       creditOrderWaitingMarcelo: false,
       lastIntent: ''
     };
@@ -1205,6 +1207,50 @@ function parseInstallments(text) {
   return 0;
 }
 
+function parsePendingInstallments(text) {
+  const n = normalize(text)
+    .replace(/[!?.,;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const match = n.match(/^(?:em\s+)?(\d{1,2})\s*(?:x|vezes|parcelas)?$/);
+  return match ? Number(match[1]) : 0;
+}
+
+function findConversationProduct(conv, id = '') {
+  const wanted = String(id || '').trim();
+  if (!wanted) return null;
+
+  const candidates = [
+    conv?.selectedProduct,
+    ...(Array.isArray(conv?.lastProducts) ? conv.lastProducts : []),
+    ...(Array.isArray(conv?.allProductResults) ? conv.allProductResults : [])
+  ].filter(Boolean);
+
+  return candidates.find((product) => productId(product) === wanted) || null;
+}
+
+function setPendingCreditInstallments(conv, product) {
+  conv.pendingAction = 'credit_installments';
+  conv.pendingCreditProductId = productId(product);
+  conv.pendingCreditUntil = Date.now() + 30 * 60 * 1000;
+  saveStateSoon();
+}
+
+function clearPendingCreditInstallments(conv) {
+  if (conv.pendingAction === 'credit_installments') conv.pendingAction = '';
+  conv.pendingCreditProductId = '';
+  conv.pendingCreditUntil = 0;
+  saveStateSoon();
+}
+
+function asksGenericInstallmentQuote(text) {
+  const n = normalize(text);
+  const mentionsInstallment = /\b(parcelado|parcelada|parcelar|parcelamento|parcelas|prestacoes)\b/.test(n);
+  const explicitMethod = /\b(cartao|boleto|carne|crediario|pix)\b/.test(n);
+  return mentionsInstallment && !explicitMethod;
+}
+
 function creditDivisor(count) {
   if (count >= 1 && count <= 4) return 0.80;
   if (count <= 6) return 0.75;
@@ -2013,6 +2059,50 @@ function parseFullName(text) {
 }
 
 async function handlePending(phone, text, conv) {
+  if (conv.pendingAction === 'credit_installments') {
+    if (conv.pendingCreditUntil && Date.now() >= Number(conv.pendingCreditUntil)) {
+      clearPendingCreditInstallments(conv);
+      return false;
+    }
+
+    const count = parsePendingInstallments(text);
+    if (!count) return false;
+
+    const product = findConversationProduct(conv, conv.pendingCreditProductId);
+    if (!product) {
+      clearPendingCreditInstallments(conv);
+      await sendText(phone, 'Não consegui recuperar o produto desse cálculo. Me diga qual produto você está olhando que eu calculo novamente para você.');
+      return true;
+    }
+
+    const plan = creditPlan(product, count);
+    if (plan.invalid) {
+      await sendText(
+        phone,
+        `Para *${product.name}*, o máximo no crediário é *${plan.max}x*. Me diga uma quantidade de 1 a ${plan.max} parcelas.`
+      );
+      return true;
+    }
+
+    conv.selectedProduct = product;
+    conv.lastCreditPlan = {
+      productId: productId(product),
+      count,
+      divisor: plan.divisor,
+      total: plan.total,
+      installment: plan.installment
+    };
+    clearPendingCreditInstallments(conv);
+    markCreditContext(conv);
+    saveStateSoon();
+
+    await sendText(
+      phone,
+      `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
+    );
+    return true;
+  }
+
   if (conv.pendingAction === 'finance_cpf') {
     const cpf = digits(text);
     if (cpf.length !== 11) {
@@ -2367,6 +2457,7 @@ async function handleMessage({ phone, text, pushName = '' }) {
     const plan = creditPlan(product, count);
 
     if (!count) {
+      setPendingCreditInstallments(conv, product);
       await sendText(phone, `Para *${product.name}*, consigo fazer no crediário próprio em até *${plan.max}x*. Em quantas vezes você gostaria que eu calculasse?`);
       return;
     }
@@ -2383,10 +2474,34 @@ async function handleMessage({ phone, text, pushName = '' }) {
       total: plan.total,
       installment: plan.installment
     };
+    clearPendingCreditInstallments(conv);
     saveStateSoon();
     await sendText(
       phone,
       `No crediário próprio, para *${product.name}*, em *${count}x* fica aproximadamente *${count}x de ${money(plan.installment)}*, total de *${money(plan.total)}*. A compra no carnê é sujeita à análise de crédito.\n\nSe quiser seguir com o carnê, eu já posso iniciar a solicitação para você.`
+    );
+    return;
+  }
+
+  if (
+    asksGenericInstallmentQuote(text) &&
+    (
+      (ord >= 0 && Array.isArray(conv.lastProducts) && conv.lastProducts[ord]) ||
+      (asksLastShownProduct(text) && Array.isArray(conv.lastProducts) && conv.lastProducts.length) ||
+      conv.selectedProduct
+    )
+  ) {
+    const product = ord >= 0 && conv.lastProducts[ord]
+      ? conv.lastProducts[ord]
+      : asksLastShownProduct(text) && conv.lastProducts.length
+        ? conv.lastProducts[conv.lastProducts.length - 1]
+        : conv.selectedProduct;
+
+    conv.selectedProduct = product;
+    saveStateSoon();
+    await sendText(
+      phone,
+      `Claro 😊 Você quer que eu calcule *${product.name}* parcelado no *cartão* ou no *crediário/carnê*?`
     );
     return;
   }
@@ -2783,6 +2898,8 @@ export const __test = {
   asksToWriteOnCredit,
   asksMoreProducts,
   asksCreditQuote,
+  asksGenericInstallmentQuote,
+  parsePendingInstallments,
   asksAcceptedAlternative,
   asksLastShownProduct,
   setAlternativeOffer,
