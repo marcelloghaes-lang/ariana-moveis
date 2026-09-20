@@ -24,33 +24,46 @@ const LEGACY_WEBHOOK_HEADERS_B64 = String(process.env.LOJA_LEGACY_WEBHOOK_HEADER
 const CATEGORY_TERMS = [
   ['sofá', ['sofa', 'sofas']],
   ['geladeira', ['geladeira', 'geladeiras', 'refrigerador', 'refrigeradores']],
-  ['fogão', ['fogao', 'fogoes']],
-  ['cama', ['cama', 'camas', 'box', 'colchao', 'colchoes']],
-  ['celular', ['celular', 'celulares', 'smartphone', 'smartphones', 'iphone']],
-  ['tv', ['tv', 'televisao', 'televisor', 'smart tv']],
-  ['guarda-roupa', ['guarda roupa', 'guarda-roupa', 'guarda roupas', 'roupeiro', 'roupeiros']],
-  ['máquina de lavar', ['maquina de lavar', 'lavadora', 'lava roupas']],
-  ['air fryer', ['air fryer', 'fritadeira eletrica', 'fritadeira']],
-  ['micro-ondas', ['microondas', 'micro-ondas']],
-  ['ventilador', ['ventilador', 'ventiladores']],
-  ['ar-condicionado', ['ar condicionado', 'ar-condicionado']],
   ['freezer', ['freezer', 'freezers']],
   ['frigobar', ['frigobar', 'frigobares']],
-  ['mesa', ['mesa', 'mesas']],
-  ['cadeira', ['cadeira', 'cadeiras']],
-  ['rack', ['rack', 'racks']],
-  ['painel', ['painel', 'paineis']],
+  ['fogão', ['fogao', 'fogoes']],
+  ['cama', ['cama', 'camas', 'colchao', 'colchoes', 'box', 'cama box', 'colchao box', 'colchoes box']],
+  ['celular', ['celular', 'celulares', 'smartphone', 'smartphones', 'iphone']],
+  ['tv', ['tv', 'tvs', 'televisao', 'televisoes', 'televisor', 'televisores', 'smart tv', 'smart tvs']],
+  ['caixa de som', ['som', 'caixa de som', 'caixas de som', 'caixa torre', 'caixas torre', 'torre', 'torres', 'torre de som', 'torres de som']],
+  ['guarda-roupa', ['guarda roupa', 'guarda-roupa', 'guarda roupas', 'roupeiro', 'roupeiros']],
   ['armário', ['armario', 'armarios']],
   ['cozinha completa', ['cozinha completa', 'cozinhas completas']],
+  ['máquina de lavar', ['maquina de lavar', 'maquinas de lavar', 'lavadora', 'lavadoras', 'lava roupas', 'lava-roupas', 'lavadora automatica', 'lavadoras automaticas']],
+  ['tanquinho', ['tanquinho', 'tanquinhos', 'lavadora semiautomatica', 'lavadoras semiautomaticas', 'lavadora semi automatica', 'lavadoras semi automaticas', 'semiautomatica', 'semi automatica']],
+  ['air fryer', ['air fryer', 'fritadeira eletrica', 'fritadeira']],
+  ['micro-ondas', ['microondas', 'micro-ondas', 'forno microondas', 'forno micro-ondas']],
+  ['forno elétrico', ['forno eletrico', 'fornos eletricos', 'forninho', 'forninhos']],
+  ['ventilador', ['ventilador', 'ventiladores']],
+  ['ar-condicionado', ['ar condicionado', 'ar-condicionado']],
+  ['mesa', ['mesa', 'mesas']],
+  ['cadeira', ['cadeira', 'cadeiras']],
+  ['rack/painel', ['rack', 'racks', 'painel', 'paineis', 'estante home', 'estantes home', 'home', 'home theater', 'home para tv']],
+  ['multiuso', ['multiuso', 'multiusos', 'sapateira', 'sapateiras']],
+  ['penteadeira', ['penteadeira', 'penteadeiras', 'camarim', 'camarins']],
   ['cômoda', ['comoda', 'comodas']],
   ['notebook', ['notebook', 'notebooks']],
   ['computador', ['computador', 'computadores', 'pc']],
   ['tablet', ['tablet', 'tablets']],
-  ['forno', ['forno', 'fornos']],
   ['liquidificador', ['liquidificador', 'liquidificadores']],
   ['batedeira', ['batedeira', 'batedeiras']],
   ['cafeteira', ['cafeteira', 'cafeteiras']]
 ];
+
+function categoryAliases(query = '') {
+  const wanted = normalize(query);
+  const entry = CATEGORY_TERMS.find(([canonical]) => normalize(canonical) === wanted);
+  if (!entry) return [String(query || '').trim()].filter(Boolean);
+  const values = [entry[0], ...(entry[1] || [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return [...new Set(values)];
+}
 
 function normalize(value = '') {
   return String(value || '')
@@ -315,8 +328,18 @@ async function sendImage(phone, imageUrl, caption) {
 
 function detectCategory(text) {
   const n = normalize(text);
-  for (const [query, aliases] of CATEGORY_TERMS) {
-    if (aliases.some((alias) => n.includes(normalize(alias)))) return query;
+  const candidates = CATEGORY_TERMS.flatMap(([query, aliases]) =>
+    (aliases || []).map((alias) => ({ query, alias: normalize(alias) }))
+  ).sort((a, b) => b.alias.length - a.alias.length);
+
+  for (const { query, alias } of candidates) {
+    if (!alias) continue;
+    if (alias.length <= 4) {
+      const escaped = alias.replace(/[.*+?^\$\{\}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(n)) return query;
+    } else if (n.includes(alias)) {
+      return query;
+    }
   }
   return '';
 }
@@ -495,14 +518,8 @@ function matchesRequestedProductType(product = {}, query = '') {
   if (requested === 'geladeira' || requested === 'refrigerador') {
     return !/\bfreezer\b|\bfrigobar\b/.test(haystack);
   }
-
-  if (requested === 'freezer') {
-    return /\bfreezer\b/.test(haystack);
-  }
-
-  if (requested === 'frigobar') {
-    return /\bfrigobar\b/.test(haystack);
-  }
+  if (requested === 'freezer') return /\bfreezer\b/.test(haystack);
+  if (requested === 'frigobar') return /\bfrigobar\b/.test(haystack);
 
   if (requested === 'guarda-roupa' || requested === 'roupeiro') {
     return /guarda[ -]?roupa|roupeiro/.test(haystack);
@@ -512,26 +529,51 @@ function matchesRequestedProductType(product = {}, query = '') {
     return !/cozinha completa/.test(haystack) &&
       !/guarda[ -]?roupa|roupeiro/.test(haystack);
   }
-
-  if (requested === 'cozinha completa') {
-    return /cozinha completa/.test(haystack);
-  }
+  if (requested === 'cozinha completa') return /cozinha completa/.test(haystack);
 
   if (requested === 'maquina de lavar') {
     return !/tanquinho|semi ?automatica/.test(haystack);
   }
-
   if (requested === 'tanquinho') {
     return /tanquinho|semi ?automatica/.test(haystack);
+  }
+
+  if (requested === 'micro-ondas') {
+    return /micro ?-? ?ondas/.test(haystack);
+  }
+  if (requested === 'forno eletrico') {
+    return /forno eletrico|forninho/.test(haystack) && !/micro ?-? ?ondas/.test(haystack);
+  }
+
+  if (requested === 'caixa de som') {
+    return /caixa.{0,12}som|torre.{0,12}som|som.{0,12}torre|\bsom\b/.test(haystack);
+  }
+
+  if (requested === 'multiuso') return /multiuso|sapateira/.test(haystack);
+  if (requested === 'penteadeira') return /penteadeira|camarim/.test(haystack);
+  if (requested === 'rack\/painel') {
+    return /\brack\b|painel|estante home|home.{0,12}(tv|theater)/.test(haystack);
   }
 
   return true;
 }
 
 async function searchProducts(query, originalText = '') {
-  const q = encodeURIComponent(query);
-  const data = await backend(`/api/products?q=${q}&limit=100`);
-  const rows = Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
+  const terms = categoryAliases(query);
+  const resultSets = await Promise.all(
+    terms.map(async (term) => {
+      try {
+        const q = encodeURIComponent(term);
+        const data = await backend(`/api/products?q=${q}&limit=100`);
+        return Array.isArray(data) ? data : Array.isArray(data?.products) ? data.products : [];
+      } catch (error) {
+        console.warn('[loja-bot] busca por termo falhou:', term, error.message || error);
+        return [];
+      }
+    })
+  );
+
+  const rows = resultSets.flat();
   let products = rows
     .map(compactProduct)
     .filter((p) => p.id && Number(p.stock || 0) > 0 && productCashPrice(p) > 0)
