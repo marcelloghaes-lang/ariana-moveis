@@ -1243,10 +1243,22 @@ function matchesRequestedProductType(product = {}, query = '') {
   }
 
   if (requested === 'tv') {
-    const isTv = /\btv\b|televisao|televisor|smart tv/.test(haystack);
+    const isTv = /\btv\b|televisao|televisor|smart tv|google tv/.test(haystack);
     const isTvAccessoryOrFurniture =
       /rack|painel|home theater|home para tv|estante|suporte|base para tv|antena|controle|conversor|tv box|box tv|receptor|cabide|aparador/.test(haystack);
     return isTv && !isTvAccessoryOrFurniture;
+  }
+
+  if (requested === 'celular') {
+    const category = normalize(product.category || '');
+    const name = normalize(product.name || '');
+    const isPhoneCategory = /celular|celulares|smartphone|smartphones|telefonia/.test(category);
+    const looksLikePhone =
+      /\biphone\b|\bsmartphone\b|\bcelular\b|\bgalaxy\b|\bmoto\s*[ge]\b|\bredmi\b|\bpoco\b|\brealme\b|\bxiaomi\b/.test(name);
+    const isAccessory =
+      /capa|pelicula|carregador|cabo|fone|headset|caixa de som|speaker|suporte|power bank|relogio|smartwatch/.test(haystack);
+
+    return (isPhoneCategory || looksLikePhone) && !isAccessory;
   }
 
   if (requested === 'cama') {
@@ -1263,6 +1275,73 @@ function matchesRequestedProductType(product = {}, query = '') {
   if (requested === 'penteadeira') return /penteadeira|camarim/.test(haystack);
   if (requested === 'rack\/painel') {
     return /\brack\b|painel|estante home|home.{0,12}(tv|theater)/.test(haystack);
+  }
+
+  return true;
+}
+
+function plausibleTvInches(value) {
+  const n = Number(value || 0);
+  return Number.isInteger(n) && n >= 20 && n <= 100 ? n : 0;
+}
+
+function requestedTvInches(text = '') {
+  const n = normalize(text);
+  const patterns = [
+    /\b(\d{2,3})\s*(?:polegada|polegadas|pol\.?|["”])/,
+    /(?:\btv\b|televisao|televisor).{0,18}?\b(?:de\s+)?(\d{2,3})\b/
+  ];
+
+  for (const pattern of patterns) {
+    const match = n.match(pattern);
+    const size = plausibleTvInches(match?.[1]);
+    if (size) return size;
+  }
+
+  return 0;
+}
+
+function productTvInches(product = {}) {
+  const name = normalize(product.name || '');
+  const patterns = [
+    /\b(\d{2,3})\s*(?:polegada|polegadas|pol\.?|["”])/,
+    /(?:\btv\b|televisao|televisor).{0,28}?\b(\d{2,3})\b/,
+    /\bs(\d{2,3})\b/,
+    /\b(\d{2,3})(?=[a-z])/
+  ];
+
+  for (const pattern of patterns) {
+    const match = name.match(pattern);
+    const size = plausibleTvInches(match?.[1]);
+    if (size) return size;
+  }
+
+  return 0;
+}
+
+function matchesRequestedProductConstraints(product = {}, query = '', originalText = '') {
+  const requested = normalize(query);
+  const original = normalize(originalText);
+  const haystack = normalize([
+    product.name,
+    product.category,
+    product.brand
+  ].filter(Boolean).join(' '));
+
+  if (requested === 'tv') {
+    const wantedInches = requestedTvInches(original);
+    if (wantedInches) {
+      return productTvInches(product) === wantedInches;
+    }
+  }
+
+  if (requested === 'celular' && /\biphone\b/.test(original)) {
+    const isIphone = /\biphone\b/.test(haystack);
+    const isApplePhone =
+      /\bapple\b/.test(normalize(product.brand || '')) &&
+      /celular|smartphone|telefonia/.test(normalize(product.category || ''));
+
+    return isIphone || isApplePhone;
   }
 
   return true;
@@ -1296,7 +1375,8 @@ async function searchProducts(query, originalText = '') {
   let products = rows
     .map(compactProduct)
     .filter((p) => p.id && Number(p.stock || 0) > 0 && productCashPrice(p) > 0)
-    .filter((p) => matchesRequestedProductType(p, query));
+    .filter((p) => matchesRequestedProductType(p, query))
+    .filter((p) => matchesRequestedProductConstraints(p, query, originalText));
 
   const seen = new Set();
   products = products.filter((p) => {
@@ -1360,6 +1440,25 @@ async function sendProductPage(phone, conv, { announce = true } = {}) {
 async function showProducts(phone, conv, query, originalText) {
   const products = await searchProducts(query, originalText);
   if (!products.length) {
+    const tvInches = normalize(query) === 'tv' ? requestedTvInches(originalText) : 0;
+    const askedIphone = normalize(query) === 'celular' && /\biphone\b/.test(normalize(originalText));
+
+    if (tvInches) {
+      await sendText(
+        phone,
+        `No momento não encontrei *TV de ${tvInches} polegadas* disponível em estoque no catálogo da Ariana Móveis. Se quiser, posso te mostrar outros tamanhos disponíveis 😊`
+      );
+      return;
+    }
+
+    if (askedIphone) {
+      await sendText(
+        phone,
+        'No momento não encontrei *iPhone* disponível em estoque no catálogo da Ariana Móveis. Se quiser, posso te mostrar outros celulares disponíveis 😊'
+      );
+      return;
+    }
+
     await sendText(phone, `No momento não encontrei *${query}* disponível no catálogo da Ariana Móveis. Se quiser, me diga outro produto que você está procurando 😊`);
     return;
   }
@@ -2560,6 +2659,9 @@ export const __test = {
   productLink,
   compactProduct,
   matchesRequestedProductType,
+  requestedTvInches,
+  productTvInches,
+  matchesRequestedProductConstraints,
   searchProducts,
   showProducts,
   showMoreProducts,
