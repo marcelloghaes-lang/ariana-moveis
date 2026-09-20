@@ -282,6 +282,79 @@ export default function registerCrediarioAnalysisRoutes(app, { mongoose, Order, 
     return Order.collection.findOne(query);
   }
 
+  async function backfillRecentCrediarioNotifications() {
+    try {
+      const since = new Date(Date.now() - (6 * 60 * 60 * 1000));
+      const rows = await Analysis.find({
+        createdAt: { $gte: since },
+        status: { $in: ['PENDENTE_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'EM_ANALISE'] }
+      }).sort({ createdAt: -1 }).limit(50).lean();
+
+      for (const analysis of rows) {
+        const orderId = text(analysis.orderId, 120);
+        const order = orderId ? await findOrder(orderId) : null;
+        const shortId = orderId ? orderId.slice(-8).toUpperCase() : '---';
+        const customerName = text(analysis.customer?.name || order?.customerName || 'Cliente', 160);
+
+        if (orderId && order) {
+          await notifyAdminOnce({
+            type: 'crediario_order_received',
+            relatedId: orderId,
+            title: 'Novo pedido no Crediário Ariana',
+            message: `Pedido #${shortId} de ${customerName} no valor de R$ ${Number(order.total || 0).toFixed(2).replace('.', ',')} aguardando análise de crédito.`,
+            severity: 'warning',
+            metadata: {
+              orderId,
+              paymentMethod: 'crediario_ariana',
+              status: order.status || '',
+              total: Number(order.total || 0),
+              action: 'open_credit_analysis'
+            }
+          });
+        }
+
+        await notifyAdminOnce({
+          type: 'crediario_analysis_requested',
+          relatedId: orderId || analysis.analysisId,
+          title: 'Nova análise de crédito',
+          message: `${customerName} possui solicitação de análise${orderId ? ` do pedido #${shortId}` : ''} aguardando ação.`,
+          severity: 'warning',
+          metadata: {
+            orderId,
+            analysisId: analysis.analysisId,
+            status: analysis.status,
+            origin: analysis.origin || 'SITE',
+            action: 'open_credit_analysis'
+          }
+        });
+
+        if (analysis.documentCollectionStatus === 'DOCUMENTOS_RECEBIDOS') {
+          await notifyAdminOnce({
+            type: 'crediario_documents_received',
+            relatedId: orderId || analysis.analysisId,
+            title: 'Documentos do crediário recebidos',
+            message: `Os dados e documentos de ${customerName}${orderId ? ` do pedido #${shortId}` : ''} foram recebidos e estão prontos para análise.`,
+            severity: 'success',
+            metadata: {
+              orderId,
+              analysisId: analysis.analysisId,
+              status: analysis.status,
+              action: 'open_credit_analysis'
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[crediario notification backfill]', error?.message || error);
+    }
+  }
+
+  const notificationBackfillTimer = setTimeout(() => {
+    backfillRecentCrediarioNotifications().catch(() => null);
+  }, 15000);
+  notificationBackfillTimer.unref?.();
+
+
   function customerOwns(order, req) {
     const userId = String(req.user?._id || req.auth?.id || '');
     const candidates = [order?.userId, order?.customerId, order?.clientId, order?.user?._id, order?.customer?._id].map(String);
