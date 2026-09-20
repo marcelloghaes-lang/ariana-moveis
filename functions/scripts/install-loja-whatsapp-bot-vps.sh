@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-INSTALLER_VERSION="2026-09-20.3"
+INSTALLER_VERSION="2026-09-20.4"
 
 INSTANCE_NAME="ariana loja"
 INSTANCE_PATH="ariana%20loja"
 EVOLUTION_API_URL="${EVOLUTION_API_URL:-http://127.0.0.1:8082}"
 PUBLIC_WEBHOOK_URL="https://atendimento.arianamoveis.com.br/loja-bot"
 BOT_SOURCE_URL="https://raw.githubusercontent.com/marcelloghaes-lang/ariana-moveis/main/functions/scripts/loja-whatsapp-bot.js"
-BOT_FILE="/root/loja-bot.js"
+BOT_FILE="/root/loja-bot.mjs"
 BOT_ENV_FILE="/root/loja-bot.env"
 PORT="8093"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -56,7 +56,7 @@ pm2_env_value() {
 }
 
 EVOLUTION_API_KEY="${EVOLUTION_API_KEY:-}"
-BOT_API_TOKEN="${BOT_API_TOKEN:-${FINANCEIRO_BOT_SECRET:-${SAC_BOT_SECRET:-}}}"
+BOT_API_TOKEN="${LOJA_BOT_API_TOKEN:-${BOT_API_TOKEN:-${FINANCEIRO_BOT_SECRET:-${SAC_BOT_SECRET:-}}}}"
 
 if [[ -z "$EVOLUTION_API_KEY" ]]; then
   EVOLUTION_API_KEY="$(pm2_env_value EVOLUTION_API_KEY AUTHENTICATION_API_KEY)"
@@ -162,9 +162,10 @@ log "Baixando o atendimento comercial e validando sintaxe"
 if [[ -f "$BOT_FILE" ]]; then
   cp -a "$BOT_FILE" "${BOT_FILE}.bak-${STAMP}"
 fi
-curl -fsSL "${BOT_SOURCE_URL}?v=${STAMP}" -o "${BOT_FILE}.new"
-node --check "${BOT_FILE}.new" >/dev/null
-mv "${BOT_FILE}.new" "$BOT_FILE"
+TMP_BOT="/root/loja-bot-${STAMP}.mjs"
+curl -fsSL "${BOT_SOURCE_URL}?v=${STAMP}" -o "$TMP_BOT"
+node --check "$TMP_BOT" >/dev/null
+mv "$TMP_BOT" "$BOT_FILE"
 chmod 700 "$BOT_FILE"
 
 log "Preparando preservação do webhook anterior"
@@ -194,7 +195,7 @@ values={
     "EVOLUTION_API_KEY": evo_key,
     "LOJA_EVOLUTION_INSTANCE": "ariana loja",
     "ARIANA_BACKEND_URL": "https://ariana-backend.onrender.com",
-    "BOT_API_TOKEN": bot_token,
+    "LOJA_BOT_API_TOKEN": bot_token,
     "LOJA_BOT_PORT": "8093",
     "LOJA_HUMAN_TTL_HOURS": "12",
     "LOJA_LEGACY_WEBHOOK_URL": legacy,
@@ -279,32 +280,53 @@ python3 - "$NGINX_REAL" <<'PY'
 import re, sys
 path=sys.argv[1]
 text=open(path, encoding="utf-8").read()
-if re.search(r"location\s+[^\n{]*\/loja-bot(?:\s|\{|$)", text):
-    raise SystemExit(0)
 
-m=re.search(r"server_name\s+[^;]*atendimento\.arianamoveis\.com\.br[^;]*;", text, re.I)
-if not m:
-    raise SystemExit("server_name não encontrado")
+def matching_brace(source, open_pos):
+    depth=0
+    for i in range(open_pos, len(source)):
+        ch=source[i]
+        if ch=="{":
+            depth+=1
+        elif ch=="}":
+            depth-=1
+            if depth==0:
+                return i
+    return None
 
-start=text.rfind("server", 0, m.start())
-brace=text.find("{", start, m.start()+1)
-if start < 0 or brace < 0:
-    raise SystemExit("bloco server não localizado")
+# Remove any previous /loja-bot location from this file so a failed
+# earlier attempt cannot leave it in the HTTP redirect server.
+while True:
+    m=re.search(r"\n\s*# Ariana Loja - atendimento comercial automatizado\s*\n\s*location\s+\/loja-bot\s*\{", text, re.I)
+    if not m:
+        m=re.search(r"\n\s*location\s+\/loja-bot\s*\{", text, re.I)
+    if not m:
+        break
+    brace=text.find("{", m.start())
+    close=matching_brace(text, brace)
+    if close is None:
+        raise SystemExit("bloco /loja-bot existente está incompleto")
+    text=text[:m.start()]+"\n"+text[close+1:]
 
-depth=0
-end=None
-for i in range(brace, len(text)):
-    ch=text[i]
-    if ch=="{":
-        depth+=1
-    elif ch=="}":
-        depth-=1
-        if depth==0:
-            end=i
-            break
-if end is None:
-    raise SystemExit("fim do bloco server não localizado")
+# Find all server blocks and choose the HTTPS one for atendimento.
+servers=[]
+for m in re.finditer(r"\bserver\s*\{", text):
+    brace=text.find("{", m.start())
+    close=matching_brace(text, brace)
+    if close is None:
+        continue
+    block=text[m.start():close+1]
+    if re.search(r"server_name\s+[^;]*atendimento\.arianamoveis\.com\.br[^;]*;", block, re.I):
+        https=bool(
+            re.search(r"listen\s+[^;]*\b443\b[^;]*;", block, re.I) or
+            re.search(r"\bssl_certificate\b", block, re.I)
+        )
+        servers.append((m.start(), brace, close, https))
 
+https_servers=[item for item in servers if item[3]]
+if not https_servers:
+    raise SystemExit("bloco HTTPS (443) de atendimento.arianamoveis.com.br não localizado")
+
+start, brace, close, _ = https_servers[0]
 block="""
     # Ariana Loja - atendimento comercial automatizado
     location /loja-bot {
@@ -319,9 +341,10 @@ block="""
     }
 
 """
-text=text[:end]+block+text[end:]
+text=text[:close]+block+text[close:]
 open(path, "w", encoding="utf-8").write(text)
 PY
+
 
 if ! nginx -t; then
   cp -a "${NGINX_REAL}.bak-loja-bot-${STAMP}" "$NGINX_REAL"
