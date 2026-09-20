@@ -782,11 +782,20 @@ function imageClassificationLabel(classification = {}) {
 
 function asksAboutImageProduct(text) {
   const n = normalize(text);
-  return (
-    /(vende|vendem|tem|teria|consegue|conseguem|trabalha|trabalham|quanto|preco|valor).{0,40}(esse|essa|desse|dessa|produto|foto|imagem|print)/.test(n) ||
-    /(esse|essa|desse|dessa).{0,30}(produto|da foto|na foto|da imagem|na imagem|do print|no print)/.test(n) ||
+
+  // Referência explícita a mídia/imagem.
+  if (
+    /(vende|vendem|tem|teria|consegue|conseguem|trabalha|trabalham|quanto|preco|valor).{0,45}(foto|imagem|print|produto da foto|produto do print)/.test(n) ||
+    /(esse|essa|desse|dessa).{0,35}(produto da foto|produto do print|da foto|na foto|da imagem|na imagem|do print|no print)/.test(n) ||
     /(produto).{0,25}(foto|imagem|print)/.test(n)
-  );
+  ) {
+    return true;
+  }
+
+  // "Vocês vendem esse?" pode ser preparação para o cliente enviar uma foto.
+  // Não usamos "valor desse..." aqui, pois essa frase normalmente referencia
+  // um produto já mostrado na própria conversa.
+  return /(vende|vendem|tem|teria|trabalha|trabalham).{0,25}\b(esse|essa)\b(?:\s+produto)?\s*$/.test(n);
 }
 
 function emojiOnlyIntent(text) {
@@ -1601,9 +1610,14 @@ function asksAcceptedAlternative(text) {
     .replace(/\s+/g, ' ')
     .trim();
 
+  const withoutCourtesy = n
+    .replace(/\s+(por favor|fazendo favor|pfv|por gentileza)$/g, '')
+    .trim();
+
   return (
-    /^(quero sim|sim|sim quero|pode|pode sim|pode mandar|pode mostrar|quero ver|manda|manda ai|me mostra|mostra ai)$/.test(n) ||
-    /^(pode )?(me )?(enviar|mandar|mostrar) (as )?(fotos|opcoes|produtos|modelos)( pra mim)?$/.test(n)
+    /^(quero sim|sim|sim quero|pode|pode sim|pode mandar|pode mostrar|quero ver|manda|manda ai|me mostra|mostra ai)$/.test(withoutCourtesy) ||
+    /^(pode )?(me )?(enviar|mandar|mostrar) (as )?(fotos|opcoes|produtos|modelos)( pra mim)?$/.test(withoutCourtesy) ||
+    /^(manda|mansa|mandq|mnda|envia|enviar) (a )?(foto|fotos|imagem|imagens)$/.test(withoutCourtesy)
   );
 }
 
