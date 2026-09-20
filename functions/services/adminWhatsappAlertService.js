@@ -244,6 +244,9 @@ export async function runAdminWhatsappReminderSweep({
 
   const reminderHours = Math.max(1, Number(process.env.ADMIN_WHATSAPP_REMINDER_HOURS || 12));
   const reminderCutoff = new Date(Date.now() - reminderHours * 60 * 60 * 1000);
+  const baselineRaw = String(process.env.ADMIN_WHATSAPP_REMINDER_BASELINE_AT || '').trim();
+  const baselineDate = baselineRaw ? new Date(baselineRaw) : null;
+  const hasBaseline = baselineDate instanceof Date && !Number.isNaN(baselineDate.getTime());
 
   let orderReminders = 0;
   let analysisReminders = 0;
@@ -252,9 +255,12 @@ export async function runAdminWhatsappReminderSweep({
   // Esta varredura NUNCA envia o alerta inicial. O alerta inicial acontece
   // somente no evento real (pedido criado / análise criada). Aqui entram
   // exclusivamente lembretes cujo último envio já tem 12h ou mais.
+  const orderLastSentFilter = { $lte: reminderCutoff };
+  if (hasBaseline) orderLastSentFilter.$gte = baselineDate;
+
   const pendingOrders = await Order.find({
     'whatsappNotification.adminNewOrder.firstSentAt': { $exists: true },
-    'whatsappNotification.adminNewOrder.lastSentAt': { $lte: reminderCutoff }
+    'whatsappNotification.adminNewOrder.lastSentAt': orderLastSentFilter
   }).sort({ 'whatsappNotification.adminNewOrder.lastSentAt': 1 }).limit(100).lean();
 
   for (const order of pendingOrders) {
@@ -271,10 +277,13 @@ export async function runAdminWhatsappReminderSweep({
   const Analysis = mongoose.models?.CrediarioAnalysis;
   if (Analysis) {
     const pendingStatuses = ['PENDENTE_ANALISE', 'AGUARDANDO_DOCUMENTOS', 'EM_ANALISE'];
+    const analysisLastSentFilter = { $lte: reminderCutoff };
+    if (hasBaseline) analysisLastSentFilter.$gte = baselineDate;
+
     const pendingAnalyses = await Analysis.find({
       status: { $in: pendingStatuses },
       'adminWhatsapp.firstSentAt': { $exists: true },
-      'adminWhatsapp.lastSentAt': { $lte: reminderCutoff }
+      'adminWhatsapp.lastSentAt': analysisLastSentFilter
     }).sort({ 'adminWhatsapp.lastSentAt': 1 }).limit(100).lean();
 
     for (const analysis of pendingAnalyses) {
