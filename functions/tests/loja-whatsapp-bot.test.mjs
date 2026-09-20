@@ -438,6 +438,105 @@ test('se não houver TV de 50 polegadas não oferece outro tamanho no lugar', as
   assert.match(sentTexts[0].text, /não encontrei/i);
 });
 
+test('"quero sim" continua oferta de outros celulares após iPhone indisponível', async () => {
+  const phone = '5533977777730';
+
+  catalogRows = [
+    product('alt-phone-1', 'Smartphone Samsung A07 128GB', {
+      category: 'Celulares',
+      brand: 'Samsung'
+    }),
+    product('alt-phone-2', 'Motorola Moto G55 5G', {
+      category: 'Smartphones',
+      brand: 'Motorola'
+    })
+  ];
+
+  const conv = bot.conversation(phone);
+  await bot.showProducts(phone, conv, 'celular', 'Boa tarde vocês trabalham com iPhone?');
+
+  assert.equal(sentMedia.length, 0);
+  assert.match(sentTexts.at(-1).text, /outros celulares disponíveis/i);
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, 'celular');
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero sim',
+    pushName: 'Cliente Alternativas'
+  });
+
+  assert.ok(sentMedia.length >= 1);
+  assert.match(sentMedia[0].caption || '', /Smartphone Samsung A07/i);
+  assert.doesNotMatch(sentTexts.at(-1)?.text || '', /Me conta o que você está procurando/i);
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, '');
+});
+
+test('"pode me enviar fotos" continua oferta de outros tamanhos de TV', async () => {
+  const phone = '5533977777731';
+
+  catalogRows = [
+    product('alt-tv-32', 'Smart TV 32 LG Full HD', { category: 'TVs' }),
+    product('alt-tv-43', 'Smart TV 43 Samsung 4K', { category: 'TVs' })
+  ];
+
+  const conv = bot.conversation(phone);
+  await bot.showProducts(phone, conv, 'tv', 'Boa tarde vocês vendem TV de 65 polegadas?');
+
+  assert.equal(sentMedia.length, 0);
+  assert.match(sentTexts.at(-1).text, /outros tamanhos disponíveis/i);
+  assert.equal(bot.conversation(phone).pendingAlternativeCategory, 'tv');
+
+  sentTexts = [];
+  sentMedia = [];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Pode me enviar fotos?',
+    pushName: 'Cliente TV'
+  });
+
+  assert.equal(sentMedia.length, 2);
+  assert.match(sentMedia[0].caption || '', /Smart TV 32/i);
+  assert.match(sentMedia[1].caption || '', /Smart TV 43/i);
+  assert.doesNotMatch(sentTexts.at(-1)?.text || '', /Me conta o que você está procurando/i);
+});
+
+test('"esse último aí" seleciona o último produto antes de calcular o boleto', async () => {
+  const phone = '5533977777732';
+
+  const first = bot.compactProduct(product('last-1', 'Smartphone Samsung A06', {
+    category: 'Celulares',
+    pixPrice: 699,
+    price: 839
+  }));
+  const second = bot.compactProduct(product('last-2', 'Smartphone Samsung A07', {
+    category: 'Celulares',
+    pixPrice: 739,
+    price: 887
+  }));
+
+  bot.patchTestConversation(phone, {
+    lastProducts: [first, second],
+    selectedProduct: null,
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Esse último ai quantos que fica parcelado no boleto?',
+    pushName: 'Cliente Último'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Smartphone Samsung A07/);
+  assert.match(sentTexts[0].text, /até \*12x\*/);
+  assert.match(sentTexts[0].text, /Em quantas vezes/i);
+  assert.equal(bot.conversation(phone).selectedProduct.id, 'last-2');
+});
+
 test('pesquisa junta aliases sem repetir produtos', async () => {
   catalogRows = [
     product('s1', 'Caixa de Som Bluetooth', { category: 'Áudio' }),
