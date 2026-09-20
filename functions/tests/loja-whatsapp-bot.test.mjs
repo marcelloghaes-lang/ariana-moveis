@@ -526,6 +526,33 @@ test('mensagem de PIX inclui alerta obrigatório do favorecido', async () => {
   assert.match(sentTexts[0].text, /não realize o pagamento/i);
 });
 
+test('pedido de chave para pagar parcela do mês envia o PIX correto', async () => {
+  const phone = '5533933333335';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Me envia sua chave pra eu fazer o pagamento da parcela desse mês',
+    pushName: 'Cliente Parcela'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /31985147119/);
+  assert.match(sentTexts[0].text, /MARCELO NUNES SILVA/);
+  assert.match(sentTexts[0].text, /BTG/);
+  assert.match(sentTexts[0].text, /somente se aparecer/i);
+});
+
+test('palavra chave fora de contexto de pagamento não é tratada como PIX', () => {
+  assert.equal(
+    bot.asksPixKey('Qual a chave para apertar esse parafuso?'),
+    false
+  );
+  assert.equal(
+    bot.asksPixKey('Você tem chave de fenda?'),
+    false
+  );
+});
+
 test('texto dizendo que pagou pede o comprovante em vez de confirmar baixa', async () => {
   const phone = '5533933333334';
 
