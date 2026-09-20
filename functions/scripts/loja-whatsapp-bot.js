@@ -1147,7 +1147,12 @@ function asksDelivery(text) {
 
 function asksFinance(text) {
   const n = normalize(text);
-  return /minha notinha|minha nota ai|quanto tenho que (te )?passar|quanto (eu )?tenho que pagar|quanto vence|minha prestacao|meu carnezinho|minha conta ai|quanto que eu te devo|valor da minha nota/.test(n);
+  return (
+    /minha notinha|minha nota ai|minha conta ai|minha prestacao|meu carnezinho|valor da minha nota/.test(n) ||
+    /quantos?\s+(?:que\s+)?(?:eu\s+)?tenho que (?:te )?passar/.test(n) ||
+    /quanto\s+(?:que\s+)?(?:eu\s+)?tenho que pagar/.test(n) ||
+    /quanto vence|quanto que eu te devo|quanto eu te devo/.test(n)
+  );
 }
 
 function asksHowToBuyCredit(text) {
@@ -2057,6 +2062,7 @@ function deliveryReply(text) {
 
 function financialReply(data = {}) {
   const parcelas = Array.isArray(data.parcelas) ? data.parcelas : [];
+  const fromErpReceivables = String(data?.fonteFinanceira || '') === 'ariana_erp_contas_receber';
   const open = parcelas.filter((p) => {
     const status = normalize(p.status);
     return p.quitado !== true && !['paga', 'pago', 'quitada', 'quitado', 'paid'].includes(status);
@@ -2077,7 +2083,11 @@ function financialReply(data = {}) {
   );
 
   const name = String(data?.cliente?.nome || '').trim().split(/\s+/)[0];
-  const lines = [`Claro${name ? `, ${name}` : ''} 😊 Consultei seu carnê.`];
+  const lines = [
+    fromErpReceivables
+      ? `Claro${name ? `, ${name}` : ''} 😊 Consultei suas parcelas no financeiro da Ariana Móveis.`
+      : `Claro${name ? `, ${name}` : ''} 😊 Consultei seu carnê.`
+  ];
 
   if (current.length) {
     const total = current.reduce((sum, p) => sum + amountOf(p), 0);
@@ -2100,7 +2110,13 @@ function financialReply(data = {}) {
     lines.push(`A próxima é ${next.parcelaLabel || 'uma parcela'}, com vencimento em ${dateBR(next.dataVencimento)}, no valor de *${money(amountOf(next))}*.`);
   }
 
-  if (!open.length) lines.push('Não há parcelas em aberto no carnê consultado.');
+  if (!open.length) {
+    lines.push(
+      fromErpReceivables
+        ? 'Não encontrei parcelas em aberto no seu financeiro da Ariana Móveis.'
+        : 'Não há parcelas em aberto no carnê consultado.'
+    );
+  }
   return lines.join('\n');
 }
 
@@ -2108,7 +2124,7 @@ async function consultFinance(phone, cpf = '') {
   const body = cpf
     ? { phone: digits(phone), cpf: digits(cpf) }
     : { phone: digits(phone) };
-  return backend('/api/bot/financeiro/carne', {
+  return backend('/api/bot/financeiro/contas-receber', {
     method: 'POST',
     botAuth: true,
     body
@@ -2436,11 +2452,11 @@ async function handleMessage({ phone, text, pushName = '' }) {
         saveStateSoon();
         await sendText(phone, 'Claro 😊 Para proteger seus dados, me confirme o *CPF do titular com 11 números* para eu consultar o valor certinho.');
       } else {
-        await sendText(phone, 'Não consegui consultar sua notinha automaticamente agora. Vou deixar a solicitação registrada para o Financeiro conferir.');
+        await sendText(phone, 'Não consegui consultar suas parcelas automaticamente agora. Vou deixar a solicitação registrada para o Financeiro conferir.');
         conv.humanUntil = Date.now() + HUMAN_TTL_MS;
         saveStateSoon();
         await syncTicket(phone, {
-          status: 'Financeiro - conferir carnê',
+          status: 'Financeiro - conferir contas a receber',
           message: text,
           name: pushName
         });
