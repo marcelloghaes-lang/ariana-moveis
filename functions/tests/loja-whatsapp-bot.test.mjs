@@ -856,6 +856,141 @@ test('"anota ela pra mim" com produto escolhido registra Marcelo e continua auto
   assert.match(sentTexts[1].text, /24 horas/i);
 });
 
+test('fallback marca Revisar atendimento sem desligar o bot', async () => {
+  const phone = '5533977777750';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Queria aquele negócio que te falei outro dia',
+    pushName: 'Cliente Revisão'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /Quero te ajudar certinho/i);
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Revisar atendimento');
+  assert.equal(backendEvents[0].metadata.reviewNeeded, true);
+  assert.equal(backendEvents[0].metadata.atendimentoAutomaticoContinua, true);
+
+  const conv = bot.conversation(phone);
+  assert.equal(conv.reviewNeeded, true);
+  assert.equal(Boolean(conv.humanUntil && conv.humanUntil > Date.now()), false);
+  assert.equal(Boolean(conv.manualHumanUntil && conv.manualHumanUntil > Date.now()), false);
+
+  catalogRows = [product('review-tv-1', 'Smart TV LG 43 Polegadas', { category: 'TVs' })];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Me mostra uma TV',
+    pushName: 'Cliente Revisão'
+  });
+
+  assert.ok(sentMedia.length >= 1, 'bot deve continuar atendendo normalmente após marcar revisão');
+  assert.equal(backendEvents.at(-1).status, 'Atendimento normal • Revisar atendimento');
+  assert.equal(backendEvents.at(-1).metadata.reviewNeeded, true);
+});
+
+test('consulta de produto é classificada como Atendimento normal', async () => {
+  const phone = '5533977777751';
+
+  catalogRows = [
+    product('normal-sofa-1', 'Sofá Retrátil 3 Lugares', { category: 'Sofá' })
+  ];
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero olhar sofá',
+    pushName: 'Cliente Normal'
+  });
+
+  assert.ok(sentMedia.length >= 1);
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Atendimento normal');
+  assert.equal(backendEvents[0].metadata.intent, 'catalogo');
+  assert.equal(backendEvents[0].metadata.reviewNeeded, false);
+});
+
+test('consulta de condição de pagamento é classificada como Venda em andamento', async () => {
+  const phone = '5533977777752';
+  const chosen = bot.compactProduct(product('sale-1', 'Smartphone Samsung A17', {
+    category: 'Celulares',
+    price: 1430,
+    pixPrice: 1191.01
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quanto fica no cartão?',
+    pushName: 'Cliente Venda'
+  });
+
+  assert.equal(sentTexts.length, 1);
+  assert.match(sentTexts[0].text, /No cartão/i);
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Venda em andamento');
+  assert.equal(backendEvents[0].metadata.paymentMode, 'cartao');
+  assert.equal(backendEvents[0].metadata.productId, 'sale-1');
+});
+
+test('início do carnê é classificado como Crediário / análise', async () => {
+  const phone = '5533977777753';
+  const chosen = bot.compactProduct(product('credit-status-1', 'Geladeira Teste', {
+    category: 'Geladeira',
+    price: 2200,
+    pixPrice: 1800
+  }));
+
+  bot.patchTestConversation(phone, {
+    selectedProduct: chosen,
+    lastProducts: [chosen],
+    lastIntent: 'produto'
+  });
+
+  await bot.handleMessage({
+    phone,
+    text: 'Quero fazer no carnê',
+    pushName: 'Cliente Crediário'
+  });
+
+  assert.match(sentTexts.at(-1).text, /nome completo/i);
+  assert.equal(backendEvents.length, 1);
+  assert.equal(backendEvents[0].status, 'Crediário / análise');
+  assert.match(backendEvents[0].mensagem, /Geladeira Teste/i);
+});
+
+test('resposta manual do Marcelo limpa revisão e registra atendimento humano', async () => {
+  const phone = '5533977777754';
+
+  await bot.handleMessage({
+    phone,
+    text: 'Aquele trem lá que eu queria',
+    pushName: 'Cliente Revisão Manual'
+  });
+
+  assert.equal(bot.conversation(phone).reviewNeeded, true);
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: { remoteJid: phone + '@s.whatsapp.net', fromMe: true, id: 'HUMAN-REVIEW-1' },
+      pushName: 'ariana móveis (Marcelo)',
+      message: { conversation: 'Oi, voltei. Vou verificar para você.' }
+    }
+  });
+
+  assert.equal(result.humanPause, true);
+  assert.equal(bot.conversation(phone).reviewNeeded, false);
+  assert.equal(backendEvents.at(-1).status, 'Em atendimento pelo Marcelo');
+  assert.equal(backendEvents.at(-1).metadata.reviewNeeded, false);
+  assert.equal(backendEvents.at(-1).metadata.manualHuman, true);
+});
+
 test('intervenção manual pausa o bot por 60 minutos', async () => {
   const phone = '5533977777777';
 
