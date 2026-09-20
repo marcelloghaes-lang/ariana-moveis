@@ -593,6 +593,11 @@ function applySellerProfileLock(seller = {}) {
   }
 }
 
+function formatSellerCep(value = "") {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  return digits.length > 5 ? digits.slice(0, 5) + "-" + digits.slice(5) : digits;
+}
+
 function fillSellerProfileForm(seller = {}, user = {}) {
   const meta = seller.metadata || {};
   const set = (id, value) => { const el = $(id); if (el) el.value = value || ""; };
@@ -601,10 +606,10 @@ function fillSellerProfileForm(seller = {}, user = {}) {
   set("seller-document", seller.document || user.cpf || "");
   set("seller-phone", seller.phone || user.phone || "");
   set("seller-email", seller.email || user.email || "");
-  set("seller-cep", meta.cep || "");
-  set("seller-address", meta.address || "");
-  set("seller-city", user.city || meta.city || "");
-  set("seller-uf", user.uf || meta.uf || "");
+  set("seller-cep", formatSellerCep(seller.cep || meta.cep || meta.postalCode || ""));
+  set("seller-address", seller.address || seller.endereco || meta.address || meta.endereco || "");
+  set("seller-city", seller.city || seller.cidade || user.city || meta.city || meta.cidade || "");
+  set("seller-uf", seller.uf || user.uf || meta.uf || meta.state || "");
   const badge = $("seller-status-badge");
   if (badge) {
     const status = String(seller.status || "pendente");
@@ -623,10 +628,12 @@ async function saveSellerProfile(event) {
 
     const payload = {
       phone: $("seller-phone")?.value || "",
-      cep: $("seller-cep")?.value || "",
-      address: $("seller-address")?.value || "",
-      city: $("seller-city")?.value || "",
-      uf: $("seller-uf")?.value || ""
+      cep: String($("seller-cep")?.value || "").replace(/\D/g, ""),
+      address: $("seller-address")?.value?.trim() || "",
+      endereco: $("seller-address")?.value?.trim() || "",
+      city: $("seller-city")?.value?.trim() || "",
+      cidade: $("seller-city")?.value?.trim() || "",
+      uf: $("seller-uf")?.value?.trim().toUpperCase() || ""
     };
 
     if (!approved) {
@@ -655,7 +662,27 @@ async function saveSellerProfile(event) {
     if (res.status === 401 || res.status === 403) { clearSellerSession(); window.location.href = 'seller_login.html'; return; }
     if (!res.ok) throw new Error(data?.error || data?.message || `Erro ${res.status}`);
 
-    const sellerAtualizado = data.seller || data.user || data || {};
+    const sellerFromApi = data.seller || data.user || data || {};
+    const sellerAtualizado = {
+      ...currentSeller,
+      ...sellerFromApi,
+      cep: sellerFromApi.cep || payload.cep,
+      address: sellerFromApi.address || sellerFromApi.endereco || payload.address,
+      endereco: sellerFromApi.endereco || sellerFromApi.address || payload.endereco,
+      city: sellerFromApi.city || payload.city,
+      cidade: sellerFromApi.cidade || sellerFromApi.city || payload.cidade,
+      uf: sellerFromApi.uf || payload.uf,
+      metadata: {
+        ...(currentSeller.metadata || {}),
+        ...(sellerFromApi.metadata || {}),
+        cep: sellerFromApi.metadata?.cep || sellerFromApi.cep || payload.cep,
+        address: sellerFromApi.metadata?.address || sellerFromApi.address || payload.address,
+        endereco: sellerFromApi.metadata?.endereco || sellerFromApi.endereco || payload.endereco,
+        city: sellerFromApi.metadata?.city || sellerFromApi.city || payload.city,
+        cidade: sellerFromApi.metadata?.cidade || sellerFromApi.cidade || payload.cidade,
+        uf: sellerFromApi.metadata?.uf || sellerFromApi.uf || payload.uf
+      }
+    };
     localStorage.setItem("seller_profile", JSON.stringify(sellerAtualizado));
     fillSellerProfileForm(sellerAtualizado, data.user || {});
     updateSellerStoreShortcut(sellerAtualizado);
@@ -771,6 +798,7 @@ async function saveSellerProfile(event) {
 
     $('seller-store-copy-btn')?.addEventListener('click', copySellerStoreLink);
     $('seller-profile-form')?.addEventListener('submit', saveSellerProfile);
+$("seller-cep")?.addEventListener("input", (e) => { e.target.value = formatSellerCep(e.target.value); });
 
     window.onload = () => { initSellerInstallBanner(); loadDashboard(); };
   </script>
