@@ -42,11 +42,14 @@ export function createErpParityAnalyticsService(context={}){
   if(q.categoryId)filter.categoryId=clean(q.categoryId,120);
   if(q.bankAccountId)filter.bankAccountId=clean(q.bankAccountId,120);
   if(q.paymentMethod)filter.paymentMethod=clean(q.paymentMethod,100);
+  const personSourceId=clean(q.personSourceId||q.sourcePersonId,120);
+  if(personSourceId)filter['migration.sourcePersonId']=personSourceId;
   if(q.from||q.to){filter.dueAt={};if(q.from)filter.dueAt.$gte=new Date(q.from);if(q.to){const d=new Date(q.to);d.setHours(23,59,59,999);filter.dueAt.$lte=d}}
   const text=clean(q.q||q.search,160);if(text){const rx=new RegExp(regexEscape(text),'i');filter.$or=[{personName:rx},{personDocument:rx},{personPhone:rx},{personEmail:rx},{description:rx},{categoryName:rx},{documentNumber:rx},{boletoNumber:rx}]}
   let base=(await Entry.collection.find(filter).sort({dueAt:1}).limit(30000).toArray()).map(normalizeLedgerRow);
   if(!q.direction||q.direction==='receivable')base.push(...await currentReceivables());
   if(['receivable','payable'].includes(q.direction))base=base.filter(r=>r.direction===q.direction);
+  if(personSourceId)base=base.filter(r=>String(r?.migration?.sourcePersonId||'')===personSourceId);
   if(text){const needle=text.toLowerCase();base=base.filter(r=>[r.personName,r.personDocument,r.personPhone,r.personEmail,r.description,r.categoryName,r.documentNumber,r.boletoNumber].join(' ').toLowerCase().includes(needle))}
   if(q.paymentMethod){const method=clean(q.paymentMethod,100).toLowerCase();base=base.filter(r=>String(r.paymentMethod||'').toLowerCase()===method)}
   if(q.from||q.to){const from=q.from?new Date(q.from):null,to=q.to?new Date(q.to):null;if(to)to.setHours(23,59,59,999);base=base.filter(r=>{const d=new Date(r.dueAt);return(!from||d>=from)&&(!to||d<=to)})}
