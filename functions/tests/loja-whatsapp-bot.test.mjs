@@ -537,6 +537,27 @@ test('"esse último aí" seleciona o último produto antes de calcular o boleto'
   assert.equal(bot.conversation(phone).selectedProduct.id, 'last-2');
 });
 
+test('produto sem foto real não gera card cinza de link preview', async () => {
+  const phone = '5533977777733';
+
+  catalogRows = [
+    product('placeholder-1', 'Smartphone Teste sem Foto', {
+      category: 'Celulares',
+      imageUrl: 'https://placehold.co/600x400/CCCCCC/000000?text=Imagem+do+Produto'
+    })
+  ];
+
+  const conv = bot.conversation(phone);
+  await bot.showProducts(phone, conv, 'celular', 'Quero ver celular');
+
+  assert.equal(sentMedia.length, 0);
+  assert.ok(sentTexts.length >= 2);
+  const productMessage = sentTexts.find((item) => /Smartphone Teste sem Foto/i.test(item.text || ''));
+  assert.ok(productMessage, 'deve enviar os dados do produto em texto');
+  assert.match(productMessage.text, /Foto indisponível no momento/i);
+  assert.equal(productMessage.linkPreview, false);
+});
+
 test('pesquisa junta aliases sem repetir produtos', async () => {
   catalogRows = [
     product('s1', 'Caixa de Som Bluetooth', { category: 'Áudio' }),
