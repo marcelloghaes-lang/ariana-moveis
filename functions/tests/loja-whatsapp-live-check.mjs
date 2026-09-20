@@ -193,7 +193,11 @@ try {
     const result = execFileSync(
       'docker',
       ['exec', containerId, 'bundle', 'exec', 'rails', 'runner', ruby],
-      { encoding: 'utf8' }
+      {
+        encoding: 'utf8',
+        timeout: 45000,
+        maxBuffer: 4 * 1024 * 1024
+      }
     ).trim();
 
     if (/NOT_FOUND/.test(result)) {
@@ -215,7 +219,11 @@ try {
     }
   }
 } catch (error) {
-  warn('Chatwoot Televendas', 'não foi possível validar automaticamente');
+  if (error?.code === 'ETIMEDOUT' || error?.signal === 'SIGTERM') {
+    warn('Chatwoot Televendas', 'validação excedeu 45 segundos; configuração não foi alterada');
+  } else {
+    warn('Chatwoot Televendas', 'não foi possível validar automaticamente');
+  }
 }
 
 if (existsSync('/root/.pm2/logs/loja-bot-error.log')) {
