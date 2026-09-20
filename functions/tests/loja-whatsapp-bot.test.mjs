@@ -605,6 +605,161 @@ test('visão bloqueia novas chamadas antes de ultrapassar R$ 30 no mês', async 
   );
 });
 
+
+test('áudio recebido do cliente é transcrito e segue o mesmo atendimento de texto', async () => {
+  const phone = '5533923333401';
+
+  audioTranscriptionText = 'Quero olhar geladeira';
+  mediaBase64Response = {
+    mimetype: 'audio/ogg; codecs=opus',
+    base64: 'T2dnUwBmYWtlLWF1ZGlv'
+  };
+
+  catalogRows = [
+    product('gel-audio-1', 'Geladeira Frost Free 400L', {
+      category: 'Geladeira',
+      stock: 3
+    })
+  ];
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-CUSTOMER-1'
+      },
+      pushName: 'Cliente Áudio',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 12,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_transcribed');
+  assert.equal(result.durationSeconds, 12);
+  assert.ok(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'),
+    'deve chamar a transcrição da OpenAI'
+  );
+  assert.ok(
+    sentMedia.some((item) => /Geladeira Frost Free 400L/i.test(item.caption || '')),
+    'texto transcrito deve entrar na busca normal de produtos'
+  );
+
+  const budget = bot.visionBudgetStatus();
+  assert.equal(budget.audioRequests, 1);
+  assert.equal(budget.audioSeconds, 12);
+  assert.equal(budget.usedBrl, 0.0036);
+});
+
+test('áudio enviado pela própria loja não é transcrito', async () => {
+  const phone = '5533923333402';
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: true,
+        id: 'AUDIO-FROM-ME-1'
+      },
+      pushName: 'Ariana Móveis',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 18,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.humanPause, true);
+  assert.equal(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'),
+    false,
+    'áudio fromMe nunca deve gerar custo de transcrição'
+  );
+});
+
+test('áudio acima de 10 minutos é recusado sem chamar a API', async () => {
+  const phone = '5533923333403';
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-LONG-1'
+      },
+      pushName: 'Cliente Áudio Longo',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 601,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'audio_too_long');
+  assert.match(sentTexts.at(-1).text, /até 10 minutos/i);
+  assert.equal(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'),
+    false
+  );
+});
+
+test('teto mensal bloqueia transcrição de áudio sem nova cobrança', async () => {
+  const phone = '5533923333404';
+
+  bot.patchTestVisionBudget({
+    estimatedBrl: 29.50,
+    requests: 100,
+    audioRequests: 0,
+    audioSeconds: 0
+  });
+
+  const result = await bot.handleWebhook({
+    event: 'MESSAGES_UPSERT',
+    data: {
+      key: {
+        remoteJid: phone + '@s.whatsapp.net',
+        fromMe: false,
+        id: 'AUDIO-BUDGET-BLOCK-1'
+      },
+      pushName: 'Cliente',
+      message: {
+        audioMessage: {
+          mimetype: 'audio/ogg; codecs=opus',
+          seconds: 30,
+          ptt: true
+        }
+      }
+    }
+  });
+
+  assert.equal(result.audio, 'ai_budget_blocked');
+  assert.match(sentTexts.at(-1).text, /transcrição automática está temporariamente indisponível/i);
+  assert.equal(
+    requestLog.some((item) => item.href === 'https://api.openai.com/v1/audio/transcriptions'),
+    false
+  );
+  assert.equal(
+    requestLog.some((item) => item.href.startsWith('https://evolution.test/chat/getBase64FromMediaMessage/')),
+    false,
+    'não deve nem baixar o áudio quando o orçamento já está bloqueado'
+  );
+});
+
 test('imagem reconhecida como comprovante PIX é registrada para análise', async () => {
   const phone = '5533923333333';
 
