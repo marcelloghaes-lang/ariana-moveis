@@ -814,6 +814,12 @@ function isApprovedSellerStatus(value = '') {
   );
 }
 
+function sellerFieldCanBeCompleted(isApproved, currentValue) {
+  if (!isApproved) return true;
+  return !String(currentValue ?? '').trim();
+}
+
+
 function sellerProfile(s, u) {
   const o = toJSON(s) || {};
   const meta = sanitizeSellerMetadataForResponse(
@@ -1047,25 +1053,40 @@ async function saveSellerProfileSettings(req, res) {
 
     const metadata = { ...(req.seller?.metadata || {}) };
 
-    const incomingFactoryName = body.factoryName ?? body.storeName ?? body.displayName;
-    if (!sellerApproved && incomingFactoryName !== undefined) {
-      const name = String(incomingFactoryName || '').trim();
-      sellerUpdates.storeName = name;
-      sellerUpdates.displayName = name || req.seller?.displayName || req.seller?.storeName || '';
-      metadata.factoryName = name;
-      metadata.storeName = name;
+    const incomingStoreName = body.factoryName ?? body.storeName;
+    if (incomingStoreName !== undefined) {
+      const currentStoreName = req.seller?.storeName || metadata.storeName || metadata.factoryName || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentStoreName)) {
+        const name = String(incomingStoreName || '').trim();
+        sellerUpdates.storeName = name;
+        metadata.factoryName = name;
+        metadata.storeName = name;
+      }
     }
 
-    if (!sellerApproved) {
-      const incomingDocument = body.cnpj ?? body.document ?? body.cpf;
-      if (incomingDocument !== undefined) {
+    const incomingDisplayName = body.displayName ?? body.name;
+    if (incomingDisplayName !== undefined) {
+      const currentDisplayName = req.seller?.displayName || req.user?.name || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentDisplayName)) {
+        sellerUpdates.displayName = String(incomingDisplayName || '').trim();
+      }
+    }
+
+    const incomingDocument = body.cnpj ?? body.document ?? body.cpf;
+    if (incomingDocument !== undefined) {
+      const currentDocument = req.seller?.document || req.user?.cpf || metadata.document || metadata.cnpj || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentDocument)) {
         const doc = String(incomingDocument || '').replace(/\D/g, '');
         sellerUpdates.document = doc;
         userUpdates.cpf = doc;
         metadata.cnpj = doc;
         metadata.document = doc;
       }
-      if (body.email !== undefined) {
+    }
+
+    if (body.email !== undefined) {
+      const currentEmail = req.seller?.email || req.user?.email || metadata.email || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentEmail)) {
         const email = String(body.email || '').trim().toLowerCase();
         sellerUpdates.email = email;
         userUpdates.email = email;
@@ -1074,31 +1095,46 @@ async function saveSellerProfileSettings(req, res) {
     }
 
     if (body.phone !== undefined) {
-      sellerUpdates.phone = String(body.phone || '').trim();
-      userUpdates.phone = sellerUpdates.phone;
-      metadata.phone = sellerUpdates.phone;
+      const currentPhone = req.seller?.phone || req.user?.phone || metadata.phone || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentPhone)) {
+        sellerUpdates.phone = String(body.phone || '').trim();
+        userUpdates.phone = sellerUpdates.phone;
+        metadata.phone = sellerUpdates.phone;
+      }
     }
     if (body.cep !== undefined || body.postalCode !== undefined || body.zipCode !== undefined) {
-      const cep = String(body.cep ?? body.postalCode ?? body.zipCode ?? '').replace(/\D/g, '').slice(0, 8);
-      metadata.cep = cep;
-      metadata.postalCode = cep;
+      const currentCep = metadata.cep || metadata.postalCode || metadata.zipCode || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentCep)) {
+        const cep = String(body.cep ?? body.postalCode ?? body.zipCode ?? '').replace(/\D/g, '').slice(0, 8);
+        metadata.cep = cep;
+        metadata.postalCode = cep;
+      }
     }
     if (body.address !== undefined || body.endereco !== undefined || body.streetAddress !== undefined) {
-      const address = String(body.address ?? body.endereco ?? body.streetAddress ?? '').trim();
-      metadata.address = address;
-      metadata.endereco = address;
+      const currentAddress = metadata.address || metadata.endereco || metadata.streetAddress || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentAddress)) {
+        const address = String(body.address ?? body.endereco ?? body.streetAddress ?? '').trim();
+        metadata.address = address;
+        metadata.endereco = address;
+      }
     }
     if (body.city !== undefined || body.cidade !== undefined) {
-      const city = String(body.city ?? body.cidade ?? '').trim();
-      userUpdates.city = city;
-      metadata.city = city;
-      metadata.cidade = city;
+      const currentCity = req.user?.city || metadata.city || metadata.cidade || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentCity)) {
+        const city = String(body.city ?? body.cidade ?? '').trim();
+        userUpdates.city = city;
+        metadata.city = city;
+        metadata.cidade = city;
+      }
     }
     if (body.uf !== undefined || body.state !== undefined) {
-      const uf = String(body.uf ?? body.state ?? '').trim().toUpperCase().slice(0, 2);
-      userUpdates.uf = uf;
-      metadata.uf = uf;
-      metadata.state = uf;
+      const currentUf = req.user?.uf || metadata.uf || metadata.state || '';
+      if (sellerFieldCanBeCompleted(sellerApproved, currentUf)) {
+        const uf = String(body.uf ?? body.state ?? '').trim().toUpperCase().slice(0, 2);
+        userUpdates.uf = uf;
+        metadata.uf = uf;
+        metadata.state = uf;
+      }
     }
 
     if (body.bio !== undefined || body.description !== undefined || body.descricao !== undefined) {
@@ -1894,12 +1930,30 @@ app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
     const bank = profile.bankAccount || {};
     const configuredCommission = meta.commissionPercent ?? meta.marketplaceCommissionPercent ?? seller.commissionPercent ?? seller.marketplaceCommissionPercent;
     const commissionPercent = Number.isFinite(Number(configuredCommission)) ? Number(configuredCommission) : null;
-    const hasBankData = Boolean(
+    const transferRouteReady = Boolean(
       String(bank.pixKey || '').trim() ||
       (String(bank.bankCode || bank.bank || '').trim() &&
        String(bank.agency || bank.branchNumber || '').trim() &&
        String(bank.account || bank.accountNumber || '').trim())
     );
+    const holderReady = Boolean(
+      String(bank.holderName || '').trim() &&
+      String(bank.holderDocument || '').trim()
+    );
+    const hasBankData = transferRouteReady && holderReady;
+    const rawBank = meta.bankAccount && typeof meta.bankAccount === 'object' ? meta.bankAccount : {};
+    const savedFields = {
+      bankHolderName: Boolean(String(rawBank.holderName || rawBank.bankHolderName || meta.bankHolderName || meta.holderName || '').trim()),
+      bankHolderDocument: Boolean(String(rawBank.holderDocument || rawBank.bankHolderDocument || meta.bankHolderDocument || meta.holderDocument || '').trim()),
+      bankName: Boolean(String(rawBank.bankName || rawBank.bank || meta.bankName || meta.bank || '').trim()),
+      bankCode: Boolean(String(rawBank.bankCode || meta.bankCode || '').trim()),
+      accountType: Boolean(String(rawBank.accountType || rawBank.bankAccountType || meta.accountType || meta.bankAccountType || '').trim()),
+      branchNumber: Boolean(String(rawBank.branchNumber || rawBank.agency || meta.branchNumber || meta.bankAgency || meta.agency || '').trim()),
+      branchCheckDigit: Boolean(String(rawBank.branchCheckDigit || rawBank.agencyDigit || meta.branchCheckDigit || meta.agencyDigit || '').trim()),
+      accountNumber: Boolean(String(rawBank.accountNumber || rawBank.account || meta.accountNumber || meta.bankAccountNumber || '').trim()),
+      accountCheckDigit: Boolean(String(rawBank.accountCheckDigit || rawBank.accountDigit || meta.accountCheckDigit || meta.accountDigit || '').trim()),
+      pixKey: Boolean(String(rawBank.pixKey || meta.pixKey || '').trim())
+    };
 
     return res.json({
       ok: true,
@@ -1907,6 +1961,8 @@ app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
       gateway: 'manual',
       splitRequired: false,
       manualTransferEnabled: true,
+      sellerApproved: profile.active === true,
+      savedFields,
       commissionPercent,
       checkoutGateways: { card: 'cielo', pix: 'mercado_pago', boleto: 'mercado_pago' },
       bank: {
@@ -1926,6 +1982,8 @@ app.get('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
         pixKey: bank.pixKey || '',
         holderName: bank.holderName || '',
         holderDocument: bank.holderDocument || '',
+        bankHolderName: bank.holderName || '',
+        bankHolderDocument: bank.holderDocument || '',
         legalName: profile.storeName || profile.displayName || profile.name || '',
         document: profile.document || profile.cnpj || ''
       }
@@ -1940,19 +1998,28 @@ app.put('/api/seller/payment-split', sellerAuthRequired, async (req, res) => {
     const body = req.body || {};
     const meta = { ...(req.seller.metadata || {}) };
     const current = sellerProfile(req.seller, req.user).bankAccount || {};
+    const sellerApproved = isApprovedSellerStatus(req.seller?.status || meta.status || '');
+    const keepOrComplete = (currentValue, incomingValue, fallback = '') => {
+      if (!sellerFieldCanBeCompleted(sellerApproved, currentValue)) return currentValue;
+      return incomingValue !== undefined && incomingValue !== null ? incomingValue : (currentValue ?? fallback);
+    };
     const bank = normalizeSellerBankFields({
       ...current,
-      bank: body.bankName || body.bank || current.bank || current.bankName || '',
-      bankName: body.bankName || body.bank || current.bankName || current.bank || '',
-      bankCode: body.bankCode ?? current.bankCode,
-      agency: body.branchNumber ?? body.agency ?? current.agency,
-      agencyDigit: body.branchCheckDigit ?? body.agencyDigit ?? current.agencyDigit,
-      account: body.accountNumber ?? body.account ?? current.account,
-      accountDigit: body.accountCheckDigit ?? body.accountDigit ?? current.accountDigit,
-      accountType: body.accountType ?? current.accountType ?? 'checking',
-      pixKey: body.pixKey ?? current.pixKey ?? '',
-      holderName: body.bankHolderName ?? body.holderName ?? current.holderName ?? '',
-      holderDocument: body.bankHolderDocument ?? body.holderDocument ?? current.holderDocument ?? ''
+      bank: keepOrComplete(current.bank || current.bankName || '', body.bankName ?? body.bank, ''),
+      bankName: keepOrComplete(current.bankName || current.bank || '', body.bankName ?? body.bank, ''),
+      bankCode: keepOrComplete(current.bankCode || '', body.bankCode, ''),
+      agency: keepOrComplete(current.agency || current.branchNumber || '', body.branchNumber ?? body.agency, ''),
+      agencyDigit: keepOrComplete(current.agencyDigit || current.branchCheckDigit || '', body.branchCheckDigit ?? body.agencyDigit, ''),
+      account: keepOrComplete(current.accountNumber || current.account || '', body.accountNumber ?? body.account, ''),
+      accountDigit: keepOrComplete(current.accountDigit || current.accountCheckDigit || '', body.accountCheckDigit ?? body.accountDigit, ''),
+      accountType: keepOrComplete(
+        String(meta.bankAccount?.accountType || meta.bankAccount?.bankAccountType || meta.accountType || meta.bankAccountType || ''),
+        body.accountType,
+        'checking'
+      ),
+      pixKey: keepOrComplete(current.pixKey || '', body.pixKey, ''),
+      holderName: keepOrComplete(current.holderName || '', body.bankHolderName ?? body.holderName, ''),
+      holderDocument: keepOrComplete(current.holderDocument || '', body.bankHolderDocument ?? body.holderDocument, '')
     });
 
     meta.paymentGateway = 'manual';
