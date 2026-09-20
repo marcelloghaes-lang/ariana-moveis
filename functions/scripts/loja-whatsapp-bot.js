@@ -13,6 +13,11 @@ const VISION_API_KEY = String(
   ''
 ).trim();
 const VISION_MODEL = String(process.env.LOJA_VISION_MODEL || 'gpt-5.6-luna').trim();
+const VISION_DETAIL = ['low', 'high', 'auto'].includes(
+  String(process.env.LOJA_VISION_DETAIL || 'high').trim().toLowerCase()
+)
+  ? String(process.env.LOJA_VISION_DETAIL || 'high').trim().toLowerCase()
+  : 'high';
 const VISION_MIN_CONFIDENCE = Math.min(
   0.99,
   Math.max(0.5, Number(process.env.LOJA_VISION_MIN_CONFIDENCE || 0.72))
@@ -419,7 +424,7 @@ async function classifyImageWithVision(media = {}, contextText = '') {
               {
                 type: 'input_image',
                 image_url: `data:${mime};base64,${media.base64}`,
-                detail: 'low'
+                detail: VISION_DETAIL
               }
             ]
           }
@@ -474,13 +479,17 @@ function asksAboutImageProduct(text) {
 }
 
 function emojiOnlyIntent(text) {
-  const raw = String(text || '').replace(/\s+/g, '');
+  const raw = String(text || '')
+    .replace(/\s+/g, '')
+    .replace(/\uFE0F/g, '')
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '');
+
   if (!raw) return '';
 
-  if (/^(?:👍|🙏|😊|🙂|😁|😄|❤️|❤|👏|✅|👌|🤝|🙌|🥰|😍|💙|💛|😂|🤣)+$/u.test(raw)) {
+  if (/^(?:👍|🙏|😊|🙂|😁|😄|❤|👏|✅|👌|🤝|🙌|🥰|😍|💙|💛|😂|🤣)+$/u.test(raw)) {
     return 'positive';
   }
-  if (/^(?:🤔|❓|❔|⁉️|⁉)+$/u.test(raw)) return 'question';
+  if (/^(?:🤔|❓|❔|⁉)+$/u.test(raw)) return 'question';
   if (/^(?:😕|😟|😞|😡|😠|👎|😤|😭)+$/u.test(raw)) return 'negative';
 
   return '';
@@ -1938,6 +1947,7 @@ const server = http.createServer((req, res) => {
       botTokenConfigured: Boolean(LOJA_BOT_API_TOKEN),
       visionConfigured: Boolean(VISION_API_KEY),
       visionModel: VISION_MODEL,
+      visionDetail: VISION_DETAIL,
       legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL),
       manualHumanPauseMinutes: Math.round(MANUAL_HUMAN_PAUSE_MS / 60000)
     });
