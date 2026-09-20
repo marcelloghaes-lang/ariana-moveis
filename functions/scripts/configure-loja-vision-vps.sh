@@ -62,6 +62,9 @@ wanted = {
     "LOJA_VISION_DETAIL": "high",
     "LOJA_VISION_MIN_CONFIDENCE": "0.72",
     "LOJA_VISION_TIMEOUT_MS": "20000",
+    "LOJA_VISION_MONTHLY_BUDGET_BRL": "30",
+    "LOJA_VISION_BUDGET_GUARD_BRL": "0.50",
+    "LOJA_VISION_USD_BRL": "6.00",
 }
 
 lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
@@ -105,6 +108,7 @@ printf '%s\n' \
   "Modelo: gpt-5.6-luna" \
   "Detalhe: high" \
   "Confiança mínima: 0.72" \
+  "Limite mensal local: R$ 30,00 (bloqueio preventivo em R$ 29,50)" \
   "" \
   "Agora rode:" \
   "  bash /root/run-loja-whatsapp-tests-vps.sh"
