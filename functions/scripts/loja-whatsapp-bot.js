@@ -6,12 +6,7 @@ const EVOLUTION_API_URL = String(process.env.EVOLUTION_API_URL || 'http://127.0.
 const EVOLUTION_API_KEY = String(process.env.EVOLUTION_API_KEY || '').trim();
 const EVOLUTION_INSTANCE = String(process.env.LOJA_EVOLUTION_INSTANCE || 'ariana loja').trim();
 const BACKEND_URL = String(process.env.ARIANA_BACKEND_URL || 'https://ariana-backend.onrender.com').replace(/\/$/, '');
-const BOT_API_TOKEN = String(
-  process.env.BOT_API_TOKEN ||
-  process.env.FINANCEIRO_BOT_SECRET ||
-  process.env.SAC_BOT_SECRET ||
-  ''
-).trim();
+const LOJA_BOT_API_TOKEN = String(process.env.LOJA_BOT_API_TOKEN || '').trim();
 
 const SITE_URL = 'https://arianamoveis.com.br';
 const PIX_KEY = '31985147119';
@@ -205,7 +200,7 @@ async function readJson(response) {
 
 async function backend(path, { method = 'GET', body = null, botAuth = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (botAuth && BOT_API_TOKEN) headers['x-bot-token'] = BOT_API_TOKEN;
+  if (botAuth && LOJA_BOT_API_TOKEN) headers['x-loja-bot-token'] = LOJA_BOT_API_TOKEN;
   const response = await fetch(`${BACKEND_URL}${path}`, {
     method,
     headers,
@@ -946,7 +941,7 @@ const server = http.createServer((req, res) => {
       port: PORT,
       backend: BACKEND_URL,
       evolutionConfigured: Boolean(EVOLUTION_API_KEY),
-      botTokenConfigured: Boolean(BOT_API_TOKEN),
+      botTokenConfigured: Boolean(LOJA_BOT_API_TOKEN),
       legacyWebhookForwarding: Boolean(LEGACY_WEBHOOK_URL)
     });
   }
